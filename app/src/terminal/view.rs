@@ -274,7 +274,7 @@ use crate::ai::blocklist::{
     PassiveSuggestionsModels, PendingAttachment, PendingQueryState, QueuedQuery, QueuedQueryId,
     QueuedQueryModel, QueuedQueryOrigin, RequestFileEditsFormatKind, ShellCommandExecutor,
     ShellCommandExecutorEvent, SlashCommandRequest, StartAgentExecutor, StartAgentExecutorEvent,
-    StartAgentRequest, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, PRE_REWIND_PREFIX,
+    StartAgentRequest, PRE_REWIND_PREFIX,
 };
 use crate::ai::conversation_details_panel::ConversationDetailsPanelEvent;
 use crate::ai::conversation_utils;
