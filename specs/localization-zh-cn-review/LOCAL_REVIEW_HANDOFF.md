@@ -11,11 +11,13 @@ submit or update a PR.
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
 - Validated candidate head before this documentation-only handoff:
-  `36e35ff2`
+  `c2d9ddf8`
+- Code changes since the latest real-display visual smoke: none. The commits
+  after `e2143e53` update only local evidence documents.
 - Upstream base: `upstream/master` at `c37c1cd6`
-- Upstream comparison before this handoff: `0 7` from
+- Upstream comparison before this handoff: `0 8` from
   `git rev-list --left-right --count upstream/master...HEAD`
-- Remote branch comparison before this handoff: `0 5` from
+- Remote branch comparison before this handoff: `0 6` from
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
 - Working tree before this handoff: clean
 - Open PRs for `feat/localization-settings-upstream-rebuild`: none
@@ -35,7 +37,7 @@ submit or update a PR.
 
 ## Verification Matrix
 
-The following commands were run locally against `36e35ff2` unless otherwise
+The following commands were run locally against `c2d9ddf8` unless otherwise
 noted.
 
 ```bash
@@ -66,7 +68,8 @@ Result: pass.
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 20 tests passed.
+Result: pass, 20 tests passed. Latest run compiled in 12.47s and the test
+binary finished in 12.38s.
 
 ```bash
 cargo test -p warp --lib localization_tests -- --nocapture
@@ -74,25 +77,27 @@ cargo test -p warp --lib localization_tests -- --nocapture
 
 Result: pass as a compile/filter check, but it runs 0 tests because the current
 app test module is registered as `localization::tests`. Latest run compiled in
-14.09s and reported 4664 filtered tests.
+1m 19s and reported 4664 filtered tests.
 
 ```bash
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests passed with 4656 filtered tests.
+Result: pass, 8 tests passed with 4656 filtered tests. Latest run compiled in
+3.94s and the filtered test run finished in 4.74s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass, 3m 14s.
+Result: pass, 4m 44s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass, 1m 14s.
+Result: pass on `e2143e53`, 1m 14s. It was not rerun after `e2143e53` because
+later commits only update local evidence documents.
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
@@ -101,8 +106,10 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass, exit code 0. The run used a real display, executed 15 steps, and
-asserted localized app menu and Dock menu titles.
+Result: pass on `e2143e53`, exit code 0. The run used a real display, executed
+15 steps, and asserted localized app menu and Dock menu titles. It was not
+rerun after `e2143e53` because later commits only update local evidence
+documents.
 
 ## Visual Evidence
 
@@ -142,14 +149,14 @@ reported zero remaining zh-CN value matches for `智能体`, `Workflows`,
 
 - `origin/feat/localization-settings` remains at `2f6fcabb`. Compared with the
   active local branch before this handoff, `HEAD...origin/feat/localization-settings`
-  was `68 7`, with merge base `f3dd3768`.
+  was `69 7`, with merge base `f3dd3768`.
 - `origin/feat/localization-settings-reviewed` remains at `1ce47b43`. Compared
   with the active local branch before this handoff,
-  `HEAD...origin/feat/localization-settings-reviewed` was `122 2`, with merge
+  `HEAD...origin/feat/localization-settings-reviewed` was `123 2`, with merge
   base `be5b39ae`.
 - `origin/feat/localization-settings-upstream-validated` remains at `58ef5d5f`.
   Compared with the active local branch before this handoff,
-  `HEAD...origin/feat/localization-settings-upstream-validated` was `26 8`,
+  `HEAD...origin/feat/localization-settings-upstream-validated` was `27 8`,
   with merge base `0b737e22`.
 
 Recommendation: use `feat/localization-settings-upstream-rebuild` as the local
