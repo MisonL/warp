@@ -8,17 +8,16 @@ localization work on branch `feat/localization-settings-upstream-rebuild`.
 ## Branch State
 
 - Branch: `feat/localization-settings-upstream-rebuild`
-- Validated upstream base: `2566f54a`
-- Review branch comparison: two local commits ahead of
-  `upstream/master`; `upstream/master` itself resolved to `2566f54a` during the
+- Validated upstream base: `c37c1cd6`
+- Review branch comparison: five local commits ahead of
+  `upstream/master`; `upstream/master` itself resolved to `c37c1cd6` during the
   latest validation run.
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, or
   `.git/index.lock`
 - Stash state: the May 27 rebase autostash remains as a safety backup, and the
   pre-existing May 19 stash remains
 - Review state: all localization changes were restored and validated against the
-  current `upstream/master` base. The latest pass has a focused dirty
-  worktree for the async find upstream follow-up and this evidence document.
+  current `upstream/master` base.
 
 ## Rebase Result
 
@@ -73,6 +72,10 @@ They are now backed by `settings.features.async_find.label` and
 `settings.features.async_find.description` in both locale catalogs, and
 `AsyncFindWidget` now passes `app` as the first `render_body_item_label`
 argument.
+
+After the `c37c1cd6` upstream refresh, `upstream/master` added earlier cloud
+agent task context setup in `app/src/ai/agent_sdk/mod.rs`. The local branch
+merged that upstream change cleanly with no conflict.
 
 ## Post-Rebase Fixes
 
@@ -182,7 +185,7 @@ Term scan counts:
 
 ## Verification
 
-Commands run after the `2566f54a` upstream refresh:
+Commands run after the `c37c1cd6` upstream refresh:
 
 ```bash
 git diff --check && git diff --cached --check && \
@@ -201,9 +204,8 @@ Result: pass.
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 20 tests on current `b563723c` plus the focused async find
-worktree changes. Latest run compiled in 9.21s and the catalog test binary
-finished in 20.00s.
+Result: pass, 20 tests on current `bf3ec71a`. Latest run compiled in 10.10s
+and the catalog test binary finished in 18.81s.
 
 ```bash
 cargo test -p warp --lib localization_tests -- --nocapture
@@ -217,23 +219,20 @@ Actual app localization tests are registered under `localization::tests`.
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests on current `b563723c` plus the focused async find
-worktree changes, with 4656 filtered. Latest run compiled in 54m 05s and the
-filtered test run finished in 1.58s.
+Result: pass, 8 tests on current `bf3ec71a`, with 4656 filtered. Latest run
+compiled in 8m 22s and the filtered test run finished in 0.91s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass on current `b563723c` plus the focused async find worktree
-changes, 31m 29s.
+Result: pass on current `bf3ec71a`, 7m 02s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass on current `b563723c` plus the focused async find worktree
-changes, 62m 00s.
+Result: pass on current `bf3ec71a`, 28m 29s.
 
 The current-head visual smoke was then run directly through the built binary to
 avoid retriggering Cargo build/link work:
@@ -245,11 +244,10 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass on current `b563723c` plus the focused async find worktree
-changes, exit code 0. The integration run used a real display, executed 15
-steps, included the runtime app menu and Dock menu title assertion, and saved a
-fresh artifact set under
-`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47`.
+Result: pass on current `bf3ec71a`, exit code 0. The integration run used a
+real display, executed 15 steps, included the runtime app menu and Dock menu
+title assertion, and saved a fresh artifact set under
+`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55`.
 
 Earlier current-branch attempts through `cargo run -p integration --bin
 integration -- ...` and the ignored `cargo test -p integration --test
@@ -259,14 +257,14 @@ above is the current completed result.
 
 Latest completed visual artifacts:
 
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/settings-appearance-language-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/terminal-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/context-chips-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/command-search-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/agent-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/command-palette-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/toast-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47/dialog-launch-config-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/settings-appearance-language-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/terminal-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/context-chips-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/command-search-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/agent-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/command-palette-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/toast-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/dialog-launch-config-zh-cn.png`
 
 Each artifact is a `2560 x 1600` PNG.
 
@@ -278,15 +276,15 @@ conversation section header as `当前` and the row timestamp as `刚刚`.
 Goal item status against the current local branch:
 
 - Rebase or merge latest `upstream/master`: satisfied locally. The review
-  candidate is based directly on `upstream/master` at `2566f54a`.
+  candidate is based directly on `upstream/master` at `c37c1cd6`.
 - App-level verification: satisfied locally. The listed `cargo test`,
   `cargo check`, `jq empty`, and `git diff --check` commands have passing
   results recorded above.
-- zh-CN visual review: satisfied for the current `8f8ff4a8` run. The
+- zh-CN visual review: satisfied for the current `bf3ec71a` run. The
   real-display smoke covers Settings language selection, menus/Dock assertions,
   Agent input, Terminal input, Search, Context chips, toast, and dialog
   screenshots, with fresh artifacts under
-  `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T18-02-47`.
+  `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55`.
 - Terminology review: satisfied for the catalog-level review scope recorded
   above. The 71 ASCII-only zh-CN values and ASCII-with-CJK values were reviewed;
   remaining English fragments are intentional product, protocol, command, field,
@@ -300,7 +298,9 @@ Goal item status against the current local branch:
 - Local commit readiness: satisfied locally for this pass. The large
   localization commit is already present locally, and the latest async find
   follow-up plus this evidence update were validated together before commit.
-- PR creation or update: pending per review handoff policy.
+- PR creation or update: intentionally not performed. The user explicitly
+  instructed not to submit a PR; the mistakenly opened `#11739` is closed, and
+  this pass keeps the candidate local.
 
 ## Review Handoff Draft
 
@@ -328,7 +328,7 @@ The original branch names referenced by the handoff are no longer the active
 completion basis for this local worktree:
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`, based on
-  `upstream/master` at `2566f54a`.
+  `upstream/master` at `c37c1cd6`.
 - `origin/feat/localization-settings` remains at `2f6fcabb`. Compared with the
   active branch, `git rev-list --left-right --count
   HEAD...origin/feat/localization-settings` returns `60 7`, with merge base
@@ -343,14 +343,14 @@ completion basis for this local worktree:
   with merge base `0b737e22`.
 
 Recommendation: treat `feat/localization-settings-upstream-rebuild` as the
-current review candidate and leave the older `reviewed` branch as historical
-reference only. Avoid force-updating or deleting older remote branches during
-review setup.
+current local review candidate and leave the older `reviewed` branch as
+historical reference only. Avoid force-updating or deleting older remote
+branches.
 
 ## Remaining Risk
 
-- PR review remains pending until the candidate branch is reviewed through the
-  intended handoff path.
+- External review remains pending until the user explicitly allows a handoff
+  path. No PR creation or update is part of this local pass.
 - The May 27 rebase autostash remains in the stash list as a conservative
   backup; it was not dropped during this pass.
 - Visual coverage now includes Settings language selection, terminal input,
