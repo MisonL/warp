@@ -10,14 +10,14 @@ submit or update a PR.
 ## Candidate State
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
-- Validated candidate head before this documentation-only handoff:
-  `c2d9ddf8`
+- Validated candidate code head: `c2d9ddf8`. Later commits on this branch may
+  update local evidence documents only.
 - Code changes since the latest real-display visual smoke: none. The commits
   after `e2143e53` update only local evidence documents.
 - Upstream base: `upstream/master` at `c37c1cd6`
-- Upstream comparison before this handoff: `0 8` from
+- Upstream comparison at the code-validation point: `0 8` from
   `git rev-list --left-right --count upstream/master...HEAD`
-- Remote branch comparison before this handoff: `0 6` from
+- Remote branch comparison at the code-validation point: `0 6` from
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
 - Working tree before this handoff: clean
 - Open PRs for `feat/localization-settings-upstream-rebuild`: none
@@ -148,16 +148,15 @@ reported zero remaining zh-CN value matches for `智能体`, `Workflows`,
 ## Branch Notes
 
 - `origin/feat/localization-settings` remains at `2f6fcabb`. Compared with the
-  active local branch before this handoff, `HEAD...origin/feat/localization-settings`
-  was `69 7`, with merge base `f3dd3768`.
+  code-validation point, `HEAD...origin/feat/localization-settings` was `69 7`,
+  with merge base `f3dd3768`.
 - `origin/feat/localization-settings-reviewed` remains at `1ce47b43`. Compared
-  with the active local branch before this handoff,
-  `HEAD...origin/feat/localization-settings-reviewed` was `123 2`, with merge
-  base `be5b39ae`.
+  with the code-validation point, `HEAD...origin/feat/localization-settings-reviewed`
+  was `123 2`, with merge base `be5b39ae`.
 - `origin/feat/localization-settings-upstream-validated` remains at `58ef5d5f`.
-  Compared with the active local branch before this handoff,
-  `HEAD...origin/feat/localization-settings-upstream-validated` was `27 8`,
-  with merge base `0b737e22`.
+  Compared with the code-validation point,
+  `HEAD...origin/feat/localization-settings-upstream-validated` was `27 8`, with
+  merge base `0b737e22`.
 
 Recommendation: use `feat/localization-settings-upstream-rebuild` as the local
 review candidate. Treat `feat/localization-settings-reviewed` as historical

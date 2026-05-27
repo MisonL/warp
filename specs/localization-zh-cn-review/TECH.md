@@ -9,10 +9,11 @@ localization work on branch `feat/localization-settings-upstream-rebuild`.
 
 - Branch: `feat/localization-settings-upstream-rebuild`
 - Validated upstream base: `c37c1cd6`
-- Review branch comparison after the latest evidence refresh: eight local
+- Review branch comparison at the latest code-validation point: eight local
   commits ahead of `upstream/master`; `upstream/master` itself resolved to
   `c37c1cd6` after `git fetch upstream master`.
-- Validated local head after the latest evidence refresh: `c2d9ddf8`
+- Validated code head: `c2d9ddf8`. Later commits on this branch may update
+  local evidence documents only.
 - Code changes since the latest real-display visual smoke: none. The commits
   after `e2143e53` update only local evidence documents.
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, or
@@ -188,7 +189,8 @@ Term scan counts:
 
 ## Verification
 
-Commands rerun after `git fetch upstream master` on local head `c2d9ddf8`:
+Commands rerun after `git fetch upstream master` at code-validation point
+`c2d9ddf8`:
 
 ```bash
 git diff --check upstream/master...HEAD && git diff --check && git diff --cached --check
@@ -290,9 +292,9 @@ Goal item status against the current local branch:
 
 - Rebase or merge latest `upstream/master`: satisfied locally. The review
   candidate is based directly on `upstream/master` at `c37c1cd6`.
-- App-level verification: satisfied locally. The listed `cargo test`,
-  `cargo check`, `jq empty`, and `git diff --check` commands have passing
-  results recorded above.
+- App-level verification: satisfied locally at code-validation point
+  `c2d9ddf8`. The listed `cargo test`, `cargo check`, `jq empty`, and
+  `git diff --check` commands have passing results recorded above.
 - zh-CN visual review: satisfied for the `e2143e53` run, with no code changes
   after that run. The
   real-display smoke covers Settings language selection, menus/Dock assertions,
@@ -311,7 +313,7 @@ Goal item status against the current local branch:
   5576 keys, with 0 missing keys, 0 extra keys, and 0 placeholder mismatches.
 - Local commit readiness: satisfied locally for this pass. The large
   localization commit is already present locally, and the latest async find
-  follow-up plus evidence-only local commits were validated on `c2d9ddf8`.
+  follow-up plus evidence-only local commits through `c2d9ddf8` were validated.
 - PR creation or update: intentionally not performed. The user explicitly
   instructed not to submit a PR; the mistakenly opened `#11739` is closed, and
   this pass keeps the candidate local.
@@ -344,15 +346,15 @@ completion basis for this local worktree:
 - Active local branch: `feat/localization-settings-upstream-rebuild`, based on
   `upstream/master` at `c37c1cd6`.
 - `origin/feat/localization-settings` remains at `2f6fcabb`. Compared with the
-  active branch, `git rev-list --left-right --count
+  code-validation point, `git rev-list --left-right --count
   HEAD...origin/feat/localization-settings` returns `69 7`, with merge base
   `f3dd3768`.
 - `origin/feat/localization-settings-reviewed` remains at `1ce47b43`. Compared
-  with the active branch, `git rev-list --left-right --count
+  with the code-validation point, `git rev-list --left-right --count
   HEAD...origin/feat/localization-settings-reviewed` returns `123 2`, with
   merge base `be5b39ae`.
 - `origin/feat/localization-settings-upstream-validated` remains at `58ef5d5f`.
-  Compared with the active branch, `git rev-list --left-right --count
+  Compared with the code-validation point, `git rev-list --left-right --count
   HEAD...origin/feat/localization-settings-upstream-validated` returns `27 8`,
   with merge base `0b737e22`.
 
