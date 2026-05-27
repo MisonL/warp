@@ -133,7 +133,10 @@ fn cloud_with_opencode_disables_accept() {
     ));
     let reason = state.orch.accept_disabled_reason();
     assert!(reason.is_some(), "Cloud + OpenCode should disable Accept");
-    assert!(reason.unwrap().contains("OpenCode"));
+    assert_eq!(
+        reason,
+        Some("agent.orchestration.controls.opencode_cloud_unsupported")
+    );
 }
 
 #[test]

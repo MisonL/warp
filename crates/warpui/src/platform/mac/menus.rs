@@ -328,6 +328,22 @@ unsafe fn make_submenu(menu_items: Vec<MenuItem>) -> id {
     nsmenu
 }
 
+unsafe fn make_standard_menu_item(standard_action: StandardAction, title: Option<String>) -> id {
+    let mtm = MainThreadMarker::new_unchecked();
+    let properties = resolve_standard_action(standard_action);
+    let localized_title = title.as_deref().map(NSString::from_str);
+    let resolved_title = localized_title.as_deref().unwrap_or(properties.title);
+    let nsmenu_item = NSMenuItem::initWithTitle_action_keyEquivalent(
+        mtm.alloc(),
+        resolved_title,
+        Some(properties.action),
+        properties.shortcut,
+    );
+    nsmenu_item.setKeyEquivalentModifierMask(properties.modifiers);
+    nsmenu_item.setTag(standard_action as NSInteger);
+    Retained::autorelease_ptr(nsmenu_item) as id
+}
+
 unsafe fn make_menu_item(menu_item: MenuItem) -> id {
     match menu_item {
         MenuItem::Custom(custom_menu_item) => {
@@ -348,18 +364,9 @@ unsafe fn make_menu_item(menu_item: MenuItem) -> id {
 
             nsmenu_item
         }
-        MenuItem::Standard(standard_action) => {
-            let mtm = MainThreadMarker::new_unchecked();
-            let properties = resolve_standard_action(standard_action);
-            let nsmenu_item = NSMenuItem::initWithTitle_action_keyEquivalent(
-                mtm.alloc(),
-                properties.title,
-                Some(properties.action),
-                properties.shortcut,
-            );
-            nsmenu_item.setKeyEquivalentModifierMask(properties.modifiers);
-            nsmenu_item.setTag(standard_action as NSInteger);
-            Retained::autorelease_ptr(nsmenu_item) as id
+        MenuItem::Standard(standard_action) => make_standard_menu_item(standard_action, None),
+        MenuItem::LocalizedStandard { action, title } => {
+            make_standard_menu_item(action, Some(title))
         }
         MenuItem::Separator => {
             Retained::autorelease_ptr(NSMenuItem::separatorItem(MainThreadMarker::new_unchecked()))

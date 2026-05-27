@@ -74,6 +74,7 @@ use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::GenericStringObjectFormat::Json;
 use crate::cloud_object::{JsonObjectType, ObjectType};
 use crate::editor::{EditorOptions, InteractionState, SingleLineEditorOptions, TextColors};
+use crate::localization;
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::settings::{
     AIAutoDetectionEnabled, AICommandDenylist, AISettingsChangedEvent,
@@ -96,6 +97,10 @@ use crate::view_components::{
     WarningBoxConfig,
 };
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
+
+fn ai_settings_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// Identifies which subpage of the AI settings the user is viewing.
 /// When `None`, the page shows all widgets (legacy/full view).
@@ -2807,8 +2812,12 @@ impl AISettingsPageView {
                         items.push(fields.into_item());
                     }
 
+                    let other_agent_label =
+                        ai_settings_text(ctx, "settings.ai.cli_agent_toolbar.other_agent");
+                    let select_coding_agent_label =
+                        ai_settings_text(ctx, "settings.ai.cli_agent_toolbar.select_coding_agent");
                     items.push(
-                        MenuItemFields::new("Other")
+                        MenuItemFields::new(&other_agent_label)
                             .with_on_select_action(DropdownAction::select_action_and_close(
                                 AISettingsPageAction::SetCLIAgentForCommand {
                                     pattern: pattern_clone.clone(),
@@ -2820,20 +2829,21 @@ impl AISettingsPageView {
 
                     dropdown.set_rich_items(items, ctx);
 
-                    dropdown.set_menu_header_text_override(|label| {
-                        if label == "Other" {
-                            "Select coding agent".to_string()
+                    let menu_header_other_agent_label = other_agent_label.clone();
+                    dropdown.set_menu_header_text_override(move |label| {
+                        if label == menu_header_other_agent_label {
+                            select_coding_agent_label.clone()
                         } else {
                             label.to_string()
                         }
                     });
 
                     let selected_name = if matches!(current_agent, CLIAgent::Unknown) {
-                        "Other"
+                        other_agent_label
                     } else {
-                        current_agent.display_name()
+                        current_agent.display_name().to_string()
                     };
-                    dropdown.set_selected_by_name(selected_name, ctx);
+                    dropdown.set_selected_by_name(&selected_name, ctx);
 
                     dropdown
                 })
@@ -5231,6 +5241,7 @@ impl AgentsWidget {
         let org_denylist = BlocklistAIPermissions::get_org_execute_commands_denylist(app);
         let mut tooltip_idx = 0usize;
         let list = render_input_list(
+            app,
             None,
             command_denylist
                 .into_iter()
@@ -5280,6 +5291,7 @@ impl AgentsWidget {
     ) -> Box<dyn Element> {
         let disabled = !ai_settings.is_command_allowlist_editable(app);
         let list = render_input_list(
+            app,
             None,
             command_allowlist
                 .into_iter()
@@ -5315,6 +5327,7 @@ impl AgentsWidget {
     ) -> Box<dyn Element> {
         let disabled = !ai_settings.is_directory_allowlist_editable(app);
         let list = render_input_list(
+            app,
             None,
             directory_allowlist
                 .clone()
@@ -5659,6 +5672,7 @@ impl AgentsWidget {
 
         let disabled = !ai_settings.is_any_ai_enabled(app);
         let items = render_input_list(
+            app,
             None,
             items
                 .into_iter()
@@ -6477,7 +6491,7 @@ impl SettingsWidget for OtherAIWidget {
             .with_child(
                 build_sub_header(
                     appearance,
-                    "Other",
+                    &ai_settings_text(app, "settings.ai.other.section"),
                     Some(styles::header_font_color(is_any_ai_enabled, app)),
                 )
                 .with_padding_bottom(HEADER_PADDING)

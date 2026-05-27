@@ -26,6 +26,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::view::ambient_agent::auth_secret_ftux_dropdown::{
     AuthSecretFtuxDropdown, FtuxDropdownEvent,
@@ -143,7 +144,14 @@ pub struct AuthSecretFtuxView {
 
 impl AuthSecretFtuxView {
     pub fn new(harness: Harness, ctx: &mut ViewContext<Self>) -> Self {
-        let name_editor = make_single_line_editor(Some("e.g. My API Key"), false, ctx);
+        let name_editor = make_single_line_editor(
+            Some(localization::text_for_app(
+                ctx,
+                "terminal.auth_secret.placeholder.name",
+            )),
+            false,
+            ctx,
+        );
 
         ctx.subscribe_to_view(&name_editor, |me, _, event, ctx| {
             me.handle_form_editor_event(0, event, ctx);
@@ -218,7 +226,11 @@ impl AuthSecretFtuxView {
                         state.is_saving = false;
                         state.pending_name = None;
                         let window_id = ctx.window_id();
-                        let message = format!("Failed to save API key: {error}");
+                        let message = localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.auth_secret.save_failed",
+                            &[("error", error)],
+                        );
                         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                             ts.add_ephemeral_toast(
                                 DismissibleToast::error(message),
@@ -554,7 +566,8 @@ impl AuthSecretFtuxView {
         let mut editors = Vec::with_capacity(info.fields.len());
         for (field_idx, field) in info.fields.iter().enumerate() {
             let placeholder = field.placeholder.unwrap_or(field.label);
-            let editor = make_single_line_editor(Some(placeholder), field.sensitive, ctx);
+            let editor =
+                make_single_line_editor(Some(placeholder.to_string()), field.sensitive, ctx);
             let editor_index = field_idx + 1;
             ctx.subscribe_to_view(&editor, move |me, _, event, ctx| {
                 me.handle_form_editor_event(editor_index, event, ctx);
@@ -723,7 +736,11 @@ impl AuthSecretFtuxView {
         ctx: &mut ViewContext<Self>,
     ) {
         let window_id = ctx.window_id();
-        let message = format!("API key '{name}' saved.");
+        let message = localization::text_for_app_with_args(
+            ctx,
+            "terminal.auth_secret.saved",
+            &[("name", &name)],
+        );
         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
             ts.add_ephemeral_toast(DismissibleToast::default(message), window_id, ctx);
         });
@@ -741,10 +758,14 @@ impl AuthSecretFtuxView {
 
         let main_text = {
             let description = if self.current_type_info().is_some() {
-                "Enter your credentials below.".to_string()
+                localization::text_for_app(app, "terminal.auth_secret.enter_credentials")
             } else {
                 let display_name = harness_display::display_name(self.harness);
-                format!("Select an API key type to use {display_name} in the cloud with Oz.")
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.auth_secret.select_type_description",
+                    &[("harness", display_name)],
+                )
             };
             Text::new_inline(description, font_family, DESCRIPTION_FONT_SIZE)
                 .with_color(theme.foreground().into())
@@ -753,7 +774,7 @@ impl AuthSecretFtuxView {
         };
 
         let privacy_text = Text::new_inline(
-            "Your credentials are encrypted end-to-end. ".to_string(),
+            localization::text_for_app(app, "terminal.auth_secret.privacy_prefix"),
             font_family,
             TYPE_DESCRIPTION_FONT_SIZE,
         )
@@ -766,8 +787,11 @@ impl AuthSecretFtuxView {
             .current_type_info()
             .map(|info| info.learn_more_url)
             .unwrap_or_else(|| learn_more_url_for_harness(self.harness));
-        let learn_more_label =
-            format!("Learn more about authentication for {harness_name} in Warp.");
+        let learn_more_label = localization::text_for_app_with_args(
+            app,
+            "terminal.auth_secret.learn_more_for_harness",
+            &[("harness", harness_name)],
+        );
         let learn_more = Hoverable::new(self.learn_more_mouse_state.clone(), move |state| {
             let color = if state.is_hovered() {
                 accent_color
@@ -874,7 +898,7 @@ impl AuthSecretFtuxView {
         let theme = appearance.theme();
         let label_color = internal_colors::text_sub(theme, theme.surface_1());
         let label = Text::new_inline(
-            "Share with team".to_string(),
+            localization::text_for_app(app, "terminal.auth_secret.share_with_team"),
             appearance.ui_font_family(),
             TYPE_DESCRIPTION_FONT_SIZE,
         )
@@ -900,8 +924,9 @@ impl AuthSecretFtuxView {
             .with_main_axis_size(MainAxisSize::Min)
             .with_spacing(FORM_FIELD_SPACING);
 
+        let name_label = localization::text_for_app(app, "terminal.auth_secret.field.name");
         column.add_child(
-            Container::new(self.render_field_label("NAME", app))
+            Container::new(self.render_field_label(&name_label, app))
                 .with_padding_top(CONTENT_SECTION_SPACING)
                 .finish(),
         );
@@ -909,7 +934,11 @@ impl AuthSecretFtuxView {
 
         for (idx, field) in info.fields.iter().enumerate() {
             let label = if field.optional {
-                format!("{} (optional)", field.label)
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.auth_secret.optional_label",
+                    &[("label", field.label)],
+                )
             } else {
                 field.label.to_string()
             };
@@ -926,7 +955,7 @@ impl AuthSecretFtuxView {
 
     fn render_button(
         &self,
-        label: &'static str,
+        label: String,
         mouse_state: MouseStateHandle,
         background: Option<Fill>,
         action: AuthSecretFtuxAction,
@@ -986,9 +1015,15 @@ impl AuthSecretFtuxView {
         row.add_child(Expanded::new(1., Empty::new().finish()).finish());
 
         let (label, action) = if self.creation_state.is_some() {
-            ("Back", AuthSecretFtuxAction::Back)
+            (
+                localization::text_for_app(app, "settings.action.back"),
+                AuthSecretFtuxAction::Back,
+            )
         } else {
-            ("Cancel", AuthSecretFtuxAction::Cancel)
+            (
+                localization::text_for_app(app, "settings.action.cancel"),
+                AuthSecretFtuxAction::Cancel,
+            )
         };
         row.add_child(self.render_button(
             label,
@@ -1002,7 +1037,7 @@ impl AuthSecretFtuxView {
         let accent_fill = Appearance::as_ref(app).theme().accent();
         let continue_disabled = !self.can_submit_creation_form(app);
         row.add_child(self.render_button(
-            "Continue",
+            localization::text_for_app(app, "settings.action.continue"),
             self.continue_mouse_state.clone(),
             Some(accent_fill),
             AuthSecretFtuxAction::Continue,
@@ -1015,11 +1050,10 @@ impl AuthSecretFtuxView {
 }
 
 fn make_single_line_editor(
-    placeholder: Option<&str>,
+    placeholder: Option<String>,
     is_password: bool,
     ctx: &mut ViewContext<AuthSecretFtuxView>,
 ) -> ViewHandle<EditorView> {
-    let placeholder = placeholder.map(str::to_owned);
     ctx.add_typed_action_view(move |ctx| {
         let appearance = Appearance::as_ref(ctx);
         let mut editor = EditorView::single_line(
@@ -1035,8 +1069,8 @@ fn make_single_line_editor(
             },
             ctx,
         );
-        if let Some(placeholder) = placeholder {
-            editor.set_placeholder_text(&placeholder, ctx);
+        if let Some(placeholder) = placeholder.as_deref() {
+            editor.set_placeholder_text(placeholder, ctx);
         }
         editor
     })

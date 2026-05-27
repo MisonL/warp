@@ -1,4 +1,5 @@
 //! Implementation of "AI blocks" used to render AI queries and outputs in the blocklist.
+use crate::localization;
 pub mod cli;
 pub mod cli_controller;
 pub mod compact_agent_input;
@@ -100,7 +101,6 @@ use crate::ai::agent::{
     SummarizationType, TodoOperation,
 };
 use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConversationsModelEvent};
-use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::NewConversationDecision;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
@@ -206,9 +206,6 @@ use crate::{
     LLMPreferences, PrivacySettings, ToastStack,
 };
 
-/// The default display name used for the user if they have no associated display name.
-const DEFAULT_USER_DISPLAY_NAME: &str = "User";
-
 const HAS_PENDING_ACTION: &str = "HasPendingAction";
 const DISPATCHED_REQUESTED_EDIT_KEYMAP_CONTEXT: &str = "PendingAIRequestedEdits";
 
@@ -224,12 +221,16 @@ struct UserAvatarInfo {
     profile_image_path: Option<String>,
 }
 
+fn ai_block_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
 fn current_user_avatar_info(app: &AppContext) -> UserAvatarInfo {
     let auth_state = AuthStateProvider::as_ref(app).get().clone();
     UserAvatarInfo {
         display_name: auth_state
             .username_for_display()
-            .unwrap_or_else(|| DEFAULT_USER_DISPLAY_NAME.to_owned()),
+            .unwrap_or_else(|| ai_block_text(app, "agent.block.default_user_display_name")),
         profile_image_path: auth_state.user_photo_url(),
     }
 }
@@ -596,11 +597,11 @@ impl ImportedCommentElementState {
         ctx: &mut ViewContext<AIBlock>,
     ) -> Self {
         let open_in_github_button = html_url.map(|url| {
-            ctx.add_typed_action_view(move |_| {
+            ctx.add_typed_action_view(move |ctx| {
                 ActionButton::new("", NakedTheme)
                     .with_icon(Icon::Github)
                     .with_size(ButtonSize::Small)
-                    .with_tooltip("Open in GitHub")
+                    .with_tooltip(ai_block_text(ctx, "agent.block.action.open_in_github"))
                     .on_click({
                         let url = url.clone();
                         move |ctx| {
@@ -613,15 +614,18 @@ impl ImportedCommentElementState {
         });
 
         let action_id_for_open_button = action_id.clone();
-        let open_in_code_review_button = ctx.add_typed_action_view(move |_| {
-            ActionButton::new("Open in code review", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(move |ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::OpenImportedCommentInCodeReview {
-                        action_id: action_id_for_open_button.clone(),
-                        comment_index,
-                    });
-                })
+        let open_in_code_review_button = ctx.add_typed_action_view(move |ctx| {
+            ActionButton::new(
+                ai_block_text(ctx, "agent.block.action.open_in_code_review"),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(move |ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::OpenImportedCommentInCodeReview {
+                    action_id: action_id_for_open_button.clone(),
+                    comment_index,
+                });
+            })
         });
 
         let chevron_button = ctx.add_view(|_| {
@@ -1237,9 +1241,12 @@ impl AIBlock {
             }
         });
 
-        let manage_rules_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Manage rules", NakedTheme)
-                .on_click(|ctx| ctx.dispatch_typed_action(AIBlockAction::OpenAIFactCollection))
+        let manage_rules_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_block_text(ctx, "agent.block.action.manage_rules"),
+                NakedTheme,
+            )
+            .on_click(|ctx| ctx.dispatch_typed_action(AIBlockAction::OpenAIFactCollection))
         });
 
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
@@ -1368,55 +1375,70 @@ impl AIBlock {
             }
         });
 
-        let review_changes_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Review changes", SecondaryTheme)
-                .with_icon(Icon::Diff)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::ToggleCodeReviewPane);
-                })
+        let review_changes_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_block_text(ctx, "agent.block.action.review_changes"),
+                SecondaryTheme,
+            )
+            .with_icon(Icon::Diff)
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::ToggleCodeReviewPane);
+            })
         });
 
-        let open_all_comments_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Open all in code review", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::OpenAllImportedCommentsInCodeReview);
-                })
+        let open_all_comments_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_block_text(ctx, "agent.block.action.open_all_in_code_review"),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::OpenAllImportedCommentsInCodeReview);
+            })
         });
 
-        let dismiss_suggestion_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Dismiss", SuggestionDismissButtonTheme)
-                .with_icon(Icon::X)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::DismissSuggestionsSection);
-                })
+        let dismiss_suggestion_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_block_text(ctx, "agent.block.action.dismiss"),
+                SuggestionDismissButtonTheme,
+            )
+            .with_icon(Icon::X)
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::DismissSuggestionsSection);
+            })
         });
 
-        let disable_rule_suggestions_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Don't show again", SuggestionDismissButtonTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::DisableRuleSuggestions);
-                })
+        let disable_rule_suggestions_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_block_text(ctx, "agent.block.action.dont_show_again"),
+                SuggestionDismissButtonTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::DisableRuleSuggestions);
+            })
         });
 
         let ai_block_view_id = ctx.view_id();
         let exchange_id = client_ids.client_exchange_id;
         let conversation_id = client_ids.conversation_id;
-        let rewind_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Rewind", RewindButtonTheme)
-                .with_size(ButtonSize::XSmall)
-                .with_tooltip("Rewind to before this block")
-                .on_click(move |ctx| {
-                    ctx.dispatch_typed_action(TerminalAction::RewindAIConversation {
-                        ai_block_view_id,
-                        exchange_id,
-                        conversation_id,
-                        entrypoint: AgentModeRewindEntrypoint::Button,
-                    });
-                })
+        let rewind_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_block_text(ctx, "agent.block.action.rewind"),
+                RewindButtonTheme,
+            )
+            .with_size(ButtonSize::XSmall)
+            .with_tooltip(ai_block_text(ctx, "agent.block.action.rewind_tooltip"))
+            .on_click(move |ctx| {
+                ctx.dispatch_typed_action(TerminalAction::RewindAIConversation {
+                    ai_block_view_id,
+                    exchange_id,
+                    conversation_id,
+                    entrypoint: AgentModeRewindEntrypoint::Button,
+                });
+            })
         });
 
         let comment_data = model
@@ -1973,7 +1995,7 @@ impl AIBlock {
 
             if !self.action_buttons.contains_key(&action.id) {
                 let run_button = CompactibleActionButton::new(
-                    "Run".to_string(),
+                    ai_block_text(ctx, "agent.block.action.run"),
                     Some(KeystrokeSource::Fixed(ENTER_KEYSTROKE.clone())),
                     ButtonSize::InlineActionHeader,
                     AIBlockAction::ExecuteRequestedAction {
@@ -1985,7 +2007,7 @@ impl AIBlock {
                 );
 
                 let cancel_button = CompactibleActionButton::new(
-                    "Cancel".to_string(),
+                    ai_block_text(ctx, "agent.block.action.cancel"),
                     Some(KeystrokeSource::Fixed(CTRL_C_KEYSTROKE.clone())),
                     ButtonSize::InlineActionHeader,
                     AIBlockAction::CancelRequestedAction {
@@ -2065,9 +2087,18 @@ impl AIBlock {
                         other => other.clone(),
                     };
                     let command_text = if display_input.is_null() {
-                        format!("MCP Tool: {name}")
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent.requested_command.mcp_tool.label",
+                            &[("name", name)],
+                        )
                     } else {
-                        format!("MCP Tool: {name} ({display_input})")
+                        let display_input = display_input.to_string();
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent.requested_command.mcp_tool.label_with_input",
+                            &[("name", name), ("input", &display_input)],
+                        )
                     };
                     self.handle_mcp_tool_stream_update(action_id, &command_text, ctx);
                 }
@@ -2090,9 +2121,10 @@ impl AIBlock {
                     action: AIAgentActionType::SuggestNewConversation { .. },
                     ..
                 } => {
-                    let start_new_conversation_button_text = "Start a new conversation".to_owned();
+                    let start_new_conversation_button_text =
+                        ai_block_text(ctx, "agent.output.new_conversation.start");
                     let continue_current_conversation_button_text =
-                        "Continue current conversation".to_owned();
+                        ai_block_text(ctx, "agent.output.new_conversation.continue_current");
 
                     let server_output_id = self.model.server_output_id(ctx);
                     let accept_action = AIBlockAction::StartNewConversationButtonClicked {
@@ -3750,7 +3782,7 @@ impl AIBlock {
 
         for (index, document) in documents.iter().enumerate() {
             let title = if document.title.is_empty() {
-                DEFAULT_PLANNING_DOCUMENT_TITLE.to_string()
+                ai_block_text(ctx, "ai_document.title.default")
             } else {
                 document.title.clone()
             };
@@ -5789,8 +5821,13 @@ fn set_imported_comment_button_disabled(
     handle.update(ctx, |button, ctx| {
         button.set_disabled(should_disable, ctx);
         if should_disable {
-            let tooltip = repo_path
-                .map(|path| format!("Navigate to {} to open these comments", path.display_path()));
+            let tooltip = repo_path.map(|path| {
+                localization::text_for_app_with_args(
+                    ctx,
+                    "agent.block.action.open_comments_disabled_tooltip",
+                    &[("path", &path.display_path())],
+                )
+            });
             button.set_tooltip(tooltip, ctx);
         } else {
             button.set_tooltip(None::<String>, ctx);
@@ -6209,7 +6246,10 @@ impl TypedActionView for AIBlock {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success(String::from("Copied to clipboard")),
+                        DismissibleToast::success(ai_block_text(
+                            ctx,
+                            "agent.block.toast.copied_to_clipboard",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -6515,8 +6555,10 @@ impl TypedActionView for AIBlock {
 
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast =
-                        DismissibleToast::default(String::from("Thank you for the feedback!"));
+                    let toast = DismissibleToast::default(ai_block_text(
+                        ctx,
+                        "agent.block.toast.feedback_thanks",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
 

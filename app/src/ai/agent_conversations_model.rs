@@ -1225,7 +1225,7 @@ impl AgentConversationsModel {
                 continue;
             }
             let nav_data =
-                ConversationNavigationData::from_historical_conversation_metadata(metadata);
+                ConversationNavigationData::from_historical_conversation_metadata(app, metadata);
             entries.push(entry::entry_for_historical_metadata(
                 metadata,
                 nav_data,
@@ -1262,7 +1262,7 @@ impl AgentConversationsModel {
                         .map(|metadata| {
                             let nav_data =
                                 ConversationNavigationData::from_historical_conversation_metadata(
-                                    metadata,
+                                    app, metadata,
                                 );
                             entry::entry_for_historical_metadata(
                                 metadata,

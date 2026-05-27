@@ -18,6 +18,7 @@
 //! —————————————————————————————————
 //! ```
 
+use crate::localization;
 pub(super) mod common;
 pub use common::FindContext;
 mod comments;
@@ -88,6 +89,10 @@ use crate::util::link_detection::DetectedLinkType;
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::dropdown::DropdownItemAction;
 use crate::workspace::WorkspaceAction;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// Helper function to create gray strikethrough highlight for secrets
 fn create_secret_gray_highlight() -> Highlight {
@@ -795,7 +800,7 @@ where
 /// This function is needed both above (i.e. `block.rs`) and below (i.e. `output.rs`), and as such
 /// cannot reside in `output.rs` because we don't want to make `mod output` public.
 pub fn render_autonomy_checkbox_setting_speedbump_footer(
-    description: &'static str,
+    description: impl Into<String>,
     checked: bool,
     on_toggled_action: AIBlockAction,
     checkbox_handle: MouseStateHandle,
@@ -804,6 +809,7 @@ pub fn render_autonomy_checkbox_setting_speedbump_footer(
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
+    let description = description.into();
     Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_main_axis_size(MainAxisSize::Max)
@@ -841,7 +847,7 @@ pub fn render_autonomy_checkbox_setting_speedbump_footer(
                     appearance
                         .ui_builder()
                         .link(
-                            "Manage AI Autonomy permissions".into(),
+                            text(app, "agent.output.permissions.manage_autonomy"),
                             None,
                             Some(Box::new(move |ctx| {
                                 ctx.dispatch_typed_action(

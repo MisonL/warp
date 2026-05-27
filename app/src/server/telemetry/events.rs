@@ -7259,9 +7259,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLIAgentPluginOperationSucceeded { .. } => {
                 "Auto plugin install or update completed successfully"
             }
-            Self::CLIAgentPluginOperationFailed { .. } => {
-                "Auto plugin install or update failed"
-            }
+            Self::CLIAgentPluginOperationFailed { .. } => "Auto plugin install or update failed",
             Self::CLIAgentPluginDetected { .. } => {
                 "A CLI agent plugin was detected via a SessionStart event"
             }
@@ -7319,9 +7317,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::RemoteServerDisconnection => {
                 "An established remote server connection was dropped"
             }
-            Self::RemoteServerClientRequestError => {
-                "A client request to the remote server failed"
-            }
+            Self::RemoteServerClientRequestError => "A client request to the remote server failed",
             Self::RemoteServerMessageDecodingError => {
                 "A server message could not be decoded (no parseable request_id)"
             }
