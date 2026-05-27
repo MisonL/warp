@@ -10,16 +10,16 @@ submit or update a PR.
 ## Candidate State
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
-- Validated candidate code head after rebase: `1fef94b0`. The post-rebase
-  real-display visual smoke was run at local evidence head `1fef94b0`; commits
-  after `1fef94b0` update local evidence documents only.
+- Validated candidate code head after rebase: `b2ed17b6`. The post-rebase
+  real-display visual smoke was run at local evidence head `b2ed17b6`; commits
+  after `b2ed17b6` update local evidence documents only.
 - App code changes since the latest code-validation point: none in the checked
-  app and crate paths. `git diff --quiet 1fef94b0 HEAD -- app crates Cargo.toml
+  app and crate paths. `git diff --quiet b2ed17b6 HEAD -- app crates Cargo.toml
   Cargo.lock` returned 0 before this evidence update.
-- Upstream base: `upstream/master` at `98af7b65`
-- Upstream comparison at validation point `1fef94b0`: `0 12` from
+- Upstream base: `upstream/master` at `37df9ef2`
+- Upstream comparison at validation point `b2ed17b6`: `0 14` from
   `git rev-list --left-right --count upstream/master...HEAD`
-- Remote branch comparison at validation point `1fef94b0`: `3 16` from
+- Remote branch comparison at validation point `b2ed17b6`: `3 25` from
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
 - Working tree before this handoff: clean
 - Open PRs for `feat/localization-settings-upstream-rebuild`: none
@@ -36,19 +36,25 @@ submit or update a PR.
   strings.
 - Wires the upstream queued prompt edit/delete tooltips to
   `terminal.queued_prompts.tooltip.*` catalog keys after the `98af7b65` rebase.
+- Wires the upstream cloud-agent fast-forward locked tooltip to
+  `agent.input_footer.auto_approve_locked_tooltip` and
+  `agent.warping.auto_approve_locked_tooltip` after the `37df9ef2` rebase.
+- Wires the auth secret delete confirmation dialog to
+  `terminal.auth_secret.delete.*` catalog keys.
 - Adds catalog integrity tests, direct-English regression checks, app-level
   localization tests, and a real-display integration visual smoke test.
 
 ## Verification Matrix
 
-The following commands were run locally against `1fef94b0` unless otherwise
+The following commands were run locally against `b2ed17b6` unless otherwise
 noted.
 
 ```bash
 git fetch upstream master
 ```
 
-Result: pass. `upstream/master` remained `98af7b65`.
+Result: pass. `upstream/master` advanced to `37df9ef2`; the branch was rebased
+successfully and revalidated.
 
 ```bash
 git diff --check upstream/master...HEAD && git diff --check && git diff --cached --check
@@ -72,8 +78,8 @@ Result: pass.
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 20 tests passed. Latest run compiled in 3.56s and the test
-binary finished in 6.86s.
+Result: pass, 20 tests passed. Latest run compiled in 1m 49s and the test
+binary finished in 6.32s.
 
 ```bash
 cargo test -p warp --lib localization_tests -- --nocapture
@@ -87,20 +93,20 @@ pre-rebase `c2d9ddf8`, compiled in 1m 19s, and reported 4664 filtered tests.
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests passed with 4683 filtered tests. Latest run compiled in
-13m 16s and the filtered test run finished in 1.30s.
+Result: pass, 8 tests passed with 4685 filtered tests. Latest run compiled in
+25m 18s and the filtered test run finished in 0.99s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass, 5m 43s.
+Result: pass, 4m 48s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass on local evidence head `1fef94b0`, 14m 55s.
+Result: pass on local evidence head `b2ed17b6`, 17m 24s.
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
@@ -109,7 +115,7 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass on local evidence head `1fef94b0`, exit code 0. The run used a
+Result: pass on local evidence head `b2ed17b6`, exit code 0. The run used a
 real display, executed 15 steps, and asserted localized app menu and Dock menu
 titles.
 
@@ -117,28 +123,28 @@ titles.
 
 Latest local screenshot artifacts:
 
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/settings-appearance-language-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/terminal-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/context-chips-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/command-search-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/agent-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/command-palette-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/toast-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T00-20-47/dialog-launch-config-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/settings-appearance-language-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/terminal-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/context-chips-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/command-search-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/agent-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/command-palette-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/toast-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/dialog-launch-config-zh-cn.png`
 
 Each artifact is a `1280 x 800` PNG. These files are local artifacts under
 `target/`; they were not pushed or attached to any PR.
 
 ## Catalog And Terminology Checks
 
-- `en-US` keys: 5578
-- `zh-CN` keys: 5578
+- `en-US` keys: 5584
+- `zh-CN` keys: 5584
 - Missing keys: 0
 - Extra keys: 0
 - Placeholder mismatches: 0
 - Identical values: 61
 - ASCII-only zh-CN values: 67
-- ASCII-with-CJK zh-CN values: 2461
+- ASCII-with-CJK zh-CN values: 2453
 
 Reviewed terminology keeps product and protocol terms such as `Agent`,
 `Warp Drive`, `Notebook`, `Cloud Oz`, `MCP`, `API`, `CLI`, `ID`, `JSON`,
