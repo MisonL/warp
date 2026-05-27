@@ -300,7 +300,7 @@ Goal item status against the current local branch:
 - Local commit readiness: satisfied locally for this pass. The large
   localization commit is already present locally, and the latest async find
   follow-up plus this evidence update were validated together before commit.
-- PR creation or update: pending push.
+- PR creation or update: pending per review handoff policy.
 
 ## Review Handoff Draft
 
@@ -349,8 +349,8 @@ review setup.
 
 ## Remaining Risk
 
-- PR review remains pending until the latest local follow-up is committed, the
-  candidate branch is pushed, and a GitHub pull request is linked.
+- PR review remains pending until the candidate branch is reviewed through the
+  intended handoff path.
 - The May 27 rebase autostash remains in the stash list as a conservative
   backup; it was not dropped during this pass.
 - Visual coverage now includes Settings language selection, terminal input,
