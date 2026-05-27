@@ -9,13 +9,15 @@ localization work on branch `feat/localization-settings-upstream-rebuild`.
 
 - Branch: `feat/localization-settings-upstream-rebuild`
 - Validated upstream base: `c37c1cd6`
-- Review branch comparison at the latest code-validation point: eight local
+- Review branch comparison after the rebase and latest code-validation pass: eight local
   commits ahead of `upstream/master`; `upstream/master` itself resolved to
   `c37c1cd6` after `git fetch upstream master`.
-- Validated code head: `c2d9ddf8`. Later commits on this branch may update
+- Validated code head after rebase: `d4195647`. Later commits on this branch may update
   local evidence documents only.
 - Code changes since the latest real-display visual smoke: none. The commits
-  after `e2143e53` update only local evidence documents.
+  after `f99aa43e` update only local evidence documents. `git diff --quiet
+  e2143e53 f99aa43e -- .` returned 0, so `f99aa43e` is content-equivalent to
+  the pre-rebase visual-smoke validation point.
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, or
   `.git/index.lock`
 - Stash state: the May 27 rebase autostash remains as a safety backup, and the
@@ -190,7 +192,7 @@ Term scan counts:
 ## Verification
 
 Commands rerun after `git fetch upstream master` at code-validation point
-`c2d9ddf8`:
+`d4195647`:
 
 ```bash
 git diff --check upstream/master...HEAD && git diff --check && git diff --cached --check
@@ -214,8 +216,8 @@ Result: pass.
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass on `c2d9ddf8`, 20 tests passed. Latest run compiled in 12.47s and
-the catalog test binary finished in 12.38s.
+Result: pass on `d4195647`, 20 tests passed. Latest run compiled in 3m 15s and
+the catalog test binary finished in 14.49s.
 
 ```bash
 cargo test -p warp --lib localization_tests -- --nocapture
@@ -223,7 +225,7 @@ cargo test -p warp --lib localization_tests -- --nocapture
 
 Result: earlier compile/runner evidence only. It completed on `175faadc`, ran
 0 tests with 4655 filtered, and confirmed the `warp` test binary compiled. It
-was rerun on `c2d9ddf8`, compiled in 1m 19s, and again ran 0 tests with 4664
+was last rerun on pre-rebase `c2d9ddf8`, compiled in 1m 19s, and ran 0 tests with 4664
 filtered. Actual app localization tests are registered under
 `localization::tests`.
 
@@ -231,21 +233,22 @@ filtered. Actual app localization tests are registered under
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass on `c2d9ddf8`, 8 tests passed with 4656 filtered. Latest run
-compiled in 3.94s and the filtered test run finished in 4.74s.
+Result: pass on `d4195647`, 8 tests passed with 4656 filtered. Latest run
+compiled in 26m 44s and the filtered test run finished in 2.79s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass on `c2d9ddf8`, 4m 44s.
+Result: pass on `d4195647`, 5m 31s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass on `e2143e53`, 1m 14s. It was not rerun after `e2143e53` because
-later commits only update local evidence documents.
+Result: pass on pre-rebase `e2143e53`, 1m 14s. It was not rerun after rebase
+because `f99aa43e` is content-equivalent to `e2143e53`, and later commits only
+update local evidence documents.
 
 The current-head visual smoke was then run directly through the built binary to
 avoid retriggering Cargo build/link work:
@@ -257,12 +260,12 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass on `e2143e53`, exit code 0. The integration run used a real
+Result: pass on pre-rebase `e2143e53`, exit code 0. The integration run used a real
 display, executed 15 steps, included the runtime app menu and Dock menu title
 assertion, and saved a fresh artifact set under
 `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35`.
-It was not rerun after `e2143e53` because later commits only update local
-evidence documents.
+It was not rerun after rebase because `f99aa43e` is content-equivalent to
+`e2143e53`, and later commits only update local evidence documents.
 
 Earlier current-branch attempts through `cargo run -p integration --bin
 integration -- ...` and the ignored `cargo test -p integration --test
@@ -293,10 +296,11 @@ Goal item status against the current local branch:
 - Rebase or merge latest `upstream/master`: satisfied locally. The review
   candidate is based directly on `upstream/master` at `c37c1cd6`.
 - App-level verification: satisfied locally at code-validation point
-  `c2d9ddf8`. The listed `cargo test`, `cargo check`, `jq empty`, and
+  `d4195647`. The listed `cargo test`, `cargo check`, `jq empty`, and
   `git diff --check` commands have passing results recorded above.
-- zh-CN visual review: satisfied for the `e2143e53` run, with no code changes
-  after that run. The
+- zh-CN visual review: satisfied for the pre-rebase `e2143e53` run. The
+  rebase-equivalent commit `f99aa43e` has identical content, and later commits
+  only update local evidence documents. The
   real-display smoke covers Settings language selection, menus/Dock assertions,
   Agent input, Terminal input, Search, Context chips, toast, and dialog
   screenshots, with fresh artifacts under
@@ -313,7 +317,7 @@ Goal item status against the current local branch:
   5576 keys, with 0 missing keys, 0 extra keys, and 0 placeholder mismatches.
 - Local commit readiness: satisfied locally for this pass. The large
   localization commit is already present locally, and the latest async find
-  follow-up plus evidence-only local commits through `c2d9ddf8` were validated.
+  follow-up plus evidence-only local commits through `d4195647` were validated.
 - PR creation or update: intentionally not performed. The user explicitly
   instructed not to submit a PR; the mistakenly opened `#11739` is closed, and
   this pass keeps the candidate local.
@@ -345,18 +349,13 @@ completion basis for this local worktree:
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`, based on
   `upstream/master` at `c37c1cd6`.
-- `origin/feat/localization-settings` remains at `2f6fcabb`. Compared with the
-  code-validation point, `git rev-list --left-right --count
-  HEAD...origin/feat/localization-settings` returns `69 7`, with merge base
-  `f3dd3768`.
-- `origin/feat/localization-settings-reviewed` remains at `1ce47b43`. Compared
-  with the code-validation point, `git rev-list --left-right --count
-  HEAD...origin/feat/localization-settings-reviewed` returns `123 2`, with
-  merge base `be5b39ae`.
-- `origin/feat/localization-settings-upstream-validated` remains at `58ef5d5f`.
-  Compared with the code-validation point, `git rev-list --left-right --count
-  HEAD...origin/feat/localization-settings-upstream-validated` returns `27 8`,
-  with merge base `0b737e22`.
+- Local cleanup removed the obsolete local `feat/localization-settings` and
+  `feat/localization-settings-upstream-validated` branches after pruning stale
+  `/private/tmp/warp-i18n-port-test*` worktree records.
+- Remote refs were not modified. `origin/feat/localization-settings`,
+  `origin/feat/localization-settings-reviewed`, and
+  `origin/feat/localization-settings-upstream-validated` remain available as
+  remote-only historical references.
 
 Recommendation: treat `feat/localization-settings-upstream-rebuild` as the
 current local review candidate and leave the older `reviewed` branch as

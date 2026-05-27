@@ -10,10 +10,12 @@ submit or update a PR.
 ## Candidate State
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
-- Validated candidate code head: `c2d9ddf8`. Later commits on this branch may
+- Validated candidate code head after rebase: `d4195647`. Later commits on this branch may
   update local evidence documents only.
 - Code changes since the latest real-display visual smoke: none. The commits
-  after `e2143e53` update only local evidence documents.
+  after `f99aa43e` update only local evidence documents. `git diff --quiet
+  e2143e53 f99aa43e -- .` returned 0, so `f99aa43e` is content-equivalent to
+  the pre-rebase visual-smoke validation point.
 - Upstream base: `upstream/master` at `c37c1cd6`
 - Upstream comparison at the code-validation point: `0 8` from
   `git rev-list --left-right --count upstream/master...HEAD`
@@ -37,7 +39,7 @@ submit or update a PR.
 
 ## Verification Matrix
 
-The following commands were run locally against `c2d9ddf8` unless otherwise
+The following commands were run locally against `d4195647` unless otherwise
 noted.
 
 ```bash
@@ -68,36 +70,37 @@ Result: pass.
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 20 tests passed. Latest run compiled in 12.47s and the test
-binary finished in 12.38s.
+Result: pass, 20 tests passed. Latest run compiled in 3m 15s and the test
+binary finished in 14.49s.
 
 ```bash
 cargo test -p warp --lib localization_tests -- --nocapture
 ```
 
 Result: pass as a compile/filter check, but it runs 0 tests because the current
-app test module is registered as `localization::tests`. Latest run compiled in
-1m 19s and reported 4664 filtered tests.
+app test module is registered as `localization::tests`. Latest run was on
+pre-rebase `c2d9ddf8`, compiled in 1m 19s, and reported 4664 filtered tests.
 
 ```bash
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
 Result: pass, 8 tests passed with 4656 filtered tests. Latest run compiled in
-3.94s and the filtered test run finished in 4.74s.
+26m 44s and the filtered test run finished in 2.79s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass, 4m 44s.
+Result: pass, 5m 31s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass on `e2143e53`, 1m 14s. It was not rerun after `e2143e53` because
-later commits only update local evidence documents.
+Result: pass on pre-rebase `e2143e53`, 1m 14s. It was not rerun after rebase
+because `f99aa43e` is content-equivalent to `e2143e53`, and later commits only
+update local evidence documents.
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
@@ -106,10 +109,10 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass on `e2143e53`, exit code 0. The run used a real display, executed
+Result: pass on pre-rebase `e2143e53`, exit code 0. The run used a real display, executed
 15 steps, and asserted localized app menu and Dock menu titles. It was not
-rerun after `e2143e53` because later commits only update local evidence
-documents.
+rerun after rebase because `f99aa43e` is content-equivalent to `e2143e53`, and
+later commits only update local evidence documents.
 
 ## Visual Evidence
 
@@ -147,16 +150,13 @@ reported zero remaining zh-CN value matches for `智能体`, `Workflows`,
 
 ## Branch Notes
 
-- `origin/feat/localization-settings` remains at `2f6fcabb`. Compared with the
-  code-validation point, `HEAD...origin/feat/localization-settings` was `69 7`,
-  with merge base `f3dd3768`.
-- `origin/feat/localization-settings-reviewed` remains at `1ce47b43`. Compared
-  with the code-validation point, `HEAD...origin/feat/localization-settings-reviewed`
-  was `123 2`, with merge base `be5b39ae`.
-- `origin/feat/localization-settings-upstream-validated` remains at `58ef5d5f`.
-  Compared with the code-validation point,
-  `HEAD...origin/feat/localization-settings-upstream-validated` was `27 8`, with
-  merge base `0b737e22`.
+- Local cleanup removed the obsolete local `feat/localization-settings` and
+  `feat/localization-settings-upstream-validated` branches after pruning stale
+  `/private/tmp/warp-i18n-port-test*` worktree records.
+- Remote refs were not modified. `origin/feat/localization-settings`,
+  `origin/feat/localization-settings-reviewed`, and
+  `origin/feat/localization-settings-upstream-validated` remain available as
+  remote-only historical references.
 
 Recommendation: use `feat/localization-settings-upstream-rebuild` as the local
 review candidate. Treat `feat/localization-settings-reviewed` as historical
