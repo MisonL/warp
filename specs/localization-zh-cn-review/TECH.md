@@ -9,9 +9,11 @@ localization work on branch `feat/localization-settings-upstream-rebuild`.
 
 - Branch: `feat/localization-settings-upstream-rebuild`
 - Validated upstream base: `c37c1cd6`
-- Review branch comparison: five local commits ahead of
-  `upstream/master`; `upstream/master` itself resolved to `c37c1cd6` during the
-  latest validation run.
+- Review branch comparison at the start of the latest evidence refresh: six
+  local commits ahead of `upstream/master`; `upstream/master` itself resolved to
+  `c37c1cd6` after `git fetch upstream master`.
+- Validated local head before this documentation-only evidence refresh:
+  `e2143e53`
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, or
   `.git/index.lock`
 - Stash state: the May 27 rebase autostash remains as a safety backup, and the
@@ -185,10 +187,16 @@ Term scan counts:
 
 ## Verification
 
-Commands run after the `c37c1cd6` upstream refresh:
+Commands run after the `c37c1cd6` upstream refresh and rerun on local head
+`e2143e53` before this documentation-only evidence refresh:
 
 ```bash
-git diff --check && git diff --cached --check && \
+git diff --check upstream/master...HEAD && git diff --check && git diff --cached --check
+```
+
+Result: pass.
+
+```bash
 jq empty app/assets/bundled/locales/en-US.json app/assets/bundled/locales/zh-CN.json
 ```
 
@@ -204,35 +212,37 @@ Result: pass.
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 20 tests on current `bf3ec71a`. Latest run compiled in 10.10s
-and the catalog test binary finished in 18.81s.
+Result: pass on `e2143e53`, 20 tests passed. Latest run compiled in 3.39s and
+the catalog test binary finished in 5.93s.
 
 ```bash
 cargo test -p warp --lib localization_tests -- --nocapture
 ```
 
 Result: earlier compile/runner evidence only. It completed on `175faadc`, ran
-0 tests with 4655 filtered, and confirmed the `warp` test binary compiled.
-Actual app localization tests are registered under `localization::tests`.
+0 tests with 4655 filtered, and confirmed the `warp` test binary compiled. It
+was rerun on `e2143e53`, compiled in 14.09s, and again ran 0 tests with 4664
+filtered. Actual app localization tests are registered under
+`localization::tests`.
 
 ```bash
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests on current `bf3ec71a`, with 4656 filtered. Latest run
-compiled in 8m 22s and the filtered test run finished in 0.91s.
+Result: pass on `e2143e53`, 8 tests passed with 4656 filtered. Latest run
+compiled in 1m 03s and the filtered test run finished in 3.17s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass on current `bf3ec71a`, 7m 02s.
+Result: pass on `e2143e53`, 3m 14s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass on current `bf3ec71a`, 28m 29s.
+Result: pass on `e2143e53`, 1m 14s.
 
 The current-head visual smoke was then run directly through the built binary to
 avoid retriggering Cargo build/link work:
@@ -244,10 +254,10 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass on current `bf3ec71a`, exit code 0. The integration run used a
-real display, executed 15 steps, included the runtime app menu and Dock menu
-title assertion, and saved a fresh artifact set under
-`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55`.
+Result: pass on `e2143e53`, exit code 0. The integration run used a real
+display, executed 15 steps, included the runtime app menu and Dock menu title
+assertion, and saved a fresh artifact set under
+`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35`.
 
 Earlier current-branch attempts through `cargo run -p integration --bin
 integration -- ...` and the ignored `cargo test -p integration --test
@@ -257,14 +267,14 @@ above is the current completed result.
 
 Latest completed visual artifacts:
 
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/settings-appearance-language-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/terminal-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/context-chips-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/command-search-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/agent-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/command-palette-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/toast-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55/dialog-launch-config-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/settings-appearance-language-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/terminal-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/context-chips-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/command-search-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/agent-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/command-palette-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/toast-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/dialog-launch-config-zh-cn.png`
 
 Each artifact is a `2560 x 1600` PNG.
 
@@ -280,11 +290,11 @@ Goal item status against the current local branch:
 - App-level verification: satisfied locally. The listed `cargo test`,
   `cargo check`, `jq empty`, and `git diff --check` commands have passing
   results recorded above.
-- zh-CN visual review: satisfied for the current `bf3ec71a` run. The
+- zh-CN visual review: satisfied for the `e2143e53` run. The
   real-display smoke covers Settings language selection, menus/Dock assertions,
   Agent input, Terminal input, Search, Context chips, toast, and dialog
   screenshots, with fresh artifacts under
-  `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-13-55`.
+  `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35`.
 - Terminology review: satisfied for the catalog-level review scope recorded
   above. The 71 ASCII-only zh-CN values and ASCII-with-CJK values were reviewed;
   remaining English fragments are intentional product, protocol, command, field,
@@ -297,7 +307,8 @@ Goal item status against the current local branch:
   5576 keys, with 0 missing keys, 0 extra keys, and 0 placeholder mismatches.
 - Local commit readiness: satisfied locally for this pass. The large
   localization commit is already present locally, and the latest async find
-  follow-up plus this evidence update were validated together before commit.
+  follow-up plus evidence-only local commits were validated before this
+  documentation-only evidence refresh.
 - PR creation or update: intentionally not performed. The user explicitly
   instructed not to submit a PR; the mistakenly opened `#11739` is closed, and
   this pass keeps the candidate local.
