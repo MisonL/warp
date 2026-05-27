@@ -41,6 +41,7 @@ use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpEscapeKey,
     PropagateAndNoOpNavigationKeys, PropagateHorizontalNavigationKeys, TextOptions,
 };
+use crate::localization;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::input::suggestions_mode_model::InputSuggestionsModeModel;
@@ -71,15 +72,6 @@ fn build_row_state(
     let is_initial_cloud_mode_prompt = origin == QueuedQueryOrigin::InitialCloudMode;
     // The send-now tooltip is owned by `update_send_now_availability`, which swaps in a
     // "wait for the cloud agent" message while send-now is disabled; "Send now" is the default.
-    let (edit_tooltip, delete_tooltip) = if is_initial_cloud_mode_prompt {
-        (
-            INITIAL_CLOUD_MODE_PROMPT_TOOLTIP,
-            INITIAL_CLOUD_MODE_PROMPT_TOOLTIP,
-        )
-    } else {
-        ("Edit", "Delete")
-    };
-
     let send_now_button = ctx.add_typed_action_view(move |_| {
         ActionButton::new("", NakedTheme)
             .with_icon(TerminalIcon::ArrowUp)
@@ -90,20 +82,32 @@ fn build_row_state(
                 ctx.dispatch_typed_action(QueuedPromptsPanelAction::SendNow(query_id));
             })
     });
-    let edit_button = ctx.add_typed_action_view(move |_| {
+    let edit_button = ctx.add_typed_action_view(move |ctx| {
+        let tooltip = if is_initial_cloud_mode_prompt {
+            INITIAL_CLOUD_MODE_PROMPT_TOOLTIP.to_owned()
+        } else {
+            localization::text_for_app(ctx, "terminal.queued_prompts.tooltip.edit")
+        };
+
         ActionButton::new("", NakedTheme)
             .with_icon(TerminalIcon::Pencil)
-            .with_tooltip(edit_tooltip)
+            .with_tooltip(tooltip)
             .with_size(ButtonSize::XSmall)
             .with_disabled_theme(NakedTheme)
             .on_click(move |ctx| {
                 ctx.dispatch_typed_action(QueuedPromptsPanelAction::StartEditingRow(query_id));
             })
     });
-    let delete_button = ctx.add_typed_action_view(move |_| {
+    let delete_button = ctx.add_typed_action_view(move |ctx| {
+        let tooltip = if is_initial_cloud_mode_prompt {
+            INITIAL_CLOUD_MODE_PROMPT_TOOLTIP.to_owned()
+        } else {
+            localization::text_for_app(ctx, "terminal.queued_prompts.tooltip.delete")
+        };
+
         ActionButton::new("", NakedTheme)
             .with_icon(TerminalIcon::Trash)
-            .with_tooltip(delete_tooltip)
+            .with_tooltip(tooltip)
             .with_size(ButtonSize::XSmall)
             .with_disabled_theme(NakedTheme)
             .on_click(move |ctx| {

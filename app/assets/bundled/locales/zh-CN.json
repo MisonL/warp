@@ -4904,6 +4904,8 @@
   "terminal.ssh_warpify.title": "正在 Warpify SSH 会话...",
   "terminal.warpify.a11y.with_keybinding": "你可以按 {keybinding} 来 Warpify 此 {title}，以使用更多 Warp 功能。",
   "terminal.warpify.a11y.without_keybinding": "你可以 Warpify 此 {title}，以使用更多 Warp 功能。",
+  "terminal.queued_prompts.tooltip.delete": "删除排队提示词",
+  "terminal.queued_prompts.tooltip.edit": "编辑排队提示词",
   "terminal.rewind.no_code_to_restore": "没有可还原的代码",
   "view_components.action_button.beta": "测试版",
   "view_components.markdown_toggle.raw": "原始文本",

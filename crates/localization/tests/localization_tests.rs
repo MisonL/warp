@@ -839,6 +839,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.ssh_error.unsupported_shell",
         "terminal.ssh_error.unsupported_tmux_version",
         "terminal.ssh_error.warpify_timeout",
+        "terminal.queued_prompts.tooltip.delete",
+        "terminal.queued_prompts.tooltip.edit",
         "terminal.status.loading_session",
         "terminal.status.starting_shell",
         "terminal.init_project.action.enable_language_support",

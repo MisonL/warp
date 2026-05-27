@@ -4904,6 +4904,8 @@
   "terminal.ssh_warpify.title": "Warpifying SSH Session...",
   "terminal.warpify.a11y.with_keybinding": "You can press {keybinding} to Warpify this {title} for more Warp features.",
   "terminal.warpify.a11y.without_keybinding": "You can Warpify this {title} for more Warp features.",
+  "terminal.queued_prompts.tooltip.delete": "Delete queued prompt",
+  "terminal.queued_prompts.tooltip.edit": "Edit queued prompt",
   "terminal.rewind.no_code_to_restore": "No code to be restored",
   "view_components.action_button.beta": "Beta",
   "view_components.markdown_toggle.raw": "Raw",
