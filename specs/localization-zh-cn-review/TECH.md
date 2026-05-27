@@ -9,15 +9,16 @@ localization work on branch `feat/localization-settings-upstream-rebuild`.
 
 - Branch: `feat/localization-settings-upstream-rebuild`
 - Validated upstream base: `c37c1cd6`
-- Review branch comparison after the rebase and latest code-validation pass: eight local
-  commits ahead of `upstream/master`; `upstream/master` itself resolved to
-  `c37c1cd6` after `git fetch upstream master`.
-- Validated code head after rebase: `d4195647`. Later commits on this branch may update
-  local evidence documents only.
-- Code changes since the latest real-display visual smoke: none. The commits
-  after `f99aa43e` update only local evidence documents. `git diff --quiet
-  e2143e53 f99aa43e -- .` returned 0, so `f99aa43e` is content-equivalent to
-  the pre-rebase visual-smoke validation point.
+- Review branch comparison after the latest evidence update: `git rev-list
+  --left-right --count upstream/master...HEAD` returned `0 10`;
+  `upstream/master` itself resolved to `c37c1cd6` after `git fetch upstream
+  master`.
+- Validated code head after rebase: `d4195647`. The post-rebase real-display
+  visual smoke was run at local evidence head `36b9717d`; commits after
+  `d4195647` update local evidence documents only.
+- App code changes since the latest code-validation point: none in the checked
+  app and crate paths. `git diff --quiet d4195647 HEAD -- app crates Cargo.toml
+  Cargo.lock` returned 0 before this evidence update.
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, or
   `.git/index.lock`
 - Stash state: the May 27 rebase autostash remains as a safety backup, and the
@@ -246,9 +247,7 @@ Result: pass on `d4195647`, 5m 31s.
 cargo build -p integration --bin integration
 ```
 
-Result: pass on pre-rebase `e2143e53`, 1m 14s. It was not rerun after rebase
-because `f99aa43e` is content-equivalent to `e2143e53`, and later commits only
-update local evidence documents.
+Result: pass on local evidence head `36b9717d`, 46m 26s.
 
 The current-head visual smoke was then run directly through the built binary to
 avoid retriggering Cargo build/link work:
@@ -260,12 +259,10 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass on pre-rebase `e2143e53`, exit code 0. The integration run used a real
-display, executed 15 steps, included the runtime app menu and Dock menu title
-assertion, and saved a fresh artifact set under
-`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35`.
-It was not rerun after rebase because `f99aa43e` is content-equivalent to
-`e2143e53`, and later commits only update local evidence documents.
+Result: pass on local evidence head `36b9717d`, exit code 0. The integration
+run used a real display, executed 15 steps, included the runtime app menu and
+Dock menu title assertion, and saved a fresh artifact set under
+`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21`.
 
 Earlier current-branch attempts through `cargo run -p integration --bin
 integration -- ...` and the ignored `cargo test -p integration --test
@@ -275,16 +272,16 @@ above is the current completed result.
 
 Latest completed visual artifacts:
 
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/settings-appearance-language-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/terminal-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/context-chips-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/command-search-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/agent-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/command-palette-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/toast-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/dialog-launch-config-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/settings-appearance-language-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/terminal-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/context-chips-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/command-search-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/agent-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/command-palette-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/toast-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/dialog-launch-config-zh-cn.png`
 
-Each artifact is a `2560 x 1600` PNG.
+Each artifact is a `1280 x 800` PNG.
 
 Manual spot-check: the current `agent-input-zh-cn.png` shows the
 conversation section header as `当前` and the row timestamp as `刚刚`.
@@ -298,13 +295,11 @@ Goal item status against the current local branch:
 - App-level verification: satisfied locally at code-validation point
   `d4195647`. The listed `cargo test`, `cargo check`, `jq empty`, and
   `git diff --check` commands have passing results recorded above.
-- zh-CN visual review: satisfied for the pre-rebase `e2143e53` run. The
-  rebase-equivalent commit `f99aa43e` has identical content, and later commits
-  only update local evidence documents. The
+- zh-CN visual review: satisfied locally at evidence head `36b9717d`. The
   real-display smoke covers Settings language selection, menus/Dock assertions,
   Agent input, Terminal input, Search, Context chips, toast, and dialog
   screenshots, with fresh artifacts under
-  `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35`.
+  `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21`.
 - Terminology review: satisfied for the catalog-level review scope recorded
   above. The 71 ASCII-only zh-CN values and ASCII-with-CJK values were reviewed;
   remaining English fragments are intentional product, protocol, command, field,
@@ -317,7 +312,7 @@ Goal item status against the current local branch:
   5576 keys, with 0 missing keys, 0 extra keys, and 0 placeholder mismatches.
 - Local commit readiness: satisfied locally for this pass. The large
   localization commit is already present locally, and the latest async find
-  follow-up plus evidence-only local commits through `d4195647` were validated.
+  follow-up plus evidence-only local commits through `36b9717d` were validated.
 - PR creation or update: intentionally not performed. The user explicitly
   instructed not to submit a PR; the mistakenly opened `#11739` is closed, and
   this pass keeps the candidate local.

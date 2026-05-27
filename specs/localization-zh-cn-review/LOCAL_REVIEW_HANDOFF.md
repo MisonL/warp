@@ -10,16 +10,16 @@ submit or update a PR.
 ## Candidate State
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
-- Validated candidate code head after rebase: `d4195647`. Later commits on this branch may
-  update local evidence documents only.
-- Code changes since the latest real-display visual smoke: none. The commits
-  after `f99aa43e` update only local evidence documents. `git diff --quiet
-  e2143e53 f99aa43e -- .` returned 0, so `f99aa43e` is content-equivalent to
-  the pre-rebase visual-smoke validation point.
+- Validated candidate code head after rebase: `d4195647`. The post-rebase
+  real-display visual smoke was run at local evidence head `36b9717d`; commits
+  after `d4195647` update local evidence documents only.
+- App code changes since the latest code-validation point: none in the checked
+  app and crate paths. `git diff --quiet d4195647 HEAD -- app crates Cargo.toml
+  Cargo.lock` returned 0 before this evidence update.
 - Upstream base: `upstream/master` at `c37c1cd6`
-- Upstream comparison at the code-validation point: `0 8` from
+- Upstream comparison after the latest evidence update: `0 10` from
   `git rev-list --left-right --count upstream/master...HEAD`
-- Remote branch comparison at the code-validation point: `0 6` from
+- Remote branch comparison after the latest evidence update: `3 11` from
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
 - Working tree before this handoff: clean
 - Open PRs for `feat/localization-settings-upstream-rebuild`: none
@@ -98,9 +98,7 @@ Result: pass, 5m 31s.
 cargo build -p integration --bin integration
 ```
 
-Result: pass on pre-rebase `e2143e53`, 1m 14s. It was not rerun after rebase
-because `f99aa43e` is content-equivalent to `e2143e53`, and later commits only
-update local evidence documents.
+Result: pass on local evidence head `36b9717d`, 46m 26s.
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
@@ -109,25 +107,24 @@ WARP_INTEGRATION=1 \
 target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass on pre-rebase `e2143e53`, exit code 0. The run used a real display, executed
-15 steps, and asserted localized app menu and Dock menu titles. It was not
-rerun after rebase because `f99aa43e` is content-equivalent to `e2143e53`, and
-later commits only update local evidence documents.
+Result: pass on local evidence head `36b9717d`, exit code 0. The run used a
+real display, executed 15 steps, and asserted localized app menu and Dock menu
+titles.
 
 ## Visual Evidence
 
 Latest local screenshot artifacts:
 
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/settings-appearance-language-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/terminal-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/context-chips-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/command-search-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/agent-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/command-palette-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/toast-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T19-48-35/dialog-launch-config-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/settings-appearance-language-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/terminal-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/context-chips-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/command-search-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/agent-input-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/command-palette-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/toast-zh-cn.png`
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-27T22-44-21/dialog-launch-config-zh-cn.png`
 
-Each artifact is a `2560 x 1600` PNG. These files are local artifacts under
+Each artifact is a `1280 x 800` PNG. These files are local artifacts under
 `target/`; they were not pushed or attached to any PR.
 
 ## Catalog And Terminology Checks
