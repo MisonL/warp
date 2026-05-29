@@ -2202,7 +2202,7 @@ impl AgentManagementView {
         .finish();
 
         let text = Text::new_inline(
-            "No results matched your filters",
+            text(app, "agent_management.no_results"),
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )

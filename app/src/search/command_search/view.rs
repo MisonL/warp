@@ -854,7 +854,7 @@ impl CommandSearchView {
                         .unwrap_or(false);
                     column.add_child(self.render_error_header(
                         app,
-                        error.user_facing_error(),
+                        data_source_error_message(app, error),
                         is_ratelimit_error,
                         appearance,
                     ));
@@ -1117,6 +1117,16 @@ impl View for CommandSearchView {
             })
             .finish()
     }
+}
+
+fn data_source_error_message(
+    app: &AppContext,
+    error: &crate::search::mixer::DataSourceRunErrorWrapper,
+) -> String {
+    error
+        .user_facing_error_text_key()
+        .map(|key| localization::text_for_app(app, key))
+        .unwrap_or_else(|| error.user_facing_error())
 }
 
 #[cfg(feature = "integration_tests")]

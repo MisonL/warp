@@ -720,8 +720,15 @@ impl<T: Action + Clone> SearchBar<T> {
     fn emit_accessibility_content(&self, ctx: &mut ViewContext<Self>) {
         if let Some(loading_filters) = self.mixer.as_ref(ctx).loading_query_filters() {
             for loading_filter in loading_filters.into_iter() {
+                let filter =
+                    localization::text_for_app(ctx, loading_filter.display_name_text_key());
+                let message = localization::text_for_app_with_args(
+                    ctx,
+                    "search.a11y.loading_suggestions",
+                    &[("filter", filter.as_str())],
+                );
                 ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                    format!("Loading {} suggestions", loading_filter.display_name()),
+                    message,
                     WarpA11yRole::MenuItemRole,
                 ));
             }
@@ -731,15 +738,20 @@ impl<T: Action + Clone> SearchBar<T> {
 
         if let Some((.., data_source_err)) = self.mixer.as_ref(ctx).first_data_source_error() {
             ctx.emit_a11y_content(AccessibilityContent::new(
-                "Error finding results",
-                data_source_err.user_facing_error(),
+                localization::text_for_app(ctx, "search.a11y.error_finding_results"),
+                data_source_error_message(ctx, data_source_err),
                 WarpA11yRole::MenuItemRole,
             ));
             return;
         }
 
         if let Some(selected_result) = self.state.as_ref(ctx).selected_result() {
-            let a11y_content_text = format!("Selected {}", selected_result.accessibility_label(),);
+            let item = selected_result.accessibility_label();
+            let a11y_content_text = localization::text_for_app_with_args(
+                ctx,
+                "search.a11y.selected_item",
+                &[("item", item.as_str())],
+            );
             let a11y_content = match selected_result.accessibility_help_message() {
                 None => AccessibilityContent::new_without_help(
                     a11y_content_text,
@@ -967,6 +979,16 @@ impl<T: Action + Clone> View for SearchBar<T> {
         );
         input_contents.finish()
     }
+}
+
+fn data_source_error_message(
+    app: &AppContext,
+    error: &crate::search::mixer::DataSourceRunErrorWrapper,
+) -> String {
+    error
+        .user_facing_error_text_key()
+        .map(|key| localization::text_for_app(app, key))
+        .unwrap_or_else(|| error.user_facing_error())
 }
 
 #[cfg(feature = "integration_tests")]

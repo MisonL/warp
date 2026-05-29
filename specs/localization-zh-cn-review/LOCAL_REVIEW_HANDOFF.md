@@ -10,13 +10,13 @@ not to create or update a PR, not to push, and not to create a new branch.
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
 - Upstream base verified locally: `upstream/master` at `ce73fe07`
-- Local source validation was run after the rebase; this evidence is included
-  in the amended branch head.
+- Local source validation and current-code real-display smoke were run after
+  the rebase; this evidence is included in this local evidence commit.
 - Upstream comparison after this handoff update:
-  `git rev-list --left-right --count upstream/master...HEAD` returned `0 16`
+  `git rev-list --left-right --count upstream/master...HEAD` returned `0 17`
 - Remote branch comparison after this handoff update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returned `3 64`
+  returned `3 65`
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, `MERGE_HEAD`, or
   `CHERRY_PICK_HEAD`
 - Remote writes in this pass: none
@@ -39,9 +39,17 @@ not to create or update a PR, not to push, and not to create a new branch.
   standalone onboarding binary keeps English defaults.
 - Shares onboarding feature key arrays with the auth disable-confirm modal so
   AI and Warp Drive feature bullets are localized through the same catalog keys.
+- Localizes shared lightbox empty/loading labels via app-injected catalog-backed
+  copy while preserving explicit English labels in standalone examples.
+- Localizes editor image-context tooltips, auth web handoff copy, inline menu
+  and cloud slash-command empty states, context-chip display menus, Agent
+  Management no-results copy, Command Search Warp AI data-source errors, and
+  search-bar a11y announcements.
+- Extends localization regression tests to scan shared `ui_components/src`
+  direct-English UI constructor calls.
 - Fixes local compile drift found after upstream rebase.
 - Updates this handoff and `TECH.md` with current local validation evidence and
-  the current visual screenshot residual gate.
+  current real-display smoke evidence plus the remaining PNG screenshot gate.
 
 ## Verification Matrix
 
@@ -49,10 +57,22 @@ The following commands were run locally on the current worktree during this
 handoff update.
 
 ```bash
-jq empty app/assets/bundled/locales/en-US.json app/assets/bundled/locales/zh-CN.json
+git fetch upstream master
+git rebase upstream/master
+```
+
+Result: pass. `upstream/master` remained `ce73fe07`; rebase reported that the
+branch was up to date.
+
+```bash
+python3 -m json.tool app/assets/bundled/locales/en-US.json
+python3 -m json.tool app/assets/bundled/locales/zh-CN.json
 ```
 
 Result: pass.
+
+Catalog parity script result: `en-US` keys 5693, `zh-CN` keys 5693, missing 0,
+extra 0, placeholder mismatches 0, empty zh-CN values only `auth.empty`.
 
 ```bash
 rg -n 'paragraph\("[^"]*[A-Za-z][^"]*"|span\("[^"]*[A-Za-z][^"]*"|link\("[^"]*[A-Za-z][^"]*"|Text::new\("[^"]*[A-Za-z][^"]*"|Text::new_inline\("[^"]*[A-Za-z][^"]*"|FormattedTextElement::from_str\("[^"]*[A-Za-z][^"]*"|button::Content::Label\("[^"]*[A-Za-z][^"]*"|wrappable_text\("[^"]*[A-Za-z][^"]*"' crates/onboarding/src -g '*.rs'
@@ -60,6 +80,10 @@ rg -n 'paragraph\("[^"]*[A-Za-z][^"]*"|span\("[^"]*[A-Za-z][^"]*"|link\("[^"]*[A
 
 Result: pass. The scan produced no direct user-visible English literals in
 onboarding UI constructor calls.
+
+Supplemental high-risk literal scan result: only test assertions and
+`crates/ui_components/examples/library.rs` example labels matched the sample
+English strings; no app runtime path matched the newly fixed strings.
 
 ```bash
 cargo fmt --all -- --check
@@ -77,43 +101,44 @@ Result: pass.
 cargo check -p onboarding --message-format=short
 ```
 
-Result: pass, finished in 7m 11s.
+Result: pass, finished in 1m 37s.
 
 ```bash
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 22 tests passed. The post-rebase run compiled in 18.12s and
-includes onboarding copy key coverage and the onboarding direct-English UI
-literal scan.
+Result: pass, 23 tests passed. The run compiled in 3m 53s and finished tests in
+16.73s. Coverage includes bundled key/placeholder parity, app/onboarding/shared
+ui-components direct-English UI constructor scans, and selected surface
+regression checks.
 
 ```bash
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: the test binary build finished in 25m 45s, but the binary did not
-reach test output before manual termination. A follow-up run after confirming
-the test binary could list tests passed as recorded below.
-
-```bash
-cargo test -p warp --lib localization::tests -- --list
-```
-
-Result: pass. The command listed 8 localization tests and 0 benchmarks after a
-1.02s cached target check.
-
-```bash
-cargo test -p warp --lib localization::tests -- --nocapture
-```
-
-Result: pass, 8 tests passed with 4715 filtered tests. The cached target check
-finished in 1.47s and the tests finished in 3.13s.
+Result: pass, 8 tests passed with 4715 filtered tests. The app test binary
+compiled in 24m 47s and the selected tests finished in 1.17s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass, 6m 59s.
+Result: pass, 18m 41s.
+
+```bash
+cargo build -p integration --bin integration
+```
+
+Result: pass, 21m 38s.
+
+```bash
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-current" \
+  target/debug/integration test_zh_cn_localization_visual_smoke
+```
+
+Result: pass, exit code 0. Current artifact log:
+
+- `target/zh-cn-visual-artifacts-current/test_zh_cn_localization_visual_smoke/2026-05-30T01-30-03/recording.log`
 
 Historical artifact logs:
 
@@ -125,9 +150,11 @@ The historical run did not save PNG screenshots.
 
 Current visual smoke status:
 
-- Real-display route and assertion smoke: not rerun after the latest rebase to
-  `ce73fe07`.
-- Current-code PNG screenshot capture: not satisfied.
+- Real-display route and assertion smoke: passed after the latest rebase to
+  `ce73fe07`; see
+  `target/zh-cn-visual-artifacts-current/test_zh_cn_localization_visual_smoke/2026-05-30T01-30-03/recording.log`.
+- Current-code PNG screenshot capture: not satisfied. The current artifact
+  directory contains `recording.log` only.
 
 Historical local screenshots still exist under
 `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T16-14-58`,
@@ -136,15 +163,15 @@ be cited as current-code screenshot proof.
 
 ## Catalog And Terminology Checks
 
-- `en-US` keys: 5684
-- `zh-CN` keys: 5684
+- `en-US` keys: 5693
+- `zh-CN` keys: 5693
 - Missing keys: 0
 - Extra keys: 0
 - Placeholder mismatches: 0
 - Identical values: 63
 - Empty values: `auth.empty` in both catalogs
 - ASCII-only zh-CN values: 69
-- ASCII-with-CJK zh-CN values: 2494
+- ASCII-with-CJK zh-CN values: 2272
 
 Reviewed terminology keeps product and protocol terms such as `Agent`,
 `Warp Drive`, `Notebook`, `Cloud Oz`, `MCP`, `API`, `CLI`, `ID`, `JSON`,
@@ -167,8 +194,8 @@ reported zero remaining zh-CN value matches for `智能体`, `Workflows`,
   validation.
 - Visual coverage is sampled and not exhaustive across every platform surface,
   runtime configuration, and OS environment.
-- Current real-display smoke assertions were not rerun after the latest rebase,
-  and screenshot capture did not produce current-code PNGs on this machine.
+- Current real-display smoke assertions passed, but screenshot capture did not
+  produce current-code PNGs on this machine.
 - This local evidence must not be described as full UI human review, complete
   product-wide exhaustive coverage, or screenshot-backed current-code visual
   proof.

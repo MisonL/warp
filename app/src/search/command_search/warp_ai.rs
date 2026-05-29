@@ -15,6 +15,7 @@ use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::{GenerateCommandsFromNaturalLanguageError, AI_ASSISTANT_LOGO_COLOR};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::command_search::searcher::CommandSearchItemAction;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::item::SearchItem;
@@ -238,13 +239,11 @@ impl AsyncDataSource for WarpAIDataSource {
 
 impl DataSourceRunError for GenerateCommandsFromNaturalLanguageError {
     fn user_facing_error(&self) -> String {
-        match self {
-            Self::BadPrompt => "No results found. Please try again with a more specific query.",
-            Self::AiProviderError => "Something went wrong. Please try again.",
-            Self::RateLimited => "Looks like you're out of AI credits. Please try again later.",
-            Self::Other => "Something went wrong. Please try again.",
-        }
-        .to_string()
+        localization::text_for_locale(warp_localization::LocaleId::EnUs, self.error_text_key())
+    }
+
+    fn user_facing_error_text_key(&self) -> Option<&'static str> {
+        Some(self.error_text_key())
     }
 
     fn telemetry_payload(&self) -> serde_json::Value {
@@ -253,6 +252,16 @@ impl DataSourceRunError for GenerateCommandsFromNaturalLanguageError {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl GenerateCommandsFromNaturalLanguageError {
+    fn error_text_key(&self) -> &'static str {
+        match self {
+            Self::BadPrompt => "search.command_search.warp_ai.error.bad_prompt",
+            Self::AiProviderError | Self::Other => "search.command_search.warp_ai.error.generic",
+            Self::RateLimited => "search.command_search.warp_ai.error.rate_limited",
+        }
     }
 }
 

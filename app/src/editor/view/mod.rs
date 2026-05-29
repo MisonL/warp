@@ -1822,7 +1822,7 @@ impl ImageContextOptions {
         matches!(self, ImageContextOptions::Enabled { .. })
     }
 
-    pub fn tooltip_text(&self) -> String {
+    pub fn tooltip_text(&self, app: &AppContext) -> String {
         if let ImageContextOptions::Enabled {
             unsupported_model,
             is_processing_attached_images,
@@ -1830,29 +1830,39 @@ impl ImageContextOptions {
             num_images_in_conversation,
         } = self
         {
+            let query_limit = MAX_IMAGE_COUNT_FOR_QUERY.to_string();
+            let conversation_limit = MAX_IMAGES_PER_CONVERSATION.to_string();
+
             if *unsupported_model {
-                return "Image attachment isn't supported by this model".into();
+                return crate::localization::text_for_app(
+                    app,
+                    "editor.image_context.tooltip.unsupported_model",
+                );
             }
 
             if *is_processing_attached_images {
-                return "Loading...".into();
+                return crate::localization::text_for_app(app, "common.loading");
             }
 
             if *num_images_attached >= MAX_IMAGE_COUNT_FOR_QUERY {
-                return format!(
-                    "Image attachment is disabled — limit is {MAX_IMAGE_COUNT_FOR_QUERY} per query"
+                return crate::localization::text_for_app_with_args(
+                    app,
+                    "editor.image_context.tooltip.query_limit",
+                    &[("count", query_limit.as_str())],
                 );
             }
 
             let total_images = *num_images_attached + *num_images_in_conversation;
             if total_images >= MAX_IMAGES_PER_CONVERSATION {
-                return format!(
-                    "Image attachment is disabled — limit is {MAX_IMAGES_PER_CONVERSATION} per conversation"
+                return crate::localization::text_for_app_with_args(
+                    app,
+                    "editor.image_context.tooltip.conversation_limit",
+                    &[("count", conversation_limit.as_str())],
                 );
             }
         }
 
-        "Attach images".into()
+        crate::localization::text_for_app(app, "editor.image_context.tooltip.attach")
     }
 
     pub fn num_images_attached(&self) -> usize {
@@ -8384,7 +8394,7 @@ impl EditorView {
             controls.add_child(
                 Container::new(self.render_image_context_button(
                     !self.image_context_options.is_enabled(),
-                    self.image_context_options.tooltip_text(),
+                    self.image_context_options.tooltip_text(ctx),
                     icon_size,
                     appearance,
                 ))

@@ -375,6 +375,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "auth.token.paste_from_browser",
         "auth.token.placeholder",
         "auth.welcome",
+        "auth.web_handoff.error",
         "env_vars.title.untitled",
         "code.action.accept_and_save",
         "code.action.discard_this_version",
@@ -391,6 +392,10 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "drive.export.finished_objects",
         "drive.export.open_in_finder",
         "drive.export.open_in_folder",
+        "editor.image_context.tooltip.attach",
+        "editor.image_context.tooltip.conversation_limit",
+        "editor.image_context.tooltip.query_limit",
+        "editor.image_context.tooltip.unsupported_model",
         "editor.voice.toast.enabled_with_shortcut",
         "editor.voice.toast.microphone_access",
         "editor.voice.tooltip.default",
@@ -1012,9 +1017,15 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.pane_header.hide_details",
         "terminal.pane_header.show_details",
         "editor.autosuggestion.keybinding.custom",
+        "search.a11y.error_finding_results",
+        "search.a11y.loading_suggestions",
+        "search.a11y.selected_item",
         "search.command_search.out_of_credits_contact_admin",
         "search.command_search.out_of_credits_prefix",
         "search.command_search.out_of_credits_suffix",
+        "search.command_search.warp_ai.error.bad_prompt",
+        "search.command_search.warp_ai.error.generic",
+        "search.command_search.warp_ai.error.rate_limited",
         "search.command_search.upgrade",
         "search.command_search.upgrade_ai_usage",
         "search.filter.display.tabs",
@@ -1171,6 +1182,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "drive.confirmation.leave_team.body",
         "drive.confirmation.leave_team.confirm",
         "drive.confirmation.leave_team.title",
+        "workspace.lightbox.no_images",
         "workspace.conversation.empty.description",
         "workspace.conversation.empty.title",
         "workspace.conversation.fallback_title",
@@ -2651,6 +2663,18 @@ fn onboarding_ui_calls_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn ui_components_calls_do_not_use_direct_english_literals() {
+    let ui_components_src = workspace_root().join("crates/ui_components/src");
+    let mut violations = Vec::new();
+    collect_direct_ui_literal_violations(&ui_components_src, &mut violations);
+
+    assert!(
+        violations.is_empty(),
+        "direct user-visible English literals in ui_components calls: {violations:#?}"
+    );
+}
+
+#[test]
 fn context_chip_disabled_tooltips_do_not_use_direct_english_literals() {
     let path = workspace_root().join("app/src/context_chips/context_chip.rs");
     let content = fs::read_to_string(&path)
@@ -2836,7 +2860,9 @@ fn collect_direct_ui_literal_violations_with_patterns(
         if path
             .file_name()
             .and_then(|name| name.to_str())
-            .is_some_and(|name| name.ends_with("_tests.rs") || name == "localization_tests.rs")
+            .is_some_and(|name| {
+                name.ends_with("_tests.rs") || name == "localization_tests.rs" || name == "test.rs"
+            })
         {
             continue;
         }
@@ -2882,6 +2908,11 @@ fn collect_direct_first_argument_literal_violations(
 }
 
 fn direct_ui_english_literal<'a>(line: &'a str, patterns: &[&str]) -> Option<&'a str> {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("//") {
+        return None;
+    }
+
     if line.contains("localization::")
         || line.contains("text_for_app")
         || line.contains("_text(")
