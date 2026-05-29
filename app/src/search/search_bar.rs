@@ -805,7 +805,14 @@ impl<T: Action + Clone> SearchBar<T> {
                 // Set the appropriate placeholder text if the editor buffer is empty.
                 match self.state.as_ref(ctx).query_filter {
                     Some(filter) => {
-                        editor.set_placeholder_text(filter.localized_placeholder_text(ctx), ctx);
+                        editor.set_placeholder_text(
+                            localization::text_for_app_or(
+                                ctx,
+                                filter.placeholder_text_key(),
+                                filter.placeholder_text(),
+                            ),
+                            ctx,
+                        );
                     }
                     None => {
                         editor.set_placeholder_text(self.placeholder.text(ctx), ctx);

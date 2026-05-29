@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use onboarding::slides::{layout, slide_content};
-use onboarding::{OnboardingIntention, AI_FEATURES, WARP_DRIVE_FEATURES};
+use onboarding::{OnboardingIntention, AI_FEATURE_KEYS, WARP_DRIVE_FEATURE_KEYS};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use ui_components::{button, Component as _, Options as _};
@@ -992,12 +992,13 @@ impl LoginSlideView {
         let feature_x_fill: ThemeFill = ThemeFill::Solid(theme.ansi_fg_red());
         let mut feature_list =
             Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
-        let feature_items: &[&str] = if is_terminal {
-            WARP_DRIVE_FEATURES
+        let feature_item_keys: &[&str] = if is_terminal {
+            WARP_DRIVE_FEATURE_KEYS
         } else {
-            AI_FEATURES
+            AI_FEATURE_KEYS
         };
-        for &item in feature_items {
+        for &item_key in feature_item_keys {
+            let item = localization::text_for_app(app, item_key);
             let icon_el = ConstrainedBox::new(Icon::X.to_warpui_icon(feature_x_fill).finish())
                 .with_width(16.)
                 .with_height(16.)

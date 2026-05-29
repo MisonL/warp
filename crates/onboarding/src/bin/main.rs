@@ -120,6 +120,7 @@ impl OnboardingMainView {
                 false,
                 None,
                 onboarding::OnboardingAuthState::LoggedOut,
+                Default::default(),
                 ctx,
             )
         });

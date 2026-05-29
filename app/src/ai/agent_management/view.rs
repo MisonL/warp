@@ -1285,7 +1285,10 @@ impl AgentManagementView {
 
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::default("Copied branch name".to_string());
+                    let toast = DismissibleToast::default(text(
+                        ctx,
+                        "agent_management.toast.copied_branch_name",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
             }
@@ -1715,7 +1718,7 @@ impl AgentManagementView {
         let card_hoverable = Hoverable::new(card_state.hover_state.clone(), move |mouse_state| {
             let mut card_content = Flex::column()
                 .with_spacing(CARD_ROW_SPACING)
-                .with_child(Self::render_header_row(card_state, entry, appearance))
+                .with_child(Self::render_header_row(card_state, entry, appearance, app))
                 .with_child(Self::render_metadata_row(entry, appearance, app));
 
             // Add artifacts row if there is a buttons view
@@ -1795,6 +1798,7 @@ impl AgentManagementView {
         card_state: &CardState,
         entry: &AgentConversationEntry,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let font_family = appearance.ui_font_family();

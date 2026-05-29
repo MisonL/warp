@@ -8,7 +8,8 @@ use cfg_if::cfg_if;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use onboarding::{
-    AgentOnboardingEvent, AgentOnboardingView, OnboardingIntention, SelectedSettings,
+    AgentOnboardingEvent, AgentOnboardingView, OnboardingCopy, OnboardingIntention,
+    SelectedSettings,
 };
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;
@@ -1949,6 +1950,7 @@ impl RootView {
                 is_free_user_no_ai_experiment_active(ctx),
                 agent_price_cents,
                 auth_state,
+                OnboardingCopy::localized(|key| text(ctx, key)),
                 ctx,
             )
         });

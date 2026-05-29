@@ -1,4 +1,3 @@
-use crate::localization;
 use std::any::Any;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -266,8 +265,8 @@ impl QueryFilter {
         }
     }
 
-    pub fn localized_placeholder_text(&self, app: &AppContext) -> String {
-        localization::text_for_app_or(app, self.placeholder_key(), self.placeholder_text())
+    pub fn placeholder_text_key(&self) -> &'static str {
+        self.placeholder_key()
     }
 
     /// Returns text that is used to represent the filter as a filter 'atom' in the search input.
@@ -334,8 +333,8 @@ impl QueryFilter {
         }
     }
 
-    pub fn localized_display_name(&self, app: &AppContext) -> String {
-        localization::text_for_app_or(app, self.display_name_key(), self.display_name())
+    pub fn display_name_text_key(&self) -> &'static str {
+        self.display_name_key()
     }
 
     fn display_name_key(&self) -> &'static str {

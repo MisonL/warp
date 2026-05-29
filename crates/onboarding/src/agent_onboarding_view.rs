@@ -19,6 +19,7 @@ use crate::slides::{
     ThemePickerSlideEvent, ThirdPartySlide,
 };
 use crate::telemetry::OnboardingEvent;
+use crate::OnboardingCopy;
 
 const APP_BECAME_ACTIVE_DEBOUNCE: Duration = Duration::from_secs(15);
 
@@ -120,6 +121,7 @@ impl AgentOnboardingView {
         free_user_no_ai_experiment: bool,
         agent_price_cents: Option<i32>,
         auth_state: OnboardingAuthState,
+        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let onboarding_state = ctx.add_model(|_| {
@@ -131,6 +133,7 @@ impl AgentOnboardingView {
                 free_user_no_ai_experiment,
                 agent_price_cents,
                 auth_state,
+                copy,
             )
         });
         ctx.subscribe_to_model(&onboarding_state, |me, _model, event, ctx| {
@@ -457,7 +460,13 @@ impl View for AgentOnboardingView {
             let close_button = self.close_button.render(
                 appearance,
                 button::Params {
-                    content: button::Content::Label("Skip".into()),
+                    content: button::Content::Label(
+                        self.onboarding_state
+                            .as_ref(app)
+                            .copy()
+                            .text_owned("onboarding.common.skip")
+                            .into(),
+                    ),
                     theme: &button::themes::Naked,
                     options: button::Options {
                         size: button::Size::Small,

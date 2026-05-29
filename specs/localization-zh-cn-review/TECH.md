@@ -2,220 +2,72 @@
 
 ## Scope
 
-This record captures the local rebase and validation state for the zh-CN
-localization work on branch `feat/localization-settings-upstream-rebuild`.
+This record captures the local rebase, fix, and validation state for the Warp
+zh-CN localization work on branch `feat/localization-settings-upstream-rebuild`.
+It is intentionally local-only: no PR, push, remote ref update, or new branch was
+created in this pass.
 
-## Branch State
+## Current Branch State
 
 - Branch: `feat/localization-settings-upstream-rebuild`
-- Validated upstream base: `37df9ef2`
-- Review branch comparison at validation point `b2ed17b6`: `git rev-list
-  --left-right --count upstream/master...HEAD` returned `0 14`;
-  `upstream/master` itself resolved to `37df9ef2` after `git fetch upstream
-  master`.
-- Validated code head after rebase: `b2ed17b6`. The post-rebase real-display
-  visual smoke was run at local evidence head `b2ed17b6`; commits after
-  `b2ed17b6` update local evidence documents only.
-- App code changes since the latest code-validation point: none in the checked
-  app and crate paths. `git diff --quiet b2ed17b6 HEAD -- app crates Cargo.toml
-  Cargo.lock` returned 0 before this evidence update.
-- Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, or
-  `.git/index.lock`
-- Stash state: the May 27 rebase autostash remains as a safety backup, and the
-  pre-existing May 19 stash remains
-- Review state: all localization changes were restored and validated against the
-  current `upstream/master` base.
+- Verified upstream base: `upstream/master` at `ce73fe07`
+- Local source validation was run after the rebase; this evidence is included
+  in the amended branch head.
+- Upstream ancestry: `git merge-base --is-ancestor upstream/master HEAD`
+  returned 0
+- Upstream comparison after this evidence update:
+  `git rev-list --left-right --count upstream/master...HEAD` returned `0 16`
+- Remote branch comparison after this evidence update:
+  `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
+  returned `3 64`
+- Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, `MERGE_HEAD`, or
+  `CHERRY_PICK_HEAD`
 
-## Rebase Result
+## Current Fixes
 
-Fetched `upstream` with prune, then rebased the local branch onto
-`upstream/master`.
+This pass addressed gaps found while revalidating the branch after upstream
+refreshes through `ce73fe07`:
 
-The first fetch updated `upstream/master` from `fc110333` to `c99b9546`,
-leaving the local branch behind by 5 commits. `git rebase --autostash
-upstream/master` created autostash `3b733739`, applied it successfully, and
-updated `feat/localization-settings-upstream-rebuild` to `c99b9546`.
+- AI settings hardcoded UI copy is now catalog-backed, including execution
+  profile actions, toolbar layout copy, remote-session policy text, sign-up and
+  billing CTAs, custom inference controls, voice input copy, CLI agent toolbar
+  copy, API key actions, and related setting labels.
+- Agent management's branch-copy toast now uses
+  `agent_management.toast.copied_branch_name`.
+- Search filter placeholder and chip labels now use app-side localization while
+  `warp_search_core` exposes stable catalog key methods.
+- Notebook find-bar regex and case-sensitive toggle tooltips now resolve through
+  catalog-backed strings.
+- `FilterableDropdown` now accepts owned menu header text so localized dynamic
+  headers can be used where the old API only accepted `&'static str`.
+- MCP server picker headers and the directory color picker header now use
+  localized catalog values instead of direct English fallback text.
+- Onboarding now uses an `OnboardingCopy` injection path. The app runtime passes
+  catalog-backed copy into onboarding, while the standalone onboarding binary
+  keeps English defaults. Intro, intention, customize, Agent, third-party,
+  theme, project, free-user-no-AI, and shared toggle-card UI copy no longer
+  rely on direct user-visible English literals in the current static audit.
+- The auth login disable-confirm feature lists now share onboarding feature key
+  arrays so AI and Warp Drive feature bullets are localized through the same
+  catalog keys.
+- Compile drift from the latest upstream rebase was fixed in the app
+  localization path without changing non-localization business semantics, and
+  the branch rebased cleanly onto `upstream/master` at `ce73fe07` with no
+  conflicts.
 
-A later fetch updated `upstream/master` from `c99b9546` to `37f104a1`. A second
-`git rebase --autostash upstream/master` created autostash `1ecc3210`, applied
-it successfully, and updated the branch to `37f104a1`. No conflicts were
-reported.
+## Catalog State
 
-The latest fetch updated `upstream/master` from `37f104a1` to `43e3f58c`. A
-third `git rebase --autostash upstream/master` created autostash `4e04a08d`,
-applied it successfully, and updated the branch to `43e3f58c`. No conflicts
-were reported.
+Current catalog stats:
 
-The next fetch updated `upstream/master` from `43e3f58c` to `edef7f83`. A
-fourth `git rebase --autostash upstream/master` created autostash `371d65fd`,
-applied it successfully, and updated the branch to `edef7f83`. No conflicts
-were reported.
-
-The latest fetch updated `upstream/master` from `edef7f83` to `ade38b08`. A
-fifth `git rebase --autostash upstream/master` created autostash `b0d810a4`,
-applied it successfully, and updated the branch to `ade38b08`. No conflicts
-were reported.
-
-The latest fetch updated `upstream/master` from `ade38b08` to `175faadc`. A
-sixth `git rebase --autostash upstream/master` created autostash `b4bd0ca4`,
-applied it successfully, and updated the branch to `175faadc`. No conflicts
-were reported. There are no unmerged paths and no active rebase state.
-
-The latest fetch updated `upstream/master` from `175faadc` to `8f8ff4a8`. A
-seventh `git rebase --autostash upstream/master` created autostash `9e34dc21`,
-updated the branch to `8f8ff4a8`, then reported one autostash replay conflict
-in `app/src/settings_view/billing_and_usage/billing_cycle_usage_section.rs`.
-That conflict was resolved by keeping the upstream split billing legend path
-while restoring catalog-backed render calls. There are no unmerged paths and no
-active rebase state.
-
-The dirty local worktree was protected during rebase and restored afterward.
-No user changes were intentionally reverted.
-
-
-After the `2566f54a` upstream refresh, the upstream async find feature toggle
-introduced two new direct English strings and one call-site argument mismatch.
-They are now backed by `settings.features.async_find.label` and
-`settings.features.async_find.description` in both locale catalogs, and
-`AsyncFindWidget` now passes `app` as the first `render_body_item_label`
-argument.
-
-After the `c37c1cd6` upstream refresh, `upstream/master` added earlier cloud
-agent task context setup in `app/src/ai/agent_sdk/mod.rs`. The local branch
-merged that upstream change cleanly with no conflict.
-
-After the `98af7b65` upstream refresh, `upstream/master` added the queued
-prompts list UI. Rebasing onto this base reported one content conflict in
-`app/src/terminal/view.rs` while replaying the main localization commit. The
-conflict was resolved by preserving the upstream queued-prompt/blocklist
-imports and the localization branch's `PRE_REWIND_PREFIX` import. A stale
-`ATTACH_AS_AGENT_MODE_CONTEXT_TEXT` import from conflict resolution was removed
-after `cargo test -p warp --lib localization::tests -- --nocapture` and
-`cargo check -p warp --lib --message-format=short` both exposed it as an
-unresolved import.
-
-After the `37df9ef2` upstream refresh, rebasing the local branch reported three
-content conflicts while replaying the main localization commit:
-`app/src/ai/blocklist/agent_view/agent_input_footer/mod.rs`,
-`app/src/ai/blocklist/block/status_bar.rs`, and
-`app/src/ai/blocklist/block/view_impl/common.rs`. The conflicts were resolved
-by preserving upstream's cloud-agent fast-forward locked-state behavior and
-disabled button theme while replacing the new direct English locked tooltip
-with catalog-backed strings. No rebase state remains.
-
-## Post-Rebase Fixes
-
-After the upstream refresh, three new direct English menu literals were wired
-through localization keys:
-
-- `workspace.menu.new_tab_group` for `New tab group`
-- `tab.menu.new_group_with_tab` for `New group with tab`
-- `tab.menu.move_to_group` for `Move to group`
-
-Matching keys were added to both `en-US.json` and `zh-CN.json`.
-
-After the `8f8ff4a8` refresh, the upstream billing combined legend tooltip
-introduced one new direct English string. It is now backed by
-`settings.billing.credits.legend.combined_tooltip` in both locale catalogs and
-covered by the localization catalog test list.
-
-After the `98af7b65` refresh, the upstream queued prompts panel introduced two
-new direct English tooltips. They are now backed by
-`terminal.queued_prompts.tooltip.edit` and
-`terminal.queued_prompts.tooltip.delete` in both locale catalogs and covered by
-the direct-English localization tests.
-
-After the `37df9ef2` refresh, the upstream cloud-agent fast-forward locked
-state introduced a new direct English tooltip. It is now backed by
-`agent.input_footer.auto_approve_locked_tooltip` and
-`agent.warping.auto_approve_locked_tooltip` in both locale catalogs.
-
-After the same refresh, the auth secret deletion confirmation dialog still had
-direct English button, title, and description copy. It is now backed by
-`terminal.auth_secret.delete.action.cancel`,
-`terminal.auth_secret.delete.action.delete`,
-`terminal.auth_secret.delete.description`, and
-`terminal.auth_secret.delete.title` in both locale catalogs and covered by the
-direct-English localization tests.
-
-The visual review then found two Agent conversation list regressions and one
-terminology inconsistency:
-
-- Section headers `ACTIVE` / `PAST` were still hard-coded in the conversation
-  list. They now use `workspace.conversation_list.section.active` and
-  `workspace.conversation_list.section.past`, rendering as `当前` / `历史` in
-  zh-CN.
-- Conversation relative timestamps used the shared English-only time formatter,
-  rendering `just now`. Conversation list rows now use localized relative time
-  keys such as `workspace.conversation_list.time.just_now`, rendering `刚刚` in
-  zh-CN.
-- Settings schema descriptions still used `智能体` while the catalog standard is
-  `Agent`. These 27 zh-CN values were normalized to `Agent`.
-
-Menu custom item titles are now covered by
-`app_menu_custom_items_do_not_use_direct_english_literals` in
-`crates/localization/tests/localization_tests.rs`. The check scans
-`CustomMenuItem::new` and `CustomMenuItem::new_with_submenu` title arguments in
-`app/src/app_menus.rs` and fails on direct English UI text.
-
-The zh-CN visual smoke now also includes a runtime assertion for app menu and
-Dock menu titles. It builds menus from the real integration app context and
-checks the Dock title/item plus root menu titles such as `文件`, `编辑`, `视图`,
-`标签页`, `块`, `AI`, `Drive`, `窗口`, and `帮助`.
-
-## Terminology Review
-
-The zh-CN catalog keeps product and technical names in English when they are
-user-facing brand or protocol names:
-
-- `Agent`
-- `Warp Drive`
-- `Notebook`
-- `Cloud Oz`
-- `MCP`
-- `API`
-- `CLI`
-- `ID`
-- `JSON`
-- `Shell`
-- `Slug`
-- `Drive`
-
-The review fixed ordinary UI copy that was still English:
-
-- `Copyright 2026 Warp` -> `版权所有 2026 Warp`
-- `Workflows` in descriptive prose -> `工作流`
-- `"Use Agent" footer` -> `“使用 Agent”底栏`
-- Appearance app icon style names, including `Aurora`, `Comets`, `Cow`,
-  `Glass Sky`, `Glitch`, `Glow`, `Holographic`, `Mono`, `Neon`,
-  `Starburst`, and `Sticker`
-- Settings schema descriptions using `智能体` -> `Agent`
-- Conversation list section headers `ACTIVE` / `PAST` -> `当前` / `历史`
-- Conversation list timestamp `just now` -> `刚刚`
-- Queued prompt tooltips `Edit queued prompt` / `Delete queued prompt` ->
-  `编辑排队提示词` / `删除排队提示词`
-- Cloud-agent fast-forward locked tooltip -> `云端 Agent 对话始终启用自动批准`
-- Auth secret delete dialog buttons and body -> `取消`, `删除`, and localized
-  confirmation copy
-
-The latest ASCII-only review checked the 67 ASCII-only zh-CN values. Remaining
-ASCII-only values are intentional brand/product names, commands, table fields,
-placeholders, or formatting fragments such as `Agent`, `Notebook`, `Warp Drive`,
-`Cloud Oz`, `GitHub Action`, `nvm install node`, `Slug`, `ID`, `UUID`, `JSON`,
-`Shell`, `\n`, and `{credits} / {price}`.
-
-## Locale Catalog Checks
-
-Current catalog stats after the latest visual-review fixes:
-
-- `en-US` keys: 5584
-- `zh-CN` keys: 5584
+- `en-US` keys: 5684
+- `zh-CN` keys: 5684
 - Missing in `zh-CN`: 0
 - Extra in `zh-CN`: 0
 - Placeholder mismatches: 0
-- Identical values: 61
-- ASCII-only zh-CN values: 67
-- ASCII-with-CJK zh-CN values: 2453
+- Identical values: 63
+- Empty values: `auth.empty` in both catalogs
+- ASCII-only zh-CN values: 69
+- ASCII-with-CJK zh-CN values: 2494
 
 Term scan counts:
 
@@ -233,16 +85,15 @@ Term scan counts:
 - `Copyright`: 0
 - `智能体`: 0
 
+The remaining ASCII-only zh-CN values were reviewed as intentional
+brand/product names, commands, table fields, placeholders, IDs, provider names,
+or formatting fragments such as `Agent`, `Notebook`, `Warp Drive`, `Cloud Oz`,
+`GitHub Action`, `nvm install node`, `Slug`, `ID`, `UUID`, `JSON`, `Shell`,
+`\n`, and `{credits} / {price}`.
+
 ## Verification
 
-Commands rerun after `git fetch upstream master` and rebase at code-validation
-point `b2ed17b6`:
-
-```bash
-git diff --check upstream/master...HEAD && git diff --check && git diff --cached --check
-```
-
-Result: pass.
+Commands run locally on the current worktree during this evidence update:
 
 ```bash
 jq empty app/assets/bundled/locales/en-US.json app/assets/bundled/locales/zh-CN.json
@@ -251,167 +102,142 @@ jq empty app/assets/bundled/locales/en-US.json app/assets/bundled/locales/zh-CN.
 Result: pass.
 
 ```bash
+rg -n 'paragraph\("[^"]*[A-Za-z][^"]*"|span\("[^"]*[A-Za-z][^"]*"|link\("[^"]*[A-Za-z][^"]*"|Text::new\("[^"]*[A-Za-z][^"]*"|Text::new_inline\("[^"]*[A-Za-z][^"]*"|FormattedTextElement::from_str\("[^"]*[A-Za-z][^"]*"|button::Content::Label\("[^"]*[A-Za-z][^"]*"|wrappable_text\("[^"]*[A-Za-z][^"]*"' crates/onboarding/src -g '*.rs'
+```
+
+Result: pass. The scan produced no direct user-visible English literals in
+onboarding UI constructor calls.
+
+```bash
 cargo fmt --all -- --check
 ```
 
 Result: pass.
 
 ```bash
+git diff --check
+```
+
+Result: pass.
+
+```bash
+cargo check -p onboarding --message-format=short
+```
+
+Result: pass, finished in 7m 11s.
+
+```bash
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass on `b2ed17b6`, 20 tests passed. Latest run compiled in 1m 49s and
-the catalog test binary finished in 6.32s.
-
-```bash
-cargo test -p warp --lib localization_tests -- --nocapture
-```
-
-Result: earlier compile/runner evidence only. It completed on `175faadc`, ran
-0 tests with 4655 filtered, and confirmed the `warp` test binary compiled. It
-was last rerun on pre-rebase `c2d9ddf8`, compiled in 1m 19s, and ran 0 tests with 4664
-filtered. Actual app localization tests are registered under
-`localization::tests`.
+Result: pass, 22 tests passed. The post-rebase run compiled in 18.12s and
+includes onboarding copy key coverage and the onboarding direct-English UI
+literal scan.
 
 ```bash
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass on `b2ed17b6`, 8 tests passed with 4685 filtered. Latest run
-compiled in 25m 18s and the filtered test run finished in 0.99s.
+Result: the test binary build finished in 25m 45s, but the binary did not
+reach test output before manual termination. A follow-up run after confirming
+the test binary could list tests passed as recorded below.
+
+```bash
+cargo test -p warp --lib localization::tests -- --list
+```
+
+Result: pass. The command listed 8 localization tests and 0 benchmarks after a
+1.02s cached target check.
+
+```bash
+cargo test -p warp --lib localization::tests -- --nocapture
+```
+
+Result: pass, 8 tests passed with 4715 filtered tests. The cached target check
+finished in 1.47s and the tests finished in 3.13s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass on `b2ed17b6`, 4m 48s.
+Result: pass, 6m 59s.
 
 ```bash
-cargo build -p integration --bin integration
+rg -n 'set_menu_header_to_static\(|Select MCP servers|Add folder' app/src crates -g '*.rs'; test $? -eq 1
 ```
 
-Result: pass on local evidence head `b2ed17b6`, 17m 24s.
+Earlier in this pass this returned pass with no direct English header fallback
+matches. It should be re-run after the final fetch/rebase check if additional
+source edits are made.
 
-The current-head visual smoke was then run directly through the built binary to
-avoid retriggering Cargo build/link work:
+## Visual Evidence
 
-```bash
-WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts" \
-WARP_INTEGRATION=1 \
-target/debug/integration test_zh_cn_localization_visual_smoke
-```
+Historical real-display smoke evidence:
 
-Result: pass on local evidence head `b2ed17b6`, exit code 0. The integration
-run used a real display, executed 15 steps, included the runtime app menu and
-Dock menu title assertion, and saved a fresh artifact set under
-`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10`.
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T21-56-59/recording.log`
 
-Earlier current-branch attempts through `cargo run -p integration --bin
-integration -- ...` and the ignored `cargo test -p integration --test
-integration ... --ignored` path were terminated while still in the integration
-binary link/build stage and did not reach test execution. The direct binary run
-above is the current completed result.
+The historical run returned exit code 0 and the recording log shows every smoke
+step and assertion succeeded, including app menu/Dock menu localization,
+Settings, Terminal input focus, context chip presence, command search, Agent
+input mode, command palette, workspace toast, and launch-config dialog focus.
 
-Latest completed visual artifacts:
-
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/settings-appearance-language-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/terminal-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/context-chips-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/command-search-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/agent-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/command-palette-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/toast-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/dialog-launch-config-zh-cn.png`
-
-Each artifact is a `1280 x 800` PNG.
-
-Manual spot-check: the current `agent-input-zh-cn.png` shows the
-conversation section header as `当前` and the row timestamp as `刚刚`.
+Historical limitation: no PNG screenshots were saved in the artifact directory.
+The latest complete PNG screenshot set remains the historical local artifact
+directory `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T16-14-58`,
+but that screenshot set predates the current rebase to `ce73fe07` and is not
+used as proof for the current code base.
 
 ## Completion Audit
 
 Goal item status against the current local branch:
 
-- Rebase or merge latest `upstream/master`: satisfied locally. The review
-  candidate is based directly on `upstream/master` at `37df9ef2`.
-- App-level verification: satisfied locally at code-validation point
-  `b2ed17b6`. The listed `cargo test`, `cargo check`, `jq empty`, and
-  `git diff --check` commands have passing results recorded above.
-- zh-CN visual review: satisfied locally at evidence head `b2ed17b6`. The
-  real-display smoke covers Settings language selection, menus/Dock assertions,
-  Agent input, Terminal input, Search, Context chips, toast, and dialog
-  screenshots, with fresh artifacts under
-  `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10`.
-- Terminology review: satisfied for the catalog-level review scope recorded
-  above. The 67 ASCII-only zh-CN values and ASCII-with-CJK values were reviewed;
-  remaining English fragments are intentional product, protocol, command, field,
-  placeholder, or formatting text.
-- Terminology consistency: satisfied for the reviewed terms. Catalog term scans
-  report zero remaining `智能体`, `Workflows`, `Notebooks`, `Use Agent`,
-  `Copyright`, `pane`, `handoff`, `snapshot`, `payload`, and `pull request`
-  matches in zh-CN values.
-- Key and placeholder integrity: satisfied. `en-US` and `zh-CN` both contain
-  5584 keys, with 0 missing keys, 0 extra keys, and 0 placeholder mismatches.
-- Local commit readiness: satisfied locally for this pass. The large
-  localization commit is already present locally, and the latest async find,
-  queued prompt tooltip, import-fix, fast-forward locked tooltip, auth secret
-  delete dialog, and evidence local commits through `b2ed17b6` were validated.
-- PR creation or update: intentionally not performed. The user explicitly
-  instructed not to submit a PR; the mistakenly opened `#11739` is closed, and
-  this pass keeps the candidate local.
+- Rebase to latest upstream: satisfied locally for `upstream/master` at
+  `ce73fe07`.
+- No new branch: satisfied.
+- No push or PR update: satisfied.
+- Key and placeholder integrity: satisfied by catalog stats and
+  `warp_localization` tests, including onboarding copy keys extracted from
+  `crates/onboarding/src/copy.rs`.
+- Hardcoded direct-English regression checks: satisfied for the current static
+  audit scope. The onboarding UI constructor scan passed with no matches, and
+  the latest direct header fallback scan passed with no matches earlier in this
+  pass.
+- App localization tests: satisfied by
+  `cargo test -p warp --lib localization::tests -- --nocapture`, 8 passed with
+  4715 filtered tests.
+- App compile check: satisfied by `cargo check -p warp --lib`.
+- Real-display zh-CN smoke flow: historical evidence exists, but it was not
+  rerun after the latest rebase.
+- Real-display PNG screenshot capture: not satisfied for the current code base;
+  the historical runs generated `recording.log` only.
 
-## Review Handoff Draft
+## Historical Notes
 
-Suggested local commit title:
+Earlier local validation points included upstream bases such as `37df9ef2`,
+`af886f7c`, `a4d19abd`, and `df02914a`. Those are historical only. The current
+evidence basis is the branch rebased on `ce73fe07` with the fixes and
+validation recorded above.
 
-```text
-Localize Warp UI for zh-CN
-```
+Previously fixed upstream-refresh gaps include:
 
-Suggested review summary:
-
-- Adds the `warp_localization` crate, bundled `en-US` and `zh-CN` catalogs, and
-  app language settings for System, English, and Simplified Chinese.
-- Migrates UI copy across Agent, Settings, Terminal, Search, Workspace, menus,
-  dialogs, toasts, and shared UI components to catalog-backed strings.
-- Adds catalog integrity tests, direct-English regression checks, app-level
-  localization tests, and a manual real-display zh-CN visual smoke test with
-  screenshot artifacts.
-- Keeps product and protocol terms such as `Agent`, `Warp Drive`, `Notebook`,
-  `MCP`, `API`, `CLI`, `ID`, `JSON`, and `Shell` in English intentionally.
-
-## Branch Relationship Notes
-
-The original branch names referenced by the handoff are no longer the active
-completion basis for this local worktree:
-
-- Active local branch: `feat/localization-settings-upstream-rebuild`, based on
-  `upstream/master` at `37df9ef2`.
-- Local cleanup removed the obsolete local `feat/localization-settings` and
-  `feat/localization-settings-upstream-validated` branches after pruning stale
-  `/private/tmp/warp-i18n-port-test*` worktree records.
-- Remote refs were not modified. `origin/feat/localization-settings`,
-  `origin/feat/localization-settings-reviewed`, and
-  `origin/feat/localization-settings-upstream-validated` remain available as
-  remote-only historical references.
-
-Recommendation: treat `feat/localization-settings-upstream-rebuild` as the
-current local review candidate and leave the older `reviewed` branch as
-historical reference only. Avoid force-updating or deleting older remote
-branches.
+- async find setting catalog keys
+- queued prompt edit/delete tooltips
+- cloud-agent fast-forward locked tooltip
+- auth secret delete confirmation dialog
+- Agent conversation list section headers and relative timestamps
+- app menu and Dock menu runtime visual assertions
+- upstream onboarding flow app-runtime localization through `OnboardingCopy`
 
 ## Remaining Risk
 
-- External review remains pending until the user explicitly allows a handoff
-  path. No PR creation or update is part of this local pass.
-- The May 27 rebase autostash remains in the stash list as a conservative
-  backup; it was not dropped during this pass.
-- Visual coverage now includes Settings language selection, terminal input,
-  context chips, command search, Agent input, command palette, a localized
-  workspace toast, and a Launch Config save dialog. App menu and Dock menu
-  titles have runtime integration coverage plus static regression coverage for
-  custom item titles, but this still does not exhaustively cover every platform
-  surface.
-- `origin/feat/localization-settings-reviewed` is an older divergent reference
-  and is not used as the completion basis for this branch.
+- External CI and external code review have not been run in this pass.
+- No PR evidence exists because the user explicitly instructed not to submit or
+  update a PR.
+- Visual coverage is sampled and does not prove exhaustive coverage of every UI
+  surface, platform state, runtime configuration, or translated context.
+- Current real-display smoke assertions were not rerun after the latest rebase,
+  and PNG screenshot capture did not produce current-code screenshots on this
+  machine; this remains a local visual artifact gate before claiming
+  screenshot-backed visual coverage.
+- Local `target/` artifacts are build and review evidence, not tracked source
+  files.

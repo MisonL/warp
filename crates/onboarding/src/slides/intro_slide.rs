@@ -66,7 +66,8 @@ impl View for IntroSlide {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
-        let content = self.render_centered_content(appearance);
+        let copy = self.onboarding_state.as_ref(app).copy();
+        let content = self.render_centered_content(appearance, app);
         let constrained = ConstrainedBox::new(content).with_max_width(421.).finish();
         // Background is rendered by the parent onboarding view (including background images).
         let centered = Container::new(Align::new(constrained).finish()).finish();
@@ -82,7 +83,7 @@ impl View for IntroSlide {
         let login_row = Flex::row()
             .with_child(
                 ui_builder
-                    .span("Already have an account? ")
+                    .span(copy.text_owned("onboarding.intro.account_prompt"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -90,7 +91,7 @@ impl View for IntroSlide {
             .with_child(
                 ui_builder
                     .link(
-                        "Log in".into(),
+                        copy.text_owned("onboarding.intro.log_in"),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(IntroSlideAction::LoginClicked);
@@ -139,8 +140,13 @@ impl OnboardingSlide for IntroSlide {
 }
 
 impl IntroSlide {
-    fn render_centered_content(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_centered_content(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
+        let copy = self.onboarding_state.as_ref(app).copy();
 
         let logo_fill = internal_colors::fg_overlay_4(theme);
         let logo = ConstrainedBox::new(Icon::WarpLogoLight.to_warpui_icon(logo_fill).finish())
@@ -151,7 +157,7 @@ impl IntroSlide {
         let base_color: ColorU = internal_colors::fg_overlay_4(theme).into();
         let shimmer_color: ColorU = theme.foreground().into();
         let title = ShimmeringTextElement::new(
-            "Welcome to Warp",
+            copy.text_owned("onboarding.intro.title"),
             appearance.ui_font_family(),
             32.,
             base_color,
@@ -163,7 +169,7 @@ impl IntroSlide {
 
         let subtitle_color = internal_colors::text_sub(theme, theme.background().into_solid());
         let subtitle = FormattedTextElement::from_str(
-            "A modern terminal with state of the art agents built in.",
+            copy.text_owned("onboarding.intro.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -176,7 +182,9 @@ impl IntroSlide {
         let get_started_button = self.get_started_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Get started".into()),
+                content: button::Content::Label(
+                    copy.text_owned("onboarding.common.get_started").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),

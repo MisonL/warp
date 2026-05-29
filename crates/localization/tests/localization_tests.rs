@@ -43,6 +43,13 @@ const UI_LITERAL_PATTERNS: &[&str] = &[
     "FormattedTextFragment::hyperlink_action(",
 ];
 
+const ONBOARDING_UI_LITERAL_PATTERNS: &[&str] = &[
+    "button::Content::Label(",
+    "FormattedTextElement::from_str(",
+    ".link(",
+    ".wrappable_text(",
+];
+
 const ALLOWED_DIRECT_UI_LITERALS: &[&str] = &["...", "Warp", "ZDR"];
 
 type CatalogMap = serde_json::Map<String, serde_json::Value>;
@@ -2575,6 +2582,27 @@ fn bundled_catalogs_have_matching_placeholders() {
 }
 
 #[test]
+fn bundled_catalogs_include_onboarding_copy_keys() {
+    let en_us = bundled_en_us_map();
+    let zh_cn = bundled_zh_cn_map();
+    let keys = onboarding_copy_keys_from_source();
+
+    assert!(!keys.is_empty(), "expected onboarding copy keys");
+
+    let missing = keys
+        .iter()
+        .filter_map(|key| {
+            (en_us.get(key).is_none() || zh_cn.get(key).is_none()).then_some(key.as_str())
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        missing.is_empty(),
+        "missing bundled onboarding copy keys: {missing:#?}"
+    );
+}
+
+#[test]
 fn bundled_catalogs_only_use_intentional_empty_values() {
     let en_us = bundled_en_us_map();
     let zh_cn = bundled_zh_cn_map();
@@ -2598,6 +2626,27 @@ fn app_ui_calls_do_not_use_direct_english_literals() {
     assert!(
         violations.is_empty(),
         "direct user-visible English literals in UI calls: {violations:#?}"
+    );
+}
+
+#[test]
+fn onboarding_ui_calls_do_not_use_direct_english_literals() {
+    let onboarding_src = workspace_root().join("crates/onboarding/src");
+    let mut violations = Vec::new();
+    collect_direct_ui_literal_violations_with_patterns(
+        &onboarding_src,
+        UI_LITERAL_PATTERNS,
+        &mut violations,
+    );
+    collect_direct_ui_literal_violations_with_patterns(
+        &onboarding_src,
+        ONBOARDING_UI_LITERAL_PATTERNS,
+        &mut violations,
+    );
+
+    assert!(
+        violations.is_empty(),
+        "direct user-visible English literals in onboarding UI calls: {violations:#?}"
     );
 }
 
@@ -2708,6 +2757,18 @@ fn empty_translation_keys(catalog: &CatalogMap) -> Vec<&str> {
         .collect()
 }
 
+fn onboarding_copy_keys_from_source() -> BTreeSet<String> {
+    let path = workspace_root().join("crates/onboarding/src/copy.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    content
+        .lines()
+        .flat_map(string_literals)
+        .filter(|literal| literal.starts_with("onboarding."))
+        .map(str::to_owned)
+        .collect()
+}
+
 fn placeholders(value: &str) -> BTreeSet<&str> {
     let mut placeholders = BTreeSet::new();
     let mut rest = value;
@@ -2750,6 +2811,14 @@ fn workspace_root() -> PathBuf {
 }
 
 fn collect_direct_ui_literal_violations(dir: &Path, violations: &mut Vec<String>) {
+    collect_direct_ui_literal_violations_with_patterns(dir, UI_LITERAL_PATTERNS, violations);
+}
+
+fn collect_direct_ui_literal_violations_with_patterns(
+    dir: &Path,
+    patterns: &[&str],
+    violations: &mut Vec<String>,
+) {
     let entries =
         fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
 
@@ -2775,7 +2844,7 @@ fn collect_direct_ui_literal_violations(dir: &Path, violations: &mut Vec<String>
         let content = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
         for (line_index, line) in content.lines().enumerate() {
-            if let Some(literal) = direct_ui_english_literal(line) {
+            if let Some(literal) = direct_ui_english_literal(line, patterns) {
                 violations.push(format!(
                     "{}:{}: {literal:?}",
                     path.strip_prefix(workspace_root())
@@ -2812,7 +2881,7 @@ fn collect_direct_first_argument_literal_violations(
     }
 }
 
-fn direct_ui_english_literal(line: &str) -> Option<&str> {
+fn direct_ui_english_literal<'a>(line: &'a str, patterns: &[&str]) -> Option<&'a str> {
     if line.contains("localization::")
         || line.contains("text_for_app")
         || line.contains("_text(")
@@ -2829,14 +2898,37 @@ fn direct_ui_english_literal(line: &str) -> Option<&str> {
         return None;
     }
 
-    let pattern = UI_LITERAL_PATTERNS
-        .iter()
-        .find(|pattern| line.contains(**pattern))?;
+    let pattern = patterns.iter().find(|pattern| line.contains(**pattern))?;
     let literal = first_string_literal_after(line, pattern)?;
     if ALLOWED_DIRECT_UI_LITERALS.contains(&literal) || !looks_like_english_ui_text(literal) {
         return None;
     }
     Some(literal)
+}
+
+fn string_literals(line: &str) -> Vec<&str> {
+    let bytes = line.as_bytes();
+    let mut literals = Vec::new();
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        let Some(start_offset) = line[cursor..].find('"') else {
+            break;
+        };
+        let start = cursor + start_offset;
+        let mut end = start + 1;
+        while end < bytes.len() {
+            if bytes[end] == b'"' && !is_escaped_quote(bytes, end) {
+                literals.push(&line[start + 1..end]);
+                cursor = end + 1;
+                break;
+            }
+            end += 1;
+        }
+        if end >= bytes.len() {
+            break;
+        }
+    }
+    literals
 }
 
 fn first_argument_string_literal(input: &str) -> Option<&str> {

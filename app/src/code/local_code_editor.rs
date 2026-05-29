@@ -6,7 +6,6 @@ use crate::{
         global_buffer_model::{BufferState, GlobalBufferModel},
         SaveOutcome, ShowFindReferencesCardProvider,
     },
-    debounce::debounce,
     localization,
     settings::AISettings,
     terminal::TerminalView,

@@ -124,7 +124,7 @@ impl DirectoryColorAddPicker {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_top_bar_max_width(MENU_WIDTH);
             dropdown.set_menu_width(MENU_WIDTH, ctx);
-            dropdown.set_menu_header_to_static(text(
+            dropdown.set_menu_header(text(
                 ctx,
                 "settings.appearance.tabs.directory_colors.add_button",
             ));

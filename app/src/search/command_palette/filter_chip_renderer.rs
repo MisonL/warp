@@ -9,6 +9,7 @@ use warpui::{AppContext, Element, EventContext};
 use crate::appearance::Appearance;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::DriveObjectType;
+use crate::localization;
 use crate::search::{FilterChipRenderer as CommonFilterChipRenderer, QueryFilter};
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 
@@ -37,7 +38,8 @@ impl FilterChipRenderer for QueryFilter {
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let self_copy: QueryFilter = *self;
-        let display_name = self.localized_display_name(app);
+        let display_name =
+            localization::text_for_app_or(app, self.display_name_text_key(), self.display_name());
         Hoverable::new(mouse_state_handle, |mouse_state| {
             let font_size = appearance.monospace_font_size() - 2.;
             Container::new({

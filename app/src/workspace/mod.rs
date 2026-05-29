@@ -44,11 +44,8 @@ use warp_core::context_flag::ContextFlag;
 use warpui::accessibility::AccessibilityVerbosity;
 use warpui::elements::DropTargetData;
 use warpui::keymap::FixedBinding;
-use warpui::{AppContext, SingletonEntity};
+use warpui::AppContext;
 
-use crate::ai::blocklist::NEW_AGENT_PANE_LABEL;
-use crate::ai::skills::SkillManager;
-use crate::ai::AIRequestUsageModel;
 use crate::channel::{Channel, ChannelState};
 use crate::features::FeatureFlag;
 use crate::palette::PaletteMode;
@@ -1809,15 +1806,9 @@ fn add_overflow_menu_items_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:send_feedback",
-            BindingDescription::new("Send feedback (opens external link)").with_dynamic_override(
-                |ctx| {
-                    let key = if is_feedback_skill_available(ctx) {
-                        "workspace.binding.send_feedback_with_oz"
-                    } else {
-                        "workspace.binding.send_feedback"
-                    };
-                    Some(localization::text_for_app(ctx, key))
-                },
+            binding_description(
+                "Send feedback (opens external link)",
+                "workspace.binding.send_feedback",
             ),
             WorkspaceAction::SendFeedback,
         )

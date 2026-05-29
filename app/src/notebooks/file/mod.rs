@@ -1128,7 +1128,7 @@ impl BackingView for FileNotebookView {
             .focus_handle
             .as_ref()
             .is_some_and(|h| h.is_maximized(ctx));
-        let mut actions = vec![MenuItemFields::toggle_pane_action(is_maximized)
+        let mut actions = vec![MenuItemFields::toggle_pane_action(is_maximized, ctx)
             .with_on_select_action(FileNotebookAction::ToggleMaximized)
             .into_item()];
 

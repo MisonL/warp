@@ -6,7 +6,7 @@ use crate::slides::{
     AgentAutonomy, AgentDevelopmentSettings, OnboardingModelInfo, ProjectOnboardingSettings,
 };
 use crate::telemetry::OnboardingEvent;
-use crate::OnboardingIntention;
+use crate::{OnboardingCopy, OnboardingIntention};
 
 /// UI customization settings chosen during the "Customize your UI" onboarding slide.
 #[derive(Clone, Debug)]
@@ -153,6 +153,7 @@ pub(crate) struct OnboardingStateModel {
     agent_price_cents: Option<i32>,
     /// Auth / billing state of the user.
     auth_state: OnboardingAuthState,
+    copy: OnboardingCopy,
 }
 
 impl OnboardingStateModel {
@@ -165,6 +166,7 @@ impl OnboardingStateModel {
         free_user_no_ai_experiment: bool,
         agent_price_cents: Option<i32>,
         auth_state: OnboardingAuthState,
+        copy: OnboardingCopy,
     ) -> Self {
         Self {
             step: OnboardingStep::Intro,
@@ -178,7 +180,12 @@ impl OnboardingStateModel {
             free_user_no_ai_experiment,
             agent_price_cents,
             auth_state,
+            copy,
         }
+    }
+
+    pub(crate) fn copy(&self) -> &OnboardingCopy {
+        &self.copy
     }
 
     pub(crate) fn auth_state(&self) -> OnboardingAuthState {
@@ -298,7 +305,7 @@ impl OnboardingStateModel {
     pub(crate) fn agent_price_badge(&self) -> String {
         const DEFAULT_AGENT_PRICE_CENTS: i32 = 1800;
         let cents = self.agent_price_cents.unwrap_or(DEFAULT_AGENT_PRICE_CENTS);
-        format!("Starting at ${}/mo", cents / 100)
+        self.copy.price_badge(cents / 100)
     }
 
     pub(crate) fn set_agent_price_cents(

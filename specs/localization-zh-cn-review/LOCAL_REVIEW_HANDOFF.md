@@ -2,65 +2,51 @@
 
 ## Scope
 
-This is a local-only review handoff for the Warp zh-CN localization candidate.
-It exists because the candidate is user-visible and must carry explicit
-validation and visual evidence, while the user has explicitly instructed not to
-submit or update a PR.
+This is a local-only handoff for the Warp zh-CN localization candidate on
+`feat/localization-settings-upstream-rebuild`. The user explicitly instructed
+not to create or update a PR, not to push, and not to create a new branch.
 
 ## Candidate State
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
-- Validated candidate code head after rebase: `b2ed17b6`. The post-rebase
-  real-display visual smoke was run at local evidence head `b2ed17b6`; commits
-  after `b2ed17b6` update local evidence documents only.
-- App code changes since the latest code-validation point: none in the checked
-  app and crate paths. `git diff --quiet b2ed17b6 HEAD -- app crates Cargo.toml
-  Cargo.lock` returned 0 before this evidence update.
-- Upstream base: `upstream/master` at `37df9ef2`
-- Upstream comparison at validation point `b2ed17b6`: `0 14` from
-  `git rev-list --left-right --count upstream/master...HEAD`
-- Remote branch comparison at validation point `b2ed17b6`: `3 25` from
+- Upstream base verified locally: `upstream/master` at `ce73fe07`
+- Local source validation was run after the rebase; this evidence is included
+  in the amended branch head.
+- Upstream comparison after this handoff update:
+  `git rev-list --left-right --count upstream/master...HEAD` returned `0 16`
+- Remote branch comparison after this handoff update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-- Working tree before this handoff: clean
-- Open PRs for `feat/localization-settings-upstream-rebuild`: none
-- Mistakenly opened PR: `#11739`, state `CLOSED`
+  returned `3 64`
+- Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, `MERGE_HEAD`, or
+  `CHERRY_PICK_HEAD`
 - Remote writes in this pass: none
+- PR work in this pass: none
 
 ## Change Summary
 
-- Adds `warp_localization` and bundled `en-US` / `zh-CN` locale catalogs.
-- Adds app language settings for System, English, and Simplified Chinese.
-- Wires `appearance.interface.language` through settings and app localization.
-- Migrates user-visible UI copy across Agent, Settings, Terminal, Search,
-  Workspace, menus, dialogs, toasts, and shared UI components to catalog-backed
-  strings.
-- Wires the upstream queued prompt edit/delete tooltips to
-  `terminal.queued_prompts.tooltip.*` catalog keys after the `98af7b65` rebase.
-- Wires the upstream cloud-agent fast-forward locked tooltip to
-  `agent.input_footer.auto_approve_locked_tooltip` and
-  `agent.warping.auto_approve_locked_tooltip` after the `37df9ef2` rebase.
-- Wires the auth secret delete confirmation dialog to
-  `terminal.auth_secret.delete.*` catalog keys.
-- Adds catalog integrity tests, direct-English regression checks, app-level
-  localization tests, and a real-display integration visual smoke test.
+- Keeps the existing `warp_localization` crate and bundled `en-US` / `zh-CN`
+  catalogs as the localization surface for app UI copy.
+- Wires the latest AI settings and Agent management UI literals through
+  catalog-backed strings.
+- Restores localized search filter placeholders and chip labels without letting
+  `warp_search_core` depend on app-localization state.
+- Restores localized notebook find-bar toggle tooltips.
+- Extends `FilterableDropdown` so owned localized menu headers can be used by
+  MCP server pickers and the directory color picker.
+- Wires onboarding through `OnboardingCopy` so the app runtime can pass
+  catalog-backed onboarding text across intro, intention, customize, Agent,
+  third-party, theme, project, free-user-no-AI, and shared toggle-card UI. The
+  standalone onboarding binary keeps English defaults.
+- Shares onboarding feature key arrays with the auth disable-confirm modal so
+  AI and Warp Drive feature bullets are localized through the same catalog keys.
+- Fixes local compile drift found after upstream rebase.
+- Updates this handoff and `TECH.md` with current local validation evidence and
+  the current visual screenshot residual gate.
 
 ## Verification Matrix
 
-The following commands were run locally against `b2ed17b6` unless otherwise
-noted.
-
-```bash
-git fetch upstream master
-```
-
-Result: pass. `upstream/master` advanced to `37df9ef2`; the branch was rebased
-successfully and revalidated.
-
-```bash
-git diff --check upstream/master...HEAD && git diff --check && git diff --cached --check
-```
-
-Result: pass.
+The following commands were run locally on the current worktree during this
+handoff update.
 
 ```bash
 jq empty app/assets/bundled/locales/en-US.json app/assets/bundled/locales/zh-CN.json
@@ -69,82 +55,96 @@ jq empty app/assets/bundled/locales/en-US.json app/assets/bundled/locales/zh-CN.
 Result: pass.
 
 ```bash
+rg -n 'paragraph\("[^"]*[A-Za-z][^"]*"|span\("[^"]*[A-Za-z][^"]*"|link\("[^"]*[A-Za-z][^"]*"|Text::new\("[^"]*[A-Za-z][^"]*"|Text::new_inline\("[^"]*[A-Za-z][^"]*"|FormattedTextElement::from_str\("[^"]*[A-Za-z][^"]*"|button::Content::Label\("[^"]*[A-Za-z][^"]*"|wrappable_text\("[^"]*[A-Za-z][^"]*"' crates/onboarding/src -g '*.rs'
+```
+
+Result: pass. The scan produced no direct user-visible English literals in
+onboarding UI constructor calls.
+
+```bash
 cargo fmt --all -- --check
 ```
 
 Result: pass.
 
 ```bash
+git diff --check
+```
+
+Result: pass.
+
+```bash
+cargo check -p onboarding --message-format=short
+```
+
+Result: pass, finished in 7m 11s.
+
+```bash
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 20 tests passed. Latest run compiled in 1m 49s and the test
-binary finished in 6.32s.
-
-```bash
-cargo test -p warp --lib localization_tests -- --nocapture
-```
-
-Result: pass as a compile/filter check, but it runs 0 tests because the current
-app test module is registered as `localization::tests`. Latest run was on
-pre-rebase `c2d9ddf8`, compiled in 1m 19s, and reported 4664 filtered tests.
+Result: pass, 22 tests passed. The post-rebase run compiled in 18.12s and
+includes onboarding copy key coverage and the onboarding direct-English UI
+literal scan.
 
 ```bash
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests passed with 4685 filtered tests. Latest run compiled in
-25m 18s and the filtered test run finished in 0.99s.
+Result: the test binary build finished in 25m 45s, but the binary did not
+reach test output before manual termination. A follow-up run after confirming
+the test binary could list tests passed as recorded below.
+
+```bash
+cargo test -p warp --lib localization::tests -- --list
+```
+
+Result: pass. The command listed 8 localization tests and 0 benchmarks after a
+1.02s cached target check.
+
+```bash
+cargo test -p warp --lib localization::tests -- --nocapture
+```
+
+Result: pass, 8 tests passed with 4715 filtered tests. The cached target check
+finished in 1.47s and the tests finished in 3.13s.
 
 ```bash
 cargo check -p warp --lib --message-format=short
 ```
 
-Result: pass, 4m 48s.
+Result: pass, 6m 59s.
 
-```bash
-cargo build -p integration --bin integration
-```
+Historical artifact logs:
 
-Result: pass on local evidence head `b2ed17b6`, 17m 24s.
+- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T21-56-59/recording.log`
 
-```bash
-WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts" \
-WARP_INTEGRATION=1 \
-target/debug/integration test_zh_cn_localization_visual_smoke
-```
-
-Result: pass on local evidence head `b2ed17b6`, exit code 0. The run used a
-real display, executed 15 steps, and asserted localized app menu and Dock menu
-titles.
+The historical run did not save PNG screenshots.
 
 ## Visual Evidence
 
-Latest local screenshot artifacts:
+Current visual smoke status:
 
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/settings-appearance-language-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/terminal-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/context-chips-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/command-search-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/agent-input-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/command-palette-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/toast-zh-cn.png`
-- `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T03-03-10/dialog-launch-config-zh-cn.png`
+- Real-display route and assertion smoke: not rerun after the latest rebase to
+  `ce73fe07`.
+- Current-code PNG screenshot capture: not satisfied.
 
-Each artifact is a `1280 x 800` PNG. These files are local artifacts under
-`target/`; they were not pushed or attached to any PR.
+Historical local screenshots still exist under
+`target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T16-14-58`,
+but that complete PNG set predates the latest rebase to `ce73fe07` and should not
+be cited as current-code screenshot proof.
 
 ## Catalog And Terminology Checks
 
-- `en-US` keys: 5584
-- `zh-CN` keys: 5584
+- `en-US` keys: 5684
+- `zh-CN` keys: 5684
 - Missing keys: 0
 - Extra keys: 0
 - Placeholder mismatches: 0
-- Identical values: 61
-- ASCII-only zh-CN values: 67
-- ASCII-with-CJK zh-CN values: 2453
+- Identical values: 63
+- Empty values: `auth.empty` in both catalogs
+- ASCII-only zh-CN values: 69
+- ASCII-with-CJK zh-CN values: 2494
 
 Reviewed terminology keeps product and protocol terms such as `Agent`,
 `Warp Drive`, `Notebook`, `Cloud Oz`, `MCP`, `API`, `CLI`, `ID`, `JSON`,
@@ -155,24 +155,20 @@ reported zero remaining zh-CN value matches for `智能体`, `Workflows`,
 
 ## Branch Notes
 
-- Local cleanup removed the obsolete local `feat/localization-settings` and
-  `feat/localization-settings-upstream-validated` branches after pruning stale
-  `/private/tmp/warp-i18n-port-test*` worktree records.
-- Remote refs were not modified. `origin/feat/localization-settings`,
-  `origin/feat/localization-settings-reviewed`, and
-  `origin/feat/localization-settings-upstream-validated` remain available as
-  remote-only historical references.
-
-Recommendation: use `feat/localization-settings-upstream-rebuild` as the local
-review candidate. Treat `feat/localization-settings-reviewed` as historical
-only. Do not merge, delete, force-update, push, or create PRs for these branches
-without explicit user instruction.
+- No PR was created or updated in this pass.
+- No branch was created in this pass.
+- No remote refs were modified in this pass.
+- Local `target/` artifacts are intentionally untracked build and visual
+  evidence artifacts.
 
 ## Remaining Risk
 
-- No external review has been performed after the latest local validation.
-- No PR is open and no PR evidence has been attached, by explicit user
-  instruction.
-- Visual coverage is broad but not exhaustive across every platform surface.
-- The May 27 rebase autostash remains in the stash list as a conservative
-  backup.
+- No external CI or external review has been performed after the latest local
+  validation.
+- Visual coverage is sampled and not exhaustive across every platform surface,
+  runtime configuration, and OS environment.
+- Current real-display smoke assertions were not rerun after the latest rebase,
+  and screenshot capture did not produce current-code PNGs on this machine.
+- This local evidence must not be described as full UI human review, complete
+  product-wide exhaustive coverage, or screenshot-backed current-code visual
+  proof.
