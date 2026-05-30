@@ -10,23 +10,23 @@ created in this pass.
 ## Current Branch State
 
 - Branch: `feat/localization-settings-upstream-rebuild`
-- Verified upstream base: `upstream/master` at `ce73fe07`
+- Verified upstream base: `upstream/master` at `74d25664`
 - Local source validation and current-code real-display smoke were run after
-  the rebase; this evidence is included in this local evidence commit.
+  the latest rebase; this evidence is included in this local evidence commit.
 - Upstream ancestry: `git merge-base --is-ancestor upstream/master HEAD`
   returned 0
 - Upstream comparison after this evidence update:
-  `git rev-list --left-right --count upstream/master...HEAD` returned `0 17`
+  `git rev-list --left-right --count upstream/master...HEAD` returned `0 19`
 - Remote branch comparison after this evidence update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returned `3 65`
+  returned `3 91`
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, `MERGE_HEAD`, or
   `CHERRY_PICK_HEAD`
 
 ## Current Fixes
 
 This pass addressed gaps found while revalidating the branch after upstream
-refreshes through `ce73fe07`:
+refreshes through `74d25664`:
 
 - AI settings hardcoded UI copy is now catalog-backed, including execution
   profile actions, toolbar layout copy, remote-session policy text, sign-up and
@@ -66,8 +66,9 @@ refreshes through `ce73fe07`:
   direct-English UI constructor scan and skip test fixture files.
 - Compile drift from the latest upstream rebase was fixed in the app
   localization path without changing non-localization business semantics, and
-  the branch rebased cleanly onto `upstream/master` at `ce73fe07` with no
-  conflicts.
+  the branch rebased onto `upstream/master` at `74d25664` after resolving
+  upstream refresh conflicts in the localization commit set, onboarding
+  customize slide copy, and shared lightbox loading UI.
 - macOS integration real-display intent is now propagated from
   `Builder::with_real_display()` into the app/window-manager startup path. This
   lets real-display integration tests create real-display windows and save PNG
@@ -78,15 +79,15 @@ refreshes through `ce73fe07`:
 
 Current catalog stats:
 
-- `en-US` keys: 5693
-- `zh-CN` keys: 5693
+- `en-US` keys: 5695
+- `zh-CN` keys: 5695
 - Missing in `zh-CN`: 0
 - Extra in `zh-CN`: 0
 - Placeholder mismatches: 0
 - Identical values: 63
 - Empty values: `auth.empty` in both catalogs
-- ASCII-only zh-CN values: 69
-- ASCII-with-CJK zh-CN values: 2272
+- ASCII-only zh-CN values: 70
+- ASCII-with-CJK zh-CN values: 2260
 
 Term scan counts:
 
@@ -119,8 +120,9 @@ git fetch upstream master
 git rebase upstream/master
 ```
 
-Result: pass. `upstream/master` remained `ce73fe07`; rebase reported that the
-branch was up to date.
+Result: pass. `upstream/master` advanced to `74d25664`; rebase completed after
+resolving upstream refresh conflicts in the localization commit set, onboarding
+customize slide copy, and shared lightbox loading UI.
 
 ```bash
 python3 -m json.tool app/assets/bundled/locales/en-US.json
@@ -129,7 +131,7 @@ python3 -m json.tool app/assets/bundled/locales/zh-CN.json
 
 Result: pass.
 
-Catalog parity script result: `en-US` keys 5693, `zh-CN` keys 5693, missing 0,
+Catalog parity script result: `en-US` keys 5695, `zh-CN` keys 5695, missing 0,
 extra 0, placeholder mismatches 0, empty zh-CN values only `auth.empty`.
 
 ```bash
@@ -160,14 +162,14 @@ Result: pass.
 cargo check -p onboarding --message-format=short
 ```
 
-Result: pass, finished in 1m 37s.
+Result: pass, finished in 5m 21s.
 
 ```bash
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 23 tests passed. The run compiled in 3m 53s and finished tests in
-16.73s. Coverage includes bundled key/placeholder parity, app/onboarding/shared
+Result: pass, 23 tests passed. The run compiled in 5m 57s and finished tests in
+22.98s. Coverage includes bundled key/placeholder parity, app/onboarding/shared
 ui-components direct-English UI constructor scans, and selected surface
 regression checks.
 
@@ -175,20 +177,14 @@ regression checks.
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests passed with 4715 filtered tests. The app test binary
-compiled in 24m 47s and the selected tests finished in 1.17s.
-
-```bash
-cargo check -p warp --lib --message-format=short
-```
-
-Result: pass, 18m 41s.
+Result: pass, 8 tests passed with 4830 filtered tests. The app test binary
+compiled in 32m 28s and the selected tests finished in 3.68s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass, 31m 01s after the real-display propagation fix.
+Result: pass, 26m 57s after the real-display propagation fix.
 
 ```bash
 WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-current" \
@@ -199,32 +195,32 @@ Earlier result before the real-display propagation fix: pass, exit code 0, but
 only `recording.log` was generated.
 
 ```bash
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-fixed" \
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-rebased-20260530" \
   target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
 Current result after the fix: pass, exit code 0. Current artifact directory:
-`target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33`.
+`target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02`.
 
 PNG artifact check: 8 screenshots were generated. `sips -g pixelWidth -g
 pixelHeight` reported `1280x800` for all 8 PNG files.
 
 ```bash
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/video-recording-smoke-fixed" \
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/video-recording-smoke-rebased-20260530" \
   target/debug/integration test_video_recording
 ```
 
 Result: pass, exit code 0. The run produced `after_bootstrap.png`,
 `after_commands.png`, `recording.mp4`, and `recording.log` under
-`target/video-recording-smoke-fixed/test_video_recording/2026-05-30T10-47-41`.
-Both PNG files are `1280x800`; `recording.mp4` is 221 KB.
+`target/video-recording-smoke-rebased-20260530/test_video_recording/2026-05-30T12-55-41`.
+Both PNG files are `1280x800`; `recording.mp4` is 218 KB.
 
 ## Visual Evidence
 
 Current real-display smoke evidence:
 
-- `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/recording.log`
-- `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/*.png`
+- `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02/recording.log`
+- `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02/*.png`
 
 The current run returned exit code 0 and the recording log shows every smoke
 step and assertion succeeded, including app menu/Dock menu localization,
@@ -244,7 +240,7 @@ unless `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS` was set externally.
 Goal item status against the current local branch:
 
 - Rebase to latest upstream: satisfied locally for `upstream/master` at
-  `ce73fe07`.
+  `74d25664`.
 - No new branch: satisfied.
 - No push or PR update: satisfied.
 - Key and placeholder integrity: satisfied by catalog stats and
@@ -256,19 +252,18 @@ Goal item status against the current local branch:
   and example labels.
 - App localization tests: satisfied by
   `cargo test -p warp --lib localization::tests -- --nocapture`, 8 passed with
-  4715 filtered tests.
-- App compile check: satisfied by `cargo check -p warp --lib`.
+  4830 filtered tests.
 - Real-display zh-CN smoke flow: satisfied by the current run at
-  `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/recording.log`.
+  `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02/recording.log`.
 - Real-display PNG screenshot capture: satisfied by the current run at
-  `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33`.
+  `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02`.
 
 ## Historical Notes
 
 Earlier local validation points included upstream bases such as `37df9ef2`,
-`af886f7c`, `a4d19abd`, and `df02914a`. Those are historical only. The current
-evidence basis is the branch rebased on `ce73fe07` with the fixes and
-validation recorded above.
+`af886f7c`, `a4d19abd`, `df02914a`, and `ce73fe07`. Those are historical only.
+The current evidence basis is the branch rebased on `74d25664` with the fixes
+and validation recorded above.
 
 Previously fixed upstream-refresh gaps include:
 
@@ -287,9 +282,5 @@ Previously fixed upstream-refresh gaps include:
   update a PR.
 - Visual coverage is sampled and does not prove exhaustive coverage of every UI
   surface, platform state, runtime configuration, or translated context.
-- Current real-display smoke assertions passed locally after the latest rebase,
-  but PNG screenshot capture did not produce current-code screenshots on this
-  machine; this remains a local visual artifact gate before claiming
-  screenshot-backed visual coverage.
 - Local `target/` artifacts are build and review evidence, not tracked source
   files.

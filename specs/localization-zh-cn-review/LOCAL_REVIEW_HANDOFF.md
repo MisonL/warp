@@ -9,14 +9,14 @@ not to create or update a PR, not to push, and not to create a new branch.
 ## Candidate State
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
-- Upstream base verified locally: `upstream/master` at `ce73fe07`
+- Upstream base verified locally: `upstream/master` at `74d25664`
 - Local source validation and current-code real-display smoke were run after
-  the rebase; this evidence is included in this local evidence commit.
+  the latest rebase; this evidence is included in this local evidence commit.
 - Upstream comparison after this handoff update:
-  `git rev-list --left-right --count upstream/master...HEAD` returned `0 17`
+  `git rev-list --left-right --count upstream/master...HEAD` returned `0 19`
 - Remote branch comparison after this handoff update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returned `3 65`
+  returned `3 91`
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, `MERGE_HEAD`, or
   `CHERRY_PICK_HEAD`
 - Remote writes in this pass: none
@@ -65,8 +65,9 @@ git fetch upstream master
 git rebase upstream/master
 ```
 
-Result: pass. `upstream/master` remained `ce73fe07`; rebase reported that the
-branch was up to date.
+Result: pass. `upstream/master` advanced to `74d25664`; rebase completed after
+resolving upstream refresh conflicts in the localization commit set, onboarding
+customize slide copy, and shared lightbox loading UI.
 
 ```bash
 python3 -m json.tool app/assets/bundled/locales/en-US.json
@@ -75,7 +76,7 @@ python3 -m json.tool app/assets/bundled/locales/zh-CN.json
 
 Result: pass.
 
-Catalog parity script result: `en-US` keys 5693, `zh-CN` keys 5693, missing 0,
+Catalog parity script result: `en-US` keys 5695, `zh-CN` keys 5695, missing 0,
 extra 0, placeholder mismatches 0, empty zh-CN values only `auth.empty`.
 
 ```bash
@@ -105,14 +106,14 @@ Result: pass.
 cargo check -p onboarding --message-format=short
 ```
 
-Result: pass, finished in 1m 37s.
+Result: pass, finished in 5m 21s.
 
 ```bash
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 23 tests passed. The run compiled in 3m 53s and finished tests in
-16.73s. Coverage includes bundled key/placeholder parity, app/onboarding/shared
+Result: pass, 23 tests passed. The run compiled in 5m 57s and finished tests in
+22.98s. Coverage includes bundled key/placeholder parity, app/onboarding/shared
 ui-components direct-English UI constructor scans, and selected surface
 regression checks.
 
@@ -120,20 +121,14 @@ regression checks.
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests passed with 4715 filtered tests. The app test binary
-compiled in 24m 47s and the selected tests finished in 1.17s.
-
-```bash
-cargo check -p warp --lib --message-format=short
-```
-
-Result: pass, 18m 41s.
+Result: pass, 8 tests passed with 4830 filtered tests. The app test binary
+compiled in 32m 28s and the selected tests finished in 3.68s.
 
 ```bash
 cargo build -p integration --bin integration
 ```
 
-Result: pass, 31m 01s after the real-display propagation fix.
+Result: pass, 26m 57s after the real-display propagation fix.
 
 ```bash
 WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-current" \
@@ -144,22 +139,26 @@ Earlier result before the real-display propagation fix: pass, exit code 0, but
 only `recording.log` was generated.
 
 ```bash
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-fixed" \
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-rebased-20260530" \
   target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
 Current result after the fix: pass, exit code 0. Current artifact directory:
 
-- `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33`
+- `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02`
 
 ```bash
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/video-recording-smoke-fixed" \
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/video-recording-smoke-rebased-20260530" \
   target/debug/integration test_video_recording
 ```
 
 Result: pass, exit code 0. Regression artifact directory:
 
-- `target/video-recording-smoke-fixed/test_video_recording/2026-05-30T10-47-41`
+- `target/video-recording-smoke-rebased-20260530/test_video_recording/2026-05-30T12-55-41`
+
+The latest video regression run produced `after_bootstrap.png`,
+`after_commands.png`, `recording.mp4`, and `recording.log`. Both PNG files are
+`1280x800`; `recording.mp4` is 218 KB.
 
 Historical artifact logs:
 
@@ -172,8 +171,8 @@ The historical run did not save PNG screenshots.
 Current visual smoke status:
 
 - Real-display route and assertion smoke: passed after the latest rebase to
-  `ce73fe07`; see
-  `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/recording.log`.
+  `74d25664`; see
+  `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02/recording.log`.
 - Current-code PNG screenshot capture: satisfied. The current artifact
   directory contains 8 PNG screenshots plus `recording.log`.
 - PNG dimension check: all 8 screenshots are `1280x800` per `sips -g
@@ -181,7 +180,8 @@ Current visual smoke status:
 
 Historical local screenshots still exist under
 `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T16-14-58`,
-but the current proof is the fixed run under `target/zh-cn-visual-artifacts-fixed`.
+but the current proof is the rebased run under
+`target/zh-cn-visual-artifacts-rebased-20260530`.
 
 Root cause of the previous missing PNGs: `Builder::with_real_display()` was
 recorded on the lower-level integration builder but was not propagated to the
@@ -192,15 +192,15 @@ integration window stayed in test mode with no real Metal device, so
 
 ## Catalog And Terminology Checks
 
-- `en-US` keys: 5693
-- `zh-CN` keys: 5693
+- `en-US` keys: 5695
+- `zh-CN` keys: 5695
 - Missing keys: 0
 - Extra keys: 0
 - Placeholder mismatches: 0
 - Identical values: 63
 - Empty values: `auth.empty` in both catalogs
-- ASCII-only zh-CN values: 69
-- ASCII-with-CJK zh-CN values: 2272
+- ASCII-only zh-CN values: 70
+- ASCII-with-CJK zh-CN values: 2260
 
 Reviewed terminology keeps product and protocol terms such as `Agent`,
 `Warp Drive`, `Notebook`, `Cloud Oz`, `MCP`, `API`, `CLI`, `ID`, `JSON`,
@@ -223,6 +223,5 @@ reported zero remaining zh-CN value matches for `智能体`, `Workflows`,
   validation.
 - Visual coverage is sampled and not exhaustive across every platform surface,
   runtime configuration, and OS environment.
-- This local evidence must not be described as full UI human review, complete
-  product-wide exhaustive coverage, or screenshot-backed current-code visual
-  review.
+- This local evidence must not be described as full UI human review or complete
+  product-wide exhaustive coverage.
