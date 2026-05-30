@@ -68,6 +68,11 @@ refreshes through `ce73fe07`:
   localization path without changing non-localization business semantics, and
   the branch rebased cleanly onto `upstream/master` at `ce73fe07` with no
   conflicts.
+- macOS integration real-display intent is now propagated from
+  `Builder::with_real_display()` into the app/window-manager startup path. This
+  lets real-display integration tests create real-display windows and save PNG
+  frame captures without requiring callers to set
+  `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS`.
 
 ## Catalog State
 
@@ -183,21 +188,43 @@ Result: pass, 18m 41s.
 cargo build -p integration --bin integration
 ```
 
-Result: pass, 21m 38s.
+Result: pass, 31m 01s after the real-display propagation fix.
 
 ```bash
 WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-current" \
   target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass, exit code 0. Current recording log:
-`target/zh-cn-visual-artifacts-current/test_zh_cn_localization_visual_smoke/2026-05-30T01-30-03/recording.log`.
+Earlier result before the real-display propagation fix: pass, exit code 0, but
+only `recording.log` was generated.
+
+```bash
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-fixed" \
+  target/debug/integration test_zh_cn_localization_visual_smoke
+```
+
+Current result after the fix: pass, exit code 0. Current artifact directory:
+`target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33`.
+
+PNG artifact check: 8 screenshots were generated. `sips -g pixelWidth -g
+pixelHeight` reported `1280x800` for all 8 PNG files.
+
+```bash
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/video-recording-smoke-fixed" \
+  target/debug/integration test_video_recording
+```
+
+Result: pass, exit code 0. The run produced `after_bootstrap.png`,
+`after_commands.png`, `recording.mp4`, and `recording.log` under
+`target/video-recording-smoke-fixed/test_video_recording/2026-05-30T10-47-41`.
+Both PNG files are `1280x800`; `recording.mp4` is 221 KB.
 
 ## Visual Evidence
 
 Current real-display smoke evidence:
 
-- `target/zh-cn-visual-artifacts-current/test_zh_cn_localization_visual_smoke/2026-05-30T01-30-03/recording.log`
+- `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/recording.log`
+- `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/*.png`
 
 The current run returned exit code 0 and the recording log shows every smoke
 step and assertion succeeded, including app menu/Dock menu localization,
@@ -205,12 +232,12 @@ Settings and Appearance language UI, Terminal input focus, context chip
 presence, command search, Agent input mode, command palette, workspace toast,
 and launch-config dialog focus.
 
-Current limitation: no PNG screenshots were saved in
-`target/zh-cn-visual-artifacts-current`; only `recording.log` was produced. The
-latest complete PNG screenshot set remains the historical local artifact
-directory `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T16-14-58`,
-but that screenshot set predates the current rebase to `ce73fe07` and is not
-used as current-code proof.
+The current run also saved 8 PNG screenshots: settings appearance language,
+terminal input, context chips, command search, Agent input, command palette,
+workspace toast, and launch-config dialog. The previous missing-PNG root cause
+was that `Builder::with_real_display()` was not propagated to macOS app/window
+startup, leaving integration windows in test mode without a real Metal device
+unless `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS` was set externally.
 
 ## Completion Audit
 
@@ -232,9 +259,9 @@ Goal item status against the current local branch:
   4715 filtered tests.
 - App compile check: satisfied by `cargo check -p warp --lib`.
 - Real-display zh-CN smoke flow: satisfied by the current run at
-  `target/zh-cn-visual-artifacts-current/test_zh_cn_localization_visual_smoke/2026-05-30T01-30-03/recording.log`.
-- Real-display PNG screenshot capture: not satisfied for the current code base;
-  the current run generated `recording.log` only.
+  `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/recording.log`.
+- Real-display PNG screenshot capture: satisfied by the current run at
+  `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33`.
 
 ## Historical Notes
 

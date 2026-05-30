@@ -48,8 +48,12 @@ not to create or update a PR, not to push, and not to create a new branch.
 - Extends localization regression tests to scan shared `ui_components/src`
   direct-English UI constructor calls.
 - Fixes local compile drift found after upstream rebase.
+- Fixes macOS integration real-display propagation so tests that call
+  `Builder::with_real_display()` now create real-display windows and can save
+  PNG frame captures without relying on
+  `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS`.
 - Updates this handoff and `TECH.md` with current local validation evidence and
-  current real-display smoke evidence plus the remaining PNG screenshot gate.
+  current real-display smoke evidence, including current-code PNG screenshots.
 
 ## Verification Matrix
 
@@ -129,16 +133,33 @@ Result: pass, 18m 41s.
 cargo build -p integration --bin integration
 ```
 
-Result: pass, 21m 38s.
+Result: pass, 31m 01s after the real-display propagation fix.
 
 ```bash
 WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-current" \
   target/debug/integration test_zh_cn_localization_visual_smoke
 ```
 
-Result: pass, exit code 0. Current artifact log:
+Earlier result before the real-display propagation fix: pass, exit code 0, but
+only `recording.log` was generated.
 
-- `target/zh-cn-visual-artifacts-current/test_zh_cn_localization_visual_smoke/2026-05-30T01-30-03/recording.log`
+```bash
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-fixed" \
+  target/debug/integration test_zh_cn_localization_visual_smoke
+```
+
+Current result after the fix: pass, exit code 0. Current artifact directory:
+
+- `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33`
+
+```bash
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/video-recording-smoke-fixed" \
+  target/debug/integration test_video_recording
+```
+
+Result: pass, exit code 0. Regression artifact directory:
+
+- `target/video-recording-smoke-fixed/test_video_recording/2026-05-30T10-47-41`
 
 Historical artifact logs:
 
@@ -152,14 +173,22 @@ Current visual smoke status:
 
 - Real-display route and assertion smoke: passed after the latest rebase to
   `ce73fe07`; see
-  `target/zh-cn-visual-artifacts-current/test_zh_cn_localization_visual_smoke/2026-05-30T01-30-03/recording.log`.
-- Current-code PNG screenshot capture: not satisfied. The current artifact
-  directory contains `recording.log` only.
+  `target/zh-cn-visual-artifacts-fixed/test_zh_cn_localization_visual_smoke/2026-05-30T10-44-33/recording.log`.
+- Current-code PNG screenshot capture: satisfied. The current artifact
+  directory contains 8 PNG screenshots plus `recording.log`.
+- PNG dimension check: all 8 screenshots are `1280x800` per `sips -g
+  pixelWidth -g pixelHeight`.
 
 Historical local screenshots still exist under
 `target/zh-cn-visual-artifacts/test_zh_cn_localization_visual_smoke/2026-05-28T16-14-58`,
-but that complete PNG set predates the latest rebase to `ce73fe07` and should not
-be cited as current-code screenshot proof.
+but the current proof is the fixed run under `target/zh-cn-visual-artifacts-fixed`.
+
+Root cause of the previous missing PNGs: `Builder::with_real_display()` was
+recorded on the lower-level integration builder but was not propagated to the
+macOS app/window-manager startup path. Without the external
+`WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS` environment variable, the macOS
+integration window stayed in test mode with no real Metal device, so
+`request_frame_capture` timed out after screenshot steps.
 
 ## Catalog And Terminology Checks
 
@@ -194,8 +223,6 @@ reported zero remaining zh-CN value matches for `智能体`, `Workflows`,
   validation.
 - Visual coverage is sampled and not exhaustive across every platform surface,
   runtime configuration, and OS environment.
-- Current real-display smoke assertions passed, but screenshot capture did not
-  produce current-code PNGs on this machine.
 - This local evidence must not be described as full UI human review, complete
   product-wide exhaustive coverage, or screenshot-backed current-code visual
-  proof.
+  review.

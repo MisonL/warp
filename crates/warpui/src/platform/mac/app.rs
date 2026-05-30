@@ -83,6 +83,8 @@ impl App {
         assets: Box<dyn AssetProvider>,
         test_driver: Option<&TestDriver>,
     ) -> Self {
+        let use_real_display_for_test = test_driver.is_some_and(TestDriver::uses_real_display)
+            || std::env::var("WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS").is_ok();
         let platform_delegate: Box<dyn platform::Delegate> = if test_driver.is_some() {
             Box::new(
                 super::delegate::IntegrationTestDelegate::new()
@@ -96,7 +98,7 @@ impl App {
         };
 
         let window_manager: Box<dyn platform::WindowManager> = if test_driver.is_some() {
-            Box::new(IntegrationTestWindowManager::new())
+            Box::new(IntegrationTestWindowManager::new(use_real_display_for_test))
         } else {
             Box::new(WindowManager::new())
         };

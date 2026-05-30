@@ -419,6 +419,19 @@ impl LaunchMode {
         }
     }
 
+    fn uses_real_display_for_test(&self) -> bool {
+        match self {
+            LaunchMode::Test { driver, .. } => driver
+                .as_ref()
+                .as_ref()
+                .is_some_and(TestDriver::uses_real_display),
+            LaunchMode::App { .. }
+            | LaunchMode::CommandLine { .. }
+            | LaunchMode::RemoteServerProxy
+            | LaunchMode::RemoteServerDaemon { .. } => false,
+        }
+    }
+
     fn take_test_driver(&mut self) -> Option<TestDriver> {
         match self {
             LaunchMode::Test { driver, .. } => driver.take(),
@@ -935,6 +948,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let pty_spawner =
         terminal::local_tty::spawner::PtySpawner::new().context("Failed to create pty spawner")?;
 
+    let test_uses_real_display = launch_mode.uses_real_display_for_test();
     let mut app_builder = if launch_mode.is_headless() {
         warpui::platform::AppBuilder::new_headless(
             app_callbacks(launch_mode.is_integration_test()),
@@ -955,6 +969,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         use warpui::AssetProvider as _;
 
         let activate_on_launch = !launch_mode.is_integration_test()
+            || test_uses_real_display
             || std::env::var("WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS").is_ok();
         app_builder.set_activate_on_launch(activate_on_launch);
 
