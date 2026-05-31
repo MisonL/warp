@@ -2,37 +2,48 @@
 
 ## Scope
 
-This record captures the local rebase, fix, and validation state for the Warp
-zh-CN localization work on branch `feat/localization-settings-upstream-rebuild`.
-It is local-only: no PR, push, remote ref update, or new branch was created.
+This record captures the local rebase, audit, fixes, and validation state for
+the Warp zh-CN localization work on branch
+`feat/localization-settings-upstream-rebuild`.
+
+This is local-only evidence. No push, PR update, remote ref update, or new
+branch was created.
 
 ## Current Branch State
 
 - Branch: `feat/localization-settings-upstream-rebuild`
-- Verified upstream base: `upstream/master` at
-  `5767910b5e41bda196baaea041862e9505e46e20`
-- Upstream ancestry: `git merge-base --is-ancestor upstream/master HEAD`
-  returned 0.
-- Final upstream comparison after committing this evidence update:
-  `git rev-list --left-right --count upstream/master...HEAD` returns `0 21`.
-- Final remote branch comparison after committing this evidence update:
+- Rebased upstream base: `upstream/master` at
+  `debe6d8104aed38afd7db6dedba668f8f8246818`
+- Upstream comparison after committing this evidence update:
+  `git rev-list --left-right --count upstream/master...HEAD` returns `0 22`
+- Remote branch comparison after committing this evidence update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returns `3 95`.
-- Rebase state check before this evidence update: no `.git/rebase-merge`,
-  `.git/rebase-apply`, `MERGE_HEAD`, or `CHERRY_PICK_HEAD`.
+  returns `3 97`
+- Rebase state after the rebase: no `.git/rebase-merge`,
+  `.git/rebase-apply`, `MERGE_HEAD`, or `CHERRY_PICK_HEAD`
 
 ## Upstream Delta Classification
 
-The latest upstream refresh moved from `21334d42` to `5767910b`.
+The branch was rebased from the previously recorded upstream
+`5767910b5e41bda196baaea041862e9505e46e20` to
+`debe6d8104aed38afd7db6dedba668f8f8246818`.
 
-`5767910b Add ./script/format for customized cargo fmt invocation. (#11747)`
-is not only a build or container change. It adds `script/format`, updates CI,
-skills, docs, and `script/presubmit`, and applies formatting changes across many
-Rust files under `app/` and `crates/`. This affects app source, including some
-UI-adjacent files, but it does not change `app/assets/bundled/locales/*.json`,
-`crates/localization/src`, or the current zh-CN catalog source. It also does not
-directly modify the current local files for AI settings, AI context menu,
-Workflows categories, or Voltron placeholder localization.
+The new upstream tip includes remote skill location resolution work in agent
+tool output paths and related tests. It did not modify bundled locale catalogs
+or `crates/localization/src`. The only rebase conflict was in
+`app/src/ai/blocklist/block/view_impl/output_tests.rs`; the resolution preserved
+both upstream test additions and the local settings initialization used by the
+localization branch.
+
+After the successful rebase, later `git fetch upstream` retries failed with:
+
+```text
+fatal: unable to access 'https://github.com/warpdotdev/warp/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443
+```
+
+That is recorded as a network/TLS fetch failure. It does not change the fact
+that the successful rebase in this pass was onto local `upstream/master` at
+`debe6d8104aed38afd7db6dedba668f8f8246818`.
 
 ## Current Fixes
 
@@ -42,21 +53,41 @@ Workflows categories, or Voltron placeholder localization.
 - Localized high-risk AI settings page labels, descriptions, section headers,
   API key inputs, custom endpoint copy, AWS Bedrock copy, permissions copy,
   usage copy, and related toggles through existing catalog-backed helpers.
-- Added `en-US` and `zh-CN` catalog entries for the new AI context menu,
+- Added matching `en-US` and `zh-CN` catalog entries for AI context menu,
   Workflows, and AI settings strings.
 - Added a regression scan for high-risk AI settings wrappers that the previous
   single-line direct-literal scan missed, including `build_sub_header`,
-  `render_ai_setting_toggle`, `DropdownItem::new`, modal title paths, and related
-  wrapper calls.
+  `render_ai_setting_toggle`, `DropdownItem::new`, modal title paths, and
+  related wrapper calls.
 - Removed an unused `std::sync::LazyLock` import from `ai_page.rs` after the
-  current `warp` lib localization test target exposed it as a warning.
+  `warp` lib localization test target exposed it as a warning.
+
+## Additional Fixes From This Audit
+
+- Localized onboarding callout titles, body copy, buttons, checkbox labels, and
+  terminal/agent prompt placeholders.
+- Passed `OnboardingCopy` from `TerminalView` into `OnboardingCalloutView`, so
+  callout copy resolves through `terminal_text(ctx, key)` instead of hardcoded
+  English strings.
+- Added catalog-backed onboarding prompt keys for:
+  `onboarding.callout.talk_to_agent.prompt`,
+  `onboarding.callout.agent_prompt.placeholder`, and
+  `onboarding.callout.terminal_command.placeholder`.
+- Replaced model-level placeholder variants with catalog-key variants, keeping
+  command literals such as `git status` and `/init` as command values rather
+  than UI copy.
+- Made missing `OnboardingCopy` keys fail explicitly through `default_text`
+  instead of silently returning an empty string.
+- Added a targeted static test for onboarding callout field literals and
+  `OnboardingQuery` prompt literals, covering the omission class that the
+  previous wrapper scans did not catch.
 
 ## Catalog State
 
 Current catalog parity command result:
 
-- `en-US` keys: 5733
-- `zh-CN` keys: 5733
+- `en-US` keys: 5752
+- `zh-CN` keys: 5752
 - Missing in `zh-CN`: 0
 - Extra in `zh-CN`: 0
 - Placeholder mismatches: 0
@@ -67,20 +98,18 @@ Current catalog parity command result:
 Commands run locally on the current rebased worktree:
 
 ```bash
-git fetch upstream master
-git rebase --autostash upstream/master
+git fetch upstream
+git rebase upstream/master
 ```
 
-Result: pass. The branch is on top of
-`5767910b5e41bda196baaea041862e9505e46e20`. During this rebase, conflicts were
-resolved in app settings/auth-secret localization paths while preserving the
-local catalog-backed UI copy.
+Result: pass. The branch was rebased onto
+`debe6d8104aed38afd7db6dedba668f8f8246818`.
 
 ```bash
 cargo fmt --all -- --check
 ```
 
-Result: pass after removing the unused `LazyLock` import.
+Result: pass after running `cargo fmt --all`.
 
 ```bash
 git diff --check
@@ -90,122 +119,117 @@ Result: pass.
 
 ```bash
 node - <<'NODE'
-const fs = require('fs');
-const paths = ['app/assets/bundled/locales/en-US.json', 'app/assets/bundled/locales/zh-CN.json'];
-const [en, zh] = paths.map((p) => JSON.parse(fs.readFileSync(p, 'utf8')));
-const enKeys = Object.keys(en).sort();
-const zhKeys = Object.keys(zh).sort();
-const missing = enKeys.filter((k) => !(k in zh));
-const extra = zhKeys.filter((k) => !(k in en));
-const placeholderRe = /\{[A-Za-z0-9_]+\}/g;
-const placeholders = (value) => [...String(value).matchAll(placeholderRe)].map((m) => m[0]).sort().join(',');
-const placeholderMismatch = enKeys.filter((k) => k in zh && placeholders(en[k]) !== placeholders(zh[k]));
-const empty = zhKeys.filter((k) => String(zh[k]).length === 0);
-console.log(JSON.stringify({en_count: enKeys.length, zh_count: zhKeys.length, missing: missing.length, extra: extra.length, placeholder_mismatch: placeholderMismatch.length, empty}, null, 2));
-if (missing.length || extra.length || placeholderMismatch.length || empty.some((k) => k !== 'auth.empty')) process.exit(1);
+const fs=require('fs');
+const en=JSON.parse(fs.readFileSync('app/assets/bundled/locales/en-US.json','utf8'));
+const zh=JSON.parse(fs.readFileSync('app/assets/bundled/locales/zh-CN.json','utf8'));
+const ek=Object.keys(en).sort();
+const zk=Object.keys(zh).sort();
+const missing=ek.filter(k=>!(k in zh));
+const extra=zk.filter(k=>!(k in en));
+const re=/\{[A-Za-z_][A-Za-z0-9_]*\}/g;
+const placeholders=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[k,[...String(v).matchAll(re)].map(m=>m[0]).sort().join(',')]));
+const ep=placeholders(en), zp=placeholders(zh);
+const mismatch=ek.filter(k=>k in zh && ep[k]!==zp[k]).map(k=>({key:k,en:ep[k],zh:zp[k]}));
+const empty=ek.filter(k=>en[k]===''||zh[k]==='');
+console.log(JSON.stringify({en_count:ek.length, zh_count:zk.length, missing:missing.length, extra:extra.length, placeholder_mismatch:mismatch.length, empty}, null, 2));
+if (missing.length||extra.length||mismatch.length) process.exit(1);
 NODE
 ```
 
-Result: pass, with `en_count` 5733, `zh_count` 5733, `missing` 0, `extra` 0,
+Result: pass, with `en_count` 5752, `zh_count` 5752, `missing` 0, `extra` 0,
 `placeholder_mismatch` 0, and `empty` equal to `["auth.empty"]`.
 
 ```bash
-cargo test -p warp_localization -- --nocapture
+CARGO_TARGET_DIR=target/localization-audit \
+  cargo test -p warp_localization --test localization_tests \
+  onboarding_callout_direct_english_literals_are_localized -- --nocapture
 ```
 
-Result: pass after the final source edit, 24 tests passed, 0 failed, 0 ignored.
+Result: pass, 1 test passed.
 
 ```bash
-cargo check -p onboarding --message-format=short
+CARGO_TARGET_DIR=target/localization-audit \
+  cargo test -p warp_localization --test localization_tests direct_english -- --nocapture
 ```
 
-Result: pass, finished in 3m 27s.
-
-```bash
-cargo test -p warp --lib localization::tests -- --nocapture
-```
-
-Result: pass after the final source edit, 8 tests passed, 0 failed, 4830
-filtered out. The final rebuild finished in 14m 38s and the tests finished in
-14.21s. The earlier run exposed the unused `LazyLock` import warning; the final
-run completed without that warning.
-
-```bash
-cargo build -p integration --bin integration
-```
-
-Result: pass, finished in 56m 54s.
-
-```bash
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/zh-cn-visual-artifacts-20260531T173639" \
-  target/debug/integration test_zh_cn_localization_visual_smoke
-```
-
-Result: pass, exit code 0. Current artifact directory:
-
-- `target/zh-cn-visual-artifacts-20260531T173639/test_zh_cn_localization_visual_smoke/2026-05-31T17-37-22`
-
-Generated files: 8 PNG screenshots plus `recording.log`. `sips -g pixelWidth -g
-pixelHeight` reported `1280x800` for all 8 screenshots.
-
-```bash
-WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$PWD/target/video-recording-smoke-20260531T173639" \
-  target/debug/integration test_video_recording
-```
-
-Result: pass, exit code 0. Current artifact directory:
-
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56`
-
-Generated files: `after_bootstrap.png`, `after_commands.png`, `recording.mp4`,
-and `recording.log`. Both PNG files are `1280x800`. `recording.mp4` is 259965
-bytes. A direct MP4 `avc1` sample-entry check reported dimensions `1280x800`.
-
-```bash
-cargo test -p warp_localization --test localization_tests direct_english -- --nocapture
-```
-
-Result: pass, 7 tests passed, 0 failed, 17 filtered out. This focused scan
+Result: pass, 8 tests passed, 0 failed, 17 filtered out. This focused scan
 covers app, onboarding, shared `ui_components`, context-chip tooltip, app-menu,
-selected miscellaneous UI, and AI settings high-risk wrapper direct-English
-literal checks.
+selected miscellaneous UI, AI settings high-risk wrappers, and the new
+onboarding callout direct-English check.
 
-## Visual Evidence
+```bash
+CARGO_TARGET_DIR=target/localization-audit \
+  cargo test -p warp_localization -- --nocapture
+```
 
-Current zh-CN visual smoke evidence:
+Result: pass, 25 tests passed, 0 failed, 0 ignored.
+
+```bash
+CARGO_TARGET_DIR=target/localization-audit \
+  cargo check -p onboarding --message-format=short
+```
+
+Result: pass, finished in 3m 20s.
+
+```bash
+CARGO_TARGET_DIR=target/localization-audit \
+  cargo check -p warp --lib --message-format=short
+```
+
+Result: pass, finished in 14m 39s. This covers the app lib compile path,
+including `app/src/terminal/view.rs` and the updated onboarding callout API.
+
+```bash
+CARGO_TARGET_DIR=target/localization-audit \
+  cargo test -p warp --lib localization::tests -- --nocapture
+```
+
+Result: not counted as pass. The command compiled through the app test target
+for more than 30 minutes and was manually terminated while rustc was still in
+the `warp` test binary build stage. The replacement app-level compile evidence
+is the successful `cargo check -p warp --lib --message-format=short` run above.
+
+## Existing Visual Evidence
+
+Pre-existing zh-CN visual smoke evidence remains available from the prior pass:
 
 - `target/zh-cn-visual-artifacts-20260531T173639/test_zh_cn_localization_visual_smoke/2026-05-31T17-37-22/recording.log`
 - `target/zh-cn-visual-artifacts-20260531T173639/test_zh_cn_localization_visual_smoke/2026-05-31T17-37-22/*.png`
 
-The recording log shows all smoke steps and assertions succeeded, including
-settings language UI, terminal input, context chips, command search, Agent input
-mode, command palette, workspace toast, and launch-config dialog focus.
-
-Current video recording evidence:
+Pre-existing video recording evidence remains available from the prior pass:
 
 - `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/recording.log`
 - `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/after_bootstrap.png`
 - `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/after_commands.png`
 - `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/recording.mp4`
 
+Those artifacts were not regenerated after the onboarding callout fix in this
+audit. The onboarding callout fix is covered by catalog parity, static
+direct-English tests, `cargo check -p onboarding`, and
+`cargo check -p warp --lib`.
+
 ## Completion Audit
 
-- Rebase to latest upstream: satisfied locally for `upstream/master` at
-  `5767910b5e41bda196baaea041862e9505e46e20`.
+- Rebase to latest locally fetched upstream: satisfied for
+  `debe6d8104aed38afd7db6dedba668f8f8246818`.
+- Follow-up fetch freshness check: blocked by GitHub TLS connection failure,
+  recorded above.
 - No push or PR update: satisfied.
 - Catalog JSON parse and parity: satisfied, missing 0, extra 0, placeholder
   mismatches 0, and only `auth.empty` empty.
-- Direct-English high-risk scan: satisfied by the filtered
-  `warp_localization` direct-English test run.
-- Required Rust checks and tests: satisfied by the command results above.
-- Required integration build and smoke/video runs: satisfied by the command
-  results and artifact checks above.
+- Direct-English high-risk scans: satisfied by the focused and full
+  `warp_localization` test runs.
+- Onboarding callout omission: fixed and covered by targeted static test plus
+  onboarding/app compile checks.
+- App compile path: satisfied by `cargo check -p warp --lib`.
 
 ## Remaining Risk
 
 - External CI and external code review have not been run in this pass.
-- No PR evidence exists because the user explicitly instructed not to submit or
-  update a PR.
+- A later upstream fetch could not be completed because GitHub returned a TLS
+  connection failure.
+- The pre-existing visual smoke evidence was not regenerated after the
+  onboarding callout fix.
 - Visual coverage is sampled and does not prove exhaustive coverage of every UI
   surface, platform state, runtime configuration, or translated context.
 - Local `target/` artifacts are build and review evidence, not tracked source

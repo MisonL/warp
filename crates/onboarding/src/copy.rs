@@ -78,7 +78,7 @@ fn default_text(key: &'static str) -> &'static str {
     DEFAULT_COPY
         .iter()
         .find_map(|(candidate, value)| (*candidate == key).then_some(*value))
-        .unwrap_or("")
+        .unwrap_or_else(|| panic!("missing onboarding copy key: {key}"))
 }
 
 const DEFAULT_COPY: &[(&str, &str)] = &[
@@ -142,13 +142,83 @@ const DEFAULT_COPY: &[(&str, &str)] = &[
     ("onboarding.common.back", "Back"),
     ("onboarding.common.disabled", "Disabled"),
     ("onboarding.common.enabled", "Enabled"),
+    ("onboarding.common.finish", "Finish"),
     ("onboarding.common.free", "Free"),
     ("onboarding.common.get_started", "Get started"),
     ("onboarding.common.get_warping", "Get Warping"),
     ("onboarding.common.next", "Next"),
     ("onboarding.common.skip", "Skip"),
+    ("onboarding.common.submit", "Submit"),
     ("onboarding.common.subscribe", "Subscribe"),
     ("onboarding.common.upgrade", "Upgrade"),
+    (
+        "onboarding.callout.agent_mode.back_to_terminal",
+        "Back to terminal",
+    ),
+    (
+        "onboarding.callout.agent_mode.initialize",
+        "Initialize",
+    ),
+    (
+        "onboarding.callout.agent_mode.skip_initialization",
+        "Skip initialization",
+    ),
+    (
+        "onboarding.callout.agent_mode.title",
+        "You're in agent mode",
+    ),
+    (
+        "onboarding.callout.agent_mode.with_project_body",
+        "Agent mode gives your questions and tasks their own conversation, so you can ask follow-ups without leaving your terminal workflow.\n\nSubmit the query below to have the agent initialize this project, or clear the input and start your own!",
+    ),
+    (
+        "onboarding.callout.agent_mode.without_project_body",
+        "Agent mode gives your questions and tasks their own conversation, so you can ask follow-ups without leaving your terminal workflow. Press {keybinding} to return to terminal mode at any point.",
+    ),
+    (
+        "onboarding.callout.agent_prompt.placeholder",
+        "Tell the agent what to build...",
+    ),
+    (
+        "onboarding.callout.meet_input.body",
+        "Your terminal input accepts both terminal commands and agent prompts and automatically detects which you're using. Use {keybinding} to lock the input to Agent mode (natural language) or Terminal mode (commands).",
+    ),
+    (
+        "onboarding.callout.meet_input.title",
+        "Meet the Warp input",
+    ),
+    (
+        "onboarding.callout.talk_to_agent.body",
+        "You can type in natural language to engage the agent. Submit the query below to start: What tests exist in this repo, how are they structured, and what do they cover?",
+    ),
+    (
+        "onboarding.callout.talk_to_agent.prompt",
+        "What tests exist in this repo, how are they structured, and what do they cover?",
+    ),
+    (
+        "onboarding.callout.talk_to_agent.title",
+        "Talk to the agent",
+    ),
+    (
+        "onboarding.callout.terminal_command.placeholder",
+        "Run a command...",
+    ),
+    (
+        "onboarding.callout.terminal_mode.body",
+        "Run commands here, just like a regular terminal. If you type a question or task using natural language, Warp can suggest opening it in agent mode. You can always override using {keybinding}.",
+    ),
+    (
+        "onboarding.callout.terminal_mode.enable_nld",
+        "Enable Natural Language Detection",
+    ),
+    (
+        "onboarding.callout.terminal_mode.title",
+        "You're in terminal mode",
+    ),
+    (
+        "onboarding.callout.terminal_mode.welcome_title",
+        "Welcome to terminal mode",
+    ),
     ("onboarding.customize.code_review", "Code review"),
     ("onboarding.customize.conversation_history", "Conversation history"),
     ("onboarding.customize.file_explorer", "File explorer"),

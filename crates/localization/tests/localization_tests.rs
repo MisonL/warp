@@ -2677,6 +2677,36 @@ fn onboarding_ui_calls_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn onboarding_callout_direct_english_literals_are_localized() {
+    let cases = [
+        (
+            "crates/onboarding/src/callout/view.rs",
+            &["title:", "text:", "label:"][..],
+        ),
+        (
+            "crates/onboarding/src/callout/model.rs",
+            &[
+                "OnboardingQuery::AgentPrompt(",
+                "OnboardingQuery::TerminalCommand(",
+            ][..],
+        ),
+    ];
+    let mut violations = Vec::new();
+
+    for (relative_path, patterns) in cases {
+        let path = workspace_root().join(relative_path);
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        collect_direct_literal_after_patterns(relative_path, &content, patterns, &mut violations);
+    }
+
+    assert!(
+        violations.is_empty(),
+        "onboarding callout user-visible English literals must use catalog copy: {violations:#?}"
+    );
+}
+
+#[test]
 fn ui_components_calls_do_not_use_direct_english_literals() {
     let ui_components_src = workspace_root().join("crates/ui_components/src");
     let mut violations = Vec::new();

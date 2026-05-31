@@ -23,7 +23,7 @@ pub use init_project::{
     ProjectScopedRulesResult,
 };
 use onboarding::callout::{FinalState, OnboardingCalloutViewEvent, OnboardingQuery};
-use onboarding::{OnboardingCalloutView, OnboardingKeybindings};
+use onboarding::{OnboardingCalloutView, OnboardingCopy, OnboardingKeybindings};
 
 use crate::ai::block_context::BlockContext;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
@@ -14641,6 +14641,7 @@ impl TerminalView {
 
         let view = ctx.add_typed_action_view(|ctx| {
             let keybindings = build_onboarding_keybindings(ctx);
+            let copy = OnboardingCopy::localized(|key| terminal_text(ctx, key));
 
             match version {
                 AgentOnboardingVersion::UniversalInput { has_project } => {
@@ -14651,6 +14652,7 @@ impl TerminalView {
                         has_project,
                         initial_natural_language_detection_enabled,
                         keybindings,
+                        copy,
                         ctx,
                     )
                 }
@@ -14666,6 +14668,7 @@ impl TerminalView {
                         intention,
                         initial_natural_language_detection_enabled,
                         keybindings,
+                        copy,
                         ctx,
                     )
                 }

@@ -37,6 +37,10 @@ pub enum OnboardingQuery {
     TerminalCommand(String),
     /// An agent prompt that should be executed in agent mode
     AgentPrompt(String),
+    /// A catalog-backed terminal command prompt that should be executed in shell mode
+    TerminalCommandKey(&'static str),
+    /// A catalog-backed agent prompt that should be executed in agent mode
+    AgentPromptKey(&'static str),
     /// No prompt (empty state)
     None,
 }
@@ -67,7 +71,7 @@ pub(super) enum AgentModalityCalloutState {
     Off,
     /// Step 1: terminal input with natural language support.
     TerminalMode,
-    /// Step 2: "Agent Mode" (Agent intention only).
+    /// Step 2: agent mode for the agent-driven development intention.
     AgentMode,
     /// Terminal state
     Complete(FinalState),
@@ -378,14 +382,6 @@ impl OnboardingCalloutModel {
         }
     }
 
-    /// Returns a prompt string to populate a command based on current state
-    pub fn prompt_string(&self) -> String {
-        match self.prompt() {
-            OnboardingQuery::TerminalCommand(text) | OnboardingQuery::AgentPrompt(text) => text,
-            OnboardingQuery::None => String::new(),
-        }
-    }
-
     /// Returns the prompt information including type for the current state
     pub fn prompt(&self) -> OnboardingQuery {
         match &self.state {
@@ -406,10 +402,7 @@ impl OnboardingCalloutModel {
             }
             UniversalInputCalloutState::TalkToAgent
             | UniversalInputCalloutState::Complete(FinalState::Submit) => {
-                OnboardingQuery::AgentPrompt(
-                    "What tests exist in this repo, how are they structured, and what do they cover?"
-                        .to_string(),
-                )
+                OnboardingQuery::AgentPromptKey("onboarding.callout.talk_to_agent.prompt")
             }
             UniversalInputCalloutState::Complete(_) => OnboardingQuery::None,
         }
@@ -418,14 +411,14 @@ impl OnboardingCalloutModel {
     fn prompt_for_agent_modality(&self, state: AgentModalityCalloutState) -> OnboardingQuery {
         match state {
             AgentModalityCalloutState::Off => OnboardingQuery::None,
-            AgentModalityCalloutState::TerminalMode => {
-                OnboardingQuery::TerminalCommand("Run a command...".to_string())
-            }
+            AgentModalityCalloutState::TerminalMode => OnboardingQuery::TerminalCommandKey(
+                "onboarding.callout.terminal_command.placeholder",
+            ),
             AgentModalityCalloutState::AgentMode => {
                 if self.has_project {
                     OnboardingQuery::AgentPrompt("/init".to_string())
                 } else {
-                    OnboardingQuery::AgentPrompt("Tell the agent what to build...".to_string())
+                    OnboardingQuery::AgentPromptKey("onboarding.callout.agent_prompt.placeholder")
                 }
             }
             // All completion states should return None so the input gets cleared
