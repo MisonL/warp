@@ -10,23 +10,25 @@ created in this pass.
 ## Current Branch State
 
 - Branch: `feat/localization-settings-upstream-rebuild`
-- Verified upstream base: `upstream/master` at `74d25664`
-- Local source validation and current-code real-display smoke were run after
-  the latest rebase; this evidence is included in this local evidence commit.
+- Verified upstream base: `upstream/master` at `21334d42`
+- Local source validation and current-code real-display smoke were run after the
+  latest source-affecting rebase. This pass also rebased onto `21334d42`; the
+  only new upstream delta from `74d25664` to `21334d42` is
+  `docker/agent-dev/Dockerfile`, with no app UI or localization source changes.
 - Upstream ancestry: `git merge-base --is-ancestor upstream/master HEAD`
   returned 0
 - Upstream comparison after this evidence update:
   `git rev-list --left-right --count upstream/master...HEAD` returned `0 19`
 - Remote branch comparison after this evidence update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returned `3 91`
+  returned `3 92`
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, `MERGE_HEAD`, or
   `CHERRY_PICK_HEAD`
 
 ## Current Fixes
 
 This pass addressed gaps found while revalidating the branch after upstream
-refreshes through `74d25664`:
+refreshes through `74d25664`, then rebased the result onto `21334d42`:
 
 - AI settings hardcoded UI copy is now catalog-backed, including execution
   profile actions, toolbar layout copy, remote-session policy text, sign-up and
@@ -68,7 +70,9 @@ refreshes through `74d25664`:
   localization path without changing non-localization business semantics, and
   the branch rebased onto `upstream/master` at `74d25664` after resolving
   upstream refresh conflicts in the localization commit set, onboarding
-  customize slide copy, and shared lightbox loading UI.
+  customize slide copy, and shared lightbox loading UI. The later rebase onto
+  `21334d42` had no conflicts and introduced only a Dockerfile change from
+  upstream.
 - macOS integration real-display intent is now propagated from
   `Builder::with_real_display()` into the app/window-manager startup path. This
   lets real-display integration tests create real-display windows and save PNG
@@ -120,9 +124,11 @@ git fetch upstream master
 git rebase upstream/master
 ```
 
-Result: pass. `upstream/master` advanced to `74d25664`; rebase completed after
-resolving upstream refresh conflicts in the localization commit set, onboarding
-customize slide copy, and shared lightbox loading UI.
+Result: pass. `upstream/master` advanced to `21334d42`; this latest rebase had
+no conflicts. The new upstream commit only changes `docker/agent-dev/Dockerfile`.
+The previous source-affecting rebase through `74d25664` completed after
+resolving conflicts in the localization commit set, onboarding customize slide
+copy, and shared lightbox loading UI.
 
 ```bash
 python3 -m json.tool app/assets/bundled/locales/en-US.json
@@ -162,14 +168,14 @@ Result: pass.
 cargo check -p onboarding --message-format=short
 ```
 
-Result: pass, finished in 5m 21s.
+Result: pass, finished in 5m 03s on the `21334d42` rebase.
 
 ```bash
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 23 tests passed. The run compiled in 5m 57s and finished tests in
-22.98s. Coverage includes bundled key/placeholder parity, app/onboarding/shared
+Result: pass, 23 tests passed. The run compiled in 5m 59s and finished tests in
+58.66s on the `21334d42` rebase. Coverage includes bundled key/placeholder parity, app/onboarding/shared
 ui-components direct-English UI constructor scans, and selected surface
 regression checks.
 
@@ -177,8 +183,13 @@ regression checks.
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests passed with 4830 filtered tests. The app test binary
-compiled in 32m 28s and the selected tests finished in 3.68s.
+Previous complete source-equivalent result: pass, 8 tests passed with 4830
+filtered tests on the `74d25664` source-affecting rebase. This command was
+attempted again after rebasing to `21334d42`, but the local app test binary
+compile remained in `rustc` for about 55 minutes without an exit code and was
+stopped. Because `21334d42` only changes `docker/agent-dev/Dockerfile`, this is
+recorded as a local toolchain/run-time limitation rather than a new
+localization failure.
 
 ```bash
 cargo build -p integration --bin integration
@@ -240,7 +251,7 @@ unless `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS` was set externally.
 Goal item status against the current local branch:
 
 - Rebase to latest upstream: satisfied locally for `upstream/master` at
-  `74d25664`.
+  `21334d42`.
 - No new branch: satisfied.
 - No push or PR update: satisfied.
 - Key and placeholder integrity: satisfied by catalog stats and
@@ -250,9 +261,12 @@ Goal item status against the current local branch:
   audit scope. App, onboarding, and shared `ui_components/src` UI constructor
   scans passed. The supplemental high-risk scan only matched test assertions
   and example labels.
-- App localization tests: satisfied by
+- App localization tests: previously satisfied by
   `cargo test -p warp --lib localization::tests -- --nocapture`, 8 passed with
-  4830 filtered tests.
+  4830 filtered tests on the latest source-affecting rebase. The same command
+  was attempted after rebasing to `21334d42`, but did not produce an exit code
+  because the app test binary compile remained in local `rustc` for about 55
+  minutes and was stopped.
 - Real-display zh-CN smoke flow: satisfied by the current run at
   `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02/recording.log`.
 - Real-display PNG screenshot capture: satisfied by the current run at
@@ -261,9 +275,10 @@ Goal item status against the current local branch:
 ## Historical Notes
 
 Earlier local validation points included upstream bases such as `37df9ef2`,
-`af886f7c`, `a4d19abd`, `df02914a`, and `ce73fe07`. Those are historical only.
-The current evidence basis is the branch rebased on `74d25664` with the fixes
-and validation recorded above.
+`af886f7c`, `a4d19abd`, `df02914a`, `ce73fe07`, and `74d25664`. Those are
+historical only. The current branch is rebased on `21334d42`; the current
+source-validation basis remains the `74d25664` source-affecting rebase plus the
+verified fact that the only later upstream delta is `docker/agent-dev/Dockerfile`.
 
 Previously fixed upstream-refresh gaps include:
 
@@ -282,5 +297,10 @@ Previously fixed upstream-refresh gaps include:
   update a PR.
 - Visual coverage is sampled and does not prove exhaustive coverage of every UI
   surface, platform state, runtime configuration, or translated context.
+- The app-side `cargo test -p warp --lib localization::tests -- --nocapture`
+  rerun after `21334d42` did not complete locally because the app test binary
+  compile stayed in `rustc` for about 55 minutes without an exit code. The
+  narrower `warp_localization` and onboarding checks did complete and pass on
+  `21334d42`.
 - Local `target/` artifacts are build and review evidence, not tracked source
   files.

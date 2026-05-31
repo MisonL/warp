@@ -9,14 +9,16 @@ not to create or update a PR, not to push, and not to create a new branch.
 ## Candidate State
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
-- Upstream base verified locally: `upstream/master` at `74d25664`
-- Local source validation and current-code real-display smoke were run after
-  the latest rebase; this evidence is included in this local evidence commit.
+- Upstream base verified locally: `upstream/master` at `21334d42`
+- Local source validation and current-code real-display smoke were run after the
+  latest source-affecting rebase. This pass also rebased onto `21334d42`; the
+  only new upstream delta from `74d25664` to `21334d42` is
+  `docker/agent-dev/Dockerfile`, with no app UI or localization source changes.
 - Upstream comparison after this handoff update:
   `git rev-list --left-right --count upstream/master...HEAD` returned `0 19`
 - Remote branch comparison after this handoff update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returned `3 91`
+  returned `3 92`
 - Rebase state: no `.git/rebase-merge`, `.git/rebase-apply`, `MERGE_HEAD`, or
   `CHERRY_PICK_HEAD`
 - Remote writes in this pass: none
@@ -65,9 +67,11 @@ git fetch upstream master
 git rebase upstream/master
 ```
 
-Result: pass. `upstream/master` advanced to `74d25664`; rebase completed after
-resolving upstream refresh conflicts in the localization commit set, onboarding
-customize slide copy, and shared lightbox loading UI.
+Result: pass. `upstream/master` advanced to `21334d42`; this latest rebase had
+no conflicts. The new upstream commit only changes `docker/agent-dev/Dockerfile`.
+The previous source-affecting rebase through `74d25664` completed after
+resolving conflicts in the localization commit set, onboarding customize slide
+copy, and shared lightbox loading UI.
 
 ```bash
 python3 -m json.tool app/assets/bundled/locales/en-US.json
@@ -106,14 +110,14 @@ Result: pass.
 cargo check -p onboarding --message-format=short
 ```
 
-Result: pass, finished in 5m 21s.
+Result: pass, finished in 5m 03s on the `21334d42` rebase.
 
 ```bash
 cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 23 tests passed. The run compiled in 5m 57s and finished tests in
-22.98s. Coverage includes bundled key/placeholder parity, app/onboarding/shared
+Result: pass, 23 tests passed. The run compiled in 5m 59s and finished tests in
+58.66s on the `21334d42` rebase. Coverage includes bundled key/placeholder parity, app/onboarding/shared
 ui-components direct-English UI constructor scans, and selected surface
 regression checks.
 
@@ -121,8 +125,13 @@ regression checks.
 cargo test -p warp --lib localization::tests -- --nocapture
 ```
 
-Result: pass, 8 tests passed with 4830 filtered tests. The app test binary
-compiled in 32m 28s and the selected tests finished in 3.68s.
+Previous complete source-equivalent result: pass, 8 tests passed with 4830
+filtered tests on the `74d25664` source-affecting rebase. This command was
+attempted again after rebasing to `21334d42`, but the local app test binary
+compile remained in `rustc` for about 55 minutes without an exit code and was
+stopped. Because `21334d42` only changes `docker/agent-dev/Dockerfile`, this is
+recorded as a local toolchain/run-time limitation rather than a new
+localization failure.
 
 ```bash
 cargo build -p integration --bin integration
@@ -170,9 +179,12 @@ The historical run did not save PNG screenshots.
 
 Current visual smoke status:
 
-- Real-display route and assertion smoke: passed after the latest rebase to
-  `74d25664`; see
+- Real-display route and assertion smoke: passed after the latest
+  source-affecting rebase to `74d25664`; see
   `target/zh-cn-visual-artifacts-rebased-20260530/test_zh_cn_localization_visual_smoke/2026-05-30T12-53-02/recording.log`.
+- The subsequent rebase to `21334d42` only changed
+  `docker/agent-dev/Dockerfile`, so no app UI source changed after this visual
+  evidence was captured.
 - Current-code PNG screenshot capture: satisfied. The current artifact
   directory contains 8 PNG screenshots plus `recording.log`.
 - PNG dimension check: all 8 screenshots are `1280x800` per `sips -g
