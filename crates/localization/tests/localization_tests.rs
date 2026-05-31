@@ -50,6 +50,20 @@ const ONBOARDING_UI_LITERAL_PATTERNS: &[&str] = &[
     ".wrappable_text(",
 ];
 
+const AI_SETTINGS_HIGH_RISK_UI_PATTERNS: &[&str] = &[
+    "ActionButton::new(",
+    "DropdownItem::new(",
+    "Modal::new(",
+    "ToggleSettingActionPair::new(",
+    "SettingActionPairDescriptions::new(",
+    "build_sub_header(",
+    "render_ai_setting_toggle::<",
+    "render_ai_setting_description(",
+    "render_dropdown_item(",
+    "render_full_pane_width_ai_button(",
+    ".set_title(",
+];
+
 const ALLOWED_DIRECT_UI_LITERALS: &[&str] = &["...", "Warp", "ZDR"];
 
 type CatalogMap = serde_json::Map<String, serde_json::Value>;
@@ -2757,6 +2771,27 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
     );
 }
 
+#[test]
+fn ai_settings_high_risk_wrappers_do_not_use_direct_english_literals() {
+    let relative_path = "app/src/settings_view/ai_page.rs";
+    let path = workspace_root().join(relative_path);
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    let mut violations = Vec::new();
+
+    collect_direct_literal_after_patterns(
+        relative_path,
+        &content,
+        AI_SETTINGS_HIGH_RISK_UI_PATTERNS,
+        &mut violations,
+    );
+
+    assert!(
+        violations.is_empty(),
+        "AI settings high-risk wrappers must use AppContext localization: {violations:#?}"
+    );
+}
+
 fn bundled_en_us_map() -> CatalogMap {
     serde_json::from_str(BUNDLED_EN_US).unwrap()
 }
@@ -2907,6 +2942,38 @@ fn collect_direct_first_argument_literal_violations(
     }
 }
 
+fn collect_direct_literal_after_patterns(
+    relative_path: &str,
+    content: &str,
+    patterns: &[&str],
+    violations: &mut Vec<String>,
+) {
+    const SCAN_WINDOW: usize = 512;
+
+    for pattern in patterns {
+        let mut cursor = 0;
+        while let Some(found_at) = content[cursor..].find(pattern) {
+            let invocation_start = cursor + found_at;
+            let scan_start = invocation_start + pattern.len();
+            let scan_end = (scan_start + SCAN_WINDOW).min(content.len());
+            if let Some((literal, offset)) =
+                first_string_literal_with_offset(&content[scan_start..scan_end])
+            {
+                if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
+                    && looks_like_english_ui_text(literal)
+                {
+                    violations.push(format!(
+                        "{}:{}: {literal:?}",
+                        relative_path,
+                        line_number_for_offset(content, scan_start + offset)
+                    ));
+                }
+            }
+            cursor = scan_start;
+        }
+    }
+}
+
 fn direct_ui_english_literal<'a>(line: &'a str, patterns: &[&str]) -> Option<&'a str> {
     let trimmed = line.trim_start();
     if trimmed.starts_with("//") {
@@ -2935,6 +3002,28 @@ fn direct_ui_english_literal<'a>(line: &'a str, patterns: &[&str]) -> Option<&'a
         return None;
     }
     Some(literal)
+}
+
+fn first_string_literal_with_offset(input: &str) -> Option<(&str, usize)> {
+    let bytes = input.as_bytes();
+    let mut cursor = 0;
+
+    while cursor < bytes.len() {
+        let Some(start_offset) = input[cursor..].find('"') else {
+            break;
+        };
+        let start = cursor + start_offset;
+        let mut end = start + 1;
+        while end < bytes.len() {
+            if bytes[end] == b'"' && !is_escaped_quote(bytes, end) {
+                return Some((&input[start + 1..end], start));
+            }
+            end += 1;
+        }
+        cursor = end;
+    }
+
+    None
 }
 
 fn string_literals(line: &str) -> Vec<&str> {
