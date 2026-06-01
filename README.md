@@ -1,105 +1,121 @@
+# Warp 简体中文汉化版
+
+本项目为上游 [Warp](https://github.com/warpdotdev/warp) 的汉化版本，会尽量遵循上游功能改动，同时在本仓库中添加国际化适配与简体中文支持。本仓库按独立项目演进，不代表上游官方发布版本。
+
 <a href="https://www.warp.dev">
-    <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
+    <img width="1024" alt="Warp 智能开发环境产品预览" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
 </a>
 &nbsp;
 <p align="center">
-  <a href="https://www.warp.dev"><img height="20" alt="Built with Warp" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Built-With-Warp-Export@2x.png" /></a>
+  <a href="https://www.warp.dev"><img height="20" alt="使用 Warp 构建" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Built-With-Warp-Export@2x.png" /></a>
   &nbsp;
-  <a href="https://oz.warp.dev"><img height="20" alt="Powered by Oz" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Powered-By-Oz-Export@2x.png" /></a>
+  <a href="https://oz.warp.dev"><img height="20" alt="由 Oz 提供支持" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Powered-By-Oz-Export@2x.png" /></a>
 </p>
 
 <p align="center">
-  <a href="https://www.warp.dev">Website</a>
+  <a href="https://www.warp.dev">官网</a>
   ·
-  <a href="https://www.warp.dev/code">Code</a>
+  <a href="https://www.warp.dev/code">代码</a>
   ·
-  <a href="https://www.warp.dev/agents">Agents</a>
+  <a href="https://www.warp.dev/agents">智能体</a>
   ·
-  <a href="https://www.warp.dev/terminal">Terminal</a>
+  <a href="https://www.warp.dev/terminal">终端</a>
   ·
-  <a href="https://www.warp.dev/drive">Drive</a>
+  <a href="https://www.warp.dev/drive">云盘</a>
   ·
-  <a href="https://docs.warp.dev">Docs</a>
+  <a href="https://docs.warp.dev">文档</a>
   ·
-  <a href="https://www.warp.dev/blog/how-warp-works">How Warp Works</a>
+  <a href="https://www.warp.dev/blog/how-warp-works">Warp 工作原理</a>
 </p>
 
 > [!NOTE]
-> OpenAI is the founding sponsor of the new, open-source Warp repository, and the new agentic management workflows are powered by GPT models.
+> OpenAI 是新的开源 Warp 仓库的创始赞助方，新的智能管理工作流由 GPT 模型提供支持。
 
-<h1></h1>
+## 项目定位
 
-## About
+本仓库以 Warp 上游开源代码为基础，重点维护简体中文本地化能力。目标是在尽量跟随上游功能变化的同时，让应用的用户界面具备可翻译性，并提供简体中文文案目录、语言设置、静态扫描和视觉验证证据。
 
-[Warp](https://www.warp.dev) is an agentic development environment, born out of the terminal. Use Warp's built-in coding agent, or bring your own CLI agent (Claude Code, Codex, Gemini CLI, and others).
+当前本地化证据记录见：
 
-## Installation
+- [技术证据记录](specs/localization-zh-cn-review/TECH.md)
+- [本地交接记录](specs/localization-zh-cn-review/LOCAL_REVIEW_HANDOFF.md)
 
-You can [download Warp](https://www.warp.dev/download) and [read our docs](https://docs.warp.dev/) for platform-specific instructions.
+## 关于 Warp
 
-## Warp Contributions Overview Dashboard
+[Warp](https://www.warp.dev) 是从终端演进而来的智能开发环境。你可以使用 Warp 内置的编码智能体，也可以接入自己的命令行智能体，例如 Claude Code、Codex、Gemini CLI 等。
 
-Explore [build.warp.dev](https://build.warp.dev) to:
-- Watch thousands of Oz agents triage issues, write specs, implement changes, and review PRs
-- View top contributors and in-flight features
-- Track your own issues with GitHub sign-in
-- Click into active agent sessions in a web-compiled Warp terminal
+## 安装
+
+你可以从 [Warp 下载页](https://www.warp.dev/download)获取安装包，也可以阅读 [Warp 官方文档](https://docs.warp.dev/)了解各平台安装说明。
+
+本仓库是汉化适配版本；实际打包、发布和分发流程以本项目后续独立演进规则为准。
+
+## Warp 贡献概览面板
+
+可以访问 [build.warp.dev](https://build.warp.dev) 查看：
+
+- Oz 智能体如何分拣 issue、编写规格、实现变更和审查 PR
+- 主要贡献者和正在进行的功能
+- 使用 GitHub 登录后跟踪自己的 issue
+- 在 Web 编译版 Warp 终端中进入活跃智能体会话
 
 ## Oz for OSS
 
-Maintaining a popular open-source project? [Apply for Oz credits](https://tally.so/r/LZWxqG) to explore [Oz for OSS](https://github.com/warpdotdev/oz-for-oss).
+如果你维护一个受欢迎的开源项目，可以[申请 Oz 额度](https://tally.so/r/LZWxqG) 了解 [Oz for OSS](https://github.com/warpdotdev/oz-for-oss)。
 
-Oz for OSS is our partner program for bringing the same agentic open-source management workflows used in this repository to select partner repositories. We work directly with maintainers to implement workflows for issue triage, PR review, community management, and contributor coordination in a way that fits each project.
+Oz for OSS 是 Warp 的合作伙伴计划，用于把本仓库中使用的智能开源管理工作流带到精选合作仓库中。Warp 团队会与维护者直接协作，按项目实际情况落地 issue 分拣、PR 审查、社区管理和贡献者协调等工作流。
 
-## Licensing
+## 许可证
 
-Warp's UI framework (the `warpui_core` and `warpui` crates) are licensed under the [MIT license](LICENSE-MIT).
+Warp 的 UI 框架，也就是 `warpui_core` 和 `warpui` crate，使用 [MIT 许可证](LICENSE-MIT)。
 
-The rest of the code in this repository is licensed under the [AGPL v3](LICENSE-AGPL).
+本仓库其余代码使用 [AGPL v3](LICENSE-AGPL)。
 
-## Open Source & Contributing
+## 开源与贡献
 
-Warp's client codebase is open source and lives in this repository. We welcome community contributions and have designed a lightweight workflow to help new contributors get started. For the full contribution flow, read our [CONTRIBUTING.md](CONTRIBUTING.md) guide.
+Warp 客户端代码是开源的，并托管在本仓库中。上游欢迎社区贡献，并提供了轻量级流程帮助新贡献者开始参与。完整贡献流程可阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+本汉化版本按独立项目演进；是否向上游提交贡献、何时同步上游、如何发布汉化版本，以本项目维护策略为准。
 
 > [!TIP]
-> **Chat with contributors and the Warp team** in the [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) Slack channel — a good place for ad-hoc questions, design discussion, and pairing with maintainers. New here? [Join the Warp Slack community](https://go.warp.dev/join-preview) first, then jump into `#oss-contributors`.
+> 可以在 [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) Slack 频道与贡献者和 Warp 团队交流，这里适合临时问题、设计讨论和与维护者协作。新用户需要先加入 [Warp Slack 社区](https://go.warp.dev/join-preview)，再进入 `#oss-contributors`。
 
-### Issue to PR
+### 从 issue 到 PR
 
-Before filing, [search existing issues](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc) for your bug or feature request. If nothing exists, [file an issue](https://github.com/warpdotdev/warp/issues/new/choose) using our templates. Security vulnerabilities should be reported privately as described in [CONTRIBUTING.md](CONTRIBUTING.md#reporting-security-issues).
+提交前，请先[搜索现有 issue](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc)，确认是否已有相同 bug 或功能请求。如果没有，可以使用模板[提交 issue](https://github.com/warpdotdev/warp/issues/new/choose)。安全漏洞应按 [CONTRIBUTING.md](CONTRIBUTING.md#reporting-security-issues) 中的说明私下报告。
 
-Once filed, a Warp maintainer reviews the issue and may apply a readiness label: [`ready-to-spec`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-spec) signals the design is open for contributors to spec out, and [`ready-to-implement`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-implement) signals the design is settled and code PRs are welcome. Anyone can pick up a labeled issue — mention **@oss-maintainers** on an issue if you'd like it considered for a readiness label.
+issue 创建后，上游 Warp 维护者可能会添加准备状态标签：[`ready-to-spec`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-spec) 表示可以开始设计规格，[`ready-to-implement`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-implement) 表示设计已确定，可以提交代码 PR。任何人都可以领取带标签的 issue。如果希望某个 issue 被评估是否可进入准备状态，可以在 issue 中提及 **@oss-maintainers**。
 
-### Building the Repo Locally
+## 本地构建
 
-To build and run Warp from source:
+从源码构建并运行 Warp：
 
 ```bash
-./script/bootstrap   # platform-specific setup
-./script/run         # build and run Warp
-./script/presubmit   # fmt, clippy, and tests
+./script/bootstrap   # 平台相关环境准备
+./script/run         # 构建并运行 Warp
+./script/presubmit   # 格式化、clippy 和测试
 ```
 
-See [WARP.md](WARP.md) for the full engineering guide, including coding style, testing, and platform-specific notes.
+完整工程指南见 [WARP.md](WARP.md)，其中包括编码风格、测试和平台相关说明。
 
-## Joining the Team
+## 加入团队
 
-Interested in joining the team? See our [open roles](https://www.warp.dev/careers).
+如果你希望加入 Warp 团队，可以查看[开放职位](https://www.warp.dev/careers)。
 
-## Support and Questions
+## 支持与问题
 
-1. See our [docs](https://docs.warp.dev/) for a comprehensive guide to Warp's features.
-2. Join our [Slack Community](https://go.warp.dev/join-preview) to connect with other users and get help from the Warp team — contributors hang out in [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB).
-3. Try our [Preview build](https://www.warp.dev/download-preview) to test the latest experimental features.
-4. Mention **@oss-maintainers** on any issue to escalate to the team — for example, if you encounter problems with the automated agents.
+1. 阅读 [Warp 官方文档](https://docs.warp.dev/)了解功能说明。
+2. 加入 [Slack 社区](https://go.warp.dev/join-preview)，与其他用户交流并从 Warp 团队获得帮助；贡献者通常在 [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB)。
+3. 试用 [Preview 构建](https://www.warp.dev/download-preview)，体验最新实验性功能。
+4. 如需升级处理某个 issue，可以提及 **@oss-maintainers**，例如遇到自动化 agent 问题时。
 
-## Code of Conduct
+## 行为准则
 
-We ask everyone to be respectful and empathetic. Warp follows the [Code of Conduct](CODE_OF_CONDUCT.md). To report violations, email warp-coc at warp.dev.
+请保持尊重和同理心。Warp 遵循 [行为准则](CODE_OF_CONDUCT.md)。如果需要报告违规行为，请发送邮件至 warp-coc at warp.dev。
 
-## Open Source Dependencies
+## 开源依赖
 
-We'd like to call out a few of the [open source dependencies](https://docs.warp.dev/help/licenses) that have helped Warp to get off the ground:
+以下开源依赖帮助 Warp 从零开始构建：
 
 - [Tokio](https://github.com/tokio-rs/tokio)
 - [NuShell](https://github.com/nushell/nushell)
