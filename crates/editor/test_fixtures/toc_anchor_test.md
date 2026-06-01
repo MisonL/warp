@@ -1,8 +1,8 @@
-# Markdown ToC Manual Test
+# Markdown ToC 手动测试
 
-Use this file in a Warp notebook to verify fragment link navigation.
+在 Warp notebook 中使用此文件验证 fragment link 导航。
 
-## Table of contents
+## 目录
 
 - [Basic heading](#Basic heading)
 - [Mixed Case](#Mixed CASE Heading)
@@ -10,20 +10,20 @@ Use this file in a Warp notebook to verify fragment link navigation.
 
 ## Basic heading
 
-Expected: clicking `Basic heading` scrolls here via case-insensitive heading match.
+预期：点击 `Basic heading` 会通过大小写不敏感的 heading 匹配滚动到这里。
 
 ## Mixed CASE Heading
 
-Expected: clicking `Mixed Case` scrolls here (case-insensitive).
+预期：点击 `Mixed Case` 会滚动到这里（大小写不敏感）。
 
-## Scroll padding section 1
+## 滚动填充 section 1
 
-This filler makes scrolling visible.
+这段填充内容用于让滚动效果可见。
 
-## Scroll padding section 2
+## 滚动填充 section 2
 
-This filler makes scrolling visible.
+这段填充内容用于让滚动效果可见。
 
 ## Bottom target
 
-Expected: clicking `Bottom target` from the TOC scrolls near the bottom.
+预期：从 TOC 点击 `Bottom target` 会滚动到接近底部的位置。

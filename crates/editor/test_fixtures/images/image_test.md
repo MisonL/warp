@@ -1,67 +1,67 @@
-# Markdown Image Test
+# Markdown 图片测试
 
-This file tests various ways to include images in markdown.
+此文件测试在 Markdown 中包含图片的各种方式。
 
-## Sample JPG Images
+## 示例 JPG 图片
 
-Here's a 400x300 sample image:
+这里是一张 400x300 示例图片：
 
-![Sample Image 1](./sample1.jpg)
+![示例图片 1](./sample1.jpg)
 
-Here's a larger 600x400 sample:
+这里是一个更大的 600x400 示例：
 
-![Sample Image 2](./sample2.jpg)
+![示例图片 2](./sample2.jpg)
 
-## PNG Image
+## PNG 图片
 
-A square 300x300 PNG:
+一张 300x300 的方形 PNG：
 
-![Sample PNG](./sample3.png)
+![示例 PNG](./sample3.png)
 
-## Multiple Images
+## 多张图片
 
-Let's show multiple images in sequence:
+下面按顺序展示多张图片：
 
-![Sample 1](./sample1.jpg)
+![示例 1](./sample1.jpg)
 
-![Sample 2](./sample2.jpg)
+![示例 2](./sample2.jpg)
 
-![Sample 3](./sample3.png)
+![示例 3](./sample3.png)
 
-## Image in a List
+## 列表中的图片
 
-Here's a bulleted list with images:
+这里是一个带图片的项目符号列表：
 
-- First item
-- ![Inline image in list](./sample1.jpg)
-- Third item
+- 第一项
+- ![列表中的行内图片](./sample1.jpg)
+- 第三项
 
-## Parent Directory Reference
+## 父目录引用
 
-Here's an image from the parent directory:
+这里是一张来自父目录的图片：
 
-![Parent directory image](../parent_test.jpg)
+![父目录图片](../parent_test.jpg)
 
-## Absolute Path
+## 绝对路径
 
-You can also use absolute paths (though they're less portable):
+也可以使用绝对路径（不过可移植性较差）：
 
-![Absolute path](/Users/zach/Projects/warp/editor/test_fixtures/images/sample2.jpg)
+![绝对路径](/Users/zach/Projects/warp/editor/test_fixtures/images/sample2.jpg)
 
-## Empty Alt Text
+## 空 Alt Text
 
 ![](./sample3.png)
 
-## Text After Images
+## 图片后的文本
 
-Here's some regular text after an image. The image should be rendered inline with the text flow.
+这里是一段位于图片之后的普通文本。图片应随文本流行内渲染。
 
-![Sample](./sample1.jpg)
+![示例](./sample1.jpg)
 
-This text comes after the image.
+这段文本位于图片之后。
 
 ---
 
-## End of Test
+## 测试结束
 
-That covers the basic image rendering scenarios!
+以上覆盖了基本图片渲染场景。
