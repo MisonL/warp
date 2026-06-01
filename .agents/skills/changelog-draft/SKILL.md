@@ -1,26 +1,26 @@
 ---
 name: changelog-draft
-description: Generate a reviewable changelog draft from PRs merged in a release range. Extracts explicit CHANGELOG markers, classifies unmarked PRs, adds external contributor attribution, and outputs markdown + JSON artifacts. Does NOT mutate channel_versions.json.
+description: 根据 release range 中合并的 PR 生成可审查 changelog draft。提取显式 CHANGELOG marker，分类未标记 PR，添加外部贡献者归属，并输出 markdown + JSON artifact。不会修改 channel_versions.json。
 ---
 
 # Changelog Draft Generator
 
-## Inputs
+## 输入
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `channel` | yes | Release channel: `stable`, `preview`, or `dev` |
-| `release_tag` | yes | The release tag to generate the changelog for (e.g. `v0.2026.05.06.09.12.stable_00`) |
-| `output_dir` | no | Directory to write output files. Defaults to `$RUNNER_TEMP` or `/tmp/changelog-draft` |
-| `attribution` | no | Attribution mode: `external-only` (default), `all`, or `none` |
+| `channel` | yes | Release channel：`stable`、`preview` 或 `dev` |
+| `release_tag` | yes | 要生成 changelog 的 release tag（例如 `v0.2026.05.06.09.12.stable_00`） |
+| `output_dir` | no | 写入输出文件的目录。默认是 `$RUNNER_TEMP` 或 `/tmp/changelog-draft` |
+| `attribution` | no | 归属模式：`external-only`（默认）、`all` 或 `none` |
 
-## Workflow
+## 工作流
 
-### Step 1 — Determine the release range
+### Step 1 — 确定 release range
 
-Infer the previous release **cut** for comparison. Release tags follow the pattern `v0.YYYY.MM.DD.HH.MM.<channel>_NN`, where `_NN` is the RC/hotfix number within that release cut. Multiple tags can share the same date prefix (e.g. `_00`, `_01`, `_02` are all part of one release cut).
+推断用于比较的上一个 release **cut**。Release tag 遵循 `v0.YYYY.MM.DD.HH.MM.<channel>_NN` 模式，其中 `_NN` 是该 release cut 内的 RC/hotfix 编号。多个 tag 可以共享相同日期前缀（例如 `_00`、`_01`、`_02` 都属于同一个 release cut）。
 
-The base tag must be the `_00` tag of the **previous** release cut (i.e. a different date), not just the previous tag. For example, if generating a changelog for `v0.2026.04.29.08.57.stable_01`, the base should be `v0.2026.04.22.08.57.stable_00`, not `v0.2026.04.29.08.57.stable_00`.
+Base tag 必须是**上一个** release cut（也就是不同日期）的 `_00` tag，而不只是上一个 tag。例如，如果要为 `v0.2026.04.29.08.57.stable_01` 生成 changelog，base 应为 `v0.2026.04.22.08.57.stable_00`，而不是 `v0.2026.04.29.08.57.stable_00`。
 
 ```bash
 # 1. Extract the date prefix from the release_tag (everything before _NN)
@@ -32,11 +32,11 @@ git tag --list "v0.*.${channel}_00" --sort=-version:refname
 # 3. Pick the first _00 tag whose date prefix differs from release_date_prefix
 ```
 
-Record the range as `previous_cut_tag..release_tag`.
+将 range 记录为 `previous_cut_tag..release_tag`。
 
-### Step 2 — Fetch PR data
+### Step 2 — 获取 PR 数据
 
-Run the `fetch_prs.py` script to collect all public-release PRs merged in the release range and extract explicit changelog markers. Pass the repository that the workflow checked out, not necessarily the public repository. Release workflows run from `warpdotdev/warp-internal`, and the script deterministically resolves `warp-repo-sync[bot]` PRs back to their original public `warpdotdev/warp` PR metadata before emitting JSON. When running from `warpdotdev/warp-internal`, the script intentionally omits PRs that were not authored by the repo-sync bot, because those are private internal changes that must not be exposed to the changelog agent or generated artifacts.
+运行 `fetch_prs.py` script，收集 release range 中合并的全部 public-release PR，并提取显式 changelog marker。传入 workflow checkout 的 repository，不一定是 public repository。Release workflow 从 `warpdotdev/warp-internal` 运行，script 会在发出 JSON 前，确定性地将 `warp-repo-sync[bot]` PR 解析回其原始 public `warpdotdev/warp` PR metadata。从 `warpdotdev/warp-internal` 运行时，script 会有意省略并非 repo-sync bot 作者的 PR，因为这些是私有内部变更，不能暴露给 changelog agent 或生成的 artifact。
 
 ```bash
 python3 .agents/skills/changelog-draft/scripts/fetch_prs.py \
@@ -45,7 +45,8 @@ python3 .agents/skills/changelog-draft/scripts/fetch_prs.py \
   --head-ref <release_tag>
 ```
 
-The script outputs JSON to stdout with this structure:
+script 向 stdout 输出如下结构的 JSON：
+
 ```json
 {
   "range": { "base": "<previous_tag>", "head": "<release_tag>" },
@@ -76,11 +77,11 @@ The script outputs JSON to stdout with this structure:
 }
 ```
 
-Use the top-level `number`, `url`, `author`, `body`, `labels`, `changed_files`, and `source_repo` fields as the source of truth. `internal_pr` is audit-only and must never be used for contributor attribution or user-facing changelog links. If `url` is empty, omit the PR link from user-facing markdown rather than synthesizing one.
+使用顶层 `number`、`url`、`author`、`body`、`labels`、`changed_files` 和 `source_repo` 字段作为事实来源。`internal_pr` 仅用于审计，绝不能用于贡献者归属或面向用户的 changelog 链接。如果 `url` 为空，应在面向用户的 markdown 中省略 PR 链接，而不是合成链接。
 
-### Step 3 — Classify contributors
+### Step 3 — 分类贡献者
 
-Run the `classify_contributors.py` script with the unique author logins from Step 2:
+使用 Step 2 中唯一作者 login 运行 `classify_contributors.py` script：
 
 ```bash
 python3 .agents/skills/changelog-draft/scripts/classify_contributors.py \
@@ -88,7 +89,8 @@ python3 .agents/skills/changelog-draft/scripts/classify_contributors.py \
   --authors author1,author2,author3
 ```
 
-Output JSON:
+输出 JSON：
+
 ```json
 {
   "internal": ["author1"],
@@ -98,16 +100,17 @@ Output JSON:
 }
 ```
 
-### Step 4 — Extract feature flags
+### Step 4 — 提取 feature flag
 
-Run the `extract_feature_flags.py` script to get the current flag gate lists:
+运行 `extract_feature_flags.py` script，获取当前 flag gate list：
 
 ```bash
 python3 .agents/skills/changelog-draft/scripts/extract_feature_flags.py \
   --file crates/warp_features/src/lib.rs
 ```
 
-Output JSON:
+输出 JSON：
+
 ```json
 {
   "release_flags": ["Autoupdate", "Changelog", ...],
@@ -116,9 +119,9 @@ Output JSON:
 }
 ```
 
-### Step 5 — Fetch issue reporters
+### Step 5 — 获取 issue reporter
 
-Collect all unique `linked_issues` from Step 2 and fetch the original reporter for each. Pass `--org` so the script checks org membership and filters out internal reporters automatically:
+收集 Step 2 中所有唯一的 `linked_issues`，并获取每个 issue 的原始 reporter。传入 `--org`，让 script 检查 org membership 并自动过滤内部 reporter：
 
 ```bash
 python3 .agents/skills/changelog-draft/scripts/fetch_issue_reporters.py \
@@ -127,7 +130,8 @@ python3 .agents/skills/changelog-draft/scripts/fetch_issue_reporters.py \
   --issues 5678,9012
 ```
 
-Output JSON (only external reporters are included):
+输出 JSON（只包含外部 reporter）：
+
 ```json
 {
   "issue_reporters": [
@@ -142,16 +146,17 @@ Output JSON (only external reporters are included):
 }
 ```
 
-The `--org` flag checks each reporter's org membership via the GitHub API, filtering out internal members so they aren't misattributed as external community reporters. These reporters will be credited in the "Community" section of the changelog.
-Whenever the markdown draft credits a PR author, contributor, or issue reporter, render the username as a GitHub profile link such as `[@username](https://github.com/username)`.
+`--org` flag 会通过 GitHub API 检查每个 reporter 的 org membership，过滤内部成员，避免把他们错误归属为外部社区 reporter。这些 reporter 会在 changelog 的 "Community" section 中被致谢。
+每当 markdown draft 致谢 PR author、contributor 或 issue reporter 时，请将 username 渲染为 GitHub profile link，例如 `[@username](https://github.com/username)`。
 
-### Step 6 — Classify unmarked PRs
+### Step 6 — 分类未标记 PR
 
-For each PR that has no explicit `CHANGELOG-*` entries, decide whether to include it and under which category.
+对每个没有显式 `CHANGELOG-*` 条目的 PR，决定是否包含，以及归入哪个类别。
 
-Follow the classification guidance in `.agents/skills/classify-changelog-pr/SKILL.md`.
+遵循 `.agents/skills/classify-changelog-pr/SKILL.md` 中的分类指南。
 
-For each unmarked PR, produce a classification:
+对每个未标记 PR，生成一个分类：
+
 ```json
 {
   "pr_number": 1234,
@@ -165,35 +170,35 @@ For each unmarked PR, produce a classification:
 }
 ```
 
-**Key rules:**
-- PRs that only touch CI, tests, docs, or internal tooling → `include: false`
-- PRs behind dogfood-only feature flags → `include: false` for stable channel
-- PRs behind preview flags → `include: false` for stable, `include: true` for preview
-- When in doubt, set `needs_review: true` and `confidence: "low"`
-- Bot PRs (dependabot, renovate, etc.) → `include: false`
+**关键规则：**
+- 只触及 CI、测试、文档或内部工具的 PR -> `include: false`
+- dogfood-only feature flag 背后的 PR -> stable channel 中 `include: false`
+- preview flag 背后的 PR -> stable 中 `include: false`，preview 中 `include: true`
+- 不确定时，设置 `needs_review: true` 和 `confidence: "low"`
+- Bot PR（dependabot、renovate 等）-> `include: false`
 
-**Feature-flag detection:** Use the `changed_files` list from Step 2 to check if any PR touches `crates/warp_features/src/lib.rs` or references a `FeatureFlag` variant in its title/body. Cross-reference with the flag lists from Step 4 to determine channel visibility.
+**Feature-flag detection：** 使用 Step 2 的 `changed_files` 列表检查 PR 是否触及 `crates/warp_features/src/lib.rs`，或标题/body 中是否引用 `FeatureFlag` variant。与 Step 4 的 flag list 交叉引用，以确定 channel 可见性。
 
-**Unknown contributors:** Authors in the `unknown` bucket (org membership check failed due to auth) should be treated conservatively — do not attribute them as external. Note them in the output for manual verification.
+**Unknown contributors：** `unknown` bucket 中的作者（由于 auth 导致 org membership 检查失败）应保守处理，不要将其归属为外部贡献者。在输出中记录它们以供人工验证。
 
-### Step 7 — Assemble the draft
+### Step 7 — 组装 draft
 
-Combine explicit entries (Step 2) and inferred entries (Step 6) into the final report. Group by category in this order:
+将显式条目（Step 2）和推断条目（Step 6）合并成最终报告。按以下顺序按类别分组：
 
 1. `NEW-FEATURE` — New Features
 2. `IMPROVEMENT` — Improvements
 3. `BUG-FIX` — Bug Fixes
 4. `OZ` — Oz Updates
 
-PRs marked with `CHANGELOG-NONE` are explicitly opted out and must never appear in the changelog markdown.
+带 `CHANGELOG-NONE` 标记的 PR 是显式 opt out，绝不能出现在 changelog markdown 中。
 
-When creating entries, copy `pr_number`, `url`, `author`, `source_repo`, and `internal_pr` from the normalized PR record. The release JSON converter uses `url` directly; do not invent public PR URLs from PR numbers.
+创建 entry 时，从 normalized PR record 中复制 `pr_number`、`url`、`author`、`source_repo` 和 `internal_pr`。Release JSON converter 会直接使用 `url`；不要根据 PR number 发明 public PR URL。
 
-### Step 8 — Write output files
+### Step 8 — 写入输出文件
 
-Write two files to `output_dir`:
+向 `output_dir` 写入两个文件：
 
-**`changelog-draft.md`** — Human-reviewable markdown, ready for Slack/Notion:
+**`changelog-draft.md`** — 可供人工审查的 markdown，可直接用于 Slack/Notion：
 
 ```markdown
 # Changelog Draft
@@ -222,9 +227,9 @@ Thanks to the community members who reported issues fixed in this release:
 - [@reporter1](https://github.com/reporter1) — [#5678](https://github.com/warpdotdev/warp/issues/5678) "Crash when opening large file"
 ```
 
-The markdown draft must **not** include "Needs Review" or "Skipped PRs" sections — those are internal details that belong only in the JSON audit artifact.
+Markdown draft **不得**包含 "Needs Review" 或 "Skipped PRs" section；这些是内部细节，只应存在于 JSON audit artifact 中。
 
-**`changelog-draft.json`** — Machine-readable audit artifact (internal only):
+**`changelog-draft.json`** — 机器可读 audit artifact（仅内部使用）：
 
 ```json
 {
@@ -253,11 +258,11 @@ The markdown draft must **not** include "Needs Review" or "Skipped PRs" sections
 }
 ```
 
-The JSON artifact retains `skipped`, `needs_review`, and `issue_reporters` for audit purposes — every PR in the range must appear in either `entries`, `skipped`, or `needs_review`.
+JSON artifact 会保留 `skipped`、`needs_review` 和 `issue_reporters` 供审计使用；range 中的每个 PR 都必须出现在 `entries`、`skipped` 或 `needs_review` 之一中。
 
-### Step 9 — Generate release-pipeline JSON
+### Step 9 — 生成 release-pipeline JSON
 
-Run the conversion script to deterministically produce `changelog-release.json` from the audit artifact:
+运行转换 script，从 audit artifact 确定性生成 `changelog-release.json`：
 
 ```bash
 python3 .agents/skills/changelog-draft/scripts/convert_to_release_json.py \
@@ -265,20 +270,20 @@ python3 .agents/skills/changelog-draft/scripts/convert_to_release_json.py \
   --output <output_dir>/changelog-release.json
 ```
 
-This produces the flat JSON structure consumed by the `create_release` workflow for Slack and the in-app "What's New" dialog. Do **not** generate this file manually — always use the script so the output is deterministic and consistent.
+这会生成 `create_release` workflow 用于 Slack 和应用内 "What's New" dialog 的扁平 JSON 结构。**不要**手动生成该文件，始终使用 script，以确保输出确定且一致。
 
-## Constraints
+## 约束
 
-- **Never** write to `channel_versions.json` or any production config file.
-- **Never** push commits, create branches, or open PRs.
-- All output goes to `output_dir` only.
-- The markdown draft should be copy-pasteable into Slack or Notion for review.
-- Keep the JSON artifact complete enough for audit: every PR in the range should appear in either `entries`, `skipped`, or `needs_review`.
+- **绝不**写入 `channel_versions.json` 或任何 production config 文件。
+- **绝不**push commit、创建 branch 或打开 PR。
+- 所有输出只写入 `output_dir`。
+- Markdown draft 应可复制粘贴到 Slack 或 Notion 供审查。
+- 保持 JSON artifact 足够完整以支持审计：range 中的每个 PR 都应出现在 `entries`、`skipped` 或 `needs_review` 之一中。
 
-## Validation
+## 验证
 
-After generating output, verify:
-1. Every PR in the range is accounted for (entries + skipped + needs_review = total PRs).
-2. Explicit marker entries match what `fetch_prs.py` extracted (no dropped markers).
-3. No duplicate PR numbers across sections.
-4. The markdown renders cleanly (no broken links or formatting).
+生成输出后，验证：
+1. Range 中每个 PR 都已计入（entries + skipped + needs_review = total PRs）。
+2. 显式 marker entry 与 `fetch_prs.py` 提取结果一致（没有丢失 marker）。
+3. 各 section 之间没有重复 PR number。
+4. Markdown 渲染正常（没有坏链接或格式问题）。
