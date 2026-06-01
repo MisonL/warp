@@ -10,12 +10,15 @@ update, or new branch was created.
 
 - Active local branch: `feat/localization-settings-upstream-rebuild`
 - Rebased upstream base: `upstream/master` at
-  `debe6d8104aed38afd7db6dedba668f8f8246818`
-- Upstream comparison after committing this handoff update:
-  `git rev-list --left-right --count upstream/master...HEAD` returns `0 22`
-- Remote branch comparison after committing this handoff update:
+  `a44b703060673b85d2641c051c53e4b6b1b00cc4`
+- Source HEAD before this documentation-only handoff update:
+  `ea36256c92e19464b6ddff70a266a77d5de24d2a`
+  (`Localize onboarding callout copy`)
+- Expected upstream comparison after committing this handoff update:
+  `git rev-list --left-right --count upstream/master...HEAD` returns `0 23`
+- Expected remote branch comparison after committing this handoff update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returns `3 97`
+  returns `3 99`
 - Rebase state after the rebase: no `.git/rebase-merge`,
   `.git/rebase-apply`, `MERGE_HEAD`, or `CHERRY_PICK_HEAD`
 - Remote writes in this pass: none
@@ -23,26 +26,26 @@ update, or new branch was created.
 
 ## Latest Upstream Delta
 
-The branch was rebased onto local `upstream/master` at
-`debe6d8104aed38afd7db6dedba668f8f8246818`.
+`git fetch upstream` succeeded and advanced `upstream/master` from
+`debe6d8104aed38afd7db6dedba668f8f8246818` to
+`a44b703060673b85d2641c051c53e4b6b1b00cc4`.
 
-The new upstream delta after the previous handoff includes remote skill
-location resolution in agent tool output paths and related tests. It did not
-modify bundled locale catalogs or `crates/localization/src`. The only rebase
-conflict was in
-`app/src/ai/blocklist/block/view_impl/output_tests.rs`; the resolution kept
-both upstream test additions and the local settings initialization needed by
-this branch.
+The new upstream tip is `a44b7030 Fix team owner pill contrast (#11689)`. It
+only touched `app/src/settings_view/teams_page.rs` in the localization-relevant
+surface checked here, and did not modify bundled locale catalogs or
+`crates/localization/src`.
 
-A later freshness retry of `git fetch upstream` failed with:
+The only rebase conflict was in `app/src/settings_view/teams_page.rs`. The
+resolution kept the upstream owner-chip contrast fix and retained the localized
+owner status label through:
 
-```text
-fatal: unable to access 'https://github.com/warpdotdev/warp/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443
+```rust
+teams_text(app, "settings.teams.status.owner")
 ```
 
 ## Change Summary
 
-- Rebased the branch onto `upstream/master` at `debe6d81`.
+- Rebased the branch onto `upstream/master` at `a44b7030`.
 - Kept the existing `warp_localization` crate and bundled `en-US` / `zh-CN`
   catalogs as the app UI localization surface.
 - Localized AI context menu categories through catalog keys.
@@ -59,6 +62,7 @@ fatal: unable to access 'https://github.com/warpdotdev/warp/': LibreSSL SSL_conn
   `OnboardingQuery` prompt literals.
 - Made missing onboarding copy keys fail explicitly instead of returning an
   empty string.
+- Regenerated the zh-CN visual smoke artifact after the onboarding callout fix.
 
 ## Catalog State
 
@@ -79,13 +83,39 @@ git rebase upstream/master
 ```
 
 Result: pass. The branch was rebased onto
-`debe6d8104aed38afd7db6dedba668f8f8246818`.
+`a44b703060673b85d2641c051c53e4b6b1b00cc4`; the single
+`teams_page.rs` conflict was resolved as described above.
+
+```bash
+cargo build -p integration --bin integration
+```
+
+Result: pass, finished in 50m 36s.
+
+```bash
+ARTIFACT_DIR="$PWD/target/zh-cn-visual-artifacts-20260601T013621Z"
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$ARTIFACT_DIR" \
+  target/debug/integration test_zh_cn_localization_visual_smoke
+```
+
+Result: pass.
+
+Current zh-CN visual smoke evidence:
+
+- `target/zh-cn-visual-artifacts-20260601T013621Z/test_zh_cn_localization_visual_smoke/2026-06-01T09-36-36/recording.log`
+- 8 screenshots in the same directory:
+  `agent-input-zh-cn.png`, `command-palette-zh-cn.png`,
+  `command-search-zh-cn.png`, `context-chips-zh-cn.png`,
+  `dialog-launch-config-zh-cn.png`, `settings-appearance-language-zh-cn.png`,
+  `terminal-input-zh-cn.png`, and `toast-zh-cn.png`
+- Every PNG was verified with `sips -g pixelWidth -g pixelHeight` as
+  `2560x1600`
 
 ```bash
 cargo fmt --all -- --check
 ```
 
-Result: pass after running `cargo fmt --all`.
+Result: pass.
 
 ```bash
 git diff --check
@@ -95,78 +125,50 @@ Result: pass.
 
 ```bash
 node - <<'NODE'
-const fs=require('fs');
-const en=JSON.parse(fs.readFileSync('app/assets/bundled/locales/en-US.json','utf8'));
-const zh=JSON.parse(fs.readFileSync('app/assets/bundled/locales/zh-CN.json','utf8'));
-const ek=Object.keys(en).sort();
-const zk=Object.keys(zh).sort();
-const missing=ek.filter(k=>!(k in zh));
-const extra=zk.filter(k=>!(k in en));
-const re=/\{[A-Za-z_][A-Za-z0-9_]*\}/g;
-const placeholders=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[k,[...String(v).matchAll(re)].map(m=>m[0]).sort().join(',')]));
-const ep=placeholders(en), zp=placeholders(zh);
-const mismatch=ek.filter(k=>k in zh && ep[k]!==zp[k]).map(k=>({key:k,en:ep[k],zh:zp[k]}));
-const empty=ek.filter(k=>en[k]===''||zh[k]==='');
-console.log(JSON.stringify({en_count:ek.length, zh_count:zk.length, missing:missing.length, extra:extra.length, placeholder_mismatch:mismatch.length, empty}, null, 2));
-if (missing.length||extra.length||mismatch.length) process.exit(1);
+const fs = require('fs');
+const en = JSON.parse(fs.readFileSync('app/assets/bundled/locales/en-US.json', 'utf8'));
+const zh = JSON.parse(fs.readFileSync('app/assets/bundled/locales/zh-CN.json', 'utf8'));
+const enKeys = Object.keys(en).sort();
+const zhKeys = Object.keys(zh).sort();
+const missing = enKeys.filter(k => !(k in zh));
+const extra = zhKeys.filter(k => !(k in en));
+const ph = s => [...String(s).matchAll(/\{[A-Za-z0-9_]+\}/g)].map(m => m[0]).sort();
+const placeholderMismatch = [];
+for (const k of enKeys) {
+  if (!(k in zh)) continue;
+  const a = ph(en[k]).join(',');
+  const b = ph(zh[k]).join(',');
+  if (a !== b) placeholderMismatch.push({ key: k, en: a, zh: b });
+}
+const empty = enKeys.filter(k => String(en[k]).length === 0 || String(zh[k] ?? '').length === 0);
+console.log(JSON.stringify({ enKeys: enKeys.length, zhKeys: zhKeys.length, missing: missing.length, extra: extra.length, placeholderMismatch: placeholderMismatch.length, empty }, null, 2));
+if (missing.length || extra.length || placeholderMismatch.length) process.exit(1);
 NODE
 ```
 
-Result: pass. Output summary: `en_count` 5752, `zh_count` 5752, `missing` 0,
-`extra` 0, `placeholder_mismatch` 0, `empty` only `auth.empty`.
-
-```bash
-CARGO_TARGET_DIR=target/localization-audit \
-  cargo test -p warp_localization --test localization_tests \
-  onboarding_callout_direct_english_literals_are_localized -- --nocapture
-```
-
-Result: pass, 1 test passed.
-
-```bash
-CARGO_TARGET_DIR=target/localization-audit \
-  cargo test -p warp_localization --test localization_tests direct_english -- --nocapture
-```
-
-Result: pass, 8 tests passed.
+Result: pass. Output summary: `enKeys` 5752, `zhKeys` 5752, `missing` 0,
+`extra` 0, `placeholderMismatch` 0, `empty` only `auth.empty`.
 
 ```bash
 CARGO_TARGET_DIR=target/localization-audit \
   cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass, 25 tests passed.
+Result: pass. 25 tests passed, 0 failed, 0 ignored.
 
 ```bash
 CARGO_TARGET_DIR=target/localization-audit \
   cargo check -p onboarding --message-format=short
 ```
 
-Result: pass, finished in 3m 20s.
+Result: pass, finished in 3m 08s.
 
-```bash
-CARGO_TARGET_DIR=target/localization-audit \
-  cargo check -p warp --lib --message-format=short
-```
+One default-target run of `cargo test -p warp_localization -- --nocapture` was
+stopped after approximately 12 minutes while still compiling in `target/debug`.
+The counted result is the successful `CARGO_TARGET_DIR=target/localization-audit`
+run above.
 
-Result: pass, finished in 14m 39s.
-
-```bash
-CARGO_TARGET_DIR=target/localization-audit \
-  cargo test -p warp --lib localization::tests -- --nocapture
-```
-
-Result: not counted as pass. The command compiled for more than 30 minutes and
-was manually terminated while rustc was still building the `warp` test binary.
-The app compile path is covered by the successful `cargo check -p warp --lib`
-run.
-
-## Existing Visual Evidence
-
-Current pre-existing zh-CN visual smoke evidence:
-
-- `target/zh-cn-visual-artifacts-20260531T173639/test_zh_cn_localization_visual_smoke/2026-05-31T17-37-22/recording.log`
-- `target/zh-cn-visual-artifacts-20260531T173639/test_zh_cn_localization_visual_smoke/2026-05-31T17-37-22/*.png`
+## Existing Video Evidence
 
 Current pre-existing video recording evidence:
 
@@ -175,7 +177,7 @@ Current pre-existing video recording evidence:
 - `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/after_commands.png`
 - `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/recording.mp4`
 
-These artifacts were not regenerated after the onboarding callout fix.
+The video recording smoke was not regenerated in this pass.
 
 ## Branch Notes
 
@@ -189,9 +191,6 @@ These artifacts were not regenerated after the onboarding callout fix.
 
 - No external CI or external code review has been performed after this latest
   local validation.
-- A later upstream fetch could not be completed because GitHub returned a TLS
-  connection failure.
-- Visual coverage is sampled and was not regenerated after the onboarding
-  callout fix.
-- This local evidence must not be described as full UI human review or complete
-  product-wide exhaustive coverage.
+- Visual coverage is sampled and must not be described as complete product-wide
+  UI human review or exhaustive platform coverage.
+- The video recording smoke artifact was not regenerated in this pass.
