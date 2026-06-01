@@ -35,10 +35,11 @@
 
 本仓库以 Warp 上游开源代码为基础，重点维护简体中文本地化能力。目标是在尽量跟随上游功能变化的同时，让应用的用户界面具备可翻译性，并提供简体中文文案目录、语言设置、静态扫描和视觉验证证据。
 
-当前本地化证据记录见：
+本地化适配主要由以下内容维护：
 
-- [技术证据记录](specs/localization-zh-cn-review/TECH.md)
-- [本地交接记录](specs/localization-zh-cn-review/LOCAL_REVIEW_HANDOFF.md)
+- `app/assets/bundled/locales/en-US.json`
+- `app/assets/bundled/locales/zh-CN.json`
+- `crates/localization/`
 
 ## 关于 Warp
 
