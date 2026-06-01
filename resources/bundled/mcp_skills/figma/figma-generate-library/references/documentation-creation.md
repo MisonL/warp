@@ -1,27 +1,27 @@
-> Part of the [figma-generate-library skill](../SKILL.md).
+> 属于 [figma-generate-library skill](../SKILL.md) 的一部分。
 
-# Documentation Creation Reference
+# 文档创建参考
 
-This reference covers Phase 2 of the design system build: the cover page, foundations documentation page (color swatches, type specimens, spacing bars, shadow cards, radius demo), page layout dimensions, and inline component documentation. Every code block is complete `use_figma`-ready JavaScript (helper-function form — meant to be embedded in a larger script that uses `return` to send results back).
+本参考覆盖设计系统构建的 Phase 2：封面页、Foundations 文档页（color swatch、type specimen、spacing bar、shadow card、radius demo）、页面布局尺寸，以及组件内联文档。每个代码块都是完整且可用于 `use_figma` 的 JavaScript（辅助函数形式，用于嵌入到通过 `return` 返回结果的更大脚本中）。
 
 ---
 
-## 1. Cover Page
+## 1. 封面页
 
-The cover page is always the first page in the file. It is a branded title card that sets context for anyone opening the file.
+封面页始终是文件中的第一页。它是带品牌感的标题卡片，为任何打开文件的人提供上下文。
 
-### What to include
+### 包含内容
 
-- File/system name as a large heading (48–72px)
-- Version string or date
-- Brief tagline (1 sentence)
-- Optional: color block background using the primary brand color variable
+- 作为大标题的文件/system 名称（48-72px）
+- 版本字符串或日期
+- 简短标语（1 句话）
+- 可选：使用 primary brand color variable 的色块背景
 
-### Cover page dimensions
+### 封面页尺寸
 
-The cover frame should be **1440 × 900px** — this matches the default Figma canvas and looks correct in the page thumbnail.
+cover frame 应为 **1440 x 900px**。这与默认 Figma canvas 匹配，在页面缩略图中也显示正确。
 
-### use_figma for cover page
+### 用于封面页的 use_figma
 
 ```javascript
 async function createCoverPage(systemName, tagline, version, primaryColorVar) {
@@ -96,13 +96,13 @@ async function createCoverPage(systemName, tagline, version, primaryColorVar) {
 
 ## 2. Foundations Page
 
-The Foundations page is always placed **before any component pages**. It visually documents the design tokens — colors, typography, spacing, shadows, and border radii — so designers and engineers can see available primitives at a glance.
+Foundations page 始终放在**所有 component page 之前**。它以视觉方式记录 design token，包括 color、typography、spacing、shadow 和 border radius，让 designer 和 engineer 可以一眼看到可用 primitive。
 
-### Page layout dimensions
+### 页面布局尺寸
 
-The outer documentation frame should be **1440px wide**. Sections stack vertically with **64–100px gaps** between them. Each section frame fills the full 1440px width and hugs its content vertically.
+外层 documentation frame 应为 **1440px 宽**。Section 垂直堆叠，彼此之间保留 **64-100px gap**。每个 section frame 填满 1440px 宽度，并在垂直方向 hug content。
 
-### Full Foundations page skeleton
+### 完整 Foundations page 骨架
 
 ```javascript
 async function createFoundationsPage() {
@@ -137,11 +137,11 @@ async function createFoundationsPage() {
 
 ---
 
-## 3. Color Swatches (bound to variables)
+## 3. Color Swatch（绑定到 variable）
 
-Color swatches must be **bound to actual Figma variables** — never hardcode hex values in swatch fills. This keeps documentation in sync automatically when variable values change.
+Color swatch 必须**绑定到实际 Figma variable**。不要在 swatch fill 中 hardcode hex value。这样当 variable value 变化时，文档会自动保持同步。
 
-### Single color swatch
+### 单个 color swatch
 
 ```javascript
 /**
@@ -202,7 +202,7 @@ async function createColorSwatch(parent, varName, variable) {
 }
 ```
 
-### Color section builder (primitives row + semantic grid)
+### Color section builder（primitive row + semantic grid）
 
 ```javascript
 /**
@@ -296,11 +296,11 @@ async function createColorSection(root, primitiveVars, semanticVars) {
 
 ---
 
-## 4. Type Specimens
+## 4. Type Specimen
 
-Typography specimens show each text style rendered at its actual size with a sample string, the style name, and its specifications.
+Typography specimen 会以实际尺寸渲染每个 text style，并显示 sample string、style name 和规格说明。
 
-### Single type specimen row
+### 单个 type specimen row
 
 ```javascript
 /**
@@ -409,9 +409,9 @@ async function createTypographySection(root, typeStyles) {
 
 ---
 
-## 5. Spacing Bars
+## 5. Spacing Bar
 
-Spacing bars show each spacing token as a filled rectangle whose width equals the spacing value. Shorter bars for small values, longer bars for large values — the visual encoding is immediate.
+Spacing bar 将每个 spacing token 显示为填充矩形，其宽度等于 spacing value。小值使用较短 bar，大值使用较长 bar，视觉编码直接可读。
 
 ### Spacing bar row
 
@@ -500,11 +500,11 @@ async function createSpacingSection(root, spacingTokens) {
 
 ---
 
-## 6. Shadow Cards (Elevation)
+## 6. Shadow Card（Elevation）
 
-Elevation documentation shows cards with progressively stronger drop shadows, labeled with name and effect parameters.
+Elevation documentation 会展示 drop shadow 逐渐增强的 card，并标注 name 和 effect parameter。
 
-### Single shadow card
+### 单个 shadow card
 
 ```javascript
 /**
@@ -615,9 +615,9 @@ async function createShadowSection(root, shadowTokens) {
 
 ## 7. Border Radius Demo
 
-Border radius documentation shows rectangles at each corner radius value, labeled with the token name and pixel value.
+Border radius documentation 会展示应用各个 corner radius value 的 rectangle，并标注 token name 和 pixel value。
 
-### Single radius card
+### 单个 radius card
 
 ```javascript
 /**
@@ -733,9 +733,9 @@ async function createRadiusSection(root, radiusTokens) {
 
 ---
 
-## 8. Documentation Alongside Components
+## 8. 与 Component 放在一起的 Documentation
 
-Each component page should include a documentation frame directly on the canvas, placed to the left of the component set. This keeps docs and the component in sync without requiring a separate file.
+每个 component page 都应直接在 canvas 上包含一个 documentation frame，并放在 component set 左侧。这样无需单独文件，也能保持文档和 component 同步。
 
 ### Component page documentation frame
 
@@ -823,12 +823,12 @@ async function createComponentDocFrame(page, componentName, description, usageNo
 
 ---
 
-## 9. Critical Rules
+## 9. 关键规则
 
-1. **Bind swatches to variables** — use `setBoundVariableForPaint` for color fills, `setBoundVariable('width', ...)` for spacing bars, and `setBoundVariable('cornerRadius', ...)` for radius cards. Never hardcode values that have corresponding variables.
-2. **Foundations page comes before component pages** — always insert it between the file structure separators and the first component page.
-3. **Show both primitive and semantic layers** — if the system has a Primitives collection and a semantic Color collection, document both on the Foundations page with clear section labels.
-4. **Page frame width = 1440px** — this is the convention across Simple DS, Polaris, and Material 3. Use it unless you detect a different existing convention via `get_metadata`.
-5. **Section spacing = 64–80px** — the gap between color / typography / spacing / shadow / radius sections should be at minimum 64px so the page is scannable.
-6. **Match existing page style** — if the target file uses emoji page name prefixes or a decorative separator style, carry that through to the Foundations page name.
-7. **Include code syntax in labels** — where variables have code syntax set, display the CSS variable name in the swatch/bar label so developers can copy it directly.
+1. **将 swatch 绑定到 variable**：color fill 使用 `setBoundVariableForPaint`，spacing bar 使用 `setBoundVariable('width', ...)`，radius card 使用 `setBoundVariable('cornerRadius', ...)`。不要 hardcode 已有对应 variable 的 value。
+2. **Foundations page 位于 component page 之前**：始终把它插入 file structure separator 和第一个 component page 之间。
+3. **同时展示 primitive 和 semantic layer**：如果 system 有 Primitives collection 和 semantic Color collection，就在 Foundations page 上用清晰 section label 同时记录两者。
+4. **Page frame width = 1440px**：这是 Simple DS、Polaris 和 Material 3 共有的约定。除非你通过 `get_metadata` 发现目标文件使用不同既有约定，否则使用该宽度。
+5. **Section spacing = 64-80px**：color / typography / spacing / shadow / radius section 之间的 gap 至少应为 64px，保证页面易于扫描。
+6. **匹配现有 page style**：如果目标文件使用 emoji page name prefix 或装饰性 separator style，应将其延续到 Foundations page name。
+7. **在 label 中包含 code syntax**：当 variable 已设置 code syntax 时，在 swatch/bar label 中显示 CSS variable name，方便 developer 直接复制。
