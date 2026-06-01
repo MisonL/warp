@@ -1,14 +1,14 @@
-# Security Policy
+# 安全政策
 
-We take security seriously at Warp and appreciate the efforts of security researchers who help keep our users safe.
+Warp 非常重视安全，也感谢安全研究人员帮助保护用户安全。
 
-## Reporting a Vulnerability
+## 报告漏洞
 
-If you believe you've found a security vulnerability, please follow responsible disclosure practices and **do not** open a public GitHub issue or pull request, as this could expose the vulnerability before a fix is available.
+如果你认为发现了安全漏洞，请遵循负责任披露实践，**不要**打开公开 GitHub issue 或 pull request，因为这可能会在修复可用前暴露漏洞。
 
-Instead, please report it through one of the following channels:
+请改用以下渠道之一报告：
 
-- **Email:** [security@warp.dev](mailto:security@warp.dev)
-- **GitHub Security Advisory:** [Open a private advisory](https://github.com/warpdotdev/Warp/security/advisories/new)
+- **电子邮件：** [security@warp.dev](mailto:security@warp.dev)
+- **GitHub Security Advisory：** [打开私有 advisory](https://github.com/warpdotdev/Warp/security/advisories/new)
 
-We will acknowledge your report promptly and work with you to understand and resolve the issue as quickly as possible.
+我们会及时确认你的报告，并与你协作，尽快理解和解决问题。
