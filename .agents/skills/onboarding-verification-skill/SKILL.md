@@ -1,300 +1,300 @@
 ---
 name: onboarding-verification-skill
-description: Launch two parallel Oz cloud agents with computer use to download and install the latest stable Linux Warp build, capture screenshots while walking through first-time onboarding in both logged-out and logged-in states, then selectively fan out follow-up cloud agents for distinct onboarding branches proposed by those initial explorers. Use this whenever the user asks to test, document, screenshot, or walk through the Warp first-time install/onboarding experience in a cloud Linux environment.
+description: 启动两个启用 computer use 的并行 Oz cloud agents，下载并安装最新 stable Linux Warp build，分别在登出态和登录态走查首次 onboarding 并截图，然后针对初始探索者提出的不同 onboarding 分支选择性派发后续 cloud agents。当用户要求在 cloud Linux 环境中测试、记录、截图或走查 Warp 首次安装/onboarding 体验时使用本技能。
 ---
 
-# Onboarding verification skill
+# Onboarding 验证技能
 
-Use this skill to verify the first-time Warp install and onboarding flow on Linux with broader branch coverage than a single linear walkthrough.
+使用本技能在 Linux 上验证首次 Warp 安装与 onboarding flow，并获得比单条线性 walkthrough 更广的分支覆盖。
 
-The parent agent should not perform the walkthrough locally. Launch two parallel Oz cloud agents with computer use. Both initial children install the latest stable Warp Linux package appropriate for their platform and capture screenshots at every visible onboarding step until Warp reaches a usable terminal session. One child verifies the login-free flow. The other child verifies the logged-in flow using the managed secret `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN`.
+parent agent 不应在本地执行 walkthrough。应启动两个启用 computer use 的并行 Oz cloud agents。两个初始 children 都安装适合其平台的最新 stable Warp Linux package，并在每个可见 onboarding step 截图，直到 Warp 到达可用的 terminal session。一个 child 验证 login-free flow，另一个 child 使用托管 secret `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 验证 logged-in flow。
 
-Those two baseline explorers are also responsible for noticing meaningful alternate onboarding branches and returning concrete plans for follow-up cloud agents. The parent agent should synthesize those plans, deduplicate overlapping suggestions, and launch a bounded second wave of targeted follow-up agents to improve coverage of paths a real user might encounter.
+这两个 baseline explorers 还负责发现有意义的 alternate onboarding branches，并返回后续 cloud agents 的具体计划。parent agent 应综合这些计划，去重重叠建议，并启动有界的第二波 targeted follow-up agents，以提升真实用户可能遇到路径的覆盖率。
 
 ## Parent workflow
 
-1. Launch exactly two remote Oz cloud agents in a single parallel `run_agents` batch with computer use enabled.
-2. Use no environment-specific assumptions unless the user provided an environment. If no environment was provided, omit the environment ID and let Warp choose the default remote environment.
-3. Give both baseline child agents the shared child prompt below, plus the appropriate flow-specific prompt.
-4. Wait for both baseline agents' reports. Each report must include:
-   - The completed baseline walkthrough result and artifacts.
-   - A concise list of observed UI quality issues, suspected bugs, error states, or rough edges, with screenshots when visible.
-   - A prioritized follow-up coverage plan describing distinct onboarding paths worth exploring with additional cloud agents.
-5. Treat the authenticated baseline child as blocked if `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` is missing or does not authenticate successfully.
-6. Build a combined coverage map from the two baseline reports. Deduplicate suggestions that reach the same visible state or exercise the same decision surface.
-7. Launch a second `run_agents` batch with computer use enabled for the most valuable follow-up onboarding branches:
-   - Prefer branches that materially change visible UI, available controls, downstream screens, auth state, or setup outcomes.
-   - Favor paths likely to expose correctness, polish, layout, truncation, loading, or validation problems.
-   - Default to at most four follow-up agents total unless the user explicitly asked for exhaustive coverage or the baseline reports show more than four clearly distinct high-value branches.
-   - Do not launch speculative follow-ups when the baseline agents did not observe a concrete branch point; report that coverage stopped after the baseline pass instead.
-8. Give each follow-up child the shared child prompt, the follow-up flow prompt below, the logged-out or logged-in flow prompt that matches its assigned auth state, and one synthesized branch assignment from the baseline reports.
-9. Wait for all follow-up reports before summarizing coverage, issues, artifacts, and any still-unexplored branches worth a later run.
+1. 在单个并行 `run_agents` batch 中启动恰好两个 remote Oz cloud agents，并启用 computer use。
+2. 除非用户提供了 environment，否则不要使用 environment-specific assumptions。如果未提供 environment，省略 environment ID，让 Warp 选择默认 remote environment。
+3. 给两个 baseline child agents 提供下面的 shared child prompt，以及合适的 flow-specific prompt。
+4. 等待两个 baseline agents 的报告。每份报告必须包含：
+   - 已完成的 baseline walkthrough result 和 artifacts。
+   - 已观察到的 UI quality issues、suspected bugs、error states 或 rough edges 的简短列表；可见时附截图。
+   - 一个按优先级排列的 follow-up coverage plan，描述值得用额外 cloud agents 探索的不同 onboarding paths。
+5. 如果 `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 缺失或认证不成功，将 authenticated baseline child 视为 blocked。
+6. 从两份 baseline reports 构建合并后的 coverage map。去重到达同一 visible state 或覆盖同一 decision surface 的建议。
+7. 为最有价值的 follow-up onboarding branches 启动第二个启用 computer use 的 `run_agents` batch：
+   - 优先选择会实质改变 visible UI、available controls、downstream screens、auth state 或 setup outcomes 的分支。
+   - 偏向可能暴露 correctness、polish、layout、truncation、loading 或 validation problems 的路径。
+   - 默认总共最多启动四个 follow-up agents，除非用户明确要求 exhaustive coverage，或 baseline reports 显示超过四个明显不同且高价值的 branches。
+   - 当 baseline agents 没有观察到具体 branch point 时，不要启动 speculative follow-ups；改为报告覆盖在 baseline pass 后停止。
+8. 给每个 follow-up child 提供 shared child prompt、下面的 follow-up flow prompt、与其 assigned auth state 匹配的 logged-out 或 logged-in flow prompt，以及一项从 baseline reports 综合出的 branch assignment。
+9. 等待所有 follow-up reports，然后再总结 coverage、issues、artifacts，以及任何值得后续运行但尚未探索的 branches。
 
-## Managed FTUE auth secret
+## 托管 FTUE auth secret
 
-- `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` is an internal-team managed secret for cloud agents, not a repo file or prompt literal.
-- The secret should authenticate as a dedicated non-employee, non-`warp.dev` FTUE test user.
-- Rotate the secret with `oz-dev secret update --team --value-file <private-token-file> ONBOARDING_AGENT_FTUE_REFRESH_TOKEN`.
-- Treat the private token file as local scratch material only. Do not read it into chat, print it, stage it, commit it, upload it, or include it in artifacts. Delete it after the managed secret is updated.
-- Children should receive the secret only through the managed environment variable injected into the remote run.
+- `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 是供 cloud agents 使用的 internal-team managed secret，不是 repo file 或 prompt literal。
+- 该 secret 应认证为专用的非员工、非 `warp.dev` FTUE test user。
+- 使用 `oz-dev secret update --team --value-file <private-token-file> ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 轮换该 secret。
+- 将 private token file 仅视为本地 scratch material。不要将其读入 chat、打印、stage、commit、upload，或包含在 artifacts 中。managed secret 更新后删除它。
+- Children 只能通过注入 remote run 的托管 environment variable 接收该 secret。
 
-Use the initial `run_agents` call shaped like this:
+初始 `run_agents` call 使用如下形态：
 
 ```text
-summary: Launching two baseline cloud agents with computer use to compare logged-out and logged-in Warp onboarding screenshots and propose follow-up coverage branches.
+summary: 启动两个启用 computer use 的 baseline cloud agents，对比登出态和登录态 Warp onboarding 截图，并提出后续覆盖分支。
 remote.computer_use_enabled: true
 agent_run_configs:
 - name: "warp-onboarding-logged-out"
-  prompt: the logged-out flow prompt below
+  prompt: 下面的 logged-out flow prompt
 - name: "warp-onboarding-logged-in"
-  prompt: the logged-in flow prompt below
-base_prompt: the shared child prompt below
+  prompt: 下面的 logged-in flow prompt
+base_prompt: 下面的 shared child prompt
 ```
 
-When the baseline reports identify concrete follow-up branches, use a second `run_agents` call shaped like this:
+当 baseline reports 识别出具体 follow-up branches 时，使用如下形态的第二个 `run_agents` call：
 
 ```text
-summary: Launching targeted cloud follow-up agents to explore distinct onboarding branches identified by the baseline onboarding explorers.
+summary: 启动 targeted cloud follow-up agents，探索 baseline onboarding explorers 识别出的不同 onboarding branches。
 remote.computer_use_enabled: true
 agent_run_configs:
 - name: "warp-onboarding-followup-theme-choice"
-  prompt: the follow-up flow prompt below, the logged-out flow prompt below, and one synthesized logged-out branch assignment
+  prompt: 下面的 follow-up flow prompt、下面的 logged-out flow prompt，以及一项综合出的 logged-out branch assignment
 - name: "warp-onboarding-followup-model-choice"
-  prompt: the follow-up flow prompt below, the logged-in flow prompt below, and one synthesized logged-in branch assignment
-base_prompt: the shared child prompt below
+  prompt: 下面的 follow-up flow prompt、下面的 logged-in flow prompt，以及一项综合出的 logged-in branch assignment
+base_prompt: 下面的 shared child prompt
 ```
 
 ## Shared child prompt
 
-Give both cloud agents these shared instructions:
+给两个 cloud agents 提供这些共享指令：
 
 ```text
-You are verifying the first-time Warp install and onboarding experience on Linux.
+你正在验证 Linux 上的首次 Warp 安装和 onboarding 体验。
 
-Goal:
-- Download and install the latest stable Warp Linux build appropriate for this cloud environment's distro and CPU architecture.
-- Launch Warp in a fresh first-run state.
-- Take a screenshot at every visible onboarding step.
-- Continue until Warp reaches a usable terminal session, or stop and report a blocker if the assigned flow cannot proceed.
-- Notice alternate onboarding decisions that lead to meaningfully different screens, states, or outcomes, and return concrete follow-up cloud-agent plans for the parent orchestrator.
-- Treat visual polish, missing assets, misalignment, overlapping content, clipped text, poor contrast, broken loading states, unexpected errors, and confusing controls as verification findings rather than ignoring them.
+目标：
+- 下载并安装适合此 cloud environment 的 distro 和 CPU architecture 的最新 stable Warp Linux build。
+- 以全新的 first-run state 启动 Warp。
+- 在每个可见 onboarding step 截图。
+- 继续执行，直到 Warp 到达可用的 terminal session；如果 assigned flow 无法继续，则停止并报告 blocker。
+- 注意会通向明显不同 screens、states 或 outcomes 的 alternate onboarding decisions，并为 parent orchestrator 返回具体 follow-up cloud-agent plans。
+- 将 visual polish、missing assets、misalignment、overlapping content、clipped text、poor contrast、broken loading states、unexpected errors 和 confusing controls 视为 verification findings，而不是忽略它们。
 
-Install requirements:
-- Use official stable Warp downloads only.
-- Do not use Warp Preview, Alpha, source builds, or a repository development build.
-- Detect CPU architecture with `uname -m`.
-- Detect the package manager or distro before choosing the package format.
-- Prefer native packages over AppImage because they install dependencies and register the app normally.
+安装要求：
+- 只使用官方 stable Warp downloads。
+- 不要使用 Warp Preview、Alpha、source builds 或 repository development build。
+- 用 `uname -m` 检测 CPU architecture。
+- 选择 package format 前，先检测 package manager 或 distro。
+- 优先使用 native packages，而不是 AppImage，因为前者会正常安装 dependencies 并注册 app。
 
-Stable Linux package mapping:
+Stable Linux package 映射：
 - Debian/Ubuntu with amd64 or x86_64: https://app.warp.dev/download?package=deb
 - Debian/Ubuntu with arm64 or aarch64: https://app.warp.dev/download?package=deb_arm64
 - Fedora/RHEL/CentOS/openSUSE with amd64 or x86_64: https://app.warp.dev/download?package=rpm
 - Fedora/RHEL/CentOS/openSUSE with arm64 or aarch64: https://app.warp.dev/download?package=rpm_arm64
 - Arch with amd64 or x86_64: https://app.warp.dev/download?package=pacman
 - Arch with arm64 or aarch64: https://app.warp.dev/download?package=pacman_arm64
-- If no native package path is available, use the AppImage fallback:
+- 如果没有可用的 native package path，使用 AppImage fallback：
   - amd64 or x86_64: https://app.warp.dev/download?package=appimage
   - arm64 or aarch64: https://app.warp.dev/download?package=appimage_arm64
 
-Before launch:
-- Create a flow-specific artifact directory such as `~/warp-onboarding-logged-out` or `~/warp-onboarding-logged-in`.
-- Ensure the run starts from a fresh Warp first-run state by removing only Warp-specific config/data/cache/state directories for the test user, such as `~/.config/warp-terminal`, `~/.local/share/warp-terminal`, `~/.local/state/warp-terminal`, and `~/.cache/warp-terminal` if they exist.
-- Do not delete unrelated user files or system directories.
+启动前：
+- 创建 flow-specific artifact directory，例如 `~/warp-onboarding-logged-out` 或 `~/warp-onboarding-logged-in`。
+- 确保 run 从全新的 Warp first-run state 开始。只移除 test user 的 Warp-specific config/data/cache/state directories，例如存在时的 `~/.config/warp-terminal`、`~/.local/share/warp-terminal`、`~/.local/state/warp-terminal` 和 `~/.cache/warp-terminal`。
+- 不要删除无关 user files 或 system directories。
 
-Screenshot workflow:
-- Take the first screenshot before interacting with the first visible Warp window.
-- Take one screenshot before every user action.
-- Take another screenshot after each action if the UI changes.
-- Use sequential filenames with a flow prefix, such as `01-logged-out-initial-window.png` or `01-logged-in-initial-window.png`.
-- If anything looks wrong, take an additional issue-focused screenshot that captures the problematic state as clearly as possible.
-- Maintain a manifest file in the artifact directory with, for each screenshot:
+Screenshot workflow：
+- 在与第一个可见 Warp window 交互前，先拍第一张 screenshot。
+- 在每次 user action 前拍一张 screenshot。
+- 如果 UI 发生变化，每次 action 后再拍一张 screenshot。
+- 使用带 flow prefix 的顺序文件名，例如 `01-logged-out-initial-window.png` 或 `01-logged-in-initial-window.png`。
+- 如果任何内容看起来不对，额外拍一张 issue-focused screenshot，尽可能清楚捕捉问题状态。
+- 在 artifact directory 中维护 manifest file，并为每张 screenshot 记录：
   - filename
   - timestamp
-  - what was visible
-  - what action was about to happen or just happened
-- For issue-focused screenshots, add the suspected issue category and the screen or step where it appeared.
-- Do not include secret values, refresh tokens, ID tokens, auth redirect URLs, or Authorization headers in the manifest, logs, shell history, screenshots, or final report.
+  - 可见内容
+  - 即将发生或刚发生的 action
+- 对 issue-focused screenshots，添加 suspected issue category 以及问题出现的 screen 或 step。
+- 不要在 manifest、logs、shell history、screenshots 或 final report 中包含 secret values、refresh tokens、ID tokens、auth redirect URLs 或 Authorization headers。
 
-Onboarding behavior:
-- Baseline children choose the default or most conservative option at each step unless the flow-specific prompt says otherwise, while recording branch points that deserve separate follow-up coverage.
-- Follow-up children take the specifically assigned alternate branch, then use the default or most conservative option for unrelated decisions unless the branch assignment says otherwise.
-- If telemetry, shell, theme, editor-import, or agent integration choices appear, use the default path and document the choice in the manifest.
-- Continue until a normal terminal prompt is visible and usable.
+Onboarding behavior：
+- 除非 flow-specific prompt 另有说明，baseline children 在每一步选择默认或最保守选项，同时记录值得单独 follow-up coverage 的 branch points。
+- Follow-up children 走具体 assigned alternate branch；除非 branch assignment 另有说明，其他无关决策使用默认或最保守选项。
+- 如果出现 telemetry、shell、theme、editor-import 或 agent integration choices，使用 default path，并在 manifest 中记录选择。
+- 继续执行，直到可见并可使用正常 terminal prompt。
 
-UI quality review:
-- Watch for screens that are visually broken, obviously unfinished, misaligned, truncated, clipped, crowded, low-contrast, unexpectedly blank, stuck loading, or inconsistent with adjacent steps.
-- Watch for actionable errors or validation states that appear during normal flow exploration, including auth failures, failed button transitions, controls that do not respond, duplicated overlays, missing images, or broken post-selection states.
-- For every suspicious state:
-  - Capture a screenshot.
-  - Record the screen, the action that led to it, what looked wrong, and whether it blocked progress.
-  - Describe the issue factually. If expected behavior is uncertain, say it appears suspicious rather than claiming a confirmed bug.
+UI quality review：
+- 留意 visually broken、明显未完成、misaligned、truncated、clipped、crowded、low-contrast、unexpectedly blank、stuck loading，或与相邻步骤不一致的 screens。
+- 留意正常 flow exploration 中出现的 actionable errors 或 validation states，包括 auth failures、failed button transitions、controls 不响应、duplicated overlays、missing images，或 broken post-selection states。
+- 对每个可疑状态：
+  - 捕获一张 screenshot。
+  - 记录 screen、导致它的 action、看起来不对的内容，以及它是否 blocked progress。
+  - 如实描述问题。如果 expected behavior 不确定，应说明它看起来 suspicious，而不是声称是 confirmed bug。
 
-Terminal verification:
-- Once a terminal session is visible, run a harmless flow-specific command:
+Terminal verification：
+- terminal session 可见后，运行一个无害的 flow-specific command：
   - logged-out flow: `echo warp-onboarding-logged-out-ready`
   - logged-in flow: `echo warp-onboarding-logged-in-ready`
-- Capture a final screenshot showing the usable terminal and command output.
+- 捕获一张 final screenshot，展示可用 terminal 和 command output。
 
-Report back:
-- Whether you were a baseline explorer or a follow-up branch explorer.
-- Which flow you ran: logged-out or logged-in.
-- OS and distro detected.
-- CPU architecture detected.
-- Package URL and install method used.
-- Launch command used.
-- Whether the walkthrough reached a usable terminal session.
-- Ordered screenshot list with short descriptions.
-- Artifact directory path.
-- Any built-in artifact IDs or attachment names if the harness supports artifact upload.
-- Any visual polish concern, suspected bug, error state, or unpolished/misaligned screen, including:
+Report back：
+- 你是 baseline explorer 还是 follow-up branch explorer。
+- 你运行的是哪个 flow：logged-out 或 logged-in。
+- 检测到的 OS 和 distro。
+- 检测到的 CPU architecture。
+- 使用的 Package URL 和 install method。
+- 使用的 Launch command。
+- walkthrough 是否到达可用 terminal session。
+- 带简短描述的有序 screenshot list。
+- Artifact directory path。
+- 如果 harness 支持 artifact upload，报告任何内置 artifact IDs 或 attachment names。
+- 任何 visual polish concern、suspected bug、error state，或 unpolished/misaligned screen，包括：
   - screenshot filename
-  - screen or step
-  - action taken immediately before it appeared
-  - concise observed behavior
-  - whether it blocked progress
-- Any blocker, crash, missing dependency, display problem, auth failure, or step that required judgment.
-- For baseline explorers, include a `Follow-up coverage plan` section with zero or more proposed child-agent branches. Each proposal must include:
+  - screen 或 step
+  - 它出现前刚执行的 action
+  - 简短 observed behavior
+  - 它是否 blocked progress
+- 任何 blocker、crash、missing dependency、display problem、auth failure，或需要 judgment 的 step。
+- 对 baseline explorers，包含一个 `Follow-up coverage plan` section，列出零个或多个 proposed child-agent branches。每个 proposal 必须包含：
   - suggested agent name
-  - logged-out or logged-in flow
-  - onboarding screen or decision point where the alternate branch begins
-  - exact alternate choice or action sequence to explore
-  - why it is materially distinct from the baseline path
-  - what user-visible state, setup outcome, or failure mode it could reveal
-  - any secret, auth, or environment dependency
+  - logged-out 或 logged-in flow
+  - alternate branch 开始的 onboarding screen 或 decision point
+  - 要探索的 exact alternate choice 或 action sequence
+  - 它为什么与 baseline path 实质不同
+  - 它可能揭示的 user-visible state、setup outcome 或 failure mode
+  - 任何 secret、auth 或 environment dependency
   - priority: high, medium, or low
-- For follow-up explorers, include whether the assigned branch was reachable and completed. If a new branch point appears while following the assigned path, record it as a later-run suggestion instead of recursively expanding the run yourself.
+- 对 follow-up explorers，包含 assigned branch 是否 reachable 并 completed。如果沿 assigned path 走时出现新的 branch point，将其记录为 later-run suggestion，而不是自行递归扩展 run。
 
-Do not upload screenshots or logs to public external services. If the harness provides a built-in artifact or screenshot attachment mechanism, use that. Otherwise, leave the files in the artifact directory and report their paths.
+不要将 screenshots 或 logs 上传到公开 external services。如果 harness 提供内置 artifact 或 screenshot attachment mechanism，使用它。否则，将文件留在 artifact directory，并报告路径。
 ```
 
 ## Logged-out flow prompt
 
-Append this prompt to the shared child prompt for the logged-out child:
+将此 prompt 附加到 logged-out child 的 shared child prompt 后：
 
 ```text
-You own the logged-out onboarding flow.
+你负责 logged-out onboarding flow。
 
-Flow-specific goal:
-- Do not create an account, log in, or use a real user identity.
-- Continue only through login-free or account-free paths until Warp reaches a usable terminal session.
-- Stop and report a blocker if the flow requires login or account creation with no skip/continue-without-account option.
+Flow-specific goal：
+- 不要创建 account、登录，或使用真实 user identity。
+- 只通过 login-free 或 account-free paths 继续执行，直到 Warp 到达可用 terminal session。
+- 如果 flow 要求登录或创建 account，且没有 skip/continue-without-account option，停止并报告 blocker。
 
-Flow-specific onboarding behavior:
-- If there is a skip, "continue without account", "not now", "login later", or equivalent option, use it.
-- Do not enter an email address, connect OAuth, paste an auth token, or create credentials.
-- Be especially alert for logged-out branch points around choosing terminal-only versus agentic experiences, customization/layout options, third-party integration toggles, and terminal theme selection. If they appear, propose follow-up branches that exercise materially different choices rather than trying all alternates inline.
-- Use the artifact directory `~/warp-onboarding-logged-out`.
+Flow-specific onboarding behavior：
+- 如果有 skip、"continue without account"、"not now"、"login later" 或等效 option，使用它。
+- 不要输入 email address、连接 OAuth、粘贴 auth token，或创建 credentials。
+- 特别留意 logged-out branch points，例如选择 terminal-only 还是 agentic experiences、customization/layout options、third-party integration toggles，以及 terminal theme selection。如果出现这些分支，提出覆盖实质不同选择的 follow-up branches，而不是在当前流程中尝试所有 alternates。
+- 使用 artifact directory `~/warp-onboarding-logged-out`。
 ```
 
 ## Logged-in flow prompt
 
-Append this prompt to the shared child prompt for the logged-in child:
+将此 prompt 附加到 logged-in child 的 shared child prompt 后：
 
 ```text
-You own the logged-in onboarding flow.
+你负责 logged-in onboarding flow。
 
-Flow-specific goal:
-- Use the managed secret environment variable `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` to authenticate as the dedicated non-employee, non-`warp.dev` FTUE test user.
-- Exercise onboarding screens that are available to an already-authenticated user.
-- Continue through the authenticated onboarding path until Warp reaches a usable terminal session.
+Flow-specific goal：
+- 使用 managed secret environment variable `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN`，认证为专用的非员工、非 `warp.dev` FTUE test user。
+- 覆盖 already-authenticated user 可见的 onboarding screens。
+- 沿 authenticated onboarding path 继续，直到 Warp 到达可用 terminal session。
 
-Secret handling requirements:
-- Before doing auth work, verify that `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` exists and is non-empty without printing it.
-- Never echo, log, screenshot, upload, or report the secret value.
-- Avoid shell tracing (`set -x`) and avoid writing commands that place the raw token in shell history or process lists.
-- Treat every auth redirect URL containing the refresh token as secret-bearing material, even after URL-encoding.
-- Do not pass a token-bearing redirect URL to a shell command, desktop URI handler, browser address bar, process argument, log, artifact, or report. In particular, do not use commands such as `xdg-open`, `gio open`, `open`, or equivalent with the redirect URL.
-- If you need to construct an auth redirect URL, keep it only in a clipboard value or a private temporary file with user-only permissions, paste it through Warp's visible Paste Auth Token flow, then delete the temporary file immediately after use.
+Secret handling requirements：
+- 做 auth work 前，验证 `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 存在且非空，但不要打印它。
+- 绝不要 echo、log、screenshot、upload 或 report secret value。
+- 避免 shell tracing（`set -x`），并避免编写会把 raw token 放入 shell history 或 process lists 的命令。
+- 将每个包含 refresh token 的 auth redirect URL 都视为 secret-bearing material，即使经过 URL-encoding 之后也是如此。
+- 不要将 token-bearing redirect URL 传给 shell command、desktop URI handler、browser address bar、process argument、log、artifact 或 report。尤其不要将 `xdg-open`、`gio open`、`open` 或等效命令与 redirect URL 搭配使用。
+- 如果需要构造 auth redirect URL，只能将其保存在 clipboard value 或具有 user-only permissions 的 private temporary file 中，通过 Warp 可见的 Paste Auth Token flow 粘贴，然后在使用后立即删除 temporary file。
 
-Secure Paste Auth Token process:
-1. Verify `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` exists and is non-empty without printing it.
-2. Start Warp's normal login flow and derive the current-run `state` from Warp's generated login URL.
-3. Normalize the managed secret privately:
-   - Trim surrounding whitespace and one pair of surrounding single or double quotes if present.
-   - If the secret parses as a URL with a `refresh_token` query parameter, extract that `refresh_token` value and ignore any stale `state` in the secret.
-   - Otherwise, treat the trimmed secret as the raw refresh token.
-4. URL-encode the extracted refresh token and current-run `state` separately as query parameter values.
-5. Construct the redirect URL only in a clipboard value or private temporary file with user-only permissions.
-6. Return to Warp and use the visible Paste Auth Token path:
-   - Click the `Click here to paste your token from the browser` link, `Paste Auth Token` button, or equivalent pasted-token control shown by Warp.
-   - Focus the auth token text input that appears.
-   - Paste the prepared redirect URL into that input and submit it through Warp's UI so Warp parses and validates it.
-7. Delete any private temporary files immediately after use and clear the clipboard if the environment supports doing so safely.
-8. If the Paste Auth Token UI cannot be reached or automated safely, stop and report an auth blocker instead of parsing the redirect in place of Warp, using a desktop URI handler, browser address bar, or shell command with the token-bearing URL.
+Secure Paste Auth Token process：
+1. 验证 `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 存在且非空，但不要打印它。
+2. 启动 Warp 的正常 login flow，并从 Warp 生成的 login URL 中派生当前 run 的 `state`。
+3. 私下 normalize managed secret：
+   - Trim surrounding whitespace；如果存在一对包裹在外的 single 或 double quotes，也去掉它们。
+   - 如果 secret 可解析为带 `refresh_token` query parameter 的 URL，提取该 `refresh_token` value，并忽略 secret 中任何 stale `state`。
+   - 否则，将 trimmed secret 视为 raw refresh token。
+4. 将提取出的 refresh token 和当前 run 的 `state` 分别作为 query parameter values 进行 URL-encode。
+5. 只在 clipboard value 或具有 user-only permissions 的 private temporary file 中构造 redirect URL。
+6. 返回 Warp，并使用可见的 Paste Auth Token path：
+   - 点击 Warp 显示的 `Click here to paste your token from the browser` link、`Paste Auth Token` button，或等效 pasted-token control。
+   - 聚焦出现的 auth token text input。
+   - 将准备好的 redirect URL 粘贴到该 input 中，并通过 Warp UI submit，让 Warp 解析并验证它。
+7. 使用后立即删除任何 private temporary files；如果 environment 支持安全清理，也清空 clipboard。
+8. 如果无法安全到达或自动化 Paste Auth Token UI，停止并报告 auth blocker；不要代替 Warp 解析 redirect，也不要使用 desktop URI handler、browser address bar，或带 token-bearing URL 的 shell command。
 
-Preferred authenticated path:
-- Launch Warp in a fresh first-run state and choose the login/sign-in path from onboarding.
-- Use Warp's built-in Paste Auth Token flow rather than visiting real OAuth providers, invoking a desktop URI handler, or asking the agent to parse/validate the redirect URI itself.
-- Derive `<state>` from the login URL generated by Warp if the UI exposes a copied login URL or opens the browser. If the UI does not expose the state after reasonable effort, report that as an auth blocker rather than bypassing state validation.
-- Do not preflight the token with Firebase Secure Token before handing it to Warp. Warp's desktop redirect handler only requires `refresh_token` and `state`; `user_uid` is optional, and `deleted_anonymous_user=true` handles the anonymous-user override case.
-- Treat `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` as either of these secret shapes:
-  - a raw Firebase refresh token, or
-  - a complete Warp desktop auth redirect URL containing a `refresh_token` query parameter.
-- Normalize the secret into a current-run redirect URL without printing it:
-  - Trim surrounding whitespace and one pair of surrounding single or double quotes if present.
-  - If the secret parses as a URL with a `refresh_token` query parameter, extract that `refresh_token` value and ignore any stale `state` in the secret.
-  - Otherwise, treat the trimmed secret as the raw refresh token.
-  - URL-encode the extracted refresh token and the current-run `state` separately as query parameter values.
-  - Build `warp://auth/desktop_redirect?refresh_token=<url-encoded-normalized-refresh-token>&deleted_anonymous_user=true&state=<url-encoded-current-state>`.
-  - Do not include `user_uid` unless it is already present in a provided desktop redirect URL; it is not required for this flow.
-- Construct the normalized redirect URL in a clipboard value or private temporary file only, then hand it to Warp through the Paste Auth Token UI. Do not parse, validate, or route the redirect outside of Warp.
-- If the Paste Auth Token flow cannot be reached or automated safely, stop and report an auth blocker instead of using a desktop URI handler or any shell command that contains the token-bearing URL.
+Preferred authenticated path：
+- 在全新的 first-run state 中启动 Warp，并从 onboarding 中选择 login/sign-in path。
+- 使用 Warp 内置 Paste Auth Token flow，而不是访问真实 OAuth providers、调用 desktop URI handler，或要求 agent 自行解析/验证 redirect URI。
+- 如果 UI 暴露 copied login URL 或打开 browser，从 Warp 生成的 login URL 中派生 `<state>`。如果经过合理努力后 UI 仍不暴露 state，将其报告为 auth blocker，而不是绕过 state validation。
+- 将 token 交给 Warp 前，不要用 Firebase Secure Token 进行 preflight。Warp 的 desktop redirect handler 只需要 `refresh_token` 和 `state`；`user_uid` 是可选的，`deleted_anonymous_user=true` 会处理 anonymous-user override case。
+- 将 `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 视为以下 secret shapes 之一：
+  - raw Firebase refresh token，或
+  - 包含 `refresh_token` query parameter 的完整 Warp desktop auth redirect URL。
+- 在不打印的情况下，将 secret normalize 成 current-run redirect URL：
+  - Trim surrounding whitespace；如果存在一对包裹在外的 single 或 double quotes，也去掉它们。
+  - 如果 secret 可解析为带 `refresh_token` query parameter 的 URL，提取该 `refresh_token` value，并忽略 secret 中任何 stale `state`。
+  - 否则，将 trimmed secret 视为 raw refresh token。
+  - 将提取出的 refresh token 和当前 run 的 `state` 分别作为 query parameter values 进行 URL-encode。
+  - 构造 `warp://auth/desktop_redirect?refresh_token=<url-encoded-normalized-refresh-token>&deleted_anonymous_user=true&state=<url-encoded-current-state>`。
+  - 除非所提供 desktop redirect URL 中已经存在 `user_uid`，否则不要包含 `user_uid`；此 flow 不需要它。
+- 只在 clipboard value 或 private temporary file 中构造 normalized redirect URL，然后通过 Paste Auth Token UI 交给 Warp。不要在 Warp 之外解析、验证或路由 redirect。
+- 如果无法安全到达或自动化 Paste Auth Token flow，停止并报告 auth blocker；不要使用 desktop URI handler 或任何包含 token-bearing URL 的 shell command。
 
-Fallback authenticated path:
-- If Warp rejects the normalized redirect, report the non-sensitive user-visible error and classify whether the secret appeared to be a raw token or a desktop redirect URL, without reporting any token contents.
-- If the Paste Auth Token flow is blocked by UI automation issues, report the blocker and include the exact non-sensitive step where automation failed.
-- Do not switch to a logged-out path for this child.
+Fallback authenticated path：
+- 如果 Warp 拒绝 normalized redirect，报告 non-sensitive user-visible error，并在不报告任何 token contents 的情况下，分类 secret 看起来是 raw token 还是 desktop redirect URL。
+- 如果 Paste Auth Token flow 被 UI automation issues 阻塞，报告 blocker，并包含 automation 失败处的 exact non-sensitive step。
+- 不要为此 child 切换到 logged-out path。
 
-Flow-specific onboarding behavior:
-- Choose login/sign-in rather than skip/login-later when presented with an auth choice.
-- After auth succeeds, continue through the remaining onboarding screens with default or conservative options.
-- Be especially alert for logged-in branch points around model selection, account-aware onboarding screens, AI/agent setup, workspace or project setup, and any decision that changes available product capability. If they appear, propose follow-up branches that exercise materially different choices rather than trying all alternates inline.
-- After the terminal verification succeeds, click the upper-right avatar/account control, open Settings from that menu, and capture an additional screenshot that clearly shows the logged-in user's email address in Warp settings or account/profile settings.
-- Include the account/settings email screenshot in the manifest and final report. The email address itself may be visible in the screenshot, but do not copy the email into logs, shell output, or the final text report unless the user explicitly asks for it.
-- Use the artifact directory `~/warp-onboarding-logged-in`.
+Flow-specific onboarding behavior：
+- 出现 auth choice 时，选择 login/sign-in，而不是 skip/login-later。
+- auth 成功后，使用默认或保守选项继续通过剩余 onboarding screens。
+- 特别留意 logged-in branch points，例如 model selection、account-aware onboarding screens、AI/agent setup、workspace 或 project setup，以及任何会改变 available product capability 的 decision。如果出现这些分支，提出覆盖实质不同选择的 follow-up branches，而不是在当前流程中尝试所有 alternates。
+- terminal verification 成功后，点击右上角 avatar/account control，从该 menu 打开 Settings，并额外 capture 一张 screenshot，清楚显示 Warp settings 或 account/profile settings 中已登录用户的 email address。
+- 在 manifest 和 final report 中包含 account/settings email screenshot。email address 本身可以在 screenshot 中可见，但除非用户明确要求，不要将该 email 复制到 logs、shell output 或 final text report 中。
+- 使用 artifact directory `~/warp-onboarding-logged-in`。
 ```
 
 ## Follow-up flow prompt
 
-Append this prompt to the shared child prompt for every second-wave child, followed by the matching logged-out or logged-in flow prompt and one branch assignment synthesized from the baseline reports:
+对每个 second-wave child，将此 prompt 附加到 shared child prompt 后，随后附加匹配的 logged-out 或 logged-in flow prompt，以及一项从 baseline reports 综合出的 branch assignment：
 
 ```text
-You own one follow-up onboarding branch selected by the parent orchestrator from an earlier baseline exploration report.
+你负责 parent orchestrator 从先前 baseline exploration report 中选出的一条 follow-up onboarding branch。
 
-Follow-up branch behavior:
-- Start from a fresh first-run Warp state and install the same latest stable Linux build using the shared instructions.
-- Respect the assigned auth state: remain logged out for logged-out assignments, or use the managed authenticated flow for logged-in assignments.
-- Follow the exact alternate onboarding choice or action sequence in the branch assignment.
-- Capture screenshots before and after each assigned branch decision, then continue to a usable terminal session if the path allows it.
-- Apply the same UI quality review standard as the baseline explorers and call out anything that looks broken, rough, misaligned, confusing, or unexpectedly error-prone.
-- If the assigned branch is not reachable, capture the closest relevant screen, report why it was unreachable, and do not silently substitute a different branch.
-- If the assigned branch reveals another interesting alternate path, record it as a later-run suggestion rather than recursively launching more agents yourself.
+Follow-up branch behavior：
+- 从全新的 first-run Warp state 开始，并使用 shared instructions 安装同一个 latest stable Linux build。
+- 遵守 assigned auth state：logged-out assignments 保持登出；logged-in assignments 使用 managed authenticated flow。
+- 遵循 branch assignment 中的 exact alternate onboarding choice 或 action sequence。
+- 在每个 assigned branch decision 前后 capture screenshots；如果 path 允许，随后继续到可用 terminal session。
+- 应用与 baseline explorers 相同的 UI quality review standard，并指出任何看起来 broken、rough、misaligned、confusing 或 unexpectedly error-prone 的内容。
+- 如果 assigned branch 不可 reachable，capture 最接近的相关 screen，报告它为什么不可 reachable，并且不要静默替换为其他 branch。
+- 如果 assigned branch 揭示了另一条有趣的 alternate path，将其记录为 later-run suggestion，而不是自行递归启动更多 agents。
 
-Final report additions:
-- Repeat the exact branch assignment you attempted in concise non-sensitive terms.
-- State whether it was reachable, completed, blocked, or not applicable.
-- Compare the branch outcome against the likely baseline behavior when that comparison is visible from the UI.
+Final report additions：
+- 用简洁且 non-sensitive 的表述复述你尝试的 exact branch assignment。
+- 说明它是 reachable、completed、blocked 还是 not applicable。
+- 当 UI 中可见该比较时，将 branch outcome 与可能的 baseline behavior 进行对比。
 ```
 
-## Success criteria
+## 成功标准
 
-The run is successful when:
+满足以下条件时，run 视为成功：
 
-- Warp stable was installed from an official Linux package or AppImage for the detected architecture.
-- Screenshots were captured for each onboarding screen and the final usable terminal.
-- The logged-out child reached a usable terminal without login, account creation, or a real user identity.
-- The logged-in child authenticated using `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` and reached a usable terminal in the authenticated FTUE path.
-- The logged-in child captured an additional post-login screenshot from the avatar/settings flow showing the logged-in user's email address.
-- Each terminal session was usable enough to run its flow-specific `echo` command.
-- Both baseline explorers returned either concrete follow-up coverage proposals or an explicit explanation that they did not observe meaningful additional branch points.
-- The parent orchestrator launched targeted second-wave agents for the highest-value concrete branch proposals, unless there were no such proposals or a prerequisite blocker made them infeasible.
-- Every reported visual polish concern, suspected bug, or error state includes a screenshot reference whenever the issue was visible on screen.
+- 针对检测到的 architecture，从官方 Linux package 或 AppImage 安装了 Warp stable。
+- 为每个 onboarding screen 和最终可用 terminal 捕获了 screenshots。
+- logged-out child 在没有登录、创建 account 或使用真实 user identity 的情况下到达可用 terminal。
+- logged-in child 使用 `ONBOARDING_AGENT_FTUE_REFRESH_TOKEN` 完成认证，并在 authenticated FTUE path 中到达可用 terminal。
+- logged-in child 从 avatar/settings flow 捕获了额外 post-login screenshot，展示已登录用户的 email address。
+- 每个 terminal session 都可用到足以运行其 flow-specific `echo` command。
+- 两个 baseline explorers 都返回了具体 follow-up coverage proposals，或明确说明没有观察到有意义的额外 branch points。
+- parent orchestrator 针对最高价值的具体 branch proposals 启动了 targeted second-wave agents，除非不存在此类 proposals，或 prerequisite blocker 使其不可行。
+- 每个报告的 visual polish concern、suspected bug 或 error state，只要问题在屏幕上可见，都包含 screenshot reference。
 
-## Common failure handling
+## 常见失败处理
 
-- If the package manager prompts for confirmation, use the non-interactive confirmation flag supported by that package manager.
-- If launching `warp-terminal` fails because of display setup, inspect the cloud environment's display variables and try launching from the desktop/app launcher if computer use provides one.
-- If the logged-out flow blocks on login with no skip path, stop at that screen, capture a screenshot, and report that as the terminal point for the logged-out flow.
-- If the logged-in flow cannot authenticate because the secret is missing, invalid, expired, revoked, or cannot be routed through Warp's auth redirect flow, stop at that screen, capture a screenshot, and report the non-sensitive blocker.
-- If the native package cannot be installed because dependencies are unavailable, fall back to the matching AppImage and clearly report the fallback.
+- 如果 package manager 提示确认，使用该 package manager 支持的 non-interactive confirmation flag。
+- 如果因为 display setup 导致 `warp-terminal` 启动失败，检查 cloud environment 的 display variables；如果 computer use 提供 desktop/app launcher，尝试从那里启动。
+- 如果 logged-out flow 在登录处阻塞且没有 skip path，停在该 screen，capture screenshot，并将其报告为 logged-out flow 的 terminal point。
+- 如果 logged-in flow 因 secret 缺失、无效、过期、被撤销，或无法通过 Warp auth redirect flow 路由而无法认证，停在该 screen，capture screenshot，并报告 non-sensitive blocker。
+- 如果由于 dependencies 不可用导致 native package 无法安装，fallback 到匹配的 AppImage，并清楚报告该 fallback。
