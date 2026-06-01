@@ -1,18 +1,18 @@
-> Part of the [figma-generate-library skill](../SKILL.md).
+> 属于 [figma-generate-library skill](../SKILL.md) 的一部分。
 
-# Token Creation Reference
+# Token 创建参考
 
-This document covers Phase 1: creating variable collections, modes, primitives, semantic aliases, scopes, code syntax, styles, and validation. All code is copy-paste ready for `use_figma`.
+本文档覆盖 Phase 1：创建 variable collections、modes、primitives、semantic aliases、scopes、code syntax、styles 和 validation。所有代码都可直接复制粘贴用于 `use_figma`。
 
 ---
 
-## 1. Collection Architecture
+## 1. Collection 架构
 
-Choose the pattern that matches your token count and complexity:
+选择与你的 token 数量和复杂度匹配的模式：
 
-### Simple Pattern (< 50 tokens)
+### 简单模式（< 50 tokens）
 
-One collection, 2 modes. Appropriate for small projects or brand kits.
+一个 collection，2 个 modes。适用于小型项目或 brand kits。
 
 ```
 Collection: "Tokens"    modes: ["Light", "Dark"]
@@ -20,9 +20,9 @@ Collection: "Tokens"    modes: ["Light", "Dark"]
   spacing/sm = 8
 ```
 
-### Standard Pattern (50–200 tokens) — Recommended Starting Point
+### 标准模式（50-200 tokens）- 推荐起点
 
-Separate primitives from semantics. The real-world reference is Figma's Simple Design System (SDS): 7 collections, 368 variables, light/dark modes on semantic colors, single-mode primitives.
+将 primitives 与 semantics 分离。真实世界参考是 Figma 的 Simple Design System（SDS）：7 个 collections、368 个 variables，semantic colors 使用 light/dark modes，primitives 使用 single-mode。
 
 ```
 Collection: "Primitives"    modes: ["Value"]       ← raw hex values, no modes
@@ -45,9 +45,9 @@ Collection: "Typography"    modes: ["Value"]        ← aliases to Typography Pr
   body/size-md → alias scale/03
 ```
 
-### Advanced Pattern (200+ tokens) — M3 Model
+### 高级模式（200+ tokens）- M3 Model
 
-Multiple semantic collections, 4–8 modes. Use when you need light/dark × contrast × brand or responsive breakpoints.
+多个 semantic collections，4-8 个 modes。当需要 light/dark、contrast、brand 或 responsive breakpoints 的组合时使用。
 
 ```
 Collection: "M3"           modes: ["Light", "Dark", "Light High Contrast", "Dark High Contrast", ...]
@@ -56,13 +56,13 @@ Collection: "Typescale"    modes: ["Value"]  ← aliases into Typeface
 Collection: "Shape"        modes: ["Value"]
 ```
 
-Key insight from M3: ALL 196 semantic color variables live in a SINGLE collection with 8 modes. Switching a frame's mode once updates every color simultaneously.
+来自 M3 的关键洞察：全部 196 个 semantic color variables 都位于一个包含 8 个 modes 的单一 collection 中。只需切换一次 frame 的 mode，就能同时更新所有颜色。
 
 ---
 
-## 2. Creating Collections + Modes
+## 2. 创建 Collections + Modes
 
-### Creating a Primitives Collection
+### 创建 Primitives Collection
 
 ```javascript
 const RUN_ID = "ds-build-2024-001"; // use the same RUN_ID throughout the build
@@ -85,7 +85,7 @@ return {
 };
 ```
 
-### Creating a Semantic Color Collection with Light/Dark Modes
+### 创建带 Light/Dark Modes 的 Semantic Color Collection
 
 ```javascript
 const RUN_ID = "ds-build-2024-001";
@@ -110,9 +110,9 @@ return {
 };
 ```
 
-**Mode plan limits:** Starter = 1 mode, Professional = 4 modes, Organization/Enterprise = 40 modes. If `addMode` throws, the file is on a Starter plan — tell the user and ask how to proceed.
+**Mode plan 限制**：Starter = 1 mode，Professional = 4 modes，Organization/Enterprise = 40 modes。如果 `addMode` 抛错，说明该文件位于 Starter plan。告知用户并询问如何继续。
 
-### Creating a Spacing Collection (single mode)
+### 创建 Spacing Collection（single mode）
 
 ```javascript
 const RUN_ID = "ds-build-2024-001";
@@ -132,11 +132,11 @@ return {
 
 ---
 
-## 3. Creating All Variable Types
+## 3. 创建所有 Variable Types
 
-### hex → {r, g, b} Conversion Helper
+### hex 到 {r, g, b} 转换辅助函数
 
-Colors in the Figma Plugin API are 0–1 range, not 0–255. Embed this helper in any script that creates color variables:
+Figma Plugin API 中的 colors 使用 0-1 范围，而不是 0-255。将此辅助函数嵌入任何创建 color variables 的脚本中：
 
 ```javascript
 function hexToRgb(hex) {
@@ -166,9 +166,9 @@ function hexToRgba(hex) {
 // hexToRgba('#0c0c0d1a')     → {r: 0.047, g: 0.047, b: 0.051, a: 0.102}
 ```
 
-### Creating Primitive Color Variables (Real SDS Data)
+### 创建 Primitive Color Variables（真实 SDS 数据）
 
-This creates a subset of the Simple Design System's `Color Primitives` collection (Blue family, from the Standard pattern used by real design systems):
+这会创建 Simple Design System 的 `Color Primitives` collection 的一个子集（Blue family，来自真实设计系统使用的标准模式）：
 
 ```javascript
 function hexToRgb(hex) {
@@ -227,9 +227,9 @@ const valueMode = primColl.modes[0].modeId;
 return { created, count: created.length };
 ```
 
-**Critical scope rule for primitives:** Set `v.scopes = []`. This hides primitives from every picker. Designers should only see semantic tokens. The exception is semi-transparent overlay primitives (Black/White with alpha) — those get `["EFFECT_COLOR"]` so they appear in shadow pickers.
+**Primitives 的关键 scope 规则**：设置 `v.scopes = []`。这会从每个 picker 中隐藏 primitives。设计师应该只看到 semantic tokens。例外是半透明 overlay primitives（带 alpha 的 Black/White），它们使用 `["EFFECT_COLOR"]`，以便出现在 shadow pickers 中。
 
-### Creating FLOAT Variables (Spacing, Radius, Font Size)
+### 创建 FLOAT Variables（Spacing、Radius、Font Size）
 
 ```javascript
 const RUN_ID = "ds-build-2024-001";
@@ -269,7 +269,7 @@ for (const { name, value, scope, cssVar } of [...spacingTokens, ...radiusTokens]
 return { created, count: created.length };
 ```
 
-### Creating STRING Variables (Font Family, Font Style)
+### 创建 STRING Variables（Font Family、Font Style）
 
 ```javascript
 const RUN_ID = "ds-build-2024-001";
@@ -302,9 +302,9 @@ for (const { name, value, scope, cssVar } of fontTokens) {
 return { created, count: created.length };
 ```
 
-### Creating BOOLEAN Variables
+### 创建 BOOLEAN Variables
 
-BOOLEAN variables have no scopes (scopes are not supported for BOOLEAN type).
+BOOLEAN variables 没有 scopes（BOOLEAN type 不支持 scopes）。
 
 ```javascript
 const RUN_ID = "ds-build-2024-001";
@@ -324,11 +324,11 @@ return { id: v.id, name: v.name };
 
 ---
 
-## 4. Variable Aliasing (VARIABLE_ALIAS) — Primitive → Semantic Chain
+## 4. Variable Aliasing（VARIABLE_ALIAS）：Primitive 到 Semantic 链
 
-Semantic tokens reference primitives via `VARIABLE_ALIAS`. This is the core pattern that makes light/dark theming work.
+Semantic tokens 通过 `VARIABLE_ALIAS` 引用 primitives。这是 light/dark theming 能够工作的核心模式。
 
-**Architecture:**
+**架构：**
 ```
 Color Primitives collection (1 mode: Value)
   blue/500 = #3B82F6          ← raw value
@@ -339,7 +339,7 @@ Color collection (2 modes: Light, Dark)
     Dark  → VARIABLE_ALIAS → Primitives/blue/300
 ```
 
-### Complete Semantic Alias Creation Script (SDS-style)
+### 完整的 Semantic Alias 创建脚本（SDS-style）
 
 ```javascript
 function hexToRgb(hex) {
@@ -416,47 +416,47 @@ for (const { name, lightPrim, darkPrim, cssVar, scopes } of semanticColors) {
 return { created, count: created.length };
 ```
 
-**Key API points:**
-- `figma.variables.createVariableAlias(variable)` — takes a Variable object, returns `{type:'VARIABLE_ALIAS', id: variable.id}`
-- The aliased variable MUST have the same `resolvedType` as the semantic variable
-- Never duplicate raw values in the semantic layer — always alias
+**关键 API 要点：**
+- `figma.variables.createVariableAlias(variable)` 接收 Variable 对象，并返回 `{type:'VARIABLE_ALIAS', id: variable.id}`
+- 被 alias 的 variable 必须与 semantic variable 拥有相同的 `resolvedType`
+- 绝不要在 semantic layer 中复制 raw values，始终使用 alias
 
 ---
 
-## 5. Variable Scopes — Complete Reference Table
+## 5. Variable Scopes 完整参考表
 
-| Semantic Role | Recommended Scopes | Variable Type |
+| Semantic Role | 推荐 Scopes | Variable Type |
 |---|---|---|
-| Primitive colors (raw) | `[]` — empty, hidden from all pickers | COLOR |
+| Primitive colors（raw） | `[]`，为空，从所有 pickers 中隐藏 | COLOR |
 | Semi-transparent overlay primitives | `["EFFECT_COLOR"]` | COLOR |
-| Background fills (frame, shape) | `["FRAME_FILL", "SHAPE_FILL"]` | COLOR |
+| Background fills（frame、shape） | `["FRAME_FILL", "SHAPE_FILL"]` | COLOR |
 | Text color | `["TEXT_FILL"]` | COLOR |
 | Icon / shape fill | `["SHAPE_FILL", "STROKE_COLOR"]` | COLOR |
 | Border / stroke color | `["STROKE_COLOR"]` | COLOR |
-| Background + border combined | `["FRAME_FILL", "SHAPE_FILL", "STROKE_COLOR"]` | COLOR |
+| Background + border 组合 | `["FRAME_FILL", "SHAPE_FILL", "STROKE_COLOR"]` | COLOR |
 | Shadow color | `["EFFECT_COLOR"]` | COLOR |
-| Spacing / gap between items | `["GAP"]` | FLOAT |
-| Padding (if separate from gap) | `["GAP"]` | FLOAT |
+| Spacing / items 之间的 gap | `["GAP"]` | FLOAT |
+| Padding（如果与 gap 分开） | `["GAP"]` | FLOAT |
 | Corner radius | `["CORNER_RADIUS"]` | FLOAT |
 | Width / height dimensions | `["WIDTH_HEIGHT"]` | FLOAT |
 | Font size | `["FONT_SIZE"]` | FLOAT |
 | Line height | `["LINE_HEIGHT"]` | FLOAT |
 | Letter spacing | `["LETTER_SPACING"]` | FLOAT |
-| Font weight (numeric) | `["FONT_WEIGHT"]` | FLOAT |
+| Font weight（numeric） | `["FONT_WEIGHT"]` | FLOAT |
 | Stroke width | `["STROKE_FLOAT"]` | FLOAT |
 | Effect blur radius | `["EFFECT_FLOAT"]` | FLOAT |
 | Opacity | `["OPACITY"]` | FLOAT |
 | Font family | `["FONT_FAMILY"]` | STRING |
-| Font style (e.g. "Semi Bold") | `["FONT_STYLE"]` | STRING |
-| Boolean flags | *(scopes not supported)* | BOOLEAN |
+| Font style（例如 "Semi Bold"） | `["FONT_STYLE"]` | STRING |
+| Boolean flags | *（不支持 scopes）* | BOOLEAN |
 
-**Never use `ALL_SCOPES`** on any variable. It pollutes every picker with irrelevant tokens. The Simple Design System (SDS), the gold standard, uses targeted scopes on every variable.
+**绝不要在任何 variable 上使用 `ALL_SCOPES`**。它会用无关 tokens 污染每个 picker。作为黄金标准的 Simple Design System（SDS）在每个 variable 上都使用定向 scopes。
 
-**`ALL_FILLS` note:** `ALL_FILLS` is exclusive among fill scopes — it covers `FRAME_FILL`, `SHAPE_FILL`, and `TEXT_FILL` together. If set, you cannot also add individual fill scopes. Prefer specifying individual scopes for precision.
+**`ALL_FILLS` 说明**：`ALL_FILLS` 在 fill scopes 中是排他的，它同时覆盖 `FRAME_FILL`、`SHAPE_FILL` 和 `TEXT_FILL`。如果设置了它，就不能再添加单独的 fill scopes。为保证精确性，优先指定单独 scopes。
 
-### Batch Scope-Setting (After Variables are Created)
+### 批量设置 Scope（Variables 创建后）
 
-If you created variables without scopes and need to set them in batch:
+如果你创建 variables 时没有设置 scopes，并且需要批量设置：
 
 ```javascript
 const allVars = await figma.variables.getLocalVariablesAsync();
@@ -492,13 +492,13 @@ return { updated, count: updated.length };
 
 ---
 
-## 6. Code Syntax — WEB/ANDROID/iOS
+## 6. Code Syntax：WEB/ANDROID/iOS
 
-Every variable must have code syntax set. This is what powers the developer handoff experience:
+每个 variable 都必须设置 code syntax。这是 developer handoff 体验的基础：
 
-**What code syntax does:** When a developer inspects any element in Figma Dev Mode that has a variable-bound property (fill, padding, radius, etc.), the code snippet shown uses the variable's code syntax name — not the Figma variable name. For example, a button's background fill bound to `color/bg/primary` will show `background: var(--color-bg-primary)` in the CSS snippet, not `color/bg/primary`. Without code syntax set, Dev Mode shows raw hex values or nothing useful.
+**code syntax 的作用**：当开发者在 Figma Dev Mode 中检查任何具有 variable-bound property（fill、padding、radius 等）的元素时，显示的代码片段会使用 variable 的 code syntax name，而不是 Figma variable name。例如，绑定到 `color/bg/primary` 的 button background fill 会在 CSS snippet 中显示 `background: var(--color-bg-primary)`，而不是 `color/bg/primary`。如果未设置 code syntax，Dev Mode 会显示 raw hex values 或没有用的信息。
 
-You can set up to **3 syntaxes per variable** — one per platform (Web, iOS, Android). Set all three if the codebase targets multiple platforms; set only WEB if it's a web-only project.
+每个 variable 最多可以设置 **3 种 syntaxes**，每个平台一种（Web、iOS、Android）。如果 codebase 面向多个平台，就全部设置；如果只是 web-only 项目，则只设置 WEB。
 
 ```javascript
 // WEB: MUST include the var() wrapper — this is the full CSS function syntax
@@ -513,19 +513,19 @@ variable.setVariableCodeSyntax('ANDROID', 'colorBgPrimary');
 variable.setVariableCodeSyntax('iOS', 'Color.bgPrimary');
 ```
 
-> **CRITICAL — WEB code syntax MUST use the `var()` wrapper.** Setting just `--color-bg-primary` (without `var()`) will cause Dev Mode to show raw hex values instead of the CSS variable reference. Always use the full `var(--name)` form. ANDROID and iOS do NOT use a wrapper.
+> **关键：WEB code syntax 必须使用 `var()` wrapper。** 只设置 `--color-bg-primary`（不带 `var()`）会导致 Dev Mode 显示 raw hex values，而不是 CSS variable reference。始终使用完整的 `var(--name)` 形式。ANDROID 和 iOS 不使用 wrapper。
 
-**Platform derivation rules from the CSS variable name:**
+**根据 CSS variable name 推导平台语法的规则：**
 
 | Platform | Pattern | Example |
 |---|---|---|
-| WEB | **`var(--{css-var-name})`** — `var()` wrapper required | `var(--sds-color-bg-primary)` |
-| ANDROID | camelCase, no wrapper, strip `--` prefix | `sdsColorBgPrimary` |
-| iOS | PascalCase after `.`, no wrapper, strip `--` prefix | `Color.SdsColorBgPrimary` or `Color.bgPrimary` |
+| WEB | **`var(--{css-var-name})`**，需要 `var()` wrapper | `var(--sds-color-bg-primary)` |
+| ANDROID | camelCase，无 wrapper，移除 `--` 前缀 | `sdsColorBgPrimary` |
+| iOS | `.` 后使用 PascalCase，无 wrapper，移除 `--` 前缀 | `Color.SdsColorBgPrimary` or `Color.bgPrimary` |
 
-**Always use the actual CSS variable name from the codebase** — do not derive it from the Figma variable name. If the code uses `--sds-color-background-brand-default`, that exact string is the WEB code syntax (minus the `var()` wrapper that you add).
+**始终使用来自 codebase 的实际 CSS variable name**，不要从 Figma variable name 推导。如果代码使用 `--sds-color-background-brand-default`，那么这个确切字符串就是 WEB code syntax（再加上你补充的 `var()` wrapper）。
 
-### Batch Code Syntax Setting
+### 批量设置 Code Syntax
 
 ```javascript
 const allVars = await figma.variables.getLocalVariablesAsync();
@@ -548,17 +548,17 @@ for (const v of allVars) {
 return { updated, count: updated.length };
 ```
 
-Note: derived names are a fallback only. Always prefer overriding with actual CSS variable names from the codebase when they are known.
+注意：推导名称只作为 fallback。只要已知 codebase 中的实际 CSS variable names，就始终优先用它们覆盖。
 
 ---
 
-## 7. Effect Styles (Shadows) and Text Styles
+## 7. Effect Styles（Shadows）和 Text Styles
 
-Shadows and composite typography cannot be variables — they are Styles.
+Shadows 和 composite typography 不能作为 variables，它们是 Styles。
 
-### Creating Effect Styles (Shadows)
+### 创建 Effect Styles（Shadows）
 
-Reference from SDS (15 effect styles) and the SDS shadow pattern `Shadow/{Level}`:
+参考 SDS（15 个 effect styles）以及 SDS shadow 模式 `Shadow/{Level}`：
 
 ```javascript
 const RUN_ID = "ds-build-2024-001";
@@ -666,9 +666,9 @@ for (const { name, effects } of shadows) {
 return { created, count: created.length };
 ```
 
-### Creating Text Styles
+### 创建 Text Styles
 
-Fonts must be loaded before creating text styles.
+创建 text styles 前必须先加载 fonts。
 
 ```javascript
 const RUN_ID = "ds-build-2024-001";
@@ -716,11 +716,11 @@ return { created, count: created.length };
 
 ---
 
-## 8. Idempotency — Check-Before-Create Pattern
+## 8. 幂等性：创建前检查模式
 
-Every creation script should check whether the entity already exists before creating it. This prevents duplicates when a script is re-run after partial failure.
+每个创建脚本都应该在创建实体前检查它是否已经存在。这可以防止脚本在部分失败后重新运行时产生重复项。
 
-### Check-Before-Create for Collections
+### Collections 的创建前检查
 
 ```javascript
 const DSB_KEY = 'collection/primitives';
@@ -743,7 +743,7 @@ primColl.setSharedPluginData('dsb', 'key', DSB_KEY);
 return { status: 'created', collectionId: primColl.id };
 ```
 
-### Check-Before-Create for Variables
+### Variables 的创建前检查
 
 ```javascript
 const VARIABLE_KEY = 'primitive/blue/500';
@@ -761,9 +761,9 @@ if (existing) {
 return { status: 'created' };
 ```
 
-### sharedPluginData Tagging Strategy
+### sharedPluginData 打标策略
 
-Tag every created node immediately after creation. The `key` is the stable logical identifier used for idempotency checks. The `run_id` identifies which build run created it (useful for cleanup).
+每个节点创建后立即打标。`key` 是用于幂等检查的稳定逻辑标识符。`run_id` 标识创建它的 build run（对清理有用）。
 
 ```javascript
 node.setSharedPluginData('dsb', 'run_id', RUN_ID);       // build run ID
@@ -771,7 +771,7 @@ node.setSharedPluginData('dsb', 'phase', 'phase1');       // which phase
 node.setSharedPluginData('dsb', 'key', 'color/bg/primary'); // stable logical key
 ```
 
-**Cleanup by run ID (safe — targets only tagged nodes, never user-owned nodes):**
+**按 run ID 清理（安全，只定位已打标节点，绝不定位用户拥有的节点）：**
 
 ```javascript
 const TARGET_RUN_ID = "ds-build-2024-001"; // run to remove
@@ -786,15 +786,15 @@ for (const v of allVars) {
 return { removed, count: removed.length };
 ```
 
-**Never clean up by name prefix** (e.g., deleting everything starting with `color/`). This will destroy user-created variables that happen to share the prefix.
+**绝不要按名称前缀清理**（例如删除所有以 `color/` 开头的内容）。这会破坏恰好共享该前缀的用户自建 variables。
 
 ---
 
-## 9. Validation — Verify Counts, Aliases, and Scopes
+## 9. Validation：验证 Counts、Aliases 和 Scopes
 
-Run these scripts after Phase 1 to verify everything was created correctly before proceeding to Phase 2.
+在 Phase 1 后运行这些脚本，确认所有内容都已正确创建，再进入 Phase 2。
 
-### Verify Collection and Variable Counts
+### 验证 Collection 和 Variable 数量
 
 ```javascript
 const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -820,11 +820,11 @@ return {
 };
 ```
 
-Interpret: `missingScopes > 0` (for non-primitives and non-BOOLEANs) → scope-setting failed, re-run scope script. `missingCodeSyntax > 0` → code syntax not set, run batch code syntax script.
+解释：`missingScopes > 0`（针对非 primitives 且非 BOOLEANs）表示 scope-setting 失败，需要重新运行 scope 脚本。`missingCodeSyntax > 0` 表示 code syntax 未设置，需要运行批量 code syntax 脚本。
 
-Note: primitives correctly have `scopes = []` (empty, hidden). `missingScopes` above counts non-BOOLEAN variables with empty scopes — review the list to confirm they are all primitives.
+注意：primitives 正确状态是 `scopes = []`（为空、隐藏）。上面的 `missingScopes` 会统计 scopes 为空的非 BOOLEAN variables，请审查列表以确认它们全部都是 primitives。
 
-### Verify Aliases Resolve
+### 验证 Aliases 可解析
 
 ```javascript
 const allVars = await figma.variables.getLocalVariablesAsync();
@@ -858,9 +858,9 @@ return {
 };
 ```
 
-Interpret: `brokenCount > 0` means a semantic variable references a primitive that was deleted or not yet created. Create the missing primitives, then re-run alias creation for the affected semantic variables.
+解释：`brokenCount > 0` 表示某个 semantic variable 引用了已删除或尚未创建的 primitive。创建缺失的 primitives，然后针对受影响的 semantic variables 重新运行 alias 创建。
 
-### Verify Style Counts
+### 验证 Style 数量
 
 ```javascript
 const [textStyles, effectStyles] = await Promise.all([
@@ -875,14 +875,14 @@ return {
 };
 ```
 
-### Phase 1 Exit Criteria Checklist
+### Phase 1 退出标准清单
 
-Before proceeding to Phase 2, verify all of the following:
+进入 Phase 2 之前，确认以下所有项目：
 
-- Every planned collection exists with the correct number of modes
-- Primitive variables: `scopes = []`, code syntax set
-- Semantic variables: targeted scopes set, code syntax set, aliases pointing to primitives (not raw values)
-- All broken alias count = 0
-- All planned text styles exist with correct font family/size/weight
-- All planned effect styles exist with correct shadow values
-- No variable has `ALL_SCOPES` unless explicitly approved by the user
+- 每个计划内 collection 都存在，并且 mode 数量正确
+- Primitive variables：`scopes = []`，code syntax 已设置
+- Semantic variables：targeted scopes 已设置，code syntax 已设置，aliases 指向 primitives（不是 raw values）
+- 所有 broken alias count = 0
+- 所有计划内 text styles 都存在，并且 font family/size/weight 正确
+- 所有计划内 effect styles 都存在，并且 shadow values 正确
+- 除非用户明确批准，否则没有 variable 使用 `ALL_SCOPES`
