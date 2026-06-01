@@ -1,51 +1,51 @@
 ---
 name: figma-create-new-file
-description: Create a new blank Figma file. Use when the user wants to create a new Figma design or FigJam file, or when you need a new file before calling use_figma. Handles plan resolution via whoami if needed. Usage — /figma-create-new-file [editorType] [fileName] (e.g. /figma-create-new-file figjam My Whiteboard)
+description: 创建新的空白 Figma file。当用户想创建新的 Figma design 或 FigJam file，或在调用 use_figma 前需要新文件时使用。必要时通过 whoami 处理 plan 解析。用法：/figma-create-new-file [editorType] [fileName]（例如 /figma-create-new-file figjam My Whiteboard）
 disable-model-invocation: true
 ---
 
-# create_new_file — Create a New Figma File
+# create_new_file - 创建新的 Figma File
 
-Use the `create_new_file` MCP tool to create a new blank Figma file in the user's drafts folder. This is typically used before `use_figma` when you need a fresh file to work with.
+使用 `create_new_file` MCP tool，在用户的 drafts folder 中创建新的空白 Figma file。通常在需要全新文件继续操作时，在 `use_figma` 之前使用。
 
-## Skill Arguments
+## Skill 参数
 
-This skill accepts optional arguments: `/figma-create-new-file [editorType] [fileName]`
+此 skill 接受可选参数：`/figma-create-new-file [editorType] [fileName]`
 
-- **editorType**: `design` (default) or `figjam`
-- **fileName**: Name for the new file (defaults to "Untitled")
+- **editorType**：`design`（默认）或 `figjam`
+- **fileName**：新文件名称（默认是 "Untitled"）
 
-Examples:
-- `/figma-create-new-file` — creates a design file named "Untitled"
-- `/figma-create-new-file figjam My Whiteboard` — creates a FigJam file named "My Whiteboard"
-- `/figma-create-new-file design My New Design` — creates a design file named "My New Design"
+示例：
+- `/figma-create-new-file` - 创建名为 "Untitled" 的 design file
+- `/figma-create-new-file figjam My Whiteboard` - 创建名为 "My Whiteboard" 的 FigJam file
+- `/figma-create-new-file design My New Design` - 创建名为 "My New Design" 的 design file
 
-Parse the arguments from the skill invocation. If editorType is not provided, default to `"design"`. If fileName is not provided, default to `"Untitled"`.
+从 skill invocation 中解析参数。如果未提供 editorType，默认为 `"design"`。如果未提供 fileName，默认为 `"Untitled"`。
 
-## Workflow
+## 工作流
 
-### Step 1: Resolve the planKey
+### 步骤 1：解析 planKey
 
-The `create_new_file` tool requires a `planKey` parameter. Follow this decision tree:
+`create_new_file` tool 需要 `planKey` 参数。遵循以下决策树：
 
-1. **User already provided a planKey** (e.g. from a previous `whoami` call or in their prompt) → use it directly, skip to Step 2.
+1. **用户已提供 planKey**（例如来自之前的 `whoami` 调用，或包含在 prompt 中）：直接使用它，跳到步骤 2。
 
-2. **No planKey available** → call the `whoami` tool. The response contains a `plans` array. Each plan has a `key`, `name`, `seat`, and `tier`.
+2. **没有可用 planKey**：调用 `whoami` tool。响应包含 `plans` array。每个 plan 都有 `key`、`name`、`seat` 和 `tier`。
 
-   - **Single plan**: use its `key` field automatically.
-   - **Multiple plans**: ask the user which team or organization they want to create the file in, then use the corresponding plan's `key`.
+   - **单个 plan**：自动使用它的 `key` 字段。
+   - **多个 plan**：询问用户想在哪个 team 或 organization 中创建文件，然后使用对应 plan 的 `key`。
 
-### Step 2: Call create_new_file
+### 步骤 2：调用 create_new_file
 
-Call the `create_new_file` tool with:
+使用以下参数调用 `create_new_file` tool：
 
-| Parameter    | Required | Description |
+| 参数 | 是否必需 | 描述 |
 |-------------|----------|-------------|
-| `planKey`   | Yes      | The plan key from Step 1 |
-| `fileName`  | Yes      | Name for the new file |
-| `editorType`| Yes      | `"design"` or `"figjam"` |
+| `planKey` | 是 | 步骤 1 中的 plan key |
+| `fileName` | 是 | 新文件名称 |
+| `editorType` | 是 | `"design"` 或 `"figjam"` |
 
-Example:
+示例：
 ```json
 {
   "planKey": "team:123456",
@@ -54,16 +54,16 @@ Example:
 }
 ```
 
-### Step 3: Use the result
+### 步骤 3：使用结果
 
-The tool returns:
-- `file_key` — the key of the newly created file
-- `file_url` — a direct URL to open the file in Figma
+tool 返回：
+- `file_key` - 新创建文件的 key
+- `file_url` - 在 Figma 中打开文件的直接 URL
 
-Use the `file_key` for subsequent tool calls like `use_figma`.
+将 `file_key` 用于后续 tool call，例如 `use_figma`。
 
-## Important Notes
+## 重要说明
 
-- The file is created in the user's **drafts folder** for the selected plan.
-- Only `"design"` and `"figjam"` editor types are supported.
-- If `use_figma` is your next step, load the `figma-use` skill before calling it.
+- 文件会创建在所选 plan 下用户的 **drafts folder** 中。
+- 只支持 `"design"` 和 `"figjam"` editor type。
+- 如果下一步是 `use_figma`，调用前先加载 `figma-use` skill。
