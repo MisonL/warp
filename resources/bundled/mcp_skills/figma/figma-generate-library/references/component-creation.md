@@ -1,16 +1,16 @@
-> Part of the [figma-generate-library skill](../SKILL.md).
+> 属于 [figma-generate-library skill](../SKILL.md) 的一部分。
 
-# Component Creation Reference
+# Component 创建参考
 
-Complete guide for Phase 3: building components with variant matrices, variable bindings, component properties, and documentation.
+Phase 3 完整指南：使用 variant matrix、variable binding、component property 和文档构建 component。
 
 ---
 
-## 1. Component Architecture
+## 1. Component 架构
 
-### Dependency Ordering: Atoms Before Molecules
+### 依赖顺序：Atoms 先于 Molecules
 
-Always build in dependency order. A molecule that contains an atom instance cannot exist until the atom is published. Suggested ordering:
+始终按 dependency order 构建。包含 atom instance 的 molecule 必须等 atom 发布后才能存在。建议顺序：
 
 ```
 Tier 0 (atoms): Icon, Avatar, Badge, Spinner
@@ -18,18 +18,18 @@ Tier 1 (molecules): Button, Checkbox, Toggle, Input, Select
 Tier 2 (organisms): Card, Dialog, Menu, Navigation, Form
 ```
 
-If a component embeds an instance of another component, the embedded component must be created first. Build your dependency graph during Phase 0 and encode the creation order in the plan.
+如果某个 component 嵌入了另一个 component 的 instance，必须先创建被嵌入的 component。在 Phase 0 构建 dependency graph，并把创建顺序写入计划。
 
-### Building Blocks Sub-Components (M3 Pattern)
+### Building Blocks 子组件（M3 模式）
 
-For complex components with independent sub-element state machines, extract the sub-element into its own component set prefixed with `Building Blocks/` (public) or `.Building Blocks/` (hidden from assets panel). The dot-prefix is a Figma convention for suppressing a component from the public assets panel.
+对于拥有独立子元素 state machine 的复杂 component，把子元素抽取成自己的 component set，并使用 `Building Blocks/`（public）或 `.Building Blocks/`（在 assets panel 中隐藏）前缀。点前缀是 Figma 用来从 public assets panel 中隐藏 component 的约定。
 
-**When to use Building Blocks:**
-- The sub-element has its own variant axes (state, selection) that would cause combinatorial explosion in the parent
-- The sub-element repeats (nav items, table cells, calendar cells, segmented button segments)
-- The sub-element has different variant axes than the parent
+**何时使用 Building Blocks：**
+- 子元素有自己的 variant axes（state、selection），会导致 parent 中出现组合爆炸
+- 子元素会重复出现（nav item、table cell、calendar cell、segmented button segment）
+- 子元素的 variant axes 与 parent 不同
 
-**Example (M3 Segmented Button):**
+**示例（M3 Segmented Button）：**
 ```
 Building Blocks/Segmented button/Button segment (start)   [27 variants: Config × State × Selected]
 Building Blocks/Segmented button/Button segment (middle)  [27 variants]
@@ -39,11 +39,11 @@ Segmented button  [16 variants: Segments=2-5 × Density=0/-1/-2/-3]
   Each variant contains instances of the appropriate Building Block segment components.
 ```
 
-The parent manages composition and configuration; the Building Block manages its own interaction states.
+Parent component 管理 composition 和 configuration；Building Block 管理自己的 interaction state。
 
-### Private Components (`__` Prefix)
+### Private Component（`__` 前缀）
 
-Use the `__` prefix for internal helper components that should not appear in the team library (Shop Minis pattern). Use `_` for documentation-only components (UI3 pattern).
+对不应出现在 team library 中的 internal helper component 使用 `__` 前缀（Shop Minis pattern）。对 documentation-only component 使用 `_`（UI3 pattern）。
 
 ```
 __asset          // private icon/asset holder
@@ -52,9 +52,9 @@ _Label/Direction // documentation annotation helper
 
 ---
 
-## 2. Creating the Component Page
+## 2. 创建 Component Page
 
-Each component lives on its own dedicated page (one page per component is the default). The page contains: a documentation frame at top-left and the component set positioned to its right or below.
+每个 component 都放在自己的专用 page 上（默认每个 component 一个 page）。该 page 包含左上角的 documentation frame，以及位于其右侧或下方的 component set。
 
 ```javascript
 // Create or find the component page
@@ -106,14 +106,14 @@ return { docFrameId: docFrame.id, pageId: page.id };
 
 ---
 
-## 3. Base Component: Auto-Layout, Child Nodes, Variable Bindings
+## 3. Base Component：Auto-Layout、Child Node、Variable Binding
 
-The base component is the template from which all variants are cloned. It must have:
-1. Auto-layout (not manual positioning)
-2. All child nodes present
-3. ALL visual properties bound to variables (no hardcoded values)
+Base component 是克隆所有 variant 的模板。它必须具备：
+1. Auto-layout（不是 manual positioning）
+2. 所有 child node 都存在
+3. 所有 visual property 都绑定到 variable（没有 hardcoded value）
 
-### Complete Button Base Component Example
+### 完整 Button Base Component 示例
 
 ```javascript
 const RUN_ID = 'ds-build-2024-001'; // replace with your actual run ID
@@ -194,25 +194,25 @@ comp.setSharedPluginData('dsb', 'key', 'component/button/base');
 return { baseCompId: comp.id };
 ```
 
-**ALL of these must be variable-bound (never hardcoded):**
+**以下所有内容都必须 variable-bound（绝不 hardcoded）：**
 
-| Property | Variable type | API method |
+| 属性 | Variable 类型 | API 方法 |
 |---|---|---|
-| Fill color | COLOR | `setBoundVariableForPaint(..., 'color', var)` |
-| Stroke color | COLOR | `setBoundVariableForPaint(..., 'color', var)` |
-| Text fill | COLOR | `setBoundVariableForPaint(..., 'color', var)` |
-| Padding (all 4 sides) | FLOAT | `comp.setBoundVariable('paddingTop', var)` |
+| 填充色 | COLOR | `setBoundVariableForPaint(..., 'color', var)` |
+| 描边色 | COLOR | `setBoundVariableForPaint(..., 'color', var)` |
+| 文本填充色 | COLOR | `setBoundVariableForPaint(..., 'color', var)` |
+| Padding（全部 4 边） | FLOAT | `comp.setBoundVariable('paddingTop', var)` |
 | Gap / itemSpacing | FLOAT | `comp.setBoundVariable('itemSpacing', var)` |
-| Corner radius (all 4) | FLOAT | `comp.setBoundVariable('topLeftRadius', var)` etc. |
+| Corner radius（全部 4 角） | FLOAT | `comp.setBoundVariable('topLeftRadius', var)` 等 |
 | Stroke weight | FLOAT | `comp.setBoundVariable('strokeWeight', var)` |
 
 ---
 
-## 4. Variant Matrix
+## 4. Variant 矩阵
 
-### Defining Axes
+### 定义 Axes
 
-For each component, identify its variant axes before writing any code. Standard axes:
+对每个 component，在编写任何代码前识别其 variant axes。标准 axes：
 
 ```
 Button:
@@ -222,19 +222,19 @@ Button:
   Total  = 3 × 4 × 5 = 60 combinations — exceeds 30 limit → split by Style
 ```
 
-### The 30-Combination Cap and Split Strategy
+### 30 组合上限和拆分策略
 
-When the product of all variant axes exceeds 30 combinations, split the matrix. Options:
+当所有 variant axes 的乘积超过 30 个组合时，拆分 matrix。选项：
 
-1. **Split by a primary axis**: Create separate component sets, one per Style (Primary Button, Secondary Button, etc.)
-2. **Use INSTANCE_SWAP**: Remove a visual axis (like Icon) from the variant matrix entirely and expose it as an INSTANCE_SWAP property instead
-3. **Use Building Blocks**: Extract sub-elements with their own state axes into Building Block component sets
+1. **按 primary axis 拆分**：创建独立 component set，每个 Style 一个（Primary Button、Secondary Button 等）
+2. **使用 INSTANCE_SWAP**：从 variant matrix 中完全移除视觉 axis（例如 Icon），改为作为 INSTANCE_SWAP property 暴露
+3. **使用 Building Blocks**：将有自身 state axis 的 sub-element 抽取到 Building Block component set 中
 
-For Button with Size × State = 15 combinations, add Style as a variant axis only if Style ≤ 2 options (15 × 2 = 30). For more Styles, split.
+对于 Size x State = 15 个组合的 Button，只有当 Style 不超过 2 个选项时，才将 Style 加为 variant axis（15 x 2 = 30）。更多 Style 时应拆分。
 
-### Creating All Variants with use_figma
+### 使用 use_figma 创建所有 Variant
 
-Build each variant by cloning the base component and adjusting the variable bindings that differ per variant. Pass in the base component ID from the previous call's state.
+通过 clone base component 并调整每个 variant 不同的 variable binding 来构建各个 variant。从前一次调用的 state 中传入 base component ID。
 
 ```javascript
 const RUN_ID = 'ds-build-2024-001';
@@ -314,17 +314,17 @@ return { variantIds: components.map(c => c.id) };
 
 ---
 
-## 5. `combineAsVariants` + Grid Layout
+## 5. `combineAsVariants` + Grid 布局
 
-After all variant components exist, combine them into a ComponentSet and position them in a grid. This MUST be a separate `use_figma` call — you must pass in all variant IDs from the previous call's return value.
+所有 variant component 都存在后，将它们合并为 ComponentSet，并按 grid 放置。此步骤必须是单独的 `use_figma` 调用，你必须从前一次调用的 return value 传入所有 variant ID。
 
-### Grid Design Conventions
+### Grid 设计约定
 
-Professional design systems lay out variants in a readable grid where:
-- **Columns** = the property users interact with most (typically **State**: Default, Hover, Focused, Pressed, Disabled)
-- **Rows** = structural axes grouped together (typically **Size × Style**, where Size varies fastest)
-- **Gap** = 16–40px between variants (20px is a safe default; match existing file if one exists)
-- **Padding** = 40px around the grid inside the ComponentSet frame
+专业 design system 会用可读 grid 排列 variant，其中：
+- **列** = 用户最常交互的 property（通常是 **State**：Default、Hover、Focused、Pressed、Disabled）
+- **行** = 组合在一起的结构性 axes（通常是 **Size x Style**，其中 Size 变化最快）
+- **间距** = variant 之间 16-40px（20px 是安全默认值；如已有文件则匹配现有文件）
+- **内边距** = ComponentSet frame 内 grid 周围 40px
 
 ```
 Visual structure:
@@ -339,11 +339,11 @@ Visual structure:
   └──────────────────────────────────────────────────────────────────┘
 ```
 
-**Why State on columns?** State is the axis designers scan horizontally to verify interaction consistency. Size/Style define the "identity" of each row. This matches how professional design systems (M3, Polaris, Simple DS) organize their grids.
+**为什么 State 放在列上？** State 是设计师横向扫描以验证交互一致性的 axis。Size/Style 定义每行的“身份”。这与 professional design system（M3、Polaris、Simple DS）组织 grid 的方式一致。
 
-### Adding Row/Column Header Labels
+### 添加行/列 Header Label
 
-After laying out the grid, add text labels OUTSIDE the ComponentSet to help navigation. These are siblings of the ComponentSet on the page — not children of it:
+布局 grid 后，在 ComponentSet 外部添加 text label，帮助导航。它们是 page 上 ComponentSet 的 sibling，不是它的 child：
 
 ```javascript
 // Add column headers above the component set
@@ -372,9 +372,9 @@ for (let i = 0; i < rowLabels.length; i++) {
 }
 ```
 
-**Note:** These labels are documentation aids, not part of the component itself. They help designers navigate the variant grid.
+**注意：** 这些 label 是文档辅助，不是 component 本身的一部分。它们帮助设计师浏览 variant grid。
 
-### Grid layout code
+### Grid 布局代码
 
 ```javascript
 const VARIANT_IDS = ['ID1', 'ID2', '...']; // from state ledger
@@ -447,21 +447,21 @@ cs.setSharedPluginData('dsb', 'key', 'componentset/button');
 return { componentSetId: cs.id };
 ```
 
-**Critical rules for combineAsVariants:**
-- `components` must be a non-empty array containing ONLY `ComponentNode` objects (not frames, not groups)
-- After combining, children are placed at (0,0) and overlap — you MUST manually position them
-- `resizeWithoutConstraints` is required after positioning to make the component set frame fit its contents
-- There is no `figma.createComponentSet()` — you cannot create an empty component set
+**combineAsVariants 的关键规则：**
+- `components` 必须是非空 array，并且只包含 `ComponentNode` object（不是 frame，也不是 group）
+- 合并后 child 会放在 (0,0) 并互相重叠，你必须手动定位它们
+- 定位后必须调用 `resizeWithoutConstraints`，让 component set frame 适配其内容
+- 不存在 `figma.createComponentSet()`，你不能创建空的 component set
 
 ---
 
-## 6. Component Properties
+## 6. Component Property
 
-Add TEXT, BOOLEAN, and INSTANCE_SWAP properties to the ComponentSet (not to individual variants). The return value of `addComponentProperty` is the actual property key (it gets a `#id:id` suffix appended) — save this key and use it immediately when setting `componentPropertyReferences`.
+将 TEXT、BOOLEAN 和 INSTANCE_SWAP property 添加到 ComponentSet（不是添加到单个 variant）。`addComponentProperty` 的返回值是真正的 property key（会追加 `#id:id` 后缀），保存此 key，并在设置 `componentPropertyReferences` 时立即使用它。
 
-### TEXT Properties
+### TEXT Property
 
-Expose editable text in instances:
+在 instance 中暴露可编辑文本：
 
 ```javascript
 // On the ComponentSetNode (cs):
@@ -477,9 +477,9 @@ for (const child of cs.children) {
 }
 ```
 
-### BOOLEAN Properties
+### BOOLEAN Property
 
-Toggle child node visibility:
+切换 child node 可见性：
 
 ```javascript
 const showIconKey = cs.addComponentProperty('Show Icon', 'BOOLEAN', true);
@@ -492,9 +492,9 @@ for (const child of cs.children) {
 }
 ```
 
-### INSTANCE_SWAP Properties
+### INSTANCE_SWAP Property
 
-Allow swapping a nested component instance (e.g., swap the icon):
+允许替换 nested component instance（例如替换 icon）：
 
 ```javascript
 // defaultIconCompId is the ID of the default icon component (from state ledger)
@@ -508,11 +508,11 @@ for (const child of cs.children) {
 }
 ```
 
-**Use INSTANCE_SWAP instead of creating a variant per icon.** Never add "Icon=ChevronRight, Icon=ChevronLeft, ..." as VARIANT axes — that causes combinatorial explosion. One INSTANCE_SWAP property covers all icons.
+**使用 INSTANCE_SWAP，而不是为每个 icon 创建一个 variant。** 永远不要把 "Icon=ChevronRight, Icon=ChevronLeft, ..." 添加为 VARIANT axes，这会导致组合爆炸。一个 INSTANCE_SWAP property 可覆盖所有 icon。
 
-### Creating Icon Components for INSTANCE_SWAP
+### 为 INSTANCE_SWAP 创建 Icon Component
 
-INSTANCE_SWAP needs a real Component ID as its default value. Before wiring INSTANCE_SWAP, you need at least one icon component. Here's how to create icons from SVG:
+INSTANCE_SWAP 需要一个真实 Component ID 作为默认值。接线 INSTANCE_SWAP 前，你至少需要一个 icon component。以下是从 SVG 创建 icon 的方式：
 
 ```javascript
 // Create a simple icon component from SVG
@@ -552,13 +552,13 @@ iconComp.setSharedPluginData('dsb', 'key', 'icon/chevron-right');
 return { iconCompId: iconComp.id };
 ```
 
-**Then use the returned `iconCompId` as the default value for INSTANCE_SWAP:**
+**然后将返回的 `iconCompId` 用作 INSTANCE_SWAP 的默认值：**
 ```javascript
 const iconKey = cs.addComponentProperty('Icon', 'INSTANCE_SWAP', ICON_COMP_ID);
 ```
 
-**Constraining swap options with `preferredValues`:**
-After adding the INSTANCE_SWAP property, you can optionally limit which components appear in the swap picker:
+**用 `preferredValues` 限制 swap 选项：**
+添加 INSTANCE_SWAP property 后，可以选择限制哪些 component 出现在 swap picker 中：
 ```javascript
 // Get the property definitions to find the exact key
 const props = cs.componentPropertyDefinitions;
@@ -574,23 +574,23 @@ cs.editComponentProperty(iconPropKey, {
 });
 ```
 
-**Icon library tip:** Create all icon components on a dedicated `Icons` page before building any UI components. Then reference their IDs when wiring INSTANCE_SWAP properties.
+**Icon library 提示：** 构建任何 UI component 前，先在专用 `Icons` page 上创建所有 icon component。然后在接线 INSTANCE_SWAP property 时引用它们的 ID。
 
-### `componentPropertyReferences` mapping
+### `componentPropertyReferences` 映射
 
-The `componentPropertyReferences` object maps a node's own property to a component property key:
+`componentPropertyReferences` object 会将 node 自身的 property 映射到 component property key：
 
-| Node property | Component property type | Used for |
+| Node property | Component property 类型 | 用途 |
 |---|---|---|
-| `characters` | TEXT | Editable text content |
-| `visible` | BOOLEAN | Show/hide toggle |
-| `mainComponent` | INSTANCE_SWAP | Swap nested instances |
+| `characters` | TEXT | 可编辑 text content |
+| `visible` | BOOLEAN | show/hide toggle |
+| `mainComponent` | INSTANCE_SWAP | 替换 nested instance |
 
 ---
 
-## 7. `sharedPluginData` Tagging for Idempotency
+## 7. 用于幂等性的 `sharedPluginData` 标记
 
-Tag EVERY created node immediately after creation. This enables safe cleanup, resumability, and idempotency checks.
+每个创建的 node 都要在创建后立即打 tag。这会支持安全清理、可恢复执行和幂等性检查。
 
 ```javascript
 // After creating any node:
@@ -603,7 +603,7 @@ const runId = node.getSharedPluginData('dsb', 'run_id'); // '' if not set
 const key   = node.getSharedPluginData('dsb', 'key');
 ```
 
-**Key naming convention:** use `/`-separated logical paths that mirror the entity hierarchy:
+**Key 命名约定：** 使用以 `/` 分隔的 logical path，镜像 entity hierarchy：
 ```
 'component/button/base'
 'component/button/variant/Medium/Primary/Default'
@@ -612,7 +612,7 @@ const key   = node.getSharedPluginData('dsb', 'key');
 'page/button'
 ```
 
-**Idempotency check before creating:** before creating a node, scan the current page for an existing node with the same `key`:
+**创建前的幂等性检查：** 创建 node 前，扫描当前 page 是否已有同 `key` 的 node：
 
 ```javascript
 const existing = figma.currentPage.findAll(n =>
@@ -626,18 +626,18 @@ if (existing.length > 0) {
 
 ---
 
-## 8. Documentation
+## 8. 文档
 
-### Page title + description frame
+### 页面标题 + 描述 frame
 
-The documentation frame (see Section 2) should contain:
-1. Component name as a large title (32px+ Bold)
-2. 1–3 sentence description of what the component is and when to use it
-3. Spec notes (sizes, spacing values, accessibility notes)
+documentation frame（见第 2 节）应包含：
+1. 以大标题形式展示 component 名称（32px+ Bold）
+2. 用 1-3 句话说明该 component 是什么、何时使用
+3. 规格说明（尺寸、spacing 值、accessibility 注意事项）
 
-### Component `description` property
+### Component `description` 属性
 
-Set the description on the ComponentSet — it appears in the Figma properties panel and is exported as documentation:
+在 ComponentSet 上设置 description。它会显示在 Figma properties panel 中，并作为文档导出：
 
 ```javascript
 cs.description = 'Buttons allow users to take actions and make choices. Use Primary for the highest-emphasis action on a page.';
@@ -645,7 +645,7 @@ cs.description = 'Buttons allow users to take actions and make choices. Use Prim
 
 ### `documentationLinks`
 
-Link to external documentation (Storybook, design spec, tokens reference):
+链接到外部文档（Storybook、design spec、tokens reference）：
 
 ```javascript
 cs.documentationLinks = [
@@ -653,71 +653,71 @@ cs.documentationLinks = [
 ];
 ```
 
-### Node names and organization
+### Node 命名和组织
 
-- ComponentSet: plain component name — `'Button'`
-- Individual variants: `'Property=Value, Property=Value'` format (match the file's existing casing)
-- Child nodes: semantic names — `'label'`, `'icon'`, `'container'`, `'state-layer'`
-- Documentation frames: `'ComponentName / Documentation'`
+- ComponentSet：使用普通 component 名称，例如 `'Button'`
+- 单个 variant：使用 `'Property=Value, Property=Value'` 格式（匹配文件中已有的大小写）
+- Child node：使用语义化名称，例如 `'label'`、`'icon'`、`'container'`、`'state-layer'`
+- Documentation frame：`'ComponentName / Documentation'`
 
 ---
 
-## 9. Validation
+## 9. 验证
 
-Always validate after creating or modifying a component before proceeding to the next one.
+创建或修改 component 后，必须先完成验证，再继续处理下一个 component。
 
-### `get_metadata` structural checks
+### `get_metadata` 结构检查
 
-After creating the component set, call `get_metadata` on the ComponentSet node and verify:
-- `variantGroupProperties` lists the expected axes with the correct value arrays
-- `componentPropertyDefinitions` contains the expected TEXT/BOOLEAN/INSTANCE_SWAP properties
-- `children.length` equals the expected variant count (e.g., 18 for 3×2×3)
-- No children are named `'Component 1'` (unnamed components are a sign of a bug)
+创建 component set 后，对 ComponentSet node 调用 `get_metadata` 并确认：
+- `variantGroupProperties` 列出了预期 axes，且 value array 正确
+- `componentPropertyDefinitions` 包含预期的 TEXT/BOOLEAN/INSTANCE_SWAP property
+- `children.length` 等于预期 variant 数量（例如 3x2x3 时为 18）
+- 没有 child 命名为 `'Component 1'`（未命名 component 通常意味着存在 bug）
 
-### `get_screenshot` — Visual Validation (Critical)
+### `get_screenshot` - 视觉验证（关键）
 
-`get_screenshot` returns an **image** of the specified node. Call it on the **component page node** (not the component set) to see the full page including documentation and grid labels.
+`get_screenshot` 会返回指定 node 的**图像**。请对 **component page node**（不是 component set）调用它，以便查看包含 documentation 和 grid label 的完整页面。
 
 ```
 Tool: get_screenshot
 Args: { nodeId: "PAGE_NODE_ID", fileKey: "FILE_KEY" }
 ```
 
-**How to use the screenshot:**
+**如何使用 screenshot：**
 
-1. **Display it to the user** — this is the primary purpose. Show the screenshot as part of the user checkpoint: "Here's the Button component. Does it look right?"
-2. **Analyze it yourself** — if you have vision capabilities, check the visual checklist below. If you don't (text-only agent), fall back to structural validation only via `get_metadata` and describe what you created textually.
+1. **展示给用户**：这是主要目的。把 screenshot 作为用户 checkpoint 的一部分展示：“这是 Button component。看起来正确吗？”
+2. **自行分析**：如果你具备视觉能力，按下方视觉检查清单核对。如果没有（text-only agent），则仅通过 `get_metadata` 做结构验证，并用文字说明你创建了什么。
 
-**Visual validation checklist** (check each item when viewing the screenshot):
+**视觉验证清单**（查看 screenshot 时逐项检查）：
 
-| # | Check | What "good" looks like | What "broken" looks like |
+| # | 检查项 | 良好表现 | 异常表现 |
 |---|-------|----------------------|------------------------|
-| 1 | **Grid layout** | Variants in neat rows and columns with consistent spacing | All variants piled at top-left (0,0 stacking bug) |
-| 2 | **Color fills** | Components show distinct, correct colors per style variant | All components are black or same color (variable binding failed) |
-| 3 | **Size differentiation** | Small variants are visibly smaller than Large variants | All variants are the same size (height/padding not bound to variables) |
-| 4 | **Text readability** | Labels are visible with correct font and color | Text is invisible (white on white), missing, or shows "undefined" |
-| 5 | **Spacing/padding** | Interior padding visible, components aren't "shrink-wrapped" | Components look cramped or have no visible internal space |
-| 6 | **State differentiation** | Hover/Pressed variants have visible color differences from Default | All states look identical (state-specific fills not applied) |
-| 7 | **Disabled state** | Lower opacity or muted colors compared to active states | Disabled looks identical to Default |
-| 8 | **Documentation frame** | Title + description text visible above or beside the component grid | No documentation, or it overlaps the component set |
-| 9 | **Grid labels** | Row/column headers visible around the component set (if added) | Labels overlap the grid or are missing |
-| 10 | **Component set boundary** | Gray background frame wraps all variants with even padding | Frame is too small (variants clipped) or way too large |
+| 1 | **Grid 布局** | Variant 按整齐行列排列，spacing 一致 | 所有 variant 堆在左上角（0,0 stacking bug） |
+| 2 | **颜色填充** | Component 按 style variant 显示清晰且正确的颜色 | 所有 component 都是黑色或同一种颜色（variable binding 失败） |
+| 3 | **尺寸区分** | Small variant 明显小于 Large variant | 所有 variant 尺寸相同（height/padding 未绑定到 variable） |
+| 4 | **文本可读性** | Label 使用正确字体和颜色，且可见 | Text 不可见（白底白字）、缺失或显示 `"undefined"` |
+| 5 | **Spacing/padding** | 内部 padding 可见，component 没有紧贴内容收缩 | Component 看起来拥挤，或没有可见内部空间 |
+| 6 | **State 区分** | Hover/Pressed variant 与 Default 有可见色彩差异 | 所有 state 看起来相同（未应用 state-specific fill） |
+| 7 | **Disabled state** | 与 active state 相比，opacity 更低或颜色更弱 | Disabled 看起来与 Default 相同 |
+| 8 | **Documentation frame** | Title + description text 在 component grid 上方或旁边可见 | 没有 documentation，或与 component set 重叠 |
+| 9 | **Grid label** | Row/column header 在 component set 周围可见（如果已添加） | Label 与 grid 重叠或缺失 |
+| 10 | **Component set 边界** | 灰色背景 frame 用均匀 padding 包住所有 variant | Frame 过小（variant 被裁切）或过大 |
 
-**Screenshot → diagnosis → fix mapping:**
+**Screenshot -> 诊断 -> 修复对照表：**
 
-| Screenshot shows | Diagnosis | Fix script |
+| Screenshot 显示 | 诊断 | 修复脚本 |
 |-----------------|-----------|------------|
-| All variants stacked top-left | Grid layout wasn't applied after `combineAsVariants` | Re-run the grid layout script (§5) |
-| Everything black/same color | Variable bindings failed or variables don't have values for the active mode | Re-run variable binding, check mode values |
-| No text visible | Font wasn't loaded, or text fill is same color as background | Check `loadFontAsync` was called; bind text fill to `color/text/*` variable |
-| Variants all same size | Padding/height not bound to size variables | Re-run `bindVariablesToComponent` with size-specific tokens |
-| Component set frame tiny | `resizeWithoutConstraints` wasn't called or used wrong dimensions | Re-calculate bounds from children and resize |
-| Doc frame overlaps components | Component set positioned at same x,y as doc frame | Move component set: `cs.x = docFrame.x + docFrame.width + 60` |
+| 所有 variant 堆在左上角 | `combineAsVariants` 后未应用 grid layout | 重新运行 grid layout script（第 5 节） |
+| 全部为黑色或同一种颜色 | Variable binding 失败，或 variable 在当前 active mode 下没有值 | 重新运行 variable binding，并检查 mode value |
+| 没有可见 text | Font 未加载，或 text fill 与背景同色 | 检查是否调用了 `loadFontAsync`；把 text fill 绑定到 `color/text/*` variable |
+| 所有 variant 尺寸相同 | Padding/height 未绑定到 size variable | 使用 size-specific token 重新运行 `bindVariablesToComponent` |
+| Component set frame 很小 | 未调用 `resizeWithoutConstraints`，或使用了错误尺寸 | 根据 child 重新计算 bounds 并 resize |
+| Doc frame 与 component 重叠 | Component set 被放在与 doc frame 相同的 x,y 位置 | 移动 component set：`cs.x = docFrame.x + docFrame.width + 60` |
 
-**When visual analysis isn't available:**
-If your model can't process images (text-only mode), validate structurally instead:
-1. Call `get_metadata` on the component set — verify child count, property definitions, variant names
-2. Run an `use_figma` that samples key properties:
+**无法进行视觉分析时：**
+如果你的模型无法处理图像（text-only mode），改用结构验证：
+1. 对 component set 调用 `get_metadata`，确认 child count、property definition、variant name
+2. 运行一次 `use_figma`，采样关键 property：
 ```javascript
 const cs = await figma.getNodeByIdAsync(CS_ID);
 const sample = cs.children.slice(0, 3).map(c => ({
@@ -730,37 +730,37 @@ const sample = cs.children.slice(0, 3).map(c => ({
 }));
 return { sampleVariants: sample, totalChildren: cs.children.length };
 ```
-This gives you positions (grid working?), dimensions (size differentiation?), and fill info (bindings working?) without needing vision.
+这样无需视觉能力，也能获取 position（grid 是否工作）、dimension（size 是否有差异）和 fill info（binding 是否工作）。
 
-**When to take a screenshot:**
-- After EVERY completed component (mandatory — part of the user checkpoint)
-- After creating the foundations documentation page
-- After final QA (screenshot every page)
-- Do NOT screenshot after every intermediate step (wastes tool calls)
+**何时截图：**
+- 每个完成的 component 之后（强制，属于用户 checkpoint）
+- 创建 foundations documentation page 之后
+- 最终 QA 之后（每个 page 都截图）
+- 不要在每个中间步骤后截图（浪费 tool call）
 
-### Common issues
+### 常见问题
 
-| Symptom | Likely cause | Fix |
+| 现象 | 可能原因 | 修复 |
 |---|---|---|
-| All variants stacked at (0,0) | `combineAsVariants` was called but children were never repositioned | Re-run grid layout script |
-| Variants show wrong colors | Variable bindings applied after `combineAsVariants` instead of before | Rebind on component set children |
-| Variant count wrong | Clone loop indexing error | Print `components.map(c => c.name)` before combining |
-| BOOLEAN property has no effect | `componentPropertyReferences` was set on the component set frame, not on the child node | Find the actual child node and set references there |
-| INSTANCE_SWAP shows no swap option | Default value was not a valid component ID | Pass a real existing component ID as `defaultValue` |
-| `combineAsVariants` throws | At least one node in the array is not a `ComponentNode` | Filter array: `nodes.filter(n => n.type === 'COMPONENT')` |
-| `addComponentProperty` returns unexpected key | Expected — the key gets a `#id:id` suffix | Save the returned value immediately: `const key = cs.addComponentProperty(...)` |
+| 所有 variant 堆在 (0,0) | 已调用 `combineAsVariants`，但从未重新定位 children | 重新运行 grid layout script |
+| Variant 显示错误颜色 | Variable binding 在 `combineAsVariants` 之后才应用，而不是之前 | 在 component set children 上重新绑定 |
+| Variant 数量错误 | clone 循环索引错误 | 合并前打印 `components.map(c => c.name)` |
+| BOOLEAN property 没有效果 | `componentPropertyReferences` 设置在 component set frame 上，而不是 child node 上 | 找到实际 child node 并在那里设置 references |
+| INSTANCE_SWAP 没有 swap option | 默认值不是有效 component ID | 将真实存在的 component ID 作为 `defaultValue` 传入 |
+| `combineAsVariants` 抛错 | Array 中至少有一个 node 不是 `ComponentNode` | 过滤 array：`nodes.filter(n => n.type === 'COMPONENT')` |
+| `addComponentProperty` 返回意外 key | 这是预期行为，key 会获得 `#id:id` 后缀 | 立即保存返回值：`const key = cs.addComponentProperty(...)` |
 
 ---
 
-## 10. Complete Worked Example: Button Component
+## 10. 完整工作示例：Button Component
 
-This shows the full sequence of `use_figma` calls for a Button component, including state passing between calls. Replace `RUN_ID` and variable IDs with your actual values from the state ledger.
+下面展示 Button component 的完整 `use_figma` 调用序列，包括调用之间的 state 传递。请用 state ledger 中的实际值替换 `RUN_ID` 和 variable ID。
 
-### Call 1: Create the component page
+### 调用 1：创建 component page
 
-**Goal:** Create (or find) the Button page.
-**State input:** None
-**State output:** `{ pageId }`
+**目标：** 创建（或找到）Button page。
+**状态输入：** 无
+**状态输出：** `{ pageId }`
 
 ```javascript
 let page = figma.root.children.find(p => p.name === 'Button');
@@ -770,11 +770,11 @@ page.setSharedPluginData('dsb', 'key', 'page/button');
 return { pageId: page.id };
 ```
 
-### Call 2: Create documentation frame
+### 调用 2：创建 documentation frame
 
-**Goal:** Add title + description frame.
-**State input:** `{ pageId }`
-**State output:** `{ docFrameId }`
+**目标：** 添加 title + description frame。
+**状态输入：** `{ pageId }`
+**状态输出：** `{ docFrameId }`
 
 ```javascript
 const PAGE_ID = 'PAGE_ID_FROM_STATE';
@@ -821,19 +821,19 @@ docFrame.setSharedPluginData('dsb', 'key', 'doc/button');
 return { docFrameId: docFrame.id };
 ```
 
-### Call 3: Create base component
+### 调用 3：创建 base component
 
-**Goal:** Create the base component with auto-layout and all variable bindings.
-**State input:** `{ pageId }` + variable IDs from Phase 1
-**State output:** `{ baseCompId }`
+**目标：** 创建带 auto-layout 和完整 variable binding 的 base component。
+**状态输入：** `{ pageId }` + Phase 1 中的 variable ID
+**状态输出：** `{ baseCompId }`
 
-*(See Section 3 for full code — substituting the actual variable IDs from the state ledger.)*
+*（完整代码见第 3 节；请替换为 state ledger 中的实际 variable ID。）*
 
-### Call 4: Create all variants
+### 调用 4：创建所有 variant
 
-**Goal:** Clone base and produce all 18 variants (3 Size × 2 Style × 3 State).
-**State input:** `{ pageId, baseCompId }` + variable IDs
-**State output:** `{ variantIds: ['id1', 'id2', ..., 'id18'] }`
+**目标：** clone base，并生成全部 18 个 variant（3 Size x 2 Style x 3 State）。
+**状态输入：** `{ pageId, baseCompId }` + variable ID
+**状态输出：** `{ variantIds: ['id1', 'id2', ..., 'id18'] }`
 
 ```javascript
 const RUN_ID = 'ds-build-2024-001';
@@ -905,19 +905,19 @@ for (const size of axes.Size) {
 return { variantIds: components.map(c => c.id) };
 ```
 
-### Call 5: combineAsVariants + grid layout
+### 调用 5：combineAsVariants + grid layout
 
-**Goal:** Combine all 18 variants into a ComponentSet and lay them out in a grid.
-**State input:** `{ pageId, variantIds }` (18 IDs)
-**State output:** `{ componentSetId }`
+**目标：** 将全部 18 个 variant 合并成 ComponentSet，并按 grid 布局。
+**状态输入：** `{ pageId, variantIds }`（18 个 ID）
+**状态输出：** `{ componentSetId }`
 
-*(See Section 5 for full code.)*
+*（完整代码见第 5 节。）*
 
-### Call 6: Add component properties
+### 调用 6：添加 component property
 
-**Goal:** Add TEXT, BOOLEAN, INSTANCE_SWAP properties and wire them to child nodes.
-**State input:** `{ pageId, componentSetId }`
-**State output:** `{ componentSetId, properties: { labelKey, showIconKey, iconKey } }`
+**目标：** 添加 TEXT、BOOLEAN、INSTANCE_SWAP property，并接线到 child node。
+**状态输入：** `{ pageId, componentSetId }`
+**状态输出：** `{ componentSetId, properties: { labelKey, showIconKey, iconKey } }`
 
 ```javascript
 const CS_ID = 'CS_ID_FROM_STATE';
@@ -954,19 +954,19 @@ return {
 };
 ```
 
-### Call 7: Validate with get_metadata
+### 调用 7：使用 get_metadata 验证
 
-**Goal:** Structural check — variant count, properties, axes.
-**Action:** Call `get_metadata` on the ComponentSet node ID (from state). Verify in the result:
+**目标：** 结构检查，包括 variant count、property、axes。
+**动作：** 对 ComponentSet node ID（来自 state）调用 `get_metadata`。在结果中确认：
 - `children.length === 18`
-- `variantGroupProperties` has `Size`, `Style`, `State` keys with correct value arrays
-- `componentPropertyDefinitions` has `Label`, `Show Icon`, `Icon` entries
+- `variantGroupProperties` 包含 `Size`、`Style`、`State` key，且 value array 正确
+- `componentPropertyDefinitions` 包含 `Label`、`Show Icon`、`Icon` entry
 
-### Call 8: Validate with get_screenshot
+### 调用 8：使用 get_screenshot 验证
 
-**Goal:** Visual check — layout, colors, text.
-**Action:** Call `get_screenshot` on the Button page. Inspect the screenshot. If variants are stacked, re-run Call 5. If colors look wrong, inspect variable bindings.
+**目标：** 视觉检查，包括 layout、color、text。
+**动作：** 对 Button page 调用 `get_screenshot`。检查 screenshot。如果 variant 堆叠，重新运行调用 5；如果颜色错误，检查 variable binding。
 
-### Checkpoint
+### 检查点
 
-After Call 8: show the screenshot to the user. Ask: "Here's the Button component with 18 variants. Does this look correct?" Do not proceed to the next component until the user approves.
+调用 8 之后：向用户展示 screenshot，并询问：“这是包含 18 个 variant 的 Button component。看起来正确吗？”在用户确认前，不要继续处理下一个 component。
