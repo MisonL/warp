@@ -1,3 +1,3 @@
-# Integration Test
+# 集成测试
 
-This is a Markdown file read by the `test_restore_snapshot_with_markdown_file` integration test.
+这是一个 Markdown 文件，由 `test_restore_snapshot_with_markdown_file` 集成测试读取。
