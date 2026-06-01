@@ -12,13 +12,13 @@ update, or new branch was created.
 - Rebased upstream base: `upstream/master` at
   `a44b703060673b85d2641c051c53e4b6b1b00cc4`
 - Source HEAD before this documentation-only handoff update:
-  `ea36256c92e19464b6ddff70a266a77d5de24d2a`
-  (`Localize onboarding callout copy`)
+  `f3de40efd992a51102790e94f522a299485b5e1e`
+  (`Refresh zh-CN evidence after latest upstream`)
 - Expected upstream comparison after committing this handoff update:
-  `git rev-list --left-right --count upstream/master...HEAD` returns `0 23`
+  `git rev-list --left-right --count upstream/master...HEAD` returns `0 24`
 - Expected remote branch comparison after committing this handoff update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returns `3 99`
+  returns `3 100`
 - Rebase state after the rebase: no `.git/rebase-merge`,
   `.git/rebase-apply`, `MERGE_HEAD`, or `CHERRY_PICK_HEAD`
 - Remote writes in this pass: none
@@ -43,6 +43,12 @@ owner status label through:
 teams_text(app, "settings.teams.status.owner")
 ```
 
+A later freshness retry in this pass could not reach GitHub. `git fetch
+upstream`, `git ls-remote upstream refs/heads/master`, and `git ls-remote
+origin refs/heads/feat/localization-settings-upstream-rebuild` all returned
+HTTP 403. The latest locally available upstream remains
+`a44b703060673b85d2641c051c53e4b6b1b00cc4`.
+
 ## Change Summary
 
 - Rebased the branch onto `upstream/master` at `a44b7030`.
@@ -63,6 +69,7 @@ teams_text(app, "settings.teams.status.owner")
 - Made missing onboarding copy keys fail explicitly instead of returning an
   empty string.
 - Regenerated the zh-CN visual smoke artifact after the onboarding callout fix.
+- Regenerated the video recording smoke artifact in this pass.
 
 ## Catalog State
 
@@ -85,6 +92,15 @@ git rebase upstream/master
 Result: pass. The branch was rebased onto
 `a44b703060673b85d2641c051c53e4b6b1b00cc4`; the single
 `teams_page.rs` conflict was resolved as described above.
+
+```bash
+git fetch upstream
+git ls-remote upstream refs/heads/master
+git ls-remote origin refs/heads/feat/localization-settings-upstream-rebuild
+```
+
+Result: not counted as a freshness pass. All three commands returned GitHub
+HTTP 403 errors.
 
 ```bash
 cargo build -p integration --bin integration
@@ -154,7 +170,8 @@ CARGO_TARGET_DIR=target/localization-audit \
   cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass. 25 tests passed, 0 failed, 0 ignored.
+Result: pass in this pass as well. 25 tests passed, 0 failed, 0 ignored;
+`app_ui_calls_do_not_use_direct_english_literals` completed successfully.
 
 ```bash
 CARGO_TARGET_DIR=target/localization-audit \
@@ -168,16 +185,29 @@ stopped after approximately 12 minutes while still compiling in `target/debug`.
 The counted result is the successful `CARGO_TARGET_DIR=target/localization-audit`
 run above.
 
-## Existing Video Evidence
+```bash
+ARTIFACT_DIR="$PWD/target/video-recording-smoke-20260601T020835Z"
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$ARTIFACT_DIR" \
+  target/debug/integration test_video_recording
+```
 
-Current pre-existing video recording evidence:
+Result: pass.
 
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/recording.log`
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/after_bootstrap.png`
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/after_commands.png`
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/recording.mp4`
+## Current Video Evidence
 
-The video recording smoke was not regenerated in this pass.
+Current video recording evidence:
+
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/recording.log`
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/after_bootstrap.png`
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/after_commands.png`
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/recording.mp4`
+
+Artifact checks:
+
+- `after_bootstrap.png`: `2560x1600`
+- `after_commands.png`: `2560x1600`
+- `recording.mp4`: 425276 bytes
+- MP4 track parsed from the `tkhd` atom: `2560x1600`
 
 ## Branch Notes
 
@@ -191,6 +221,7 @@ The video recording smoke was not regenerated in this pass.
 
 - No external CI or external code review has been performed after this latest
   local validation.
+- A newer upstream commit may exist after local `a44b7030`, but GitHub returned
+  HTTP 403 for the attempted fetch and ls-remote freshness checks.
 - Visual coverage is sampled and must not be described as complete product-wide
   UI human review or exhaustive platform coverage.
-- The video recording smoke artifact was not regenerated in this pass.

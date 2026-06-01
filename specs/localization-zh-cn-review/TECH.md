@@ -15,13 +15,13 @@ branch was created.
 - Rebased upstream base: `upstream/master` at
   `a44b703060673b85d2641c051c53e4b6b1b00cc4`
 - Source HEAD before this documentation-only evidence update:
-  `ea36256c92e19464b6ddff70a266a77d5de24d2a`
-  (`Localize onboarding callout copy`)
+  `f3de40efd992a51102790e94f522a299485b5e1e`
+  (`Refresh zh-CN evidence after latest upstream`)
 - Expected upstream comparison after committing this evidence update:
-  `git rev-list --left-right --count upstream/master...HEAD` returns `0 23`
+  `git rev-list --left-right --count upstream/master...HEAD` returns `0 24`
 - Expected remote branch comparison after committing this evidence update:
   `git rev-list --left-right --count origin/feat/localization-settings-upstream-rebuild...HEAD`
-  returns `3 99`
+  returns `3 100`
 - Rebase state after the rebase: no `.git/rebase-merge`,
   `.git/rebase-apply`, `MERGE_HEAD`, or `CHERRY_PICK_HEAD`
 
@@ -44,6 +44,22 @@ owner label:
 ```rust
 teams_text(app, "settings.teams.status.owner")
 ```
+
+A later freshness retry in this pass could not reach GitHub:
+
+```text
+git fetch upstream
+fatal: unable to access 'https://github.com/warpdotdev/warp/': The requested URL returned error: 403
+
+git ls-remote upstream refs/heads/master
+fatal: unable to access 'https://github.com/warpdotdev/warp/': The requested URL returned error: 403
+
+git ls-remote origin refs/heads/feat/localization-settings-upstream-rebuild
+fatal: unable to access 'https://github.com/MisonL/warp/': The requested URL returned error: 403
+```
+
+The latest locally available upstream remains
+`a44b703060673b85d2641c051c53e4b6b1b00cc4`.
 
 ## Current Fixes
 
@@ -102,6 +118,15 @@ git rebase upstream/master
 Result: pass. The branch was rebased onto
 `a44b703060673b85d2641c051c53e4b6b1b00cc4`. The conflict in
 `app/src/settings_view/teams_page.rs` was resolved as described above.
+
+```bash
+git fetch upstream
+git ls-remote upstream refs/heads/master
+git ls-remote origin refs/heads/feat/localization-settings-upstream-rebuild
+```
+
+Result: not counted as a freshness pass. All three commands returned GitHub
+HTTP 403 errors as recorded above.
 
 ```bash
 cargo build -p integration --bin integration
@@ -168,9 +193,10 @@ CARGO_TARGET_DIR=target/localization-audit \
   cargo test -p warp_localization -- --nocapture
 ```
 
-Result: pass. The suite compiled in 2m 24s; 25 tests passed, 0 failed, 0
-ignored. The heaviest static scan,
-`app_ui_calls_do_not_use_direct_english_literals`, finished successfully.
+Result: pass in this pass as well. The suite reused the isolated target, then
+ran 25 tests in 36.54s; 25 passed, 0 failed, 0 ignored. The heaviest static
+scan, `app_ui_calls_do_not_use_direct_english_literals`, finished
+successfully.
 
 ```bash
 CARGO_TARGET_DIR=target/localization-audit \
@@ -188,22 +214,39 @@ cargo test -p warp_localization -- --nocapture
 was manually terminated after approximately 12 minutes while still compiling in
 `target/debug`. The counted result is the successful isolated-target run above.
 
-## Existing Video Evidence
+```bash
+ARTIFACT_DIR="$PWD/target/video-recording-smoke-20260601T020835Z"
+WARP_INTEGRATION_TEST_ARTIFACTS_DIR="$ARTIFACT_DIR" \
+  target/debug/integration test_video_recording
+```
 
-Pre-existing video recording evidence remains available from the prior pass:
+Result: pass.
 
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/recording.log`
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/after_bootstrap.png`
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/after_commands.png`
-- `target/video-recording-smoke-20260531T173639/test_video_recording/2026-05-31T17-37-56/recording.mp4`
+## Current Video Evidence
 
-The video recording smoke was not regenerated in this pass. The zh-CN visual
-smoke screenshots were regenerated after the onboarding callout fix.
+Current video recording evidence from this pass:
+
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/recording.log`
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/after_bootstrap.png`
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/after_commands.png`
+- `target/video-recording-smoke-20260601T020835Z/test_video_recording/2026-06-01T10-09-00/recording.mp4`
+
+Artifact checks:
+
+- `after_bootstrap.png`: `2560x1600`
+- `after_commands.png`: `2560x1600`
+- `recording.mp4`: 425276 bytes
+- MP4 track parsed from the `tkhd` atom: `2560x1600`
+
+Prior video evidence from `target/video-recording-smoke-20260531T173639/`
+remains available but is superseded by the artifact above.
 
 ## Completion Audit
 
 - Rebase to latest fetched upstream: satisfied for
   `a44b703060673b85d2641c051c53e4b6b1b00cc4`.
+- Freshness check beyond local `a44b7030`: not satisfied because GitHub
+  returned HTTP 403 for both fetch and ls-remote.
 - No push or PR update: satisfied.
 - Catalog JSON parse and parity: satisfied, missing 0, extra 0, placeholder
   mismatches 0, and only `auth.empty` empty.
@@ -213,13 +256,15 @@ smoke screenshots were regenerated after the onboarding callout fix.
   catalog parity, onboarding compile check, and refreshed zh-CN visual smoke.
 - App compile path: satisfied by `cargo build -p integration --bin integration`
   and the successful visual smoke runner.
+- Video recording smoke: satisfied by
+  `target/video-recording-smoke-20260601T020835Z`.
 
 ## Remaining Risk
 
 - External CI and external code review have not been run in this pass.
+- A newer upstream commit may exist after local `a44b7030`, but GitHub returned
+  HTTP 403 for the attempted fetch and ls-remote freshness checks.
 - Visual coverage is sampled and does not prove exhaustive coverage of every UI
   surface, platform state, runtime configuration, or translated context.
-- The video recording smoke artifact was not regenerated in this pass; the
-  latest video evidence is from the prior pass listed above.
 - Local `target/` artifacts are build and review evidence, not tracked source
   files.
