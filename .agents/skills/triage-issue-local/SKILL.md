@@ -1,71 +1,68 @@
 ---
 name: triage-issue-local
 specializes: triage-issue
-description: Repo-specific triage guidance for warp. Only the categories declared overridable by the core triage-issue skill may be specialized here.
+description: warp 仓库专用的 issue triage 指南。这里只能特化核心 triage-issue 技能声明为可覆盖的类别。
 ---
 
-# Repo-specific triage guidance for `warp`
+# `warp` 仓库专用 issue triage 指南
 
-This file is a companion to the core `triage-issue` skill. It does not
-redefine the triage output schema, safety rules, or follow-up-question
-contract. It only specializes the override categories the core skill
-marks as overridable.
+本文件是核心 `triage-issue` 技能的配套说明。它不会重新定义 triage 输出 schema、安全规则或后续问题契约。它只特化核心技能标记为可覆盖的类别。
 
-## Heuristics
+## 启发式规则
 
-- `warp` is the public-facing Warp desktop client repository. Treat public issue reports as potentially incomplete and avoid asking for secrets, tokens, private workspace names, private repository names, or account identifiers in the public issue thread.
-- Distinguish the user's observed Warp behavior from their guesses about Rust modules, UI components, server behavior, feature flags, or product intent.
-- For issue reports that mention another terminal, editor, shell, or CLI tool, identify whether the problem is Warp-specific or generally reproducible outside Warp before assigning Warp ownership.
-- When the issue includes screenshots, videos, logs, stack traces, or command output, use them as primary evidence and ask follow-up questions only for missing details that cannot be inferred from that evidence.
-- Before asking any follow-up questions, check the Warp documentation and the repository's existing feature set to determine whether the desired behavior the reporter is describing is already supported. If an existing feature, setting, or workflow satisfies the request, recommend it to the reporter instead of treating the issue as a bug or feature gap.
-- If the report is about billing (pricing, plans, subscriptions, payments, refunds, invoices, AI request quotas, charges) or about appeals (account suspensions, bans, takedowns, abuse decisions, or other account-status disputes), do not attempt to triage it as an actionable bug or feature request. Instead, notify the reporter that these requests must go through Warp's support channels (https://docs.warp.dev/support-and-community/troubleshooting-and-support/sending-us-feedback) and direct them there for resolution. Apply the relevant `area:billing` or `area:auth` label as appropriate so the issue is still routed correctly.
+- `warp` 是面向公众的 Warp desktop client 仓库。应将公开 issue 报告视为可能不完整，并避免在公开 issue thread 中要求提供 secrets、tokens、private workspace names、private repository names 或 account identifiers。
+- 区分用户实际观察到的 Warp 行为，以及他们对 Rust modules、UI components、server behavior、feature flags 或 product intent 的猜测。
+- 对提到其他 terminal、editor、shell 或 CLI tool 的 issue 报告，在分配 Warp ownership 前，应先判断问题是 Warp-specific，还是在 Warp 之外也普遍可复现。
+- 当 issue 包含 screenshots、videos、logs、stack traces 或 command output 时，将它们作为主要证据；只针对无法从这些证据推断出的缺失细节询问后续问题。
+- 在提出任何后续问题前，检查 Warp documentation 和仓库现有 feature set，判断报告者描述的期望行为是否已经被支持。如果已有 feature、setting 或 workflow 可以满足请求，应向报告者推荐它，而不是将 issue 视为 bug 或 feature gap。
+- 如果报告涉及 billing（pricing、plans、subscriptions、payments、refunds、invoices、AI request quotas、charges）或 appeals（account suspensions、bans、takedowns、abuse decisions 或其他 account-status disputes），不要尝试将其 triage 为可操作的 bug 或 feature request。应改为告知报告者这些请求必须通过 Warp support channels（https://docs.warp.dev/support-and-community/troubleshooting-and-support/sending-us-feedback）处理，并引导其前往解决。视情况应用相关的 `area:billing` 或 `area:auth` label，确保 issue 仍能正确路由。
 
-## Follow-up question limit
+## 后续问题限制
 
-Ask **at most 2 follow-up questions** per triage response. Each question must be high-value: it should meaningfully change the label assignment, owner routing, or reproduction confidence if answered. Do not ask questions whose answers can be inferred from existing evidence, and do not bundle multiple sub-questions into a single bullet. If more than 2 unknowns exist, prioritize the two that are most likely to unblock triage.
+每次 triage response **最多询问 2 个后续问题**。每个问题都必须具有高价值：回答后应能实质改变 label assignment、owner routing 或 reproduction confidence。不要询问能从现有证据推断出答案的问题，也不要把多个子问题打包进同一个 bullet。如果未知项超过 2 个，优先选择最可能解除 triage 阻塞的两个。
 
 ## Label taxonomy
 
-The label taxonomy for this repository is managed in `.github/issue-triage/config.json`. Prefer labels from that configuration, especially the `area:*`, `os:*`, `repro:*`, `accessibility`, `needs-info`, `duplicate`, and primary issue-type labels. Do not invent new labels unless the prompt explicitly allows it.
+本仓库的 label taxonomy 由 `.github/issue-triage/config.json` 管理。优先使用该配置中的 labels，尤其是 `area:*`、`os:*`、`repro:*`、`accessibility`、`needs-info`、`duplicate` 和主要 issue-type labels。除非 prompt 明确允许，否则不要发明新 label。
 
-Evaluate `ready-to-implement` during triage instead of relying on issue-template defaults. For bug reports, apply `ready-to-implement` only when the issue is reproducible from the provided evidence or straightforward local verification and the likely fix appears narrow enough to implement without a product spec, design mocks, or substantial investigation. If the bug is not reproducible, lacks a clear fix path, requires product/design decisions, or needs deeper technical discovery, omit `ready-to-implement` and prefer `needs-info`, `ready-to-spec`, `needs-mocks`, or the appropriate `repro:*` label.
+在 triage 期间评估 `ready-to-implement`，而不是依赖 issue-template defaults。对 bug reports，只有当 issue 可由已提供证据或直接本地验证复现，并且可能的修复范围足够窄，无需 product spec、design mocks 或大量调查即可实现时，才应用 `ready-to-implement`。如果 bug 不可复现、缺少清晰修复路径、需要 product/design decisions，或需要更深入的技术发现，则省略 `ready-to-implement`，并优先使用 `needs-info`、`ready-to-spec`、`needs-mocks` 或适当的 `repro:*` label。
 
-Use area labels based on the user's reported surface:
+基于用户报告的 surface 使用 area labels：
 
-- `area:shell-terminal` for terminal output, block rendering, shell integration, prompt rendering, command execution display, and terminal-emulation behavior.
-- `area:terminal-input` for command-line input editing, cursor movement, key handling, and typed text behavior.
-- `area:window-tabs-panes` for window, tab, pane, split, layout, and focus behavior.
-- `area:editor-notebooks` for editors, notebooks, markdown rendering, LSP, and code display.
-- `area:agent` for agent conversations, agent mode, cloud/local agent execution, prompts, and AI-specific UI.
-- `area:code-review` for git diff views, review UI, review comments, and PR-focused agent flows.
-- `area:mcp` for MCP server connection, tool/resource discovery, OAuth, and integration issues.
-- `area:settings-keybindings` for settings UI, preferences, keyboard shortcuts, and keybinding configuration.
-- `area:warp-drive` for Warp Drive objects, sync, sharing, workflows, notebooks, tab configs, and persisted artifacts.
-- `area:performance:*` when the report includes CPU, memory, GPU, startup, rendering, latency, or responsiveness symptoms. Add the more specific CPU, memory, or GPU label when the evidence points to that resource.
+- `area:shell-terminal` 用于 terminal output、block rendering、shell integration、prompt rendering、command execution display 和 terminal-emulation behavior。
+- `area:terminal-input` 用于 command-line input editing、cursor movement、key handling 和 typed text behavior。
+- `area:window-tabs-panes` 用于 window、tab、pane、split、layout 和 focus behavior。
+- `area:editor-notebooks` 用于 editors、notebooks、markdown rendering、LSP 和 code display。
+- `area:agent` 用于 agent conversations、agent mode、cloud/local agent execution、prompts 和 AI-specific UI。
+- `area:code-review` 用于 git diff views、review UI、review comments 和 PR-focused agent flows。
+- `area:mcp` 用于 MCP server connection、tool/resource discovery、OAuth 和 integration issues。
+- `area:settings-keybindings` 用于 settings UI、preferences、keyboard shortcuts 和 keybinding configuration。
+- `area:warp-drive` 用于 Warp Drive objects、sync、sharing、workflows、notebooks、tab configs 和 persisted artifacts。
+- 当报告包含 CPU、memory、GPU、startup、rendering、latency 或 responsiveness 症状时，使用 `area:performance:*`。当证据指向具体资源时，添加更具体的 CPU、memory 或 GPU label。
 
-## Information to check for before asking follow-up questions
+## 提出后续问题前要检查的信息
 
-Before asking the reporter for more information, check the issue body, comments, attachments, logs, labels, and repository context for:
+在向报告者索要更多信息前，检查 issue body、comments、attachments、logs、labels 和 repository context 中是否已有：
 
-- Warp channel and version/build number, especially whether the report is for Dev, Canary, Preview, Beta, or Stable.
-- OS and version, architecture, display setup, window manager or desktop environment on Linux, and whether the issue is platform-specific.
-- Shell and terminal context: shell name/version, prompt framework, shell integration status, command being run, terminal mode, local vs SSH/remote/tmux, and whether the behavior reproduces in a fresh session.
-- Clear reproduction steps, expected behavior, actual behavior, frequency, regression timing, and whether the user can reproduce outside Warp.
-- Visual evidence for UI, rendering, layout, font, cursor, focus, window, pane, tab, and accessibility issues. Prefer a screenshot or short recording when the symptom is visual.
-- Logs and diagnostics for crashes, hangs, startup failures, update failures, authentication failures, MCP failures, and agent execution failures. Ask for redacted logs only when the report lacks actionable evidence.
-- For AI/agent reports: whether the agent is local or cloud, the model if known, relevant conversation/session link, repository context, tool or MCP server involved, and the exact user action that triggered the failure.
-- For performance reports: approximate project/session size, command output size, CPU/memory/GPU observations, profile or diagnostics if provided, and whether the issue appears after long-running sessions.
-- For keyboard or input reports: keyboard layout, custom keybindings, IME usage, conflicting OS shortcuts, focused surface, and whether the same keys work in other apps.
-- For account, billing, or auth reports: account tier or authentication method only if the user already provided it. Do not ask for private identifiers in public; direct the user to support when private account details are required. For billing or appeals reports specifically, do not pursue further triage questions in the public thread—redirect the reporter to Warp's support channels per the heuristic above.
+- Warp channel 和 version/build number，尤其是报告针对 Dev、Canary、Preview、Beta 还是 Stable。
+- OS 和 version、architecture、display setup、Linux 上的 window manager 或 desktop environment，以及该问题是否 platform-specific。
+- Shell 和 terminal context：shell name/version、prompt framework、shell integration status、正在运行的 command、terminal mode、本地还是 SSH/remote/tmux，以及该行为是否能在 fresh session 中复现。
+- 清晰的 reproduction steps、expected behavior、actual behavior、frequency、regression timing，以及用户是否能在 Warp 之外复现。
+- UI、rendering、layout、font、cursor、focus、window、pane、tab 和 accessibility 问题的视觉证据。当症状是视觉问题时，优先要求 screenshot 或 short recording。
+- crashes、hangs、startup failures、update failures、authentication failures、MCP failures 和 agent execution failures 的 logs 与 diagnostics。只有当报告缺少可操作证据时，才要求 redacted logs。
+- 对 AI/agent reports：agent 是 local 还是 cloud、已知 model、相关 conversation/session link、repository context、涉及的 tool 或 MCP server，以及触发失败的精确用户操作。
+- 对 performance reports：大致 project/session size、command output size、CPU/memory/GPU observations、已提供的 profile 或 diagnostics，以及问题是否出现在 long-running sessions 之后。
+- 对 keyboard 或 input reports：keyboard layout、custom keybindings、IME usage、冲突的 OS shortcuts、focused surface，以及相同按键是否在其他 app 中工作。
+- 对 account、billing 或 auth reports：仅当用户已经提供时，使用 account tier 或 authentication method。不要在公开场合要求 private identifiers；当需要 private account details 时，引导用户联系 support。特别是 billing 或 appeals reports，不要在公开 thread 中继续追问 triage 问题，而应按上面的启发式规则将报告者重定向到 Warp support channels。
 
-## Recurring follow-up patterns
+## 常见后续问题模式
 
-- Visual UI/rendering issue with no media: ask for a screenshot or short screen recording first.
-- Environment-sensitive terminal issue: ask for Warp version/channel, OS/version, shell, and whether it reproduces in a fresh local session.
-- SSH/tmux/remote issue: ask for local OS, remote OS, shell, whether tmux is involved, and the minimal command or workflow that reproduces it.
-- Agent/MCP issue: ask for the failing workflow, local vs cloud execution, relevant session link, MCP server/tool name, and any redacted error text.
-- Performance issue: ask for approximate scale, how long Warp has been running, what action triggers the spike or hang, and whether logs or a profile are available.
+- 没有媒体的 Visual UI/rendering issue：先要求 screenshot 或 short screen recording。
+- Environment-sensitive terminal issue：询问 Warp version/channel、OS/version、shell，以及是否能在 fresh local session 中复现。
+- SSH/tmux/remote issue：询问 local OS、remote OS、shell、是否涉及 tmux，以及复现问题的最小 command 或 workflow。
+- Agent/MCP issue：询问 failing workflow、local vs cloud execution、相关 session link、MCP server/tool name，以及任何 redacted error text。
+- Performance issue：询问大致规模、Warp 已运行多久、哪个 action 触发 spike 或 hang，以及是否有 logs 或 profile。
 
-## Owner-inference hints
+## Owner inference 提示
 
-Prefer `.github/STAKEHOLDERS` for owner inference. When no path-level match exists, use the label and issue surface to choose likely owners rather than defaulting to broad app ownership.
+owner inference 优先使用 `.github/STAKEHOLDERS`。当不存在 path-level match 时，使用 label 和 issue surface 选择可能 owner，而不是默认归到宽泛的 app ownership。
