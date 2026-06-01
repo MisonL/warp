@@ -1,102 +1,102 @@
 ---
 name: figma-create-design-system-rules
-description: Generates custom design system rules for the user's codebase. Use when user says "create design system rules", "generate rules for my project", "set up design rules", "customize design system guidelines", or wants to establish project-specific conventions for Figma-to-code workflows. Requires Figma MCP server connection.
+description: 为用户的代码库生成自定义 design system rules。当用户说 "create design system rules"、"generate rules for my project"、"set up design rules"、"customize design system guidelines"，或希望为 Figma-to-code 工作流建立项目专属约定时使用。需要连接 Figma MCP server。
 disable-model-invocation: false
 ---
 
-# Create Design System Rules
+# 创建 Design System Rules
 
-## Overview
+## 概览
 
-This skill helps you generate custom design system rules tailored to your project's specific needs. These rules guide AI coding agents to produce consistent, high-quality code when implementing Figma designs, ensuring that your team's conventions, component patterns, and architectural decisions are followed automatically.
+此 skill 帮助你生成适合项目具体需求的自定义 design system rules。这些规则会指导 AI coding agent 在实现 Figma design 时产出一致、高质量的代码，确保自动遵循团队约定、component pattern 和架构决策。
 
-### Supported Rule Files
+### 支持的规则文件
 
-| Agent | Rule File |
+| Agent | 规则文件 |
 |-------|-----------|
 | Claude Code | `CLAUDE.md` |
 | Codex CLI | `AGENTS.md` |
 | Cursor | `.cursor/rules/figma-design-system.mdc` |
 
-## What Are Design System Rules?
+## 什么是 Design System Rules？
 
-Design system rules are project-level instructions that encode the "unwritten knowledge" of your codebase - the kind of expertise that experienced developers know and would pass on to new team members:
+Design system rules 是项目级指令，用来编码代码库中的“未写明知识”，也就是有经验开发者知道并会传授给新团队成员的专业经验：
 
-- Which layout primitives and components to use
-- Where component files should be located
-- How components should be named and structured
-- What should never be hardcoded
-- How to handle design tokens and styling
-- Project-specific architectural patterns
+- 应使用哪些 layout primitive 和 component
+- Component 文件应放在哪里
+- Component 应如何命名和组织结构
+- 哪些内容绝不能 hardcode
+- 如何处理 design token 和 styling
+- 项目专属架构 pattern
 
-Once defined, these rules dramatically reduce repetitive prompting and ensure consistent output across all Figma implementation tasks.
+定义完成后，这些规则会显著减少重复提示，并确保所有 Figma implementation task 都输出一致结果。
 
-## Prerequisites
+## 前置条件
 
-- Figma MCP server must be connected and accessible
-- Access to the project codebase for analysis
-- Understanding of your team's component conventions (or willingness to establish them)
+- Figma MCP server 必须已连接且可访问
+- 需要访问项目代码库进行分析
+- 理解团队的 component 约定，或愿意建立这些约定
 
-## When to Use This Skill
+## 何时使用此 skill
 
-Use this skill when:
+在以下情况使用此 skill：
 
-- Starting a new project that will use Figma designs
-- Onboarding an AI coding agent to an existing project with established patterns
-- Standardizing Figma-to-code workflows across your team
-- Updating or refining existing design system conventions
-- Users explicitly request: "create design system rules", "set up Figma guidelines", "customize rules for my project"
+- 启动一个会使用 Figma design 的新项目
+- 将 AI coding agent onboarding 到已有成熟 pattern 的项目
+- 在团队内标准化 Figma-to-code 工作流
+- 更新或细化现有 design system 约定
+- 用户明确请求："create design system rules"、"set up Figma guidelines"、"customize rules for my project"
 
-## Required Workflow
+## 必需工作流
 
-**Follow these steps in order. Do not skip steps.**
+**按顺序执行这些步骤。不要跳过步骤。**
 
-### Step 1: Run the Create Design System Rules Tool
+### 步骤 1：运行 Create Design System Rules 工具
 
-Call the Figma MCP server's `create_design_system_rules` tool to get the foundational prompt and template.
+调用 Figma MCP server 的 `create_design_system_rules` 工具，获取基础 prompt 和 template。
 
-**Parameters:**
+**参数：**
 
-- `clientLanguages`: Comma-separated list of languages used in the project (e.g., "typescript,javascript", "python", "javascript")
-- `clientFrameworks`: Framework being used (e.g., "react", "vue", "svelte", "angular", "unknown")
+- `clientLanguages`：项目中使用语言的逗号分隔列表（例如 "typescript,javascript"、"python"、"javascript"）
+- `clientFrameworks`：使用的 framework（例如 "react"、"vue"、"svelte"、"angular"、"unknown"）
 
-This tool returns guidance and a template for creating design system rules.
+此工具会返回用于创建 design system rules 的指引和 template。
 
-Structure your design system rules following the template format provided in the tool's response.
+按照工具响应中提供的 template format 来组织 design system rules。
 
-### Step 2: Analyze the Codebase
+### 步骤 2：分析代码库
 
-Before finalizing rules, analyze the project to understand existing patterns:
+最终确定规则前，先分析项目以理解现有 pattern：
 
-**Component Organization:**
+**Component Organization：**
 
-- Where are UI components located? (e.g., `src/components/`, `app/ui/`, `lib/components/`)
-- Is there a dedicated design system directory?
-- How are components organized? (by feature, by type, flat structure)
+- UI component 位于哪里？（例如 `src/components/`、`app/ui/`、`lib/components/`）
+- 是否有专用 design system 目录？
+- Component 如何组织？（按 feature、按 type、平铺结构）
 
-**Styling Approach:**
+**Styling Approach：**
 
-- What CSS framework or approach is used? (Tailwind, CSS Modules, styled-components, etc.)
-- Where are design tokens defined? (CSS variables, theme files, config files)
-- Are there existing color, typography, or spacing tokens?
+- 使用什么 CSS framework 或方式？（Tailwind、CSS Modules、styled-components 等）
+- Design token 在哪里定义？（CSS variable、theme file、config file）
+- 是否已有 color、typography 或 spacing token？
 
-**Component Patterns:**
+**Component Patterns：**
 
-- What naming conventions are used? (PascalCase, kebab-case, prefixes)
-- How are component props typically structured?
-- Are there common composition patterns?
+- 使用哪些命名约定？（PascalCase、kebab-case、prefix）
+- Component props 通常如何组织？
+- 是否有常见 composition pattern？
 
-**Architecture Decisions:**
+**Architecture Decisions：**
 
-- How is state management handled?
-- What routing system is used?
-- Are there specific import patterns or path aliases?
+- 如何处理 state management？
+- 使用什么 routing system？
+- 是否有特定 import pattern 或 path alias？
 
-### Step 3: Generate Project-Specific Rules
+### 步骤 3：生成项目专属规则
 
-Based on your codebase analysis, create a comprehensive set of rules. Include:
+基于代码库分析，创建一套完整规则。包括：
 
-#### General Component Rules
+#### 通用 Component Rules
 
 ```markdown
 - IMPORTANT: Always use components from `[YOUR_PATH]` when possible
@@ -166,19 +166,19 @@ These rules define how to translate Figma inputs into code for this project and 
 - [Add any performance considerations]
 ```
 
-### Step 4: Save Rules to the Appropriate Rule File
+### 步骤 4：将规则保存到合适的规则文件
 
-Detect which AI coding agent the user is working with and save the generated rules to the corresponding file:
+检测用户正在使用哪个 AI coding agent，并将生成的规则保存到对应文件：
 
-| Agent | Rule File | Notes |
+| Agent | 规则文件 | 说明 |
 |-------|-----------|-------|
-| Claude Code | `CLAUDE.md` in project root | Markdown format. Can also use `.claude/rules/figma-design-system.md` for modular organization. |
-| Codex CLI | `AGENTS.md` in project root | Markdown format. Append as a new section if file already exists. 32 KiB combined size limit. |
-| Cursor | `.cursor/rules/figma-design-system.mdc` | Markdown with YAML frontmatter (`description`, `globs`, `alwaysApply`). |
+| Claude Code | project root 中的 `CLAUDE.md` | Markdown format。也可以使用 `.claude/rules/figma-design-system.md` 做模块化组织。 |
+| Codex CLI | project root 中的 `AGENTS.md` | Markdown format。如果文件已存在，追加为新 section。合并大小限制为 32 KiB。 |
+| Cursor | `.cursor/rules/figma-design-system.mdc` | 带 YAML frontmatter 的 Markdown（`description`、`globs`、`alwaysApply`）。 |
 
-If unsure which agent the user is working with, check for existing rule files in the project or ask the user.
+如果不确定用户正在使用哪个 agent，检查项目中是否已有规则文件，或询问用户。
 
-For Cursor, wrap the rules with YAML frontmatter:
+对于 Cursor，用 YAML frontmatter 包裹规则：
 
 ```markdown
 ---
@@ -190,25 +190,25 @@ alwaysApply: false
 [Generated rules here]
 ```
 
-Customize the `globs` pattern to match the directories where Figma-derived code will live in the project (e.g., `"src/**/*.tsx"` or `["src/components/**", "src/pages/**"]`).
+自定义 `globs` pattern，使其匹配项目中承载 Figma-derived code 的目录（例如 `"src/**/*.tsx"` 或 `["src/components/**", "src/pages/**"]`）。
 
-After saving, the rules will be automatically loaded by the agent and applied to all Figma implementation tasks.
+保存后，规则会由 agent 自动加载，并应用到所有 Figma implementation task。
 
-### Step 5: Validate and Iterate
+### 步骤 5：验证并迭代
 
-After creating rules:
+创建规则后：
 
-1. Test with a simple Figma component implementation
-2. Verify the agent follows the rules correctly
-3. Refine any rules that aren't working as expected
-4. Share with team members for feedback
-5. Update rules as the project evolves
+1. 用一个简单 Figma component implementation 进行测试
+2. 验证 agent 是否正确遵循规则
+3. 细化任何未按预期工作的规则
+4. 分享给团队成员获取反馈
+5. 随项目演进更新规则
 
-## Rule Categories and Examples
+## 规则类别和示例
 
-### Essential Rules (Always Include)
+### Essential Rules（始终包含）
 
-**Component Discovery:**
+**Component Discovery：**
 
 ```markdown
 - UI components are located in `src/components/ui/`
@@ -216,7 +216,7 @@ After creating rules:
 - Layout primitives are in `src/components/layout/`
 ```
 
-**Design Token Usage:**
+**Design Token Usage：**
 
 ```markdown
 - Colors are defined as CSS variables in `src/styles/tokens.css`
@@ -224,7 +224,7 @@ After creating rules:
 - Spacing uses the 4px base scale: `--space-1` (4px), `--space-2` (8px), etc.
 ```
 
-**Styling Approach:**
+**Styling Approach：**
 
 ```markdown
 - Use Tailwind utility classes for styling
@@ -232,9 +232,9 @@ After creating rules:
 - Theme customization is in `tailwind.config.js`
 ```
 
-### Recommended Rules (Highly Valuable)
+### Recommended Rules（高价值）
 
-**Component Patterns:**
+**Component Patterns：**
 
 ```markdown
 - All components must accept a `className` prop for composition
@@ -242,7 +242,7 @@ After creating rules:
 - Icon components should accept `size` and `color` props
 ```
 
-**Import Conventions:**
+**Import Conventions：**
 
 ```markdown
 - Use path aliases: `@/components`, `@/styles`, `@/utils`
@@ -250,7 +250,7 @@ After creating rules:
 - No relative imports beyond parent directory
 ```
 
-**Code Quality:**
+**Code Quality：**
 
 ```markdown
 - Add JSDoc comments for exported components
@@ -258,9 +258,9 @@ After creating rules:
 - Extract magic numbers to named constants
 ```
 
-### Optional Rules (Project-Specific)
+### Optional Rules（项目专属）
 
-**Accessibility:**
+**Accessibility：**
 
 ```markdown
 - All interactive elements must have aria-labels
@@ -268,7 +268,7 @@ After creating rules:
 - Keyboard navigation required for all interactions
 ```
 
-**Performance:**
+**Performance：**
 
 ```markdown
 - Lazy load images with the `Image` component from `@/components/Image`
@@ -276,7 +276,7 @@ After creating rules:
 - Icons should be SVG components, not icon fonts
 ```
 
-**Testing:**
+**Testing：**
 
 ```markdown
 - Include unit tests for new components in `__tests__/` directory
@@ -284,17 +284,17 @@ After creating rules:
 - Test all interactive states and variants
 ```
 
-## Examples
+## 示例
 
-### Example 1: React + Tailwind Project
+### 示例 1：React + Tailwind 项目
 
-User says: "Create design system rules for my React project"
+用户说："Create design system rules for my React project"
 
-**Actions:**
+**操作：**
 
-1. Run `create_design_system_rules(clientLanguages="typescript,javascript", clientFrameworks="react")`
-2. Analyze codebase structure
-3. Generate rules:
+1. 运行 `create_design_system_rules(clientLanguages="typescript,javascript", clientFrameworks="react")`
+2. 分析代码库结构
+3. 生成规则：
 
 ```markdown
 # Figma MCP Integration Rules
@@ -327,20 +327,20 @@ User says: "Create design system rules for my React project"
 - DO NOT install new icon libraries
 ```
 
-4. Save to the appropriate rule file for the user's agent
-5. Test with a simple button implementation
+4. 保存到适合用户 agent 的规则文件
+5. 用一个简单 button implementation 测试
 
-**Result:** The agent now consistently follows the project's conventions when implementing Figma designs.
+**结果：** agent 现在会在实现 Figma design 时持续遵循项目约定。
 
-### Example 2: Vue + Custom CSS Project
+### 示例 2：Vue + Custom CSS 项目
 
-User says: "Set up Figma rules for my Vue app"
+用户说："Set up Figma rules for my Vue app"
 
-**Actions:**
+**操作：**
 
-1. Run `create_design_system_rules(clientLanguages="typescript,javascript", clientFrameworks="vue")`
-2. Discover that project uses CSS modules and a custom design token system
-3. Generate rules:
+1. 运行 `create_design_system_rules(clientLanguages="typescript,javascript", clientFrameworks="vue")`
+2. 发现项目使用 CSS modules 和自定义 design token system
+3. 生成规则：
 
 ```markdown
 # Figma MCP Integration Rules
@@ -373,20 +373,20 @@ User says: "Set up Figma rules for my Vue app"
 - Scoped styles with CSS modules
 ```
 
-4. Save to the appropriate rule file for the user's agent
-5. Validate with a card component
+4. 保存到适合用户 agent 的规则文件
+5. 用 card component 验证
 
-**Result:** The agent now correctly translates Figma designs to Vue components using the project's design token system.
+**结果：** agent 现在会使用项目的 design token system，正确将 Figma design 转换为 Vue component。
 
-### Example 3: Design System Team
+### 示例 3：Design System 团队
 
-User says: "Generate rules for our design system library"
+用户说："Generate rules for our design system library"
 
-**Actions:**
+**操作：**
 
-1. Run `create_design_system_rules(clientLanguages="typescript", clientFrameworks="react")`
-2. Analyze the monorepo structure with design system package
-3. Generate comprehensive rules:
+1. 运行 `create_design_system_rules(clientLanguages="typescript", clientFrameworks="react")`
+2. 分析带 design system package 的 monorepo 结构
+3. 生成完整规则：
 
 ```markdown
 # Design System Rules
@@ -427,112 +427,112 @@ User says: "Generate rules for our design system library"
 6. Update documentation
 ```
 
-4. Save to the appropriate rule file and share with team
-5. Add to team documentation
+4. 保存到合适的规则文件并分享给团队
+5. 添加到团队文档
 
-**Result:** Entire team follows consistent patterns when adding components from Figma to the design system.
+**结果：** 整个团队在把 Figma 中的 component 加入 design system 时，会遵循一致 pattern。
 
-## Best Practices
+## 最佳实践
 
-### Start Simple, Iterate
+### 从简单开始，逐步迭代
 
-Don't try to capture every rule upfront. Start with the most important conventions and add rules as you encounter inconsistencies.
+不要试图一开始就捕获所有规则。从最重要的约定开始，并在遇到不一致时添加规则。
 
-### Be Specific
+### 具体明确
 
-Instead of: "Use the design system"
-Write: "Always use Button components from `src/components/ui/Button.tsx` with variant prop ('primary' | 'secondary' | 'ghost')"
+不要写："Use the design system"
+应写："Always use Button components from `src/components/ui/Button.tsx` with variant prop ('primary' | 'secondary' | 'ghost')"
 
-### Make Rules Actionable
+### 让规则可执行
 
-Each rule should tell the agent exactly what to do, not just what to avoid.
+每条规则都应明确告诉 agent 要做什么，而不只是说明要避免什么。
 
-Good: "Colors are defined in `src/theme/colors.ts` - import and use these constants"
-Bad: "Don't hardcode colors"
+好："Colors are defined in `src/theme/colors.ts` - import and use these constants"
+不好："Don't hardcode colors"
 
-### Use IMPORTANT for Critical Rules
+### 对关键规则使用 IMPORTANT
 
-Prefix rules that must never be violated with "IMPORTANT:" to ensure the agent prioritizes them.
+对绝不能违反的规则添加 "IMPORTANT:" 前缀，确保 agent 优先处理。
 
 ```markdown
 - IMPORTANT: Never expose API keys in client-side code
 - IMPORTANT: Always sanitize user input before rendering
 ```
 
-### Document the Why
+### 记录原因
 
-When rules seem arbitrary, explain the reasoning:
+当规则看起来有些武断时，说明理由：
 
 ```markdown
 - Place all data-fetching in server components (reduces client bundle size and improves performance)
 - Use absolute imports with `@/` alias (makes refactoring easier and prevents broken relative paths)
 ```
 
-## Common Issues and Solutions
+## 常见问题与解决方案
 
-### Issue: The agent isn't following the rules
+### 问题：agent 没有遵循规则
 
-**Cause:** Rules may be too vague or not properly loaded by the agent.
-**Solution:**
+**原因：** 规则可能过于模糊，或未被 agent 正确加载。
+**解决方案：**
 
-- Make rules more specific and actionable
-- Verify rules are saved in the correct configuration file
-- Restart your agent or IDE to reload rules
-- Add "IMPORTANT:" prefix to critical rules
+- 让规则更具体、更可执行
+- 验证规则已保存到正确配置文件
+- 重启 agent 或 IDE 以重新加载规则
+- 对关键规则添加 "IMPORTANT:" 前缀
 
-### Issue: Rules conflict with each other
+### 问题：规则互相冲突
 
-**Cause:** Contradictory or overlapping rules.
-**Solution:**
+**原因：** 规则矛盾或重叠。
+**解决方案：**
 
-- Review all rules for conflicts
-- Establish a clear priority hierarchy
-- Remove redundant rules
-- Consolidate related rules into single, clear statements
+- 检查所有规则中的冲突
+- 建立清晰的优先级层次
+- 移除冗余规则
+- 将相关规则合并为单条清晰陈述
 
-### Issue: Too many rules increase latency
+### 问题：规则太多导致延迟增加
 
-**Cause:** Excessive rules increase context size and processing time.
-**Solution:**
+**原因：** 过多规则会增加 context size 和处理时间。
+**解决方案：**
 
-- Focus on the 20% of rules that solve 80% of consistency issues
-- Remove overly specific rules that rarely apply
-- Combine related rules
-- Use progressive disclosure (basic rules first, advanced rules in linked files)
+- 聚焦能解决 80% 一致性问题的 20% 规则
+- 移除很少适用的过度具体规则
+- 合并相关规则
+- 使用 progressive disclosure（基础规则优先，高级规则放入链接文件）
 
-### Issue: Rules become outdated as project evolves
+### 问题：规则随项目演进而过时
 
-**Cause:** Codebase changes but rules don't.
-**Solution:**
+**原因：** 代码库发生变化，但规则没有更新。
+**解决方案：**
 
-- Schedule periodic rule reviews (monthly or quarterly)
-- Update rules when architectural decisions change
-- Version control your rule files
-- Document rule changes in commit messages
+- 定期安排规则审查（每月或每季度）
+- 架构决策变化时更新规则
+- 将规则文件纳入版本控制
+- 在 commit message 中记录规则变更
 
-## Understanding Design System Rules
+## 理解 Design System Rules
 
-Design system rules transform how AI coding agents work with your Figma designs:
+Design system rules 会改变 AI coding agent 处理 Figma design 的方式：
 
-**Before rules:**
+**没有规则之前：**
 
-- The agent makes assumptions about component structure
-- Inconsistent styling approaches across implementations
-- Hardcoded values that don't match design tokens
-- Components created in random locations
-- Repetitive explanations of project conventions
+- agent 会假设 component 结构
+- 各实现中的 styling approach 不一致
+- hardcoded value 与 design token 不匹配
+- Component 被创建到随机位置
+- 需要重复解释项目约定
 
-**After rules:**
+**有规则之后：**
 
-- The agent automatically follows your conventions
-- Consistent component structure and styling
-- Proper use of design tokens from the start
-- Components organized correctly
-- Zero repetitive prompting
+- agent 自动遵循你的约定
+- Component 结构和 styling 保持一致
+- 从一开始就正确使用 design token
+- Component 组织正确
+- 无需重复提示
 
-The time invested in creating good rules pays off exponentially across every Figma implementation task.
+投入时间创建高质量规则，会在每个 Figma implementation task 中获得成倍回报。
 
-## Additional Resources
+## 其他资源
 
 - [Figma MCP Server Documentation](https://developers.figma.com/docs/figma-mcp-server/)
 - [Figma Variables and Design Tokens](https://help.figma.com/hc/en-us/articles/15339657135383-Guide-to-variables-in-Figma)
