@@ -1,28 +1,28 @@
 ---
 name: figma-generate-library
-description: "Build or update a professional-grade design system in Figma from a codebase. Use when the user wants to create variables/tokens, build component libraries, set up theming (light/dark modes), document foundations, or reconcile gaps between code and Figma. This skill teaches WHAT to build and in WHAT ORDER — it complements the `figma-use` skill which teaches HOW to call the Plugin API. Both skills should be loaded together."
+description: "根据代码库在 Figma 中构建或更新 professional-grade design system。当用户想创建 variable/token、构建 component library、设置 theming（light/dark mode）、编写 foundation 文档，或调和代码与 Figma 之间的差异时使用。此 skill 说明要构建什么以及按什么顺序构建，并与说明如何调用 Plugin API 的 `figma-use` skill 互补。两个 skill 应一起加载。"
 disable-model-invocation: false
 ---
 
-# Design System Builder — Figma MCP Skill
+# Design System Builder - Figma MCP Skill
 
-Build professional-grade design systems in Figma that match code. This skill orchestrates multi-phase workflows across 20–100+ `use_figma` calls, enforcing quality patterns from real-world design systems (Material 3, Polaris, Figma UI3, Simple DS).
+在 Figma 中构建与代码匹配的 professional-grade design system。此 skill 会编排横跨 20-100+ 次 `use_figma` 调用的多阶段工作流，并强制执行来自真实 design system（Material 3、Polaris、Figma UI3、Simple DS）的质量 pattern。
 
-**Prerequisites**: The `figma-use` skill MUST also be loaded for every `use_figma` call. It provides Plugin API syntax rules (return pattern, page reset, ID return, font loading, color range). This skill provides design system domain knowledge and workflow orchestration.
+**前置条件**：每次 `use_figma` 调用都必须同时加载 `figma-use` skill。它提供 Plugin API 语法规则（return pattern、page reset、ID return、font loading、color range）。此 skill 提供 design system 领域知识和工作流编排。
 
-**Always pass `skillNames: "figma-generate-library"` when calling `use_figma` as part of this skill.** This is a logging parameter — it does not affect execution.
-
----
-
-## 1. The One Rule That Matters Most
-
-**This is NEVER a one-shot task.** Building a design system requires 20–100+ `use_figma` calls across multiple phases, with mandatory user checkpoints between them. Any attempt to create everything in one call WILL produce broken, incomplete, or unrecoverable results. Break every operation to the smallest useful unit, validate, get feedback, proceed.
+**作为此 skill 的一部分调用 `use_figma` 时，始终传入 `skillNames: "figma-generate-library"`。** 这是 logging 参数，不影响执行。
 
 ---
 
-## 2. Mandatory Workflow
+## 1. 最重要的一条规则
 
-Every design system build follows this phase order. Skipping or reordering phases causes structural failures that are expensive to undo.
+**这绝不是 one-shot task。** 构建 design system 需要跨多个阶段进行 20-100+ 次 `use_figma` 调用，并且阶段之间必须设置用户检查点。任何试图在一次调用中创建所有内容的做法，都会产生破损、不完整或无法恢复的结果。把每个操作拆到最小有用单元，验证，获取反馈，再继续。
+
+---
+
+## 2. 必需工作流
+
+每次 design system 构建都遵循此阶段顺序。跳过或重排阶段会导致代价很高的结构性失败。
 
 ```
 Phase 0: DISCOVERY (always first — no use_figma writes yet)
@@ -73,60 +73,60 @@ Phase 4: INTEGRATION + QA (final pass)
 
 ---
 
-## 3. Critical Rules
+## 3. 关键规则
 
-**Plugin API basics** (from use_figma skill — enforced here too):
-- Use `return` to send data back (auto-serialized). Do NOT wrap in IIFE or call closePlugin.
-- Return ALL created/mutated node IDs in every return value
-- Page context resets each call — always `await figma.setCurrentPageAsync(page)` at start
-- `figma.notify()` throws — never use it
-- Colors are 0–1 range, not 0–255
-- Font MUST be loaded before any text write: `await figma.loadFontAsync({family, style})`
+**Plugin API 基础**（来自 use_figma skill，此处同样强制执行）：
+- 使用 `return` 返回数据（自动序列化）。不要包在 IIFE 中，也不要调用 closePlugin。
+- 每个 return value 都返回所有 created/mutated node ID。
+- 每次调用都会重置 page context，开头始终执行 `await figma.setCurrentPageAsync(page)`。
+- `figma.notify()` 会 throw，永远不要使用。
+- Color 使用 0-1 range，不是 0-255。
+- 写入任何文本前必须加载 font：`await figma.loadFontAsync({family, style})`
 
-**Design system rules**:
-1. **Variables BEFORE components** — components bind to variables. No token = no component.
-2. **Inspect before creating** — run read-only `use_figma` to discover existing conventions. Match them.
-3. **One page per component** *(default)* — exception: tightly related families (e.g., Input + helpers) may share a page with clear section separation.
-4. **Bind visual properties to variables** *(default)* — fills, strokes, padding, radius, gap. Exceptions: intentionally fixed geometry (icon pixel-grid sizes, static dividers).
-5. **Scopes on every variable** — NEVER leave as `ALL_SCOPES`. Background: `FRAME_FILL, SHAPE_FILL`. Text: `TEXT_FILL`. Border: `STROKE_COLOR`. Spacing: `GAP`. Radii: `CORNER_RADIUS`. Primitives: `[]` (hidden).
-6. **Code syntax on every variable** — WEB syntax MUST use the `var()` wrapper: `var(--color-bg-primary)`, not `--color-bg-primary`. Use the actual CSS variable name from the codebase. ANDROID/iOS do NOT use a wrapper.
-7. **Alias semantics to primitives** — `{ type: 'VARIABLE_ALIAS', id: primitiveVar.id }`. Never duplicate raw values in semantic layer.
-8. **Position variants after combineAsVariants** — they stack at (0,0). Manually grid-layout + resize.
-9. **INSTANCE_SWAP for icons** — never create a variant per icon. Cap variant matrices: if Size × Style × State > 30 combinations, split into sub-component.
-10. **Deterministic naming** — use consistent, unique node names for idempotent cleanup and resumability. Track created node IDs via return values and the state ledger.
-11. **No destructive cleanup** — cleanup scripts identify nodes by name convention or returned IDs, not by guessing.
-12. **Validate before proceeding** — never build on unvalidated work. `get_metadata` after every create, `get_screenshot` after each component.
-13. **NEVER parallelize `use_figma` calls** — Figma state mutations must be strictly sequential. Even if your tool supports parallel calls, never run two use_figma calls simultaneously.
-14. **Never hallucinate Node IDs** — always read IDs from the state ledger returned by previous calls. Never reconstruct or guess an ID from memory.
-15. **Use the helper scripts** — embed scripts from `scripts/` into your use_figma calls. Don't write 200-line inline scripts from scratch.
-16. **Explicit phase approval** — at each checkpoint, name the next phase explicitly. "looks good" is not approval to proceed to Phase 3 if you asked about Phase 1.
+**Design system rules**：
+1. **Variable 在 component 之前**：component 绑定到 variable。没有 token 就没有 component。
+2. **创建前先检查**：运行 read-only `use_figma` 发现现有约定，并匹配这些约定。
+3. **默认每个 component 一个 page**：例外是强相关 family（例如 Input + helper）可以共用一个 page，但 section 必须清晰分隔。
+4. **默认将 visual property 绑定到 variable**：fill、stroke、padding、radius、gap。例外是有意固定的几何值（icon pixel-grid size、static divider）。
+5. **每个 variable 都设置 scope**：绝不要保留 `ALL_SCOPES`。Background：`FRAME_FILL, SHAPE_FILL`。Text：`TEXT_FILL`。Border：`STROKE_COLOR`。Spacing：`GAP`。Radii：`CORNER_RADIUS`。Primitive：`[]`（hidden）。
+6. **每个 variable 都设置 code syntax**：WEB syntax 必须使用 `var()` wrapper：`var(--color-bg-primary)`，而不是 `--color-bg-primary`。使用代码库中的实际 CSS variable name。ANDROID/iOS 不使用 wrapper。
+7. **将 semantic alias 到 primitive**：`{ type: 'VARIABLE_ALIAS', id: primitiveVar.id }`。不要在 semantic layer 中重复 raw value。
+8. **combineAsVariants 之后再放置 variant**：它们会堆叠在 (0,0)。需要手动 grid-layout 并 resize。
+9. **Icon 使用 INSTANCE_SWAP**：不要为每个 icon 创建 variant。限制 variant matrix：如果 Size x Style x State 超过 30 个组合，拆成 sub-component。
+10. **Deterministic naming**：使用一致且唯一的 node name，方便 idempotent cleanup 和 resume。通过 return value 和 state ledger 跟踪 created node ID。
+11. **No destructive cleanup**：cleanup script 通过 name convention 或 returned ID 识别 node，不靠猜测。
+12. **继续前先验证**：绝不要基于未验证的工作继续构建。每次 create 后执行 `get_metadata`，每个 component 后执行 `get_screenshot`。
+13. **绝不要并行化 `use_figma` 调用**：Figma state mutation 必须严格顺序执行。即使工具支持并行调用，也不要同时运行两个 use_figma 调用。
+14. **绝不要 hallucinate Node ID**：始终从 previous call 返回的 state ledger 读取 ID。不要凭记忆重建或猜 ID。
+15. **使用 helper script**：把 `scripts/` 中的 script 嵌入到 use_figma 调用中。不要从头写 200 行 inline script。
+16. **显式 phase approval**：每个 checkpoint 都明确命名下一阶段。如果你询问的是 Phase 1，用户说 "looks good" 并不等于批准进入 Phase 3。
 
 ---
 
-## 4. State Management (Required for Long Workflows)
+## 4. State Management（长工作流必需）
 
-> **`getPluginData()` / `setPluginData()` are NOT supported in `use_figma`.** Use `getSharedPluginData()` / `setSharedPluginData()` instead (these ARE supported), or use name-based lookups and the state ledger (returned IDs).
+> **`getPluginData()` / `setPluginData()` 在 `use_figma` 中不受支持。** 改用 `getSharedPluginData()` / `setSharedPluginData()`（这些受支持），或使用 name-based lookup 和 state ledger（returned IDs）。
 
-| Entity type | Idempotency key | How to check existence |
+| Entity type | Idempotency key | 如何检查是否存在 |
 |-------------|----------------|----------------------|
-| Scene nodes (pages, frames, components) | `setSharedPluginData('dsb', 'key', value)` or unique name | `node.getSharedPluginData('dsb', 'key')` or `page.findOne(n => n.name === 'Button')` |
-| Variables | Name within collection | `(await figma.variables.getLocalVariablesAsync()).find(v => v.name === name && v.variableCollectionId === collId)` |
+| Scene nodes（pages、frames、components） | `setSharedPluginData('dsb', 'key', value)` 或 unique name | `node.getSharedPluginData('dsb', 'key')` 或 `page.findOne(n => n.name === 'Button')` |
+| Variables | Collection 内的 name | `(await figma.variables.getLocalVariablesAsync()).find(v => v.name === name && v.variableCollectionId === collId)` |
 | Styles | Name | `getLocalTextStyles().find(s => s.name === name)` |
 
-Tag every created **scene node** immediately after creation:
+每个创建的 **scene node** 都要在创建后立即打 tag：
 ```javascript
 node.setSharedPluginData('dsb', 'run_id', RUN_ID);        // identifies this build run
 node.setSharedPluginData('dsb', 'phase', 'phase3');        // which phase created it
 node.setSharedPluginData('dsb', 'key', 'component/button');// unique logical key
 ```
 
-**State persistence**: Do NOT rely solely on conversation context for the state ledger. Write it to disk:
+**State persistence**：不要只依赖 conversation context 保存 state ledger。将其写入磁盘：
 ```
 /tmp/dsb-state-{RUN_ID}.json
 ```
-Re-read this file at the start of every turn. In long workflows, conversation context will be truncated — the file is the source of truth.
+每个 turn 开始时重新读取此文件。长工作流中 conversation context 会被截断，此文件是 source of truth。
 
-Maintain a state ledger tracking:
+维护 state ledger 来跟踪：
 ```json
 {
   "runId": "ds-build-2024-001",
@@ -143,64 +143,64 @@ Maintain a state ledger tracking:
 }
 ```
 
-**Idempotency check** before every create: query by name + state ledger ID. If exists, skip or update — never duplicate.
+**Idempotency check**：每次创建前，按 name + state ledger ID 查询。如果已存在，跳过或更新，绝不重复创建。
 
-**Resume protocol**: at session start or after context truncation, run a read-only `use_figma` to scan all pages, components, variables, and styles by name to reconstruct the `{key → id}` map. Then re-read the state file from disk if available.
+**Resume protocol**：session 开始或 context truncation 后，运行 read-only `use_figma`，按 name 扫描所有 page、component、variable 和 style，重建 `{key -> id}` map。然后在可用时重新读取磁盘中的 state file。
 
-**Continuation prompt** (give this to the user when resuming in a new chat):
+**Continuation prompt**（在新 chat 中 resume 时给用户）：
 > "I'm continuing a design system build. Run ID: {RUN_ID}. Load the figma-generate-library skill and resume from the last completed step."
 
 ---
 
-## 5. search_design_system — Reuse Decision Matrix
+## 5. search_design_system - Reuse Decision Matrix
 
-Search FIRST in Phase 0, then again immediately before each component creation.
+先在 Phase 0 搜索，然后在每次 component 创建前再次搜索。
 
 ```
 search_design_system({ query, fileKey, includeComponents: true, includeVariables: true, includeStyles: true })
 ```
 
-**Reuse if** all of these are true:
-- Component property API matches your needs (same variant axes, compatible types)
-- Token binding model is compatible (uses same or aliasable variables)
-- Naming conventions match the target file
-- Component is editable (not locked in a remote library you don't own)
+**满足以下全部条件时复用**：
+- Component property API 满足需求（相同 variant axes，类型兼容）
+- Token binding model 兼容（使用相同或可 alias 的 variable）
+- Naming convention 匹配目标文件
+- Component 可编辑（不是你不拥有且锁定在 remote library 中的内容）
 
-**Rebuild if** any of these:
-- API incompatibility (different property names, wrong variant model)
-- Token model incompatible (hardcoded values, different variable schema)
-- Ownership issue (can't modify the library)
+**满足以下任一条件时重建**：
+- API 不兼容（property name 不同，variant model 错误）
+- Token model 不兼容（hardcoded value、不同 variable schema）
+- Ownership issue（无法修改 library）
 
-**Wrap if** visual match but API incompatible:
-- Import the library component as a nested instance inside a new wrapper component
-- Expose a clean API on the wrapper
+**视觉匹配但 API 不兼容时 wrap**：
+- 将 library component 作为 nested instance 导入到新的 wrapper component 内
+- 在 wrapper 上暴露干净 API
 
-**Three-way priority**: local existing → subscribed library import → create new.
+**三路优先级**：local existing -> subscribed library import -> create new。
 
 ---
 
-## 6. User Checkpoints
+## 6. 用户检查点
 
-Mandatory. Design decisions require human judgment.
+强制要求。Design decision 需要人工判断。
 
-| After | Required artifacts | Ask |
+| 之后 | 必需产物 | 询问 |
 |-------|-------------------|-----|
-| Discovery + scope lock | Token list, component list, gap analysis | "Here's my plan. Approve before I create anything?" |
-| Foundations | Variable summary (N collections, M vars, K modes), style list | "All tokens created. Review before file structure?" |
+| Discovery + scope lock | Token list、component list、gap analysis | "Here's my plan. Approve before I create anything?" |
+| Foundations | Variable summary（N collections、M vars、K modes）、style list | "All tokens created. Review before file structure?" |
 | File structure | Page list + screenshot | "Pages set up. Review before components?" |
-| Each component | get_screenshot of component page | "Here's [Component] with N variants. Correct?" |
-| Each conflict (code ≠ Figma) | Show both versions | "Code says X, Figma has Y. Which wins?" |
+| Each component | component page 的 get_screenshot | "Here's [Component] with N variants. Correct?" |
+| Each conflict（code != Figma） | 展示两个版本 | "Code says X, Figma has Y. Which wins?" |
 | Final QA | Per-page screenshots + audit report | "Complete. Sign off?" |
 
-**If user rejects**: fix before moving on. Never build on rejected work.
+**如果用户拒绝**：先修复再继续。绝不要基于被拒绝的工作继续构建。
 
 ---
 
 ## 7. Naming Conventions
 
-Match existing file conventions. If starting fresh:
+匹配现有 file convention。如果从零开始：
 
-**Variables** (slash-separated):
+**Variables**（slash-separated）：
 ```
 color/bg/primary     color/text/secondary    color/border/default
 spacing/xs  spacing/sm  spacing/md  spacing/lg  spacing/xl  spacing/2xl
@@ -208,15 +208,15 @@ radius/none  radius/sm  radius/md  radius/lg  radius/full
 typography/body/font-size    typography/heading/line-height
 ```
 
-**Primitives**: `blue/50` → `blue/900`, `gray/50` → `gray/900`
+**Primitives**：`blue/50` -> `blue/900`，`gray/50` -> `gray/900`
 
-**Component names**: `Button`, `Input`, `Card`, `Avatar`, `Badge`, `Checkbox`, `Toggle`
+**Component names**：`Button`、`Input`、`Card`、`Avatar`、`Badge`、`Checkbox`、`Toggle`
 
-**Variant names**: `Property=Value, Property=Value` — e.g., `Size=Medium, Style=Primary, State=Default`
+**Variant names**：`Property=Value, Property=Value`，例如 `Size=Medium, Style=Primary, State=Default`
 
-**Page separators**: `---` (most common) or `——— COMPONENTS ———`
+**Page separators**：`---`（最常见）或 `——— COMPONENTS ———`
 
-> Full naming reference: [naming-conventions.md](references/naming-conventions.md)
+> 完整命名参考：[naming-conventions.md](references/naming-conventions.md)
 
 ---
 
@@ -224,11 +224,11 @@ typography/body/font-size    typography/heading/line-height
 
 | Complexity | Pattern |
 |-----------|---------|
-| < 50 tokens | Single collection, 2 modes (Light/Dark) |
-| 50–200 tokens | **Standard**: Primitives (1 mode) + Color semantic (Light/Dark) + Spacing (1 mode) + Typography (1 mode) |
-| 200+ tokens | **Advanced**: Multiple semantic collections, 4–8 modes (Light/Dark × Contrast × Brand). See M3 pattern in [token-creation.md](references/token-creation.md) |
+| < 50 tokens | Single collection, 2 modes（Light/Dark） |
+| 50-200 tokens | **Standard**：Primitives（1 mode）+ Color semantic（Light/Dark）+ Spacing（1 mode）+ Typography（1 mode） |
+| 200+ tokens | **Advanced**：Multiple semantic collections, 4-8 modes（Light/Dark x Contrast x Brand）。参见 [token-creation.md](references/token-creation.md) 中的 M3 pattern |
 
-Standard pattern (recommended starting point):
+Standard pattern（推荐起点）：
 ```
 Collection: "Primitives"    modes: ["Value"]
   blue/500 = #3B82F6, gray/900 = #111827, ...
@@ -245,62 +245,62 @@ Collection: "Spacing"       modes: ["Value"]
 
 ## 9. Per-Phase Anti-Patterns
 
-**Phase 0 anti-patterns:**
-- ❌ Starting to create anything before scope is locked with user
-- ❌ Ignoring existing file conventions and imposing new ones
-- ❌ Skipping `search_design_system` before planning component creation
+**Phase 0 anti-patterns：**
+- 在与用户锁定 scope 前开始创建任何内容
+- 忽略现有 file convention 并强加新 convention
+- 在规划 component creation 前跳过 `search_design_system`
 
-**Phase 1 anti-patterns:**
-- ❌ Using `ALL_SCOPES` on any variable
-- ❌ Duplicating raw values in semantic layer instead of aliasing
-- ❌ Not setting code syntax (breaks Dev Mode and round-tripping)
-- ❌ Creating component tokens before agreeing on token taxonomy
+**Phase 1 anti-patterns：**
+- 对任何 variable 使用 `ALL_SCOPES`
+- 在 semantic layer 中复制 raw value，而不是 alias
+- 不设置 code syntax（会破坏 Dev Mode 和 round-tripping）
+- 在商定 token taxonomy 前创建 component token
 
-**Phase 2 anti-patterns:**
-- ❌ Skipping the cover page or foundations docs
-- ❌ Putting multiple unrelated components on one page
+**Phase 2 anti-patterns：**
+- 跳过 cover page 或 foundations docs
+- 将多个无关 component 放在一个 page 上
 
-**Phase 3 anti-patterns:**
-- ❌ Creating components before foundations exist
-- ❌ Hardcoding any fill/stroke/spacing/radius value in a component
-- ❌ Creating a variant per icon (use INSTANCE_SWAP instead)
-- ❌ Not positioning variants after combineAsVariants (they all stack at 0,0)
-- ❌ Building variant matrix > 30 without splitting (variant explosion)
-- ❌ Importing remote components then immediately detaching them
+**Phase 3 anti-patterns：**
+- 在 foundation 存在前创建 component
+- 在 component 中 hardcode 任何 fill/stroke/spacing/radius value
+- 为每个 icon 创建 variant（改用 INSTANCE_SWAP）
+- combineAsVariants 后不放置 variant（它们都会堆在 0,0）
+- 构建超过 30 个组合的 variant matrix 且不拆分（variant explosion）
+- 导入 remote component 后立即 detach
 
-**General anti-patterns:**
-- ❌ Retrying a failed script without understanding the error first
-- ❌ Using name-prefix matching for cleanup (deletes user-owned nodes)
-- ❌ Building on unvalidated work from the previous step
-- ❌ Skipping user checkpoints to "save time"
-- ❌ Parallelizing use_figma calls (always sequential)
-- ❌ Guessing/hallucinating node IDs from memory (always read from state ledger)
-- ❌ Writing massive inline scripts instead of using the provided helper scripts
-- ❌ Starting Phase 3 because the user said "build the button" without completing Phases 0-2
+**General anti-patterns：**
+- 未先理解错误就重试失败 script
+- 使用 name-prefix matching 做 cleanup（会删除用户拥有的 node）
+- 基于上一步未验证的工作继续构建
+- 为了 "save time" 跳过用户检查点
+- 并行化 use_figma 调用（始终顺序执行）
+- 凭记忆猜测或 hallucinate node ID（始终从 state ledger 读取）
+- 编写巨大的 inline script，而不是使用提供的 helper script
+- 用户说 "build the button" 后，在未完成 Phase 0-2 的情况下开始 Phase 3
 
 ---
 
 ## 10. Reference Docs
 
-Load on demand — each reference is authoritative for its phase:
+按需加载。每个 reference 都是对应 phase 的权威依据：
 
-Use your file reading tool to read these docs when needed. Do not assume their contents from the filename.
+需要时使用文件读取工具读取这些 docs。不要根据文件名假设其内容。
 
 | Doc | Phase | Required / Optional | Load when |
 |-----|-------|---------------------|-----------|
-| [discovery-phase.md](references/discovery-phase.md) | 0 | **Required** | Starting any build — codebase analysis + Figma inspection |
+| [discovery-phase.md](references/discovery-phase.md) | 0 | **Required** | Starting any build - codebase analysis + Figma inspection |
 | [token-creation.md](references/token-creation.md) | 1 | **Required** | Creating variables, collections, modes, styles |
 | [documentation-creation.md](references/documentation-creation.md) | 2 | Required | Creating cover page, foundations docs, swatches |
 | [component-creation.md](references/component-creation.md) | 3 | **Required** | Creating any component or variant |
-| [code-connect-setup.md](references/code-connect-setup.md) | 3–4 | Required | Setting up Code Connect or variable code syntax |
-| [naming-conventions.md](references/naming-conventions.md) | Any | Optional | Naming anything — variables, pages, variants, styles |
+| [code-connect-setup.md](references/code-connect-setup.md) | 3-4 | Required | Setting up Code Connect or variable code syntax |
+| [naming-conventions.md](references/naming-conventions.md) | Any | Optional | Naming anything - variables, pages, variants, styles |
 | [error-recovery.md](references/error-recovery.md) | Any | **Required on error** | Script fails, multi-step workflow recovery, cleanup of abandoned workflow state |
 
 ---
 
 ## 11. Scripts
 
-Reusable Plugin API helper functions. Embed in `use_figma` calls:
+可复用 Plugin API helper functions。嵌入到 `use_figma` 调用中：
 
 | Script | Purpose |
 |--------|---------|
@@ -312,4 +312,4 @@ Reusable Plugin API helper functions. Embed in `use_figma` calls:
 | [createDocumentationPage.js](scripts/createDocumentationPage.js) | Create a page with title + description + section structure |
 | [validateCreation.js](scripts/validateCreation.js) | Verify created nodes match expected counts, names, structure |
 | [cleanupOrphans.js](scripts/cleanupOrphans.js) | Remove orphaned nodes by name convention or state ledger IDs |
-| [rehydrateState.js](scripts/rehydrateState.js) | Scan file for all pages, components, variables by name; returns full `{key → nodeId}` map for state reconstruction |
+| [rehydrateState.js](scripts/rehydrateState.js) | Scan file for all pages, components, variables by name; returns full `{key -> nodeId}` map for state reconstruction |
