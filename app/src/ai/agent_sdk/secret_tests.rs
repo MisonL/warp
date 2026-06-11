@@ -4,9 +4,8 @@ use warp_cli::agent::OutputFormat;
 use warp_graphql::managed_secrets::ManagedSecretType;
 use warp_localization::LocaleId;
 
-use crate::ai::agent_sdk::output::write_list_for_locale;
-
 use super::SecretInfo;
+use crate::ai::agent_sdk::output::write_list_for_locale;
 
 fn secret_info() -> SecretInfo {
     SecretInfo {

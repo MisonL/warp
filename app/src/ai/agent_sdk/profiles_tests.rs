@@ -1,9 +1,8 @@
 use warp_cli::agent::OutputFormat;
 use warp_localization::LocaleId;
 
-use crate::ai::agent_sdk::output::write_list_for_locale;
-
 use super::{ProfileInfo, ProfileNameFallback};
+use crate::ai::agent_sdk::output::write_list_for_locale;
 
 #[test]
 fn profile_json_names_stay_locale_neutral_for_default_fallbacks() {
