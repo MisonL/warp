@@ -138,7 +138,7 @@ spec 编写 skill 来自 [`warpdotdev/common-skills`](https://github.com/warpdot
 
 ## 使用编码 Agent
 
-你可以使用**任何编码 agent** 来实现贡献，例如 Warp 内置 agent、Claude Code、Codex、Gemini CLI 或其他工具，也可以完全不用 agent。本仓库提供了 agent 可读上下文，包括 [`.agents/skills/`](.agents/skills/) 下的 skill、[`specs/`](specs/) 下的 spec，以及 [`WARP.md`](WARP.md)。任何支持这些格式的 harness 都可以读取它们。
+你可以使用**任何编码 agent** 来实现贡献，例如 Warp 内置 agent、Claude Code、Codex、Gemini CLI 或其他工具，也可以完全不用 agent。本仓库提供了 agent 可读上下文，包括 [`.agents/skills/`](.agents/skills/) 下的 skill、[`specs/`](specs/) 下的 spec，以及 [`AGENTS.md`](AGENTS.md)。任何支持这些格式的 harness 都可以读取它们。
 
 如果你更希望由 **Oz cloud agent** 帮你实现 ready issue，请在 issue 中提及 **@oss-maintainers** 并提出请求。获批请求会使用赠送的 Oz credits **免费**运行，你不需要设置自己的 Oz 账户，也不需要支付计算费用。
 
@@ -165,7 +165,7 @@ spec 编写 skill 来自 [`warpdotdev/common-skills`](https://github.com/warpdot
 
 ## 开发环境准备
 
-完整工程指南见 [README.md](README.md) 和 [WARP.md](WARP.md)。快速开始：
+完整工程指南见 [README.md](README.md) 和 [AGENTS.md](AGENTS.md)。快速开始：
 
 ```bash
 ./script/bootstrap   # 平台相关环境准备
@@ -181,7 +181,7 @@ cargo run            # 构建并运行 Warp
 
 凡是可以手动测试的变更，都必须手动测试；几乎所有变更都可以手动测试。对小型、独立、视觉相关变更，应包含**前后截图**。对较大、影响面广或交互式变更，还应包含**带解说的屏幕录制**。
 
-你可以使用 `./script/run` 在本地运行应用。环境准备详情见 [WARP.md](WARP.md)。
+你可以使用 `./script/run` 在本地运行应用。环境准备详情见 [AGENTS.md](AGENTS.md)。
 
 ### 自动化测试
 
@@ -195,7 +195,7 @@ cargo run            # 构建并运行 Warp
 
 - `./script/format --check` 和 `cargo clippy --workspace --all-targets --all-features --tests -- -D warnings` 必须通过。
 - 优先使用 import 而不是路径限定符，优先使用内联格式参数（`println!("{x}")`），并优先使用穷尽 `match` 而不是 `_` 通配符。
-- 完整风格指南见 [WARP.md](WARP.md)，其中包括 WarpUI 模式和 terminal model 加锁规则。
+- 完整风格指南见 [AGENTS.md](AGENTS.md)，其中包括 WarpUI 模式和 terminal model 加锁规则。
 
 ## Commit 和分支约定
 

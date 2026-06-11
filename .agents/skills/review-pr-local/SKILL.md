@@ -12,7 +12,7 @@ description: warp 仓库专用的 PR 审查指南。这里只能特化核心 rev
 
 - 如果现有测试已经覆盖有意义的行为，不要建议只改变 constructor 输入或 struct 字段的测试用例。只有在新测试会覆盖不同代码路径或边界场景时，才建议补充测试。
 - 当 PR 明显是 V0 或初始实现时，应将 timeout、retry、lifecycle management 等健壮性建议表述为可选的未来工作，而不是阻塞问题；除非它们会影响正确性、安全性、数据丢失，或导致持续 UI 卡死。
-- 对 Rust 变更，应用 `WARP.md` 中的仓库约定：避免不必要的类型标注，优先使用 import 而不是很长的路径限定符，将 context 参数命名为 `ctx` 并放在最后，删除未使用参数而不是给它们加 `_` 前缀，并优先在宏中使用 inline format arguments。
+- 对 Rust 变更，应用 `AGENTS.md` 中的仓库约定：避免不必要的类型标注，优先使用 import 而不是很长的路径限定符，将 context 参数命名为 `ctx` 并放在最后，删除未使用参数而不是给它们加 `_` 前缀，并优先在宏中使用 inline format arguments。
 - 当 enum 可以合理穷尽匹配时，避免使用通配 `_` match arm；优先使用穷尽匹配，让未来新增 variant 能在审查期间暴露出来。
 - 对新增或修改的 feature flag，除非没有编译期 gate 就无法编译，否则应优先使用 `FeatureFlag::YourFlag.is_enabled()` 这类高层运行时检查，而不是 `#[cfg(...)]`。
 - 当调用栈可能已经持有 model lock 时，标记嵌套或冗余的 `TerminalModel` locking。优先把已锁定引用向下传递，并保持 lock scope 尽可能短。

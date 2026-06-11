@@ -97,7 +97,7 @@ issue 创建后，上游 Warp 维护者可能会添加准备状态标签：[`rea
 ./script/presubmit   # 格式化、clippy 和测试
 ```
 
-完整工程指南见 [WARP.md](WARP.md)，其中包括编码风格、测试和平台相关说明。
+完整工程指南见 [AGENTS.md](AGENTS.md)，其中包括编码风格、测试和平台相关说明。
 
 ## 加入团队
 

@@ -1,6 +1,6 @@
 # 常见问题
 
-本 FAQ 覆盖我们最常听到的问题：如何为 Warp 客户端做贡献、如何在本仓库中使用 agent，以及本仓库与 Warp 产品之间的关系。完整贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。工程细节，包括构建环境、代码风格和测试，见 [WARP.md](WARP.md)。
+本 FAQ 覆盖我们最常听到的问题：如何为 Warp 客户端做贡献、如何在本仓库中使用 agent，以及本仓库与 Warp 产品之间的关系。完整贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。工程细节，包括构建环境、代码风格和测试，见 [AGENTS.md](AGENTS.md)。
 
 ## 贡献
 
@@ -34,7 +34,7 @@ cargo run            # 构建并运行 Warp
 ./script/presubmit   # fmt、clippy 和测试
 ```
 
-macOS、Linux 和 Windows 都受支持。平台相关环境准备由 `./script/bootstrap` 处理。完整工程指南见 [WARP.md](WARP.md)。
+macOS、Linux 和 Windows 都受支持。平台相关环境准备由 `./script/bootstrap` 处理。完整工程指南见 [AGENTS.md](AGENTS.md)。
 
 ### 我的 PR 会由真人审查，还是由 agent 审查？
 
@@ -58,7 +58,7 @@ macOS、Linux 和 Windows 都受支持。平台相关环境准备由 `./script/b
 
 ### 我可以使用自己的编码 agent 来贡献吗？
 
-可以。你可以使用任何你喜欢的工具，例如 Warp 内置 agent、Claude Code、Codex、Gemini CLI、Cursor 或其他工具，也可以完全不用 agent。本仓库提供了 agent 可读上下文，包括 [`.agents/skills/`](.agents/skills/) 下的 skill、[`specs/`](specs/) 下的 spec，以及 [`WARP.md`](WARP.md)。任何支持这些格式的 harness 都可以读取它们。
+可以。你可以使用任何你喜欢的工具，例如 Warp 内置 agent、Claude Code、Codex、Gemini CLI、Cursor 或其他工具，也可以完全不用 agent。本仓库提供了 agent 可读上下文，包括 [`.agents/skills/`](.agents/skills/) 下的 skill、[`specs/`](specs/) 下的 spec，以及 [`AGENTS.md`](AGENTS.md)。任何支持这些格式的 harness 都可以读取它们。
 
 ### 我可以在 Warp 中使用已有订阅的 Codex 或 Claude 模型，或提交 PR 添加这种能力吗？
 
