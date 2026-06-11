@@ -13,40 +13,37 @@ use std::path::PathBuf;
 
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
+use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
+use warpui::elements::{
+    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Element, Flex, Hoverable,
+    Icon as IconElement, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
+    ParentAnchor, ParentElement, ParentOffsetBounds, Radius, ScrollbarWidth, Stack, Text,
+};
+use warpui::keymap::{self, FixedBinding};
+use warpui::platform::Cursor;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Element, Flex, Hoverable,
-        Icon as IconElement, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
-        ParentAnchor, ParentElement, ParentOffsetBounds, Radius, ScrollbarWidth, Stack, Text,
-    },
-    keymap::{self, FixedBinding},
-    platform::Cursor,
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
     AppContext, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
 };
 
+use crate::code::editor::{add_color, remove_color};
+use crate::code_review::code_review_view::code_review_text;
+use crate::code_review::telemetry_event::{
+    CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
+};
+use crate::settings::AISettings;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_shell::LocalShellState;
-use crate::{
-    code::editor::{add_color, remove_color},
-    code_review::telemetry_event::{CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind},
-    settings::AISettings,
-    ui_components::{
-        dialog::{dialog_styles, Dialog},
-        icons::Icon,
-    },
-    util::git::{Commit, FileChangeEntry},
-    view_components::{
-        action_button::{ActionButton, ButtonSize, NakedTheme, SecondaryTheme},
-        DismissibleToast,
-    },
-    workspace::ToastStack,
-    workspaces::user_workspaces::UserWorkspaces,
-};
-use warp_core::send_telemetry_from_ctx;
+use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::ui_components::icons::Icon;
+use crate::util::git::{Commit, FileChangeEntry};
+use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, SecondaryTheme};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
+use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub(crate) mod commit;
 pub(crate) mod pr;
@@ -134,8 +131,7 @@ fn show_toast(msg: impl Into<String>, ctx: &mut ViewContext<GitDialog>) {
 ///
 /// Folds the parent feature flag, the user's dedicated per-feature AI toggle
 /// (which itself requires active AI / auth / remote-session org policy to
-/// allow AI), and an enterprise check with the same Warp-plan exception and
-/// dogfood override as `share_block_modal.rs::should_send_title_gen_request`.
+/// allow AI), and the current team's Git Operations AI tier policy.
 ///
 /// When this returns `false`, call sites skip AI entirely: commit.rs opens
 /// with the manual-type placeholder and pr.rs goes straight to
@@ -143,54 +139,54 @@ fn show_toast(msg: impl Into<String>, ctx: &mut ViewContext<GitDialog>) {
 fn should_send_git_ops_ai_request(app: &AppContext) -> bool {
     FeatureFlag::GitOperationsInCodeReview.is_enabled()
         && AISettings::as_ref(app).is_git_operations_autogen_enabled(app)
-        && UserWorkspaces::as_ref(app).ai_allowed_for_current_team()
+        && UserWorkspaces::as_ref(app).is_git_operations_ai_enabled()
 }
 
 /// Maps a raw git error string to a user-friendly toast message. Known
 /// failure modes get dedicated copy; anything else falls back to a generic
 /// message (the raw error is always logged separately at the call site).
-fn user_facing_git_error(raw: &str) -> &'static str {
+fn user_facing_git_error(raw: &str, app: &AppContext) -> String {
     let lower = raw.to_lowercase();
     if lower.contains("nothing to commit") {
-        "No changes to commit."
+        code_review_text(app, "code_review.git_dialog.error.no_changes_to_commit")
     } else if lower.contains("please tell me who you are")
         || lower.contains("author identity unknown")
     {
-        "Git identity not configured. Set user.name and user.email."
+        code_review_text(app, "code_review.git_dialog.error.git_identity_missing")
     } else if lower.contains("updates were rejected")
         || lower.contains("non-fast-forward")
         || lower.contains("fetch first")
     {
-        "Remote has new changes \u{2014} pull before pushing."
+        code_review_text(app, "code_review.git_dialog.error.remote_has_new_changes")
     } else if lower.contains("does not appear to be a git repository")
         || lower.contains("no configured push destination")
         || lower.contains("no such remote")
     {
-        "No remote configured for this branch."
+        code_review_text(app, "code_review.git_dialog.error.no_remote_configured")
     } else if lower.contains("authentication failed")
         || lower.contains("permission denied (publickey)")
     {
-        "Authentication failed. Check your Git credentials."
+        code_review_text(app, "code_review.git_dialog.error.authentication_failed")
     } else if lower.contains("could not resolve host")
         || lower.contains("network is unreachable")
         || lower.contains("connection timed out")
     {
-        "Network error. Check your connection."
+        code_review_text(app, "code_review.git_dialog.error.network")
     } else if lower.contains("repository not found") {
-        "Remote repository not found."
+        code_review_text(app, "code_review.git_dialog.error.remote_not_found")
     } else if lower.contains("failed to execute gh command") {
         // `run_gh_command` wraps spawn failures with this prefix, which is
         // the reliable "gh binary missing" signal.
-        "GitHub CLI (gh) not installed. See https://cli.github.com/."
+        code_review_text(app, "code_review.git_dialog.error.gh_not_installed")
     } else if lower.contains("not logged in")
         || lower.contains("authentication required")
         || lower.contains("gh auth login")
     {
         // Phrases mirror `context_chips::current_prompt::is_gh_auth_error`,
         // which has been vetted against real `gh` failure output.
-        "GitHub CLI not authenticated. Run `gh auth login`."
+        code_review_text(app, "code_review.git_dialog.error.gh_not_authenticated")
     } else {
-        "Git operation failed."
+        code_review_text(app, "code_review.git_dialog.error.generic")
     }
 }
 
@@ -204,6 +200,7 @@ fn user_facing_git_error(raw: &str) -> &'static str {
 fn render_branch_section(
     branch_name: impl Into<String>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let branch_name = branch_name.into();
     let theme = appearance.theme();
@@ -211,7 +208,7 @@ fn render_branch_section(
     let sub_color = theme.sub_text_color(theme.surface_1()).into_solid();
 
     let label = Text::new(
-        "Branch",
+        code_review_text(app, "code_review.git_dialog.branch"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -504,7 +501,7 @@ impl GitDialog {
         // communicates which of commit / commit-and-push / commit-and-create-PR
         // will actually run on click.
         let (confirm_button, cancel_button, close_button) =
-            Self::build_dialog_buttons("Confirm", None, ctx);
+            Self::build_dialog_buttons("code_review.git_dialog.confirm", None, ctx);
         let state = commit::new_state(&repo_path, allow_create_pr, has_upstream, ctx);
         let this = Self {
             repo_path,
@@ -527,7 +524,7 @@ impl GitDialog {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let (confirm_button, cancel_button, close_button) = Self::build_dialog_buttons(
-            push::confirm_label(publish),
+            push::confirm_label_key(publish),
             Some(push::confirm_icon(publish)),
             ctx,
         );
@@ -550,7 +547,7 @@ impl GitDialog {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let (confirm_button, cancel_button, close_button) =
-            Self::build_dialog_buttons(pr::confirm_label_for(), Some(pr::confirm_icon_for()), ctx);
+            Self::build_dialog_buttons(pr::confirm_label_key(), Some(pr::confirm_icon_for()), ctx);
         let state = pr::new_state(&repo_path, base_branch_name, ctx);
         Self {
             repo_path,
@@ -564,7 +561,7 @@ impl GitDialog {
     }
 
     fn build_dialog_buttons(
-        confirm_label: &'static str,
+        confirm_label_key: &'static str,
         confirm_icon: Option<Icon>,
         ctx: &mut ViewContext<Self>,
     ) -> (
@@ -572,20 +569,24 @@ impl GitDialog {
         ViewHandle<ActionButton>,
         ViewHandle<ActionButton>,
     ) {
-        let confirm_button = ctx.add_typed_action_view(move |_ctx| {
-            let mut button = ActionButton::new(confirm_label, SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .with_height(32.);
+        let confirm_button = ctx.add_typed_action_view(move |ctx| {
+            let mut button =
+                ActionButton::new(code_review_text(ctx, confirm_label_key), SecondaryTheme)
+                    .with_size(ButtonSize::Small)
+                    .with_height(32.);
             if let Some(icon) = confirm_icon {
                 button = button.with_icon(icon);
             }
             button.on_click(|ctx| ctx.dispatch_typed_action(GitDialogAction::Confirm))
         });
-        let cancel_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", NakedTheme)
-                .with_size(ButtonSize::Small)
-                .with_height(32.)
-                .on_click(|ctx| ctx.dispatch_typed_action(GitDialogAction::Cancel))
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                code_review_text(ctx, "code_review.action.cancel"),
+                NakedTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .with_height(32.)
+            .on_click(|ctx| ctx.dispatch_typed_action(GitDialogAction::Cancel))
         });
         let close_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("", NakedTheme)
@@ -619,10 +620,10 @@ impl GitDialog {
 
     /// Disables cancel/confirm/close and swaps the confirm label while the
     /// async op is running.
-    fn set_loading(&mut self, loading_label: &'static str, ctx: &mut ViewContext<Self>) {
+    fn set_loading(&mut self, loading_label_key: &'static str, ctx: &mut ViewContext<Self>) {
         self.loading = true;
         self.confirm_button.update(ctx, |b, ctx| {
-            b.set_label(loading_label, ctx);
+            b.set_label(code_review_text(ctx, loading_label_key), ctx);
             b.set_disabled(true, ctx);
         });
         self.cancel_button.update(ctx, |b, ctx| {
@@ -655,17 +656,21 @@ impl GitDialog {
         });
     }
 
-    fn title(&self) -> &'static str {
+    fn title(&self, app: &AppContext) -> String {
         match &self.mode {
-            GitDialogMode::Commit(_) => "Commit your changes",
+            GitDialogMode::Commit(_) => {
+                code_review_text(app, "code_review.git_dialog.title.commit")
+            }
             GitDialogMode::Push(state) => {
                 if state.publish {
-                    "Publish branch"
+                    code_review_text(app, "code_review.git_dialog.title.publish")
                 } else {
-                    "Push changes"
+                    code_review_text(app, "code_review.git_dialog.title.push")
                 }
             }
-            GitDialogMode::CreatePr(_) => "Create pull request",
+            GitDialogMode::CreatePr(_) => {
+                code_review_text(app, "code_review.git_dialog.title.create_pr")
+            }
         }
     }
 
@@ -687,8 +692,12 @@ impl GitDialog {
         let appearance = Appearance::as_ref(app);
         match &self.mode {
             GitDialogMode::Commit(state) => commit::render_body(state, &self.branch_name, app),
-            GitDialogMode::Push(state) => push::render_body(state, &self.branch_name, appearance),
-            GitDialogMode::CreatePr(state) => pr::render_body(state, &self.branch_name, appearance),
+            GitDialogMode::Push(state) => {
+                push::render_body(state, &self.branch_name, appearance, app)
+            }
+            GitDialogMode::CreatePr(state) => {
+                pr::render_body(state, &self.branch_name, appearance, app)
+            }
         }
     }
 
@@ -726,7 +735,7 @@ impl GitDialog {
         .finish();
 
         let dialog = Dialog::new(
-            self.title().to_string(),
+            self.title(app),
             None,
             UiComponentStyles {
                 width: Some(460.),
@@ -817,6 +826,7 @@ impl TypedActionView for GitDialog {
                     };
                     send_telemetry_from_ctx!(
                         CodeReviewTelemetryEvent::GitDialogCompleted {
+                            is_local: Some(true),
                             operation,
                             status: GitDialogStatus::Cancelled,
                             error: None,

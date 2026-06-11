@@ -1,3 +1,5 @@
+## Original license text
+
 The MIT License
 
 Copyright (c) 2017 Ryan Caloras and contributors (see https://github.com/rcaloras/bash-preexec)
@@ -19,3 +21,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+## Chinese translation
+
+MIT 许可证
+
+版权所有 (c) 2017 Ryan Caloras and contributors（见 https://github.com/rcaloras/bash-preexec）
+
+特此免费授予任何获得本软件及相关文档文件（下称“软件”）副本的人不受限制地处理本软件的权利，包括但不限于使用、复制、修改、合并、发布、分发、再许可和/或销售本软件副本的权利，并允许收到本软件的人这样做，但须符合以下条件：
+
+上述版权声明和本许可声明应包含在本软件的所有副本或实质性部分中。
+
+本软件按“原样”提供，不作任何形式的明示或暗示保证，包括但不限于适销性、特定用途适用性和非侵权保证。在任何情况下，作者或版权持有人均不对任何索赔、损害或其他责任负责，无论该责任因合同行为、侵权行为或其他原因产生，也无论其是否源于、出自或关联于本软件或本软件的使用或其他交易。

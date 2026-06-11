@@ -1,27 +1,30 @@
+use ui_components::{button, Component as _, Options as _};
+use warp_core::features::FeatureFlag;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::theme::Fill;
+use warp_core::ui::Icon;
+use warpui_core::elements::{
+    Border, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    Flex, FormattedTextElement, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+    ParentElement, Radius,
+};
+use warpui_core::fonts::Weight;
+use warpui_core::keymap::Keystroke;
+use warpui_core::platform::Cursor;
+use warpui_core::prelude::Align;
+use warpui_core::text_layout::TextAlignment;
+use warpui_core::ui_components::components::{UiComponent as _, UiComponentStyles};
+use warpui_core::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity as _, TypedActionView, View,
+    ViewContext,
+};
+
 use super::OnboardingSlide;
 use crate::model::OnboardingStateModel;
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::visuals::{intention_terminal_visual, intention_visual};
-use crate::{OnboardingIntention, AI_FEATURES};
-use ui_components::{button, Component as _, Options as _};
-use warp_core::features::FeatureFlag;
-use warp_core::ui::theme::Fill;
-use warp_core::ui::{appearance::Appearance, theme::color::internal_colors, Icon};
-use warpui::prelude::Align;
-use warpui::{
-    elements::{
-        Border, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, Flex, FormattedTextElement, Hoverable, MainAxisAlignment, MainAxisSize,
-        MouseStateHandle, ParentElement, Radius,
-    },
-    fonts::Weight,
-    keymap::Keystroke,
-    platform::Cursor,
-    text_layout::TextAlignment,
-    ui_components::components::{UiComponent as _, UiComponentStyles},
-    AppContext, Element, Entity, ModelHandle, SingletonEntity as _, TypedActionView, View,
-    ViewContext,
-};
+use crate::{OnboardingIntention, AI_FEATURE_KEYS};
 
 #[derive(Debug, Clone)]
 pub enum IntentionSlideAction {
@@ -55,13 +58,21 @@ impl IntentionSlide {
         *self.onboarding_state.as_ref(app).intention()
     }
 
-    fn render_content(&self, appearance: &Appearance, selected_index: usize) -> Box<dyn Element> {
-        let bottom_nav = Align::new(self.render_bottom_nav(appearance, selected_index)).finish();
+    fn render_content(
+        &self,
+        appearance: &Appearance,
+        selected_index: usize,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let bottom_nav =
+            Align::new(self.render_bottom_nav(appearance, selected_index, app)).finish();
 
         slide_content::onboarding_slide_content(
             vec![
-                Align::new(self.render_header(appearance)).left().finish(),
-                Align::new(self.render_options(appearance, selected_index)).finish(),
+                Align::new(self.render_header(appearance, app))
+                    .left()
+                    .finish(),
+                Align::new(self.render_options(appearance, selected_index, app)).finish(),
             ],
             bottom_nav,
             self.scroll_state.clone(),
@@ -69,8 +80,9 @@ impl IntentionSlide {
         )
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
+        let copy = self.onboarding_state.as_ref(app).copy();
 
         let logo_fill = internal_colors::fg_overlay_4(theme);
         let logo = ConstrainedBox::new(Icon::WarpLogoLight.to_warpui_icon(logo_fill).finish())
@@ -80,7 +92,7 @@ impl IntentionSlide {
 
         let title = appearance
             .ui_builder()
-            .paragraph("Welcome to Warp")
+            .paragraph(copy.text_owned("onboarding.intention.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -90,7 +102,7 @@ impl IntentionSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            "How do you want to work?",
+            copy.text_owned("onboarding.intention.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -113,17 +125,24 @@ impl IntentionSlide {
             .finish()
     }
 
-    fn render_options(&self, appearance: &Appearance, selected_index: usize) -> Box<dyn Element> {
+    fn render_options(
+        &self,
+        appearance: &Appearance,
+        selected_index: usize,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let agent_card = self.render_agent_card(
             appearance,
             selected_index == 0,
             self.agent_driven_development_mouse_state.clone(),
+            app,
         );
 
         let terminal_card = self.render_terminal_card(
             appearance,
             selected_index == 1,
             self.classic_terminal_mouse_state.clone(),
+            app,
         );
 
         Container::new(
@@ -184,6 +203,7 @@ impl IntentionSlide {
         appearance: &Appearance,
         is_selected: bool,
         mouse_state: MouseStateHandle,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let bg_solid = theme.background().into_solid();
@@ -195,11 +215,12 @@ impl IntentionSlide {
         let description_color = internal_colors::text_sub(theme, bg_solid);
         let checklist_color = label_color;
         let icon_fill = Fill::Solid(label_color);
+        let copy = self.onboarding_state.as_ref(app).copy();
 
         let header_row = {
             let label = appearance
                 .ui_builder()
-                .paragraph("Build faster with AI agents")
+                .paragraph(copy.text_owned("onboarding.intention.agent.title"))
                 .with_style(UiComponentStyles {
                     font_size: Some(16.),
                     font_weight: Some(Weight::Semibold),
@@ -237,7 +258,7 @@ impl IntentionSlide {
         };
 
         let description = FormattedTextElement::from_str(
-            "An agent-first experience with best in class terminal support. Get terminal and agent driven development AI features like:",
+            copy.text_owned("onboarding.intention.agent.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -248,7 +269,7 @@ impl IntentionSlide {
         .finish();
 
         let checklist = {
-            let items = AI_FEATURES;
+            let items = AI_FEATURE_KEYS;
             // When the agent card is selected, use the theme's green to match the
             // "Blended ANSI/green_fg" token in the design.
             let check_fill = if is_selected {
@@ -266,7 +287,7 @@ impl IntentionSlide {
                     .finish();
                 let text_el = appearance
                     .ui_builder()
-                    .paragraph(item.to_string())
+                    .paragraph(copy.text_owned(item))
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
                         font_weight: Some(Weight::Normal),
@@ -307,6 +328,7 @@ impl IntentionSlide {
         appearance: &Appearance,
         is_selected: bool,
         mouse_state: MouseStateHandle,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let bg_solid = theme.background().into_solid();
@@ -315,10 +337,11 @@ impl IntentionSlide {
         } else {
             internal_colors::text_sub(theme, bg_solid)
         };
+        let copy = self.onboarding_state.as_ref(app).copy();
 
         let label = appearance
             .ui_builder()
-            .paragraph("Just use the terminal")
+            .paragraph(copy.text_owned("onboarding.intention.terminal.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(16.),
                 font_weight: Some(Weight::Semibold),
@@ -331,7 +354,7 @@ impl IntentionSlide {
         let badge = {
             let badge_text = appearance
                 .ui_builder()
-                .paragraph("No AI features")
+                .paragraph(copy.text_owned("onboarding.intention.terminal.badge"))
                 .with_style(UiComponentStyles {
                     font_size: Some(12.),
                     font_weight: Some(Weight::Semibold),
@@ -357,7 +380,7 @@ impl IntentionSlide {
             .finish();
 
         let description = FormattedTextElement::from_str(
-            "A modern terminal optimized for speed, context, and control without AI.",
+            copy.text_owned("onboarding.intention.terminal.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -381,11 +404,13 @@ impl IntentionSlide {
         &self,
         appearance: &Appearance,
         selected_index: usize,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(copy.text_owned("onboarding.common.back").into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -398,15 +423,15 @@ impl IntentionSlide {
 
         let new_settings_modes = FeatureFlag::OpenWarpNewSettingsModes.is_enabled();
         let next_text = if !new_settings_modes && selected_index == 1 {
-            "Get Warping"
+            copy.text("onboarding.common.get_warping")
         } else {
-            "Next"
+            copy.text("onboarding.common.next")
         };
         let enter = Keystroke::parse("enter").unwrap_or_default();
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(next_text.into()),
+                content: button::Content::Label(next_text.to_string().into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),
@@ -501,7 +526,7 @@ impl View for IntentionSlide {
 
         // Background is rendered by the parent onboarding view (including background images).
         layout::static_left(
-            || self.render_content(appearance, selected_index),
+            || self.render_content(appearance, selected_index, app),
             || self.render_visual(appearance, selected_index),
         )
     }

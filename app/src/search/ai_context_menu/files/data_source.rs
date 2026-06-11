@@ -1,5 +1,17 @@
 #![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-use super::search_item::FileSearchItem;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use futures_lite::future::yield_now;
+use fuzzy_match::FuzzyMatchResult;
+use itertools::Itertools;
+#[cfg(feature = "local_fs")]
+use repo_metadata::repositories::DetectedRepositories;
+use warpui::{AppContext, SingletonEntity};
+
+use super::search_item::{FileSearchItem, FileSearchItemAccessibilityCopy};
+#[cfg(feature = "local_fs")]
 use crate::code::opened_files::OpenedFilesModel;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::async_snapshot_data_source::AsyncSnapshotDataSource;
@@ -7,16 +19,8 @@ use crate::search::data_source::{Query, QueryResult};
 use crate::search::files::model::FileSearchModel;
 use crate::search::files::search_item::FileSearchResult;
 use crate::search::mixer::{BoxFuture, DataSourceRunErrorWrapper};
+#[cfg(feature = "local_fs")]
 use crate::workspace::ActiveSession;
-use futures_lite::future::yield_now;
-use fuzzy_match::FuzzyMatchResult;
-use itertools::Itertools;
-use repo_metadata::repositories::DetectedRepositories;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use warpui::{AppContext, SingletonEntity};
 
 const MAX_RESULTS: usize = 200;
 
@@ -28,6 +32,7 @@ pub(crate) struct FileSnapshot {
     /// `OpenedFilesModel` at snapshot time. Used as a secondary recency
     /// signal within each scoring tier.
     pub(crate) last_opened: HashMap<String, instant::Instant>,
+    pub(crate) accessibility_copy: FileSearchItemAccessibilityCopy,
 }
 
 /// Builds the repository-backed file search source used by the AI context menu.
@@ -43,11 +48,13 @@ pub fn file_data_source_for_current_repo(
                     git_changed_files: HashSet::new(),
                     query_text: query.text.clone(),
                     last_opened: HashMap::new(),
+                    accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
                 };
             }
 
             let file_search_model = FileSearchModel::as_ref(app);
             let last_opened = snapshot_last_opened(app);
+            let accessibility_copy = FileSearchItemAccessibilityCopy::new(app);
             if query.text.is_empty() {
                 let (contents, git_changed_files) =
                     file_search_model.get_repo_contents_with_git_status(app);
@@ -56,6 +63,7 @@ pub fn file_data_source_for_current_repo(
                     git_changed_files,
                     query_text: query.text.clone(),
                     last_opened,
+                    accessibility_copy,
                 }
             } else {
                 let contents = file_search_model.get_repo_contents(app);
@@ -64,6 +72,7 @@ pub fn file_data_source_for_current_repo(
                     git_changed_files: HashSet::new(),
                     query_text: query.text.clone(),
                     last_opened,
+                    accessibility_copy,
                 }
             }
         },
@@ -81,13 +90,14 @@ pub fn file_data_source_for_pwd(
     let cached_contents = Arc::new(cached_contents);
 
     AsyncSnapshotDataSource::new(
-        move |query: &Query, _app: &AppContext| {
+        move |query: &Query, app: &AppContext| {
             if FileSearchModel::should_skip_overly_broad_query(&query.text) {
                 return FileSnapshot {
                     contents: Arc::new(Vec::new()),
                     git_changed_files: HashSet::new(),
                     query_text: query.text.clone(),
                     last_opened: HashMap::new(),
+                    accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
                 };
             }
 
@@ -96,6 +106,7 @@ pub fn file_data_source_for_pwd(
                 git_changed_files: HashSet::new(),
                 query_text: query.text.clone(),
                 last_opened: HashMap::new(),
+                accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
             }
         },
         fuzzy_match_files,
@@ -104,31 +115,34 @@ pub fn file_data_source_for_pwd(
 
 /// Captures last-opened timestamps from `OpenedFilesModel` for the active
 /// repo at snapshot time. Returns an empty map when no repo is active.
+#[cfg(feature = "local_fs")]
 fn snapshot_last_opened(app: &AppContext) -> HashMap<String, instant::Instant> {
-    let git_repo_path = app
+    let repo_root = app
         .windows()
         .state()
         .active_window
-        .and_then(|window_id| ActiveSession::as_ref(app).path_if_local(window_id))
-        .and_then(|current_dir| {
-            DetectedRepositories::as_ref(app).get_root_for_path(Path::new(current_dir))
-        });
+        .and_then(|window_id| ActiveSession::as_ref(app).working_directory(window_id))
+        .and_then(|working_dir| DetectedRepositories::as_ref(app).get_root_for_path(working_dir));
 
-    let Some(repo_path) = git_repo_path else {
+    let Some(repo_root) = repo_root else {
         return HashMap::new();
     };
 
     let opened_files_model = OpenedFilesModel::as_ref(app);
-    let Some(opened_in_repo) = opened_files_model.opened_files_for_repo(&repo_path) else {
+    let Some(opened_in_repo) = opened_files_model.opened_files_for_repo(&repo_root) else {
         return HashMap::new();
     };
 
-    // Convert PathBuf keys to String keys matching FileSearchResult.path
-    // (relative paths from repo root).
     opened_in_repo
         .iter()
-        .map(|(path, ts)| (path.to_string_lossy().to_string(), *ts))
+        .map(|(path, ts)| (path.clone(), *ts))
         .collect()
+}
+
+/// File-open recency is unavailable without a local filesystem.
+#[cfg(not(feature = "local_fs"))]
+fn snapshot_last_opened(_app: &AppContext) -> HashMap<String, instant::Instant> {
+    HashMap::new()
 }
 
 /// Routes file matching to zero-state ranking or query-based fuzzy scoring.
@@ -196,6 +210,7 @@ async fn fuzzy_match_files_zero_state(
                     path: PathBuf::from(&item.path),
                     match_result,
                     is_directory: item.is_directory,
+                    accessibility_copy: snapshot.accessibility_copy.clone(),
                 };
                 results.push(QueryResult::from(search_item));
             }
@@ -218,6 +233,7 @@ async fn fuzzy_match_files_zero_state(
                     path: PathBuf::from(&item.path),
                     match_result,
                     is_directory: item.is_directory,
+                    accessibility_copy: snapshot.accessibility_copy.clone(),
                 };
                 results.push(QueryResult::from(search_item));
             }
@@ -260,6 +276,7 @@ async fn fuzzy_match_files_query(
                     path: PathBuf::from(&item.path),
                     match_result,
                     is_directory: item.is_directory,
+                    accessibility_copy: snapshot.accessibility_copy.clone(),
                 };
                 results.push(QueryResult::from(search_item));
             }
@@ -272,3 +289,7 @@ async fn fuzzy_match_files_query(
         .k_largest_relaxed_by_key(MAX_RESULTS, |item| item.score())
         .collect()
 }
+
+#[cfg(test)]
+#[path = "data_source_tests.rs"]
+mod tests;

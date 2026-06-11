@@ -2,51 +2,47 @@ use std::cmp::Ordering;
 
 use itertools::Itertools;
 use pathfinder_color::ColorU;
-use warp_core::{features::FeatureFlag, ui::appearance::Appearance};
+use warp_core::features::FeatureFlag;
+use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::NavigationKey;
-use warpui::{
-    elements::{
-        ChildView, ConstrainedBox, Container, CrossAxisAlignment, Fill, Flex, MainAxisAlignment,
-        MainAxisSize, ParentElement, Shrinkable,
-    },
-    text_layout::TextStyle,
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
-    AppContext, Element, SingletonEntity as _, ViewContext, ViewHandle,
+use warpui::elements::{
+    ChildView, ConstrainedBox, Container, CrossAxisAlignment, Fill, Flex, MainAxisAlignment,
+    MainAxisSize, ParentElement, Shrinkable,
 };
-
-use crate::{
-    drive::workflows::{
-        workflow_arg_selector::{WorkflowArgSelector, WorkflowArgSelectorStyles},
-        workflow_arg_type_helpers::{self, ArgumentTypeEditor},
-    },
-    editor::{
-        EditOrigin, EditorView, Event as EditorEvent, InteractionState,
-        PlainTextEditorViewAction as EditorAction,
-    },
-    pane_group::PaneEvent,
-    ui_components::{buttons::icon_button, icons::Icon},
-    workflows::workflow::Workflow,
-    workspace::WorkspaceAction,
-};
+use warpui::text_layout::TextStyle;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, SingletonEntity as _, ViewContext, ViewHandle};
 
 use super::alias_argument_selector::{AliasArgumentSelector, AliasArgumentSelectorEvent};
-
 use super::{
-    WorkflowAction, WorkflowView, WorkflowViewEvent, BUTTON_BORDER_RADIUS, EDITOR_FONT_SIZE,
+    text, WorkflowAction, WorkflowView, WorkflowViewEvent, BUTTON_BORDER_RADIUS, EDITOR_FONT_SIZE,
     HORIZONTAL_TEXT_INPUT_PADDING, SECTION_SPACING, VERTICAL_TEXT_INPUT_PADDING,
     WORKFLOW_PARAMETER_HIGHLIGHT_COLOR,
 };
+use crate::drive::workflows::workflow_arg_selector::{
+    WorkflowArgSelector, WorkflowArgSelectorStyles,
+};
+use crate::drive::workflows::workflow_arg_type_helpers::{self, ArgumentTypeEditor};
+use crate::editor::{
+    EditOrigin, EditorView, Event as EditorEvent, InteractionState,
+    PlainTextEditorViewAction as EditorAction,
+};
+use crate::pane_group::PaneEvent;
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::icons::Icon;
+use crate::workflows::workflow::Workflow;
+use crate::workspace::WorkspaceAction;
 
 const ARGUMENT_INPUT_HEIGHT: f32 = 30.;
-const ARGUMENT_LABEL_TEXT: &str = "Arguments";
+const ARGUMENT_LABEL_KEY: &str = "workflow.arguments.title";
 const ARGUMENT_LABEL_HEIGHT: f32 = 20.;
 const ARGUMENT_LABEL_MARGIN_BOTTOM: f32 = 5.;
-const ARGUMENT_DESCRIPTION_PLACEHOLDER_TEXT: &str = "Description";
-const ARGUMENT_ALIAS_DESCRIPTION_PLACEHOLDER_TEXT: &str = "Value (optional)";
-const ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_TEXT: &str = "Default value (optional)";
+const ARGUMENT_DESCRIPTION_PLACEHOLDER_KEY: &str = "workflow.arguments.placeholder.description";
+const ARGUMENT_ALIAS_DESCRIPTION_PLACEHOLDER_KEY: &str =
+    "workflow.arguments.placeholder.value_optional";
+const ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_KEY: &str =
+    "workflow.arguments.placeholder.default_value_optional";
 pub const DEFAULT_ARGUMENT_PREFIX: &str = "argument";
 
 /// Width of the argument editor in alias mode.
@@ -126,7 +122,7 @@ impl WorkflowView {
                                 ctx,
                                 Some(EDITOR_FONT_SIZE),
                                 Some(ui_font_family),
-                                Some(ARGUMENT_DESCRIPTION_PLACEHOLDER_TEXT),
+                                Some(text(ctx, ARGUMENT_DESCRIPTION_PLACEHOLDER_KEY)),
                                 false, /* vim_keybindings */
                                 true,
                                 false,
@@ -143,7 +139,7 @@ impl WorkflowView {
                                 ctx,
                                 Some(EDITOR_FONT_SIZE),
                                 Some(ui_font_family),
-                                Some(ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_TEXT),
+                                Some(text(ctx, ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_KEY)),
                                 false, /* vim_keybindings */
                                 true,
                                 false,
@@ -536,7 +532,7 @@ impl WorkflowView {
         }
 
         let mut arguments_section = Flex::column();
-        arguments_section.add_child(self.render_arguments_section_header(appearance));
+        arguments_section.add_child(self.render_arguments_section_header(appearance, app));
 
         match mode {
             ArgumentEditorMode::WorkflowDefinition | ArgumentEditorMode::Viewer => {
@@ -560,7 +556,11 @@ impl WorkflowView {
         Some(arguments_section.finish())
     }
 
-    fn render_arguments_section_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_arguments_section_header(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let mut arguments_section_row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
@@ -569,7 +569,7 @@ impl WorkflowView {
         arguments_section_row.add_child(
             Shrinkable::new(
                 2.,
-                self.render_section_header(ARGUMENT_LABEL_TEXT, appearance),
+                self.render_section_header(text(app, ARGUMENT_LABEL_KEY), appearance),
             )
             .finish(),
         );
@@ -579,6 +579,7 @@ impl WorkflowView {
 
         if self.is_editable() {
             let ui_builder = appearance.ui_builder().clone();
+            let add_tooltip = text(app, "workflow.arguments.add_tooltip");
             arguments_section_row.add_child(
                 icon_button(
                     appearance,
@@ -586,37 +587,33 @@ impl WorkflowView {
                     false,
                     self.ui_state_handles.add_variable_state.clone(),
                 )
-                .with_tooltip(move || {
-                    ui_builder
-                        .tool_tip("Add a workflow argument".to_string())
-                        .build()
-                        .finish()
-                })
+                .with_tooltip(move || ui_builder.tool_tip(add_tooltip.clone()).build().finish())
                 .build()
                 .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::AddArgument))
                 .finish(),
             )
         } else {
-            arguments_section_row.add_child(Shrinkable::new(
+            arguments_section_row.add_child(
+                Shrinkable::new(
                     1.,
                     Container::new(
                         appearance
-                        .ui_builder()
-                        .span("Fill out the arguments in this workflow and copy it to run in your terminal session")
-                        .with_soft_wrap()
-                        .with_style(UiComponentStyles {
-                            font_size: Some(EDITOR_FONT_SIZE),
-                            font_color: Some(sub_text_color),
-                            ..Default::default()
-                        })
-                        .build()
-                        .finish(),
+                            .ui_builder()
+                            .span(text(app, "workflow.arguments.viewer_help"))
+                            .with_soft_wrap()
+                            .with_style(UiComponentStyles {
+                                font_size: Some(EDITOR_FONT_SIZE),
+                                font_color: Some(sub_text_color),
+                                ..Default::default()
+                            })
+                            .build()
+                            .finish(),
                     )
                     .with_margin_left(40.)
-                    .finish()
+                    .finish(),
                 )
-                .finish()
-                );
+                .finish(),
+            );
         }
 
         arguments_section_row.finish()
@@ -777,7 +774,8 @@ impl WorkflowView {
 
             // If the description is empty, show a placeholder text.
             if current_description.is_empty() {
-                current_description.push_str(ARGUMENT_ALIAS_DESCRIPTION_PLACEHOLDER_TEXT);
+                current_description
+                    .push_str(&text(app, ARGUMENT_ALIAS_DESCRIPTION_PLACEHOLDER_KEY));
                 styles.font_color = Some(theme.sub_text_color(theme.background()).into_solid());
             }
 
@@ -826,7 +824,7 @@ impl WorkflowView {
                         .add_environment_variables_mouse_state
                         .clone(),
                 )
-                .with_centered_text_label("Add environment variables".to_string())
+                .with_centered_text_label(text(app, "workflow.env_vars.add"))
                 .build()
                 .on_click(|ctx, _, _| {
                     ctx.dispatch_typed_action(WorkspaceAction::CreatePersonalEnvVarCollection);
@@ -838,7 +836,7 @@ impl WorkflowView {
             .with_children([
                 appearance
                     .ui_builder()
-                    .span("Environment variables")
+                    .span(text(app, "workflow.env_vars.title"))
                     .with_style(UiComponentStyles {
                         font_size: Some(13.),
                         ..Default::default()

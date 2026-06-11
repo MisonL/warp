@@ -1,49 +1,43 @@
-use serde::Serialize;
 use std::rc::Rc;
+
+use pathfinder_geometry::vector::vec2f;
+use serde::Serialize;
+use warp_core::channel::ChannelState;
+use warp_core::ui::theme::color::internal_colors::{neutral_2, neutral_3};
+use warpui::elements::{
+    ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
+    Fill, Flex, HighlightedHyperlink, Hoverable, Icon, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
+    Shrinkable, Stack, Text,
+};
+use warpui::keymap::Keystroke;
+use warpui::platform::Cursor;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{
+    AppContext, Element, Entity, EventContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
+};
 
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
 use crate::ai::blocklist::prompt::prompt_alert::{
     PromptAlertEvent, PromptAlertState, PromptAlertView,
 };
 use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
+use crate::appearance::Appearance;
+use crate::server::ids::ServerId;
 use crate::server::telemetry::InteractionSource;
 use crate::settings::InputSettings;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
-use crate::util::bindings::keybinding_name_to_keystroke;
-use pathfinder_geometry::vector::vec2f;
-use warpui::elements::{
-    ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
-    Fill, Flex, HighlightedHyperlink, Hoverable, Icon, MainAxisAlignment, MainAxisSize,
-    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack,
-    Text,
-};
-use warpui::keymap::Keystroke;
-use warpui::platform::Cursor;
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{elements::MouseStateHandle, Element};
-use warpui::{
-    AppContext, Entity, EventContext, ModelHandle, TypedActionView, ViewContext, ViewHandle,
-};
-use warpui::{SingletonEntity, View};
-
-use crate::terminal::view::{ContextMenuAction, InputType, PromptSuggestion};
+use crate::terminal::view::{ContextMenuAction, InputType, PromptSuggestion, TerminalAction};
 use crate::ui_components::blended_colors;
-use crate::{appearance::Appearance, terminal::view::TerminalAction};
-use warp_core::channel::ChannelState;
-use warp_core::ui::theme::color::internal_colors::{neutral_2, neutral_3};
-
 use crate::ui_components::icons::Icon as WarpUIIcon;
-
-use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
-use crate::server::ids::ServerId;
+use crate::util::bindings::keybinding_name_to_keystroke;
 
 const INLINE_BANNER_SPACING: f32 = 8.;
 const INLINE_BANNER_BUTTON_PADDING: f32 = 8.;
-
-const DELINQUENT_DUE_TO_PAYMENT_ISSUE_TOOLTIP_MESSAGE: &str = "Restricted due to payment issue";
-const OUT_OF_REQUESTS_TOOLTIP_MESSAGE: &str = "Out of credits";
 
 /// Types of zero-state prompt suggestions.
 #[derive(Debug, Copy, Clone, Serialize)]
@@ -69,21 +63,19 @@ impl ZeroStatePromptSuggestionType {
     /// Constant for the number of zero-state prompt suggestion types.
     pub const COUNT: usize = 5;
 
-    pub fn query(&self) -> &'static str {
+    pub fn query_key(&self) -> &'static str {
         match self {
-            Self::Explain => "Explain this to me.",
-            Self::Fix => "Help me fix this.",
-            Self::Install => {
-                "Help me install a binary/dependency. What information do I need to provide to you to do this?"
-            }
-            Self::Code => {
-                "Help me write some code. What information do I need to provide to you to do this?"
-            }
-            Self::Deploy => {
-                "Help me deploy my project. What information do I need to provide to you to do this?"
-            }
-            Self::SomethingElse => "Something else?",
+            Self::Explain => "terminal.prompt_suggestion.zero_state.explain",
+            Self::Fix => "terminal.prompt_suggestion.zero_state.fix",
+            Self::Install => "terminal.prompt_suggestion.zero_state.install",
+            Self::Code => "terminal.prompt_suggestion.zero_state.code",
+            Self::Deploy => "terminal.prompt_suggestion.zero_state.deploy",
+            Self::SomethingElse => "terminal.prompt_suggestion.zero_state.something_else",
         }
+    }
+
+    pub fn prompt(&self) -> String {
+        crate::localization::text_for_locale(warp_localization::LocaleId::EnUs, self.query_key())
     }
 
     pub fn static_query_type(&self) -> Option<StaticQueryType> {
@@ -240,7 +232,7 @@ fn render_button(
         stack.add_child(container.finish());
 
         if is_button_disabled && mouse_state.is_hovered() {
-            if let Some(tooltip_text) = get_tooltip_text_for_alert_state(prompt_alert_state) {
+            if let Some(tooltip_text) = get_tooltip_text_for_alert_state(prompt_alert_state, app) {
                 let tooltip = appearance
                     .ui_builder()
                     .tool_tip(tooltip_text)
@@ -293,19 +285,26 @@ fn render_button(
     }
 }
 
-fn get_tooltip_text_for_alert_state(alert_state: &PromptAlertState) -> Option<String> {
+fn get_tooltip_text_for_alert_state(
+    alert_state: &PromptAlertState,
+    app: &AppContext,
+) -> Option<String> {
     // This is not an exhaustive list; the actual prompt alert component will have more information,
     // so we can keep the tooltip's text relatively minimal and just capture broad groups.
     match alert_state {
-        PromptAlertState::DelinquentDueToPaymentIssue => {
-            Some(DELINQUENT_DUE_TO_PAYMENT_ISSUE_TOOLTIP_MESSAGE.to_string())
-        }
+        PromptAlertState::DelinquentDueToPaymentIssue => Some(crate::localization::text_for_app(
+            app,
+            "terminal.prompt_suggestions.tooltip.restricted_payment_issue",
+        )),
         PromptAlertState::RequestLimitReached
         | PromptAlertState::AnonymousUserRequestLimitHardGate
         | PromptAlertState::AnonymousUserRequestLimitSoftGate
         | PromptAlertState::OveragesToggleableButNotEnabled
         | PromptAlertState::MonthlyOveragesSpendLimitReached => {
-            Some(OUT_OF_REQUESTS_TOOLTIP_MESSAGE.to_string())
+            Some(crate::localization::text_for_app(
+                app,
+                "terminal.prompt_suggestions.tooltip.out_of_credits",
+            ))
         }
         _ => None,
     }

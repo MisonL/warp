@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use crate::terminal::cli_agent::CLIAgent;
-
 use super::*;
+use crate::terminal::cli_agent::CLIAgent;
 
 fn generated_worktree_path_string(repo: &str, worktree_name: &str) -> String {
     super::super::tab_config::generated_worktree_path(Path::new(repo), worktree_name)
@@ -99,6 +98,22 @@ fn terminal_with_worktree() {
     let param = &config.params["worktree_branch_name"];
     assert_eq!(param.param_type, TabConfigParamType::Text);
     assert_eq!(param.default.as_deref(), Some("my-feature-branch"));
+}
+
+#[test]
+fn worktree_branch_description_can_be_supplied_by_caller() {
+    let config = build_tab_config_with_worktree_branch_description(
+        &SessionType::Terminal,
+        Path::new("/home/user/repo"),
+        true,
+        false,
+        Some("Localized branch name"),
+    );
+
+    assert_eq!(
+        config.params["worktree_branch_name"].description.as_deref(),
+        Some("Localized branch name")
+    );
 }
 
 #[test]

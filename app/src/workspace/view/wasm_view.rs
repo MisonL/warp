@@ -1,29 +1,30 @@
 //! WASM-only view functions for the Workspace.
 
+use warp_core::channel::ChannelState;
 use warpui::elements::{ChildView, Element};
 use warpui::{AppContext, SingletonEntity, ViewContext, ViewHandle};
 
-use warp_core::channel::ChannelState;
-
-use crate::uri::browser_url_handler::parse_current_url;
-
 use super::PanelPosition;
-
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::conversation_details_panel::{
     ConversationDetailsData, ConversationDetailsPanel, ConversationDetailsPanelEvent,
 };
 use crate::terminal::TerminalView;
 use crate::ui_components::icons;
+use crate::uri::browser_url_handler::parse_current_url;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, NakedTheme, PrimaryTheme, SecondaryTheme,
 };
 use crate::wasm_nux_dialog::{WasmNUXDialog, WasmNUXDialogEvent};
 use crate::workspace::action::WorkspaceAction;
 use crate::workspace::view::{NotebookSource, OpenWarpDriveObjectSettings, Workspace};
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 const TRANSCRIPT_PANEL_WIDTH: f32 = 280.0;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// Builds the OZ runs URL for viewing all cloud runs.
 fn build_oz_runs_url() -> String {
@@ -46,14 +47,16 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<ActionButton> {
         ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Open in Warp", PrimaryTheme).on_click(move |ctx| {
-                // Get the current URL and dispatch action to open it on desktop
-                if let Some(url) = parse_current_url() {
-                    ctx.dispatch_typed_action(WorkspaceAction::OpenLinkOnDesktop(url));
-                } else {
-                    log::warn!("Could not get URL for Open in Warp button");
-                }
-            })
+            ActionButton::new(text(_ctx, "workspace.wasm.open_in_warp"), PrimaryTheme).on_click(
+                move |ctx| {
+                    // Get the current URL and dispatch action to open it on desktop
+                    if let Some(url) = parse_current_url() {
+                        ctx.dispatch_typed_action(WorkspaceAction::OpenLinkOnDesktop(url));
+                    } else {
+                        log::warn!("Could not get URL for Open in Warp button");
+                    }
+                },
+            )
         })
     }
 
@@ -62,7 +65,11 @@ impl Workspace {
     ) -> ViewHandle<ActionButton> {
         let url = build_oz_runs_url();
         ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("View all cloud runs", SecondaryTheme).on_click(move |ctx| {
+            ActionButton::new(
+                text(_ctx, "workspace.wasm.view_all_cloud_runs"),
+                SecondaryTheme,
+            )
+            .on_click(move |ctx| {
                 ctx.dispatch_typed_action(WorkspaceAction::OpenLink(url.clone()));
             })
         })
@@ -114,24 +121,28 @@ impl Workspace {
     /// Check if we should show the conversation details panel, given the focused terminal view.
     /// Returns true for:
     /// - Conversation transcript viewers (always)
-    /// - Shared sessions with an ambient agent task ID, OR an active conversation
+    /// - Restored ambient cloud tasks
+    /// - Shared sessions with an active conversation
     pub(super) fn should_show_conversation_details_panel(
         focused_terminal_view: &ViewHandle<TerminalView>,
         ctx: &AppContext,
     ) -> bool {
         let terminal_view_ref = focused_terminal_view.as_ref(ctx);
+
+        if terminal_view_ref
+            .ambient_agent_task_id_for_details_panel(ctx)
+            .is_some()
+        {
+            return true;
+        }
         let model = terminal_view_ref.model.lock();
 
         // Always show for conversation transcript viewers
         if model.is_conversation_transcript_viewer() {
             return true;
         }
-
-        // For shared sessions, show if there's an ambient agent task_id or an active conversation
+        // For shared sessions, show if there's an active conversation.
         if model.shared_session_status().is_sharer_or_viewer() {
-            if model.ambient_agent_task_id().is_some() {
-                return true;
-            }
             drop(model); // Release lock before accessing BlocklistAIHistoryModel
             return BlocklistAIHistoryModel::as_ref(ctx)
                 .active_conversation(focused_terminal_view.id())
@@ -190,6 +201,19 @@ impl Workspace {
                 });
                 if let Some(task) = task {
                     let details = ConversationDetailsData::from_task(&task, None, None, ctx);
+                    panel.set_conversation_details(details, ctx);
+                    ctx.notify();
+                    return;
+                }
+
+                // Task not yet available - check if the fetch failed and show error state
+                if let Some(error_message) = conversations_model_handle
+                    .as_ref(ctx)
+                    .task_fetch_error(&task_id)
+                    .cloned()
+                {
+                    let details =
+                        ConversationDetailsData::from_task_id(task_id, Some(error_message), ctx);
                     panel.set_conversation_details(details, ctx);
                     ctx.notify();
                     return;

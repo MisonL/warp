@@ -1,29 +1,31 @@
+use std::path::PathBuf;
+
+use warp_core::ui::appearance::Appearance;
+use warp_util::local_or_remote_path::LocalOrRemotePath;
+use warpui::elements::{
+    Align, ChildView, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
+    CrossAxisAlignment, Expanded, Flex, MainAxisAlignment, MainAxisSize, ParentElement,
+    ScrollbarWidth,
+};
+use warpui::ui_components::components::UiComponent;
+use warpui::{
+    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
+};
+
+use super::{AIFact, CloudAIFact, CloudAIFactModel};
 use crate::cloud_object::{
     CloudObject, CloudObjectSyncStatus, GenericStringObjectFormat, JsonObjectType,
 };
 use crate::drive::CloudObjectTypeAndId;
+use crate::localization;
 use crate::network::NetworkStatus;
 use crate::pane_group::focus_state::PaneFocusHandle;
-use crate::pane_group::{pane::view, BackingView, PaneConfiguration, PaneEvent};
+use crate::pane_group::pane::view;
+use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::server::ids::SyncId;
 use crate::server::sync_queue::SyncQueue;
-use std::path::PathBuf;
-use warp_core::ui::appearance::Appearance;
-use warpui::{
-    elements::{
-        Align, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
-        CrossAxisAlignment, Expanded, Flex, MainAxisAlignment, MainAxisSize, ParentElement,
-        ScrollbarWidth,
-    },
-    ui_components::components::UiComponent,
-    AppContext, Element, Entity, FocusContext, ModelHandle, TypedActionView, View, ViewContext,
-};
-
 use crate::ui_components::icons::Icon;
-use warpui::elements::ChildView;
-use warpui::{SingletonEntity, ViewHandle};
-
-use super::{AIFact, CloudAIFact, CloudAIFactModel};
 
 pub mod rule;
 pub mod rule_editor;
@@ -31,7 +33,9 @@ mod style;
 use rule::*;
 use rule_editor::*;
 
-const OFFLINE_TEXT: &str = "You are offline. Some rules will be read only.";
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub enum AIFactPage {
@@ -55,7 +59,7 @@ impl std::fmt::Display for AIFactPage {
 pub enum AIFactViewEvent {
     Pane(PaneEvent),
     OpenSettings,
-    OpenFile(PathBuf),
+    OpenFile(LocalOrRemotePath),
     InitializeProject(PathBuf),
 }
 
@@ -76,7 +80,8 @@ pub struct AIFactView {
 
 impl AIFactView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(HEADER_TEXT));
+        let pane_configuration =
+            ctx.add_model(|ctx| PaneConfiguration::new(text(ctx, "ai.facts.rules.title")));
 
         let rule_view = ctx.add_typed_action_view(RuleView::new);
         ctx.subscribe_to_view(&rule_view, |me, _, event, ctx| {
@@ -186,7 +191,7 @@ impl AIFactView {
         ctx.notify();
     }
 
-    fn render_offline_banner(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_offline_banner(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Container::new(
             Flex::row()
                 .with_child(
@@ -209,7 +214,7 @@ impl AIFactView {
                         Container::new(
                             appearance
                                 .ui_builder()
-                                .wrappable_text(OFFLINE_TEXT, true)
+                                .wrappable_text(text(app, "ai.facts.offline"), true)
                                 .build()
                                 .finish(),
                         )
@@ -252,7 +257,7 @@ impl View for AIFactView {
         let appearance = Appearance::as_ref(app);
         let mut col = Flex::column().with_main_axis_size(MainAxisSize::Min);
         if !is_online(app) {
-            col.add_child(self.render_offline_banner(appearance));
+            col.add_child(self.render_offline_banner(appearance, app));
         }
         match self.current_page {
             AIFactPage::Rules => col.add_child(ChildView::new(&self.rule_view).finish()),
@@ -325,7 +330,7 @@ impl BackingView for AIFactView {
         _ctx: &view::HeaderRenderContext<'_>,
         _app: &AppContext,
     ) -> view::HeaderContent {
-        view::HeaderContent::simple(HEADER_TEXT)
+        view::HeaderContent::simple(text(_app, "ai.facts.rules.title"))
     }
 
     fn set_focus_handle(&mut self, focus_handle: PaneFocusHandle, _ctx: &mut ViewContext<Self>) {

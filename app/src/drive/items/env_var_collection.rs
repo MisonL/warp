@@ -1,24 +1,18 @@
 use itertools::Itertools;
 use warp_core::context_flag::ContextFlag;
-use warpui::{
-    elements::{Clipped, Container, Flex, MouseStateHandle, ParentElement},
-    fonts::Weight,
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element, SingletonEntity,
-};
-
-use crate::{
-    appearance::Appearance,
-    cloud_object::{
-        model::actions::{ObjectActionType, ObjectActions},
-        CloudObjectMetadata,
-    },
-    drive::{index::DriveIndexAction, CloudObjectTypeAndId, DriveObjectType},
-    env_vars::{CloudEnvVarCollection, EnvVarValue},
-    themes::theme::Fill,
-};
+use warpui::elements::{Clipped, Container, Flex, MouseStateHandle, ParentElement};
+use warpui::fonts::Weight;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, SingletonEntity};
 
 use super::{WarpDriveItem, WarpDriveItemId};
+use crate::appearance::Appearance;
+use crate::cloud_object::model::actions::{ObjectActionType, ObjectActions};
+use crate::cloud_object::CloudObjectMetadata;
+use crate::drive::index::DriveIndexAction;
+use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
+use crate::env_vars::{CloudEnvVarCollection, EnvVarValue};
+use crate::themes::theme::Fill;
 
 #[derive(Clone)]
 pub struct WarpDriveEnvVarCollection {
@@ -62,12 +56,12 @@ impl WarpDriveItem for WarpDriveEnvVarCollection {
         }
     }
 
-    fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>> {
         let title_text = self.env_var_collection.model().string_model.title.clone();
         let title_to_render = if let Some(title) = title_text {
             title
         } else {
-            "Untitled".to_string()
+            crate::localization::text_for_app(app, "env_vars.title.untitled")
         };
         let title = appearance
             .ui_builder()

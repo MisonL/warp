@@ -1,43 +1,34 @@
-use super::workflows::{WorkflowIdentity, WorkflowSearchItem};
-use crate::{
-    ai::AIRequestUsageModel,
-    ai_assistant::{
-        execution_context::WarpAiExecutionContext, GenerateCommandsFromNaturalLanguageError,
-        AI_ASSISTANT_LOGO_COLOR,
-    },
-    appearance::Appearance,
-    features::FeatureFlag,
-    search::{
-        command_search::searcher::CommandSearchItemAction,
-        data_source::{Query, QueryResult},
-        item::SearchItem,
-        mixer::{
-            AsyncDataSource, BoxFuture, DataSourceRunError, DataSourceRunErrorWrapper,
-            SyncDataSource,
-        },
-        result_renderer::ItemHighlightState,
-        workflows::fuzzy_match::FuzzyMatchWorkflowResult,
-    },
-    server::server_api::ai::AIClient,
-    themes::theme::Blend,
-    ui_components::icons::Icon as UIIcon,
-    util::color::{ContrastingColor, MinimumAllowedContrast},
-    workflows::{AIWorkflowOrigin, WorkflowSource, WorkflowType},
-};
+use std::any::Any;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use serde_json::json;
-use std::{any::Any, sync::Arc};
 use warp_core::ui::builder;
-use warpui::{
-    elements::{ConstrainedBox, Container, Text},
-    AppContext, Element, SingletonEntity,
-};
+use warpui::elements::{ConstrainedBox, Container, Text};
+use warpui::{AppContext, Element, SingletonEntity};
 
-const OPEN_WARP_AI_ITEM_BODY_TEXT: &str = "Ask Warp AI for command suggestions";
-const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str = "Translate into shell command using Warp AI";
+use super::workflows::{WorkflowIdentity, WorkflowSearchItem};
+use crate::ai::AIRequestUsageModel;
+use crate::ai_assistant::execution_context::WarpAiExecutionContext;
+use crate::ai_assistant::{GenerateCommandsFromNaturalLanguageError, AI_ASSISTANT_LOGO_COLOR};
+use crate::appearance::Appearance;
+use crate::features::FeatureFlag;
+use crate::localization;
+use crate::search::command_search::searcher::CommandSearchItemAction;
+use crate::search::data_source::{Query, QueryResult};
+use crate::search::item::SearchItem;
+use crate::search::mixer::{
+    AsyncDataSource, BoxFuture, DataSourceRunError, DataSourceRunErrorWrapper, SyncDataSource,
+};
+use crate::search::result_renderer::ItemHighlightState;
+use crate::search::workflows::fuzzy_match::FuzzyMatchWorkflowResult;
+use crate::server::server_api::ai::AIClient;
+use crate::themes::theme::Blend;
+use crate::ui_components::icons::Icon as UIIcon;
+use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
+use crate::workflows::{AIWorkflowOrigin, WorkflowSource, WorkflowType};
 
 #[derive(Clone, Debug)]
 pub enum WarpAISearchItem {
@@ -49,10 +40,17 @@ pub enum WarpAISearchItem {
 }
 
 impl WarpAISearchItem {
-    fn item_body_text(&self) -> &'static str {
+    fn item_body_text_key(&self) -> &'static str {
         match self {
-            WarpAISearchItem::Translate => TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT,
-            WarpAISearchItem::Open => OPEN_WARP_AI_ITEM_BODY_TEXT,
+            WarpAISearchItem::Translate => "search.command_search.warp_ai.translate_body",
+            WarpAISearchItem::Open => "search.command_search.warp_ai.open_body",
+        }
+    }
+
+    fn item_body_text_fallback(&self) -> &'static str {
+        match self {
+            WarpAISearchItem::Translate => "Translate into shell command using Warp AI",
+            WarpAISearchItem::Open => "Ask Warp AI for command suggestions",
         }
     }
 }
@@ -106,7 +104,7 @@ impl SearchItem for WarpAISearchItem {
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         Text::new_inline(
-            self.item_body_text(),
+            crate::localization::text_for_app(app, self.item_body_text_key()),
             appearance.monospace_font_family(),
             appearance.monospace_font_size(),
         )
@@ -140,7 +138,12 @@ impl SearchItem for WarpAISearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Warp AI: {}", self.item_body_text())
+        format!("Warp AI: {}", self.item_body_text_fallback())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let body = localization::text_for_app(app, self.item_body_text_key());
+        localization::text_for_app_with_args(app, "search.a11y.type.warp_ai", &[("body", &body)])
     }
 }
 
@@ -241,13 +244,11 @@ impl AsyncDataSource for WarpAIDataSource {
 
 impl DataSourceRunError for GenerateCommandsFromNaturalLanguageError {
     fn user_facing_error(&self) -> String {
-        match self {
-            Self::BadPrompt => "No results found. Please try again with a more specific query.",
-            Self::AiProviderError => "Something went wrong. Please try again.",
-            Self::RateLimited => "Looks like you're out of AI credits. Please try again later.",
-            Self::Other => "Something went wrong. Please try again.",
-        }
-        .to_string()
+        localization::text_for_locale(warp_localization::LocaleId::EnUs, self.error_text_key())
+    }
+
+    fn user_facing_error_text_key(&self) -> Option<&'static str> {
+        Some(self.error_text_key())
     }
 
     fn telemetry_payload(&self) -> serde_json::Value {
@@ -256,6 +257,16 @@ impl DataSourceRunError for GenerateCommandsFromNaturalLanguageError {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl GenerateCommandsFromNaturalLanguageError {
+    fn error_text_key(&self) -> &'static str {
+        match self {
+            Self::BadPrompt => "search.command_search.warp_ai.error.bad_prompt",
+            Self::AiProviderError | Self::Other => "search.command_search.warp_ai.error.generic",
+            Self::RateLimited => "search.command_search.warp_ai.error.rate_limited",
+        }
     }
 }
 

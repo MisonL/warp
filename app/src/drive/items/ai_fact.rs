@@ -1,19 +1,15 @@
-use warpui::{
-    elements::{Container, Flex, MouseStateHandle, ParentElement},
-    fonts::Weight,
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element,
-};
-
-use crate::{
-    ai::facts::{AIFact, AIMemory, CloudAIFact},
-    appearance::Appearance,
-    cloud_object::CloudObjectMetadata,
-    drive::{index::DriveIndexAction, CloudObjectTypeAndId, DriveObjectType},
-    themes::theme::Fill,
-};
+use warpui::elements::{Container, Flex, MouseStateHandle, ParentElement};
+use warpui::fonts::Weight;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element};
 
 use super::{WarpDriveItem, WarpDriveItemId};
+use crate::ai::facts::{AIFact, AIMemory, CloudAIFact};
+use crate::appearance::Appearance;
+use crate::cloud_object::CloudObjectMetadata;
+use crate::drive::index::DriveIndexAction;
+use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
+use crate::themes::theme::Fill;
 
 #[derive(Clone)]
 pub struct WarpDriveAIFact {
@@ -59,7 +55,7 @@ impl WarpDriveItem for WarpDriveAIFact {
         Some(DriveIndexAction::OpenAIFactCollection)
     }
 
-    fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(&self, appearance: &Appearance, _app: &AppContext) -> Option<Box<dyn Element>> {
         let title_to_render = match &self.ai_fact.model().string_model {
             AIFact::Memory(AIMemory { content, .. }) => content.clone(),
         };

@@ -1,18 +1,21 @@
 use warp_core::ui::appearance::Appearance;
+use warpui::elements::{
+    Border, Container, CornerRadius, DispatchEventResult, EventHandler, Flex, MainAxisAlignment,
+    MouseStateHandle, ParentElement as _, Radius, Text,
+};
+use warpui::fonts::{Properties, Weight};
+use warpui::platform::Cursor;
 use warpui::{
-    elements::{
-        Border, Container, CornerRadius, DispatchEventResult, EventHandler, Flex,
-        MainAxisAlignment, MouseStateHandle, ParentElement as _, Radius, Text,
-    },
-    fonts::{Properties, Weight},
-    platform::Cursor,
     AppContext, BlurContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle, WeakViewHandle,
 };
 
+use super::EnvironmentsPageAction;
 use crate::editor::EditorView;
 
-use super::EnvironmentsPageAction;
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 pub struct NewEnvironmentButtonView {
     trigger_mouse_state: MouseStateHandle,
@@ -97,7 +100,7 @@ impl View for NewEnvironmentButtonView {
                     .with_spacing(4.)
                     .with_child(
                         Text::new(
-                            "New environment",
+                            text(app, "settings.environment.action.new_environment"),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )

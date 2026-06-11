@@ -1,75 +1,74 @@
 use std::borrow::Cow;
 
-use crate::ai::AIRequestUsageModel;
-use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
-use crate::code::editor::view::{CodeEditorEvent, CodeEditorView};
-use crate::code_review::comment_rendering::CommentViewCard;
-use crate::code_review::comments::{
-    AttachedReviewComment, AttachedReviewCommentTarget, CommentId, CommentOrigin,
-    ReviewCommentBatch, ReviewCommentBatchEvent,
-};
-use crate::code_review::CodeReviewTelemetryEvent;
-use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
-use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
-use crate::send_telemetry_from_ctx;
-use crate::settings::AISettings;
-use crate::view_components::action_button::{
-    ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, SecondaryTheme,
-};
-use crate::{
-    appearance::Appearance, code_review::code_review_view::CodeReviewView,
-    ui_components::icons::Icon, workspace::view::right_panel::ReviewDestination,
-};
 use indexmap::IndexMap;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use std::path::PathBuf;
 use string_offset::CharOffset;
 use vec1::vec1;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::color::blend::Blend;
-use warp_editor::model::CoreEditorModel;
-
 use warp_core::ui::theme::color::internal_colors::{
     accent_overlay_2, accent_overlay_3, neutral_1, neutral_3, neutral_4, neutral_6, text_main,
     text_sub,
 };
 use warp_core::ui::theme::Fill;
+use warp_editor::model::CoreEditorModel;
+use warpui::clipboard::ClipboardContent;
+use warpui::elements::new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig};
+use warpui::elements::resizable::{
+    resizable_state_handle, DragBarSide, Resizable, ResizableStateHandle,
+};
+use warpui::elements::{
+    Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, Dismiss, DispatchEventResult, Element, Empty, EventHandler,
+    Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+    OffsetPositioning, ParentElement, PositionedElementAnchor, PositionedElementOffsetBounds,
+    Radius, SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Stack,
+    Text,
+};
+use warpui::platform::Cursor;
+use warpui::ui_components::button::{ButtonTooltipPosition, ButtonVariant};
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::units::Pixels;
 use warpui::{
-    clipboard::ClipboardContent,
-    elements::{
-        new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig},
-        resizable::{resizable_state_handle, DragBarSide, Resizable, ResizableStateHandle},
-        Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox,
-        Container, CornerRadius, CrossAxisAlignment, Dismiss, DispatchEventResult, Element, Empty,
-        EventHandler, Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-        OffsetPositioning, ParentElement, PositionedElementAnchor, PositionedElementOffsetBounds,
-        Radius, SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable,
-        Stack, Text,
-    },
-    platform::Cursor,
-    ui_components::{
-        button::{ButtonTooltipPosition, ButtonVariant},
-        components::{UiComponent, UiComponentStyles},
-    },
-    units::Pixels,
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle, WeakViewHandle,
 };
 
-/// Header text for the outdated section when there is exactly one outdated comment.
-const OUTDATED_SECTION_HEADER_SINGULAR: &str = "1 comment will be omitted because it is outdated.";
-/// Header text format for the outdated section when there are multiple outdated comments.
-/// Use with `format!` to insert the count.
-const OUTDATED_SECTION_HEADER_PLURAL_FMT: &str =
-    " comments will be omitted because they are outdated.";
+use crate::ai::AIRequestUsageModel;
+use crate::appearance::Appearance;
+use crate::code::buffer_location::LocalOrRemotePath;
+use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
+use crate::code::editor::view::{CodeEditorEvent, CodeEditorView};
+use crate::code_review::code_review_view::{code_review_text, CodeReviewView};
+use crate::code_review::comment_rendering::CommentViewCard;
+use crate::code_review::comments::{
+    AttachedReviewComment, AttachedReviewCommentTarget, CommentId, CommentOrigin,
+    ReviewCommentBatch, ReviewCommentBatchEvent,
+};
+use crate::code_review::telemetry_event::CodeReviewTelemetryEvent;
+use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
+use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
+use crate::send_telemetry_from_ctx;
+use crate::settings::AISettings;
+use crate::ui_components::icons::Icon;
+use crate::view_components::action_button::{
+    ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, SecondaryTheme,
+};
+use crate::workspace::view::right_panel::ReviewDestination;
 
 /// Returns the header text for the outdated section based on the number of outdated comments.
-fn outdated_section_header_text(count: usize) -> Cow<'static, str> {
+fn outdated_section_header_text(count: usize, app: &AppContext) -> Cow<'static, str> {
     if count == 1 {
-        Cow::Borrowed(OUTDATED_SECTION_HEADER_SINGULAR)
+        Cow::Owned(code_review_text(
+            app,
+            "code_review.comments.outdated_one_omitted",
+        ))
     } else {
-        Cow::Owned(format!("{count}{OUTDATED_SECTION_HEADER_PLURAL_FMT}"))
+        Cow::Owned(
+            code_review_text(app, "code_review.comments.outdated_many_omitted")
+                .replace("{count}", &count.to_string()),
+        )
     }
 }
 
@@ -183,7 +182,7 @@ pub struct CommentListView {
 
     /// Set once the user has manually collapsed or expanded the outdated section.
     is_outdated_section_collapsed: Option<bool>,
-    repo_path: PathBuf,
+    repo_path: Option<LocalOrRemotePath>,
     view_state: ViewState,
     /// The best available destination for sending review comments.
     /// Pushed down from RightPanelView.
@@ -196,18 +195,21 @@ pub struct CommentListView {
 
 impl CommentListView {
     pub fn new(
-        initial_repo_path: Option<PathBuf>,
+        initial_repo_path: Option<LocalOrRemotePath>,
         parent: WeakViewHandle<CodeReviewView>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let menu = ctx.add_view(|_| Menu::new());
 
-        let comments_button = ctx.add_view(|_| {
-            ActionButton::new("1 Comment", CustomSecondaryActionTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CommentListAction::ToggleCollapsed);
-                })
+        let comments_button = ctx.add_view(|ctx| {
+            ActionButton::new(
+                code_review_text(ctx, "code_review.comments.one_comment"),
+                CustomSecondaryActionTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CommentListAction::ToggleCollapsed);
+            })
         });
 
         ctx.subscribe_to_view(&menu, |me, _, event, ctx| match event {
@@ -224,7 +226,7 @@ impl CommentListView {
             comments_by_id: IndexMap::new(),
             is_collapsed: true,
             is_outdated_section_collapsed: None,
-            repo_path: initial_repo_path.unwrap_or_default(),
+            repo_path: initial_repo_path,
             view_state: ViewState::default(),
             overflow_menu: menu,
             review_destination: ReviewDestination::None,
@@ -280,6 +282,10 @@ impl CommentListView {
         }
     }
 
+    fn repo_is_local(&self) -> Option<bool> {
+        self.repo_path.as_ref().map(LocalOrRemotePath::is_local)
+    }
+
     pub fn debug_state(&self, ctx: &AppContext) -> CommentListDebugState {
         let ai_available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
         let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
@@ -293,6 +299,7 @@ impl CommentListView {
             sendable_comments > 0,
             ai_available,
             ai_enabled,
+            ctx,
         )
         .into_owned();
 
@@ -367,7 +374,7 @@ impl CommentListView {
             let entry = if let Some(mut existing) = self.comments_by_id.shift_remove(&id) {
                 existing
                     .card
-                    .update_source(comment, Some(&self.repo_path), ctx);
+                    .update_source(comment, self.repo_path.as_ref(), ctx);
                 existing
             } else {
                 let card = CommentViewCard::new(
@@ -375,7 +382,7 @@ impl CommentListView {
                     false, /* always_use_static_diff */
                     false, /* disable_scrolling */
                     Some(Pixels::new(DEFAULT_COMMENT_MAX_WIDTH)),
-                    Some(&self.repo_path),
+                    self.repo_path.as_ref(),
                     ctx,
                 );
 
@@ -436,14 +443,6 @@ impl CommentListView {
         }
 
         self.recompute_comment_button_label(ctx);
-        ctx.notify();
-    }
-
-    pub fn set_repo_path(&mut self, repo_path: PathBuf, ctx: &mut ViewContext<Self>) {
-        self.repo_path = repo_path;
-        for state in self.comments_by_id.values_mut() {
-            state.card.update_title(Some(&self.repo_path));
-        }
         ctx.notify();
     }
 
@@ -648,6 +647,7 @@ impl CommentListView {
             count,
             is_collapsed,
             appearance,
+            ctx,
         ));
 
         if !is_collapsed {
@@ -676,10 +676,11 @@ impl CommentListView {
         count: usize,
         is_collapsed: bool,
         appearance: &Appearance,
+        ctx: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let yellow_border: ColorU = theme.terminal_colors().normal.yellow.into();
-        let header_text = outdated_section_header_text(count);
+        let header_text = outdated_section_header_text(count, ctx);
 
         Hoverable::new(
             self.view_state.outdated_chevron_mouse_state.clone(),
@@ -757,7 +758,7 @@ impl CommentListView {
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_main_axis_size(MainAxisSize::Max)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        header_row.add_child(self.render_header_left(appearance));
+        header_row.add_child(self.render_header_left(appearance, ctx));
         header_row.add_child(self.render_header_right(appearance, ctx));
 
         Container::new(Clipped::new(Shrinkable::new(1., header_row.finish()).finish()).finish())
@@ -778,7 +779,7 @@ impl CommentListView {
             .finish()
     }
 
-    fn render_header_left(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header_left(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
         let mut left_section = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::Start)
@@ -808,7 +809,8 @@ impl CommentListView {
             .finish();
 
             let outdated_text = Text::new(
-                format!("{outdated_count} outdated"),
+                code_review_text(ctx, "code_review.comments.outdated_count")
+                    .replace("{count}", &outdated_count.to_string()),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -870,12 +872,12 @@ impl CommentListView {
         let mut right_section = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        right_section.add_child(self.render_cancel_button(appearance));
+        right_section.add_child(self.render_cancel_button(appearance, ctx));
         right_section.add_child(self.render_send_button(appearance, ctx));
         right_section.finish()
     }
 
-    fn render_cancel_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_cancel_button(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
         let cancel_button = EventHandler::new(
             appearance
                 .ui_builder()
@@ -883,7 +885,7 @@ impl CommentListView {
                     ButtonVariant::Text,
                     self.view_state.cancel_button_mouse_state.clone(),
                 )
-                .with_text_label("Cancel".to_string())
+                .with_text_label(code_review_text(ctx, "code_review.action.cancel"))
                 .build()
                 .finish(),
         )
@@ -907,25 +909,44 @@ impl CommentListView {
         has_sendable_comments: bool,
         ai_available: bool,
         ai_enabled: bool,
+        app: &AppContext,
     ) -> Cow<'static, str> {
         if let ReviewDestination::Cli(agent) = destination {
             if !has_sendable_comments {
-                Cow::Borrowed("No non-outdated comments to send")
+                Cow::Owned(code_review_text(
+                    app,
+                    "code_review.comments.no_non_outdated_to_send",
+                ))
             } else {
                 let cmd = agent.command_prefix();
                 let label = if cmd.is_empty() { "CLI agent" } else { cmd };
-                Cow::Owned(format!("Send diff comments to {label}"))
+                Cow::Owned(
+                    code_review_text(app, "code_review.comments.send_to_cli_agent")
+                        .replace("{label}", label),
+                )
             }
         } else if !ai_enabled {
-            Cow::Borrowed("AI must be enabled to send comments to Agent")
+            Cow::Owned(code_review_text(
+                app,
+                "code_review.comments.ai_must_be_enabled",
+            ))
         } else if !ai_available {
-            Cow::Borrowed("Agent code review requires AI credits")
+            Cow::Owned(code_review_text(
+                app,
+                "code_review.comments.ai_credits_required",
+            ))
         } else if matches!(destination, ReviewDestination::None) {
-            Cow::Borrowed("All terminals are busy")
+            Cow::Owned(code_review_text(
+                app,
+                "code_review.comments.all_terminals_busy",
+            ))
         } else if !has_sendable_comments {
-            Cow::Borrowed("No non-outdated comments to send")
+            Cow::Owned(code_review_text(
+                app,
+                "code_review.comments.no_non_outdated_to_send",
+            ))
         } else {
-            Cow::Borrowed("Send diff comments to Agent")
+            Cow::Owned(code_review_text(app, "code_review.comments.send_to_agent"))
         }
     }
 
@@ -946,6 +967,7 @@ impl CommentListView {
             has_sendable_comments,
             ai_available,
             ai_enabled,
+            ctx,
         );
 
         let tooltip = appearance
@@ -960,7 +982,10 @@ impl CommentListView {
                 ButtonVariant::Accent,
                 self.view_state.submit_button_mouse_state.clone(),
             )
-            .with_text_label("Send to Agent".to_string())
+            .with_text_label(code_review_text(
+                ctx,
+                "code_review.comments.send_to_agent_button",
+            ))
             .with_tooltip(|| tooltip)
             .with_tooltip_position(ButtonTooltipPosition::AboveLeft);
 
@@ -1068,20 +1093,24 @@ impl CommentListView {
         is_outdated: bool,
         html_url: Option<&str>,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Vec<MenuItem<CommentListAction>> {
-        let mut items = vec![MenuItemFields::new("Copy text")
-            .with_icon(Icon::Copy)
-            .with_on_select_action(CommentListAction::CopyCommentText)
-            .into_item()];
+        let mut items =
+            vec![
+                MenuItemFields::new(code_review_text(app, "code_review.comments.copy_text"))
+                    .with_icon(Icon::Copy)
+                    .with_on_select_action(CommentListAction::CopyCommentText)
+                    .into_item(),
+            ];
 
-        let mut edit_item = MenuItemFields::new("Edit")
+        let mut edit_item = MenuItemFields::new(code_review_text(app, "code_review.comments.edit"))
             .with_icon(Icon::Pencil)
             .with_on_select_action(CommentListAction::EditComment);
         if is_file_level || is_outdated {
             let tooltip_text = if is_file_level {
-                "File-level comments currently can't be edited."
+                code_review_text(app, "code_review.comments.file_level_edit_disabled")
             } else {
-                "Outdated comments can't be edited."
+                code_review_text(app, "code_review.comments.outdated_edit_disabled")
             };
             edit_item = edit_item.with_disabled(true).with_tooltip(tooltip_text);
         }
@@ -1089,7 +1118,7 @@ impl CommentListView {
 
         if let Some(url) = html_url {
             items.push(
-                MenuItemFields::new("View in GitHub")
+                MenuItemFields::new(code_review_text(app, "code_review.comments.view_in_github"))
                     .with_icon(Icon::Github)
                     .with_on_select_action(CommentListAction::ViewInGitHub {
                         url: url.to_string(),
@@ -1099,7 +1128,7 @@ impl CommentListView {
         }
 
         items.push(
-            MenuItemFields::new("Remove")
+            MenuItemFields::new(code_review_text(app, "code_review.comments.remove"))
                 .with_icon(Icon::Trash)
                 .with_override_text_color(Fill::Solid(appearance.theme().ansi_fg_red()))
                 .with_override_icon_color(Fill::Solid(appearance.theme().ansi_fg_red()))
@@ -1187,6 +1216,7 @@ impl TypedActionView for CommentListView {
                     // Telemetry: comment list view expanded.
                     send_telemetry_from_ctx!(
                         CodeReviewTelemetryEvent::CommentListExpanded {
+                            is_local: self.repo_is_local(),
                             comment_count: self.comments_by_id.len(),
                         },
                         ctx
@@ -1239,6 +1269,7 @@ impl TypedActionView for CommentListView {
                                 is_outdated,
                                 html_url.as_deref(),
                                 appearance,
+                                ctx,
                             ),
                             ctx,
                         );
@@ -1275,7 +1306,12 @@ impl TypedActionView for CommentListView {
                 self.close_overflow_menu(ctx);
             }
             CommentListAction::JumpToCommentLocation(comment_id) => {
-                send_telemetry_from_ctx!(CodeReviewTelemetryEvent::CommentListItemClicked, ctx);
+                send_telemetry_from_ctx!(
+                    CodeReviewTelemetryEvent::CommentListItemClicked {
+                        is_local: self.repo_is_local(),
+                    },
+                    ctx
+                );
                 ctx.emit(CommentListEvent::JumpToCommentLocation(*comment_id));
             }
         }

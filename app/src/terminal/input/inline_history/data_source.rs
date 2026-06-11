@@ -6,25 +6,26 @@
 //! - Commands are deduplicated, keeping the most recent occurrence
 //! - The result is that current session items appear at the bottom (closer to input)
 
+use chrono::{DateTime, Local};
+use fuzzy_match::FuzzyMatchResult;
+use ordered_float::OrderedFloat;
+use warpui::{AppContext, Entity, EntityId, ModelHandle, SingletonEntity};
+
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::input_suggestions::{HistoryInputSuggestion, HistoryOrder};
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::SyncDataSource;
-use crate::terminal::history::UpArrowHistoryConfig;
-use crate::terminal::history::{History, LinkedWorkflowData};
+use crate::terminal::history::{History, LinkedWorkflowData, UpArrowHistoryConfig};
 use crate::terminal::input::inline_history::search_item::InlineHistoryItem;
 use crate::terminal::input::inline_menu::{
     InlineMenuAction, InlineMenuClickBehavior, InlineMenuType,
 };
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::SessionId;
-use chrono::{DateTime, Local};
-use fuzzy_match::FuzzyMatchResult;
-use ordered_float::OrderedFloat;
-use warpui::{AppContext, Entity, EntityId, ModelHandle, SingletonEntity};
 
 #[derive(Clone, Debug)]
 pub enum AcceptHistoryItem {
@@ -164,9 +165,9 @@ impl InlineHistoryMenuDataSource {
             let Some(timestamp) = conversation.last_modified_at() else {
                 continue;
             };
-            let title = conversation
-                .title()
-                .unwrap_or_else(|| "Untitled conversation".to_string());
+            let title = conversation.title().unwrap_or_else(|| {
+                localization::text_for_app(app, "workspace.conversation.untitled")
+            });
             let match_result = if trimmed_query.is_empty() {
                 None
             } else {

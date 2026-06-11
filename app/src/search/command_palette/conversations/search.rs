@@ -1,11 +1,13 @@
+use fuzzy_match::match_indices_case_insensitive;
+use warpui::AppContext;
+
 use crate::ai::conversation_navigation::ConversationNavigationData;
-use crate::search::command_palette::conversations::search_item::ConversationAction;
-use crate::search::command_palette::conversations::search_item::ConversationSearchItem;
+use crate::search::command_palette::conversations::search_item::{
+    ConversationAction, ConversationSearchItem,
+};
 use crate::search::command_palette::conversations::DataSource;
 use crate::search::data_source::QueryResult;
 use crate::search::SyncDataSource;
-use fuzzy_match::match_indices_case_insensitive;
-use warpui::AppContext;
 
 /// A conversation that was fuzzy matched against a search term.
 #[derive(Debug)]
@@ -178,36 +180,15 @@ pub trait ConversationSearcher {
     ) -> anyhow::Result<Vec<QueryResult<SearcherAction>>>;
 }
 
-#[derive(PartialEq)]
-pub enum ConversationType {
-    All,
-    Historical,
-}
-
-pub struct FuzzyConversationSearcher {
-    filter: ConversationType,
-}
+pub struct FuzzyConversationSearcher;
 
 impl FuzzyConversationSearcher {
     pub fn new() -> Self {
-        Self {
-            filter: ConversationType::All,
-        }
-    }
-
-    pub fn historical() -> Self {
-        Self {
-            filter: ConversationType::Historical,
-        }
+        Self
     }
 
     pub fn searchable_conversations(&self, app: &AppContext) -> Vec<ConversationNavigationData> {
-        match self.filter {
-            ConversationType::Historical => {
-                ConversationNavigationData::historical_conversations(app)
-            }
-            ConversationType::All => ConversationNavigationData::all_conversations(app),
-        }
+        ConversationNavigationData::all_conversations(app)
     }
 }
 
@@ -220,11 +201,16 @@ impl ConversationSearcher for FuzzyConversationSearcher {
         let conversations = self.searchable_conversations(app);
         Ok(filter_conversations(conversations.as_slice(), search_term)
             .map(|matched_conversation| {
-                ConversationSearchItem::new(ConversationAction::Resume(Box::new(
-                    matched_conversation,
-                )))
+                ConversationSearchItem::new(
+                    ConversationAction::Resume(Box::new(matched_conversation)),
+                    app,
+                )
                 .into()
             })
             .collect())
     }
 }
+
+#[cfg(test)]
+#[path = "search_tests.rs"]
+mod tests;

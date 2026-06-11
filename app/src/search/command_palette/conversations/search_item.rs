@@ -1,19 +1,8 @@
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
-use crate::appearance::Appearance;
-use crate::search::command_palette::conversations::search::MatchedConversation;
-use crate::search::command_palette::mixer::CommandPaletteItemAction;
-use crate::search::command_palette::render_util::render_search_item_icon;
-use crate::search::command_palette::view::Action;
-use crate::search::item::IconLocation;
-use crate::search::result_renderer::ItemHighlightState;
-use crate::search::SearchItem;
-use crate::ui_components::buttons::icon_button;
-use crate::util::time_format::format_approx_duration_from_now;
 use ordered_float::OrderedFloat;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use warp_core::ui::color::{blend::Blend, coloru_with_opacity};
+use warp_core::ui::color::blend::Blend;
+use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
@@ -25,6 +14,20 @@ use warpui::fonts::{Properties, Weight};
 use warpui::ui_components::button::ButtonTooltipPosition;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Gradient, SingletonEntity};
+
+use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::search::command_palette::conversations::search::MatchedConversation;
+use crate::search::command_palette::mixer::CommandPaletteItemAction;
+use crate::search::command_palette::render_util::render_search_item_icon;
+use crate::search::command_palette::view::Action;
+use crate::search::item::IconLocation;
+use crate::search::result_renderer::ItemHighlightState;
+use crate::search::SearchItem;
+use crate::ui_components::buttons::icon_button;
+use crate::util::time_format::format_approx_duration_from_now;
 
 /// Information about which action to take once the conversation item is accepted.
 #[derive(Debug)]
@@ -46,13 +49,15 @@ pub enum ConversationAction {
 pub struct ConversationSearchItem {
     action_info: ConversationAction,
     action_button_mouse_state: MouseStateHandle,
+    accessibility_copy: ConversationSearchItemAccessibilityCopy,
 }
 
 impl ConversationSearchItem {
-    pub fn new(action_info: ConversationAction) -> Self {
+    pub fn new(action_info: ConversationAction, app: &AppContext) -> Self {
         Self {
             action_info,
             action_button_mouse_state: MouseStateHandle::default(),
+            accessibility_copy: ConversationSearchItemAccessibilityCopy::new(app),
         }
     }
 
@@ -66,7 +71,7 @@ impl ConversationSearchItem {
         Flex::row()
             .with_child(
                 Text::new_inline(
-                    "New conversation",
+                    localization::text_for_app(app, "workspace.conversation.new"),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size(),
                 )
@@ -87,7 +92,7 @@ impl ConversationSearchItem {
         let appearance = Appearance::as_ref(app);
 
         let action_title = Text::new_inline(
-            "Fork current conversation",
+            localization::text_for_app(app, "workspace.conversation.fork_current"),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -241,7 +246,10 @@ impl ConversationSearchItem {
 
             let fork_button_tool_tip = appearance
                 .ui_builder()
-                .tool_tip("Fork conversation".to_string())
+                .tool_tip(localization::text_for_app(
+                    app,
+                    "workspace.conversation.fork",
+                ))
                 .build();
 
             let fork_button_inner = icon_button(
@@ -313,6 +321,60 @@ impl ConversationSearchItem {
                 true
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ConversationSearchItemAccessibilityCopy {
+    conversation_template: String,
+    fork_current_conversation_template: String,
+    new_conversation: String,
+    resume_help_template: String,
+    fork_help: String,
+    new_help: String,
+}
+
+impl ConversationSearchItemAccessibilityCopy {
+    fn new(app: &AppContext) -> Self {
+        Self {
+            conversation_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.conversation",
+            ),
+            fork_current_conversation_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.fork_current_conversation",
+            ),
+            new_conversation: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.new_conversation",
+            ),
+            resume_help_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.resume_conversation",
+            ),
+            fork_help: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.fork_conversation",
+            ),
+            new_help: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.new_conversation",
+            ),
+        }
+    }
+
+    fn conversation_label(&self, title: &str) -> String {
+        self.conversation_template.replace("{title}", title)
+    }
+
+    fn fork_label(&self, title: &str) -> String {
+        self.fork_current_conversation_template
+            .replace("{title}", title)
+    }
+
+    fn resume_help(&self, title: &str) -> String {
+        self.resume_help_template.replace("{title}", title)
     }
 }
 
@@ -412,29 +474,22 @@ impl SearchItem for ConversationSearchItem {
 
     fn accessibility_label(&self) -> String {
         match &self.action_info {
-            ConversationAction::Resume(matched_conversation) => {
-                format!(
-                    "Conversation: {}",
-                    matched_conversation.as_ref().conversation.title()
-                )
-            }
-            ConversationAction::Fork { title, .. } => {
-                format!("Fork current conversation ({title})")
-            }
-            ConversationAction::New => "New conversation".to_string(),
+            ConversationAction::Resume(matched_conversation) => self
+                .accessibility_copy
+                .conversation_label(matched_conversation.as_ref().conversation.title()),
+            ConversationAction::Fork { title, .. } => self.accessibility_copy.fork_label(title),
+            ConversationAction::New => self.accessibility_copy.new_conversation.clone(),
         }
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
         match &self.action_info {
-            ConversationAction::Resume(matched_conversation) => Some(format!(
-                "Press enter to navigate to conversation \"{}\".",
-                matched_conversation.as_ref().conversation.title()
-            )),
-            ConversationAction::Fork { .. } => {
-                Some("Press enter to fork the current conversation into a new conversation.".into())
-            }
-            ConversationAction::New => Some("Press enter to create a new conversation.".into()),
+            ConversationAction::Resume(matched_conversation) => Some(
+                self.accessibility_copy
+                    .resume_help(matched_conversation.as_ref().conversation.title()),
+            ),
+            ConversationAction::Fork { .. } => Some(self.accessibility_copy.fork_help.clone()),
+            ConversationAction::New => Some(self.accessibility_copy.new_help.clone()),
         }
     }
 }

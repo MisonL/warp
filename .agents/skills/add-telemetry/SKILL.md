@@ -1,30 +1,30 @@
 ---
 name: add-telemetry
-description: Add telemetry events to track user behavior or system events in the Warp codebase. Use when instrumenting new features, debugging issues, or measuring product metrics.
+description: 在 Warp 代码库中添加 telemetry event，用于跟踪用户行为或系统事件。当需要为新功能加埋点、调试问题或衡量产品指标时使用。
 ---
 
 # add-telemetry
 
-## Overview
+## 概述
 
-Warp uses a trait-based telemetry system where feature-specific enums implement the `TelemetryEvent` trait. This approach keeps telemetry events organized by domain rather than in one giant enum.
+Warp 使用基于 trait 的 telemetry 系统，其中 feature-specific enum 实现 `TelemetryEvent` trait。这种方式按 domain 组织 telemetry event，而不是把所有 event 放进一个巨大的 enum。
 
-**Important**: Before implementing telemetry, collaborate with the user to:
-- Define what events should be tracked and when
-- Determine what data should be included in each event
-- Clarify the purpose and expected usage of the telemetry
+**重要**：实现 telemetry 前，请与用户协作：
+- 定义应该跟踪哪些 event，以及何时跟踪
+- 确定每个 event 应包含哪些数据
+- 明确 telemetry 的目的和预期用途
 
-Adding telemetry code is straightforward, but designing meaningful instrumentation requires careful thought.
+添加 telemetry 代码很直接，但设计有意义的 instrumentation 需要仔细思考。
 
-## Steps
+## 步骤
 
-### 1. Identify or create a telemetry module
+### 1. 识别或创建 telemetry module
 
-Find an existing feature-specific telemetry file (e.g., `app/src/antivirus/telemetry.rs`) or create a new one for your feature area.
+查找现有 feature-specific telemetry 文件（例如 `app/src/antivirus/telemetry.rs`），或为你的 feature area 创建一个新文件。
 
-### 2. Define the telemetry event enum
+### 2. 定义 telemetry event enum
 
-Add a new variant to an enum that implements `TelemetryEvent`, or create a new enum:
+向实现 `TelemetryEvent` 的 enum 添加新 variant，或创建新 enum：
 
 ```rust
 use serde_json::{json, Value};
@@ -44,13 +44,13 @@ pub enum YourFeatureTelemetryEvent {
 }
 ```
 
-### 3. Implement the TelemetryEvent trait
+### 3. 实现 TelemetryEvent trait
 
-`EnablementState` allows you to control when events are sent:
+`EnablementState` 允许你控制何时发送 event：
 
-- `EnablementState::Always` - Always send the event
-- `EnablementState::Flag(FeatureFlag::YourFeature)` - Only send when the feature flag is enabled
-- `EnablementState::Channel(Channel::Dev)` - Only send in specific build channels
+- `EnablementState::Always` - 始终发送 event
+- `EnablementState::Flag(FeatureFlag::YourFeature)` - 仅当 feature flag 启用时发送
+- `EnablementState::Channel(Channel::Dev)` - 仅在特定 build channel 中发送
 
 ```rust
 impl TelemetryEvent for YourFeatureTelemetryEvent {
@@ -91,7 +91,7 @@ impl TelemetryEvent for YourFeatureTelemetryEvent {
 }
 ```
 
-### 4. Implement TelemetryEventDesc for the discriminants
+### 4. 为 discriminant 实现 TelemetryEventDesc
 
 ```rust
 impl TelemetryEventDesc for YourFeatureTelemetryEventDiscriminants {
@@ -119,17 +119,17 @@ impl TelemetryEventDesc for YourFeatureTelemetryEventDiscriminants {
 }
 ```
 
-### 5. Register the telemetry event
+### 5. 注册 telemetry event
 
-At the end of your telemetry module, register the event:
+在 telemetry module 末尾注册 event：
 
 ```rust
 warp_core::register_telemetry_event!(YourFeatureTelemetryEvent);
 ```
 
-### 6. Send telemetry events from your code
+### 6. 从代码发送 telemetry event
 
-Use `send_telemetry_from_ctx!` in views or models with a `ViewContext` or `ModelContext`:
+在带 `ViewContext` 或 `ModelContext` 的 view 或 model 中使用 `send_telemetry_from_ctx!`：
 
 ```rust
 use warp_core::send_telemetry_from_ctx;
@@ -143,25 +143,25 @@ send_telemetry_from_ctx!(
 );
 ```
 
-For code with only `AppContext`, use `send_telemetry_from_app_ctx!` instead.
+对于只有 `AppContext` 的代码，改用 `send_telemetry_from_app_ctx!`。
 
-### 7. Test locally
+### 7. 本地测试
 
-Run Warp with the `log_named_telemetry_events` feature flag to see telemetry events logged to the console:
+使用 `log_named_telemetry_events` feature flag 运行 Warp，以在 console 中看到 telemetry event 日志：
 
 ```bash
 cargo run --features log_named_telemetry_events
 ```
 
-## Best Practices
+## 最佳实践
 
-- Keep telemetry enums feature-specific rather than adding to a global enum
-- Set `contains_ugc()` to `true` if the payload includes user-generated content
-- Use descriptive event names following the pattern `Feature.Action.Result`
-- Include only necessary data in payloads to minimize bandwidth and storage
-- Consider privacy implications when deciding what data to include
-- Avoid exhaustive matching with wildcards; handle all variants explicitly
+- 保持 telemetry enum 面向具体 feature，而不是添加到全局 enum
+- 如果 payload 包含 user-generated content，将 `contains_ugc()` 设置为 `true`
+- 使用描述性 event name，并遵循 `Feature.Action.Result` 模式
+- payload 中只包含必要数据，以尽量减少带宽和存储
+- 决定包含哪些数据时考虑隐私影响
+- 避免使用通配符做穷尽匹配；显式处理所有 variant
 
-## Example Reference
+## 示例参考
 
-See `app/src/antivirus/telemetry.rs` for a complete example of a feature-specific telemetry implementation.
+完整 feature-specific telemetry 实现示例见 `app/src/antivirus/telemetry.rs`。

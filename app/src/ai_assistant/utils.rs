@@ -1,22 +1,20 @@
 /// Common functionality used across different AI Assistant components.
 use markdown_parser::{parse_markdown, CodeBlockText, FormattedText, FormattedTextLine};
 use pathfinder_color::ColorU;
-use warpui::{
-    elements::{
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, HighlightedHyperlink,
-        Icon, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Text,
-    },
-    platform::Cursor,
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
-    AppContext, Element, ModelHandle,
+use warpui::elements::{
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, HighlightedHyperlink, Icon,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Text,
 };
+use warpui::platform::Cursor;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, ModelHandle};
 
-use crate::{appearance::Appearance, ui_components::blended_colors};
-
-use super::{panel::AIAssistantAction, requests::Requests, transcript::CodeBlockMouseStateHandles};
+use super::panel::AIAssistantAction;
+use super::requests::Requests;
+use super::transcript::CodeBlockMouseStateHandles;
+use crate::appearance::Appearance;
+use crate::ui_components::blended_colors;
 
 const PREPARED_RESPONSE_FONT_SIZE: f32 = 11.;
 const REQUEST_LIMIT_INFO_FONT_SIZE: f32 = 11.;
@@ -262,7 +260,9 @@ pub fn render_prepared_response_button(
     mouse_state_handle: MouseStateHandle,
     width: Option<f32>,
     right_left_padding: Option<f32>,
-    prompt: &'static str,
+    prompt_key: &'static str,
+    label: String,
+    prompt: String,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let default_button_styles = UiComponentStyles {
@@ -301,11 +301,14 @@ pub fn render_prepared_response_button(
             Some(hovered_and_clicked_styles),
             Some(hovered_and_clicked_styles),
         )
-        .with_centered_text_label(prompt.to_string())
+        .with_centered_text_label(label)
         .build()
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(AIAssistantAction::PreparedPrompt(prompt))
+            ctx.dispatch_typed_action(AIAssistantAction::PreparedPrompt {
+                prompt_key,
+                prompt: prompt.clone(),
+            })
         })
         .finish()
 }
@@ -330,7 +333,9 @@ pub fn render_request_limit_info(
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_child(
             Text::new_inline(
-                format!("Credits used: {num_requests_used} / {request_limit}.",),
+                crate::localization::text_for_app(app, "ai_assistant.request_limit.credits_used")
+                    .replace("{used}", &num_requests_used.to_string())
+                    .replace("{limit}", &request_limit.to_string()),
                 appearance.ui_font_family(),
                 REQUEST_LIMIT_INFO_FONT_SIZE,
             )
@@ -371,7 +376,11 @@ pub fn render_request_limit_info(
         row.add_child(
             Container::new(
                 Text::new_inline(
-                    format!("{next_refresh_time} until refresh."),
+                    crate::localization::text_for_app(
+                        app,
+                        "ai_assistant.request_limit.until_refresh",
+                    )
+                    .replace("{time}", &next_refresh_time),
                     appearance.ui_font_family(),
                     REQUEST_LIMIT_INFO_FONT_SIZE,
                 )

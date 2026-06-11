@@ -1,5 +1,3 @@
-use crate::appearance::Appearance;
-use crate::ui_components::icons::Icon;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::color::blend::Blend;
@@ -14,6 +12,10 @@ use warpui::keymap::{FixedBinding, Keystroke};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext};
+
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::ui_components::icons::Icon;
 
 // Figma node 6583:23542
 const MODAL_WIDTH: f32 = 441.;
@@ -38,6 +40,10 @@ const AVATAR_ICON_SIZE: f32 = 24.;
 const TITLE_FONT_SIZE: f32 = 16.;
 const OPTION_TITLE_FONT_SIZE: f32 = 14.;
 const OPTION_DESC_FONT_SIZE: f32 = 12.;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// The mode for environment setup selected by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,11 +130,11 @@ impl EnvironmentSetupModeSelector {
         }
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = Text::new(
-            "Choose how you'd like to set up your environment".to_string(),
+            text(app, "terminal.init_environment.mode_selector.title"),
             appearance.ui_font_family(),
             TITLE_FONT_SIZE,
         )
@@ -185,10 +191,11 @@ impl EnvironmentSetupModeSelector {
     #[allow(clippy::too_many_arguments)]
     fn render_option(
         &self,
+        app: &AppContext,
         index: usize,
         icon: Icon,
-        title: &'static str,
-        description: &'static str,
+        title: String,
+        description: String,
         is_suggested: bool,
         mouse_state: MouseStateHandle,
         action: EnvironmentSetupModeSelectorAction,
@@ -250,7 +257,7 @@ impl EnvironmentSetupModeSelector {
                 .with_border(Border::all(1.).with_border_color(avatar_border))
                 .finish();
 
-            let title_text = Text::new(title.to_string(), font_family, OPTION_TITLE_FONT_SIZE)
+            let title_text = Text::new(title.clone(), font_family, OPTION_TITLE_FONT_SIZE)
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(active_text.into())
                 .finish();
@@ -261,11 +268,14 @@ impl EnvironmentSetupModeSelector {
                 .with_child(title_text);
 
             if is_suggested {
-                let suggested_text =
-                    Text::new("Suggested".to_string(), font_family, OPTION_DESC_FONT_SIZE)
-                        .with_style(Properties::default().weight(Weight::Medium))
-                        .with_color(badge_text_color)
-                        .finish();
+                let suggested_text = Text::new(
+                    text(app, "terminal.init_environment.suggested"),
+                    font_family,
+                    OPTION_DESC_FONT_SIZE,
+                )
+                .with_style(Properties::default().weight(Weight::Medium))
+                .with_color(badge_text_color)
+                .finish();
 
                 let suggested = Container::new(suggested_text)
                     .with_horizontal_padding(8.)
@@ -279,7 +289,7 @@ impl EnvironmentSetupModeSelector {
             }
 
             let description_text =
-                Text::new(description.to_string(), font_family, OPTION_DESC_FONT_SIZE)
+                Text::new(description.clone(), font_family, OPTION_DESC_FONT_SIZE)
                     .with_style(Properties::default().weight(Weight::Normal))
                     .with_color(nonactive_text.into())
                     .soft_wrap(true)
@@ -328,7 +338,7 @@ impl EnvironmentSetupModeSelector {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let header = Container::new(self.render_header(appearance))
+        let header = Container::new(self.render_header(appearance, app))
             .with_padding_top(HEADER_PADDING_TOP)
             .with_padding_bottom(HEADER_PADDING_BOTTOM)
             .with_padding_left(HEADER_PADDING_HORIZONTAL)
@@ -336,10 +346,17 @@ impl EnvironmentSetupModeSelector {
             .finish();
 
         let remote_github_option = self.render_option(
+            app,
             0,
             Icon::Github,
-            "Quick setup",
-            "Select the GitHub repositories you'd like to work with and we'll suggest a base image and config",
+            text(
+                app,
+                "terminal.init_environment.mode_selector.quick_setup.title",
+            ),
+            text(
+                app,
+                "terminal.init_environment.mode_selector.quick_setup.description",
+            ),
             true,
             self.remote_github_mouse_state.clone(),
             EnvironmentSetupModeSelectorAction::SelectRemoteGitHub,
@@ -347,10 +364,14 @@ impl EnvironmentSetupModeSelector {
         );
 
         let local_repos_option = self.render_option(
+            app,
             1,
             Icon::Terminal,
-            "Use the agent",
-            "Choose a locally set up project and we'll help you set up an environment based on it",
+            text(app, "terminal.init_environment.mode_selector.agent.title"),
+            text(
+                app,
+                "terminal.init_environment.mode_selector.agent.description",
+            ),
             false,
             self.local_repos_mouse_state.clone(),
             EnvironmentSetupModeSelectorAction::SelectLocalRepositories,

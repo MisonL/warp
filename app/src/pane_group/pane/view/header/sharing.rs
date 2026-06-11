@@ -3,34 +3,25 @@
 //! This is tightly coupled to the pane header so that different overlays (context menus, the
 //! sharing dialog, and so on) are correctly displayed.
 
-use warp_core::{features::FeatureFlag, ui::appearance::Appearance};
-use warpui::{
-    elements::{MouseStateHandle, ParentElement},
-    platform::Cursor,
-    ui_components::components::UiComponent,
-    AppContext, Element, ViewContext, ViewHandle,
-};
-
+use warp_core::features::FeatureFlag;
+use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
-use warpui::elements::ConstrainedBox;
-
-use crate::{
-    drive::sharing::{
-        dialog::{SharingDialog, SharingDialogEvent},
-        ContentEditability, ShareableObject,
-    },
-    pane_group::BackingView,
-    server::telemetry::SharingDialogSource,
-    ui_components::buttons::{icon_button, icon_button_with_color},
-    ui_components::icons::Icon,
-};
+use warpui::elements::{ConstrainedBox, MouseStateHandle, ParentElement};
+use warpui::platform::Cursor;
+use warpui::ui_components::components::UiComponent;
+use warpui::{AppContext, Element, ViewContext, ViewHandle};
 
 use super::{Event, OpenOverlay, PaneHeader, PaneHeaderAction};
+use crate::drive::sharing::dialog::{SharingDialog, SharingDialogEvent};
+use crate::drive::sharing::{ContentEditability, ShareableObject};
+use crate::pane_group::BackingView;
+use crate::server::telemetry::SharingDialogSource;
+use crate::ui_components::buttons::{icon_button, icon_button_with_color};
+use crate::ui_components::icons::Icon;
 
-const UNSHARABLE_CONVERSATION_TOOLTIP: &str =
-    "This conversation cannot be shared because it is not \
-    stored in the cloud.\nTo sync to cloud and share, enable the setting under Settings > Privacy, \
-    and then make another request.";
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 /// Pane header component for sharing the pane contents.
 pub struct SharedPaneContent {
@@ -143,6 +134,30 @@ impl<P: BackingView> PaneHeader<P> {
         ctx.notify();
     }
 
+    pub fn open_shared_session_qr_code(
+        &mut self,
+        source: SharingDialogSource,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if !self.is_sharing_dialog_enabled(ctx) || !self.has_shareable_shared_session(ctx) {
+            return;
+        }
+
+        let dialog_was_closed = self.open_overlay != OpenOverlay::SharingDialog;
+        if self.open_overlay == OpenOverlay::OverflowMenu {
+            ctx.emit(Event::PaneHeaderOverflowMenuToggled(false));
+        }
+        self.open_overlay = OpenOverlay::SharingDialog;
+        ctx.focus(&self.shared_content.sharing_dialog);
+        self.sharing_dialog().update(ctx, |dialog, ctx| {
+            dialog.show_qr_code(ctx);
+            if dialog_was_closed {
+                dialog.report_open(source, ctx);
+            }
+        });
+        ctx.notify();
+    }
+
     fn handle_sharing_dialog_event(
         &mut self,
         event: &SharingDialogEvent,
@@ -180,16 +195,20 @@ impl<P: BackingView> PaneHeader<P> {
                 (
                     Icon::Share,
                     false,
-                    UNSHARABLE_CONVERSATION_TOOLTIP.to_string(),
+                    text(app, "pane.header.sharing.unsharable_conversation_tooltip"),
                 )
             } else if editability.can_edit() {
                 (
                     Icon::Share,
                     self.open_overlay == OpenOverlay::SharingDialog,
-                    "Share".to_string(),
+                    text(app, "pane.header.sharing.share"),
                 )
             } else {
-                (Icon::Link, false, "Copy link".to_string())
+                (
+                    Icon::Link,
+                    false,
+                    text(app, "pane.header.sharing.copy_link"),
+                )
             };
 
         let ui_builder = appearance.ui_builder().clone();
@@ -243,10 +262,11 @@ impl<P: BackingView> PaneHeader<P> {
         element.add_child(primary_button);
 
         if !editability.can_edit() {
-            let mut tooltip_text = String::from("Read-only");
-            if matches!(editability, ContentEditability::RequiresLogin) {
-                tooltip_text.push_str(". Sign in to edit");
-            }
+            let tooltip_text = if matches!(editability, ContentEditability::RequiresLogin) {
+                text(app, "pane.header.sharing.read_only_sign_in")
+            } else {
+                text(app, "pane.header.sharing.read_only")
+            };
 
             let ui_builder = appearance.ui_builder().clone();
             let view_only_button = if let Some(icon_color) = icon_color_override {

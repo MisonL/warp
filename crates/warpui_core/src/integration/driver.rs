@@ -1,34 +1,33 @@
-use super::{
-    action_log::{self, ActionLog, ACTION_LOG_KEY},
-    artifacts::{self, TestArtifacts, ARTIFACTS_KEY},
-    overlay::{OverlayLog, OVERLAY_LOG_KEY},
-    step::{run_step, AssertionOutcome, StepDataMap, TestStep},
-    video_recorder::{self, VideoRecorder, VIDEO_RECORDER_KEY},
-    RootDir, TestSetupUtils,
-};
+use super::action_log::{self, ActionLog, ACTION_LOG_KEY};
+use super::artifacts::{self, TestArtifacts, ARTIFACTS_KEY};
+use super::overlay::{OverlayLog, OVERLAY_LOG_KEY};
+use super::step::{run_step, AssertionOutcome, StepDataMap, TestStep};
+use super::video_recorder::{self, VideoRecorder, VIDEO_RECORDER_KEY};
+use super::{RootDir, TestSetupUtils};
 
 const RUNTIME_TAG_FAILED_STEP_GROUP_NAME: &str = "failed_step_group_name";
 const RUNTIME_TAG_FAILED_ASSERTION_NAME: &str = "failed_assertion_name";
 pub const RUNTIME_TAG_FAILURE_REASON: &str = "failure_reason";
 
-#[cfg(feature = "integration_tests")]
-use crate::r#async::Timer;
-use crate::{
-    integration::step::PersistedDataMap, platform::TerminationMode, r#async::FutureExt as _, App,
-    WindowId,
-};
-use futures::{Future, FutureExt};
-use instant::{Duration, Instant};
+use std::backtrace::BacktraceStatus;
+use std::collections::VecDeque;
+use std::panic::AssertUnwindSafe;
+use std::path::PathBuf;
+use std::pin::Pin;
+use std::sync::atomic::AtomicBool;
 #[cfg(not(target_family = "wasm"))]
 use std::sync::atomic::Ordering;
-use std::{
-    backtrace::BacktraceStatus,
-    collections::VecDeque,
-    panic::AssertUnwindSafe,
-    path::PathBuf,
-    pin::Pin,
-    sync::{atomic::AtomicBool, Arc},
-};
+use std::sync::Arc;
+
+use futures::{Future, FutureExt};
+use instant::{Duration, Instant};
+
+use crate::integration::step::PersistedDataMap;
+use crate::platform::TerminationMode;
+use crate::r#async::FutureExt as _;
+#[cfg(feature = "integration_tests")]
+use crate::r#async::Timer;
+use crate::{App, WindowId};
 
 pub type SetupFn = Box<dyn FnMut(&mut TestSetupUtils) + 'static>;
 pub type OnFinishFn = Box<
@@ -169,6 +168,7 @@ impl Builder {
             steps: self.steps,
             test_name: test_name.to_string(),
             test_setup,
+            use_real_display: self.use_real_display,
             should_run_test: self.should_run_test,
             setup: self.setup.unwrap_or_else(|| Box::new(|_| {})),
             cleanup: self.cleanup,
@@ -212,6 +212,7 @@ pub struct TestDriver {
     steps: VecDeque<TestStep>,
     test_name: String,
     test_setup: TestSetupUtils,
+    use_real_display: bool,
     should_run_test: Box<dyn FnMut() -> bool>,
     setup: Box<dyn FnMut(&mut TestSetupUtils) + 'static>,
     cleanup: Box<dyn FnMut(&mut TestSetupUtils) + 'static>,
@@ -233,6 +234,10 @@ enum StepResult {
 }
 
 impl TestDriver {
+    pub fn uses_real_display(&self) -> bool {
+        self.use_real_display
+    }
+
     /// Executes the test steps, performing assertions against application state,
     /// and then cleans up test-only state as necessary.
     ///

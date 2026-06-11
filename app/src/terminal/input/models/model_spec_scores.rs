@@ -1,29 +1,37 @@
 use pathfinder_color::ColorU;
+use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
-    Border, ConstrainedBox, Container, CornerRadius, Expanded, Flex, MainAxisAlignment,
-    MainAxisSize, ParentElement as _, Percentage, Radius, Rect, Stack, Text,
+    Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, Expanded, Flex, Hoverable,
+    Icon as WarpUiIcon, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
+    ParentAnchor, ParentElement as _, ParentOffsetBounds, Percentage, Radius, Rect, Stack, Text,
 };
 use warpui::prelude::{Align, CrossAxisAlignment};
 use warpui::text_layout::ClipConfig;
+use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Element, SingletonEntity as _};
 
 use crate::ai::llms::LLMSpec;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::input::inline_menu::styles as inline_styles;
 
 const CORNER_RADIUS: f32 = 4.0;
 const ROW_SPACING: f32 = 12.0;
 
-pub const MODEL_SPECS_TITLE: &str = "Model Specs";
-pub const MODEL_SPECS_DESCRIPTION: &str = "Warp's benchmarks for how well a model performs in our harness, the rate at which it consumes credits, and task speed.";
-
-pub const REASONING_LEVEL_TITLE: &str = "Reasoning level";
-pub const REASONING_LEVEL_DESCRIPTION: &str = "Increased reasoning levels consume more credits and have higher latency, but higher performance for complicated tasks.";
-
 pub enum CostRow {
-    Bar { value: Option<f32> },
-    BilledToApi { manage_button: Box<dyn Element> },
+    Bar {
+        value: Option<f32>,
+    },
+    BilledToProvider {
+        label: String,
+        tooltip: Option<CostRowTooltip>,
+        manage_button: Box<dyn Element>,
+    },
+}
+pub struct CostRowTooltip {
+    pub text: String,
+    pub mouse_state: MouseStateHandle,
 }
 
 pub struct ModelSpecScoresLayout {
@@ -37,19 +45,21 @@ pub fn render_model_spec_scores(
     app: &AppContext,
 ) -> Box<dyn Element> {
     let mut rows = vec![render_score_row(
-        "Intelligence",
+        localization::text_for_app(app, "terminal.input.models.spec.intelligence"),
         ScoreRowKind::Bar {
             value: spec.as_ref().map(|spec| spec.quality),
         },
+        None,
         layout.bg_bar_color,
         app,
     )];
 
     rows.push(render_score_row(
-        "Speed",
+        localization::text_for_app(app, "terminal.input.models.spec.speed"),
         ScoreRowKind::Bar {
             value: spec.as_ref().map(|spec| spec.speed),
         },
+        None,
         layout.bg_bar_color,
         app,
     ));
@@ -57,16 +67,25 @@ pub fn render_model_spec_scores(
     match cost_row {
         CostRow::Bar { value } => {
             rows.push(render_score_row(
-                "Cost",
+                localization::text_for_app(app, "terminal.input.models.spec.cost"),
                 ScoreRowKind::Bar { value },
+                None,
                 layout.bg_bar_color,
                 app,
             ));
         }
-        CostRow::BilledToApi { manage_button } => {
+        CostRow::BilledToProvider {
+            label,
+            tooltip,
+            manage_button,
+        } => {
             rows.push(render_score_row(
-                "Cost",
-                ScoreRowKind::BilledToApi { manage_button },
+                localization::text_for_app(app, "terminal.input.models.spec.cost"),
+                ScoreRowKind::BilledToProvider {
+                    label,
+                    manage_button,
+                },
+                tooltip,
                 layout.bg_bar_color,
                 app,
             ));
@@ -80,13 +99,19 @@ pub fn render_model_spec_scores(
 }
 
 enum ScoreRowKind {
-    Bar { value: Option<f32> },
-    BilledToApi { manage_button: Box<dyn Element> },
+    Bar {
+        value: Option<f32>,
+    },
+    BilledToProvider {
+        label: String,
+        manage_button: Box<dyn Element>,
+    },
 }
 
 fn render_score_row(
-    name: &str,
+    name: String,
     kind: ScoreRowKind,
+    label_tooltip: Option<CostRowTooltip>,
     bg_bar_color: ColorU,
     app: &AppContext,
 ) -> Box<dyn Element> {
@@ -101,23 +126,9 @@ fn render_score_row(
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     ) * 8.;
-    let label = ConstrainedBox::new(
-        Text::new(
-            name.to_string(),
-            appearance.ui_font_family(),
-            appearance.monospace_font_size(),
-        )
-        .with_color(
-            inline_styles::primary_text_color(
-                theme,
-                inline_styles::menu_background_color(app).into(),
-            )
-            .into_solid(),
-        )
-        .finish(),
-    )
-    .with_width(label_width)
-    .finish();
+    let label = ConstrainedBox::new(render_row_label(&name, label_tooltip, appearance, app))
+        .with_width(label_width)
+        .finish();
 
     let bar_height = app.font_cache().line_height(
         appearance.monospace_font_size(),
@@ -184,24 +195,16 @@ fn render_score_row(
             )
             .finish()
         }
-        ScoreRowKind::BilledToApi { manage_button } => Expanded::new(
+        ScoreRowKind::BilledToProvider {
+            label,
+            manage_button,
+        } => Expanded::new(
             1.,
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    Container::new(
-                        Text::new(
-                            "Billed to API".to_string(),
-                            appearance.ui_font_family(),
-                            14.,
-                        )
-                        .with_color(theme.disabled_ui_text_color().into())
-                        .finish(),
-                    )
-                    .finish(),
-                )
+                .with_child(render_provider_label(&label, appearance))
                 .with_child(manage_button)
                 .finish(),
         )
@@ -214,6 +217,81 @@ fn render_score_row(
         .with_child(label)
         .with_child(Expanded::new(1., row_content).finish())
         .finish()
+}
+
+fn render_row_label(
+    label: &str,
+    tooltip: Option<CostRowTooltip>,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let label = Text::new(
+        label.to_string(),
+        appearance.ui_font_family(),
+        appearance.monospace_font_size(),
+    )
+    .with_color(
+        inline_styles::primary_text_color(
+            appearance.theme(),
+            inline_styles::menu_background_color(app).into(),
+        )
+        .into_solid(),
+    )
+    .finish();
+
+    let Some(tooltip) = tooltip else {
+        return label;
+    };
+
+    Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_child(label)
+        .with_child(
+            Container::new(render_info_tooltip(tooltip, appearance))
+                .with_margin_left(4.)
+                .finish(),
+        )
+        .finish()
+}
+
+fn render_provider_label(label: &str, appearance: &Appearance) -> Box<dyn Element> {
+    Container::new(
+        Text::new(label.to_string(), appearance.ui_font_family(), 14.)
+            .with_color(appearance.theme().disabled_ui_text_color().into())
+            .finish(),
+    )
+    .finish()
+}
+
+fn render_info_tooltip(tooltip: CostRowTooltip, appearance: &Appearance) -> Box<dyn Element> {
+    let icon_color = appearance.theme().disabled_ui_text_color();
+    let ui_builder = appearance.ui_builder();
+    let tooltip_text = tooltip.text;
+    Hoverable::new(tooltip.mouse_state, move |state| {
+        let info_icon = Container::new(
+            ConstrainedBox::new(WarpUiIcon::new("bundled/svg/info.svg", icon_color).finish())
+                .with_width(13.)
+                .with_height(13.)
+                .finish(),
+        )
+        .finish();
+
+        let mut stack = Stack::new().with_child(info_icon);
+        if state.is_hovered() {
+            let tooltip = ui_builder.tool_tip(tooltip_text.clone()).build();
+            stack.add_positioned_child(
+                tooltip.finish(),
+                OffsetPositioning::offset_from_parent(
+                    vec2f(0., -3.),
+                    ParentOffsetBounds::Unbounded,
+                    ParentAnchor::TopMiddle,
+                    ChildAnchor::BottomMiddle,
+                ),
+            );
+        }
+        stack.finish()
+    })
+    .finish()
 }
 
 pub fn render_model_spec_header(

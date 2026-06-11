@@ -1,28 +1,22 @@
 //! The renderer for a single context chip.
 
 use pathfinder_color::ColorU;
+use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
-    ConstrainedBox, DraggableState, Hoverable, MouseStateHandle, OffsetPositioning, ParentElement,
-    ParentOffsetBounds, Stack,
+    ConstrainedBox, Container, CrossAxisAlignment, DraggableState, Flex, Hoverable,
+    MouseStateHandle, OffsetPositioning, ParentElement, ParentOffsetBounds, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
-use warpui::Action;
-use warpui::{
-    elements::{Container, CrossAxisAlignment, Flex, Text},
-    Element,
-};
-
-use crate::appearance::Appearance;
-use crate::ui_components::icons;
+use warpui::{Action, AppContext, Element};
 
 use super::context_chip::ContextChip;
 use super::display_chip::{chip_container, udi_font_size};
-use super::spacing;
-use super::{ChipAvailability, ChipValue, ContextChipKind};
-use pathfinder_geometry::vector::vec2f;
+use super::{spacing, ChipAvailability, ChipValue, ContextChipKind};
+use crate::appearance::Appearance;
+use crate::ui_components::icons;
 
 /// Styling consts.
 const CORNER_RADIUS_PIXELS: f32 = 4.;
@@ -65,15 +59,14 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(
+    fn new_with_tooltip_override(
         kind: ContextChipKind,
         chip: ContextChip,
         value: ChipValue,
         styles: RendererStyles,
-        availability: ChipAvailability,
+        is_disabled: bool,
+        tooltip_override_text: Option<String>,
     ) -> Self {
-        let is_disabled = !availability.is_enabled();
-        let tooltip_override_text = availability.tooltip_override_text();
         Self {
             kind,
             chip,
@@ -87,12 +80,54 @@ impl Renderer {
         }
     }
 
+    pub fn new(
+        kind: ContextChipKind,
+        chip: ContextChip,
+        value: ChipValue,
+        styles: RendererStyles,
+        availability: ChipAvailability,
+    ) -> Self {
+        let is_disabled = !availability.is_enabled();
+        Self::new_with_tooltip_override(kind, chip, value, styles, is_disabled, None)
+    }
+
+    pub fn new_for_app(
+        kind: ContextChipKind,
+        chip: ContextChip,
+        value: ChipValue,
+        styles: RendererStyles,
+        availability: ChipAvailability,
+        app: &AppContext,
+    ) -> Self {
+        let is_disabled = !availability.is_enabled();
+        let tooltip_override_text = availability.tooltip_override_text_for_app(app);
+        Self::new_with_tooltip_override(
+            kind,
+            chip,
+            value,
+            styles,
+            is_disabled,
+            tooltip_override_text,
+        )
+    }
+
     pub fn default_from_kind(
         chip_kind: ContextChipKind,
         availability: ChipAvailability,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Self> {
-        Self::default_from_kind_with_agent_view(chip_kind, availability, false, appearance)
+        let chip = chip_kind.to_chip()?;
+        let placeholder_value = chip_kind.placeholder_value();
+        let styles = chip_kind.default_styles(appearance, false);
+        Some(Self::new_for_app(
+            chip_kind,
+            chip,
+            placeholder_value,
+            styles,
+            availability,
+            app,
+        ))
     }
 
     pub fn default_from_kind_with_agent_view(
@@ -249,5 +284,5 @@ impl Renderer {
 }
 
 #[cfg(test)]
-#[path = "renderer_test.rs"]
+#[path = "renderer_tests.rs"]
 mod tests;

@@ -1,23 +1,20 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::time::Duration;
 
 use instant::Instant;
-
 use parking_lot::FairMutex;
 use warp_core::ui::appearance::Appearance;
 use warpui::keymap::Keystroke;
-use warpui::AppContext;
-use warpui::{
-    r#async::SpawnedFutureHandle, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity,
-};
-
-use crate::terminal::input::message_bar::{Message, MessageItem};
-use crate::terminal::input::slash_commands::SlashCommandTrigger;
-use crate::util::bindings::keybinding_name_to_keystroke;
-use crate::{
-    ai::agent::conversation::AIConversationId, terminal::TerminalModel, BlocklistAIHistoryModel,
-};
+use warpui::r#async::SpawnedFutureHandle;
+use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use super::{DismissalStrategy, EphemeralMessage, EphemeralMessageModel};
+use crate::ai::agent::conversation::AIConversationId;
+use crate::terminal::input::message_bar::{Message, MessageItem};
+use crate::terminal::input::slash_commands::SlashCommandTrigger;
+use crate::terminal::TerminalModel;
+use crate::util::bindings::keybinding_name_to_keystroke;
+use crate::{localization, BlocklistAIHistoryModel};
 
 /// Error returned when entering the agent view fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -181,6 +178,10 @@ pub enum AgentViewEntryOrigin {
     /// Entered agent view by clearing the buffer (Cmd+K) while already in agent view.
     ClearBuffer,
 
+    /// Entered agent view via the "Jump to Latest Agent Message" command, which
+    /// returns to the most recent conversation from the terminal.
+    JumpToLatestAgentMessage,
+
     // The variants below actually correspond to callsites where the selected conversation is
     // updated, but don't actually correspond to entering the agent view. They exist so we can
     // continue to call `set_pending_query_state_for_(new|existing)_conversation`, but you'll find
@@ -256,6 +257,13 @@ impl AgentViewState {
     pub fn display_mode(&self) -> Option<AgentViewDisplayMode> {
         match self {
             AgentViewState::Active { display_mode, .. } => Some(*display_mode),
+            AgentViewState::Inactive => None,
+        }
+    }
+
+    pub fn origin(&self) -> Option<AgentViewEntryOrigin> {
+        match self {
+            AgentViewState::Active { origin, .. } => Some(*origin),
             AgentViewState::Inactive => None,
         }
     }
@@ -387,6 +395,11 @@ impl AgentViewController {
         self.pane_group_id
     }
 
+    /// Returns the [`EntityId`] of the [`TerminalView`] that owns this controller.
+    pub fn terminal_view_id(&self) -> EntityId {
+        self.terminal_view_id
+    }
+
     pub fn set_pane_group_id(&mut self, pane_group_id: EntityId) {
         self.pane_group_id = Some(pane_group_id);
     }
@@ -419,8 +432,10 @@ impl AgentViewController {
                 .active_block()
                 .is_active_and_long_running();
 
-        // In a non-ambient agent case, users cannot exit the fullscreen agent view with an active long running command.
-        if is_fullscreen_with_long_running {
+        // Cloud agent panes do not have the same underlying terminal ownership
+        // constraint (no local shell process), so long-running third party agent
+        // commands should not trap the user in agent view.
+        if is_fullscreen_with_long_running && !model.is_dummy_cloud_mode_session() {
             return Err(ExitAgentViewError::LongRunningCommand);
         }
 
@@ -766,6 +781,7 @@ impl AgentViewController {
                     self.terminal_view_id,
                     false,
                     matches!(origin, AgentViewEntryOrigin::CloudAgent),
+                    matches!(origin, AgentViewEntryOrigin::ThirdPartyCloudAgent),
                     ctx,
                 )
             });
@@ -975,16 +991,16 @@ fn exit_confirmation_message(
 
     let appearance = Appearance::handle(app).as_ref(app);
 
-    let (keystroke, text) = match trigger {
+    let (keystroke, text_key) = match trigger {
         ExitConfirmationTrigger::Escape => (
             Keystroke {
                 key: "escape".to_owned(),
                 ..Default::default()
             },
             if should_stop_and_exit {
-                "again to stop and exit"
+                "agent.confirmation.stop_and_exit"
             } else {
-                "again to exit"
+                "agent.confirmation.exit"
             },
         ),
         ExitConfirmationTrigger::CtrlC => (
@@ -993,13 +1009,13 @@ fn exit_confirmation_message(
                 ctrl: true,
                 ..Default::default()
             },
-            "again to exit",
+            "agent.confirmation.exit",
         ),
     };
 
     Message::new(vec![
         MessageItem::keystroke(keystroke),
-        MessageItem::text(text),
+        MessageItem::text(localization::text_for_app(app, text_key)),
     ])
     .with_text_color(appearance.theme().ansi_fg_red())
 }
@@ -1011,7 +1027,10 @@ fn new_conversation_keybinding_confirmation_message(
     let appearance = Appearance::handle(app).as_ref(app);
     Message::new(vec![
         MessageItem::keystroke(keystroke),
-        MessageItem::text("again to start new conversation"),
+        MessageItem::text(localization::text_for_app(
+            app,
+            "agent.confirmation.start_new_conversation",
+        )),
     ])
     .with_text_color(appearance.theme().ansi_fg_magenta())
 }

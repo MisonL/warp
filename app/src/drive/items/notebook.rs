@@ -1,19 +1,15 @@
-use warpui::{
-    elements::{Flex, MouseStateHandle, ParentElement},
-    fonts::Weight,
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element,
-};
-
-use crate::{
-    appearance::Appearance,
-    cloud_object::CloudObjectMetadata,
-    drive::{index::DriveIndexAction, CloudObjectTypeAndId, DriveObjectType},
-    notebooks::CloudNotebook,
-    themes::theme::Fill,
-};
+use warpui::elements::{Flex, MouseStateHandle, ParentElement};
+use warpui::fonts::Weight;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element};
 
 use super::{WarpDriveItem, WarpDriveItemId};
+use crate::appearance::Appearance;
+use crate::cloud_object::CloudObjectMetadata;
+use crate::drive::index::DriveIndexAction;
+use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
+use crate::notebooks::CloudNotebook;
+use crate::themes::theme::Fill;
 
 #[derive(Clone)]
 pub struct WarpDriveNotebook {
@@ -59,10 +55,10 @@ impl WarpDriveItem for WarpDriveNotebook {
         Some(DriveIndexAction::OpenObject(self.id))
     }
 
-    fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>> {
         let title_text = self.notebook.model().title.clone();
         let title_to_render = if title_text.is_empty() {
-            "Untitled".to_string()
+            crate::localization::text_for_app(app, "notebook.placeholder.untitled")
         } else {
             title_text
         };

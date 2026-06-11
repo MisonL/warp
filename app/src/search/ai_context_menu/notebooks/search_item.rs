@@ -1,20 +1,38 @@
-use fuzzy_match::FuzzyMatchResult;
-use ordered_float::OrderedFloat;
 use std::fmt::Debug;
 
-use crate::appearance::Appearance;
-use crate::cloud_object::ObjectType;
-use crate::search::ai_context_menu::styles;
-use crate::search::ai_context_menu::{mixer::AIContextMenuSearchableAction, safe_truncate};
-use crate::search::item::SearchItem;
-use crate::search::result_renderer::ItemHighlightState;
+use fuzzy_match::FuzzyMatchResult;
+use ordered_float::OrderedFloat;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, Icon, ParentElement, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
 
+use crate::appearance::Appearance;
+use crate::cloud_object::ObjectType;
+use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
+use crate::search::ai_context_menu::{safe_truncate, styles};
+use crate::search::item::SearchItem;
+use crate::search::result_renderer::ItemHighlightState;
+
 const MAX_COMBINED_LENGTH: usize = 55;
+
+#[derive(Clone, Debug)]
+pub struct NotebookSearchItemAccessibilityCopy {
+    label_template: String,
+}
+
+impl NotebookSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            label_template: crate::localization::text_for_app(app, "search.notebook.a11y.label"),
+        }
+    }
+
+    fn label(&self, title: &str) -> String {
+        self.label_template.replace("{title}", title)
+    }
+}
 
 #[derive(Debug)]
 pub struct NotebookSearchItem {
@@ -25,6 +43,7 @@ pub struct NotebookSearchItem {
     pub ai_document_uid: Option<String>,
     /// True if match_result was computed against the notebook name (vs description)
     pub is_match_on_name: bool,
+    pub accessibility_copy: NotebookSearchItemAccessibilityCopy,
 }
 
 impl SearchItem for NotebookSearchItem {
@@ -187,19 +206,19 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
+        let title = self.accessibility_copy.label(&self.notebook_name);
         if let Some(description) = &self.notebook_description {
-            format!("Notebook: {} - {}", self.notebook_name, description)
+            format!("{title} - {description}")
         } else {
-            format!("Notebook: {}", self.notebook_name)
+            title
         }
     }
 
     fn render_details(&self, ctx: &AppContext) -> Option<Box<dyn Element>> {
         let appearance = Appearance::as_ref(ctx);
 
-        // Use notebook name, or "Untitled" if empty
         let display_name = if self.notebook_name.is_empty() {
-            "Untitled".to_string()
+            crate::localization::text_for_app(ctx, "notebook.placeholder.untitled")
         } else {
             self.notebook_name.clone()
         };

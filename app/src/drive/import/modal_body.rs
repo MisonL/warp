@@ -1,38 +1,32 @@
+use std::path::PathBuf;
+
 use futures_util::stream::AbortHandle;
 use pathfinder_geometry::vector::vec2f;
-use std::path::PathBuf;
+use warpui::elements::{
+    Align, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, ParentElement, Radius,
+};
+use warpui::platform::file_picker::FilePickerError;
+use warpui::platform::Cursor;
+use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Align, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius,
-    },
-    platform::{file_picker::FilePickerError, Cursor},
-    ui_components::{
-        button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
-use crate::{
-    appearance::Appearance,
-    cloud_object::Owner,
-    server::{
-        ids::{ClientId, SyncId},
-        sync_queue::SyncQueue,
-    },
-    ui_components::icons::Icon,
-    view_components::DismissibleToast,
-    workspace::ToastStack,
+use super::modal::BODY_HEIGHT;
+use super::nodes::{
+    expand_dirs, parse_file, FileContent, FileId, FileUploadState, FolderId, UploadResult,
 };
-
-use super::{
-    modal::BODY_HEIGHT,
-    nodes::{
-        expand_dirs, parse_file, FileContent, FileId, FileUploadState, FolderId, UploadResult,
-    },
-    queue::{ImportQueue, ImportQueueArgs, ImportQueueEvent, ParentId, RequestContent},
-};
+use super::queue::{ImportQueue, ImportQueueArgs, ImportQueueEvent, ParentId, RequestContent};
+use crate::appearance::Appearance;
+use crate::cloud_object::Owner;
+use crate::localization;
+use crate::server::ids::{ClientId, SyncId};
+use crate::server::sync_queue::SyncQueue;
+use crate::ui_components::icons::Icon;
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
 
 const FILE_PICKER_BUTTON_WIDTH: f32 = 250.;
 const BUTTON_FONT_SIZE: f32 = 14.;
@@ -44,6 +38,10 @@ pub(super) const BASE_INDENT: f32 = 30.;
 const FILE_TYPE_DOCS_URL: &str =
     "https://docs.warp.dev/knowledge-and-collaboration/warp-drive#import-and-export";
 const SUPPORTED_FILE_TYPE_TEXT: &str = "md, yaml, yml";
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[cfg(test)]
 #[path = "import_tests.rs"]
@@ -126,7 +124,9 @@ impl ImportModalBody {
                 ImportQueueEvent::FileCompleted { file_id, server_id } => {
                     let result = match server_id {
                         Some(id) => UploadResult::Success(id.clone()),
-                        None => UploadResult::Error("Failed to upload file to server".to_string()),
+                        None => {
+                            UploadResult::Error(text(ctx, "drive.import.error.failed_upload_file"))
+                        }
                     };
 
                     // Update the upstream folder status with the upload success state.
@@ -140,9 +140,10 @@ impl ImportModalBody {
                 } => {
                     let result = match server_id {
                         Some(id) => UploadResult::Success(id.clone()),
-                        None => {
-                            UploadResult::Error("Failed to upload folder to server".to_string())
-                        }
+                        None => UploadResult::Error(text(
+                            ctx,
+                            "drive.import.error.failed_upload_folder",
+                        )),
                     };
 
                     state.mark_folder_synced(result, *folder_id);
@@ -365,7 +366,7 @@ impl ImportModalBody {
         ctx.notify();
     }
 
-    fn render_upload_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_upload_state(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let is_loading = matches!(self.state, ImportState::PathLoaded | ImportState::Loading);
         let base_button = appearance
             .ui_builder()
@@ -387,13 +388,13 @@ impl ImportModalBody {
 
         let file_picker_button = if is_loading {
             base_button
-                .with_centered_text_label("Preparing...".to_string())
+                .with_centered_text_label(text(app, "drive.import.preparing"))
                 .disabled()
         } else {
             base_button.with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::TextFirst,
-                    "Choose files...".to_string(),
+                    text(app, "drive.import.choose_files"),
                     Icon::Import.to_warpui_icon(
                         appearance
                             .theme()
@@ -433,7 +434,7 @@ impl ImportModalBody {
         let link_to_document = appearance
             .ui_builder()
             .link(
-                "Learn about file support and formatting".to_string(),
+                text(app, "drive.import.file_support_link"),
                 Some(FILE_TYPE_DOCS_URL.to_string()),
                 None,
                 self.link_mouse_state.clone(),
@@ -510,7 +511,7 @@ impl View for ImportModalBody {
 
         match &self.state {
             ImportState::Upload | ImportState::Loading | ImportState::PathLoaded => {
-                self.render_upload_state(appearance)
+                self.render_upload_state(app, appearance)
             }
             ImportState::PathExpanded(paths) => {
                 self.render_loaded_state(paths, sync_queue_dequeueing, appearance)

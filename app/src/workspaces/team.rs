@@ -1,11 +1,13 @@
-use crate::{auth::UserUid, server::ids::ServerId};
-use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+
+use serde::{Deserialize, Serialize};
 
 use super::workspace::{
     BillingMetadata, EmailInvite, InviteLinkDomainRestriction, WorkspaceInviteCode,
     WorkspaceSettings,
 };
+use crate::auth::UserUid;
+use crate::server::ids::ServerId;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum MembershipRole {
@@ -59,16 +61,16 @@ pub enum TeamDeleteDisabledReason {
 }
 
 impl TeamDeleteDisabledReason {
-    pub fn user_facing_message(&self) -> &str {
+    pub fn user_facing_message_key(&self) -> &'static str {
         match self {
             TeamDeleteDisabledReason::ActivePaidSubscription => {
-                "Your team cannot be deleted with an active subscription."
+                "settings.teams.delete_disabled.active_subscription"
             }
             TeamDeleteDisabledReason::RemainingBonusCredits => {
-                "Your team cannot be deleted with unused add-on credits."
+                "settings.teams.delete_disabled.remaining_addon_credits"
             }
             TeamDeleteDisabledReason::OtherMembers => {
-                "Your team cannot be deleted with other team members."
+                "settings.teams.delete_disabled.other_members"
             }
         }
     }

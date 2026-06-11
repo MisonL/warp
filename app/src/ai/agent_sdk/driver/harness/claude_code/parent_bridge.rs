@@ -23,14 +23,14 @@ use uuid::Uuid;
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::ModelSpawner;
 
+use super::super::{default_text, default_text_with_args, default_text_with_path};
 use crate::ai::agent_events::{
     run_agent_event_driver, AgentEventConsumer, AgentEventConsumerControlFlow,
-    AgentEventDriverConfig, MessageHydrator, ServerApiAgentEventSource,
+    AgentEventDriverConfig, AgentMessageEventMetadata, MessageHydrator, ServerApiAgentEventSource,
 };
 use crate::ai::agent_sdk::driver::{AgentDriver, OZ_MESSAGE_LISTENER_STATE_ROOT_ENV};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::server::server_api::ai::AIClient;
-use crate::server::server_api::ai::AgentRunEvent;
+use crate::server::server_api::ai::{AIClient, AgentRunEvent};
 use crate::server::server_api::ServerApi;
 
 const LEGACY_MESSAGE_LISTENER_STATE_ROOT_ENV: &str = "OZ_PARENT_STATE_ROOT";
@@ -41,9 +41,10 @@ const PARENT_BRIDGE_HOOK_OUTPUT_FILE_NAME: &str = "pending-hook-output.json";
 const PARENT_BRIDGE_HOOK_OUTPUT_ACK_FILE_NAME: &str = "pending-hook-output.ack";
 const PARENT_BRIDGE_MAX_CONTEXT_CHARS_ENV: &str = "OZ_PARENT_MAX_CONTEXT_CHARS";
 const PARENT_BRIDGE_DEFAULT_MAX_CONTEXT_CHARS: usize = 6000;
-pub(super) const MESSAGE_BRIDGE_CONTEXT_PREAMBLE: &str = "Lead-agent updates arrived from Oz. Treat the latest lead-agent instructions below as authoritative.\n";
+pub(super) const MESSAGE_BRIDGE_CONTEXT_PREAMBLE: &str =
+    "Oz mailbox update for this child run.\nSource: lead agent\nContext type: user-level coordination messages\n";
 const PARENT_BRIDGE_REMAINING_MESSAGES_NOTE: &str =
-    "\n\nMore lead-agent messages are still staged and will be surfaced on a later turn.";
+    "\n\nAdditional lead agent mailbox messages remain queued and may be surfaced later.";
 
 pub(super) struct MessageBridge {
     run_id: String,
@@ -195,7 +196,11 @@ impl MessageBridge {
                 )
             })
             .await
-            .map_err(|_| anyhow!("Agent driver dropped while starting Claude message bridge"))?;
+            .map_err(|_| {
+                anyhow!(default_text(
+                    "agent_sdk.driver.harness.claude.bridge.error.driver_dropped_starting",
+                ))
+            })?;
         *self.runtime.lock() = Some(MessageBridgeRuntime { task });
         Ok(())
     }
@@ -235,9 +240,9 @@ impl MessageBridge {
             Ok(()) => {}
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
             Err(err) => {
-                return Err(anyhow::Error::from(err).context(format!(
-                    "Failed to remove Claude message bridge state dir {}",
-                    self.state_dir.display()
+                return Err(anyhow::Error::from(err).context(default_text_with_path(
+                    "agent_sdk.driver.harness.claude.bridge.error.remove_state_dir",
+                    &self.state_dir,
                 )));
             }
         }
@@ -258,7 +263,11 @@ pub(super) fn parent_bridge_root() -> Result<PathBuf> {
     }
     dirs::home_dir()
         .map(|home| home.join(PARENT_BRIDGE_DEFAULT_STATE_ROOT))
-        .ok_or_else(|| anyhow!("could not determine home directory"))
+        .ok_or_else(|| {
+            anyhow!(default_text(
+                "agent_sdk.driver.harness.error.home_directory"
+            ))
+        })
 }
 
 fn parent_bridge_staged_dir(state_dir: &Path) -> PathBuf {
@@ -302,10 +311,12 @@ pub(super) fn parent_bridge_surfaced_message_path(
 }
 
 pub(super) fn ensure_parent_bridge_state_dir(state_dir: &Path) -> Result<()> {
-    fs::create_dir_all(parent_bridge_staged_dir(state_dir))
-        .with_context(|| format!("Failed to create {}", state_dir.display()))?;
-    fs::create_dir_all(parent_bridge_surfaced_dir(state_dir))
-        .with_context(|| format!("Failed to create {}", state_dir.display()))?;
+    fs::create_dir_all(parent_bridge_staged_dir(state_dir)).with_context(|| {
+        default_text_with_path("agent_sdk.driver.harness.error.create_path", state_dir)
+    })?;
+    fs::create_dir_all(parent_bridge_surfaced_dir(state_dir)).with_context(|| {
+        default_text_with_path("agent_sdk.driver.harness.error.create_path", state_dir)
+    })?;
     Ok(())
 }
 
@@ -316,9 +327,11 @@ pub(super) fn read_parent_bridge_event_cursor(state_dir: &Path) -> Result<i64> {
     }
 
     let cursor = serde_json::from_slice::<MessageBridgeEventCursor>(
-        &fs::read(&path).with_context(|| format!("Failed to read {}", path.display()))?,
+        &fs::read(&path).with_context(|| {
+            default_text_with_path("agent_sdk.driver.harness.error.read_path", &path)
+        })?,
     )
-    .with_context(|| format!("Failed to parse {}", path.display()))?;
+    .with_context(|| default_text_with_path("agent_sdk.driver.harness.error.parse_path", &path))?;
     Ok(cursor.since_sequence)
 }
 
@@ -342,6 +355,56 @@ pub(super) fn stage_parent_bridge_message(
     Ok(())
 }
 
+pub(super) async fn prime_parent_bridge_staged_for_self_managed_wake(
+    hydrator: &MessageHydrator,
+    state_dir: &Path,
+    wake_message: Option<&AgentMessageEventMetadata>,
+) -> Result<()> {
+    remove_file_if_exists(&parent_bridge_hook_output_file(state_dir))?;
+    remove_file_if_exists(&parent_bridge_hook_output_ack_file(state_dir))?;
+    move_parent_bridge_surfaced_messages_to_staged(state_dir)?;
+
+    let Some(wake_message) = wake_message else {
+        return Ok(());
+    };
+
+    let record = hydrate_parent_bridge_message_record(
+        hydrator,
+        &MessageBridgeMessageRecord {
+            sequence: wake_message.sequence,
+            message_id: wake_message.message_id.clone(),
+            sender_run_id: String::new(),
+            subject: String::new(),
+            body: String::new(),
+            occurred_at: wake_message.occurred_at.clone(),
+        },
+    )
+    .await?;
+    stage_parent_bridge_message(state_dir, &record)?;
+    write_parent_bridge_event_cursor(state_dir, wake_message.sequence)
+}
+
+fn move_parent_bridge_surfaced_messages_to_staged(state_dir: &Path) -> Result<()> {
+    let surfaced_records = parent_bridge_message_records(&parent_bridge_surfaced_dir(state_dir))?;
+    for (path, record) in surfaced_records {
+        let target =
+            parent_bridge_staged_message_path(state_dir, record.sequence, &record.message_id);
+        if target.exists() {
+            write_parent_bridge_json_atomically(&target, &record)?;
+            remove_file_if_exists(&path)?;
+        } else {
+            fs::rename(&path, &target).with_context(|| {
+                format!(
+                    "Failed to move message bridge record {} back to {}",
+                    path.display(),
+                    target.display()
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn parent_bridge_max_context_chars() -> usize {
     std::env::var(PARENT_BRIDGE_MAX_CONTEXT_CHARS_ENV)
         .ok()
@@ -356,7 +419,7 @@ fn parent_bridge_sorted_message_paths(dir: &Path) -> Result<Vec<PathBuf>> {
     }
 
     let mut paths = fs::read_dir(dir)
-        .with_context(|| format!("Failed to read {}", dir.display()))?
+        .with_context(|| default_text_with_path("agent_sdk.driver.harness.error.read_path", dir))?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("json"))
         .collect::<Vec<_>>();
@@ -369,9 +432,13 @@ fn parent_bridge_message_records(dir: &Path) -> Result<Vec<(PathBuf, MessageBrid
         .into_iter()
         .map(|path| {
             let record = serde_json::from_slice::<MessageBridgeMessageRecord>(
-                &fs::read(&path).with_context(|| format!("Failed to read {}", path.display()))?,
+                &fs::read(&path).with_context(|| {
+                    default_text_with_path("agent_sdk.driver.harness.error.read_path", &path)
+                })?,
             )
-            .with_context(|| format!("Failed to parse {}", path.display()))?;
+            .with_context(|| {
+                default_text_with_path("agent_sdk.driver.harness.error.parse_path", &path)
+            })?;
             Ok((path, record))
         })
         .collect()
@@ -392,7 +459,7 @@ pub(super) fn render_parent_bridge_message_block(record: &MessageBridgeMessageRe
         record.subject.as_str()
     };
 
-    let mut block = String::from("---\nLead-agent message");
+    let mut block = String::from("---\nLead agent mailbox message");
     if record.sequence != 0 {
         let _ = write!(block, " #{}", record.sequence);
     }
@@ -466,9 +533,10 @@ fn remove_file_if_exists(path: &Path) -> Result<()> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => {
-            Err(anyhow::Error::from(err).context(format!("Failed to remove {}", path.display())))
-        }
+        Err(err) => Err(anyhow::Error::from(err).context(default_text_with_path(
+            "agent_sdk.driver.harness.error.remove_path",
+            path,
+        ))),
     }
 }
 
@@ -483,7 +551,12 @@ async fn hydrate_parent_bridge_message_record(
     let message = hydrator
         .read_message_with_timeout(&record.message_id)
         .await
-        .with_context(|| format!("Failed to read lead-agent message {}", record.message_id))?;
+        .with_context(|| {
+            default_text_with_args(
+                "agent_sdk.driver.harness.claude.bridge.error.read_lead_agent_message",
+                &[("message_id", &record.message_id)],
+            )
+        })?;
     Ok(MessageBridgeMessageRecord {
         sequence: record.sequence,
         message_id: message.message_id,
@@ -581,10 +654,12 @@ pub(super) async fn prepare_parent_bridge_hook_output(
             &message.record.message_id,
         );
         fs::rename(&message.path, &target).with_context(|| {
-            format!(
-                "Failed to move message bridge record {} to {}",
-                message.path.display(),
-                target.display()
+            default_text_with_args(
+                "agent_sdk.driver.harness.claude.bridge.error.move_record",
+                &[
+                    ("source", &message.path.display().to_string()),
+                    ("target", &target.display().to_string()),
+                ],
             )
         })?;
         write_parent_bridge_json_atomically(&target, &message.record)?;
@@ -638,7 +713,8 @@ async fn run_parent_bridge_forever(
     // The shared driver keeps `since_sequence` in memory across its own retry
     // loop and we also persist it inside the session state dir so dormant runs
     // can resume without replaying already handled events.
-    let config = AgentEventDriverConfig::retry_forever(vec![run_id.clone()], since_sequence);
+    let config =
+        AgentEventDriverConfig::retry_forever_run_ids(vec![run_id.clone()], since_sequence);
     let source = ServerApiAgentEventSource::new(server_api.clone());
     let mut consumer = MessageBridgeEventConsumer {
         run_id,
@@ -682,28 +758,51 @@ fn write_parent_bridge_json_atomically<T: Serialize>(path: &Path, value: &T) -> 
 
 fn write_parent_bridge_bytes_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
     let Some(parent) = path.parent() else {
-        return Err(anyhow!("{} has no parent directory", path.display()));
+        return Err(anyhow!(default_text_with_path(
+            "agent_sdk.driver.harness.error.missing_parent_directory",
+            path,
+        )));
     };
-    fs::create_dir_all(parent).with_context(|| format!("Failed to create {}", parent.display()))?;
+    fs::create_dir_all(parent).with_context(|| {
+        default_text_with_path("agent_sdk.driver.harness.error.create_path", parent)
+    })?;
 
     let prefix = path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("parent-bridge");
-    let mut temp_file = NamedTempFile::new_in(parent)
-        .with_context(|| format!("Failed to create temp file for {}", path.display()))?;
-    temp_file
-        .write_all(bytes)
-        .with_context(|| format!("Failed to write temp file for {}", path.display()))?;
-    temp_file
-        .flush()
-        .with_context(|| format!("Failed to flush temp file for {}", path.display()))?;
+    let mut temp_file = NamedTempFile::new_in(parent).with_context(|| {
+        default_text_with_path(
+            "agent_sdk.driver.harness.error.create_temp_file_for_path",
+            path,
+        )
+    })?;
+    temp_file.write_all(bytes).with_context(|| {
+        default_text_with_path(
+            "agent_sdk.driver.harness.error.write_temp_file_for_path",
+            path,
+        )
+    })?;
+    temp_file.flush().with_context(|| {
+        default_text_with_path(
+            "agent_sdk.driver.harness.error.flush_temp_file_for_path",
+            path,
+        )
+    })?;
     temp_file
         .persist(path)
         .map(|_| ())
         .map_err(|err| {
-            anyhow::Error::from(err.error).context(format!("Failed to write {}", path.display()))
+            anyhow::Error::from(err.error).context(default_text_with_path(
+                "agent_sdk.driver.harness.error.write_path",
+                path,
+            ))
         })
-        .with_context(|| format!("Failed to persist temporary {prefix} file"))?;
+        .with_context(|| {
+            default_text_with_args(
+                "agent_sdk.driver.harness.error.persist_temp_file",
+                &[("prefix", prefix)],
+            )
+        })?;
     Ok(())
 }

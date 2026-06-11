@@ -2,19 +2,22 @@
 // external secrets from the browser.
 #![cfg_attr(target_family = "wasm", allow(dead_code, unused_variables))]
 
-use anyhow::anyhow;
 use core::fmt;
+use std::path::PathBuf;
+
+use anyhow::anyhow;
+pub use cloud_object_models::{ExternalSecret, LastPassSecret, OnePasswordSecret};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::path::PathBuf;
-use warp_util::path::ShellFamily;
+use warpui::AppContext;
 
+use crate::localization;
 #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
 use crate::terminal::local_shell::execute_command;
-
-use crate::{terminal::shell::ShellType, ui_components::icons::Icon};
+use crate::terminal::shell::ShellType;
+use crate::ui_components::icons::Icon;
 
 lazy_static! {
     // Used as a delimeter to separate metadata (such as names and references)
@@ -49,40 +52,6 @@ const LASTPASS_INSTALLED_COMMAND: [&str; 2] = ["lpass", "-v"];
 
 const ONEPASSWORD_DOCS_LINK: &str = "https://developer.1password.com/docs/cli/get-started/";
 const LASTPASS_DOCS_LINK: &str = "https://github.com/lastpass/lastpass-cli";
-
-/// Represents a "completed" secret
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum ExternalSecret {
-    OnePassword(OnePasswordSecret),
-    LastPass(LastPassSecret),
-}
-
-impl ExternalSecret {
-    pub fn get_secret_extraction_command(&self, shell_family: ShellFamily) -> String {
-        let prefix = match shell_family {
-            ShellFamily::Posix => "\\",
-            ShellFamily::PowerShell => "",
-        };
-        match self {
-            ExternalSecret::OnePassword(secret) => {
-                format!(
-                    "{}op item get --fields credential --reveal {}",
-                    prefix, secret.reference
-                )
-            }
-            ExternalSecret::LastPass(secret) => {
-                format!("{}lpass show --password {}", prefix, secret.reference)
-            }
-        }
-    }
-
-    pub fn get_display_name(&self) -> String {
-        match self {
-            ExternalSecret::OnePassword(secret) => secret.name.clone(),
-            ExternalSecret::LastPass(secret) => secret.name.clone(),
-        }
-    }
-}
 
 /// Used to check if a secret manager is installed/fetch list of secrets
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -122,7 +91,7 @@ impl SecretManager {
                         ONE_PASSWORD_INSTALLED_COMMAND.join(" ").as_str(),
                     )
                     .await
-                    .is_ok()
+                    .is_ok();
                 }
                 SecretManager::LastPass => {
                     return execute_command(
@@ -132,7 +101,7 @@ impl SecretManager {
                         LASTPASS_INSTALLED_COMMAND.join(" ").as_str(),
                     )
                     .await
-                    .is_ok()
+                    .is_ok();
                 }
             }
         }
@@ -158,7 +127,7 @@ impl SecretManager {
                     )
                     .await
                     .ok()
-                    .and_then(|output| parse_onepassword_secrets(&output).ok())
+                    .and_then(|output| parse_onepassword_secrets(&output).ok());
                 }
                 SecretManager::LastPass => {
                     let lastpass_command: Vec<&str> = LASTPASS_LIST_SECRETS_COMMAND
@@ -213,18 +182,28 @@ impl SecretManager {
 
     pub fn get_toast_message_and_link(
         &self,
+        app: &AppContext,
         error_type: SecretErrorType,
     ) -> ErrorMessageAndCommand {
         match error_type {
             SecretErrorType::NotInstalled => {
-                let message = format!("{} CLI is not installed", &self);
+                let manager = self.to_string();
+                let message = localization::text_for_app_with_args(
+                    app,
+                    "external_secrets.error.cli_not_installed",
+                    &[("manager", &manager)],
+                );
 
                 let (link, link_message) = (
                     match self {
                         SecretManager::OnePassword => Some(ONEPASSWORD_DOCS_LINK.to_owned()),
                         SecretManager::LastPass => Some(LASTPASS_DOCS_LINK.to_owned()),
                     },
-                    Some(format!("View {} CLI installation documentation", &self)),
+                    Some(localization::text_for_app_with_args(
+                        app,
+                        "external_secrets.link.cli_install_docs",
+                        &[("manager", &manager)],
+                    )),
                 );
 
                 ErrorMessageAndCommand {
@@ -237,21 +216,29 @@ impl SecretManager {
                 let (link, link_message) = match self {
                     SecretManager::OnePassword => (
                         Some(ONEPASSWORD_DOCS_LINK.to_owned()),
-                        Some("Integrate 1Password app with CLI".to_owned()),
+                        Some(localization::text_for_app(
+                            app,
+                            "external_secrets.link.integrate_1password_cli",
+                        )),
                     ),
                     SecretManager::LastPass => (None, None),
                 };
+                let manager = self.to_string();
                 ErrorMessageAndCommand {
-                    message: format!(
-                        "{} didn't return secrets (likely not configured or authenticated)",
-                        &self
+                    message: localization::text_for_app_with_args(
+                        app,
+                        "external_secrets.error.fetch_failed",
+                        &[("manager", &manager)],
                     ),
                     link,
                     link_message,
                 }
             }
             SecretErrorType::InvalidPlatform => ErrorMessageAndCommand {
-                message: "Platform not supported".to_owned(),
+                message: localization::text_for_app(
+                    app,
+                    "external_secrets.error.platform_not_supported",
+                ),
                 link: None,
                 link_message: None,
             },
@@ -306,10 +293,10 @@ fn parse_onepassword_secrets(output: &str) -> anyhow::Result<Vec<ExternalSecret>
                 .and_then(|v| v.as_str())
                 .ok_or(anyhow!("Secret is missing id"))?;
 
-            Ok(ExternalSecret::OnePassword(OnePasswordSecret {
-                name: name.to_string(),
-                reference: reference.to_string(),
-            }))
+            Ok(ExternalSecret::OnePassword(OnePasswordSecret::new(
+                name.to_string(),
+                reference.to_string(),
+            )))
         })
         .collect::<Result<Vec<_>, anyhow::Error>>()?;
 
@@ -322,10 +309,10 @@ fn parse_lastpass_secrets(output: &str) -> anyhow::Result<Vec<ExternalSecret>> {
         .filter_map(|line| {
             let parts = line.split(*WARP_SECRET_DELIMITER).collect_vec();
             if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-                Some(ExternalSecret::LastPass(LastPassSecret {
-                    name: parts[0].to_owned(),
-                    reference: parts[1].to_owned(),
-                }))
+                Some(ExternalSecret::LastPass(LastPassSecret::new(
+                    parts[0].to_owned(),
+                    parts[1].to_owned(),
+                )))
             } else {
                 None
             }
@@ -337,16 +324,4 @@ fn parse_lastpass_secrets(output: &str) -> anyhow::Result<Vec<ExternalSecret>> {
     } else {
         Err(anyhow!("Failed to parse any secrets"))
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct OnePasswordSecret {
-    name: String,
-    reference: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct LastPassSecret {
-    name: String,
-    reference: String,
 }

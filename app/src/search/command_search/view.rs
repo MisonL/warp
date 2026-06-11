@@ -1,69 +1,63 @@
-use itertools::Itertools;
+use std::collections::HashSet;
+use std::ops::Range;
+use std::sync::Arc;
+use std::time::Duration;
 
 use async_channel::Sender;
+use itertools::Itertools;
+use lazy_static::lazy_static;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
-
-use crate::search::mixer::AddAsyncSourceOptions;
-use lazy_static::lazy_static;
-use std::{collections::HashSet, ops::Range, sync::Arc, time::Duration};
 use warp_core::features::FeatureFlag;
+use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
+use warpui::elements::{
+    resizable_state_handle, Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, Dismiss, Fill, Flex, MouseStateHandle, OffsetPositioning, OffsetType,
+    ParentElement, ParentOffsetBounds, PositionedElementOffsetBounds, PositioningAxis, Radius,
+    Resizable, ResizableStateHandle, SavePosition, ScrollStateHandle, Scrollable,
+    ScrollableElement, Shrinkable, Stack, UniformList, UniformListState, XAxisAnchor, YAxisAnchor,
+};
+use warpui::presenter::ChildView;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
-    accessibility::{AccessibilityContent, WarpA11yRole},
-    elements::{
-        resizable_state_handle, Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, Dismiss, Fill, Flex, MouseStateHandle, OffsetPositioning, OffsetType,
-        ParentElement, ParentOffsetBounds, PositionedElementOffsetBounds, PositioningAxis, Radius,
-        Resizable, ResizableStateHandle, SavePosition, ScrollStateHandle, Scrollable,
-        ScrollableElement, Shrinkable, Stack, UniformList, UniformListState, XAxisAnchor,
-        YAxisAnchor,
-    },
-    presenter::ChildView,
-    ui_components::components::{UiComponent, UiComponentStyles},
     AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle, WeakViewHandle,
 };
 
-use crate::{
-    ai_assistant::{
-        execution_context::WarpAiExecutionContext, GenerateCommandsFromNaturalLanguageError,
-    },
-    appearance::Appearance,
-    auth::{
-        auth_manager::AuthManager, auth_state::AuthState, auth_view_modal::AuthViewVariant,
-        AuthStateProvider, UserUid,
-    },
-    completer::SessionContext,
-    drive::settings::WarpDriveSettings,
-    search::{
-        command_search::searcher::{CommandSearchItemAction, CommandSearchMixer},
-        result_renderer::{QueryResultRenderer, QueryResultRendererStyles},
-        search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering},
-        QueryFilter,
-    },
-    send_telemetry_from_ctx,
-    server::{ids::ServerId, server_api::ai::AIClient, telemetry::TelemetryEvent},
-    settings::AISettings,
-    terminal::{
-        input::MenuPositioning,
-        model::session::SessionId,
-        resizable_data::{ModalType, ResizableData, DEFAULT_UNIVERSAL_SEARCH_WIDTH},
-        History, HistoryEvent,
-    },
-    workspaces::user_workspaces::UserWorkspaces,
+use super::ai_queries::AIQueriesDataSource;
+use super::env_var_collections::EnvVarCollectionDataSource;
+use super::history::history_data_source_for_session;
+use super::notebooks::notebooks_data_source;
+use super::warp_ai::WarpAIDataSource;
+use super::workflows::{cloud_workflows_data_source, WorkflowsDataSource};
+use super::zero_state::{CommandSearchZeroStateEvent, CommandSearchZeroStateView};
+use crate::ai_assistant::execution_context::WarpAiExecutionContext;
+use crate::ai_assistant::GenerateCommandsFromNaturalLanguageError;
+use crate::appearance::Appearance;
+use crate::auth::auth_manager::AuthManager;
+use crate::auth::auth_state::AuthState;
+use crate::auth::auth_view_modal::AuthViewVariant;
+use crate::auth::{AuthStateProvider, UserUid};
+use crate::completer::SessionContext;
+use crate::drive::settings::WarpDriveSettings;
+use crate::search::command_search::searcher::{CommandSearchItemAction, CommandSearchMixer};
+use crate::search::mixer::AddAsyncSourceOptions;
+use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
+use crate::search::search_bar::{
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
 };
+use crate::search::QueryFilter;
+use crate::server::ids::ServerId;
+use crate::server::server_api::ai::AIClient;
+use crate::server::telemetry::TelemetryEvent;
+use crate::settings::AISettings;
+use crate::terminal::input::MenuPositioning;
+use crate::terminal::model::session::SessionId;
+use crate::terminal::resizable_data::{ModalType, ResizableData, DEFAULT_UNIVERSAL_SEARCH_WIDTH};
+use crate::terminal::{History, HistoryEvent};
+use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
-use super::{
-    ai_queries::AIQueriesDataSource,
-    env_var_collections::EnvVarCollectionDataSource,
-    history::history_data_source_for_session,
-    notebooks::notebooks_data_source,
-    warp_ai::WarpAIDataSource,
-    workflows::{cloud_workflows_data_source, WorkflowsDataSource},
-    zero_state::{CommandSearchZeroStateEvent, CommandSearchZeroStateView},
-};
-
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search your history, workflows, and more";
 const PANEL_POSITION_ID: &str = "CommandSearchViewPanel";
 const DETAILS_PANEL_MARGIN: f32 = 4.;
 const MIN_WIDTH_RATIO: f32 = 0.25;
@@ -152,7 +146,7 @@ impl CommandSearchView {
             SearchBar::new(
                 mixer.clone(),
                 search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
+                SearchBarPlaceholder::localized("search.command_search.placeholder"),
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -336,6 +330,9 @@ impl CommandSearchView {
                                     },
                                     ctx,
                                 );
+                                if let Some(query) = mixer.current_query().cloned() {
+                                    mixer.run_query(query, ctx);
+                                }
                                 ctx.notify();
                             }
                         }
@@ -402,10 +399,7 @@ impl CommandSearchView {
 
     fn close(&self, ctx: &mut ViewContext<Self>) {
         let query = self.search_bar.as_ref(ctx).query(ctx);
-        let filter = self
-            .search_bar_state
-            .as_ref(ctx)
-            .active_visible_query_filter();
+        let filter = self.search_bar_state.as_ref(ctx).active_query_filter();
         ctx.emit(CommandSearchEvent::Close { query, filter });
     }
 
@@ -481,15 +475,13 @@ impl CommandSearchView {
         ctx: &mut ViewContext<Self>,
     ) {
         self.search_bar.update(ctx, |search_bar, ctx| {
-            search_bar.set_visible_query_filter(filter_and_atom_text, ctx);
+            search_bar.set_query_filter(filter_and_atom_text, ctx);
         });
     }
 
     /// Returns the active query filters
     fn active_query_filter(&self, app: &AppContext) -> Option<QueryFilter> {
-        self.search_bar_state
-            .as_ref(app)
-            .active_visible_query_filter()
+        self.search_bar_state.as_ref(app).active_query_filter()
     }
 
     /// Emits the `ItemSelected` event containing the passed `CommandSearchEventPayload` and closes
@@ -542,10 +534,7 @@ impl CommandSearchView {
                 TelemetryEvent::CommandSearchResultAccepted {
                     result_index,
                     result_type: (&result_action).into(),
-                    query_filter: self
-                        .search_bar_state
-                        .as_ref(ctx)
-                        .active_visible_query_filter(),
+                    query_filter: self.search_bar_state.as_ref(ctx).active_query_filter(),
                     buffer_length: self.search_bar.as_ref(ctx).query(ctx).len(),
                     was_immediately_executed,
                 },
@@ -575,11 +564,11 @@ impl CommandSearchView {
         self.search_bar_state.as_ref(app).selected_result_renderer()
     }
 
-    fn render_loading_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_loading_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let muted_color: ColorU = appearance.theme().nonactive_ui_text_color().into();
         let text = appearance
             .ui_builder()
-            .span("Loading...")
+            .span(localization::text_for_app(app, "search.loading"))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.monospace_font_size()),
                 font_family_id: Some(appearance.ui_font_family()),
@@ -620,7 +609,13 @@ impl CommandSearchView {
                             current_user_id,
                         )
                     } else {
-                        self.render_error_header_text("Looks like you're out of credits. Contact a team admin to upgrade for more credits.".to_string(), appearance)
+                        self.render_error_header_text(
+                            localization::text_for_app(
+                                app,
+                                "search.command_search.out_of_credits_contact_admin",
+                            ),
+                            appearance,
+                        )
                     }
                 } else {
                     self.render_error_header_text(message, appearance)
@@ -685,7 +680,7 @@ impl CommandSearchView {
             appearance
                 .ui_builder()
                 .link(
-                    "Upgrade".into(),
+                    localization::text_for_app(app, "search.command_search.upgrade"),
                     None,
                     Some(Box::new(move |ctx| {
                         ctx.dispatch_typed_action(CommandSearchAction::AttemptLoginGatedUpgrade);
@@ -697,7 +692,7 @@ impl CommandSearchView {
             appearance
                 .ui_builder()
                 .link(
-                    "Upgrade".into(),
+                    localization::text_for_app(app, "search.command_search.upgrade"),
                     None,
                     Some(Box::new(move |ctx| {
                         ctx.dispatch_typed_action(CommandSearchAction::OpenUpgradeLink(
@@ -712,7 +707,10 @@ impl CommandSearchView {
         row.add_child(
             appearance
                 .ui_builder()
-                .span("Looks like you're out of credits. ")
+                .span(localization::text_for_app(
+                    app,
+                    "search.command_search.out_of_credits_prefix",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.monospace_font_size()),
                     font_family_id: Some(appearance.ui_font_family()),
@@ -734,7 +732,10 @@ impl CommandSearchView {
         row.add_child(
             appearance
                 .ui_builder()
-                .span(" for more credits.")
+                .span(localization::text_for_app(
+                    app,
+                    "search.command_search.out_of_credits_suffix",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.monospace_font_size()),
                     font_family_id: Some(appearance.ui_font_family()),
@@ -761,7 +762,7 @@ impl CommandSearchView {
                 // There are no results to display, so notify the user of that fact.
                 let text = appearance
                     .ui_builder()
-                    .span("No results found.")
+                    .span(localization::text_for_app(app, "search.no_results"))
                     .with_style(UiComponentStyles {
                         font_size: Some(appearance.monospace_font_size()),
                         font_family_id: Some(appearance.ui_font_family()),
@@ -847,7 +848,7 @@ impl CommandSearchView {
                         .unwrap_or(false);
                     column.add_child(self.render_error_header(
                         app,
-                        error.user_facing_error(),
+                        data_source_error_message(app, error),
                         is_ratelimit_error,
                         appearance,
                     ));
@@ -877,7 +878,7 @@ impl CommandSearchView {
                     )
                     .finish()
             }
-            _ => self.render_loading_state(appearance),
+            _ => self.render_loading_state(appearance, app),
         }
     }
 
@@ -981,7 +982,7 @@ impl TypedActionView for CommandSearchView {
             AttemptLoginGatedUpgrade => {
                 AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
                     auth_manager.attempt_login_gated_feature(
-                        "Upgrade AI Usage",
+                        "Upgrade AI usage",
                         AuthViewVariant::RequireLoginCloseable,
                         ctx,
                     )
@@ -1002,10 +1003,10 @@ impl View for CommandSearchView {
         }
     }
 
-    fn accessibility_contents(&self, _ctx: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Command Search".to_owned(),
-            "Search your history, workflows, and more.  Use the Up and Down arrows to browse search results after typing.  Press Enter to accept a selected result, inserting it into the terminal input.  Press Escape to close.".to_owned(),
+            localization::text_for_app(ctx, "search.command_search.title"),
+            localization::text_for_app(ctx, "search.command_search.a11y.description"),
             WarpA11yRole::MenuRole,
         ))
     }
@@ -1014,11 +1015,11 @@ impl View for CommandSearchView {
         let appearance = Appearance::as_ref(app);
         let mixer = self.mixer.as_ref(app);
 
-        let should_show_zero_state = self.search_bar_state.as_ref(app).should_show_zero_state();
+        let should_show_zero_state = self.search_bar.as_ref(app).should_show_zero_state(app);
         let panel_contents_body = if should_show_zero_state {
             ChildView::new(&self.zero_state_handle).finish()
         } else if mixer.is_loading() && mixer.are_results_empty() {
-            self.render_loading_state(appearance)
+            self.render_loading_state(appearance, app)
         } else {
             self.render_results(appearance, app)
         };
@@ -1112,10 +1113,27 @@ impl View for CommandSearchView {
     }
 }
 
+fn data_source_error_message(
+    app: &AppContext,
+    error: &crate::search::mixer::DataSourceRunErrorWrapper,
+) -> String {
+    error
+        .user_facing_error_text_key()
+        .map(|key| localization::text_for_app(app, key))
+        .unwrap_or_else(|| error.user_facing_error())
+}
+
 #[cfg(feature = "integration_tests")]
 impl CommandSearchView {
     pub fn search_bar(&self) -> &ViewHandle<SearchBar<CommandSearchItemAction>> {
         &self.search_bar
+    }
+
+    pub fn has_search_results(&self, app: &AppContext) -> bool {
+        self.search_bar_state
+            .as_ref(app)
+            .query_result_renderers()
+            .is_some_and(|results| !results.is_empty())
     }
 }
 
@@ -1124,7 +1142,8 @@ pub mod styles {
     use pathfinder_color::ColorU;
     use warpui::elements::{Border, DropShadow, ScrollbarWidth};
 
-    use crate::{appearance::Appearance, themes::theme::Fill};
+    use crate::appearance::Appearance;
+    use crate::themes::theme::Fill;
 
     pub const CORNER_RADIUS: f32 = 8.;
     pub const VIEW_WIDTH: f32 = 700.;
@@ -1161,5 +1180,5 @@ pub mod styles {
 }
 
 #[cfg(test)]
-#[path = "view_test.rs"]
+#[path = "view_tests.rs"]
 mod tests;

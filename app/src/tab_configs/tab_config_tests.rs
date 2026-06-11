@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::launch_configs::launch_config::{PaneTemplateType, SplitDirection};
-
 use super::*;
+use crate::launch_configs::launch_config::{PaneTemplateType, SplitDirection};
 
 const WORKTREE_TOML: &str = r#"
 name = "New Worktree"
@@ -793,8 +792,13 @@ fn test_worktree_custom_commands_with_template() {
 
 #[test]
 fn test_build_worktree_toml_autogenerate_round_trips() {
-    let toml_str =
-        build_worktree_config_toml("Worktree: my-project", "/Users/me/repo", "main", None);
+    let toml_str = build_worktree_config_toml_with_branch_description(
+        "Worktree: my-project",
+        "/Users/me/repo",
+        "main",
+        None,
+        None,
+    );
     let config: TabConfig = toml::from_str(&toml_str).expect("Generated TOML should parse");
 
     assert_eq!(config.name, "Worktree: my-project");
@@ -832,11 +836,12 @@ fn test_build_worktree_toml_autogenerate_round_trips() {
 
 #[test]
 fn test_build_worktree_toml_manual_round_trips() {
-    let toml_str = build_worktree_config_toml(
+    let toml_str = build_worktree_config_toml_with_branch_description(
         "Worktree: my-project",
         "/Users/me/repo",
         "main",
         Some("my-feature"),
+        None,
     );
     let config: TabConfig = toml::from_str(&toml_str).expect("Generated TOML should parse");
 

@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use crate::modal::Modal;
-use crate::ui_components::blended_colors;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
     ChildView, Container, CrossAxisAlignment, Flex, MouseStateHandle, ParentElement, Text,
@@ -14,6 +12,10 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
+
+use crate::localization;
+use crate::modal::Modal;
+use crate::ui_components::blended_colors;
 
 pub const MODAL_WIDTH: f32 = 400.;
 pub const MODAL_PADDING: f32 = 24.;
@@ -146,11 +148,13 @@ impl InactivityModalBody {
         }
     }
 
-    fn render_countdown(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_countdown(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let text = format!(
-            "Sharing will end in {}:{:02} due to inactivity.",
+            "{}{}:{:02}{}",
+            localization::text_for_app(app, "terminal.shared_session.inactivity.countdown_prefix"),
             self.duration.as_secs() / 60,
             self.duration.as_secs() % 60,
+            localization::text_for_app(app, "terminal.shared_session.inactivity.countdown_suffix"),
         );
 
         Container::new(
@@ -166,7 +170,11 @@ impl InactivityModalBody {
         .finish()
     }
 
-    fn render_stop_sharing_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_stop_sharing_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Container::new(
             appearance
                 .ui_builder()
@@ -178,7 +186,10 @@ impl InactivityModalBody {
                     font_weight: Some(Weight::Bold),
                     ..Default::default()
                 })
-                .with_centered_text_label(String::from("Stop sharing"))
+                .with_centered_text_label(localization::text_for_app(
+                    app,
+                    "terminal.shared_session.menu.stop_sharing",
+                ))
                 .build()
                 .with_cursor(Cursor::PointingHand)
                 .on_click(move |ctx, _, _| {
@@ -190,7 +201,11 @@ impl InactivityModalBody {
         .finish()
     }
 
-    fn render_continue_sharing_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_continue_sharing_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .button(
@@ -204,7 +219,10 @@ impl InactivityModalBody {
                 font_weight: Some(Weight::Bold),
                 ..Default::default()
             })
-            .with_centered_text_label(String::from("Continue sharing"))
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "terminal.shared_session.action.continue_sharing",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -225,13 +243,13 @@ impl View for InactivityModalBody {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let stop_sharing_button = self.render_stop_sharing_button(appearance);
-        let continue_sharing_button = self.render_continue_sharing_button(appearance);
-        let countdown = self.render_countdown(appearance);
+        let stop_sharing_button = self.render_stop_sharing_button(appearance, app);
+        let continue_sharing_button = self.render_continue_sharing_button(appearance, app);
+        let countdown = self.render_countdown(appearance, app);
 
         let header = Container::new(
             Text::new_inline(
-                "Are you still there?",
+                localization::text_for_app(app, "terminal.shared_session.inactivity.title"),
                 appearance.ui_font_family(),
                 HEADER_FONT_SIZE,
             )

@@ -6,17 +6,8 @@
 use warpui::ViewContext;
 
 use super::view::Workspace;
+use crate::localization;
 use crate::pane_group::{AnyPaneContent, FilePane};
-
-const WARP_HOME_TITLE: &str = "Welcome to Warp on Web";
-const WARP_HOME_CONTENT: &str = r#"
-Welcome to Warp on Web - your browser-based home for Warp! 
-Use Warp on Web to:
-* Join Shared Sessions
-* Create, View, and Edit Warp Drive Objects
-* Manage your Warp Settings
-
-Warp on Web can also be used by your teammates and peers who don't have Warp downloaded yet to view your shared sessions, notebooks, and workflows."#;
 
 /// Create a static "home page" pane.
 pub fn create_home_pane(ctx: &mut ViewContext<Workspace>) -> Box<dyn AnyPaneContent> {
@@ -28,7 +19,11 @@ pub fn create_home_pane(ctx: &mut ViewContext<Workspace>) -> Box<dyn AnyPaneCont
         ctx,
     );
     pane.file_view(ctx).update(ctx, |pane, ctx| {
-        pane.open_static(WARP_HOME_TITLE, WARP_HOME_CONTENT, ctx);
+        pane.open_static(
+            localization::text_for_app(ctx, "workspace.home.title"),
+            &localization::text_for_app(ctx, "workspace.home.content"),
+            ctx,
+        );
     });
     Box::new(pane)
 }

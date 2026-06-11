@@ -1,28 +1,48 @@
-use crate::search::{
-    ai_context_menu::{
-        files::data_source::{file_data_source_for_pwd, fuzzy_match_files, FileSnapshot},
-        mixer::AIContextMenuSearchableAction,
-    },
-    data_source::Query,
-    files::{model::FileSearchModel, search_item::FileSearchResult},
-    item::SearchItem,
-    mixer::AsyncDataSource,
-};
-use crate::{terminal::model::session::Session, workspace::ActiveSession};
-use repo_metadata::repositories::DetectedRepositories;
-use repo_metadata::RepoMetadataModel;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use repo_metadata::repositories::DetectedRepositories;
+use repo_metadata::RepoMetadataModel;
+use settings::{Setting as _, SettingsManager};
 use tempfile::tempdir;
+use warpui::elements::Empty;
 use warpui::platform::WindowStyle;
 use warpui::r#async::block_on;
 use warpui::windowing::WindowManager;
-use warpui::SingletonEntity;
-use warpui::{elements::Empty, App, AppContext, Element, Entity, TypedActionView, View};
+use warpui::{App, AppContext, Element, Entity, SingletonEntity, TypedActionView, View};
+
+use crate::search::ai_context_menu::files::data_source::{
+    file_data_source_for_pwd, fuzzy_match_files, FileSnapshot,
+};
+use crate::search::ai_context_menu::files::search_item::FileSearchItemAccessibilityCopy;
+use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
+use crate::search::data_source::Query;
+use crate::search::files::model::FileSearchModel;
+use crate::search::files::search_item::FileSearchResult;
+use crate::search::item::SearchItem;
+use crate::search::mixer::AsyncDataSource;
+use crate::settings::{init_and_register_user_preferences, AppLanguage, LanguageSettings};
+use crate::terminal::model::session::Session;
+use crate::workspace::ActiveSession;
 struct TestView;
+
+fn accessibility_copy() -> FileSearchItemAccessibilityCopy {
+    FileSearchItemAccessibilityCopy::for_test()
+}
+
+fn register_language_settings(ctx: &mut AppContext, language: AppLanguage) {
+    init_and_register_user_preferences(ctx);
+    ctx.add_singleton_model(|_| SettingsManager::default());
+    let language_settings = LanguageSettings::register(ctx);
+    language_settings.update(ctx, |settings, ctx| {
+        settings
+            .app_language
+            .set_value(language, ctx)
+            .expect("test app language should be configurable");
+    });
+}
 
 impl Entity for TestView {
     type Event = ();
@@ -406,20 +426,23 @@ fn test_path_proximity_ranking() {
 
 #[test]
 fn test_directory_search_support() {
-    use crate::search::ai_context_menu::files::search_item::FileSearchItem;
     use fuzzy_match::FuzzyMatchResult;
+
+    use crate::search::ai_context_menu::files::search_item::FileSearchItem;
 
     // Test that directories can be created with is_directory flag
     let directory_item = FileSearchItem {
         path: PathBuf::from("src/components/"),
         match_result: FuzzyMatchResult::no_match(),
         is_directory: true,
+        accessibility_copy: accessibility_copy(),
     };
 
     let file_item = FileSearchItem {
         path: PathBuf::from("src/components/button.rs"),
         match_result: FuzzyMatchResult::no_match(),
         is_directory: false,
+        accessibility_copy: accessibility_copy(),
     };
 
     assert!(directory_item.is_directory);
@@ -434,21 +457,24 @@ fn test_directory_search_support() {
 
 #[test]
 fn test_directory_action_type() {
+    use fuzzy_match::FuzzyMatchResult;
+
     use crate::search::ai_context_menu::files::search_item::FileSearchItem;
     use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
     use crate::search::item::SearchItem;
-    use fuzzy_match::FuzzyMatchResult;
 
     let directory_item = FileSearchItem {
         path: PathBuf::from("src/components/"),
         match_result: FuzzyMatchResult::no_match(),
         is_directory: true,
+        accessibility_copy: accessibility_copy(),
     };
 
     let file_item = FileSearchItem {
         path: PathBuf::from("src/components/button.rs"),
         match_result: FuzzyMatchResult::no_match(),
         is_directory: false,
+        accessibility_copy: accessibility_copy(),
     };
 
     // Test that directories return InsertFilePath action with trailing slash
@@ -520,7 +546,7 @@ fn test_mixed_file_directory_search() {
         ("src/components/ui", true),
         ("src/components/ui/modal.rs", false),
         ("tests/components", true),
-        ("tests/components/button_test.rs", false),
+        ("tests/components/button_tests.rs", false),
     ];
 
     let query = "components";
@@ -541,6 +567,7 @@ fn test_mixed_file_directory_search() {
             path: PathBuf::from(path),
             match_result,
             is_directory,
+            accessibility_copy: accessibility_copy(),
         };
 
         assert_eq!(search_item.is_directory, is_directory);
@@ -631,6 +658,7 @@ fn test_fuzzy_match_files_zero_state_git_changed_first() {
         git_changed_files,
         query_text: String::new(),
         last_opened: HashMap::new(),
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -654,6 +682,7 @@ fn test_fuzzy_match_files_zero_state_no_git_changes() {
         git_changed_files: HashSet::new(),
         query_text: String::new(),
         last_opened: HashMap::new(),
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -673,6 +702,7 @@ fn test_fuzzy_match_files_non_empty_query() {
         git_changed_files: HashSet::new(),
         query_text: "button".to_string(),
         last_opened: HashMap::new(),
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -694,6 +724,7 @@ fn test_fuzzy_match_files_directory_boost() {
         git_changed_files: HashSet::new(),
         query_text: "components".to_string(),
         last_opened: HashMap::new(),
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -731,6 +762,7 @@ fn test_fuzzy_match_files_respects_max_results() {
         git_changed_files: HashSet::new(),
         query_text: String::new(),
         last_opened: HashMap::new(),
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -741,6 +773,9 @@ fn test_fuzzy_match_files_respects_max_results() {
 #[cfg(feature = "local_fs")]
 fn test_file_data_source_for_pwd_holistic_behavior() {
     App::test((), |mut app| async move {
+        app.update(|ctx| {
+            register_language_settings(ctx, AppLanguage::English);
+        });
         app.add_singleton_model(|_| DetectedRepositories::default());
         app.add_singleton_model(RepoMetadataModel::new);
         app.add_singleton_model(FileSearchModel::new);
@@ -823,6 +858,7 @@ fn test_zero_state_recently_opened_files_rank_above_untouched() {
         git_changed_files: HashSet::new(),
         query_text: String::new(),
         last_opened,
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -866,6 +902,7 @@ fn test_zero_state_git_changed_ranks_above_recently_opened() {
         git_changed_files,
         query_text: String::new(),
         last_opened,
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -914,6 +951,7 @@ fn test_zero_state_recently_opened_ordered_by_recency() {
         git_changed_files: HashSet::new(),
         query_text: String::new(),
         last_opened,
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -968,6 +1006,7 @@ fn test_zero_state_git_changed_also_ordered_by_recency() {
         git_changed_files,
         query_text: String::new(),
         last_opened,
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -1013,6 +1052,7 @@ fn test_fuzzy_query_recently_opened_bonus() {
         git_changed_files: HashSet::new(),
         query_text: "button".to_string(),
         last_opened,
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 
@@ -1072,6 +1112,7 @@ fn test_zero_state_full_ordering_end_to_end() {
         git_changed_files,
         query_text: String::new(),
         last_opened,
+        accessibility_copy: accessibility_copy(),
     }))
     .unwrap();
 

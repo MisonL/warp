@@ -1,39 +1,36 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use anyhow::Error;
 use pathfinder_geometry::vector::vec2f;
-use warp_core::{
-    features::FeatureFlag,
-    ui::{
-        appearance::Appearance,
-        theme::{color::internal_colors::neutral_4, Fill},
-    },
+use warp_core::features::FeatureFlag;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::theme::color::internal_colors::neutral_4;
+use warp_core::ui::theme::Fill;
+use warpui::elements::{
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss, Flex, Hoverable,
+    MainAxisAlignment, MainAxisSize, MouseState, MouseStateHandle, ParentElement, Radius,
 };
+use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss, Flex, Hoverable,
-        MainAxisAlignment, MainAxisSize, MouseState, MouseStateHandle, ParentElement, Radius,
-    },
-    ui_components::{
-        button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
     AppContext, Element, Entity, SingletonEntity as _, TypedActionView, View, ViewContext,
     ViewHandle,
 };
 
-use crate::{
-    cloud_object::{model::persistence::CloudModel, CloudObject},
-    editor::{
-        EditOrigin, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
-        SingleLineEditorOptions, TextOptions, ValidInputType,
-    },
-    send_telemetry_from_ctx,
-    server::{ids::SyncId, telemetry::TelemetrySpace},
-    ui_components::{buttons::icon_button, icons::Icon},
-    workflows::aliases::{WorkflowAlias, WorkflowAliases},
-    TelemetryEvent,
+use super::text;
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::CloudObject;
+use crate::editor::{
+    EditOrigin, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
+    SingleLineEditorOptions, TextOptions, ValidInputType,
 };
+use crate::server::ids::SyncId;
+use crate::server::telemetry::TelemetrySpace;
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::icons::Icon;
+use crate::workflows::aliases::{WorkflowAlias, WorkflowAliases};
+use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
 /// Width of the alias name editor.
 const ALIAS_EDITOR_WIDTH: f32 = 100.;
@@ -102,7 +99,7 @@ impl AliasBar {
                 },
                 ctx,
             );
-            view.set_placeholder_text("alias name", ctx);
+            view.set_placeholder_text(text(ctx, "workflow.aliases.placeholder.name"), ctx);
 
             view
         });
@@ -435,7 +432,7 @@ impl View for AliasBar {
                     |_state, background| {
                         appearance
                             .ui_builder()
-                            .span("Default")
+                            .span(text(app, "workflow.aliases.default"))
                             .with_style(UiComponentStyles {
                                 font_color: Some(
                                     appearance.theme().main_text_color(background).into_solid(),

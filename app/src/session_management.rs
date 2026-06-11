@@ -1,17 +1,13 @@
 use std::collections::HashSet;
 
 use chrono::NaiveDateTime;
-
 use warpui::{AppContext, Entity, EntityId, WindowId};
 
 use crate::context_chips::prompt_snapshot::PromptSnapshot;
-use crate::pane_group::PaneGroup;
+use crate::pane_group::{PaneGroup, PaneId};
 use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::shared_session::SharedSessionStatus;
-use crate::{
-    pane_group::PaneId,
-    workspace::{PaneViewLocator, Workspace},
-};
+use crate::workspace::{PaneViewLocator, Workspace};
 
 /// Contains session metadata, including a prompt and running command (if there is one).
 #[derive(Clone)]
@@ -73,24 +69,6 @@ pub enum CommandContext {
     },
     /// No command context (e.g. just launched terminal)
     None,
-}
-
-impl CommandContext {
-    pub fn a11y_description(&self) -> Option<String> {
-        match self {
-            Self::None => None,
-            Self::LastRunCommand {
-                last_run_command, ..
-            } => Some(format!("Last run command {}", last_run_command.clone())),
-            Self::LastRunAIBlock { prompt } => Some(format!("Last AI interaction: {prompt}")),
-            Self::RunningCommand { running_command } => {
-                Some(format!("Currently running {running_command}"))
-            }
-            Self::RunningAIBlock { prompt } => {
-                Some(format!("Currently running AI interaction: {prompt}"))
-            }
-        }
-    }
 }
 
 impl SessionNavigationData {
@@ -233,4 +211,15 @@ pub fn num_shared_sessions(ctx: &AppContext) -> usize {
         }
     }
     num_shared_sessions
+}
+
+/// Metadata for a single tab, used by the Ctrl+Tab MRU switcher.
+#[derive(Clone)]
+pub struct TabNavigationData {
+    pub pane_group_id: EntityId,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub window_id: WindowId,
+    /// 1-based left-to-right tab index for display disambiguation.
+    pub tab_index: usize,
 }

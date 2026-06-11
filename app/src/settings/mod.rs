@@ -18,6 +18,7 @@ mod init;
 pub mod initializer;
 mod input;
 mod input_mode;
+mod language;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod linux;
 pub mod macros;
@@ -52,6 +53,7 @@ pub use gpu::*;
 pub use init::*;
 pub use input::*;
 pub use input_mode::*;
+pub use language::*;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub use linux::*;
 pub use native_preference::*;
@@ -79,8 +81,8 @@ pub enum SettingsFileError {
 impl std::fmt::Display for SettingsFileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::FileParseFailed(_) => {
-                write!(f, "Couldn't parse due to invalid syntax")
+            Self::FileParseFailed(error) => {
+                write!(f, "Couldn't parse due to invalid syntax: {error}")
             }
             Self::InvalidSettings(keys) => match keys.as_slice() {
                 [key] => write!(f, "Invalid value for '{key}'"),
@@ -95,43 +97,60 @@ impl SettingsFileError {
     /// this error. Shared between the workspace-level banner
     /// (`Workspace::render_settings_error_banner`) and the settings nav rail
     /// footer (`render_settings_error_alert`) so the two UIs stay in sync.
-    pub fn heading_and_description(&self) -> (String, String) {
+    pub fn heading_and_description(&self, app: &warpui::AppContext) -> (String, String) {
         match self {
-            Self::FileParseFailed(_) => (
-                "Your settings file contains an error.".to_owned(),
-                format!("{self}. Open the file to fix it."),
+            Self::FileParseFailed(error) => (
+                crate::localization::text_for_app(app, "settings.error.settings_file.heading"),
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "settings.error.settings_file.parse_description",
+                    &[("error", error)],
+                ),
             ),
             Self::InvalidSettings(keys) => match keys.len() {
                 1 => (
-                    "Your settings file contains an error.".to_owned(),
-                    format!("{self}. The default value is being used."),
+                    crate::localization::text_for_app(app, "settings.error.settings_file.heading"),
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "settings.error.settings_file.invalid_single_description",
+                        &[("key", &keys[0])],
+                    ),
                 ),
                 _ => (
-                    "Your settings file contains errors.".to_owned(),
-                    format!("{self}. Default values are being used."),
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.error.settings_file.heading_many",
+                    ),
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "settings.error.settings_file.invalid_multiple_description",
+                        &[("keys", &keys.join(", "))],
+                    ),
                 ),
             },
         }
     }
 }
 
-use crate::{
-    root_view::QuakeModePinPosition,
-    terminal::{BlockListSettings, BlockPadding},
-    themes::theme::{ThemeKind, WarpTheme},
-    user_config::WarpConfig,
-};
+use std::collections::HashMap;
+use std::ops::Mul;
+use std::path::PathBuf;
+
 use lazy_static::lazy_static;
-use pathfinder_geometry::{rect::RectF, vector::Vector2F};
+use pathfinder_geometry::rect::RectF;
+use pathfinder_geometry::vector::Vector2F;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use settings::Setting as _;
-use std::{collections::HashMap, ops::Mul, path::PathBuf};
 use warp_core::features::FeatureFlag;
-use warpui::{
-    elements::DEFAULT_UI_LINE_HEIGHT_RATIO, keymap::Keystroke, AppContext, DisplayIdx,
-    SingletonEntity,
-};
+use warpui::elements::DEFAULT_UI_LINE_HEIGHT_RATIO;
+use warpui::keymap::Keystroke;
+use warpui::{AppContext, DisplayIdx, SingletonEntity};
+
+use crate::root_view::QuakeModePinPosition;
+use crate::terminal::{BlockListSettings, BlockPadding};
+use crate::themes::theme::{ThemeKind, WarpTheme};
+use crate::user_config::WarpConfig;
 
 // The following are user preferences keys.
 pub const CHANGELOG_VERSIONS: &str = "ChangelogVersions";
@@ -214,6 +233,7 @@ pub enum CtrlTabBehavior {
     #[default]
     ActivatePrevNextTab,
     CycleMostRecentSession,
+    CycleMostRecentTab,
 }
 
 impl CtrlTabBehavior {
@@ -221,6 +241,7 @@ impl CtrlTabBehavior {
         match self {
             Self::ActivatePrevNextTab => "Activate previous/next tab",
             Self::CycleMostRecentSession => "Cycle most recent session",
+            Self::CycleMostRecentTab => "Cycle most recent tab",
         }
     }
 }
@@ -254,7 +275,7 @@ pub struct Settings;
 /// later allow users to have both quake mode and activation mode enabled simultaneously. If/when
 /// that happens we'll remove this enum. These options are not modeled as a ternary option in the
 /// serialized user-defaults, but as independent options.
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GlobalHotkeyMode {
     #[default]
     Disabled,

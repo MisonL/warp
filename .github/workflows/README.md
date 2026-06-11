@@ -1,19 +1,19 @@
-# Release Configurations
+# Release 配置
 
-This README file documents the format of the `release_configurations.json` file located in this directory.  The file defines Warp's various release channels, and provides values for the various variables that are necessary to run the `create_new_releases.yml` GitHub workflow.
+本 README 记录本目录中 `release_configurations.json` 文件的格式。该文件定义 Warp 的各个 release channel，并为运行 `create_new_releases.yml` GitHub workflow 所需的各类变量提供取值。
 
-At some point, we may want to replace this document with a JSON schema file (which could be used to validate the correctness of the configuration as part of PR presubmit).
+未来某个时间点，我们可能会用 JSON schema 文件替换本文档；该 schema 可作为 PR presubmit 的一部分，用于验证配置正确性。
 
-## Fields
+## 字段
 
-* **channel**: The channel's unique identifier
-* **type**: The release cadence.  At present, the valid values are "nightly" or "weekly".
-* **is_prerelease**: If true, the GitHub release for this channel will be marked as prerelease.
-* **is_autopush**: If true, this channel uses the "latest" keyword in `channel_versions.json` to automatically deploy new release candidates.  Non-autopush channels require a manual change in order to deploy them.
-* **release_base_name**: The base name of GitHub releases created for this channel.
-* **release_body_text**: The body text for GitHub releases created for this channel.
-* **sentry_project**: Which Sentry project should receive crash and error reports for this channel.
-* **sentry_environment**: The Sentry environment that corresponds to this channel.
-* **changelog_slack_channel**: The Slack channel where new changelogs will be posted whenever a new release candidates is cut.
-* **gcs_cache_control_value**: The value of the cache-control response header for release DMGs.
-  - **IMPORTANT!!**: the value of the cache-control header _must_ be all lowercase; uppercase values will not be respected by Cloud CDN.
+* **channel**：该 channel 的唯一标识符。
+* **type**：release 节奏。目前有效值为 "nightly" 或 "weekly"。
+* **is_prerelease**：如果为 true，该 channel 的 GitHub release 会被标记为 prerelease。
+* **is_autopush**：如果为 true，该 channel 会使用 `channel_versions.json` 中的 "latest" 关键字自动部署新的 release candidate。非 autopush channel 需要手动变更才能部署。
+* **release_base_name**：为该 channel 创建的 GitHub release 的基础名称。
+* **release_body_text**：为该 channel 创建的 GitHub release 的正文文本。
+* **sentry_project**：哪个 Sentry project 应接收该 channel 的崩溃和错误报告。
+* **sentry_environment**：与该 channel 对应的 Sentry environment。
+* **changelog_slack_channel**：每当切出新的 release candidate 时发布新 changelog 的 Slack channel。
+* **gcs_cache_control_value**：release DMG 的 cache-control 响应头取值。
+  - **重要**：cache-control header 的值_必须_全小写；Cloud CDN 不会遵循大写值。

@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
 use ordered_float::OrderedFloat;
-use warpui::{
-    elements::{
-        Border, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex,
-        Highlight, MainAxisAlignment, MainAxisSize, ParentElement, Radius, Shrinkable, Text,
-    },
-    fonts::{Properties, Weight},
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element, SingletonEntity,
+use warpui::elements::{
+    Border, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Highlight,
+    MainAxisAlignment, MainAxisSize, ParentElement, Radius, Shrinkable, Text,
 };
+use warpui::fonts::{Properties, Weight};
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::command_search::searcher::{AcceptedWorkflow, CommandSearchItemAction};
 use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
@@ -261,6 +260,14 @@ impl SearchItem for WorkflowSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Workflow: {}", self.workflow_data().name())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.workflow",
+            &[("name", self.workflow_data().name())],
+        )
     }
 }
 

@@ -1,134 +1,121 @@
+use crate::localization;
 pub(super) mod chips;
 pub mod editor;
 mod environment_selector;
 pub mod toolbar_item;
 
-use crate::{
-    ai::{
-        blocklist::{
-            history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel},
-            prompt::prompt_alert::{PromptAlertEvent, PromptAlertView},
-            usage::icon_for_context_window_usage,
-            BlocklistAIInputModel,
-        },
-        execution_profiles::profiles::AIExecutionProfilesModel,
-        AIRequestUsageModel,
-    },
-    appearance::Appearance,
-    auth::{AuthManager, AuthStateProvider},
-    completer::SessionContext,
-    context_chips::{
-        self,
-        display_chip::{DisplayChip, DisplayChipConfig},
-        prompt_type::PromptType,
-        ContextChipKind,
-    },
-    features::FeatureFlag,
-    network::NetworkStatus,
-    send_telemetry_from_ctx,
-    server::telemetry::{PluginChipTelemetryKind, TelemetryEvent},
-    settings::{AISettings, AISettingsChangedEvent},
-    settings_view::SettingsSection,
-    terminal::{
-        cli_agent_sessions::{
-            listener::agent_supports_rich_status, CLIAgentInputState, CLIAgentSessionsModel,
-            CLIAgentSessionsModelEvent,
-        },
-        input::{models::InlineModelSelectorTab, MenuPositioningProvider},
-        model_events::ModelEvent,
-        profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent},
-        session_settings::{SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection},
-        shared_session::SharedSessionStatus,
-        view::ambient_agent::{AmbientAgentViewModel, ModelSelector, ModelSelectorEvent},
-        view::init::OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-        view::TerminalAction,
-        CLIAgent, TerminalModel,
-    },
-    ui_components::icons::Icon,
-    view_components::{
-        action_button::{
-            ActionButton, ActionButtonTheme, AdjoinedSide, ButtonSize, KeystrokeSource, NakedTheme,
-            TooltipAlignment,
-        },
-        DismissibleToast,
-    },
-    workspace::{view::TOGGLE_PROJECT_EXPLORER_BINDING_NAME, ToastStack},
-    workspaces::user_workspaces::UserWorkspaces,
-};
-use toolbar_item::AgentToolbarItemKind;
-use warp_cli::agent::Harness;
-
-use std::sync::Arc;
-
-#[cfg(feature = "voice_input")]
-use crate::server::server_api::TranscribeError;
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::local_shell::LocalShellState;
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::ShellLaunchData;
-use ai::document::{AIDocumentId, AIDocumentVersion};
-use parking_lot::FairMutex;
-use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
-use settings::Setting;
-use settings::ToggleableSetting;
 #[cfg(not(target_family = "wasm"))]
 use std::env;
 #[cfg(not(target_family = "wasm"))]
 use std::path::PathBuf;
+use std::sync::Arc;
 #[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
+
+use ai::document::{AIDocumentId, AIDocumentVersion};
+use parking_lot::FairMutex;
+use pathfinder_color::ColorU;
+use pathfinder_geometry::vector::{vec2f, Vector2F};
+use settings::{Setting, ToggleableSetting};
 #[cfg(not(target_family = "wasm"))]
 use tokio::fs;
+use toolbar_item::AgentToolbarItemKind;
 #[cfg(feature = "voice_input")]
 use voice_input::{StartListeningError, VoiceSessionResult};
-
-use warp_core::{
-    context_flag::ContextFlag,
-    report_if_error,
-    ui::{
-        color::{blend::Blend, contrast::MinimumAllowedContrast, ContrastingColor},
-        theme::{color::internal_colors, AnsiColorIdentifier, Fill},
-    },
+use warp_cli::agent::Harness;
+use warp_core::context_flag::ContextFlag;
+use warp_core::report_if_error;
+use warp_core::ui::color::blend::Blend;
+use warp_core::ui::color::contrast::MinimumAllowedContrast;
+use warp_core::ui::color::ContrastingColor;
+use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
+use warpui::elements::{
+    Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Expanded, Flex,
+    MainAxisAlignment, MainAxisSize, OffsetPositioning, ParentElement, PositionedElementAnchor,
+    PositionedElementOffsetBounds, Radius, Shrinkable, Stack, Text, Wrap, WrapFill,
+    WrapFillEntireRun, DEFAULT_UI_LINE_HEIGHT_RATIO,
 };
 #[cfg(feature = "voice_input")]
 use warpui::r#async::SpawnedFutureHandle;
+#[cfg(not(target_family = "wasm"))]
+use warpui::r#async::Timer;
 use warpui::{
-    elements::{
-        Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Expanded, Flex,
-        MainAxisAlignment, MainAxisSize, OffsetPositioning, ParentElement, PositionedElementAnchor,
-        PositionedElementOffsetBounds, Radius, Shrinkable, Stack, Text, Wrap, WrapFill,
-        WrapFillEntireRun, DEFAULT_UI_LINE_HEIGHT_RATIO,
-    },
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
 };
 
-#[cfg(not(target_family = "wasm"))]
-use warpui::r#async::Timer;
-
-pub(crate) use self::environment_selector::{EnvironmentSelector, EnvironmentSelectorEvent};
+#[cfg(feature = "local_fs")]
+pub(crate) use self::environment_selector::sort_environments_by_recency;
+pub(crate) use self::environment_selector::{
+    EnvironmentSelector, EnvironmentSelectorEvent, EnvironmentSelectorTarget,
+};
+use crate::ai::blocklist::agent_view::is_in_cloud_context;
+use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
+use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
+use crate::ai::blocklist::usage::icon_for_context_window_usage;
+use crate::ai::blocklist::BlocklistAIInputModel;
+use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
+use crate::ai::harness_availability::HarnessAvailabilityModel;
+use crate::ai::AIRequestUsageModel;
+use crate::appearance::Appearance;
+use crate::auth::{AuthManager, AuthStateProvider};
+use crate::completer::SessionContext;
+use crate::context_chips::display_chip::{DisplayChip, DisplayChipConfig};
+use crate::context_chips::prompt_type::PromptType;
+use crate::context_chips::{self, ContextChipKind};
+use crate::features::FeatureFlag;
+use crate::network::NetworkStatus;
+use crate::send_telemetry_from_ctx;
+#[cfg(feature = "voice_input")]
+use crate::server::server_api::TranscribeError;
 #[cfg(not(target_family = "wasm"))]
 use crate::server::telemetry::PluginChipTelemetryAction;
+use crate::server::telemetry::{PluginChipTelemetryKind, TelemetryEvent};
+use crate::settings::{
+    AISettings, AISettingsChangedEvent, PrivacySettings, PrivacySettingsChangedEvent,
+};
+use crate::settings_view::SettingsSection;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::plugin_manager::{
     compare_versions, plugin_manager_for, plugin_manager_for_with_shell, CliAgentPluginManager,
     PluginInstallError, PluginModalKind,
 };
+use crate::terminal::cli_agent_sessions::{
+    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
+};
+use crate::terminal::input::models::InlineModelSelectorTab;
+use crate::terminal::input::{HandoffComposeState, MenuPositioningProvider};
+#[cfg(not(target_family = "wasm"))]
+use crate::terminal::local_shell::LocalShellState;
+use crate::terminal::model_events::ModelEvent;
+use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
+use crate::terminal::session_settings::{
+    SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
+};
+use crate::terminal::shared_session::SharedSessionStatus;
+use crate::terminal::view::ambient_agent::{
+    AmbientAgentViewModel, ModelSelector, ModelSelectorEvent,
+};
+use crate::terminal::view::init::OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING;
+use crate::terminal::view::TerminalAction;
+#[cfg(not(target_family = "wasm"))]
+use crate::terminal::ShellLaunchData;
+use crate::terminal::{CLIAgent, TerminalModel};
+use crate::ui_components::icons::Icon;
+use crate::view_components::action_button::{
+    ActionButton, ActionButtonTheme, AdjoinedSide, ButtonSize, KeystrokeSource, NakedTheme,
+    TooltipAlignment,
+};
+use crate::view_components::DismissibleToast;
 #[cfg(not(target_family = "wasm"))]
 use crate::view_components::ToastLink;
+use crate::workspace::view::TOGGLE_PROJECT_EXPLORER_BINDING_NAME;
+use crate::workspace::ToastStack;
 #[cfg(not(target_family = "wasm"))]
 use crate::workspace::WorkspaceAction;
-
-const ENABLE_NLD_TOOLTIP: &str = "Enable terminal command autodetection";
-const DISABLE_NLD_TOOLTIP: &str = "Disable terminal command autodetection";
-
-const FAST_FORWARD_ON_TOOLTIP: &str = "Turn off auto-approve all agent actions";
-const FAST_FORWARD_OFF_TOOLTIP: &str = "Auto-approve all agent actions for this task";
-
-const START_REMOTE_CONTROL_TOOLTIP: &str = "Start remote control";
-const START_REMOTE_CONTROL_LOGIN_REQUIRED_TOOLTIP: &str = "Log in to use /remote-control";
+use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const CLOUD_MODE_V2_FOOTER_GAP: f32 = 4.;
 
@@ -174,6 +161,19 @@ fn plugin_chip_key(agent_prefix: &str, remote_host: &Option<String>) -> String {
     }
 }
 
+fn is_conversation_transcript_context(
+    terminal_view_id: EntityId,
+    terminal_model: &TerminalModel,
+    app: &AppContext,
+) -> bool {
+    terminal_model.is_conversation_transcript_viewer()
+        || BlocklistAIHistoryModel::as_ref(app)
+            .active_conversation(terminal_view_id)
+            .is_some_and(|conversation| {
+                conversation.is_viewing_shared_session() || conversation.is_cli_agent_transcript()
+            })
+}
+
 /// Footer control bar at the bottom of the agent input.
 ///
 /// Renders in two modes:
@@ -195,8 +195,10 @@ pub struct AgentInputFooter {
     model_selector: ViewHandle<ProfileModelSelector>,
     ftu_callout_close_button: ViewHandle<ActionButton>,
     environment_selector: Option<ViewHandle<EnvironmentSelector>>,
+    handoff_environment_selector: ViewHandle<EnvironmentSelector>,
     prompt_alert: ViewHandle<PromptAlertView>,
     ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
+    handoff_compose_state: ModelHandle<HandoffComposeState>,
     left_display_chips: Vec<ViewHandle<DisplayChip>>,
     right_display_chips: Vec<ViewHandle<DisplayChip>>,
     // Separate set of display chips for the CLI agent footer.
@@ -226,6 +228,11 @@ pub struct AgentInputFooter {
     // Fast-forward (auto-approve) toggle button shown in the agent view footer.
     fast_forward_button: ViewHandle<ActionButton>,
 
+    // "Hand off to cloud" chip. Visibility is gated on native/local handoff
+    // availability. Per-conversation eligibility is enforced by
+    // `Workspace::start_local_to_cloud_handoff`.
+    handoff_to_cloud_button: ViewHandle<ActionButton>,
+
     // CLI agent voice input state (self-contained, bypasses editor voice flow).
     #[cfg(feature = "voice_input")]
     cli_voice_input_state: CLIVoiceInputState,
@@ -242,6 +249,7 @@ impl AgentInputFooter {
         ai_input_model: ModelHandle<BlocklistAIInputModel>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
+        handoff_compose_state: ModelHandle<HandoffComposeState>,
         prompt: ModelHandle<PromptType>,
         display_chip_config: DisplayChipConfig,
         ctx: &mut ViewContext<Self>,
@@ -260,9 +268,15 @@ impl AgentInputFooter {
             button.set_active(is_nld_enabled, ctx);
             button.set_tooltip(
                 Some(if is_nld_enabled {
-                    DISABLE_NLD_TOOLTIP
+                    localization::text_for_app(
+                        ctx,
+                        "agent.input_footer.disable_command_autodetection",
+                    )
                 } else {
-                    ENABLE_NLD_TOOLTIP
+                    localization::text_for_app(
+                        ctx,
+                        "agent.input_footer.enable_command_autodetection",
+                    )
                 }),
                 ctx,
             );
@@ -277,19 +291,28 @@ impl AgentInputFooter {
                 button.set_active(is_nld_enabled, ctx);
                 button.set_tooltip(
                     Some(if is_nld_enabled {
-                        DISABLE_NLD_TOOLTIP
+                        localization::text_for_app(
+                            ctx,
+                            "agent.input_footer.disable_command_autodetection",
+                        )
                     } else {
-                        ENABLE_NLD_TOOLTIP
+                        localization::text_for_app(
+                            ctx,
+                            "agent.input_footer.enable_command_autodetection",
+                        )
                     }),
                     ctx,
                 );
             });
         });
 
-        let mic_button = ctx.add_typed_action_view(|_ctx| {
+        let mic_button = ctx.add_typed_action_view(|ctx| {
             let button = ActionButton::new("", ActiveMicButtonTheme)
                 .with_icon(Icon::Microphone)
-                .with_tooltip("Voice input")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.voice_input",
+                ))
                 .with_size(button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left);
             #[cfg(feature = "voice_input")]
@@ -322,10 +345,13 @@ impl AgentInputFooter {
             });
         }
 
-        let file_button = ctx.add_typed_action_view(|_ctx| {
+        let file_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_icon(Icon::Plus)
-                .with_tooltip("Attach file")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.attach_file",
+                ))
                 .with_size(button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left)
                 .on_click(|ctx| {
@@ -336,53 +362,89 @@ impl AgentInputFooter {
         // Fast-forward (auto-approve) toggle button.
         // Uses FastForwardButtonTheme so the button keeps its one-off semantics.
         // The theme still delegates its fill to the shared chip background.
-        let fast_forward_button = ctx.add_typed_action_view(|_ctx| {
+        let fast_forward_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", FastForwardButtonTheme)
                 .with_icon(Icon::FastForward)
-                .with_tooltip(FAST_FORWARD_OFF_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.auto_approve_tooltip",
+                ))
+                .with_size(button_size)
+                .with_tooltip_alignment(TooltipAlignment::Left)
+                .with_disabled_theme(FastForwardLockedTheme)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(TerminalAction::ToggleAutoexecuteMode);
+                })
+        });
+
+        // "Hand off to cloud" chip. On click dispatches the workspace action that
+        // splits a new cloud-mode pane next to the local pane; that pane handles
+        // the rest of the handoff flow when native/local handoff is available.
+        let handoff_to_cloud_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new("", AgentInputButtonTheme)
+                .with_icon(Icon::UploadCloud)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.handoff_to_cloud_tooltip",
+                ))
                 .with_size(button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left)
                 .on_click(|ctx| {
-                    ctx.dispatch_typed_action(TerminalAction::ToggleAutoexecuteMode);
+                    ctx.dispatch_typed_action(AgentInputFooterAction::HandoffChipClicked);
                 })
         });
 
         // CLI agent-specific buttons (only rendered when a CLI agent session is active).
         let cli_button_size = ButtonSize::AgentInputButton;
         let file_explorer_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("File explorer", AgentInputButtonTheme)
-                .with_icon(Icon::FileCopy)
-                .with_tooltip("Open file explorer")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_keybinding(
-                    KeystrokeSource::Binding(TOGGLE_PROJECT_EXPLORER_BINDING_NAME),
-                    ctx,
-                )
-                .with_compact_keybinding(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::ToggleFileExplorer);
-                })
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.input_footer.file_explorer"),
+                AgentInputButtonTheme,
+            )
+            .with_icon(Icon::FileCopy)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.input_footer.open_file_explorer",
+            ))
+            .with_size(cli_button_size)
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .with_keybinding(
+                KeystrokeSource::Binding(TOGGLE_PROJECT_EXPLORER_BINDING_NAME),
+                ctx,
+            )
+            .with_compact_keybinding(true)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentInputFooterAction::ToggleFileExplorer);
+            })
         });
         let rich_input_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Rich Input", AgentInputButtonTheme)
-                .with_icon(Icon::TextInput)
-                .with_tooltip("Open Rich Input")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_keybinding(
-                    KeystrokeSource::Binding(OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING),
-                    ctx,
-                )
-                .with_compact_keybinding(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::ToggleRichInput);
-                })
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.input_footer.rich_input"),
+                AgentInputButtonTheme,
+            )
+            .with_icon(Icon::TextInput)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.input_footer.open_rich_input",
+            ))
+            .with_size(cli_button_size)
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .with_keybinding(
+                KeystrokeSource::Binding(OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING),
+                ctx,
+            )
+            .with_compact_keybinding(true)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentInputFooterAction::ToggleRichInput);
+            })
         });
-        let settings_button = ctx.add_typed_action_view(|_ctx| {
+        let settings_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_icon(Icon::Settings)
-                .with_tooltip("Open coding agent settings")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.open_coding_agent_settings",
+                ))
                 .with_size(cli_button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left)
                 .on_click(|ctx| {
@@ -390,65 +452,91 @@ impl AgentInputFooter {
                 })
         });
 
-        let install_plugin_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Enable notifications", InstallPluginButtonTheme)
-                .with_icon(Icon::Download)
-                .with_tooltip(
-                    "Install the Warp plugin to enable rich agent notifications within Warp",
-                )
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::InstallPlugin);
-                })
+        let install_plugin_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.input_footer.enable_notifications"),
+                InstallPluginButtonTheme,
+            )
+            .with_icon(Icon::Download)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.input_footer.install_plugin_tooltip",
+            ))
+            .with_size(cli_button_size)
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .with_adjoined_side(AdjoinedSide::Right)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentInputFooterAction::InstallPlugin);
+            })
         });
 
-        let plugin_instructions_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Notifications setup instructions", InstallPluginButtonTheme)
-                .with_icon(Icon::Info)
-                .with_tooltip("View instructions to install the Warp plugin")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        AgentInputFooterAction::OpenPluginInstallInstructionsPane,
-                    );
-                })
+        let plugin_instructions_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.notifications_setup_instructions",
+                ),
+                InstallPluginButtonTheme,
+            )
+            .with_icon(Icon::Info)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.input_footer.install_plugin_instructions_tooltip",
+            ))
+            .with_size(cli_button_size)
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .with_adjoined_side(AdjoinedSide::Right)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(
+                    AgentInputFooterAction::OpenPluginInstallInstructionsPane,
+                );
+            })
         });
 
-        let update_plugin_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Update Warp plugin", InstallPluginButtonTheme)
-                .with_icon(Icon::Download)
-                .with_tooltip("A new version of the Warp plugin is available")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::UpdatePlugin);
-                })
+        let update_plugin_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.input_footer.update_plugin"),
+                InstallPluginButtonTheme,
+            )
+            .with_icon(Icon::Download)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.input_footer.update_plugin_tooltip",
+            ))
+            .with_size(cli_button_size)
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .with_adjoined_side(AdjoinedSide::Right)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentInputFooterAction::UpdatePlugin);
+            })
         });
 
-        let update_instructions_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Plugin update instructions", InstallPluginButtonTheme)
-                .with_icon(Icon::Info)
-                .with_tooltip("View instructions to update the Warp plugin")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_adjoined_side(AdjoinedSide::Right)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        AgentInputFooterAction::OpenPluginUpdateInstructionsPane,
-                    );
-                })
+        let update_instructions_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.input_footer.plugin_update_instructions"),
+                InstallPluginButtonTheme,
+            )
+            .with_icon(Icon::Info)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.input_footer.update_plugin_instructions_tooltip",
+            ))
+            .with_size(cli_button_size)
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .with_adjoined_side(AdjoinedSide::Right)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentInputFooterAction::OpenPluginUpdateInstructionsPane);
+            })
         });
 
         let dismiss_plugin_chip_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("", InstallPluginButtonTheme)
                 .with_icon(Icon::X)
                 .with_size(cli_button_size)
-                .with_tooltip("Dismiss")
+                .with_tooltip(localization::text_for_app(
+                    _ctx,
+                    "agent.input_footer.dismiss",
+                ))
                 .with_tooltip_alignment(TooltipAlignment::Left)
                 .with_adjoined_side(AdjoinedSide::Left)
                 .on_click(|ctx| {
@@ -473,12 +561,12 @@ impl AgentInputFooter {
                     me.plugin_chip_ready = false;
                 }
 
-                // When a listener connects for an agent with rich status,
-                // the plugin is verified installed — hide the chip.
-                // (Codex always has a listener but no actual plugin to install.)
+                // When a structured plugin connects, the plugin is verified
+                // installed — hide the chip. Codex's OSC 9 fallback is not a
+                // structured plugin, so its chip stays until the plugin connects.
                 if CLIAgentSessionsModel::as_ref(ctx)
                     .session(me.terminal_view_id)
-                    .is_some_and(|s| s.listener.is_some() && agent_supports_rich_status(&s.agent))
+                    .is_some_and(|s| s.supports_rich_status())
                 {
                     me.plugin_chip_ready = false;
                 }
@@ -488,7 +576,11 @@ impl AgentInputFooter {
                 #[cfg(not(target_family = "wasm"))]
                 if let CLIAgentSessionsModelEvent::Started { .. } = event {
                     if let Some(agent) = me.cli_agent(ctx) {
-                        let label = format!("Enable {} notifications", agent.display_name());
+                        let label = localization::text_for_app_with_args(
+                            ctx,
+                            "agent.input_footer.enable_agent_notifications",
+                            &[("agent", agent.display_name())],
+                        );
                         me.install_plugin_button.update(ctx, |button, ctx| {
                             button.set_label(label, ctx);
                         });
@@ -499,10 +591,7 @@ impl AgentInputFooter {
                                     |me, _, ctx: &mut ViewContext<Self>| {
                                         let suppress = CLIAgentSessionsModel::as_ref(ctx)
                                             .session(me.terminal_view_id)
-                                            .is_some_and(|s| {
-                                                s.listener.is_some()
-                                                    && agent_supports_rich_status(&s.agent)
-                                            });
+                                            .is_some_and(|s| s.supports_rich_status());
                                         if !suppress {
                                             me.plugin_chip_ready = true;
                                             ctx.notify();
@@ -524,8 +613,17 @@ impl AgentInputFooter {
                 let is_open = matches!(new_input_state, CLIAgentInputState::Open { .. });
                 me.rich_input_button.update(ctx, |button, ctx| {
                     if is_open {
-                        button.set_label("Hide Rich Input", ctx);
-                        button.set_tooltip(Some("Hide Rich Input"), ctx);
+                        button.set_label(
+                            localization::text_for_app(ctx, "agent.input_footer.hide_rich_input"),
+                            ctx,
+                        );
+                        button.set_tooltip(
+                            Some(localization::text_for_app(
+                                ctx,
+                                "agent.input_footer.hide_rich_input",
+                            )),
+                            ctx,
+                        );
                         button.set_keybinding(
                             Some(KeystrokeSource::Binding(
                                 OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
@@ -533,8 +631,17 @@ impl AgentInputFooter {
                             ctx,
                         );
                     } else {
-                        button.set_label("Rich Input", ctx);
-                        button.set_tooltip(Some("Open Rich Input"), ctx);
+                        button.set_label(
+                            localization::text_for_app(ctx, "agent.input_footer.rich_input"),
+                            ctx,
+                        );
+                        button.set_tooltip(
+                            Some(localization::text_for_app(
+                                ctx,
+                                "agent.input_footer.open_rich_input",
+                            )),
+                            ctx,
+                        );
                         button.set_keybinding(
                             Some(KeystrokeSource::Binding(
                                 OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
@@ -547,10 +654,13 @@ impl AgentInputFooter {
             },
         );
 
-        let start_remote_control_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("/remote-control", AgentInputButtonTheme)
+        let start_remote_control_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new("/remote-control", RemoteControlButtonTheme)
                 .with_icon(Icon::Phone01)
-                .with_tooltip(START_REMOTE_CONTROL_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.start_remote_control",
+                ))
                 .with_size(cli_button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left)
                 .on_click(|ctx| {
@@ -558,22 +668,31 @@ impl AgentInputFooter {
                 })
         });
 
-        let stop_remote_control_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Stop sharing", AgentInputButtonTheme)
-                .with_icon(Icon::StopFilled)
-                .with_icon_ansi_color(AnsiColorIdentifier::Red)
-                .with_tooltip("Stop sharing")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::StopRemoteControl);
-                })
+        let stop_remote_control_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.input_footer.stop_sharing"),
+                RemoteControlButtonTheme,
+            )
+            .with_icon(Icon::StopFilled)
+            .with_icon_ansi_color(AnsiColorIdentifier::Red)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.input_footer.stop_sharing",
+            ))
+            .with_size(cli_button_size)
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentInputFooterAction::StopRemoteControl);
+            })
         });
 
-        let context_window_button = ctx.add_typed_action_view(|_ctx| {
+        let context_window_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_icon(Icon::ConversationContext0)
-                .with_tooltip("Context window usage")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.context_window_usage",
+                ))
                 .with_size(button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left)
         });
@@ -603,11 +722,19 @@ impl AgentInputFooter {
                     ctx.add_typed_action_view(|ctx| {
                         EnvironmentSelector::new(
                             menu_positioning_provider.clone(),
-                            ambient_agent_view_model.clone(),
+                            EnvironmentSelectorTarget::CloudPane(ambient_agent_view_model.clone()),
                             ctx,
                         )
                     })
                 });
+
+        let handoff_environment_selector = ctx.add_typed_action_view(|ctx| {
+            EnvironmentSelector::new(
+                menu_positioning_provider.clone(),
+                EnvironmentSelectorTarget::Handoff(handoff_compose_state.clone()),
+                ctx,
+            )
+        });
 
         if let Some(environment_selector) = environment_selector.as_ref() {
             ctx.subscribe_to_view(environment_selector, |_, _, event, ctx| match event {
@@ -623,11 +750,39 @@ impl AgentInputFooter {
             });
         }
 
+        ctx.subscribe_to_view(
+            &handoff_environment_selector,
+            |_, _, event, ctx| match event {
+                EnvironmentSelectorEvent::MenuVisibilityChanged { open } => {
+                    ctx.emit(AgentInputFooterEvent::ToggledChipMenu { open: *open });
+                    if !*open {
+                        ctx.emit(AgentInputFooterEvent::EnvironmentSelectorClosed);
+                    }
+                }
+                EnvironmentSelectorEvent::OpenEnvironmentManagementPane => {
+                    ctx.emit(AgentInputFooterEvent::OpenEnvironmentManagementPane);
+                }
+            },
+        );
+
         if let Some(ambient_agent_view_model) = ambient_agent_view_model.as_ref() {
             ctx.subscribe_to_model(ambient_agent_view_model, |_, _, _, ctx| {
                 ctx.notify();
             });
         }
+
+        ctx.subscribe_to_model(
+            &handoff_compose_state,
+            |me, handoff_compose_state, _, ctx| {
+                if !handoff_compose_state.as_ref(ctx).is_active() {
+                    me.handoff_environment_selector
+                        .update(ctx, |selector, ctx| {
+                            selector.set_menu_visibility(false, ctx)
+                        });
+                }
+                ctx.notify();
+            },
+        );
 
         let prompt_alert = ctx.add_typed_action_view(PromptAlertView::new);
         ctx.subscribe_to_view(&prompt_alert, |_, _, event, ctx| {
@@ -644,7 +799,19 @@ impl AgentInputFooter {
             ctx.notify()
         });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
-            if let AISettingsChangedEvent::AIAutoDetectionEnabled { .. } = event {
+            if matches!(
+                event,
+                AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
+                    | AISettingsChangedEvent::ShouldForceDisableCloudHandoff { .. }
+            ) {
+                ctx.notify()
+            }
+        });
+        ctx.subscribe_to_model(&PrivacySettings::handle(ctx), |_, _, event, ctx| {
+            if matches!(
+                event,
+                PrivacySettingsChangedEvent::UpdateIsCloudConversationStorageEnabled { .. }
+            ) {
                 ctx.notify()
             }
         });
@@ -653,6 +820,12 @@ impl AgentInputFooter {
                 me.update_ftu_callout_render_state(ctx);
             }
         });
+        ctx.subscribe_to_model(
+            &display_chip_config.agent_view_controller,
+            |me, _, _, ctx| {
+                me.sync_fast_forward_button(ctx);
+            },
+        );
 
         // Keep the remote-control chip in sync with login state so we can
         // disable it and swap the tooltip when the user is anonymous or
@@ -669,7 +842,8 @@ impl AgentInputFooter {
                     ctx.notify();
                 }
                 SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. }
-                | SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. } => {
+                | SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. }
+                | SessionSettingsChangedEvent::GithubPrChipDefaultValidation { .. } => {
                     me.update_display_chips(&prompt_for_session_settings, ctx);
                     ctx.notify();
                 }
@@ -722,8 +896,14 @@ impl AgentInputFooter {
         });
 
         let v2_model_selector = if FeatureFlag::CloudModeInputV2.is_enabled() {
+            let ambient_agent_view_model_for_selector = ambient_agent_view_model.clone();
             let view = ctx.add_typed_action_view(|ctx| {
-                ModelSelector::new(menu_positioning_provider.clone(), terminal_view_id, ctx)
+                ModelSelector::new(
+                    menu_positioning_provider.clone(),
+                    terminal_view_id,
+                    ambient_agent_view_model_for_selector,
+                    ctx,
+                )
             });
             ctx.subscribe_to_view(&view, |_, _, event, ctx| match event {
                 ModelSelectorEvent::MenuVisibilityChanged { open } => {
@@ -760,14 +940,17 @@ impl AgentInputFooter {
             context_window_button,
             model_selector: profile_model_selector_full,
             environment_selector,
+            handoff_environment_selector,
             prompt_alert,
             terminal_model,
+            handoff_compose_state,
             render_ftu_callout: false,
             left_display_chips: vec![],
             right_display_chips: vec![],
             cli_display_chips: vec![],
             display_chip_config,
             fast_forward_button,
+            handoff_to_cloud_button,
             #[cfg(feature = "voice_input")]
             cli_voice_input_state: CLIVoiceInputState::default(),
             #[cfg(feature = "voice_input")]
@@ -839,6 +1022,11 @@ impl AgentInputFooter {
     }
 
     fn render_cloud_mode_v2_footer(&self, app: &AppContext) -> Box<dyn Element> {
+        // `app` is only consumed under the `voice_input` cfg below; reference it here so the
+        // parameter doesn't trip the unused-variable lint when the feature is disabled.
+        #[cfg(not(feature = "voice_input"))]
+        let _ = app;
+
         let mut left = Flex::row()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -861,27 +1049,34 @@ impl AgentInputFooter {
 
         right = right.with_child(ChildView::new(&self.file_button).finish());
 
-        // The V2 model selector is Oz-specific; hide it for other harnesses
-        // until they support model selection.
-        let is_oz_harness =
-            self.ambient_agent_view_model
+        if let Some(model_selector) = self.v2_model_selector.as_ref() {
+            // Only show the model selector when the active harness has available models.
+            // Some harnesses (e.g. Gemini) may not have any server-provided model options.
+            let show_selector = self
+                .ambient_agent_view_model
                 .as_ref()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model.as_ref(app).selected_harness() == Harness::Oz
+                .map(|m| m.as_ref(app).selected_harness())
+                .is_none_or(|harness| match harness {
+                    Harness::Oz | Harness::Unknown => true,
+                    _ => HarnessAvailabilityModel::as_ref(app)
+                        .models_for(harness)
+                        .is_some_and(|models| !models.is_empty()),
                 });
-        if is_oz_harness {
-            if let Some(model_selector) = self.v2_model_selector.as_ref() {
+            if show_selector {
                 right = right.with_child(ChildView::new(model_selector).finish());
             }
         }
 
-        Flex::row()
+        let content = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_spacing(CLOUD_MODE_V2_FOOTER_GAP)
             .with_child(left.finish())
             .with_child(right.finish())
-            .finish()
+            .finish();
+
+        Clipped::new(content).finish()
     }
 
     fn all_display_chips(&self) -> impl Iterator<Item = &ViewHandle<DisplayChip>> {
@@ -960,10 +1155,10 @@ impl AgentInputFooter {
         }
         #[cfg(not(target_family = "wasm"))]
         {
-            if self.plugin_operation_in_progress {
-                return None;
-            }
-            if !FeatureFlag::HOANotifications.is_enabled() {
+            if self.plugin_operation_in_progress
+                || self.terminal_model.lock().is_shared_ambient_agent_session()
+                || !FeatureFlag::HOANotifications.is_enabled()
+            {
                 return None;
             }
 
@@ -977,10 +1172,9 @@ impl AgentInputFooter {
             let manager = plugin_manager_for(session.agent)?;
             let min_version = manager.minimum_plugin_version();
             let chip_key = plugin_chip_key(session.agent.command_prefix(), &session.remote_host);
-
-            // If the plugin is connected (listener present) and this agent supports
+            // If a structured plugin is connected and this agent supports
             // version-based updates, check the reported version.
-            if session.listener.is_some() && manager.supports_update() {
+            if session.supports_rich_status() && manager.supports_update() {
                 let needs_update = match &session.plugin_version {
                     // No version reported = pre-versioning plugin, definitely outdated.
                     None => true,
@@ -1093,11 +1287,10 @@ impl AgentInputFooter {
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Could not automatically install plugin. \
-                     Please click the chip again for manual installation steps."
-                        .to_owned(),
-                ),
+                DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.plugin_auto_install_failed_manual",
+                )),
                 window_id,
                 ctx,
             );
@@ -1188,10 +1381,11 @@ impl AgentInputFooter {
                     plugin_manager_for_with_shell(agent, shell_path, shell_type, path_env_var)
                 else {
                     return Err((
-                        PluginInstallError {
-                            message: "No plugin manager available".to_owned(),
-                            log: String::new(),
-                        },
+                        PluginInstallError::localized(
+                            "agent.input_footer.plugin_manager_unavailable",
+                            vec![],
+                            String::new(),
+                        ),
                         None,
                     ));
                 };
@@ -1240,14 +1434,18 @@ impl AgentInputFooter {
                                 "Failed plugin operation for {agent:?}: {err}\n{log}",
                                 log = err.log,
                             );
+                            let error_message = err.localized_message(ctx);
                             let mut toast =
-                                DismissibleToast::error(format!("{error_label}: {err}"));
+                                DismissibleToast::error(format!("{error_label}: {error_message}"));
                             if let Some(log_path) = log_path {
                                 toast = toast.with_link(
-                                    ToastLink::new("See logs for details".to_owned())
-                                        .with_onclick_action(WorkspaceAction::OpenFilePath {
-                                            path: log_path,
-                                        }),
+                                    ToastLink::new(localization::text_for_app(
+                                        ctx,
+                                        "agent.input_footer.see_logs_details",
+                                    ))
+                                    .with_onclick_action(
+                                        WorkspaceAction::OpenFilePath { path: log_path },
+                                    ),
                                 );
                             }
                             toast
@@ -1269,13 +1467,24 @@ impl AgentInputFooter {
     fn handle_install_plugin(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         let success_msg = self
             .cli_agent(ctx)
-            .and_then(plugin_manager_for)
-            .map(|m| m.install_success_message())
-            .unwrap_or("Warp plugin installed. Please restart the session to activate.");
+            .map(|agent| match agent {
+                CLIAgent::Claude => localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.plugin_installed_reload_plugins",
+                ),
+                CLIAgent::Gemini => localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.plugin_installed_restart_gemini",
+                ),
+                _ => localization::text_for_app(ctx, "agent.input_footer.plugin_installed_restart"),
+            })
+            .unwrap_or_else(|| {
+                localization::text_for_app(ctx, "agent.input_footer.plugin_installed_restart")
+            });
         self.handle_plugin_operation(
-            "Installing Warp plugin...",
-            "Failed to install Warp plugin",
-            success_msg,
+            &localization::text_for_app(ctx, "agent.input_footer.installing_plugin"),
+            &localization::text_for_app(ctx, "agent.input_footer.install_plugin_failed"),
+            &success_msg,
             PluginChipTelemetryKind::Install,
             |manager| async move { manager.install().await },
             ctx,
@@ -1286,13 +1495,24 @@ impl AgentInputFooter {
     fn handle_update_plugin(&mut self, ctx: &mut ViewContext<Self>) -> bool {
         let success_msg = self
             .cli_agent(ctx)
-            .and_then(plugin_manager_for)
-            .map(|m| m.update_success_message())
-            .unwrap_or("Warp plugin updated. Please restart the session to activate.");
+            .map(|agent| match agent {
+                CLIAgent::Claude => localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.plugin_updated_reload_plugins",
+                ),
+                CLIAgent::Gemini => localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.plugin_updated_restart_gemini",
+                ),
+                _ => localization::text_for_app(ctx, "agent.input_footer.plugin_updated_restart"),
+            })
+            .unwrap_or_else(|| {
+                localization::text_for_app(ctx, "agent.input_footer.plugin_updated_restart")
+            });
         self.handle_plugin_operation(
-            "Updating Warp plugin...",
-            "Failed to update Warp plugin",
-            success_msg,
+            &localization::text_for_app(ctx, "agent.input_footer.updating_plugin"),
+            &localization::text_for_app(ctx, "agent.input_footer.update_plugin_failed"),
+            &success_msg,
             PluginChipTelemetryKind::Update,
             |manager| async move { manager.update().await },
             ctx,
@@ -1315,10 +1535,21 @@ impl AgentInputFooter {
         &self,
         item: &AgentToolbarItemKind,
         shared_status: &SharedSessionStatus,
+        is_conversation_transcript_context: bool,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         if !item.available_in().is_available_for_cli()
             || !item.available_to_session_viewer(shared_status, false)
+        {
+            return None;
+        }
+
+        // Hide ShareSession for shared ambient (cloud) agent sessions —
+        // it doesn't make sense to offer remote-control when already
+        // viewing a cloud agent's shared session.
+        if matches!(item, AgentToolbarItemKind::ShareSession)
+            && (is_conversation_transcript_context
+                || self.terminal_model.lock().is_shared_ambient_agent_session())
         {
             return None;
         }
@@ -1344,6 +1575,9 @@ impl AgentInputFooter {
                 None
             }
             AgentToolbarItemKind::ShareSession => {
+                if is_conversation_transcript_context {
+                    return None;
+                }
                 let enabled = FeatureFlag::CreatingSharedSessions.is_enabled()
                     && FeatureFlag::HOARemoteControl.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled();
@@ -1363,7 +1597,8 @@ impl AgentInputFooter {
             AgentToolbarItemKind::ModelSelector
             | AgentToolbarItemKind::NLDToggle
             | AgentToolbarItemKind::ContextWindowUsage
-            | AgentToolbarItemKind::FastForwardToggle => None,
+            | AgentToolbarItemKind::FastForwardToggle
+            | AgentToolbarItemKind::HandoffToCloud => None,
         }
     }
 
@@ -1375,7 +1610,7 @@ impl AgentInputFooter {
         // the lock before calling into helpers like `should_use_manual_mode`
         // and `render_cli_toolbar_item`, which may re-lock the same model and
         // would deadlock since the lock is non-reentrant.
-        let (background_color, shared_status) = {
+        let (background_color, shared_status, is_conversation_transcript_context) = {
             let terminal_model = self.terminal_model.lock();
             let background_color = if terminal_model.is_alt_screen_active() {
                 terminal_model
@@ -1386,7 +1621,13 @@ impl AgentInputFooter {
                 appearance.theme().surface_1().into_solid()
             };
             let shared_status = terminal_model.shared_session_status().clone();
-            (background_color, shared_status)
+            let is_conversation_transcript_context =
+                is_conversation_transcript_context(self.terminal_view_id, &terminal_model, app);
+            (
+                background_color,
+                shared_status,
+                is_conversation_transcript_context,
+            )
         };
 
         let session_settings = SessionSettings::as_ref(app);
@@ -1449,7 +1690,12 @@ impl AgentInputFooter {
         }
 
         for item in &left_items {
-            if let Some(element) = self.render_cli_toolbar_item(item, &shared_status, app) {
+            if let Some(element) = self.render_cli_toolbar_item(
+                item,
+                &shared_status,
+                is_conversation_transcript_context,
+                app,
+            ) {
                 left_buttons.add_child(element);
             }
         }
@@ -1460,7 +1706,12 @@ impl AgentInputFooter {
             .with_spacing(4.);
 
         for item in &right_items {
-            if let Some(element) = self.render_cli_toolbar_item(item, &shared_status, app) {
+            if let Some(element) = self.render_cli_toolbar_item(
+                item,
+                &shared_status,
+                is_conversation_transcript_context,
+                app,
+            ) {
                 right_buttons.add_child(element);
             }
         }
@@ -1492,8 +1743,10 @@ impl AgentInputFooter {
             .environment_selector
             .as_ref()
             .is_some_and(|selector| selector.as_ref(app).is_menu_open());
+        let has_open_handoff_env_selector =
+            self.handoff_environment_selector.as_ref(app).is_menu_open();
 
-        has_open_display_chip || has_open_env_selector
+        has_open_display_chip || has_open_env_selector || has_open_handoff_env_selector
     }
 
     pub fn is_model_selector_open(&self, app: &AppContext) -> bool {
@@ -1632,7 +1885,10 @@ impl AgentInputFooter {
         match &self.cli_voice_input_state {
             CLIVoiceInputState::Stopped => {
                 if !crate::ai::AIRequestUsageModel::as_ref(ctx).can_request_voice() {
-                    self.show_cli_voice_error_toast("Voice input limit reached", ctx);
+                    self.show_cli_voice_error_toast(
+                        &localization::text_for_app(ctx, "agent.input_footer.voice_limit_reached"),
+                        ctx,
+                    );
                     return;
                 }
 
@@ -1748,11 +2004,20 @@ impl AgentInputFooter {
             }
             Err(e) => match e {
                 TranscribeError::QuotaLimit => {
-                    self.show_cli_voice_error_toast("Voice input limit reached", ctx);
+                    self.show_cli_voice_error_toast(
+                        &localization::text_for_app(ctx, "agent.input_footer.voice_limit_reached"),
+                        ctx,
+                    );
                 }
                 _ => {
                     log::error!("Failed to transcribe CLI voice input: {e:?}");
-                    self.show_cli_voice_error_toast("Failed to transcribe voice input", ctx);
+                    self.show_cli_voice_error_toast(
+                        &localization::text_for_app(
+                            ctx,
+                            "agent.input_footer.voice_transcribe_failed",
+                        ),
+                        ctx,
+                    );
                 }
             },
         }
@@ -1792,8 +2057,9 @@ impl AgentInputFooter {
     fn show_cli_microphone_access_toast(&self, ctx: &mut ViewContext<Self>) {
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(String::from(
-                "Failed to start voice input (you may need to enable Microphone access)",
+            let toast = DismissibleToast::error(localization::text_for_app(
+                ctx,
+                "agent.input_footer.voice_microphone_access_failed",
             ));
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
@@ -1805,9 +2071,10 @@ impl AgentInputFooter {
         AISettings::handle(ctx).update(ctx, |settings, ctx| {
             if let Some(toggle_key) = settings.maybe_setup_first_time_voice(ctx) {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::success(format!(
-                        "Voice input is enabled. You can also press and hold the `{}` key to activate voice input (configure in Settings > AI > Voice)",
-                        toggle_key.display_name()
+                    let toast = DismissibleToast::success(localization::text_for_app_with_args(
+                        ctx,
+                        "agent.input_footer.voice_enabled_toast",
+                        &[("key", toggle_key.display_name())],
                     ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -1816,26 +2083,40 @@ impl AgentInputFooter {
     }
 
     fn sync_fast_forward_button(&self, ctx: &mut ViewContext<Self>) {
+        // In cloud agent conversations fast forward is force-enabled.
+        let terminal_model = self.terminal_model.lock();
+        let is_force_enabled = is_in_cloud_context(
+            terminal_model.block_list().agent_view_state(),
+            &terminal_model,
+        );
+        drop(terminal_model);
+
         // Read directly from the conversation, same data source as the warping
         // indicator footer's auto-approve chip.
         let is_active = BlocklistAIHistoryModel::as_ref(ctx)
             .active_conversation(self.terminal_view_id)
             .map(|c| c.autoexecute_any_action())
-            .unwrap_or(false);
+            .unwrap_or(false)
+            || is_force_enabled;
+
         let icon = if is_active {
             Icon::FastForwardFilled
         } else {
             Icon::FastForward
         };
-        let tooltip = if is_active {
-            FAST_FORWARD_ON_TOOLTIP
+        let tooltip = if is_force_enabled {
+            localization::text_for_app(ctx, "agent.input_footer.auto_approve_locked_tooltip")
+        } else if is_active {
+            localization::text_for_app(ctx, "agent.input_footer.auto_approve_disable_tooltip")
         } else {
-            FAST_FORWARD_OFF_TOOLTIP
+            localization::text_for_app(ctx, "agent.input_footer.auto_approve_tooltip")
         };
+
         self.fast_forward_button.update(ctx, |button, ctx| {
             button.set_icon(Some(icon), ctx);
             button.set_tooltip(Some(tooltip), ctx);
             button.set_active(is_active, ctx);
+            button.set_disabled(is_force_enabled, ctx);
         });
     }
 
@@ -1847,9 +2128,9 @@ impl AgentInputFooter {
             .get()
             .is_anonymous_or_logged_out();
         let tooltip = if login_required {
-            START_REMOTE_CONTROL_LOGIN_REQUIRED_TOOLTIP
+            localization::text_for_app(ctx, "agent.input_footer.remote_control_login_required")
         } else {
-            START_REMOTE_CONTROL_TOOLTIP
+            localization::text_for_app(ctx, "agent.input_footer.start_remote_control")
         };
         self.start_remote_control_button.update(ctx, |button, ctx| {
             button.set_disabled(login_required, ctx);
@@ -1864,7 +2145,11 @@ impl AgentInputFooter {
             let usage = conversation.context_window_usage();
             let icon = icon_for_context_window_usage(usage);
             let remaining_pct = ((1.0 - usage) * 100.0).round() as i32;
-            let tooltip = format!("{remaining_pct}% context remaining");
+            let tooltip = localization::text_for_app_with_args(
+                ctx,
+                "agent.input_footer.context_remaining",
+                &[("percent", &remaining_pct.to_string())],
+            );
 
             self.context_window_button.update(ctx, |button, ctx| {
                 button.set_icon(Some(icon), ctx);
@@ -1877,6 +2162,8 @@ impl AgentInputFooter {
         &self,
         item: &AgentToolbarItemKind,
         shared_status: &SharedSessionStatus,
+        is_cloud_context: bool,
+        is_conversation_transcript_context: bool,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let is_cloud_mode = FeatureFlag::CloudModeImageContext.is_enabled()
@@ -1891,6 +2178,13 @@ impl AgentInputFooter {
         {
             return None;
         }
+
+        if self.handoff_compose_state.as_ref(app).is_active()
+            && !item.is_available_during_handoff_compose()
+        {
+            return None;
+        }
+
         match item {
             AgentToolbarItemKind::ContextChip(chip_kind) => {
                 let chips = match SessionSettings::as_ref(app)
@@ -1932,6 +2226,9 @@ impl AgentInputFooter {
                 has_conversation.then(|| ChildView::new(&self.context_window_button).finish())
             }
             AgentToolbarItemKind::ShareSession => {
+                if is_conversation_transcript_context {
+                    return None;
+                }
                 let enabled = FeatureFlag::CreatingSharedSessions.is_enabled()
                     && FeatureFlag::HOARemoteControl.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled();
@@ -1948,6 +2245,13 @@ impl AgentInputFooter {
             AgentToolbarItemKind::FastForwardToggle => FeatureFlag::FastForwardAutoexecuteButton
                 .is_enabled()
                 .then(|| ChildView::new(&self.fast_forward_button).finish()),
+            AgentToolbarItemKind::HandoffToCloud => {
+                if !AISettings::as_ref(app).is_cloud_handoff_enabled(app) || is_cloud_context {
+                    return None;
+                }
+
+                Some(ChildView::new(&self.handoff_to_cloud_button).finish())
+            }
             // Handled by the available_in() guard above; included for exhaustiveness.
             AgentToolbarItemKind::FileExplorer
             | AgentToolbarItemKind::RichInput
@@ -2025,13 +2329,28 @@ impl View for AgentInputFooter {
                 left_buttons =
                     left_buttons.with_child(ChildView::new(environment_selector).finish());
             }
+        } else if self.handoff_compose_state.as_ref(app).is_active() {
+            left_buttons = left_buttons
+                .with_child(ChildView::new(&self.handoff_environment_selector).finish());
         }
 
         let terminal_model = self.terminal_model.lock();
         let shared_status = terminal_model.shared_session_status();
+        let is_cloud_context = super::is_in_cloud_context(
+            terminal_model.block_list().agent_view_state(),
+            &terminal_model,
+        );
+        let is_conversation_transcript_context =
+            is_conversation_transcript_context(self.terminal_view_id, &terminal_model, app);
 
         for item in &left_items {
-            if let Some(element) = self.render_toolbar_item(item, shared_status, app) {
+            if let Some(element) = self.render_toolbar_item(
+                item,
+                shared_status,
+                is_cloud_context,
+                is_conversation_transcript_context,
+                app,
+            ) {
                 left_buttons.add_child(element);
             }
         }
@@ -2052,7 +2371,13 @@ impl View for AgentInputFooter {
             );
         } else {
             for item in &right_items {
-                if let Some(element) = self.render_toolbar_item(item, shared_status, app) {
+                if let Some(element) = self.render_toolbar_item(
+                    item,
+                    shared_status,
+                    is_cloud_context,
+                    is_conversation_transcript_context,
+                    app,
+                ) {
                     right_buttons.add_child(element);
                 }
             }
@@ -2126,7 +2451,10 @@ fn render_ftu_callout(
                     Expanded::new(
                         1.,
                         Text::new(
-                            "Now using Full Terminal Agent's default model.",
+                            localization::text_for_app(
+                                app,
+                                "agent.input_footer.full_terminal_default_model",
+                            ),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size() - 2.,
                         )
@@ -2211,6 +2539,10 @@ pub enum AgentInputFooterAction {
     StartRemoteControl,
     StopRemoteControl,
     OpenCodingAgentSettings,
+    /// User clicked the "Hand off to cloud" footer chip. The terminal `Input`
+    /// subscriber decides whether to dispatch the immediate empty-prompt
+    /// handoff or enter `&` compose mode based on the current input state.
+    HandoffChipClicked,
     ShowContextMenu {
         position: Vector2F,
     },
@@ -2407,6 +2739,18 @@ impl TypedActionView for AgentInputFooter {
                     widget_id: crate::settings_view::cli_agent_settings_widget_id(),
                 });
             }
+            AgentInputFooterAction::HandoffChipClicked => {
+                if FeatureFlag::OzHandoff.is_enabled()
+                    && FeatureFlag::HandoffLocalCloud.is_enabled()
+                    && cfg!(all(feature = "local_fs", not(target_family = "wasm")))
+                {
+                    // The terminal `Input` subscriber decides what to do with
+                    // the chip click — auto-handoff when the input buffer is
+                    // empty and the source conversation has content, or `&`
+                    // compose mode otherwise (preserving any in-flight prompt).
+                    ctx.emit(AgentInputFooterEvent::HandoffChipClicked);
+                }
+            }
             AgentInputFooterAction::ShowContextMenu { position } => {
                 ctx.emit(AgentInputFooterEvent::ShowContextMenu {
                     position: *position,
@@ -2453,6 +2797,11 @@ pub enum AgentInputFooterEvent {
     PluginInstalled(CLIAgent),
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
+    /// Local-to-cloud handoff chip clicked. The terminal `Input` subscriber
+    /// either dispatches the immediate empty-prompt handoff (empty buffer +
+    /// source conversation with content) or activates `&` compose mode
+    /// (preserving any in-flight prompt).
+    HandoffChipClicked,
 }
 
 impl Entity for AgentInputFooter {
@@ -2507,6 +2856,31 @@ impl ActionButtonTheme for AgentInputButtonTheme {
         } else {
             None
         }
+    }
+}
+
+struct RemoteControlButtonTheme;
+
+impl ActionButtonTheme for RemoteControlButtonTheme {
+    fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
+        AgentInputButtonTheme.background(hovered, appearance)
+    }
+
+    fn text_color(
+        &self,
+        hovered: bool,
+        background: Option<Fill>,
+        appearance: &Appearance,
+    ) -> ColorU {
+        AgentInputButtonTheme.text_color(hovered, background, appearance)
+    }
+
+    fn border(&self, appearance: &Appearance) -> Option<ColorU> {
+        AgentInputButtonTheme.border(appearance)
+    }
+
+    fn should_opt_out_of_contrast_adjustment(&self) -> bool {
+        AgentInputButtonTheme.should_opt_out_of_contrast_adjustment()
     }
 }
 
@@ -2624,6 +2998,38 @@ impl ActionButtonTheme for FastForwardButtonTheme {
 
     fn should_opt_out_of_contrast_adjustment(&self) -> bool {
         true
+    }
+}
+
+/// Disabled-state theme used by the fast-forward chip when fast-forward is
+/// locked on (cloud agent conversations). Delegates entirely to
+/// `FastForwardButtonTheme`, but forces `hovered=true` on the background so
+/// the chip still reads as "on" while the underlying button is disabled
+/// (which gives us the arrow cursor and no-op click handler for free).
+struct FastForwardLockedTheme;
+
+impl ActionButtonTheme for FastForwardLockedTheme {
+    fn background(&self, _hovered: bool, appearance: &Appearance) -> Option<Fill> {
+        // Force the active (hovered) background so the disabled chip still
+        // visually looks like fast-forward is on.
+        FastForwardButtonTheme.background(true, appearance)
+    }
+
+    fn text_color(
+        &self,
+        hovered: bool,
+        background: Option<Fill>,
+        appearance: &Appearance,
+    ) -> ColorU {
+        FastForwardButtonTheme.text_color(hovered, background, appearance)
+    }
+
+    fn border(&self, appearance: &Appearance) -> Option<ColorU> {
+        FastForwardButtonTheme.border(appearance)
+    }
+
+    fn should_opt_out_of_contrast_adjustment(&self) -> bool {
+        FastForwardButtonTheme.should_opt_out_of_contrast_adjustment()
     }
 }
 

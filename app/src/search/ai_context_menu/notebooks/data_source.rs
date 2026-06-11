@@ -1,4 +1,7 @@
-use super::search_item::NotebookSearchItem;
+use fuzzy_match::FuzzyMatchResult;
+use warpui::{AppContext, SingletonEntity};
+
+use super::search_item::{NotebookSearchItem, NotebookSearchItemAccessibilityCopy};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::CloudModelType;
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
@@ -6,8 +9,6 @@ use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use fuzzy_match::FuzzyMatchResult;
-use warpui::{AppContext, SingletonEntity};
 
 const MAX_RESULTS: usize = 50;
 /// Base score for zero-state results. Each item gets an additional bonus based on
@@ -38,6 +39,7 @@ impl SyncDataSource for NotebookDataSource {
         // Get all notebooks from CloudModel
         let cloud_model = CloudModel::as_ref(app);
         let _user_workspaces = UserWorkspaces::as_ref(app);
+        let accessibility_copy = NotebookSearchItemAccessibilityCopy::new(app);
 
         // Get notebooks from all spaces the user has access to
         let mut notebook_results = Vec::new();
@@ -139,6 +141,7 @@ impl SyncDataSource for NotebookDataSource {
                 match_result,
                 ai_document_uid: ai_document_uid.map(|id| id.to_string()),
                 is_match_on_name,
+                accessibility_copy: accessibility_copy.clone(),
             };
 
             notebook_results.push(QueryResult::from(search_item));
@@ -155,3 +158,7 @@ impl SyncDataSource for NotebookDataSource {
 impl warpui::Entity for NotebookDataSource {
     type Event = ();
 }
+
+#[cfg(test)]
+#[path = "data_source_tests.rs"]
+mod tests;

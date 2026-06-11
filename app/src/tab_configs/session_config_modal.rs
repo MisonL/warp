@@ -2,28 +2,26 @@ use std::path::PathBuf;
 
 use pathfinder_geometry::vector::vec2f;
 use warpui::elements::{
-    ChildAnchor, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Flex,
-    FormattedTextElement, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
-    ParentOffsetBounds, Stack,
+    ChildAnchor, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Flex, MouseStateHandle,
+    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack, Text,
 };
 use warpui::fonts::Weight;
 use warpui::keymap::macros::id;
-use warpui::keymap::FixedBinding;
-use warpui::keymap::Keystroke;
+use warpui::keymap::{FixedBinding, Keystroke};
 use warpui::platform::file_picker::FilePickerConfiguration;
-use warpui::FocusContext;
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-};
-
-use crate::appearance::Appearance;
-use crate::ui_components::blended_colors;
-use crate::view_components::action_button::{
-    ActionButton, ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
+    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
 };
 
 use super::session_config::{is_git_repo, SessionConfigSelection, SessionType};
 use super::session_config_rendering;
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::ui_components::blended_colors;
+use crate::view_components::action_button::{
+    ActionButton, ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
+};
 
 pub fn init(app: &mut warpui::AppContext) {
     app.register_fixed_bindings([FixedBinding::new(
@@ -88,7 +86,7 @@ impl SessionConfigModal {
         });
 
         let submit_button = ctx.add_view(|ctx| {
-            ActionButton::new("Get Warping", PrimaryTheme)
+            ActionButton::new(text(ctx, "tab_config.action.get_warping"), PrimaryTheme)
                 .with_full_width(true)
                 .with_keybinding(
                     KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
@@ -162,31 +160,26 @@ impl SessionConfigModal {
 
     // ── Rendering ──
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
-        let title = FormattedTextElement::from_str(
-            "Create your first tab config",
+        let title = Text::new_inline(
+            text(app, "tab_config.guided.title"),
             appearance.ui_font_family(),
             24.,
         )
         .with_color(blended_colors::text_main(theme, theme.background()))
-        .with_weight(Weight::Semibold)
+        .with_style(warpui::fonts::Properties::default().weight(Weight::Semibold))
         .finish();
 
         let subtitle_text = if self.show_session_type_row {
-            "Set up a reusable starting point for your tabs. \
-             Pick a repo, choose a session type, and optionally attach a worktree. \
-             Use it whenever you want to open a new tab with this setup."
+            text(app, "tab_config.guided.subtitle_with_session_type")
         } else {
-            "Set up a reusable starting point for your tabs. \
-             Pick a repo, optionally attach a worktree, and \
-             use it whenever you want to open a new tab with this setup."
+            text(app, "tab_config.guided.subtitle_without_session_type")
         };
-        let subtitle =
-            FormattedTextElement::from_str(subtitle_text, appearance.ui_font_family(), 14.)
-                .with_color(blended_colors::text_sub(theme, theme.background()))
-                .finish();
+        let subtitle = Text::new_inline(subtitle_text, appearance.ui_font_family(), 14.)
+            .with_color(blended_colors::text_sub(theme, theme.background()))
+            .finish();
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
@@ -195,7 +188,11 @@ impl SessionConfigModal {
             .finish()
     }
 
-    fn render_session_type_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_session_type_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         session_config_rendering::render_session_type_pills(
             &self.session_types,
             self.selected_session_type_index,
@@ -204,10 +201,15 @@ impl SessionConfigModal {
                 ctx.dispatch_typed_action(SessionConfigModalAction::SelectSessionType(i));
             },
             appearance,
+            app,
         )
     }
 
-    fn render_directory_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_directory_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         session_config_rendering::render_directory_picker(
             &self.selected_directory,
             self.directory_button_mouse_state.clone(),
@@ -215,10 +217,11 @@ impl SessionConfigModal {
                 ctx.dispatch_typed_action(SessionConfigModalAction::OpenDirectoryPicker);
             },
             appearance,
+            app,
         )
     }
 
-    fn render_checkboxes(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_checkboxes(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         session_config_rendering::render_worktree_checkbox(
             self.enable_worktree,
             self.is_git_repo,
@@ -228,12 +231,14 @@ impl SessionConfigModal {
                 ctx.dispatch_typed_action(SessionConfigModalAction::ToggleWorktree);
             },
             appearance,
+            app,
         )
     }
 
     fn render_autogenerate_worktree_branch_name_checkbox(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         session_config_rendering::render_autogenerate_worktree_branch_name_checkbox(
             self.autogenerate_worktree_branch_name,
@@ -247,6 +252,7 @@ impl SessionConfigModal {
                 );
             },
             appearance,
+            app,
         )
     }
 }
@@ -269,29 +275,29 @@ impl View for SessionConfigModal {
 
         let mut form = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(self.render_header(appearance));
+            .with_child(self.render_header(appearance, app));
 
         if self.show_session_type_row {
             form.add_child(
-                Container::new(self.render_session_type_section(appearance))
+                Container::new(self.render_session_type_section(appearance, app))
                     .with_margin_top(SECTION_GAP)
                     .finish(),
             );
         }
 
         form.add_child(
-            Container::new(self.render_directory_section(appearance))
+            Container::new(self.render_directory_section(appearance, app))
                 .with_margin_top(SECTION_GAP)
                 .finish(),
         );
 
         form.add_child(
-            Container::new(self.render_checkboxes(appearance))
+            Container::new(self.render_checkboxes(appearance, app))
                 .with_margin_top(SECTION_GAP)
                 .finish(),
         );
         form.add_child(
-            Container::new(self.render_autogenerate_worktree_branch_name_checkbox(appearance))
+            Container::new(self.render_autogenerate_worktree_branch_name_checkbox(appearance, app))
                 .with_margin_top(8.)
                 .finish(),
         );
@@ -388,4 +394,8 @@ impl TypedActionView for SessionConfigModal {
             }
         }
     }
+}
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
 }

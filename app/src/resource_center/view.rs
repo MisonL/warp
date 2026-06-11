@@ -1,38 +1,35 @@
 use vec1::{vec1, Vec1};
-use warp_core::{features::FeatureFlag, ui::builder::AnimatedButtonOptions};
+use warp_core::features::FeatureFlag;
+use warp_core::ui::builder::AnimatedButtonOptions;
+use warpui::elements::{
+    Align, Border, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Icon,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, SavePosition, Shrinkable,
+};
+use warpui::fonts::Weight;
+use warpui::platform::Cursor;
+use warpui::presenter::ChildView;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::windowing::{StateEvent, WindowManager};
 use warpui::{
-    elements::{
-        Align, Border, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Icon,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, SavePosition, Shrinkable,
-    },
-    fonts::Weight,
-    platform::Cursor,
-    presenter::ChildView,
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
-    windowing::{StateEvent, WindowManager},
     AppContext, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity, TypedActionView,
     View, ViewContext, ViewHandle, WindowId,
 };
 
-use super::{
-    keybindings_page::KeybindingsEvent,
-    section_views::{
-        FOOTER_ICON_SIZE, HEADER_FONT_SIZE, ICON_PADDING, KEYBOARD_ICON_SIZE, SCROLLBAR_OFFSET,
-        SECTION_SPACING,
-    },
-    KeybindingsView, ResourceCenterMainEvent, ResourceCenterMainView, TipsCompleted,
+use super::keybindings_page::KeybindingsEvent;
+use super::section_views::{
+    FOOTER_ICON_SIZE, HEADER_FONT_SIZE, ICON_PADDING, KEYBOARD_ICON_SIZE, SCROLLBAR_OFFSET,
+    SECTION_SPACING,
 };
-use crate::ui_components::{buttons::icon_button, window_focus_dimming::WindowFocusDimming};
-use crate::{
-    appearance::Appearance,
-    changelog_model::ChangelogModel,
-    ui_components::icons,
-    util::links,
-    workspace::{WorkspaceAction, PANEL_HEADER_HEIGHT},
-};
+use super::{KeybindingsView, ResourceCenterMainEvent, ResourceCenterMainView, TipsCompleted};
+use crate::appearance::Appearance;
+use crate::changelog_model::ChangelogModel;
+use crate::localization;
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::icons;
+use crate::ui_components::window_focus_dimming::WindowFocusDimming;
+use crate::util::links;
+use crate::workspace::{WorkspaceAction, PANEL_HEADER_HEIGHT};
 
 // Footer icons
 const DOCS_SVG_PATH: &str = "bundled/svg/gitbook-logo.svg";
@@ -47,11 +44,11 @@ pub enum ResourceCenterFooterItem {
 }
 
 impl ResourceCenterFooterItem {
-    pub fn ui_label(&self) -> &'static str {
+    pub fn ui_label_key(&self) -> &'static str {
         match self {
-            ResourceCenterFooterItem::Docs => "Docs",
-            ResourceCenterFooterItem::Slack => "Slack",
-            ResourceCenterFooterItem::Feedback => "Feedback",
+            ResourceCenterFooterItem::Docs => "resource_center.footer.docs",
+            ResourceCenterFooterItem::Slack => "resource_center.footer.slack",
+            ResourceCenterFooterItem::Feedback => "resource_center.footer.feedback",
         }
     }
 
@@ -327,16 +324,22 @@ impl ResourceCenterView {
         .finish()
     }
 
-    fn render_header_contents(&self, appearance: &Appearance) -> Vec<Box<dyn Element>> {
+    fn render_header_contents(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Vec<Box<dyn Element>> {
         let current_page = self.page_views.get(self.current_view_index).map(|x| x.page);
 
         let header_text = match current_page {
-            Some(ResourceCenterPage::Keybindings) => "Keyboard Shortcuts".to_string(),
+            Some(ResourceCenterPage::Keybindings) => {
+                localization::text_for_app(app, "resource_center.header.keyboard_shortcuts")
+            }
             _ => {
                 if FeatureFlag::AvatarInTabBar.is_enabled() {
                     String::new()
                 } else {
-                    "Warp Essentials".to_string()
+                    localization::text_for_app(app, "resource_center.header.warp_essentials")
                 }
             }
         };
@@ -379,7 +382,7 @@ impl ResourceCenterView {
     fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         const HEADER_VERTICAL_PADDING: f32 = 5.;
         const HEADER_HORIZONTAL_PADDING: f32 = 6.;
-        let header_body = self.render_header_contents(appearance);
+        let header_body = self.render_header_contents(app, appearance);
 
         let header_element = ConstrainedBox::new(
             Container::new(
@@ -411,6 +414,7 @@ impl ResourceCenterView {
     fn render_footer_button(
         &self,
         item: ResourceCenterFooterItem,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let mouse_state = match item {
@@ -432,7 +436,7 @@ impl ResourceCenterView {
         let button = appearance
             .ui_builder()
             .button(ButtonVariant::Text, mouse_state)
-            .with_text_label(item.ui_label().to_string())
+            .with_text_label(localization::text_for_app(app, item.ui_label_key()))
             .with_style(
                 UiComponentStyles::default().set_padding(Coords::default().left(SCROLLBAR_OFFSET)),
             )
@@ -450,11 +454,13 @@ impl ResourceCenterView {
             .finish()
     }
 
-    fn render_footer(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let docs_button = self.render_footer_button(ResourceCenterFooterItem::Docs, appearance);
-        let slack_button = self.render_footer_button(ResourceCenterFooterItem::Slack, appearance);
+    fn render_footer(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+        let docs_button =
+            self.render_footer_button(ResourceCenterFooterItem::Docs, app, appearance);
+        let slack_button =
+            self.render_footer_button(ResourceCenterFooterItem::Slack, app, appearance);
         let feedback_button =
-            self.render_footer_button(ResourceCenterFooterItem::Feedback, appearance);
+            self.render_footer_button(ResourceCenterFooterItem::Feedback, app, appearance);
 
         let footer = Flex::row()
             .with_child(docs_button)
@@ -504,7 +510,7 @@ impl View for ResourceCenterView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let header = self.render_header(appearance, app);
-        let footer = self.render_footer(appearance);
+        let footer = self.render_footer(app, appearance);
         let resource_center_page = &self.page_views[self.current_view_index].page_view_handle;
 
         let body = match &resource_center_page {

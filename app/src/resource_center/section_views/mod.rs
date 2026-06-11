@@ -1,23 +1,22 @@
+use crate::localization;
 pub mod feature_section;
 pub use feature_section::FeatureSectionView;
 pub mod content_section;
 pub use content_section::ContentSectionView;
 use warp_core::features::FeatureFlag;
 pub mod changelog_section;
-use crate::{
-    appearance::Appearance,
-    resource_center::{section_views::feature_section::FeatureSection, TipAction},
-};
 pub use changelog_section::ChangelogSectionView;
-use warpui::{
-    elements::{
-        Align, Border, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Hoverable,
-        Icon, MouseStateHandle, ParentElement, ScrollbarWidth, Shrinkable,
-    },
-    platform::Cursor,
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, ViewContext, ViewHandle,
+use warpui::elements::{
+    Align, Border, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Hoverable, Icon,
+    MouseStateHandle, ParentElement, ScrollbarWidth, Shrinkable,
 };
+use warpui::platform::Cursor;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, ViewContext, ViewHandle};
+
+use crate::appearance::Appearance;
+use crate::resource_center::section_views::feature_section::FeatureSection;
+use crate::resource_center::TipAction;
 
 pub const HEADER_FONT_SIZE: f32 = 16.;
 pub const SECTION_HEADER_FONT_SIZE: f32 = 16.;
@@ -75,7 +74,7 @@ pub trait SectionView {
         ctx: &AppContext,
     ) -> Option<Box<dyn Element>>;
 
-    fn section_link(&self, appearance: &Appearance) -> Option<Box<dyn Element>>;
+    fn section_link(&self, appearance: &Appearance, ctx: &AppContext) -> Option<Box<dyn Element>>;
 
     fn render_section_header(
         &self,
@@ -88,12 +87,14 @@ pub trait SectionView {
         Hoverable::new(top_bar_mouse_state, |state| {
             let mut section_header = Flex::row();
 
+            let section_title_text =
+                localization::text_for_app(ctx, section_name.section_name_key());
             let section_title = Shrinkable::new(
                 1.0,
                 Align::new(
                     appearance
                         .ui_builder()
-                        .wrappable_text(section_name.section_name_string().to_string(), false)
+                        .wrappable_text(section_title_text, false)
                         .with_style(UiComponentStyles {
                             font_family_id: Some(appearance.ui_font_family()),
                             font_size: Some(SECTION_HEADER_FONT_SIZE),
@@ -139,7 +140,7 @@ pub trait SectionView {
                 section_header.add_child(progress_indicator)
             }
 
-            if let Some(link) = self.section_link(appearance) {
+            if let Some(link) = self.section_link(appearance, ctx) {
                 section_header.add_child(link)
             }
 

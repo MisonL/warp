@@ -1,16 +1,15 @@
-use crate::modal::Modal;
-use crate::themes::theme::ThemeKind;
-use crate::themes::theme_deletion_body::{ThemeDeletionBody, ThemeDeletionBodyEvent};
 use std::default::Default;
+
 use warpui::fonts::Weight;
 use warpui::keymap::FixedBinding;
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{Coords, UiComponentStyles};
-use warpui::AppContext;
-use warpui::ViewHandle;
-use warpui::{Element, Entity, TypedActionView, View, ViewContext};
+use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
-const THEME_DELETION_MODAL_HEADER: &str = "Are you sure you want to delete this theme?";
+use crate::localization;
+use crate::modal::Modal;
+use crate::themes::theme::ThemeKind;
+use crate::themes::theme_deletion_body::{ThemeDeletionBody, ThemeDeletionBodyEvent};
 
 pub struct ThemeDeletionModal {
     theme_deletion_modal: ViewHandle<Modal<ThemeDeletionBody>>,
@@ -50,7 +49,10 @@ impl ThemeDeletionModal {
 
         let theme_deletion_modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(THEME_DELETION_MODAL_HEADER.to_string()),
+                Some(localization::text_for_app(
+                    ctx,
+                    "settings.theme_deletion.modal_header",
+                )),
                 theme_deletion_body,
                 ctx,
             )

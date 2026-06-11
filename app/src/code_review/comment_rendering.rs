@@ -3,35 +3,36 @@
 //! These functions are used by both the `CommentListView` (in the code review panel)
 //! and the blocklist's imported comments rendering.
 
-use std::path::Path;
 use std::rc::Rc;
 
 use chrono::{Duration, Local};
-
-use crate::appearance::Appearance;
-use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
-use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
-use crate::code_review::comments::{
-    AttachedReviewComment, AttachedReviewCommentTarget, LineDiffContent,
-};
-use crate::editor::InteractionState;
-use crate::notebooks::editor::view::RichTextEditorView;
-use crate::util::time_format::human_readable_approx_duration;
 use pathfinder_color::ColorU;
 use warp_core::ui::theme::color::internal_colors::{neutral_1, neutral_2, text_sub};
 use warp_core::ui::theme::Fill;
 use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warpui::elements::new_scrollable::ScrollableAppearance;
-use warpui::elements::ScrollbarWidth;
 use warpui::elements::{
     Border, ChildView, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, ScrollbarWidth,
+    Shrinkable, Text,
 };
 use warpui::platform::Cursor;
 use warpui::text_layout::ClipConfig;
 use warpui::units::Pixels;
 use warpui::{AppContext, Element, EventContext, SingletonEntity, View, ViewContext, ViewHandle};
+
+use crate::appearance::Appearance;
+use crate::code::buffer_location::LocalOrRemotePath;
+use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
+use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
+use crate::code_review::comments::{
+    AttachedReviewComment, AttachedReviewCommentTarget, LineDiffContent,
+};
+use crate::editor::InteractionState;
+use crate::localization;
+use crate::notebooks::editor::view::RichTextEditorView;
+use crate::util::time_format::human_readable_approx_duration;
 
 /// Configuration for making the comment header clickable.
 pub(crate) struct HeaderClickHandler {
@@ -70,6 +71,7 @@ fn render_collapsed_comment_card(
         CornerRadius::with_all(Radius::Pixels(8.)),
         on_header_click,
         appearance,
+        app,
     );
 
     comment_card_container(header, theme)
@@ -82,6 +84,7 @@ fn render_comment_file_path_header(
     corner_radius: CornerRadius,
     on_header_click: Option<&HeaderClickHandler>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
 
@@ -109,7 +112,7 @@ fn render_comment_file_path_header(
 
         let outdated_chip = Container::new(
             Text::new(
-                "Outdated",
+                localization::text_for_app(app, "code_review.comment.outdated"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -161,6 +164,7 @@ fn render_comment_text_section(
     is_imported_from_github: bool,
     metadata_trailing_element: Option<Box<dyn Element>>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let background = Fill::Solid(neutral_1(theme));
@@ -172,7 +176,7 @@ fn render_comment_text_section(
     if is_imported_from_github {
         left_section.add_child(
             Text::new(
-                "From GitHub".to_string(),
+                localization::text_for_app(app, "code_review.comment.from_github"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -229,7 +233,7 @@ fn render_comment_text_section(
 /// highlighting is set based on the file path.
 fn create_static_diff_content_editor<V: View>(
     content: &LineDiffContent,
-    file_path: &Path,
+    file_path: Option<&LocalOrRemotePath>,
     ctx: &mut ViewContext<V>,
 ) -> ViewHandle<CodeEditorView> {
     let editor = ctx.add_typed_action_view(|ctx| {
@@ -252,7 +256,10 @@ fn create_static_diff_content_editor<V: View>(
         let original_text = content.original_text();
         let state = InitialBufferState::plain_text(original_text.trim());
         view.reset(state, ctx);
-        view.set_language_with_path(file_path, ctx);
+        if let Some(file_path) = file_path {
+            let language_path = file_path.path_component();
+            view.set_language_with_path(&language_path, ctx);
+        }
     });
     editor
 }
@@ -299,7 +306,7 @@ impl CommentViewCard {
         always_use_static_diff: bool,
         disable_scrolling: bool,
         max_width: Option<Pixels>,
-        repo_path: Option<&Path>,
+        repo_path: Option<&LocalOrRemotePath>,
         ctx: &mut ViewContext<V>,
     ) -> Self {
         let comment_editor = create_readonly_comment_markdown_editor(
@@ -334,7 +341,8 @@ impl CommentViewCard {
         {
             if always_use_static_diff || comment.outdated {
                 Some(CommentDiffContent::StaticEditor(
-                    create_static_diff_content_editor(content, absolute_file_path, ctx),
+                    // Language detection only needs the path component (extension).
+                    create_static_diff_content_editor(content, Some(absolute_file_path), ctx),
                 ))
             } else {
                 Some(CommentDiffContent::EditorLens)
@@ -356,7 +364,7 @@ impl CommentViewCard {
     pub(crate) fn update_source<V: View>(
         &mut self,
         new_source: AttachedReviewComment,
-        repo_path: Option<&Path>,
+        repo_path: Option<&LocalOrRemotePath>,
         ctx: &mut ViewContext<V>,
     ) {
         self.comment_editor.update(ctx, |editor, ctx| {
@@ -406,6 +414,7 @@ impl CommentViewCard {
             CornerRadius::with_top(Radius::Pixels(8.)),
             on_header_click,
             appearance,
+            app,
         ));
 
         match &self.diff_content {
@@ -426,6 +435,7 @@ impl CommentViewCard {
             self.source.origin.is_imported_from_github(),
             metadata_trailing_element,
             appearance,
+            app,
         ));
         comment_card_container(card.finish(), theme)
     }
@@ -449,23 +459,19 @@ impl CommentViewCard {
         matches!(self.diff_content, Some(CommentDiffContent::EditorLens))
     }
 
-    /// Recomputes the cached display title.
-    pub(crate) fn update_title(&mut self, repo_path: Option<&Path>) {
-        self.title = Self::compute_title(&self.source, repo_path);
-    }
-
     /// Refreshes the cached `last_updated_duration` to the current time.
     pub(crate) fn refresh_last_updated_duration(&mut self) {
         self.last_updated_duration = Local::now() - self.source.last_update_time;
     }
 
-    fn compute_title(source: &AttachedReviewComment, repo_path: Option<&Path>) -> String {
+    fn compute_title(
+        source: &AttachedReviewComment,
+        repo_path: Option<&LocalOrRemotePath>,
+    ) -> String {
         let file_path = source.target.absolute_file_path().map(|p| {
             repo_path
-                .and_then(|rp| p.strip_prefix(rp).ok())
-                .unwrap_or(p)
-                .display()
-                .to_string()
+                .and_then(|rp| rp.strip_repo_prefix(p))
+                .unwrap_or_else(|| p.display_path())
         });
         let line_number = source.target.line_number().map(|lc| lc.as_u32() + 1);
 

@@ -1,24 +1,22 @@
 //! AI Assistant has since been renamed to "Warp AI" in the product.
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
+use std::sync::Arc;
 
-use crate::{
-    ai::{RequestLimitInfo, RequestLimitRefreshDuration},
-    server::telemetry::OpenedWarpAISource,
-    terminal::model::terminal_model::BlockIndex,
-    workflows::workflow::{Argument, Workflow},
-};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use pathfinder_color::ColorU;
 use serde::{Deserialize, Serialize};
 use warp_core::command::ExitCode;
-use warp_graphql::{
-    ai::{
-        RequestLimitInfo as RequestLimitInfoGraphql,
-        RequestLimitRefreshDuration as RequestLimitRefreshDurationGraphql,
-    },
-    mutations::generate_commands::{GenerateCommandsFailureType, GeneratedCommand},
+use warp_graphql::ai::{
+    RequestLimitInfo as RequestLimitInfoGraphql,
+    RequestLimitRefreshDuration as RequestLimitRefreshDurationGraphql,
 };
+use warp_graphql::mutations::generate_commands::{GenerateCommandsFailureType, GeneratedCommand};
+
+use crate::ai::{RequestLimitInfo, RequestLimitRefreshDuration};
+use crate::server::telemetry::OpenedWarpAISource;
+use crate::terminal::model::terminal_model::BlockIndex;
+use crate::workflows::workflow::{Argument, Workflow};
 
 pub mod execution_context;
 pub mod panel;
@@ -35,7 +33,6 @@ mod test_util;
 pub const PROMPT_CHARACTER_LIMIT: usize = 1000;
 
 pub const AI_ASSISTANT_FEATURE_NAME: &str = "Warp AI";
-pub const ASK_AI_ASSISTANT_TEXT: &str = "Ask Warp AI";
 
 pub const AI_ASSISTANT_SVG_PATH: &str = "bundled/svg/ai-assistant.svg";
 

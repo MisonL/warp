@@ -1,13 +1,13 @@
 ---
 name: integration-test-video
-description: Run Warp integration tests with screenshot and video capture, including event overlay annotations for mouse and keyboard input. Use this whenever the user wants to record an integration test, collect screenshots from a test, review generated recording artifacts, or author a test that captures video for debugging or demos.
+description: 运行带截图和视频捕获的 Warp 集成测试，包括鼠标和键盘输入的事件 overlay 标注。当用户想录制集成测试、从测试收集截图、审查生成的录制 artifact，或编写用于调试/演示的视频捕获测试时使用此技能。
 ---
 
-# Integration Test Video Recording
+# 集成测试视频录制
 
-Use this skill when working with Warp's integration test recording pipeline on this branch.
+在本分支上处理 Warp 集成测试录制流水线时使用此 skill。
 
-The relevant implementation lives in:
+相关实现位于：
 - `integration/src/bin/integration.rs`
 - `integration/src/test/video_recording.rs`
 - `integration/tests/integration/ui_tests.rs`
@@ -17,18 +17,18 @@ The relevant implementation lives in:
 - `ui/src/integration/artifacts.rs`
 - `ui/src/integration/overlay.rs`
 
-## Command to invoke a test
+## 调用测试的命令
 
-For a single manually-invoked recording test, prefer the integration binary:
+对单个手动调用的录制测试，优先使用 integration binary：
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
 cargo run -p integration --bin integration -- test_video_recording
 ```
 
-That is the command shown by the sample test in `integration/src/test/video_recording.rs`.
+这是 `integration/src/test/video_recording.rs` 中 sample test 展示的命令。
 
-If you want the driver to auto-record a test or set of tests, add `WARP_INTEGRATION_TEST_VIDEO`:
+如果希望 driver 自动录制某个测试或一组测试，请添加 `WARP_INTEGRATION_TEST_VIDEO`：
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
@@ -36,7 +36,7 @@ WARP_INTEGRATION_TEST_VIDEO=test_video_recording \
 cargo run -p integration --bin integration -- test_video_recording
 ```
 
-For broader integration test runs, the same env vars work with the normal test runner:
+对更广泛的集成测试运行，同样的环境变量也可用于普通 test runner：
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
@@ -44,122 +44,129 @@ WARP_INTEGRATION_TEST_VIDEO=test_foo,test_bar \
 cargo nextest run --no-fail-fast --workspace test_foo
 ```
 
-## Environment variables
+## 环境变量
 
 ### `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS`
-- Set this to `1` when you need real frame capture.
-- Use it for screenshot/video workflows and manual visual verification.
-- Without a real display, expect recording workflows to be incomplete or unusable.
+
+- 需要真实 frame capture 时，将它设置为 `1`。
+- 用于 screenshot/video 工作流和手动视觉验证。
+- 没有真实 display 时，录制工作流预计会不完整或不可用。
 
 ### `WARP_INTEGRATION_TEST_VIDEO`
-This is the main env var that controls driver-managed video recording in `ui/src/integration/driver.rs`.
 
-Behavior:
-- Unset or empty: auto-recording is disabled.
-- `1` or `all`: auto-record every test in the run.
-- Comma-separated test names: auto-record only those tests.
+这是控制 `ui/src/integration/driver.rs` 中 driver-managed video recording 的主要环境变量。
 
-Examples:
+行为：
+- 未设置或为空：禁用自动录制。
+- `1` 或 `all`：自动录制本次运行中的每个测试。
+- 逗号分隔的测试名：只自动录制这些测试。
+
+示例：
 
 ```bash
-# Record every test in the run
+# 录制本次运行中的每个测试
 WARP_INTEGRATION_TEST_VIDEO=all
 ```
 
 ```bash
-# Record only specific tests
+# 只录制特定测试
 WARP_INTEGRATION_TEST_VIDEO=test_foo,test_bar
 ```
 
-Important nuance:
-- You do not need `WARP_INTEGRATION_TEST_VIDEO` if the test itself explicitly calls `with_start_recording()` and `with_stop_recording()`.
-- Use the env var when you want whole-test recording without changing the test code.
+重要细节：
+- 如果测试本身显式调用 `with_start_recording()` 和 `with_stop_recording()`，则不需要 `WARP_INTEGRATION_TEST_VIDEO`。
+- 当你希望在不修改测试代码的情况下录制整个测试时，使用该环境变量。
 
 ### `WARP_INTEGRATION_TEST_ARTIFACTS_DIR`
-This controls the root artifact directory used by `TestArtifacts` in `ui/src/integration/artifacts.rs`.
 
-If unset, artifacts go under:
+它控制 `ui/src/integration/artifacts.rs` 中 `TestArtifacts` 使用的根 artifact 目录。
+
+如果未设置，artifact 会写入：
 
 ```text
 $TMPDIR/warp_integration_test_artifacts
 ```
 
-Each run gets a timestamped directory:
+每次运行都会获得一个带时间戳的目录：
 
 ```text
 <artifacts_root>/<test_name>/<timestamp>/
 ```
 
-This is the main directory to inspect for screenshots, logs, and the final `recording.mp4`.
+这是检查截图、日志和最终 `recording.mp4` 的主要目录。
 
 ### `WARP_INTEGRATION_TEST_VIDEO_DIR`
-This env var exists in `ui/src/integration/video_recorder.rs` as the lower-level recorder output root helper, defaulting to:
+
+该环境变量存在于 `ui/src/integration/video_recorder.rs` 中，是较低层 recorder output root helper，默认值为：
 
 ```text
 $TMPDIR/warp_integration_video_captures
 ```
 
-On this branch, the normal integration driver flow writes the finalized video into the test artifacts directory instead, so `WARP_INTEGRATION_TEST_ARTIFACTS_DIR` is the one you usually care about when reviewing results.
+在本分支上，普通 integration driver 流程会改为将最终视频写入 test artifacts 目录，因此审查结果时通常更关心 `WARP_INTEGRATION_TEST_ARTIFACTS_DIR`。
 
-## How to specify which tests to record
+## 如何指定要录制哪些测试
 
-There are two modes:
+有两种模式：
 
-### 1. Record in test code
-Use `TestStep::with_start_recording()` and `TestStep::with_stop_recording()` inside the test itself. This is best when you only want to capture a specific span of the test.
+### 1. 在测试代码中录制
 
-### 2. Record from the environment
-Set `WARP_INTEGRATION_TEST_VIDEO` to:
+在测试内部使用 `TestStep::with_start_recording()` 和 `TestStep::with_stop_recording()`。当你只想捕获测试中的特定片段时，这是最佳方式。
+
+### 2. 从环境变量录制
+
+将 `WARP_INTEGRATION_TEST_VIDEO` 设置为：
 - `all`
 - `1`
-- or a comma-separated list like `test_a,test_b`
+- 或类似 `test_a,test_b` 的逗号分隔列表
 
-This starts recording at the beginning of matching tests and writes the video when the test completes.
+这会在匹配测试开始时开始录制，并在测试完成时写出视频。
 
-## How overlays work
+## Overlay 如何工作
 
-There is no separate overlay env var on this branch.
+本分支没有单独的 overlay 环境变量。
 
-Overlay annotations are produced from the input events the test dispatches while recording is active. The overlay pipeline is implemented in `ui/src/integration/overlay.rs`, and the event capture hooks live in `ui/src/integration/step.rs`.
+Overlay annotation 由录制处于 active 状态时测试派发的 input event 产生。Overlay pipeline 实现在 `ui/src/integration/overlay.rs` 中，event capture hook 位于 `ui/src/integration/step.rs`。
 
-To get useful overlays in the final video, drive the test with APIs that emit mouse and keyboard events, such as:
+要在最终视频中获得有用的 overlay，请使用会发出鼠标和键盘事件的 API 驱动测试，例如：
 - `with_event(...)`
 - `with_event_fn(...)`
 - `with_click_on_saved_position(...)`
 - `with_keystrokes(...)`
 
-Overlay types currently exercised by the sample test:
-- mouse click indicators
-- drag trails
-- keyboard shortcut pills
+Sample test 当前覆盖的 overlay 类型：
+- 鼠标点击指示器
+- 拖拽轨迹
+- 键盘快捷键 pill
 
-In practice:
-- Mouse down / drag / mouse up events create click and drag overlays.
-- KeyDown events create keyboard overlay pills.
-- If a test only records frames and never dispatches relevant input events, the resulting video will not show these annotations.
+实践中：
+- Mouse down / drag / mouse up event 会创建点击和拖拽 overlay。
+- KeyDown event 会创建键盘 overlay pill。
+- 如果测试只录制 frame，从未派发相关 input event，生成的视频不会显示这些 annotation。
 
-## How to write a test that takes screenshots
+## 如何编写截图测试
 
-Use `TestStep::with_take_screenshot("filename.png")`.
+使用 `TestStep::with_take_screenshot("filename.png")`。
 
-Example pattern:
+示例模式：
 
 ```rust
 TestStep::new("Take screenshot after bootstrap")
     .with_take_screenshot("after_bootstrap.png")
 ```
 
-The screenshot request is stored during the step and written by the driver after the step renders. The PNG lands in the test's timestamped artifacts directory.
+截图请求会在 step 期间存储，并由 driver 在该 step 渲染后写出。PNG 会落在该测试带时间戳的 artifacts 目录中。
 
-## How to write a test that records video
+## 如何编写视频录制测试
 
-### Minimum pattern
-1. Use `Builder::new().with_real_display()`.
-2. Add a step with `with_start_recording()`.
-3. Run the actions/events you want captured.
-4. Add a step with `with_stop_recording()`.
+### 最小模式
 
-Example shape:
+1. 使用 `Builder::new().with_real_display()`。
+2. 添加一个带 `with_start_recording()` 的 step。
+3. 运行你想捕获的 action/event。
+4. 添加一个带 `with_stop_recording()` 的 step。
+
+示例形态：
 
 ```rust
 Builder::new()
@@ -169,86 +176,88 @@ Builder::new()
     .with_step(TestStep::new("Stop recording").with_stop_recording())
 ```
 
-### For overlay-friendly recordings
-Prefer explicit UI-driving steps that emit mouse and key events:
-- click with `with_click_on_saved_position(...)`
-- dispatch raw mouse events with `with_event(...)` / `with_event_fn(...)`
-- send keyboard shortcuts with `with_keystrokes(...)`
+### 对 overlay 友好的录制
 
-For drag overlays, send a sequence like:
+优先使用会发出鼠标和 key event 的显式 UI-driving step：
+- 使用 `with_click_on_saved_position(...)` 点击
+- 使用 `with_event(...)` / `with_event_fn(...)` 派发原始鼠标事件
+- 使用 `with_keystrokes(...)` 发送键盘快捷键
+
+对拖拽 overlay，发送如下 sequence：
 - `LeftMouseDown`
-- one or more `LeftMouseDragged`
+- 一个或多个 `LeftMouseDragged`
 - `LeftMouseUp`
 
-### Optional validation
-It is reasonable to add an `with_on_finish(...)` hook that checks for expected artifacts such as:
+### 可选验证
+
+添加 `with_on_finish(...)` hook 检查预期 artifact 是合理的，例如：
 - `recording.mp4`
 - `recording.log`
-- screenshot PNGs
+- screenshot PNG
 
-The sample test does exactly that.
+Sample test 正是这样做的。
 
-## Where the video assets go
+## 视频 asset 写入位置
 
-The normal output location is:
+普通输出位置是：
 
 ```text
 ${WARP_INTEGRATION_TEST_ARTIFACTS_DIR:-$TMPDIR/warp_integration_test_artifacts}/<test_name>/<timestamp>/
 ```
 
-Common artifacts in that directory:
+该目录中的常见 artifact：
 - `recording.mp4`
 - `recording.log`
-- any screenshots requested with `with_take_screenshot(...)`
+- 任何通过 `with_take_screenshot(...)` 请求的截图
 
-For `test_video_recording`, the sample test expects:
+对 `test_video_recording`，sample test 预期：
 - `after_bootstrap.png`
 - `after_commands.png`
 - `recording.mp4`
 - `recording.log`
 
-If MP4 encoding fails during finalization, the recorder falls back to per-frame PNGs in a sibling directory like:
+如果 MP4 encoding 在 finalization 期间失败，recorder 会 fallback 到 sibling directory 中的逐帧 PNG，例如：
 
 ```text
 recording_frames/
 ```
 
-with files such as:
+文件名类似：
 
 ```text
 recording_0000.png
 ```
 
-## How to review the assets
+## 如何审查 asset
 
-1. Open the latest timestamped artifact directory for the test.
-2. Review `recording.mp4` first to confirm:
-   - the UI state is correct
-   - recording actually started and stopped in the intended window
-   - overlay annotations appear at the right moments
-3. Review any PNG screenshots captured by the test.
-4. Check `recording.log` if the output looks incomplete or suspicious.
-5. If `recording.mp4` is missing, look for fallback frame PNGs.
+1. 打开该测试最新的带时间戳 artifact 目录。
+2. 先审查 `recording.mp4`，确认：
+   - UI state 正确
+   - 录制确实在预期 window 中开始和停止
+   - overlay annotation 在正确时刻出现
+3. 审查测试捕获的任何 PNG 截图。
+4. 如果输出看起来不完整或可疑，检查 `recording.log`。
+5. 如果缺少 `recording.mp4`，查找 fallback frame PNG。
 
-When summarizing results for the user, include the exact artifact directory path.
+向用户汇总结果时，请包含精确的 artifact 目录路径。
 
-## Sample test for video recording
+## 视频录制 sample test
 
-The sample manual test is `test_video_recording`.
+Sample manual test 是 `test_video_recording`。
 
-It is:
-- registered in `integration/src/bin/integration.rs`
-- listed in `integration/tests/integration/ui_tests.rs`
-- implemented in `integration/src/test/video_recording.rs`
+它：
+- 在 `integration/src/bin/integration.rs` 中注册
+- 列在 `integration/tests/integration/ui_tests.rs` 中
+- 实现在 `integration/src/test/video_recording.rs` 中
 
-Run it with:
+运行方式：
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
 cargo run -p integration --bin integration -- test_video_recording
 ```
 
-If you want full-test auto-recording from the environment as well, use:
+如果还想从环境变量启用全测试自动录制，请使用：
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 \
@@ -256,11 +265,12 @@ WARP_INTEGRATION_TEST_VIDEO=test_video_recording \
 cargo run -p integration --bin integration -- test_video_recording
 ```
 
-## Working pattern for agents
+## Agent 工作模式
 
-When asked to record or debug an integration test with video:
-1. Identify the exact test name.
-2. Decide whether recording should be explicit in the test or enabled via `WARP_INTEGRATION_TEST_VIDEO`.
-3. Ensure the run uses `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1`.
-4. If the user wants visible interaction overlays, make sure the test dispatches mouse and keyboard events while recording is active.
-5. After the run, inspect the timestamped artifact directory and report the output paths back to the user.
+当被要求录制或调试带视频的集成测试时：
+
+1. 识别精确测试名。
+2. 决定录制应在测试中显式开启，还是通过 `WARP_INTEGRATION_TEST_VIDEO` 启用。
+3. 确保运行时使用 `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1`。
+4. 如果用户需要可见的交互 overlay，确保测试在录制 active 期间派发鼠标和键盘 event。
+5. 运行后检查带时间戳的 artifact 目录，并将输出路径报告给用户。

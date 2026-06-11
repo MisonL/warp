@@ -1,45 +1,25 @@
 //! This module contains common utilities for rendering Blocklist AI UI.
-use std::sync::LazyLock;
-
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
-use warpui::{
-    elements::{
-        ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize,
-        MouseStateHandle, ParentElement,
-    },
-    fonts::Weight,
-    ui_components::{
-        button::ButtonVariant,
-        components::{UiComponent, UiComponentStyles},
-        text::Span,
-    },
-    AppContext, Element, EntityId, EventContext, SingletonEntity,
+use warp_localization::LocaleId;
+use warpui::elements::{
+    ChildAnchor, ConstrainedBox, Container, CrossAxisAlignment, Flex, Hoverable, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
+    ParentOffsetBounds, Stack,
 };
+use warpui::fonts::Weight;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::ui_components::text::Span;
+use warpui::{AppContext, Element, EntityId, EventContext, SingletonEntity};
 
-use crate::{
-    themes::theme::{AnsiColorIdentifier, Fill, WarpTheme},
-    ui_components::icons::Icon,
-};
-
-use warpui::elements::ChildAnchor;
-use warpui::elements::Hoverable;
-use warpui::elements::OffsetPositioning;
-use warpui::elements::ParentAnchor;
-use warpui::elements::ParentOffsetBounds;
-use warpui::elements::Stack;
+use crate::localization;
+use crate::themes::theme::{AnsiColorIdentifier, Fill, WarpTheme};
+use crate::ui_components::icons::Icon;
 
 const PROVIDER_BUTTON_ICON_SIZE: f32 = 14.;
 const PROVIDER_BUTTON_ICON_TEXT_GAP: f32 = 8.;
-
-/// Text to use as a label throughout the app for user interactions that will attach selected
-/// block(s) or text selections to a new AI query.
-pub static ATTACH_AS_AGENT_MODE_CONTEXT_TEXT: LazyLock<&'static str> =
-    LazyLock::new(|| "Attach as agent context");
-
-/// Label we use for the the command palette action to create a new local Oz agent pane.
-pub static NEW_AGENT_PANE_LABEL: LazyLock<&'static str> = LazyLock::new(|| "New Agent Pane");
 
 /// Claude/Anthropic brand color (official brand orange #D97757).
 /// Reference: https://github.com/anthropics/skills/blob/main/skills/brand-guidelines/SKILL.md
@@ -90,7 +70,10 @@ pub fn render_ai_follow_up_icon(
             let tooltip_background = appearance.theme().tooltip_background();
             let tool_tip = appearance
                 .ui_builder()
-                .tool_tip("Follow up with existing conversation".to_owned())
+                .tool_tip(localization::text_for_app(
+                    app,
+                    "agent.view_util.follow_up_existing_conversation",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(12.),
                     background: Some(warpui::elements::Fill::Solid(tooltip_background)),
@@ -154,17 +137,28 @@ pub fn get_ai_block_overflow_menu_element_position_id(view_id: EntityId) -> Stri
 /// Formats credit count to display as whole numbers when the value is effectively a whole number,
 /// otherwise displays with one decimal place.
 /// Returns a formatted string with proper pluralization ("credit" vs "credits").
-pub fn format_credits(credits: f32) -> String {
+pub fn format_credits(app: &AppContext, credits: f32) -> String {
+    format_credits_for_locale(localization::current_locale(app), credits)
+}
+
+pub(crate) fn format_credits_for_locale(locale: LocaleId, credits: f32) -> String {
     // If the first part of the decimal is 0, we just display the whole number.
     if credits.fract() < 0.1 {
         let whole = credits.trunc() as i32;
-        if whole == 1 {
-            format!("{whole} credit")
+        let count = whole.to_string();
+        let key = if whole == 1 {
+            "agent.usage.credit.singular"
         } else {
-            format!("{whole} credits")
-        }
+            "agent.usage.credit.plural"
+        };
+        localization::text_for_locale_with_args(locale, key, &[("count", &count)])
     } else {
-        format!("{credits:.1} credits")
+        let count = format!("{credits:.1}");
+        localization::text_for_locale_with_args(
+            locale,
+            "agent.usage.credit.plural",
+            &[("count", &count)],
+        )
     }
 }
 

@@ -8,6 +8,15 @@ use super::search_results_common::{
 use crate::ai::agent::icons::yellow_running_icon;
 use crate::ai::agent::WebFetchStatus;
 use crate::ai::blocklist::block::view_impl::WithContentItemSpacing;
+use crate::localization;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
+}
 
 pub enum WebFetchViewEvent {}
 
@@ -37,7 +46,11 @@ impl WebFetchView {
         let appearance = Appearance::as_ref(app);
         let loading_icon = yellow_running_icon(appearance);
 
-        let text = format!("Fetching {} web pages...", urls.len());
+        let text = text_with_args(
+            app,
+            "agent.web_fetch.fetching",
+            &[("count", &urls.len().to_string())],
+        );
 
         super::search_results_common::render_loading_header(text, loading_icon, app)
     }
@@ -49,9 +62,20 @@ impl WebFetchView {
     ) -> Box<dyn Element> {
         let successful_count = pages.iter().filter(|(_, _, success)| *success).count();
         let title_text = if successful_count == pages.len() {
-            format!("Fetched {} web pages", pages.len())
+            text_with_args(
+                app,
+                "agent.web_fetch.fetched_all",
+                &[("count", &pages.len().to_string())],
+            )
         } else {
-            format!("Fetched {} of {} web pages", successful_count, pages.len())
+            text_with_args(
+                app,
+                "agent.web_fetch.fetched_partial",
+                &[
+                    ("successful_count", &successful_count.to_string()),
+                    ("count", &pages.len().to_string()),
+                ],
+            )
         };
 
         let body = if self.collapsible.is_expanded {
@@ -63,7 +87,7 @@ impl WebFetchView {
         render_collapsible_search_results(
             title_text,
             pages.len(),
-            "URLs",
+            &text(app, "agent.search_results.urls_label"),
             &self.collapsible,
             body,
             |ctx| {
@@ -88,11 +112,10 @@ impl WebFetchView {
                 format!("{title} ({url})")
             };
 
-            // Show failed URLs with a different indicator
             let display_text = if *success {
                 display_text
             } else {
-                format!("✗ {display_text}")
+                text_with_args(app, "agent.web_fetch.failed_url", &[("url", &display_text)])
             };
 
             let text_color = if *success {
@@ -118,7 +141,7 @@ impl WebFetchView {
 
         if pages.is_empty() {
             let no_results = Text::new_inline(
-                "No URLs fetched".to_string(),
+                text(app, "agent.web_fetch.no_urls_fetched"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )

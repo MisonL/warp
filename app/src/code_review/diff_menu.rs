@@ -5,31 +5,29 @@ use std::cmp;
 use fuzzy_match::{match_indices_case_insensitive, FuzzyMatchResult};
 use warp_core::ui::theme::Fill;
 use warp_editor::editor::NavigationKey;
+use warpui::color::ColorU;
+use warpui::elements::{
+    Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss,
+    DispatchEventResult, DropShadow, Element, Empty, EventHandler, Flex, Highlight, MainAxisSize,
+    MouseInBehavior, ParentElement, Radius, ScrollStateHandle, Scrollable, ScrollableElement,
+    ScrollbarWidth, Text, UniformList, UniformListState,
+};
+use warpui::fonts::{Properties, Weight};
+use warpui::keymap::FixedBinding;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    color::ColorU,
-    elements::{
-        Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss,
-        DispatchEventResult, DropShadow, Element, Empty, EventHandler, Flex, Highlight,
-        MainAxisSize, MouseInBehavior, ParentElement, Radius, ScrollStateHandle, Scrollable,
-        ScrollableElement, ScrollbarWidth, Text, UniformList, UniformListState,
-    },
-    fonts::{Properties, Weight},
-    id,
-    keymap::FixedBinding,
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Entity, FocusContext, SingletonEntity as _, TypedActionView, View, ViewContext,
+    id, AppContext, Entity, FocusContext, SingletonEntity as _, TypedActionView, View, ViewContext,
     ViewHandle,
 };
 
-use crate::{
-    appearance::Appearance,
-    code_review::{diff_selector::DiffTarget, diff_state::DiffMode},
-    editor::{
-        EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
-        TextOptions,
-    },
-    ui_components::icons::Icon,
+use crate::appearance::Appearance;
+use crate::code_review::diff_selector::DiffTarget;
+use crate::code_review::diff_state::DiffMode;
+use crate::editor::{
+    EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
 };
+use crate::localization;
+use crate::ui_components::icons::Icon;
 
 const MENU_WIDTH: f32 = 280.;
 const MENU_MAX_LIST_HEIGHT: f32 = 200.;
@@ -115,7 +113,10 @@ impl CodeReviewDiffMenu {
                 ..Default::default()
             };
             let mut editor = EditorView::new(options, ctx);
-            editor.set_placeholder_text("Search diff sets or branches to compare…", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "code_review.diff_menu.search_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -278,11 +279,11 @@ impl CodeReviewDiffMenu {
             .finish()
     }
 
-    fn render_empty_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_empty_state(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "No matches",
+                localization::text_for_app(app, "code_review.diff_menu.no_matches"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -297,7 +298,7 @@ impl CodeReviewDiffMenu {
     fn render_rows(&self, ctx: &AppContext) -> Box<dyn Element> {
         if self.filtered.is_empty() {
             if !self.search_query.is_empty() {
-                return self.render_empty_state(Appearance::as_ref(ctx));
+                return self.render_empty_state(ctx, Appearance::as_ref(ctx));
             }
             return Empty::new().finish();
         }

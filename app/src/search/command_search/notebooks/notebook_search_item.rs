@@ -1,14 +1,12 @@
 use std::sync::Arc;
 
 use ordered_float::OrderedFloat;
-use warpui::{
-    elements::{
-        ConstrainedBox, Container, Flex, Highlight, Icon, MainAxisAlignment, MainAxisSize,
-        ParentElement, Text,
-    },
-    fonts::{Properties, Weight},
-    AppContext, Element, SingletonEntity,
+use warpui::elements::{
+    ConstrainedBox, Container, Flex, Highlight, Icon, MainAxisAlignment, MainAxisSize,
+    ParentElement, Text,
 };
+use warpui::fonts::{Properties, Weight};
+use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::notebooks::CloudNotebookModel;
@@ -28,6 +26,7 @@ pub struct NotebookSearchItem {
     pub model: Arc<CloudNotebookModel>,
     pub name_match_result: Option<fuzzy_match::FuzzyMatchResult>,
     pub content_match_result: Option<fuzzy_match::FuzzyMatchResult>,
+    pub accessibility_label_template: String,
 }
 
 impl SearchItem for NotebookSearchItem {
@@ -138,6 +137,7 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.model.title)
+        self.accessibility_label_template
+            .replace("{title}", &self.model.title)
     }
 }

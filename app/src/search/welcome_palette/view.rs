@@ -16,8 +16,8 @@ use warpui::elements::{
 use warpui::platform::Cursor;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::UiComponent as _;
+use warpui::units::{IntoPixels, Pixels};
 use warpui::{
-    units::{IntoPixels, Pixels},
     AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView,
     ViewContext, ViewHandle,
 };
@@ -41,17 +41,19 @@ use crate::search::data_source::QueryResult;
 use crate::search::mixer::{dedupe_score, DedupeStrategy};
 use crate::search::result_renderer::QueryResultRenderer;
 use crate::search::search_bar::{
-    SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering, SelectionUpdate,
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
+    SelectionUpdate,
 };
 use crate::search::QueryFilter;
-use crate::send_telemetry_from_ctx;
-use crate::server::{ids::SyncId, telemetry::TelemetryEvent};
+use crate::server::ids::SyncId;
+use crate::server::telemetry::TelemetryEvent;
 use crate::settings::AISettings;
 use crate::terminal::History;
 use crate::themes::theme::WarpTheme;
 use crate::ui_components::icons::Icon;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::WorkspaceAction;
+use crate::{localization, send_telemetry_from_ctx};
 
 /// Position ID for the command palette list.
 const PALETTE_LIST_SAVE_POSITION_ID: &str = "welcome_palette:list";
@@ -131,8 +133,6 @@ pub struct WelcomePalette {
     search_bar: ViewHandle<SearchBar<CommandPaletteItemAction>>,
     search_bar_state: ModelHandle<SearchBarState<CommandPaletteItemAction>>,
     state_handles: StateHandles,
-    /// Placeholder element to render when no results are found.
-    placeholder_query_renderer: QueryResultRenderer<CommandPaletteItemAction>,
     binding_source: ModelHandle<BindingSource>,
     zero_state_items: Vec<QueryResultRenderer<CommandPaletteItemAction>>,
     selected_item: SelectedItem,
@@ -173,7 +173,7 @@ impl warpui::View for WelcomePalette {
         let mut palette = Flex::column();
         palette.add_child(self.render_search_bar());
 
-        if self.search_bar_state.as_ref(app).should_show_zero_state() {
+        if self.search_bar.as_ref(app).should_show_zero_state(app) {
             palette.add_child(
                 Shrinkable::new(
                     1.,
@@ -181,7 +181,7 @@ impl warpui::View for WelcomePalette {
                 )
                 .finish(),
             );
-            palette.add_child(self.render_footer_buttons(self.selected_item, appearance));
+            palette.add_child(self.render_footer_buttons(self.selected_item, appearance, app));
         } else {
             palette.add_child(Shrinkable::new(1., self.render_palette_list(theme, app)).finish());
         };
@@ -268,7 +268,7 @@ impl WelcomePalette {
             SearchBar::new(
                 mixer.clone(),
                 search_bar_state.clone(),
-                "Code, build, or search for anything...",
+                SearchBarPlaceholder::localized("search.welcome_palette.placeholder"),
                 Self::create_query_result_renderer,
                 ctx,
             )
@@ -284,19 +284,11 @@ impl WelcomePalette {
             ctx.notify();
         });
 
-        let placeholder_element = QueryResultRenderer::new(
-            MatchedBinding::placeholder("No results found".into()).into(),
-            "welcome_palette:no_results".into(),
-            |_, _, _| {},
-            *styles::QUERY_RESULT_RENDERER_STYLES,
-        );
-
         Self {
             startup_directory,
             search_bar,
             search_bar_state,
             state_handles: Default::default(),
-            placeholder_query_renderer: placeholder_element,
             binding_source,
             project_data_source,
             conversations_data_source,
@@ -362,7 +354,7 @@ impl WelcomePalette {
         let conversations = if conversation_slots > 0 {
             self.conversations_data_source
                 .read(ctx, |conversations, ctx| {
-                    conversations.top_n(conversation_slots, ctx).collect()
+                    conversations.top_n(conversation_slots, ctx)
                 })
         } else {
             vec![]
@@ -391,29 +383,27 @@ impl WelcomePalette {
     /// Set the active query filter in the search bar to be `filter`.
     pub fn set_active_query_filter(&mut self, filter: QueryFilter, ctx: &mut ViewContext<Self>) {
         self.search_bar.update(ctx, |view, ctx| {
-            view.set_visible_query_filter(Some((filter, filter.filter_atom().primary_text)), ctx)
+            view.set_query_filter(Some((filter, filter.filter_atom().primary_text)), ctx)
         });
         ctx.notify();
     }
 
     pub fn select_next_item(&mut self, ctx: &mut ViewContext<Self>) {
-        self.search_bar_state.update(ctx, |state, ctx| {
-            state.handle_selection_update(SelectionUpdate::Down, ctx);
+        self.search_bar.update(ctx, |search_bar, ctx| {
+            search_bar.handle_selection_update(SelectionUpdate::Down, ctx);
         });
         ctx.notify();
     }
 
     pub fn select_prev_item(&mut self, ctx: &mut ViewContext<Self>) {
-        self.search_bar_state.update(ctx, |state, ctx| {
-            state.handle_selection_update(SelectionUpdate::Up, ctx);
+        self.search_bar.update(ctx, |search_bar, ctx| {
+            search_bar.handle_selection_update(SelectionUpdate::Up, ctx);
         });
         ctx.notify();
     }
 
     pub fn active_query_filter(&self, app: &AppContext) -> Option<QueryFilter> {
-        self.search_bar_state
-            .as_ref(app)
-            .active_visible_query_filter()
+        self.search_bar_state.as_ref(app).active_query_filter()
     }
 
     pub fn is_mode_enabled(&self, mode: PaletteMode, app: &AppContext) -> bool {
@@ -627,14 +617,8 @@ impl WelcomePalette {
 
     fn render_palette_list(&self, theme: &WarpTheme, app: &AppContext) -> Box<dyn Element> {
         match self.search_bar_state.as_ref(app).query_result_renderers() {
-            None => {
-                self.placeholder_query_renderer
-                    .render(0, true /* is_selected */, app)
-            }
-            Some(renderers) if renderers.is_empty() => {
-                self.placeholder_query_renderer
-                    .render(0, true /* is_selected */, app)
-            }
+            None => Self::render_no_results(app),
+            Some(renderers) if renderers.is_empty() => Self::render_no_results(app),
             Some(renderers) => {
                 let selected_index = self.search_bar_state.as_ref(app).selected_index();
                 self.render_item_list(
@@ -645,6 +629,17 @@ impl WelcomePalette {
                 )
             }
         }
+    }
+
+    fn render_no_results(app: &AppContext) -> Box<dyn Element> {
+        QueryResultRenderer::new(
+            MatchedBinding::placeholder(localization::text_for_app(app, "search.no_results"))
+                .into(),
+            "welcome_palette:no_results".into(),
+            |_, _, _| {},
+            *styles::QUERY_RESULT_RENDERER_STYLES,
+        )
+        .render(0, true /* is_selected */, app)
     }
 
     fn render_item_list(
@@ -689,6 +684,7 @@ impl WelcomePalette {
         &self,
         selected_item: SelectedItem,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
@@ -701,8 +697,12 @@ impl WelcomePalette {
             .with_text_and_icon_label(TextAndIcon::new(
                 TextAndIconAlignment::IconFirst,
                 match &self.open_project_keybinding {
-                    Some(keystroke) => format!("Add repository {keystroke}"),
-                    None => "Add repository".to_string(),
+                    Some(keystroke) => localization::text_for_app_with_args(
+                        app,
+                        "welcome.binding.add_repository_with_binding",
+                        &[("binding", keystroke)],
+                    ),
+                    None => localization::text_for_app(app, "welcome.binding.add_repository"),
                 },
                 Icon::Plus.to_warpui_icon(theme.foreground()),
                 MainAxisSize::Max,
@@ -724,8 +724,12 @@ impl WelcomePalette {
             .with_text_and_icon_label(TextAndIcon::new(
                 TextAndIconAlignment::IconFirst,
                 match &self.terminal_session_keybinding {
-                    Some(keystroke) => format!("Terminal session {keystroke}"),
-                    None => "Terminal session".to_string(),
+                    Some(keystroke) => localization::text_for_app_with_args(
+                        app,
+                        "welcome.binding.terminal_session_with_binding",
+                        &[("binding", keystroke)],
+                    ),
+                    None => localization::text_for_app(app, "welcome.binding.terminal_session"),
                 },
                 Icon::Terminal.to_warpui_icon(theme.foreground()),
                 MainAxisSize::Max,

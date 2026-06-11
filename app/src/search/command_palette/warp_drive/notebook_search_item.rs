@@ -1,3 +1,9 @@
+use ordered_float::OrderedFloat;
+use warp_localization::replace_placeholders;
+use warpui::elements::{Container, Flex, Highlight, ParentElement, Text};
+use warpui::fonts::{Properties, Weight};
+use warpui::{AppContext, Element, SingletonEntity};
+
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObject;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
@@ -12,16 +18,24 @@ use crate::search::notebooks::fuzzy_match::{
 };
 use crate::search::result_renderer::ItemHighlightState;
 use crate::ui_components::icons::Icon;
-use ordered_float::OrderedFloat;
-use warpui::elements::{Container, Flex, Highlight, ParentElement, Text};
-use warpui::fonts::{Properties, Weight};
-use warpui::{AppContext, Element, SingletonEntity};
 
 /// Search item result for a cloud notebook.
 #[derive(Debug)]
 pub struct NotebookSearchItem {
     pub cloud_notebook: CloudNotebook,
     pub match_result: FuzzyMatchNotebookResult,
+    pub untitled_fallback: String,
+    pub accessibility_label_template: String,
+}
+
+impl NotebookSearchItem {
+    fn title(&self) -> String {
+        if self.cloud_notebook.model().title.is_empty() {
+            self.untitled_fallback.clone()
+        } else {
+            self.cloud_notebook.model().title.clone()
+        }
+    }
 }
 
 impl SearchItem for NotebookSearchItem {
@@ -60,13 +74,8 @@ impl SearchItem for NotebookSearchItem {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let title = if self.cloud_notebook.model().title.is_empty() {
-            "Untitled".to_string()
-        } else {
-            self.cloud_notebook.model().title.clone()
-        };
         let mut name_text = Text::new_inline(
-            title,
+            self.title(),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -141,6 +150,10 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.cloud_notebook.model().title)
+        replace_placeholders(
+            &self.accessibility_label_template,
+            &[("title", &self.title())],
+        )
+        .expect("notebook accessibility label template must use title")
     }
 }

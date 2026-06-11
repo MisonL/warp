@@ -1,137 +1,106 @@
-use crate::ai::blocklist::view_util::render_provider_icon_button;
-use crate::ai::skills::{SkillOpenOrigin, SkillTelemetryEvent};
+use std::collections::HashMap;
+use std::ops::Range;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::time::Duration;
+
+use ai::diff_validation::{
+    fuzzy_match_diffs, fuzzy_match_v4a_diffs, parse_line_numbers, DiffDelta, DiffType, ParsedDiff,
+    SearchAndReplace, V4AHunk,
+};
 use anyhow::Result;
 use lazy_static::lazy_static;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
-use rand::{distributions::Alphanumeric, thread_rng, Rng as _};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-    time::Duration,
-};
-use warp_core::{
-    features::FeatureFlag,
-    platform::SessionPlatform,
-    settings::ToggleableSetting,
-    ui::{
-        appearance::Appearance,
-        color::CLAUDE_ORANGE,
-        theme::{
-            color::internal_colors::{fg_overlay_6, neutral_1, neutral_4},
-            Fill,
-        },
-    },
-    HostId,
-};
-use warp_editor::{
-    content::buffer::InitialBufferState, render::element::VerticalExpansionBehavior,
-};
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng as _};
+use warp_core::features::FeatureFlag;
+use warp_core::platform::SessionPlatform;
+use warp_core::settings::ToggleableSetting;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::color::CLAUDE_ORANGE;
+use warp_core::ui::theme::color::internal_colors::{fg_overlay_6, neutral_1, neutral_4};
+use warp_core::ui::theme::Fill;
+use warp_core::HostId;
+use warp_editor::content::buffer::InitialBufferState;
+use warp_editor::render::element::VerticalExpansionBehavior;
 use warp_util::file::FileSaveError;
-use warp_util::path::common_path;
+use warp_util::local_or_remote_path::LocalOrRemotePath;
+use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
+use warpui::elements::new_scrollable::{ScrollableAppearance, SingleAxisConfig};
+use warpui::elements::{
+    Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox,
+    Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Flex,
+    FormattedTextElement, HighlightedHyperlink, Hoverable, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, NewScrollable, OffsetPositioning, ParentAnchor, ParentElement,
+    ParentOffsetBounds, PositionedElementAnchor, PositionedElementOffsetBounds, Radius,
+    SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable,
+    SizeConstraintCondition, SizeConstraintSwitch, Stack, Text,
+};
+use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding, Keystroke};
+use warpui::platform::{Cursor, OperatingSystem};
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        new_scrollable::{ScrollableAppearance, SingleAxisConfig},
-        Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox,
-        Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler,
-        Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, MainAxisAlignment,
-        MainAxisSize, MouseStateHandle, NewScrollable, OffsetPositioning, ParentAnchor,
-        ParentElement, ParentOffsetBounds, PositionedElementAnchor, PositionedElementOffsetBounds,
-        Radius, SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable,
-        SizeConstraintCondition, SizeConstraintSwitch, Stack, Text,
-    },
-    keymap::{EditableBinding, FixedBinding, Keystroke},
-    platform::{Cursor, OperatingSystem},
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
     AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle,
 };
 
 use super::malformed_line_heuristics::has_malformed_terminal_correction_signal;
-use crate::view_components::action_button::{ActionButton, NakedTheme};
-use crate::{
-    ai::{
-        agent::{
-            icons::{self, yellow_stop_icon},
-            AIAgentActionId, AIIdentifiers, FileEdit, FileLocations, ServerOutputId,
-        },
-        blocklist::{
-            action_model::{
-                AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel,
-                EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent, EditResolvedEvent,
-                EditStats, MalformedFinalLineProxyEvent, RequestFileEditsFormatKind,
-                RequestFileEditsTelemetryEvent,
-            },
-            history_model::BlocklistAIHistoryModel,
-            inline_action::{
-                inline_action_header::INLINE_ACTION_HORIZONTAL_PADDING,
-                inline_action_icons::{cancelled_icon, green_check_icon, icon_size, reverted_icon},
-            },
-            model::{AIBlockModel, AIBlockModelHelper},
-            RequestedEditResolution,
-        },
-        mcp::{mcp_provider_from_file_path, MCPProvider},
-        paths::host_native_absolute_path,
-        predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
-        skills::{
-            icon_override_for_skill_name, render_skill_button, skill_path_from_file_path,
-            SkillManager, SkillReference,
-        },
-    },
-    cmd_or_ctrl_shift,
-    code::{
-        diff_viewer::{DiffViewer, DisplayMode},
-        editor::{
-            add_color, remove_color,
-            view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView},
-        },
-        inline_diff::{InlineDiffView, InlineDiffViewEvent},
-        DiffResult,
-    },
-    code_review::telemetry_event::CodeReviewPaneEntrypoint,
-    menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant},
-    pane_group::{
-        focus_state::PaneFocusHandle,
-        pane::{view, PaneId},
-        BackingView, PaneEvent,
-    },
-    send_telemetry_from_ctx,
-    server::telemetry::{AgentModeCodeFileNavigationSource, ToggleCodeSuggestionsSettingSource},
-    settings::AISettings,
-    terminal::{input::SET_INPUT_MODE_AGENT_ACTION_NAME, ShellLaunchData},
-    ui_components::{blended_colors, icons::Icon},
-    util::bindings::keybinding_name_to_keystroke,
-    view_components::{
-        action_button::{ButtonSize, KeystrokeSource},
-        compactible_action_button::{
-            render_compact_and_regular_button_rows, CompactibleActionButton,
-            RenderCompactibleActionButton, MEDIUM_SIZE_SWITCH_THRESHOLD,
-            XLARGE_SIZE_SWITCH_THRESHOLD,
-        },
-        compactible_split_action_button::CompactibleSplitActionButton,
-        DismissibleToast,
-    },
-    workspace::ToastStack,
-    TelemetryEvent,
+use crate::ai::agent::icons::{self, yellow_stop_icon};
+use crate::ai::agent::{AIAgentActionId, AIIdentifiers, FileEdit, FileLocations, ServerOutputId};
+use crate::ai::blocklist::action_model::{
+    AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel,
+    EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent, EditResolvedEvent, EditStats,
+    MalformedFinalLineProxyEvent, RequestFileEditsFormatKind, RequestFileEditsTelemetryEvent,
 };
-use ai::diff_validation::{
-    fuzzy_match_diffs, fuzzy_match_v4a_diffs, parse_line_numbers, DiffDelta, DiffType, ParsedDiff,
-    SearchAndReplace, V4AHunk,
+use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
+use crate::ai::blocklist::inline_action::inline_action_header::INLINE_ACTION_HORIZONTAL_PADDING;
+use crate::ai::blocklist::inline_action::inline_action_icons::{
+    cancelled_icon, green_check_icon, icon_size, reverted_icon,
 };
+use crate::ai::blocklist::model::{AIBlockModel, AIBlockModelHelper};
+use crate::ai::blocklist::view_util::render_provider_icon_button;
+use crate::ai::blocklist::RequestedEditResolution;
+use crate::ai::mcp::{mcp_provider_from_file_path, MCPProvider};
+use crate::ai::paths::host_native_absolute_path;
+use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
+use crate::ai::skills::{
+    icon_override_for_skill_name, render_skill_button, skill_path_from_location, SkillManager,
+    SkillOpenOrigin, SkillReference, SkillTelemetryEvent,
+};
+use crate::code::diff_viewer::{DiffViewer, DisplayMode};
+use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
+use crate::code::editor::{add_color, remove_color};
+use crate::code::inline_diff::{InlineDiffView, InlineDiffViewEvent};
+use crate::code::DiffResult;
+use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
+use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
+use crate::pane_group::focus_state::PaneFocusHandle;
+use crate::pane_group::pane::{view, PaneId};
+use crate::pane_group::{BackingView, PaneEvent};
+use crate::server::telemetry::{
+    AgentModeCodeFileNavigationSource, ToggleCodeSuggestionsSettingSource,
+};
+use crate::settings::AISettings;
+use crate::terminal::input::SET_INPUT_MODE_AGENT_ACTION_NAME;
+use crate::terminal::ShellLaunchData;
+use crate::ui_components::blended_colors;
+use crate::ui_components::icons::Icon;
+use crate::util::bindings::keybinding_name_to_keystroke;
+use crate::view_components::action_button::{
+    ActionButton, ButtonSize, KeystrokeSource, NakedTheme,
+};
+use crate::view_components::compactible_action_button::{
+    render_compact_and_regular_button_rows, CompactibleActionButton, RenderCompactibleActionButton,
+    MEDIUM_SIZE_SWITCH_THRESHOLD, XLARGE_SIZE_SWITCH_THRESHOLD,
+};
+use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
+use crate::{cmd_or_ctrl_shift, localization, send_telemetry_from_ctx, TelemetryEvent};
 
-const REQUESTED_EDIT_CANCEL_LABEL: &str = "Cancel";
-const REQUESTED_EDIT_REFINE_LABEL: &str = "Refine";
-const REQUESTED_EDIT_ACCEPT_LABEL: &str = "Accept";
-const REQUESTED_EDIT_ACCEPT_AND_AUTOEXECUTE_LABEL: &str = "Auto-approve";
-const REQUESTED_EDIT_EDIT_LABEL: &str = "Edit";
-const REQUESTED_EDIT_MINIMIZE_LABEL: &str = "Done";
-const SUGGESTED_EDIT_ACCEPT_LABEL: &str = "Accept";
-const SUGGESTED_EDIT_ACCEPT_AND_CONTINUE_LABEL: &str = "Accept and continue with agent";
-const SUGGESTED_EDIT_ITERATE_WITH_AGENT_LABEL: &str = "Iterate with agent";
-const SUGGESTED_EDIT_DISMISS_LABEL: &str = "Dismiss";
 const MAX_EDITOR_HEIGHT: f32 = 500.;
 const INLINE_EDITOR_HEIGHT: f32 = 94.;
 const INLINE_EDITOR_HEIGHT_EXPANDED: f32 = 400.;
@@ -143,6 +112,14 @@ const HEADER_MARGIN: f32 = 8.;
 
 const DISPATCHED_REQUESTED_EDIT_EXPANDED: &str = "DispatchedRequestedEditExpanded";
 const SUGGESTED_EDIT_INLINE_BANNER: &str = "SuggestedEditInlineBanner";
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
+}
 /// Slightly smaller than other action header vertical padding to account for the 1px border on the code diff line count.
 const HEADER_VERTICAL_PADDING: f32 = 9.;
 
@@ -211,7 +188,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         EDIT_REQUESTED_EDIT_NAME,
-        "Edit Code Diff",
+        binding_description("Edit Code Diff", "agent.code_diff.edit_binding"),
         CodeDiffViewAction::Edit,
     )
     .with_context_predicate(id!(CodeDiffView::ui_name()) & !id!(DISPATCHED_REQUESTED_EDIT_EXPANDED))
@@ -270,7 +247,7 @@ pub enum CodeDiffViewEvent {
     /// Emitted when the user opens a skill file from a code diff
     OpenSkill {
         reference: SkillReference,
-        path: PathBuf,
+        path: LocalOrRemotePath,
     },
     /// Emitted when the user opens an MCP config file from a code diff
     OpenMCPConfig {
@@ -445,7 +422,7 @@ pub enum CodeDiffViewAction {
     RevertChanges,
     OpenSkill {
         reference: SkillReference,
-        path: PathBuf,
+        path: LocalOrRemotePath,
         mouse_state: MouseStateHandle,
     },
     OpenMCPConfig {
@@ -530,7 +507,7 @@ impl CodeDiffView {
             self.accept_split_button_menu.update(ctx, |menu, ctx| {
                 menu.set_items(
                     vec![MenuItemFields::new_multiline(
-                        SUGGESTED_EDIT_ACCEPT_AND_CONTINUE_LABEL,
+                        text(ctx, "agent.code_diff.accept_and_continue_with_agent"),
                         2,
                     )
                     .with_on_select_action(
@@ -552,15 +529,15 @@ impl CodeDiffView {
             .unwrap_or_default();
 
             let accept_item = MenuItemFields::new_with_label(
-                REQUESTED_EDIT_ACCEPT_LABEL,
-                accept_keystroke.as_str(),
+                text(ctx, "agent.code_diff.accept"),
+                accept_keystroke,
             )
             .with_on_select_action(CodeDiffViewAction::TryAccept)
             .into_item();
 
             let auto_item = MenuItemFields::new_with_label(
-                REQUESTED_EDIT_ACCEPT_AND_AUTOEXECUTE_LABEL,
-                auto_keystroke.as_str(),
+                text(ctx, "agent.code_diff.auto_approve"),
+                auto_keystroke,
             )
             .with_on_select_action(CodeDiffViewAction::AcceptAndAutoExecute)
             .into_item();
@@ -656,7 +633,8 @@ impl CodeDiffView {
                     full: ("Failed to save file for accepted AgentMode diffs for {}: {}", file_path_clone, error)
                 );
                 let toast = DismissibleToast::error(format!(
-                    "Failed to save file {file_path_clone}"
+                    "{} {file_path_clone}",
+                    text(ctx, "agent.code_diff.toast.failed_save_file")
                 ));
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
@@ -805,12 +783,12 @@ impl CodeDiffView {
             .collect();
 
         let cancel_button_label = if is_passive {
-            SUGGESTED_EDIT_DISMISS_LABEL
+            text(ctx, "agent.code_diff.dismiss")
         } else {
-            REQUESTED_EDIT_REFINE_LABEL
+            text(ctx, "agent.code_diff.refine")
         };
         let cancel_button = CompactibleActionButton::new(
-            cancel_button_label.to_string(),
+            cancel_button_label,
             Some(KeystrokeSource::Fixed(
                 CANCEL_REQUESTED_EDIT_KEYSTROKE.clone(),
             )),
@@ -822,7 +800,7 @@ impl CodeDiffView {
         );
 
         let edit_button = CompactibleActionButton::new(
-            REQUESTED_EDIT_EDIT_LABEL.to_string(),
+            text(ctx, "agent.code_diff.edit"),
             Some(KeystrokeSource::Binding(EDIT_REQUESTED_EDIT_NAME)),
             ButtonSize::Small,
             CodeDiffViewAction::Edit,
@@ -832,7 +810,7 @@ impl CodeDiffView {
         );
 
         let minimize_button = CompactibleActionButton::new(
-            REQUESTED_EDIT_MINIMIZE_LABEL.to_string(),
+            text(ctx, "agent.code_diff.done"),
             Some(KeystrokeSource::Fixed(
                 MINIMIZE_REQUESTED_EDIT_KEYSTROKE.clone(),
             )),
@@ -844,7 +822,7 @@ impl CodeDiffView {
         );
 
         let iterate_with_agent_button = CompactibleActionButton::new(
-            SUGGESTED_EDIT_ITERATE_WITH_AGENT_LABEL.to_string(),
+            text(ctx, "agent.code_diff.iterate_with_agent"),
             Some(KeystrokeSource::Binding(SET_INPUT_MODE_AGENT_ACTION_NAME)),
             ButtonSize::Small,
             CodeDiffViewAction::IterateOnPassiveDiffWithAgent,
@@ -854,11 +832,7 @@ impl CodeDiffView {
         );
 
         let accept_and_autoexecute_split_button = CompactibleSplitActionButton::new(
-            if is_passive {
-                SUGGESTED_EDIT_ACCEPT_LABEL.to_string()
-            } else {
-                REQUESTED_EDIT_ACCEPT_LABEL.to_string()
-            },
+            text(ctx, "agent.code_diff.accept"),
             Some(accept_keystroke_source(is_passive)),
             ButtonSize::Small,
             CodeDiffViewAction::TryAccept,
@@ -889,7 +863,7 @@ impl CodeDiffView {
         let code_review_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::Diff)
-                .with_tooltip("Review changes")
+                .with_tooltip(text(ctx, "agent.code_diff.review_changes"))
                 .with_width(icon_size(ctx))
                 .with_height(icon_size(ctx))
                 .on_click(|ctx| {
@@ -901,7 +875,7 @@ impl CodeDiffView {
         let expansion_button_collapsed = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::ChevronRight)
-                .with_tooltip("Expand")
+                .with_tooltip(text(ctx, "agent.code_diff.expand"))
                 .with_width(icon_size(ctx))
                 .with_height(icon_size(ctx))
                 .on_click(|ctx| {
@@ -912,7 +886,7 @@ impl CodeDiffView {
         let expansion_button_expanded = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::ChevronDown)
-                .with_tooltip("Collapse")
+                .with_tooltip(text(ctx, "agent.code_diff.collapse"))
                 .with_width(icon_size(ctx))
                 .with_height(icon_size(ctx))
                 .on_click(|ctx| {
@@ -1000,15 +974,14 @@ impl CodeDiffView {
                 let file_path = diff.base.file_path.clone();
 
                 // Set up the editor buffer with the pre-loaded content.
-                let path = Path::new(&file_path);
+                let standardized_path = StandardizedPath::try_new(&file_path).ok();
                 editor.update(ctx, |editor_view, ctx| {
-                    editor_view.set_language_with_path(path, ctx);
+                    editor_view.set_language_with_local_path(Path::new(&file_path), ctx);
                     let state = InitialBufferState::plain_text(&diff.base.content);
                     editor_view.reset(state, ctx);
                 });
 
                 // Create the InlineDiffView which applies diffs to the editor buffer.
-                let standardized_path = StandardizedPath::try_new(&file_path).ok();
                 let diff_viewer = ctx.add_typed_action_view(|ctx| {
                     InlineDiffView::new(
                         editor.clone(),
@@ -1160,7 +1133,10 @@ impl CodeDiffView {
                     .unwrap_or_else(|| "file".to_string());
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!("Failed to revert changes to {file_name}")),
+                        DismissibleToast::error(
+                            text(ctx, "agent.code_diff.toast.failed_revert_changes")
+                                .replace("{file_name}", &file_name),
+                        ),
                         window_id,
                         ctx,
                     );
@@ -1595,21 +1571,27 @@ impl CodeDiffView {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min);
 
-        let file_paths: Vec<PathBuf> = self
+        let file_locations: Vec<LocalOrRemotePath> = self
             .pending_diffs
             .iter()
             .filter_map(|diff| {
-                diff.diff_view
-                    .as_ref(app)
-                    .file_path()
-                    .and_then(|p| p.to_local_path())
+                self.location_for_standardized_path(diff.diff_view.as_ref(app).file_path()?)
             })
             .collect();
 
-        // Renders the 'open skill' button if all edited files live in the same skill directory
-        let skill = common_path(&file_paths)
-            .and_then(|common| skill_path_from_file_path(&common))
-            .and_then(|skill_path| SkillManager::as_ref(app).skill_by_path(&skill_path));
+        // Renders the 'open skill' button only if every edited file lives in the same skill directory.
+        let skill_paths = file_locations
+            .iter()
+            .map(skill_path_from_location)
+            .collect::<Option<Vec<_>>>();
+        let skill = skill_paths.and_then(|skill_paths| {
+            let first_path = skill_paths.first()?;
+            skill_paths
+                .iter()
+                .all(|path| path == first_path)
+                .then(|| SkillManager::as_ref(app).skill_by_path(first_path))
+                .flatten()
+        });
         if let Some(skill) = skill {
             let skill_path = skill.path.clone();
             let skill_reference = SkillManager::handle(app)
@@ -1642,7 +1624,12 @@ impl CodeDiffView {
         // Renders the 'open config' button only when every MCP config file in this diff
         // belongs to the same provider. Mixed-provider diffs (e.g. editing both a Claude
         // config and a Warp config at once) show no badge to avoid misleading attribution.
-        let mcp_configs: Vec<_> = file_paths
+        // MCP config actions currently operate on local paths only.
+        let local_file_paths: Vec<PathBuf> = file_locations
+            .iter()
+            .filter_map(|path| path.to_local_path().map(Path::to_path_buf))
+            .collect();
+        let mcp_configs: Vec<_> = local_file_paths
             .iter()
             .filter_map(|path| {
                 mcp_provider_from_file_path(path).map(|provider| (provider, path.to_path_buf()))
@@ -1665,7 +1652,7 @@ impl CodeDiffView {
                 fg_overlay_6(appearance.theme())
             };
             let mcp_config_button = render_provider_icon_button(
-                "Open config",
+                &text(app, "agent.code_diff.open_config"),
                 mcp_button_handle.clone(),
                 appearance,
                 icon,
@@ -1779,9 +1766,9 @@ impl CodeDiffView {
             .finish();
             col.add_child(title);
         }
-        if let Some(subtitle) = self.display_mode().title() {
+        if let Some(subtitle) = self.display_mode().title(app) {
             let subtitle = Text::new_inline(
-                subtitle.to_string(),
+                subtitle,
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -1863,10 +1850,11 @@ impl CodeDiffView {
             let diff_type = diff.diff_view.as_ref(app).diff();
             let file_name = match diff.diff_view.as_ref(app).file_name() {
                 Some(file_name) if matches!(diff_type, Some(DiffType::Create { .. })) => {
-                    format!("{file_name} (new)")
+                    text(app, "agent.code_diff.file_status.new").replace("{file_name}", &file_name)
                 }
                 Some(file_name) if matches!(diff_type, Some(DiffType::Delete { .. })) => {
-                    format!("{file_name} (deleted)")
+                    text(app, "agent.code_diff.file_status.deleted")
+                        .replace("{file_name}", &file_name)
                 }
                 Some(file_name) => {
                     // Check if this is a rename
@@ -1881,7 +1869,7 @@ impl CodeDiffView {
                         file_name
                     }
                 }
-                None => "No file name".to_string(),
+                None => text(app, "agent.code_diff.no_file_name"),
             };
 
             // Get the full path for the tooltip
@@ -2001,7 +1989,7 @@ impl CodeDiffView {
         if Self::is_rename_without_changes(diff_type) {
             let placeholder = Container::new(
                 Text::new(
-                    "File renamed without changes",
+                    text(app, "agent.code_diff.file_renamed_without_changes"),
                     appearance.monospace_font_family(),
                     appearance.monospace_font_size(),
                 )
@@ -2182,11 +2170,11 @@ impl CodeDiffView {
 
         if self.display_mode.is_embedded() {
             let label = if self.is_passive {
-                SUGGESTED_EDIT_DISMISS_LABEL
+                text(ctx, "agent.code_diff.dismiss")
             } else {
-                REQUESTED_EDIT_CANCEL_LABEL
+                text(ctx, "agent.code_diff.cancel")
             };
-            self.cancel_button.set_label(label.to_string(), ctx);
+            self.cancel_button.set_label(label, ctx);
         }
 
         for diff in &self.pending_diffs {
@@ -2373,7 +2361,21 @@ impl CodeDiffView {
                             file_path_str = rename.to_string_lossy().to_string();
                         }
                         let was_edited = diff.diff_view.as_ref(ctx).was_edited();
-                        let changed_lines = diff.diff_view.as_ref(ctx).changed_lines(ctx);
+                        let editor_changed_lines = diff.diff_view.as_ref(ctx).changed_lines(ctx);
+                        let changed_lines = changed_lines_for_result(
+                            editor_changed_lines.clone(),
+                            diff.diff_view.as_ref(ctx).diff(),
+                        );
+                        let changed_lines_for_malformed_signal = if editor_changed_lines.is_empty()
+                        {
+                            changed_lines
+                                .iter()
+                                .cloned()
+                                .map(file_context_range_to_editor_range)
+                                .collect()
+                        } else {
+                            editor_changed_lines
+                        };
                         let has_malformed_terminal_signal = diff
                             .diff_view
                             .as_ref(ctx)
@@ -2381,7 +2383,7 @@ impl CodeDiffView {
                             .is_some_and(|editor_diff| {
                                 has_malformed_terminal_correction_signal(
                                     editor_diff,
-                                    &changed_lines,
+                                    &changed_lines_for_malformed_signal,
                                 )
                             });
 
@@ -2399,12 +2401,7 @@ impl CodeDiffView {
                         updated_files.push((
                             FileLocations {
                                 name: file_path_str,
-                                lines: if FeatureFlag::ChangedLinesOnlyApplyDiffResult.is_enabled()
-                                {
-                                    changed_lines
-                                } else {
-                                    vec![]
-                                },
+                                lines: changed_lines,
                             },
                             was_edited,
                         ));
@@ -2541,7 +2538,10 @@ impl CodeDiffView {
 
         let checkbox_text = appearance
             .ui_builder()
-            .span("Don't show me suggested code banners again")
+            .span(text(
+                app,
+                "settings.ai.active.suggested_code_banners.hide_again",
+            ))
             .with_style(UiComponentStyles {
                 font_color: Some(font_color),
                 font_size: Some(font_size),
@@ -2554,8 +2554,8 @@ impl CodeDiffView {
         let formatted_text = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(vec![
                 FormattedTextFragment::hyperlink(
-                    "Manage suggested code banner settings",
-                    "Settings > AI",
+                    text(app, "settings.ai.active.suggested_code_banners.manage"),
+                    text(app, "settings.nav.ai"),
                 ),
             ])]),
             font_size,
@@ -2608,6 +2608,27 @@ impl CodeDiffView {
             .as_ref(app)
             .file_path()
             .map(|p| p.to_string())
+    }
+
+    /// Returns the primary file location as a `LocalOrRemotePath`,
+    /// using `diff_session_type` to correctly identify remote files.
+    pub fn primary_file_location(&self, app: &AppContext) -> Option<LocalOrRemotePath> {
+        self.pending_diffs
+            .first()?
+            .diff_view
+            .as_ref(app)
+            .file_path()
+            .and_then(|path| self.location_for_standardized_path(path))
+    }
+
+    fn location_for_standardized_path(&self, path: &StandardizedPath) -> Option<LocalOrRemotePath> {
+        match &self.diff_session_type {
+            DiffSessionType::Local => path.to_local_path().map(LocalOrRemotePath::Local),
+            DiffSessionType::Remote(host_id) => Some(LocalOrRemotePath::Remote(RemotePath {
+                host_id: host_id.clone(),
+                path: path.clone(),
+            })),
+        }
     }
 }
 
@@ -3141,12 +3162,12 @@ impl BackingView for CodeDiffView {
     fn render_header_content(
         &self,
         _ctx: &view::HeaderRenderContext<'_>,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> view::HeaderContent {
         // Code diffs should show "Requested Edit" as the title and hide the close button
         // since they are closed via accept/reject actions.
         view::HeaderContent::Standard(view::StandardHeader {
-            title: "Requested Edit".to_string(),
+            title: text(app, "agent.code_diff.requested_edit"),
             title_secondary: None,
             title_style: None,
             title_clip_config: warpui::text_layout::ClipConfig::start(),
@@ -3187,4 +3208,49 @@ fn keystroke_for_mode(key: &str, is_passive: bool) -> Keystroke {
         key: key.to_owned(),
         ..Default::default()
     }
+}
+
+fn changed_lines_for_result(
+    editor_changed_lines: Vec<Range<usize>>,
+    diff_type: Option<&DiffType>,
+) -> Vec<Range<usize>> {
+    if !editor_changed_lines.is_empty() {
+        return editor_changed_lines
+            .into_iter()
+            .map(editor_range_to_file_context_range)
+            .collect();
+    }
+
+    match diff_type {
+        Some(DiffType::Create { delta }) => inserted_content_range(1, &delta.insertion)
+            .into_iter()
+            .collect(),
+        Some(DiffType::Update { deltas, .. }) => deltas
+            .iter()
+            .filter_map(changed_line_range_for_delta)
+            .collect(),
+        Some(DiffType::Delete { .. }) | None => vec![],
+    }
+}
+
+fn changed_line_range_for_delta(delta: &DiffDelta) -> Option<Range<usize>> {
+    let replacement_range = &delta.replacement_line_range;
+    if replacement_range.start == replacement_range.end {
+        return inserted_content_range(replacement_range.start.max(1), &delta.insertion);
+    }
+
+    Some(replacement_range.clone())
+}
+
+fn inserted_content_range(start: usize, content: &str) -> Option<Range<usize>> {
+    let line_count = content.lines().count();
+    (line_count > 0).then_some(start..start + line_count)
+}
+
+fn editor_range_to_file_context_range(range: Range<usize>) -> Range<usize> {
+    range.start.saturating_add(1)..range.end.saturating_add(1)
+}
+
+fn file_context_range_to_editor_range(range: Range<usize>) -> Range<usize> {
+    range.start.saturating_sub(1)..range.end.saturating_sub(1)
 }

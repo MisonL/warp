@@ -1,72 +1,65 @@
 use pathfinder_geometry::vector::{vec2f, Vector2F};
-
 use warp_core::features::FeatureFlag;
+use warpui::clipboard::ClipboardContent;
+use warpui::elements::{
+    Align, AnchorPair, ChildAnchor, Clipped, ClippedScrollStateHandle, ClippedScrollable,
+    ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, EventHandler, Fill, Flex,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, OffsetType, ParentAnchor,
+    ParentElement, ParentOffsetBounds, PositioningAxis, SavePosition, ScrollbarWidth, Shrinkable,
+    Stack, XAxisAnchor, YAxisAnchor,
+};
+use warpui::keymap::EditableBinding;
+use warpui::platform::Cursor;
+use warpui::presenter::ChildView;
+use warpui::ui_components::components::UiComponent;
 use warpui::{
-    clipboard::ClipboardContent,
-    elements::{
-        Align, AnchorPair, ChildAnchor, Clipped, ClippedScrollStateHandle, ClippedScrollable,
-        ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, EventHandler, Fill,
-        Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, OffsetType,
-        ParentAnchor, ParentElement, ParentOffsetBounds, PositioningAxis, SavePosition,
-        ScrollbarWidth, Shrinkable, Stack, XAxisAnchor, YAxisAnchor,
-    },
-    id,
-    keymap::EditableBinding,
-    platform::Cursor,
-    presenter::ChildView,
-    ui_components::components::UiComponent,
-    AppContext, BlurContext, Element, Entity, FocusContext, ModelAsRef, ModelHandle,
+    id, AppContext, BlurContext, Element, Entity, FocusContext, ModelAsRef, ModelHandle,
     SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
 };
 
-use crate::{
-    ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels,
-    cloud_object::{
-        breadcrumbs::ContainingObject,
-        model::persistence::{CloudModel, CloudModelEvent},
-        CloudObjectEventEntrypoint, Owner,
-    },
-    drive::{
-        items::WarpDriveItemId,
-        sharing::{ContentEditability, ShareableObject},
-    },
-    editor::EditorView,
-    env_vars::{
-        active_env_var_collection_data::{
-            ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,
-            SavingStatus, TrashStatus,
-        },
-        CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVar, EnvVarCollection,
-        EnvVarCollectionType, EnvVarValue,
-    },
-    external_secrets::SecretManager,
-    menu::MenuItem,
-    network::{NetworkStatus, NetworkStatusEvent},
-    pane_group::{
-        focus_state::PaneFocusHandle, pane::view, BackingView, PaneConfiguration, PaneEvent,
-    },
-    search::external_secrets::view::ExternalSecretsMenu,
-    send_telemetry_from_ctx,
-    server::{
-        cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager},
-        ids::{ServerId, SyncId},
-    },
-    terminal::{model::secrets::SecretLevel, safe_mode_settings::get_secret_obfuscation_mode},
-    ui_components::{
-        breadcrumb::{render_breadcrumbs, BreadcrumbState},
-        buttons::icon_button,
-        icons::Icon,
-        menu_button::{
-            highlight_icon_button_with_context_menu, icon_button_with_context_menu, MenuDirection,
-        },
-    },
-    util::bindings::CustomAction,
-    view_components::{alert::AlertConfig, Alert, DismissibleToast, ToastType},
-    workspace::ToastStack,
-    Appearance, CloudObjectTypeAndId, TelemetryEvent,
+use super::command_dialog::EnvVarCommandDialog;
+use super::menus::Menus;
+use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
+use crate::cloud_object::breadcrumbs::ContainingObject;
+use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::cloud_object::{CloudObjectEventEntrypoint, Owner};
+use crate::drive::items::WarpDriveItemId;
+use crate::drive::sharing::{ContentEditability, ShareableObject};
+use crate::editor::EditorView;
+use crate::env_vars::active_env_var_collection_data::{
+    ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,
+    SavingStatus, TrashStatus,
 };
+use crate::env_vars::{
+    CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVar, EnvVarCollection,
+    EnvVarCollectionType, EnvVarValue,
+};
+use crate::external_secrets::SecretManager;
+use crate::menu::MenuItem;
+use crate::network::{NetworkStatus, NetworkStatusEvent};
+use crate::pane_group::focus_state::PaneFocusHandle;
+use crate::pane_group::pane::view;
+use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
+use crate::search::external_secrets::view::ExternalSecretsMenu;
+use crate::server::cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager};
+use crate::server::ids::{ServerId, SyncId};
+use crate::terminal::model::secrets::SecretLevel;
+use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
+use crate::ui_components::breadcrumb::{render_breadcrumbs, BreadcrumbState};
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::icons::Icon;
+use crate::ui_components::menu_button::{
+    highlight_icon_button_with_context_menu, icon_button_with_context_menu, MenuDirection,
+};
+use crate::util::bindings::CustomAction;
+use crate::view_components::alert::AlertConfig;
+use crate::view_components::{Alert, DismissibleToast, ToastType};
+use crate::workspace::ToastStack;
+use crate::{send_telemetry_from_ctx, Appearance, CloudObjectTypeAndId, TelemetryEvent};
 
-use super::{command_dialog::EnvVarCommandDialog, menus::Menus};
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 // Universal
 pub(super) const CORE_HORIZONATAL_MARGIN: f32 = 24.;
@@ -80,20 +73,11 @@ const SECTION_SPACING: f32 = 16.;
 
 // Variable rows
 pub(super) const ROW_SPACING: f32 = 8.;
-pub const EDUCATION_TEXT: &str = "Add secret or command. Warp never stores external secrets";
 const VARIABLE_FONT_SIZE: f32 = 13.;
 const DESCRIPTION_EDITOR_CUTOFF: f32 = 30.;
 const DESCRIPTION_BOTTOM_MARGIN: f32 = 12.;
 const DIVIDER_BOTTOM_MARGIN: f32 = 4.;
 const PLACEHOLDER_FONT_SIZE: f32 = 14.;
-const VARIABLE_VALUE_PLACEHOLDER_TEXT: &str = "Value";
-const VARIABLE_DESCRIPTION_PLACEHOLDER_TEXT: &str = "Description";
-const VARIABLE_NAME_PLACEHOLDER_TEXT: &str = "Variable";
-
-// Text input fields
-const TITLE_PLACEHOLDER_TEXT: &str = "Add a title";
-const DESCRIPTION_PLACEHOLDER_TEXT: &str = "Add a description";
-
 // Button spacing
 const BUTTON_CONTAINER_HORIZONTAL_MARGIN: f32 = 36.;
 const BUTTON_CONTAINER_BOTTOM_MARGIN: f32 = 10.;
@@ -357,10 +341,10 @@ pub enum EnvVarCollectionAction {
 /// Defines the view for a collection of environment variables
 impl ValidationError {
     /// Create validation error from detected secret level
-    fn from_secret_level(secret_level: SecretLevel) -> Self {
+    fn from_secret_level(secret_level: SecretLevel, app: &AppContext) -> Self {
         let message = match secret_level {
-            SecretLevel::Enterprise => "This environment variable cannot be created due to conflicts with your enterprise's secret redaction settings. Contact a team admin for details.".to_string(),
-            SecretLevel::User => "This environment variable cannot be created due to conflicts with your secret redaction settings. Save the secret as an environment variable (in your shell config or a .env file), or update your secret redaction settings in Settings > Privacy.".to_string(),
+            SecretLevel::Enterprise => text(app, "env_vars.validation.secret_conflict.enterprise"),
+            SecretLevel::User => text(app, "env_vars.validation.secret_conflict.user"),
         };
         Self {
             secret_level,
@@ -371,7 +355,7 @@ impl ValidationError {
 
 impl EnvVarCollectionView {
     /// Validates field content for secrets and returns validation error if found
-    fn validate_field_content(text: &str) -> Option<ValidationError> {
+    fn validate_field_content(text: &str, app: &AppContext) -> Option<ValidationError> {
         let detected_secrets = find_secrets_in_text_with_levels(text);
         if detected_secrets.is_empty() {
             return None;
@@ -383,7 +367,7 @@ impl EnvVarCollectionView {
             .map(|(_, level)| *level)
             .max_by_key(|level| level.priority())
             .map(|highest_priority_level| {
-                ValidationError::from_secret_level(highest_priority_level)
+                ValidationError::from_secret_level(highest_priority_level, app)
             })
     }
 
@@ -402,7 +386,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text)
+            Self::validate_field_content(text, ctx)
         } else {
             None
         };
@@ -418,7 +402,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text)
+            Self::validate_field_content(text, ctx)
         } else {
             None
         };
@@ -436,7 +420,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text)
+            Self::validate_field_content(text, ctx)
         } else {
             None
         };
@@ -497,7 +481,8 @@ impl EnvVarCollectionView {
             view.handle_cloud_model_event(event, ctx);
         });
 
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Untitled"));
+        let pane_configuration =
+            ctx.add_model(|ctx| PaneConfiguration::new(text(ctx, "env_vars.title.untitled")));
 
         let active_env_var_collection_data = ctx.add_model(ActiveEnvVarCollectionData::new);
         ctx.subscribe_to_model(
@@ -518,14 +503,14 @@ impl EnvVarCollectionView {
             ctx,
             Some(PLACEHOLDER_FONT_SIZE),
             Some(ui_font_family),
-            Some(TITLE_PLACEHOLDER_TEXT),
+            Some(&text(ctx, "env_vars.placeholder.title")),
             true,
         );
         let description_editor = Self::create_editor_handle(
             ctx,
             Some(PLACEHOLDER_FONT_SIZE),
             Some(ui_font_family),
-            Some(DESCRIPTION_PLACEHOLDER_TEXT),
+            Some(&text(ctx, "env_vars.placeholder.description")),
             false,
         );
         ctx.subscribe_to_view(&title_editor, |me, _, event, ctx| {
@@ -669,7 +654,12 @@ impl EnvVarCollectionView {
 
         let title = collection.title.clone().unwrap_or_default();
 
-        self.set_pane_title(if title.is_empty() { "Untitled" } else { &title }, ctx);
+        let pane_title = if title.is_empty() {
+            text(ctx, "env_vars.title.untitled")
+        } else {
+            title.clone()
+        };
+        self.set_pane_title(&pane_title, ctx);
         if let Some(server_id) = env_var_collection.id.into_server() {
             self.pane_configuration.update(ctx, |pane_config, ctx| {
                 pane_config
@@ -751,9 +741,7 @@ impl EnvVarCollectionView {
                     let window_id = ctx.window_id();
                     crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "An error occurred while trying to invoke the env var".to_owned(),
-                            ),
+                            DismissibleToast::error(text(ctx, "env_vars.toast.invoke_failed")),
                             window_id,
                             ctx,
                         );
@@ -775,7 +763,12 @@ impl EnvVarCollectionView {
         }
 
         let title = self.title_editor.as_ref(ctx).buffer_text(ctx);
-        self.set_pane_title(&title, ctx);
+        let pane_title = if title.is_empty() {
+            text(ctx, "env_vars.title.untitled")
+        } else {
+            title.clone()
+        };
+        self.set_pane_title(&pane_title, ctx);
 
         let title = if title.is_empty() { None } else { Some(title) };
 
@@ -884,7 +877,7 @@ impl EnvVarCollectionView {
             ctx,
             Some(VARIABLE_FONT_SIZE),
             Some(ui_font_family),
-            Some(VARIABLE_NAME_PLACEHOLDER_TEXT),
+            Some(&text(ctx, "env_vars.placeholder.variable")),
             true,
         );
 
@@ -896,7 +889,7 @@ impl EnvVarCollectionView {
             ctx,
             Some(VARIABLE_FONT_SIZE),
             Some(ui_font_family),
-            Some(VARIABLE_VALUE_PLACEHOLDER_TEXT),
+            Some(&text(ctx, "env_vars.placeholder.value")),
             true,
         );
 
@@ -908,7 +901,7 @@ impl EnvVarCollectionView {
             ctx,
             Some(VARIABLE_FONT_SIZE),
             Some(ui_font_family),
-            Some(VARIABLE_DESCRIPTION_PLACEHOLDER_TEXT),
+            Some(&text(ctx, "env_vars.placeholder.variable_description")),
             true,
         );
 
@@ -1141,7 +1134,7 @@ impl EnvVarCollectionView {
                     .finish()
                 } else {
                     appearance.ui_builder().tool_tip_on_element(
-                        EDUCATION_TEXT.to_string(),
+                        text(app, "env_vars.secret_tooltip"),
                         self.button_mouse_states.secret_tooltip_state.clone(),
                         icon_button_with_context_menu(
                             Icon::Key,
@@ -1378,12 +1371,12 @@ impl View for EnvVarCollectionView {
 
         let mut flex = Flex::column()
             .with_child(
-                Container::new(self.render_metadata(appearance))
+                Container::new(self.render_metadata(appearance, app))
                     .with_margin_bottom(SECTION_SPACING)
                     .finish(),
             )
             .with_child(
-                Container::new(self.render_variables_section_header(editability, appearance))
+                Container::new(self.render_variables_section_header(editability, appearance, app))
                     .with_margin_bottom(SECTION_SPACING)
                     .finish(),
             )
@@ -1448,7 +1441,7 @@ impl View for EnvVarCollectionView {
 
         if self.dialog_open_states.unsaved_changes_dialog_open {
             stack.add_positioned_child(
-                self.render_unsaved_changes_dialog(appearance),
+                self.render_unsaved_changes_dialog(appearance, app),
                 dialog_position,
             )
         } else if self.dialog_open_states.secrets_dialog_open {
@@ -1595,7 +1588,11 @@ impl BackingView for EnvVarCollectionView {
         app: &AppContext,
     ) -> view::HeaderContent {
         let title = self.title_editor.as_ref(app).buffer_text(app);
-        let title = if title.is_empty() { "Untitled" } else { &title };
+        let title = if title.is_empty() {
+            text(app, "env_vars.title.untitled")
+        } else {
+            title
+        };
         view::HeaderContent::simple(title)
     }
 

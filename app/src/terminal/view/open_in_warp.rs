@@ -1,41 +1,28 @@
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use warp_util::path::EscapeChar;
-use warpui::{
-    accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
-    SingletonEntity, ViewContext,
-};
-
-#[cfg(feature = "local_fs")]
-use crate::code::editor_management::CodeSource;
-use crate::{
-    report_if_error,
-    terminal::{
-        event::UserBlockCompleted,
-        general_settings::GeneralSettings,
-        model::session::Session,
-        view::inline_banner::{OpenInWarpBannerAction, OpenInWarpBannerState},
-    },
-    util::openable_file_type::{is_file_openable_in_warp, OpenableFileType},
-};
 use settings::Setting as _;
-use warp_completer::{
-    completer::TopLevelCommandCaseSensitivity,
-    parsers::{
-        classify_command,
-        hir::{Command, Expression},
-        simple::all_parsed_commands,
-    },
-    signatures::CommandRegistry,
-};
+use warp_completer::completer::TopLevelCommandCaseSensitivity;
+use warp_completer::parsers::classify_command;
+use warp_completer::parsers::hir::{Command, Expression};
+use warp_completer::parsers::simple::all_parsed_commands;
+use warp_completer::signatures::CommandRegistry;
+use warp_util::path::EscapeChar;
+use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
+use warpui::{AppContext, SingletonEntity, ViewContext};
 
 use super::{Event, InlineBannerItem, InlineBannerType, TerminalView};
+#[cfg(feature = "local_fs")]
+use crate::code::editor_management::CodeSource;
+use crate::terminal::event::UserBlockCompleted;
+use crate::terminal::general_settings::GeneralSettings;
+use crate::terminal::model::session::Session;
+use crate::terminal::view::inline_banner::{OpenInWarpBannerAction, OpenInWarpBannerState};
+use crate::util::openable_file_type::{is_file_openable_in_warp, OpenableFileType};
+use crate::{localization, report_if_error};
 
 #[cfg(test)]
 #[path = "open_in_warp_tests.rs"]
@@ -231,13 +218,15 @@ impl TerminalView {
     pub fn open_in_warp_banner_accessibility_content(
         &self,
         action: OpenInWarpBannerAction,
+        app: &AppContext,
     ) -> ActionAccessibilityContent {
         match action {
             OpenInWarpBannerAction::OpenFile => {
                 match &self.inline_banners_state.open_in_warp_banner {
                     Some(banner_state) => {
                         ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                            format!("Open {} in Warp", banner_state.target.path.display()),
+                            localization::text_for_app(app, "terminal.open_in_warp.a11y.open_file")
+                                .replace("{path}", &banner_state.target.path.display().to_string()),
                             WarpA11yRole::UserAction,
                         ))
                     }
@@ -246,14 +235,14 @@ impl TerminalView {
             }
             OpenInWarpBannerAction::Close => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Close View in Warp banner",
+                    localization::text_for_app(app, "terminal.open_in_warp.a11y.close_banner"),
                     WarpA11yRole::UserAction,
                 ))
             }
             OpenInWarpBannerAction::LearnMore => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new(
-                    "Learn more",
-                    "Learn more about opening Markdown files in Warp",
+                    localization::text_for_app(app, "auth.learn_more"),
+                    localization::text_for_app(app, "terminal.open_in_warp.a11y.learn_more"),
                     WarpA11yRole::UserAction,
                 ))
             }

@@ -1,17 +1,22 @@
-use std::{collections::HashMap, ffi::OsString, future::Future, pin::Pin, time::Duration};
+use std::collections::HashMap;
+use std::ffi::OsString;
+use std::future::Future;
+use std::pin::Pin;
+use std::time::Duration;
 
 use anyhow::Context;
 use tempfile::{Builder, NamedTempFile};
 use vec1::Vec1;
 use warp_core::safe_info;
+use warp_localization::LocaleId;
 use warp_managed_secrets::ManagedSecretManager;
 use warpui::{ModelSpawner, SingletonEntity};
 
-use crate::ai::aws_credentials::aws_role_session_name;
-use crate::ai::cloud_environments::AwsProviderConfig;
-
 use super::super::terminal::TerminalDriver;
 use super::{CloudProvider, CloudProviderSetupError, Result};
+use crate::ai::aws_credentials::aws_role_session_name;
+use crate::ai::cloud_environments::AwsProviderConfig;
+use crate::localization;
 
 /// Default duration for OIDC identity tokens issued for cloud provider auth.
 /// The AWS CLI doesn't offer a mechanism for refreshing web identity tokens, so we
@@ -20,6 +25,10 @@ const IDENTITY_TOKEN_DURATION: Duration = Duration::from_hours(3);
 
 /// AWS STS audience for Warp Oz OIDC federation.
 const AWS_AUDIENCE: &str = "sts.amazonaws.com";
+
+fn text(key: &str) -> String {
+    localization::text_for_locale(LocaleId::EnUs, key)
+}
 
 /// Provides AWS Web Identity credentials for the agent session.
 pub(crate) struct AwsCloudProvider {
@@ -39,7 +48,9 @@ impl AwsCloudProvider {
             .prefix(&format!("oz_aws_oidc_{run_id}_"))
             .suffix(".token")
             .tempfile()
-            .context("Failed to create temporary AWS OIDC token file")
+            .context(text(
+                "agent_sdk.driver.cloud_provider.aws.error.create_oidc_token_file",
+            ))
             .map_err(|error| CloudProviderSetupError::new(Self::PROVIDER_NAME, error))?;
 
         Ok(Self {
@@ -123,7 +134,9 @@ impl CloudProvider for AwsCloudProvider {
             let Self { token_file, .. } = *self;
             token_file
                 .close()
-                .context("Failed to remove AWS OIDC token file")
+                .context(text(
+                    "agent_sdk.driver.cloud_provider.aws.error.remove_oidc_token_file",
+                ))
                 .map_err(|err| CloudProviderSetupError::new(Self::PROVIDER_NAME, err))
         })
     }

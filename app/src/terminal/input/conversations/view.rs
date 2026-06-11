@@ -1,15 +1,17 @@
 //! Inline conversation menu view for selecting AI conversations.
 
 use std::collections::HashSet;
-use std::sync::LazyLock;
 
 use warpui::elements::ChildView;
-use warpui::{Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle,
+};
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
+use crate::ai::agent_conversations_model::AgentConversationEntryId;
 use crate::ai::blocklist::agent_view::AgentViewController;
-use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::SearchMixer;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
@@ -23,33 +25,34 @@ use crate::terminal::input::suggestions_mode_model::{
 };
 use crate::terminal::model::session::active_session::ActiveSession;
 
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
 /// Events emitted by InlineConversationMenuView.
 #[derive(Debug, Clone)]
 pub enum InlineConversationMenuEvent {
     /// User 'accepted' a conversation (hit enter).
-    NavigateToConversation {
-        conversation_navigation_data: Box<ConversationNavigationData>,
-    },
+    NavigateToConversation { item_id: AgentConversationEntryId },
     /// User dismissed the menu (escape or click).
     Dismissed,
 }
 
-static TAB_CONFIGS: LazyLock<Vec<InlineMenuTabConfig<InlineConversationMenuTab>>> =
-    LazyLock::new(|| {
-        let mut configs = vec![InlineMenuTabConfig {
-            id: InlineConversationMenuTab::All,
-            label: "All".to_string(),
-            filters: HashSet::new(),
-        }];
-        if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            configs.push(InlineMenuTabConfig {
-                id: InlineConversationMenuTab::CurrentDirectory,
-                label: "Current Directory".to_string(),
-                filters: HashSet::from([QueryFilter::CurrentDirectoryConversations]),
-            });
-        }
-        configs
-    });
+fn build_tab_configs(app: &AppContext) -> Vec<InlineMenuTabConfig<InlineConversationMenuTab>> {
+    let mut configs = vec![InlineMenuTabConfig {
+        id: InlineConversationMenuTab::All,
+        label: text(app, "terminal.inline_conversation.tab.all"),
+        filters: HashSet::new(),
+    }];
+    if FeatureFlag::InlineMenuHeaders.is_enabled() {
+        configs.push(InlineMenuTabConfig {
+            id: InlineConversationMenuTab::CurrentDirectory,
+            label: text(app, "terminal.inline_conversation.tab.current_directory"),
+            filters: HashSet::from([QueryFilter::CurrentDirectoryConversations]),
+        });
+    }
+    configs
+}
 
 pub struct InlineConversationMenuView {
     menu_view: ViewHandle<InlineMenuView<AcceptConversation, InlineConversationMenuTab>>,
@@ -71,7 +74,7 @@ impl InlineConversationMenuView {
             ConversationMenuDataSource::new(agent_view_controller.clone(), active_session)
         });
 
-        let tab_configs = TAB_CONFIGS.clone();
+        let tab_configs = build_tab_configs(ctx);
         let initial_filters = tab_configs
             .first()
             .map(|config| config.filters.clone())
@@ -104,7 +107,7 @@ impl InlineConversationMenuView {
         ctx.subscribe_to_view(&menu_view, |me, _, event, ctx| match event {
             InlineMenuEvent::AcceptedItem { item, .. } => {
                 ctx.emit(InlineConversationMenuEvent::NavigateToConversation {
-                    conversation_navigation_data: Box::new(item.navigation_data.clone()),
+                    item_id: item.item_id,
                 });
             }
             InlineMenuEvent::SelectedItem { .. } | InlineMenuEvent::NoResults => (),

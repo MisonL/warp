@@ -5,34 +5,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::coding_panel_enablement_state::CodingPanelEnablementState;
-
 use async_channel::Sender;
 use pathfinder_geometry::vector::vec2f;
 use string_offset::{ByteOffset, CharCounter};
-use warp_editor::editor::NavigationKey;
-use warp_ripgrep::search::{Match as RipgrepMatch, Submatch};
-
-use crate::code::icon_from_file_path;
-use crate::debounce::debounce;
-use crate::editor::{
-    EditorOptions, EditorView, Event as EditorEvent, InteractionState,
-    PropagateAndNoOpNavigationKeys, PropagateHorizontalNavigationKeys, TextOptions,
-};
-use crate::search::ItemHighlightState as SearchHighlightState;
-use crate::ui_components::blended_colors;
-use crate::ui_components::icons::Icon as UiIcon;
-use crate::ui_components::item_highlight::{ImageOrIcon, ItemHighlightState};
-use crate::ui_components::render_file_search_row::{render_file_search_row, FileSearchRowOptions};
-use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
-use crate::workspace::view::global_search::model::GlobalSearch;
-use crate::workspace::view::global_search::SearchConfig;
-use crate::TelemetryEvent;
+use warp_core::r#async::debounce;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill as ThemeFill};
 use warp_core::ui::Icon;
+use warp_editor::editor::NavigationKey;
+use warp_ripgrep::search::{Match as RipgrepMatch, Submatch};
 use warpui::elements::{
     Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Fill, Flex, FormattedTextElement,
@@ -52,6 +35,22 @@ use warpui::{
     ViewHandle, WeakViewHandle,
 };
 
+use crate::code::icon_from_file_path;
+use crate::coding_panel_enablement_state::CodingPanelEnablementState;
+use crate::editor::{
+    EditorOptions, EditorView, Event as EditorEvent, InteractionState,
+    PropagateAndNoOpNavigationKeys, PropagateHorizontalNavigationKeys, TextOptions,
+};
+use crate::search::ItemHighlightState as SearchHighlightState;
+use crate::ui_components::blended_colors;
+use crate::ui_components::icons::Icon as UiIcon;
+use crate::ui_components::item_highlight::{ImageOrIcon, ItemHighlightState};
+use crate::ui_components::render_file_search_row::{render_file_search_row, FileSearchRowOptions};
+use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
+use crate::workspace::view::global_search::model::GlobalSearch;
+use crate::workspace::view::global_search::SearchConfig;
+use crate::{localization, TelemetryEvent};
+
 const BORDER_RADIUS: f32 = 6.;
 const BORDER_WIDTH: f32 = 1.;
 const DO_NOT_TRUNCATE_CHAR_COUNT: usize = 40;
@@ -62,6 +61,10 @@ const MAX_MATCH_COUNT: usize = 20000;
 const QUERY_EDITOR_MAX_LINES: usize = 6;
 
 const QUERY_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GlobalSearchEntryFocus {
@@ -651,7 +654,8 @@ impl GlobalSearchView {
             };
 
             let mut editor = EditorView::new(options, ctx);
-            editor.set_placeholder_text("Search in files", ctx);
+            editor
+                .set_placeholder_text(text(ctx, "global_search.placeholder.search_in_files"), ctx);
             editor
         });
 
@@ -665,7 +669,7 @@ impl GlobalSearchView {
         let case_sensitivity_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new_with_boxed_theme(String::new(), Arc::new(NakedTheme))
                 .with_icon(UiIcon::CaseSensitivity)
-                .with_tooltip("Toggle Case Sensitivity")
+                .with_tooltip(text(_ctx, "global_search.tooltip.toggle_case_sensitivity"))
                 .with_size(ButtonSize::Small)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(GlobalSearchAction::ToggleCaseSensitivity);
@@ -675,7 +679,7 @@ impl GlobalSearchView {
         let regex_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new_with_boxed_theme(String::new(), Arc::new(NakedTheme))
                 .with_icon(UiIcon::Regex)
-                .with_tooltip("Toggle Regex")
+                .with_tooltip(text(_ctx, "global_search.tooltip.toggle_regex"))
                 .with_size(ButtonSize::Small)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(GlobalSearchAction::ToggleRegexSearch);
@@ -2011,9 +2015,13 @@ impl View for GlobalSearchView {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let search_label = Text::new_inline("Search", appearance.ui_font_family(), 14.)
-            .with_color(blended_colors::text_sub(theme, theme.background()))
-            .finish();
+        let search_label = Text::new_inline(
+            text(app, "global_search.label.search"),
+            appearance.ui_font_family(),
+            14.,
+        )
+        .with_color(blended_colors::text_sub(theme, theme.background()))
+        .finish();
 
         let editor_line_height = self
             .query_editor
@@ -2065,16 +2073,25 @@ impl View for GlobalSearchView {
             .with_child(query_row);
 
         let files = self.unique_match_count();
-        let file_word = if files == 1 { "file" } else { "files" };
+        let file_word = if files == 1 {
+            text(app, "global_search.file.one")
+        } else {
+            text(app, "global_search.file.many")
+        };
 
         let message = if self.is_search_in_progress && self.total_match_count == 0 {
             "".to_string()
         } else if !self.is_search_in_progress && self.total_match_count == 0 {
-            "No results found. Review your gitignore files.".to_string()
+            text(app, "global_search.no_results")
         } else {
             match self.total_match_count {
-                1 => format!("1 result in {files} {file_word}"),
-                n => format!("{n} results in {files} {file_word}"),
+                1 => text(app, "global_search.results.one")
+                    .replace("{files}", &files.to_string())
+                    .replace("{file_word}", &file_word),
+                n => text(app, "global_search.results.many")
+                    .replace("{count}", &n.to_string())
+                    .replace("{files}", &files.to_string())
+                    .replace("{file_word}", &file_word),
             }
         };
 
@@ -2096,7 +2113,7 @@ impl View for GlobalSearchView {
             font_color: Some(blended_colors::text_sub(theme, theme.background())),
             ..Default::default()
         };
-        let capped_message = "The result set only contains a subset of all matches. Be more specific in your search to narrow down results.".to_string();
+        let capped_message = text(app, "global_search.capped_results");
         let capped_text = Span::new(capped_message, capped_text_styles)
             .with_soft_wrap()
             .build()
@@ -2247,8 +2264,8 @@ impl GlobalSearchView {
     fn render_pre_search_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::Search,
-            "Global search",
-            "Search in files across your current directories.",
+            text(app, "global_search.zero_state.title"),
+            text(app, "global_search.zero_state.description"),
             app,
         )
     }
@@ -2256,8 +2273,8 @@ impl GlobalSearchView {
     fn render_unavailable_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::AlertTriangle,
-            "Global search unavailable",
-            "Global search requires access to your local workspace. Open a new session or navigate to an active session to view.",
+            text(app, "global_search.unavailable.title"),
+            text(app, "global_search.unavailable.local_workspace_required"),
             app,
         )
     }
@@ -2265,8 +2282,8 @@ impl GlobalSearchView {
     fn render_remote_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::AlertTriangle,
-            "Global search unavailable",
-            "Global search requires access to your local workspace, which isn't supported in remote sessions",
+            text(app, "global_search.unavailable.title"),
+            text(app, "global_search.unavailable.remote_session"),
             app,
         )
     }
@@ -2274,8 +2291,8 @@ impl GlobalSearchView {
     fn render_unsupported_session_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::AlertTriangle,
-            "Global search unavailable",
-            "Global search doesn't currently work in Git Bash or WSL.",
+            text(app, "global_search.unavailable.title"),
+            text(app, "global_search.unavailable.unsupported_session"),
             app,
         )
     }

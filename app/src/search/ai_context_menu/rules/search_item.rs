@@ -1,18 +1,20 @@
-use fuzzy_match::FuzzyMatchResult;
-use ordered_float::OrderedFloat;
 use std::fmt::Debug;
 
-use crate::appearance::Appearance;
-use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType, ObjectType};
-use crate::search::ai_context_menu::styles;
-use crate::search::ai_context_menu::{mixer::AIContextMenuSearchableAction, safe_truncate};
-use crate::search::item::SearchItem;
-use crate::search::result_renderer::ItemHighlightState;
+use fuzzy_match::FuzzyMatchResult;
+use ordered_float::OrderedFloat;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, Icon, ParentElement, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
+
+use crate::appearance::Appearance;
+use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType, ObjectType};
+use crate::localization;
+use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
+use crate::search::ai_context_menu::{safe_truncate, styles};
+use crate::search::item::SearchItem;
+use crate::search::result_renderer::ItemHighlightState;
 
 const MAX_COMBINED_LENGTH: usize = 55;
 
@@ -226,5 +228,13 @@ impl SearchItem for RuleSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Rule: {}", self.rule_content)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.rule",
+            &[("content", &self.rule_content)],
+        )
     }
 }

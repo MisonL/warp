@@ -1,57 +1,43 @@
-use pathfinder_geometry::{rect::RectF, vector::Vector2F};
-use warpui::{
-    elements::{
-        AcceptedByDropTarget, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, Draggable, DraggableState, DropShadow, Empty, Flex, Hoverable,
-        MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
-        ParentOffsetBounds, Radius, SavePosition, Shrinkable, SizeConstraintCondition,
-        SizeConstraintSwitch, Stack,
-    },
-    fonts::Weight,
-    platform::Cursor,
-    presenter::PositionCache,
-    ui_components::{
-        components::{UiComponent, UiComponentStyles},
-        text::Span,
-    },
-    AppContext, Element, SingletonEntity, ViewHandle,
+use pathfinder_geometry::rect::RectF;
+use pathfinder_geometry::vector::Vector2F;
+use warpui::elements::{
+    AcceptedByDropTarget, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, Draggable, DraggableState, DropShadow, Empty, Flex, Hoverable,
+    MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
+    ParentOffsetBounds, Radius, SavePosition, Shrinkable, SizeConstraintCondition,
+    SizeConstraintSwitch, Stack,
 };
-
-use crate::{
-    cloud_object::{
-        model::{persistence::CloudModel, view::CloudViewModel},
-        CloudObject, CloudObjectMetadataExt, Owner,
-    },
-    drive::CloudObjectTypeAndId,
-    workspaces::{user_profiles::UserProfiles, user_workspaces::UserWorkspaces},
-};
-
-use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
-use crate::workspace::tab_settings::TabSettings;
-use crate::{
-    appearance::Appearance,
-    cloud_object::Space,
-    drive::{
-        index::{
-            DriveIndexAction, AUTOSCROLL_DETECTION_DISTANCE, AUTOSCROLL_SPEED_MULTIPLIER,
-            DRIVE_INDEX_VIEW_POSITION_ID, FOLDER_DEPTH_INDENT, INDEX_CONTENT_MARGIN_LEFT,
-            ITEM_FONT_SIZE, ITEM_MARGIN_BOTTOM, ITEM_PADDING_HORIZONTAL, ITEM_PADDING_VERTICAL,
-        },
-        panel::WARP_DRIVE_POSITION_ID,
-    },
-    menu::Menu,
-    ui_components::{
-        blended_colors,
-        icons::{Icon, ICON_DIMENSIONS},
-        menu_button::{
-            highlight_icon_button_with_context_menu_drive, icon_button_with_context_menu_drive,
-            MenuDirection,
-        },
-    },
-};
-use crate::{cloud_object::CloudObjectLocation, drive::items::WarpDriveItem};
+use warpui::fonts::Weight;
+use warpui::platform::Cursor;
+use warpui::presenter::PositionCache;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::ui_components::text::Span;
+use warpui::{AppContext, Element, SingletonEntity, ViewHandle};
 
 use super::WarpDriveItemId;
+use crate::appearance::Appearance;
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::model::view::CloudViewModel;
+use crate::cloud_object::{CloudObject, CloudObjectLocation, CloudObjectMetadataExt, Owner, Space};
+use crate::drive::index::{
+    DriveIndexAction, AUTOSCROLL_DETECTION_DISTANCE, AUTOSCROLL_SPEED_MULTIPLIER,
+    DRIVE_INDEX_VIEW_POSITION_ID, FOLDER_DEPTH_INDENT, INDEX_CONTENT_MARGIN_LEFT, ITEM_FONT_SIZE,
+    ITEM_MARGIN_BOTTOM, ITEM_PADDING_HORIZONTAL, ITEM_PADDING_VERTICAL,
+};
+use crate::drive::items::WarpDriveItem;
+use crate::drive::panel::WARP_DRIVE_POSITION_ID;
+use crate::drive::CloudObjectTypeAndId;
+use crate::menu::Menu;
+use crate::ui_components::blended_colors;
+use crate::ui_components::icons::{Icon, ICON_DIMENSIONS};
+use crate::ui_components::menu_button::{
+    highlight_icon_button_with_context_menu_drive, icon_button_with_context_menu_drive,
+    MenuDirection,
+};
+use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
+use crate::workspace::tab_settings::TabSettings;
+use crate::workspaces::user_profiles::UserProfiles;
+use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub(crate) fn tools_panel_menu_direction(app: &AppContext) -> MenuDirection {
     let config = TabSettings::as_ref(app)
@@ -146,6 +132,7 @@ pub struct WarpDriveRow<'a> {
     is_focused: bool,
     overflow_on_left: bool,
     appearance: &'a Appearance,
+    untitled_fallback: String,
 }
 
 impl<'a> WarpDriveRow<'a> {
@@ -165,6 +152,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        untitled_fallback: String,
     ) -> Option<Self> {
         let warp_drive_item_id = item.warp_drive_id();
         let overflow_button = match has_menu_items {
@@ -242,6 +230,7 @@ impl<'a> WarpDriveRow<'a> {
             is_focused,
             overflow_on_left: matches!(menu_direction, MenuDirection::Left),
             appearance,
+            untitled_fallback,
         })
     }
 
@@ -261,6 +250,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        untitled_fallback: String,
     ) -> Option<Self> {
         let item = object.to_warp_drive_item(appearance)?;
         Self::new(
@@ -278,6 +268,7 @@ impl<'a> WarpDriveRow<'a> {
             sync_queue_is_dequeueing,
             menu_direction,
             appearance,
+            untitled_fallback,
         )
     }
 
@@ -302,7 +293,7 @@ impl<'a> WarpDriveRow<'a> {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        self.item.preview(appearance).map(|content_preview| {
+        self.item.preview(appearance, app).map(|content_preview| {
             let mut stacked_preview_panels: Vec<Box<dyn Element>> =
                 vec![Container::new(content_preview)
                     .with_uniform_padding(16.)
@@ -658,7 +649,7 @@ impl<'a> WarpDriveRow<'a> {
         Span::new(
             self.item
                 .display_name()
-                .unwrap_or_else(|| "Untitled".to_string()),
+                .unwrap_or_else(|| self.untitled_fallback.clone()),
             style,
         )
         .build()

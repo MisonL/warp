@@ -1,51 +1,49 @@
-use crate::{
-    ai::agent::icons::{yellow_running_icon, yellow_stop_icon},
-    view_components::compactible_action_button::{
-        CompactibleActionButton, RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
-    },
-};
-use lazy_static::lazy_static;
-use parking_lot::RwLock;
-use settings::Setting as _;
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::sync::Arc;
+
+use lazy_static::lazy_static;
+use parking_lot::RwLock;
+use settings::Setting as _;
+use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::SemanticSelection;
-use warp_core::{features::FeatureFlag, ui::Icon};
+use warp_core::ui::Icon;
+use warpui::elements::{
+    get_rich_content_position_id, Border, Clipped, Container, CornerRadius, CrossAxisAlignment,
+    Flex, FormattedTextElement, MouseStateHandle, ParentElement, Radius, SavePosition,
+    SelectableArea, SelectionHandle,
+};
+use warpui::keymap::{FixedBinding, Keystroke};
 use warpui::{
-    elements::{
-        get_rich_content_position_id, Border, Clipped, Container, CornerRadius, CrossAxisAlignment,
-        Flex, FormattedTextElement, MouseStateHandle, ParentElement, Radius, SavePosition,
-        SelectableArea, SelectionHandle,
-    },
-    keymap::{FixedBinding, Keystroke},
     AppContext, Element, Entity, EntityId, FocusContext, SingletonEntity, TypedActionView, View,
     ViewContext,
 };
 
-use crate::{
-    ai::blocklist::block::view_impl::{CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN},
-    ai::blocklist::inline_action::inline_action_header::INLINE_ACTION_HORIZONTAL_PADDING,
-    ai::blocklist::inline_action::inline_action_header::{
-        ExpandedConfig, HeaderConfig, InteractionMode,
-    },
-    ai::blocklist::inline_action::inline_action_icons::{self},
-    appearance::Appearance,
-    settings::InputModeSettings,
-    terminal::{
-        block_list_element::BlockListMenuSource, block_list_viewport::InputMode,
-        view::TerminalAction,
-    },
-    ui_components::blended_colors,
-    view_components::action_button::{ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme},
+use crate::ai::agent::icons::{yellow_running_icon, yellow_stop_icon};
+use crate::ai::blocklist::block::view_impl::{
+    CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN,
+};
+use crate::ai::blocklist::inline_action::inline_action_header::{
+    ExpandedConfig, HeaderConfig, InteractionMode, INLINE_ACTION_HORIZONTAL_PADDING,
+};
+use crate::ai::blocklist::inline_action::inline_action_icons::{self};
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::settings::InputModeSettings;
+use crate::terminal::block_list_element::BlockListMenuSource;
+use crate::terminal::block_list_viewport::InputMode;
+use crate::terminal::view::TerminalAction;
+use crate::ui_components::blended_colors;
+use crate::view_components::action_button::{
+    ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
+};
+use crate::view_components::compactible_action_button::{
+    CompactibleActionButton, RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
 };
 
 /// The vertical padding applied to the env var collection block's content body.
 /// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.
 const ENV_VAR_COLLECTION_BODY_VERTICAL_PADDING: f32 = 16.;
-
-const ENV_VAR_COLLECTION_CANCEL_LABEL: &str = "Cancel";
-const ENV_VAR_COLLECTION_ACCEPT_LABEL: &str = "Run";
 
 lazy_static! {
     static ref CANCEL_ENV_VAR_COLLECTION_KEYSTROKE: Keystroke = Keystroke {
@@ -147,7 +145,7 @@ impl EnvVarCollectionBlock {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let cancel_button = CompactibleActionButton::new(
-            ENV_VAR_COLLECTION_CANCEL_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.block.action.cancel"),
             Some(KeystrokeSource::Fixed(
                 CANCEL_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),
@@ -159,7 +157,7 @@ impl EnvVarCollectionBlock {
         );
 
         let accept_button = CompactibleActionButton::new(
-            ENV_VAR_COLLECTION_ACCEPT_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.block.action.run"),
             Some(KeystrokeSource::Fixed(
                 ACCEPT_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),
@@ -255,11 +253,8 @@ impl EnvVarCollectionBlock {
     }
 
     fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
-        const COMMAND_WAITING_FOR_USER_MESSAGE: &str =
-            "OK if I run this command and read the output?";
-
         let title: Cow<'static, str> = if self.state == EnvVarCollectionState::WaitingForUser {
-            COMMAND_WAITING_FOR_USER_MESSAGE.into()
+            localization::text_for_app(app, "agent.requested_command.status.waiting_command").into()
         } else {
             self.command.clone().into()
         };

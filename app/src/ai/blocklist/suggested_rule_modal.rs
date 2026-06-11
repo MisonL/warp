@@ -1,5 +1,21 @@
+use pathfinder_geometry::vector::vec2f;
+use warp_core::ui::appearance::Appearance;
+use warp_editor::editor::NavigationKey;
+use warpui::elements::{
+    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
+    ConstrainedBox, Container, CornerRadius, Flex, OffsetPositioning, ParentElement,
+    PositionedElementAnchor, PositionedElementOffsetBounds, Radius, ScrollbarWidth,
+};
+use warpui::fonts::Weight;
+use warpui::keymap::FixedBinding;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{
+    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
+};
+
 use crate::ai::agent::SuggestedRule;
-use crate::ai::facts::CloudAIFactModel;
+use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::Owner;
@@ -10,43 +26,21 @@ use crate::editor::{
 };
 use crate::modal::{Modal, ModalEvent};
 use crate::network::NetworkStatus;
-use crate::send_telemetry_from_ctx;
 use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManagerEvent,
+    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::SyncId;
 use crate::server::telemetry::TelemetryEvent;
+use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{
-    ai::facts::{AIFact, AIMemory},
-    server::cloud_objects::update_manager::UpdateManager,
-    ui_components::blended_colors,
-};
-use pathfinder_geometry::vector::vec2f;
-use warp_core::ui::appearance::Appearance;
-use warp_editor::editor::NavigationKey;
-use warpui::elements::{
-    ChildAnchor, OffsetPositioning, PositionedElementAnchor, PositionedElementOffsetBounds,
-};
-use warpui::fonts::Weight;
-use warpui::keymap::FixedBinding;
-use warpui::{
-    elements::ClippedScrollStateHandle,
-    ui_components::components::{Coords, UiComponentStyles},
-};
-use warpui::{
-    elements::{
-        Align, Border, ChildView, ClippedScrollable, ConstrainedBox, Container, CornerRadius, Flex,
-        ParentElement, Radius, ScrollbarWidth,
-    },
-    ui_components::components::UiComponent,
-    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
-};
+use crate::{localization, send_telemetry_from_ctx};
 
-const HEADER_TEXT: &str = "Suggested rule";
 const MAX_EDITOR_HEIGHT: f32 = 240.;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -103,7 +97,7 @@ impl SuggestedRuleModal {
 
         let view_handle = view.clone();
         let modal = ctx.add_typed_action_view(|ctx| {
-            Modal::new(Some(HEADER_TEXT.to_string()), view, ctx)
+            Modal::new(Some(text(ctx, "agent.suggested_rule.title")), view, ctx)
                 .with_modal_style(UiComponentStyles {
                     width: Some(510.),
                     background: Some(background.into()),
@@ -255,7 +249,7 @@ impl SuggestedRuleView {
         ctx.subscribe_to_model(&network_status, |me, _, _event, ctx| {
             let is_edit_allowed = me.is_edit_allowed(ctx);
             let tooltip = if !is_edit_allowed {
-                Some("Editing is disabled while offline.".to_string())
+                Some(text(ctx, "agent.suggested_rule.editing_disabled_offline"))
             } else {
                 None
             };
@@ -269,7 +263,7 @@ impl SuggestedRuleView {
         let appearance = Appearance::as_ref(ctx);
         let font_family = appearance.ui_font_family();
         let font_size = appearance.ui_font_size();
-        let text = TextOptions {
+        let text_options = TextOptions {
             font_size_override: Some(font_size),
             font_family_override: Some(font_family),
             ..Default::default()
@@ -278,7 +272,7 @@ impl SuggestedRuleView {
         let name_editor = ctx.add_typed_action_view(|ctx| {
             EditorView::single_line(
                 SingleLineEditorOptions {
-                    text: text.clone(),
+                    text: text_options.clone(),
                     soft_wrap: true,
                     propagate_and_no_op_vertical_navigation_keys:
                         PropagateAndNoOpNavigationKeys::Always,
@@ -294,7 +288,7 @@ impl SuggestedRuleView {
         let content_editor = ctx.add_typed_action_view(|ctx| {
             EditorView::new(
                 EditorOptions {
-                    text,
+                    text: text_options,
                     soft_wrap: true,
                     autogrow: true,
                     propagate_and_no_op_vertical_navigation_keys:
@@ -316,13 +310,13 @@ impl SuggestedRuleView {
             me.handle_editor_event(event, ctx);
         });
 
-        let add_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Add rule", PrimaryTheme)
+        let add_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(text(ctx, "agent.suggested_rule.add_rule"), PrimaryTheme)
                 .on_click(|ctx| ctx.dispatch_typed_action(SuggestedRuleDialogAction::Add))
         });
 
-        let edit_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Edit rule", PrimaryTheme)
+        let edit_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(text(ctx, "agent.suggested_rule.edit_rule"), PrimaryTheme)
                 .on_click(|ctx| ctx.dispatch_typed_action(SuggestedRuleDialogAction::Edit))
         });
 
@@ -503,7 +497,10 @@ impl SuggestedRuleView {
         {
             let AIFact::Memory(AIMemory { name, content, .. }) = rule.model().string_model.clone();
             self.name_editor.update(ctx, |name_editor, ctx| {
-                name_editor.set_buffer_text(&name.unwrap_or("Untitled".to_string()), ctx);
+                name_editor.set_buffer_text(
+                    &name.unwrap_or_else(|| text(ctx, "ai.facts.rules.untitled")),
+                    ctx,
+                );
             });
             self.content_editor.update(ctx, |content_editor, ctx| {
                 content_editor.set_buffer_text(&content, ctx);
@@ -561,7 +558,7 @@ impl SuggestedRuleView {
             .finish()
     }
 
-    fn render_rule_form(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_rule_form(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let editor_bg = blended_colors::neutral_4(appearance.theme());
         let editor_border =
             Border::all(1.).with_border_fill(blended_colors::neutral_2(appearance.theme()));
@@ -571,7 +568,7 @@ impl SuggestedRuleView {
         let editor_margin = 16.;
 
         Flex::column()
-            .with_child(self.render_label("Name".to_string(), appearance))
+            .with_child(self.render_label(text(app, "agent.suggested_rule.name"), appearance))
             .with_child(
                 Container::new(ChildView::new(&self.name_editor).finish())
                     .with_background(editor_bg)
@@ -582,7 +579,7 @@ impl SuggestedRuleView {
                     .with_margin_bottom(editor_margin)
                     .finish(),
             )
-            .with_child(self.render_label("Rule".to_string(), appearance))
+            .with_child(self.render_label(text(app, "agent.suggested_rule.rule"), appearance))
             .with_child(
                 ConstrainedBox::new(
                     Container::new(
@@ -642,7 +639,7 @@ impl View for SuggestedRuleView {
         };
 
         Flex::column()
-            .with_child(self.render_rule_form(appearance))
+            .with_child(self.render_rule_form(app, appearance))
             .with_child(
                 Container::new(
                     Align::new(ChildView::new(add_edit_button).finish())

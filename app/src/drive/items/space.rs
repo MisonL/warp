@@ -1,13 +1,12 @@
-use warpui::{elements::MouseStateHandle, Element};
-
-use crate::{
-    appearance::Appearance,
-    cloud_object::{CloudObjectMetadata, Space},
-    drive::{index::DriveIndexAction, DriveObjectType},
-    themes::theme::Fill,
-};
+use warpui::elements::MouseStateHandle;
+use warpui::Element;
 
 use super::{WarpDriveItem, WarpDriveItemId};
+use crate::appearance::Appearance;
+use crate::cloud_object::{CloudObjectMetadata, Space};
+use crate::drive::index::DriveIndexAction;
+use crate::drive::DriveObjectType;
+use crate::themes::theme::Fill;
 
 #[derive(Clone)]
 pub struct WarpDriveSpace {
@@ -42,7 +41,11 @@ impl WarpDriveItem for WarpDriveSpace {
         None
     }
 
-    fn preview(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(
+        &self,
+        _appearance: &Appearance,
+        _app: &warpui::AppContext,
+    ) -> Option<Box<dyn Element>> {
         None
     }
 

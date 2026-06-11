@@ -1,33 +1,32 @@
 use ordered_float::OrderedFloat;
-use warpui::{
-    elements::{
-        Clipped, ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, MainAxisAlignment,
-        MainAxisSize, ParentElement, Shrinkable, Text,
-    },
-    fonts::{Properties, Weight},
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Element, SingletonEntity,
+use warpui::elements::{
+    Clipped, ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, MainAxisAlignment,
+    MainAxisSize, ParentElement, Shrinkable, Text,
 };
+use warpui::fonts::{Properties, Weight};
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, SingletonEntity};
 
+use crate::appearance::Appearance;
+use crate::cloud_object::CloudObject;
+use crate::drive::cloud_object_styling::warp_drive_icon_color;
+use crate::drive::DriveObjectType;
+use crate::localization;
+use crate::search::item::{IconLocation, SearchItem};
+use crate::search::notebook_embedding::embedded_fuzzy_match::FuzzyMatchEmbeddedObjectResult;
+use crate::search::notebook_embedding::searcher::EmbeddingSearchItemAction;
+use crate::search::notebook_embedding::view::styles;
 use crate::search::result_renderer::ItemHighlightState;
-use crate::{
-    appearance::Appearance,
-    cloud_object::CloudObject,
-    drive::{cloud_object_styling::warp_drive_icon_color, DriveObjectType},
-    search::{
-        item::IconLocation,
-        notebook_embedding::{
-            embedded_fuzzy_match::FuzzyMatchEmbeddedObjectResult,
-            searcher::EmbeddingSearchItemAction, view::styles,
-        },
-    },
-    themes::theme::Fill,
-    ui_components::icons::Icon,
-};
-use crate::{search::item::SearchItem, workflows::CloudWorkflow};
+use crate::themes::theme::Fill;
+use crate::ui_components::icons::Icon;
+use crate::workflows::CloudWorkflow;
 
 /// The size of the object type icons, in pixels.
 const ICON_SIZE: f32 = 16.;
+
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 /// Struct designed to be the implementation of CommandSearchItem for workflows.
 #[derive(Clone, Debug)]
@@ -108,7 +107,7 @@ impl SearchItem for WorkflowSearchItem {
             let warning_font_size = appearance.ui_font_size() - 4.;
             let warning_text = appearance
                 .ui_builder()
-                .span("Not visible to other users")
+                .span(text(app, "search.notebook_embedding.not_visible"))
                 .with_style(UiComponentStyles {
                     font_size: Some(warning_font_size),
                     margin: Some(Coords::uniform(0.).left(4.)),
@@ -186,6 +185,15 @@ impl SearchItem for WorkflowSearchItem {
         let workflow = &self.cloud_workflow.model().data;
 
         format!("Workflow: {}", workflow.name())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let workflow = &self.cloud_workflow.model().data;
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.workflow",
+            &[("name", workflow.name())],
+        )
     }
 }
 

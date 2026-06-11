@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+
+use itertools::Itertools;
+use warpui::{AppContext, Entity};
+
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::search::command_palette::conversations::search::{
@@ -12,9 +17,6 @@ use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::SyncDataSource;
 use crate::workspace::Workspace;
-use itertools::Itertools;
-use std::collections::HashMap;
-use warpui::{AppContext, Entity};
 
 /// Sections for grouping conversations in the command palette.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -75,13 +77,6 @@ impl DataSource {
         }
     }
 
-    pub fn historical() -> Self {
-        Self {
-            searcher: FuzzyConversationSearcher::historical(),
-            add_conversation_actions: false,
-        }
-    }
-
     /// Returns a [`QueryResult`] for a conversation identified by `conversation_id`. `None` if no result was
     /// found with the given ID.
     pub fn query_result(
@@ -94,12 +89,13 @@ impl DataSource {
             .into_iter()
             .find(|conversation| &conversation.id == conversation_id)
             .map(|conversation| {
-                let search_item = ConversationSearchItem::new(ConversationAction::Resume(
-                    Box::new(MatchedConversation {
+                let search_item = ConversationSearchItem::new(
+                    ConversationAction::Resume(Box::new(MatchedConversation {
                         conversation,
                         match_result: ConversationMatchResult::no_match(),
-                    }),
-                ));
+                    })),
+                    app,
+                );
                 QueryResult::from(search_item)
             })
     }
@@ -108,19 +104,21 @@ impl DataSource {
         &self,
         limit: usize,
         app: &AppContext,
-    ) -> impl Iterator<Item = QueryResult<<Self as SyncDataSource>::Action>> {
+    ) -> Vec<QueryResult<<Self as SyncDataSource>::Action>> {
         self.searcher
             .searchable_conversations(app)
             .into_iter()
             .k_largest_by_key(limit, |conversation| conversation.last_updated)
             .map(|conversation| {
-                QueryResult::from(ConversationSearchItem::new(ConversationAction::Resume(
-                    Box::new(MatchedConversation {
+                QueryResult::from(ConversationSearchItem::new(
+                    ConversationAction::Resume(Box::new(MatchedConversation {
                         conversation,
                         match_result: ConversationMatchResult::no_match(),
-                    }),
-                )))
+                    })),
+                    app,
+                ))
             })
+            .collect()
     }
 }
 
@@ -184,9 +182,10 @@ impl SyncDataSource for DataSource {
                                 match_result: ConversationMatchResult::no_match(),
                             };
                             results.push(
-                                ConversationSearchItem::new(ConversationAction::Resume(Box::new(
-                                    matched_conversation,
-                                )))
+                                ConversationSearchItem::new(
+                                    ConversationAction::Resume(Box::new(matched_conversation)),
+                                    app,
+                                )
                                 .into(),
                             );
                         }
@@ -200,9 +199,7 @@ impl SyncDataSource for DataSource {
             self.searcher
                 .search(&query.text.trim().to_lowercase(), app)
                 .map_err(|err| {
-                    let search_error = DataSourceSearchError {
-                        message: err.to_string(),
-                    };
+                    let search_error = DataSourceSearchError::new(err.to_string());
                     Box::new(search_error) as DataSourceRunErrorWrapper
                 })
         };
@@ -215,16 +212,19 @@ impl SyncDataSource for DataSource {
                         // Only surface the fork option if the selected conversation is done.
                         if conversation.status().is_done() {
                             results.push(
-                                ConversationSearchItem::new(ConversationAction::Fork {
-                                    conversation_id: conversation.id(),
-                                    title: conversation.title().unwrap_or_default().to_string(),
-                                })
+                                ConversationSearchItem::new(
+                                    ConversationAction::Fork {
+                                        conversation_id: conversation.id(),
+                                        title: conversation.title().unwrap_or_default().to_string(),
+                                    },
+                                    app,
+                                )
                                 .into(),
                             );
                         }
                     }
                 }
-                results.push(ConversationSearchItem::new(ConversationAction::New).into());
+                results.push(ConversationSearchItem::new(ConversationAction::New, app).into());
                 results
             })
         } else {

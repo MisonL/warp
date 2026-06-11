@@ -1,20 +1,61 @@
-use fuzzy_match::FuzzyMatchResult;
-use ordered_float::OrderedFloat;
 use std::fmt::Debug;
 use std::path::PathBuf;
-use warp_util::path::LineAndColumnArg;
 
-use crate::appearance::Appearance;
-use crate::search::command_palette::mixer::CommandPaletteItemAction;
-use crate::search::command_palette::styles;
-use crate::search::item::{IconLocation, SearchItem};
-use crate::search::result_renderer::ItemHighlightState;
+use fuzzy_match::FuzzyMatchResult;
+use ordered_float::OrderedFloat;
+use warp_util::path::LineAndColumnArg;
 use warpui::elements::{Align, ConstrainedBox, Container, Flex, Icon, ParentElement, Text};
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
 
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::search::command_palette::mixer::CommandPaletteItemAction;
+use crate::search::command_palette::styles;
 use crate::search::files::icon::icon_from_file_path;
+use crate::search::item::{IconLocation, SearchItem};
+use crate::search::result_renderer::ItemHighlightState;
 use crate::ui_components::render_file_search_row::{render_file_search_row, FileSearchRowOptions};
+
+#[derive(Clone, Debug)]
+pub struct FileSearchItemAccessibilityCopy {
+    directory_label: String,
+    file_label: String,
+    navigate_directory_help: String,
+    open_file_help: String,
+}
+
+impl FileSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            directory_label: localization::text_for_app(app, "search.files.a11y.directory"),
+            file_label: localization::text_for_app(app, "search.files.a11y.file"),
+            navigate_directory_help: localization::text_for_app(
+                app,
+                "search.files.a11y.navigate_directory",
+            ),
+            open_file_help: localization::text_for_app(app, "search.files.a11y.open_file"),
+        }
+    }
+
+    fn label(&self, is_directory: bool, path: &std::path::Path) -> String {
+        let template = if is_directory {
+            &self.directory_label
+        } else {
+            &self.file_label
+        };
+
+        template.replace("{path}", &path.display().to_string())
+    }
+
+    fn help_message(&self, is_directory: bool) -> String {
+        if is_directory {
+            self.navigate_directory_help.clone()
+        } else {
+            self.open_file_help.clone()
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct FileSearchItem {
@@ -23,6 +64,7 @@ pub struct FileSearchItem {
     pub match_result: FuzzyMatchResult,
     pub line_and_column_arg: Option<LineAndColumnArg>,
     pub is_directory: bool,
+    pub accessibility_copy: FileSearchItemAccessibilityCopy,
 }
 
 impl SearchItem for FileSearchItem {
@@ -65,6 +107,7 @@ impl SearchItem for FileSearchItem {
             FileSearchRowOptions {
                 match_result: Some(&self.match_result),
                 highlight_state,
+                max_combined_length: None,
                 ..Default::default()
             },
             app,
@@ -95,19 +138,12 @@ impl SearchItem for FileSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        if self.is_directory {
-            format!("Directory: {}", self.path.display())
-        } else {
-            format!("File: {}", self.path.display())
-        }
+        self.accessibility_copy
+            .label(self.is_directory, self.path.as_path())
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some(if self.is_directory {
-            "Press Enter to navigate to this directory".to_string()
-        } else {
-            "Press Enter to open this file".to_string()
-        })
+        Some(self.accessibility_copy.help_message(self.is_directory))
     }
 
     fn render_details(&self, _ctx: &AppContext) -> Option<Box<dyn Element>> {
@@ -120,6 +156,36 @@ impl SearchItem for FileSearchItem {
 pub struct CreateFileSearchItem {
     pub file_name: String,
     pub current_directory: String,
+    pub accessibility_copy: CreateFileSearchItemAccessibilityCopy,
+}
+
+#[derive(Clone, Debug)]
+pub struct CreateFileSearchItemAccessibilityCopy {
+    label_template: String,
+    help_template: String,
+}
+
+impl CreateFileSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            label_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.create_file",
+            ),
+            help_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.create_file",
+            ),
+        }
+    }
+
+    fn label(&self, file_name: &str) -> String {
+        self.label_template.replace("{file}", file_name)
+    }
+
+    fn help_message(&self, file_name: &str) -> String {
+        self.help_template.replace("{file}", file_name)
+    }
 }
 
 impl SearchItem for CreateFileSearchItem {
@@ -160,7 +226,8 @@ impl SearchItem for CreateFileSearchItem {
         let text_color = highlight_state.sub_text_fill(appearance).into_solid();
 
         let label = Text::new_inline(
-            format!("Create {}…", &self.file_name),
+            localization::text_for_app(app, "search.files.create_file")
+                .replace("{file}", &self.file_name),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -194,14 +261,11 @@ impl SearchItem for CreateFileSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Create file: {}", self.file_name)
+        self.accessibility_copy.label(&self.file_name)
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some(format!(
-            "Press Enter to create {} in the current directory",
-            self.file_name
-        ))
+        Some(self.accessibility_copy.help_message(&self.file_name))
     }
 
     fn render_details(&self, _ctx: &AppContext) -> Option<Box<dyn Element>> {

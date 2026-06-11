@@ -1,7 +1,8 @@
+use warp_core::send_telemetry_from_ctx;
+use warpui_core::{Entity, ModelContext};
+
 use crate::telemetry::OnboardingEvent;
 use crate::OnboardingIntention;
-use warp_core::send_telemetry_from_ctx;
-use warpui::{Entity, ModelContext};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FinalState {
@@ -36,6 +37,10 @@ pub enum OnboardingQuery {
     TerminalCommand(String),
     /// An agent prompt that should be executed in agent mode
     AgentPrompt(String),
+    /// A catalog-backed terminal command prompt that should be executed in shell mode
+    TerminalCommandKey(&'static str),
+    /// A catalog-backed agent prompt that should be executed in agent mode
+    AgentPromptKey(&'static str),
     /// No prompt (empty state)
     None,
 }
@@ -64,14 +69,10 @@ pub(super) enum UniversalInputCalloutState {
 pub(super) enum AgentModalityCalloutState {
     #[default]
     Off,
-    /// Step 1: "Meet your terminal input" / "Meet your updated terminal input"
-    MeetTerminalInput,
-    /// Step 2: "Natural language support" with checkbox
-    NaturalLanguageSupport,
-    /// Step 3: "Introducing Warp's new agent experience" (Agent intention only)
-    IntroducingAgentExperience,
-    /// Step 4: "Updated agent input" (Agent intention only)
-    UpdatedAgentInput,
+    /// Step 1: terminal input with natural language support.
+    TerminalMode,
+    /// Step 2: agent mode for the agent-driven development intention.
+    AgentMode,
     /// Terminal state
     Complete(FinalState),
 }
@@ -187,13 +188,9 @@ impl OnboardingCalloutModel {
     ) {
         let (next_state, emit_enter_agent_modality) = match state {
             AgentModalityCalloutState::Off => {
-                (Some(AgentModalityCalloutState::MeetTerminalInput), false)
+                (Some(AgentModalityCalloutState::TerminalMode), false)
             }
-            AgentModalityCalloutState::MeetTerminalInput => (
-                Some(AgentModalityCalloutState::NaturalLanguageSupport),
-                false,
-            ),
-            AgentModalityCalloutState::NaturalLanguageSupport => {
+            AgentModalityCalloutState::TerminalMode => {
                 // For Terminal intention, finish here
                 // For Agent intention, continue to IntroducingAgentExperience
                 match self.intention {
@@ -203,17 +200,11 @@ impl OnboardingCalloutModel {
                     ),
                     OnboardingIntention::AgentDrivenDevelopment => {
                         // Signal to enter agent modality when showing the agent experience slide
-                        (
-                            Some(AgentModalityCalloutState::IntroducingAgentExperience),
-                            true,
-                        )
+                        (Some(AgentModalityCalloutState::AgentMode), true)
                     }
                 }
             }
-            AgentModalityCalloutState::IntroducingAgentExperience => {
-                (Some(AgentModalityCalloutState::UpdatedAgentInput), false)
-            }
-            AgentModalityCalloutState::UpdatedAgentInput => {
+            AgentModalityCalloutState::AgentMode => {
                 // For Agent with project: Initialize
                 // For Agent without project: Finish
                 let final_state = if self.has_project {
@@ -246,7 +237,9 @@ impl OnboardingCalloutModel {
                     ctx,
                 );
             }
-            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::UpdatedAgentInput) => {
+            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::AgentMode)
+                if self.has_project =>
+            {
                 // Skip initialization
                 self.set_state(
                     OnboardingCalloutState::AgentModality(AgentModalityCalloutState::Complete(
@@ -272,9 +265,7 @@ impl OnboardingCalloutModel {
                     ctx,
                 );
             }
-            OnboardingCalloutState::AgentModality(
-                AgentModalityCalloutState::NaturalLanguageSupport,
-            ) => {
+            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::TerminalMode) => {
                 // Terminal intention finishes here
                 self.set_state(
                     OnboardingCalloutState::AgentModality(AgentModalityCalloutState::Complete(
@@ -283,7 +274,9 @@ impl OnboardingCalloutModel {
                     ctx,
                 );
             }
-            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::UpdatedAgentInput) => {
+            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::AgentMode)
+                if !self.has_project =>
+            {
                 // Agent without project finishes here
                 self.set_state(
                     OnboardingCalloutState::AgentModality(AgentModalityCalloutState::Complete(
@@ -296,10 +289,10 @@ impl OnboardingCalloutModel {
         }
     }
 
-    /// Handle "Back to terminal" action (ESC in UpdatedAgentInput without project)
+    /// Handle "Back to terminal" action (ESC in IntroducingAgentExperience).
     pub fn back_to_terminal(&mut self, ctx: &mut ModelContext<Self>) {
         match &self.state {
-            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::UpdatedAgentInput) => {
+            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::AgentMode) => {
                 self.set_state(
                     OnboardingCalloutState::AgentModality(AgentModalityCalloutState::Complete(
                         FinalState::BackToTerminal,
@@ -342,17 +335,11 @@ impl OnboardingCalloutModel {
             OnboardingCalloutState::UniversalInput(UniversalInputCalloutState::TalkToAgent) => {
                 Some("talk_to_agent")
             }
-            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::MeetTerminalInput) => {
-                Some("meet_terminal_input")
+            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::TerminalMode) => {
+                Some("natural_language_support")
             }
-            OnboardingCalloutState::AgentModality(
-                AgentModalityCalloutState::NaturalLanguageSupport,
-            ) => Some("natural_language_support"),
-            OnboardingCalloutState::AgentModality(
-                AgentModalityCalloutState::IntroducingAgentExperience,
-            ) => Some("introducing_agent_experience"),
-            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::UpdatedAgentInput) => {
-                Some("updated_agent_input")
+            OnboardingCalloutState::AgentModality(AgentModalityCalloutState::AgentMode) => {
+                Some("introducing_agent_experience")
             }
             _ => None,
         };
@@ -395,14 +382,6 @@ impl OnboardingCalloutModel {
         }
     }
 
-    /// Returns a prompt string to populate a command based on current state
-    pub fn prompt_string(&self) -> String {
-        match self.prompt() {
-            OnboardingQuery::TerminalCommand(text) | OnboardingQuery::AgentPrompt(text) => text,
-            OnboardingQuery::None => String::new(),
-        }
-    }
-
     /// Returns the prompt information including type for the current state
     pub fn prompt(&self) -> OnboardingQuery {
         match &self.state {
@@ -423,10 +402,7 @@ impl OnboardingCalloutModel {
             }
             UniversalInputCalloutState::TalkToAgent
             | UniversalInputCalloutState::Complete(FinalState::Submit) => {
-                OnboardingQuery::AgentPrompt(
-                    "What tests exist in this repo, how are they structured, and what do they cover?"
-                        .to_string(),
-                )
+                OnboardingQuery::AgentPromptKey("onboarding.callout.talk_to_agent.prompt")
             }
             UniversalInputCalloutState::Complete(_) => OnboardingQuery::None,
         }
@@ -435,20 +411,14 @@ impl OnboardingCalloutModel {
     fn prompt_for_agent_modality(&self, state: AgentModalityCalloutState) -> OnboardingQuery {
         match state {
             AgentModalityCalloutState::Off => OnboardingQuery::None,
-            AgentModalityCalloutState::MeetTerminalInput => {
-                OnboardingQuery::TerminalCommand("Run a command...".to_string())
-            }
-            AgentModalityCalloutState::NaturalLanguageSupport => {
-                OnboardingQuery::AgentPrompt("help me terraform my Gcloud setup".to_string())
-            }
-            AgentModalityCalloutState::IntroducingAgentExperience => {
-                OnboardingQuery::AgentPrompt("Tell the agent what to build...".to_string())
-            }
-            AgentModalityCalloutState::UpdatedAgentInput => {
+            AgentModalityCalloutState::TerminalMode => OnboardingQuery::TerminalCommandKey(
+                "onboarding.callout.terminal_command.placeholder",
+            ),
+            AgentModalityCalloutState::AgentMode => {
                 if self.has_project {
                     OnboardingQuery::AgentPrompt("/init".to_string())
                 } else {
-                    OnboardingQuery::AgentPrompt("Tell the agent what to build...".to_string())
+                    OnboardingQuery::AgentPromptKey("onboarding.callout.agent_prompt.placeholder")
                 }
             }
             // All completion states should return None so the input gets cleared
@@ -470,11 +440,9 @@ impl OnboardingCalloutModel {
                 );
             }
             OnboardingCalloutState::AgentModality(_) => {
-                log::info!("Transitioning to AgentModality::MeetTerminalInput");
+                log::info!("Transitioning to AgentModality::NaturalLanguageSupport");
                 self.set_state(
-                    OnboardingCalloutState::AgentModality(
-                        AgentModalityCalloutState::MeetTerminalInput,
-                    ),
+                    OnboardingCalloutState::AgentModality(AgentModalityCalloutState::TerminalMode),
                     ctx,
                 );
             }

@@ -1,12 +1,8 @@
+use std::collections::hash_map::{Entry, OccupiedEntry};
+use std::collections::HashMap;
 #[cfg(feature = "local_fs")]
 use std::io::ErrorKind;
-use std::{
-    collections::{
-        hash_map::{Entry, OccupiedEntry},
-        HashMap,
-    },
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 #[cfg(feature = "local_fs")]
 use aho_corasick::{AhoCorasick, MatchKind};
@@ -15,26 +11,23 @@ use anyhow::{anyhow, Context};
 #[cfg(feature = "local_fs")]
 use futures::AsyncWriteExt;
 use warp_util::path::ShellFamily;
-use warpui::{
-    platform::{file_picker::FilePickerError, FilePickerConfiguration, OperatingSystem},
-    r#async::SpawnedFutureHandle,
-    AppContext, Entity, ModelContext, SingletonEntity, WindowId,
-};
+use warpui::platform::file_picker::FilePickerError;
+use warpui::platform::{FilePickerConfiguration, OperatingSystem};
+use warpui::r#async::SpawnedFutureHandle;
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity, WindowId};
 
-use crate::{
-    cloud_object::{model::persistence::CloudModel, Space},
-    safe_warn,
-    view_components::DismissibleToast,
-    workspace::{active_terminal_in_window, ToastStack},
-};
+use super::CloudObjectTypeAndId;
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::Space;
+use crate::safe_warn;
+use crate::view_components::DismissibleToast;
+use crate::workspace::{active_terminal_in_window, ToastStack};
 #[cfg(feature = "local_fs")]
 use crate::{
     notebooks::export_notebook, server::cloud_objects::update_manager::get_duplicate_object_name,
     view_components::ToastLink, workflows::export_workflow::export_serialize,
     workspace::WorkspaceAction,
 };
-
-use super::CloudObjectTypeAndId;
 
 /// Singleton model for exporting from Warp Drive.
 pub struct ExportManager {
@@ -237,12 +230,12 @@ impl ExportManager {
         if is_bulk && self.exports.is_empty() {
             ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
                 let link_label = if cfg!(target_os = "macos") {
-                    "Open in Finder"
+                    text(ctx, "drive.export.open_in_finder")
                 } else {
-                    "Open in folder"
+                    text(ctx, "drive.export.open_in_folder")
                 };
 
-                let mut toast_link = ToastLink::new(link_label.to_string());
+                let mut toast_link = ToastLink::new(link_label);
                 if let Ok(path) = path {
                     // The path to open in the bulk case is one level up from the export dir.
                     let root_dir = path.parent().unwrap_or(path.as_path()).to_path_buf();
@@ -250,7 +243,7 @@ impl ExportManager {
                         .with_onclick_action(WorkspaceAction::OpenInExplorer { path: root_dir });
                 }
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::success("Finished exporting objects".to_string())
+                    DismissibleToast::success(text(ctx, "drive.export.finished_objects"))
                         .with_link(toast_link),
                     window_id,
                     ctx,
@@ -322,7 +315,7 @@ impl ExportManager {
         };
 
         let name = if name.is_empty() {
-            "Untitled".to_string()
+            text(ctx, "drive.placeholder.untitled")
         } else {
             safe_filename(&name)
         };
@@ -379,8 +372,8 @@ impl ExportManager {
         let window_id = export.remove().window_id;
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             let message = match id.display_name(ctx) {
-                Some(name) => format!("Failed to export {name}"),
-                None => "Export failed".to_string(),
+                Some(name) => text(ctx, "drive.export.failed_named").replace("{name}", &name),
+                None => text(ctx, "drive.export.failed"),
             };
             toast_stack.add_persistent_toast(DismissibleToast::error(message), window_id, ctx);
         });
@@ -400,19 +393,19 @@ impl ExportManager {
         if !export.get().is_bulk {
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 let message = match export.key().display_name(ctx) {
-                    Some(name) => format!("Exported {name}"),
-                    None => "Exported object".to_string(),
+                    Some(name) => text(ctx, "drive.export.exported_named").replace("{name}", &name),
+                    None => text(ctx, "drive.export.exported_object"),
                 };
 
                 let link_label = if cfg!(target_os = "macos") {
-                    "Open in Finder"
+                    text(ctx, "drive.export.open_in_finder")
                 } else {
-                    "Open in folder"
+                    text(ctx, "drive.export.open_in_folder")
                 };
 
                 toast_stack.add_ephemeral_toast(
                     DismissibleToast::success(message).with_link(
-                        ToastLink::new(link_label.to_string()).with_onclick_action(
+                        ToastLink::new(link_label).with_onclick_action(
                             WorkspaceAction::OpenInExplorer { path: root_path },
                         ),
                     ),
@@ -457,7 +450,7 @@ impl ExportId {
             .map(|object| {
                 let mut name = object.display_name();
                 if name.is_empty() {
-                    name.push_str("Untitled")
+                    name.push_str(&text(ctx, "drive.placeholder.untitled"))
                 }
                 name
             })
@@ -508,7 +501,7 @@ async fn write_object(
             }
             Err(err) => {
                 return Err(anyhow::Error::new(err)
-                    .context(format!("could not create {}", current_path.display())))
+                    .context(format!("could not create {}", current_path.display())));
             }
         }
     }
@@ -555,3 +548,7 @@ pub fn safe_filename(filename: &str) -> String {
 #[cfg(test)]
 #[path = "export_tests.rs"]
 mod tests;
+
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}

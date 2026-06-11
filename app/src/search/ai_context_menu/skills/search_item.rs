@@ -1,18 +1,19 @@
 use ai::skills::SkillProvider;
 use fuzzy_match::FuzzyMatchResult;
 use ordered_float::OrderedFloat;
-
-use crate::appearance::Appearance;
-use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
-use crate::search::ai_context_menu::styles;
-use crate::search::item::SearchItem;
-use crate::search::result_renderer::ItemHighlightState;
 use warp_core::ui::icons::Icon;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, ParentElement, Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
+
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
+use crate::search::ai_context_menu::styles;
+use crate::search::item::SearchItem;
+use crate::search::result_renderer::ItemHighlightState;
 
 const MAX_DESCRIPTION_LEN: usize = 60;
 
@@ -130,5 +131,9 @@ impl SearchItem for SkillSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Skill: {}", self.name)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(app, "search.a11y.type.skill", &[("name", &self.name)])
     }
 }

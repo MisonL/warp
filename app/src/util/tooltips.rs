@@ -3,18 +3,17 @@
 #[cfg(feature = "local_fs")]
 use std::path::Path;
 
-use warpui::{
-    elements::{
-        Border, Container, CornerRadius, Flex, MouseStateHandle, ParentElement, Radius, Text,
-    },
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Element, EventContext, SingletonEntity,
+use warpui::elements::{
+    Border, Container, CornerRadius, Flex, MouseStateHandle, ParentElement, Radius, Text,
 };
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, EventContext, SingletonEntity};
 
-use crate::{
-    appearance::Appearance, settings::PrivacySettings, terminal::model::secrets::SecretLevel,
-    ui_components::blended_colors,
-};
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::settings::PrivacySettings;
+use crate::terminal::model::secrets::SecretLevel;
+use crate::ui_components::blended_colors;
 
 /// A link to be shown in a tooltip
 pub struct TooltipLink<OnClick> {
@@ -137,18 +136,19 @@ where
                 redaction,
                 TooltipRedaction::SecretNotSentToLLMMessaging { .. }
             ) {
-                "This wasn't included in the AI conversation."
+                localization::text_for_app(app, "tooltip.secret_redaction.not_included")
             } else {
-                "This won't be included in any AI conversations or shared blocks."
+                localization::text_for_app(app, "tooltip.secret_redaction.will_not_include")
             };
 
-            // Generate the appropriate message based on secret level
             let secret_message = match secret_level {
                 Some(SecretLevel::Enterprise) => {
-                    "Pattern matched your organization's secret redaction regex list."
+                    localization::text_for_app(app, "tooltip.secret_redaction.pattern.enterprise")
                 }
-                Some(SecretLevel::User) => "Pattern matched your secret redaction regex list.",
-                None => "Pattern matched the secret redaction regex list.",
+                Some(SecretLevel::User) => {
+                    localization::text_for_app(app, "tooltip.secret_redaction.pattern.user")
+                }
+                None => localization::text_for_app(app, "tooltip.secret_redaction.pattern.default"),
             };
 
             tooltip.add_child(
@@ -203,7 +203,10 @@ where
             .with_child(
                 appearance
                     .ui_builder()
-                    .span("*Secrets are not sent to Warp's server.")
+                    .span(localization::text_for_app(
+                        app,
+                        "tooltip.secrets_not_sent_to_server",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(12.),
                         margin: Some(Coords::default().top(4.)),
@@ -244,12 +247,12 @@ where
 /// - Whether Warp is an OS-level default editor (skips Markdown files)
 #[cfg(feature = "local_fs")]
 pub fn should_show_open_in_warp_link(path: &Path, app: &AppContext) -> bool {
-    use crate::{
-        code::view::is_binary_file,
-        notebooks::file::is_markdown_file,
-        util::file::external_editor::{settings::EditorChoice, EditorSettings},
-    };
     use warpui::SingletonEntity;
+
+    use crate::code::view::is_binary_file;
+    use crate::notebooks::file::is_markdown_file;
+    use crate::util::file::external_editor::settings::EditorChoice;
+    use crate::util::file::external_editor::EditorSettings;
 
     let settings = EditorSettings::as_ref(app);
 

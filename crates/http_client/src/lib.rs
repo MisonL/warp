@@ -1,5 +1,8 @@
+pub mod iap;
+
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, future};
 
@@ -9,18 +12,18 @@ use async_stream::stream;
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use http::HeaderValue;
+pub use http::header::AUTHORIZATION;
 use http::header::HeaderName;
-pub use http::{HeaderMap, StatusCode, header::AUTHORIZATION};
+pub use http::{HeaderMap, StatusCode};
 use reqwest::IntoUrl;
 use reqwest_eventsource::RequestBuilderExt;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use warp_core::{
-    channel::{Channel, ChannelState},
-    execution_mode,
-    operating_system_info::OperatingSystemInfo,
-    report_error,
-};
+use warp_core::channel::{Channel, ChannelState};
+use warp_core::operating_system_info::OperatingSystemInfo;
+use warp_core::{execution_mode, report_error};
+
+use crate::iap::{IapTokenProvider, proxy_auth_header};
 
 pub mod headers {
     /// Custom Warp header indicating the version of the Warp app.
@@ -62,6 +65,11 @@ pub struct Client {
 
     /// A callback that is executed on after each response is received.
     after_response_received: Option<ResponseHookFn>,
+
+    /// If set, provides IAP bearer tokens to attach as `Proxy-Authorization`
+    /// headers on outbound requests to the Warp staging server. Wired in by
+    /// the app layer on IAP-enabled builds (staging).
+    iap_token_provider: Option<Arc<dyn IapTokenProvider>>,
 }
 
 /// Type for 'hook' functions to be executed prior to sending a request. A reference to the
@@ -110,6 +118,12 @@ pub struct Request {
     prevent_sleep_reason: Option<&'static str>,
 }
 
+impl Request {
+    pub fn headers(&self) -> &http::HeaderMap {
+        self.wrapped.headers()
+    }
+}
+
 /// A wrapper around a `reqwest::Response` that ensures any async calls to the underlying `Response`
 /// a properly adapted to be run outside of a Tokio context.
 pub struct Response(reqwest::Response);
@@ -145,9 +159,7 @@ impl Client {
         let client_builder = reqwest::ClientBuilder::new()
             // Don't load any SSL/TLS certificates, as doing so can be slow and we should
             // never be making real requests in tests.
-            .tls_built_in_native_certs(false)
-            .tls_built_in_root_certs(false)
-            .tls_built_in_webpki_certs(false)
+            .tls_certs_only([])
             // Disable proxy usage in tests, as loading system proxy configuration can be
             // slow.
             .no_proxy();
@@ -159,6 +171,7 @@ impl Client {
             wrapped: client,
             before_request_sent: None,
             after_response_received: None,
+            iap_token_provider: None,
         })
     }
 
@@ -170,10 +183,15 @@ impl Client {
         self.after_response_received = Some(hook_fn);
     }
 
+    pub fn set_iap_token_provider(&mut self, provider: Arc<dyn IapTokenProvider>) {
+        self.iap_token_provider = Some(provider);
+    }
+
     fn builder(
         &self,
         wrapped: reqwest::RequestBuilder,
         include_warp_headers: bool,
+        iap_token: Option<String>,
     ) -> RequestBuilder<'_> {
         let mut builder = RequestBuilder {
             wrapped,
@@ -186,42 +204,64 @@ impl Client {
             builder = Self::add_warp_http_headers(builder);
         }
 
+        if let Some(token) = iap_token {
+            let (name, value) = proxy_auth_header(&token);
+            builder = builder.header(name, value);
+        }
+
         builder
     }
 
     pub fn get<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        self.builder(
-            self.wrapped.get(url.clone()),
-            Self::include_warp_http_headers(url),
-        )
+        let include_warp_headers = Self::include_warp_http_headers(url.clone());
+        let iap_token = self.iap_token_for(url.clone());
+        self.builder(self.wrapped.get(url), include_warp_headers, iap_token)
     }
 
     pub fn post<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        self.builder(
-            self.wrapped.post(url.clone()),
-            Self::include_warp_http_headers(url),
-        )
+        let include_warp_headers = Self::include_warp_http_headers(url.clone());
+        let iap_token = self.iap_token_for(url.clone());
+        self.builder(self.wrapped.post(url), include_warp_headers, iap_token)
     }
 
     pub fn put<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        self.builder(
-            self.wrapped.put(url.clone()),
-            Self::include_warp_http_headers(url),
-        )
+        let include_warp_headers = Self::include_warp_http_headers(url.clone());
+        let iap_token = self.iap_token_for(url.clone());
+        self.builder(self.wrapped.put(url), include_warp_headers, iap_token)
     }
 
     pub fn patch<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        self.builder(
-            self.wrapped.patch(url.clone()),
-            Self::include_warp_http_headers(url),
-        )
+        let include_warp_headers = Self::include_warp_http_headers(url.clone());
+        let iap_token = self.iap_token_for(url.clone());
+        self.builder(self.wrapped.patch(url), include_warp_headers, iap_token)
     }
 
     pub fn delete<U: IntoUrl + Clone>(&self, url: U) -> RequestBuilder<'_> {
-        self.builder(
-            self.wrapped.delete(url.clone()),
-            Self::include_warp_http_headers(url),
-        )
+        let include_warp_headers = Self::include_warp_http_headers(url.clone());
+        let iap_token = self.iap_token_for(url.clone());
+        self.builder(self.wrapped.delete(url), include_warp_headers, iap_token)
+    }
+
+    /// Returns the IAP bearer token to attach to a request targeting `url`,
+    /// scoped to the IAP-protected server and RTC origins.
+    fn iap_token_for<U: IntoUrl>(&self, url: U) -> Option<String> {
+        let url = url.into_url().ok()?;
+        if !Self::targets_iap_protected_origin(&url) {
+            return None;
+        }
+        let provider = self.iap_token_provider.as_ref()?;
+        provider.cached_token()
+    }
+
+    fn targets_iap_protected_origin(url: &reqwest::Url) -> bool {
+        [
+            ChannelState::iap_protected_server_root_url(),
+            ChannelState::iap_protected_rtc_http_url(),
+        ]
+        .into_iter()
+        .flatten()
+        .filter_map(|protected_url| reqwest::Url::parse(protected_url.as_ref()).ok())
+        .any(|protected_url| url.origin() == protected_url.origin())
     }
 
     /// Helper method to determine if the request should include warp-specific headers. The only case
@@ -326,6 +366,11 @@ impl Client {
     }
 
     pub async fn execute(&self, request: Request) -> reqwest::Result<Response> {
+        self.execute_inner(request).await
+    }
+
+    /// Core request execution logic shared by all platforms.
+    async fn execute_inner(&self, request: Request) -> reqwest::Result<Response> {
         let Request {
             wrapped: request,
             serialized_payload,
@@ -555,6 +600,16 @@ impl<'a> RequestBuilder<'a> {
         }
     }
 
+    /// Attach a `multipart/form-data` body.
+    /// Not available on wasm because reqwest's multipart builder API is native-only.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn multipart(self, form: reqwest::multipart::Form) -> RequestBuilder<'a> {
+        Self {
+            wrapped: self.wrapped.multipart(form),
+            ..self
+        }
+    }
+
     /// Prevents the system from sleeping due to idle while this request is in progress.
     ///
     /// The provided reason will be used in user-visible logging, so make sure it is
@@ -567,12 +622,14 @@ impl<'a> RequestBuilder<'a> {
     }
 }
 
-/// An error returned from `Response::error_for_status` that includes response headers.
-/// This allows callers to inspect headers (like X-Warp-Error-Code) when handling errors.
+/// An error returned from `Response::error_for_status` that includes response metadata.
+/// This allows callers to inspect headers (like X-Warp-Error-Code) and the response body when
+/// handling errors.
 #[derive(Debug)]
 pub struct ResponseError {
     pub source: reqwest::Error,
-    pub headers: HeaderMap,
+    pub headers: Box<HeaderMap>,
+    pub body: Option<String>,
 }
 
 impl std::fmt::Display for ResponseError {
@@ -619,7 +676,28 @@ impl Response {
         let headers = self.0.headers().clone();
         match self.0.error_for_status() {
             Ok(response) => Ok(Self(response)),
-            Err(source) => Err(ResponseError { source, headers }),
+            Err(source) => Err(ResponseError {
+                source,
+                headers: Box::new(headers),
+                body: None,
+            }),
+        }
+    }
+
+    /// Checks the response status and returns an error if it's not successful.
+    /// Unlike `error_for_status`, this also reads and preserves the response body on errors.
+    pub async fn error_for_status_with_body(self) -> Result<Self, ResponseError> {
+        let headers = self.0.headers().clone();
+        match self.0.error_for_status_ref() {
+            Ok(_) => Ok(self),
+            Err(source) => {
+                let body = self.text().await.ok();
+                Err(ResponseError {
+                    source,
+                    headers: Box::new(headers),
+                    body,
+                })
+            }
         }
     }
 
@@ -629,7 +707,11 @@ impl Response {
         let headers = self.0.headers().clone();
         match self.0.error_for_status_ref() {
             Ok(response) => Ok(response),
-            Err(source) => Err(ResponseError { source, headers }),
+            Err(source) => Err(ResponseError {
+                source,
+                headers: Box::new(headers),
+                body: None,
+            }),
         }
     }
 
@@ -659,18 +741,20 @@ impl<'c> oauth2::AsyncHttpClient<'c> for Client {
     type Future = Pin<Box<dyn Future<Output = Result<oauth2::HttpResponse, Self::Error>> + 'c>>;
     #[cfg(not(target_arch = "wasm32"))]
     type Future =
-        Pin<Box<dyn Future<Output = Result<oauth2::HttpResponse, Self::Error>> + Send + Sync + 'c>>;
+        Pin<Box<dyn Future<Output = Result<oauth2::HttpResponse, Self::Error>> + Send + 'c>>;
 
     fn call(&'c self, request: oauth2::HttpRequest) -> Self::Future {
         Box::pin(async move {
-            let include_warp_headers = Self::include_warp_http_headers(request.uri().to_string());
+            let uri = request.uri().to_string();
+            let include_warp_headers = Self::include_warp_http_headers(uri.clone());
+            let iap_token = self.iap_token_for(uri);
             let builder = reqwest::RequestBuilder::from_parts(
                 self.wrapped.clone(),
                 request.try_into().map_err(Box::new)?,
             );
 
             let response = self
-                .builder(builder, include_warp_headers)
+                .builder(builder, include_warp_headers, iap_token)
                 .send()
                 .await
                 .map_err(Box::new)?;

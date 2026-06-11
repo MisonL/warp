@@ -1,49 +1,41 @@
-use sharing::SharedPaneContent;
 use std::fmt::Debug;
 
-use crate::{
-    appearance::Appearance,
-    menu::{Menu, MenuItem},
-    pane_group::{
-        focus_state::{PaneFocusHandle, PaneGroupFocusEvent},
-        pane::{
-            view::StandardHeader, ActionOrigin, PaneConfiguration, PaneConfigurationEvent,
-            PaneStack, PaneStackEvent, ToolbeltButton,
-        },
-        BackingView, Direction, PaneDragDropLocation, PaneId, TabBarHoverIndex,
-    },
-    send_telemetry_from_ctx,
-    server::telemetry::{SharingDialogSource, TelemetryEvent},
-    settings::CodeSettings,
-    tab::tab_position_id,
-    terminal::view::TerminalAction,
-    view_components::{FeaturePopup, NewFeaturePopupEvent, NewFeaturePopupLabel},
-    workspace::{TabBarLocation, VerticalTabsPaneDropTargetData},
+use pathfinder_geometry::rect::RectF;
+use pathfinder_geometry::vector::{vec2f, Vector2F};
+use sharing::SharedPaneContent;
+use warp_core::features::FeatureFlag;
+use warp_core::settings::Setting;
+use warpui::elements::{
+    AcceptedByDropTarget, Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, Dismiss, Draggable, DraggableState, Empty, Flex, Hoverable,
+    Icon, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, PositionedElementAnchor, PositionedElementOffsetBounds,
+    Radius, SavePosition, Shrinkable, Stack, Text,
 };
-
-use crate::workspace::TabBarDropTargetData;
-
-use super::header_content::{HeaderContent, HeaderRenderContext, StandardHeaderOptions};
-
-use pathfinder_geometry::{
-    rect::RectF,
-    vector::{vec2f, Vector2F},
-};
-use warp_core::{features::FeatureFlag, settings::Setting};
+use warpui::presenter::ChildView;
 use warpui::{
-    elements::{
-        AcceptedByDropTarget, Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container,
-        CornerRadius, CrossAxisAlignment, Dismiss, Draggable, DraggableState, Empty, Flex,
-        Hoverable, Icon, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
-        ParentAnchor, ParentElement, ParentOffsetBounds, PositionedElementAnchor,
-        PositionedElementOffsetBounds, Radius, SavePosition, Shrinkable, Stack, Text,
-    },
-    presenter::ChildView,
     AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle,
 };
 
+use super::header_content::{HeaderContent, HeaderRenderContext, StandardHeaderOptions};
 use super::PaneDropTargetData;
+use crate::appearance::Appearance;
+use crate::menu::{Menu, MenuItem};
+use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent};
+use crate::pane_group::pane::view::StandardHeader;
+use crate::pane_group::pane::{
+    ActionOrigin, PaneConfiguration, PaneConfigurationEvent, PaneStack, PaneStackEvent,
+    ToolbeltButton,
+};
+use crate::pane_group::{BackingView, Direction, PaneDragDropLocation, PaneId, TabBarHoverIndex};
+use crate::server::telemetry::{SharingDialogSource, TelemetryEvent};
+use crate::settings::CodeSettings;
+use crate::tab::tab_position_id;
+use crate::terminal::view::TerminalAction;
+use crate::view_components::{FeaturePopup, NewFeaturePopupEvent, NewFeaturePopupLabel};
+use crate::workspace::{TabBarDropTargetData, TabBarLocation, VerticalTabsPaneDropTargetData};
+use crate::{localization, send_telemetry_from_ctx};
 
 mod sharing;
 
@@ -152,9 +144,11 @@ impl<P: BackingView> PaneHeader<P> {
 
         let shared_content = SharedPaneContent::new(ctx);
 
-        let toolbelt_feature_popup = ctx.add_view(|_| {
+        let toolbelt_feature_popup_label =
+            localization::text_for_app(ctx, "terminal.pane_header.toolbelt_feature_popup");
+        let toolbelt_feature_popup = ctx.add_view(move |_| {
             FeaturePopup::new_feature(NewFeaturePopupLabel::FromString(
-                "Open files and review code diffs".to_string(),
+                toolbelt_feature_popup_label.clone(),
             ))
         });
         ctx.subscribe_to_view(&toolbelt_feature_popup, move |me, _, event, ctx| {
@@ -1194,5 +1188,5 @@ fn render_draggable_placeholder_element(
 }
 
 #[cfg(test)]
-#[path = "mod_test.rs"]
+#[path = "mod_tests.rs"]
 mod tests;

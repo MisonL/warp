@@ -9,43 +9,35 @@
 //! into [`View`] components as well. If that's ever deemed necessary, see [`RequestedCommandView`]
 //! for an example on how that transformation could be made.
 
-use lazy_static::lazy_static;
-use markdown_parser::FormattedText;
-use markdown_parser::FormattedTextFragment;
-use markdown_parser::FormattedTextLine;
-use pathfinder_color::ColorU;
 use std::borrow::Cow;
 use std::rc::Rc;
+
+use lazy_static::lazy_static;
+use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
+use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors::neutral_2;
-use warpui::elements::Align;
-use warpui::elements::Clipped;
-use warpui::elements::FormattedTextElement;
-use warpui::fonts::FamilyId;
-use warpui::{
-    elements::{
-        Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Flex,
-        Hoverable, MainAxisAlignment, MouseStateHandle, ParentElement, Radius, Shrinkable,
-        SizeConstraintCondition, SizeConstraintSwitch, Text, Wrap, WrapFill,
-    },
-    keymap::Keystroke,
-    platform::Cursor,
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element, EventContext, SingletonEntity,
+use warpui::elements::{
+    Align, Border, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
+    Flex, FormattedTextElement, Hoverable, MainAxisAlignment, MouseStateHandle, ParentElement,
+    Radius, Shrinkable, SizeConstraintCondition, SizeConstraintSwitch, Text, Wrap, WrapFill,
 };
+use warpui::fonts::FamilyId;
+use warpui::keymap::Keystroke;
+use warpui::platform::Cursor;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, EventContext, SingletonEntity};
 
 use super::inline_action_header::HeaderConfig;
 use crate::ai::blocklist::block::view_impl::WithContentItemSpacing;
 use crate::ai::blocklist::inline_action::inline_action_header;
-use crate::ai::blocklist::inline_action::inline_action_header::INLINE_ACTION_VERTICAL_PADDING;
 use crate::ai::blocklist::inline_action::inline_action_header::{
     INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
+    INLINE_ACTION_VERTICAL_PADDING,
 };
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
+use crate::localization;
 use crate::ui_components::blended_colors;
-
-const REQUESTED_ACTION_CANCEL_LABEL: &str = "Cancel";
-const REQUESTED_ACTION_RUN_LABEL: &str = "Run";
 
 const KEYBOARD_SHORTCUT_MARGIN_RIGHT: f32 = 8.;
 
@@ -248,16 +240,18 @@ pub(super) fn render_header_buttons(
     const BUTTON_MARGIN_RIGHT: f32 = 16.;
 
     let appearance = Appearance::as_ref(app);
+    let cancel_label = localization::text_for_app(app, "agent.block.action.cancel");
+    let run_label = localization::text_for_app(app, "agent.block.action.run");
 
     let width_required_for_full_size_layout = approx_keystroke_button_width(
-        REQUESTED_ACTION_CANCEL_LABEL,
+        &cancel_label,
         appearance.monospace_font_size(),
         cancel_keystroke,
         None,
         app,
     ) + BUTTON_MARGIN_RIGHT
         + approx_keystroke_button_width(
-            REQUESTED_ACTION_RUN_LABEL,
+            &run_label,
             appearance.monospace_font_size(),
             run_keystroke,
             None,
@@ -271,14 +265,14 @@ pub(super) fn render_header_buttons(
         ..Default::default()
     };
     let width_required_for_compact_layout = approx_keystroke_button_width(
-        REQUESTED_ACTION_CANCEL_LABEL,
+        &cancel_label,
         compact_button_font_size,
         cancel_keystroke,
         Some(compact_button_styles),
         app,
     )
     .max(approx_keystroke_button_width(
-        REQUESTED_ACTION_RUN_LABEL,
+        &run_label,
         compact_button_font_size,
         run_keystroke,
         Some(compact_button_styles),
@@ -292,7 +286,7 @@ pub(super) fn render_header_buttons(
 
     let mut default_row = Flex::row().with_child(
         Container::new(render_keyboard_shortcut_button(
-            REQUESTED_ACTION_CANCEL_LABEL,
+            cancel_label.clone(),
             Some(cancel_keystroke.clone()),
             cancel_button.clone(),
             cancel_callback,
@@ -304,7 +298,7 @@ pub(super) fn render_header_buttons(
     );
 
     let mut size_constrained_column = Flex::column().with_child(render_keyboard_shortcut_button(
-        REQUESTED_ACTION_CANCEL_LABEL,
+        cancel_label,
         Some(cancel_keystroke.clone()),
         cancel_button.clone(),
         cancel_clone,
@@ -314,7 +308,7 @@ pub(super) fn render_header_buttons(
 
     if should_show_accept_button {
         default_row.add_child(render_keyboard_shortcut_button(
-            REQUESTED_ACTION_RUN_LABEL,
+            run_label.clone(),
             Some(run_keystroke.clone()),
             run_button.clone(),
             accept_callback,
@@ -324,7 +318,7 @@ pub(super) fn render_header_buttons(
 
         size_constrained_column.add_child(
             Container::new(render_keyboard_shortcut_button(
-                REQUESTED_ACTION_RUN_LABEL,
+                run_label,
                 Some(run_keystroke.clone()),
                 run_button.clone(),
                 accept_clone,
@@ -490,7 +484,7 @@ fn render_requested_action_row_for_element(
 }
 
 pub fn render_keyboard_shortcut_button(
-    label: &'static str,
+    label: String,
     keystroke: Option<Keystroke>,
     mouse_state: MouseStateHandle,
     on_click: Rc<impl Fn(&mut EventContext) + 'static>,
@@ -533,7 +527,7 @@ pub fn render_keyboard_shortcut_button(
         }
         row.with_child(
             Text::new_inline(
-                label,
+                label.clone(),
                 appearance.ui_font_family(),
                 shortcut_styles
                     .font_size

@@ -1,12 +1,12 @@
-# Input Box
+# 输入框
 
-## 1. APIs of the Input Box
+## 1. 输入框 API
 
-The input box is a child view named `EditorView` instantiated within `TerminalView`.
+输入框是一个名为 `EditorView` 的子 view，在 `TerminalView` 中实例化。
 
-For the editor view to communicate with the terminal view, have the editor view send an action and register the action in the parent view.
+如果 editor view 要与 terminal view 通信，应让 editor view 发送 action，并在父 view 中注册该 action。
 
-For the terminal view to communicate with the editor view, the terminal view can directly access the editor view via a field in its struct. For it to input a newline, for example, it calls:
+如果 terminal view 要与 editor view 通信，terminal view 可以通过其 struct 中的字段直接访问 editor view。例如，为了输入换行，它会调用：
 
 ```
 fn input_newline(&mut self, _: &(), ctx: &mut ViewContext<Self>) {
@@ -19,57 +19,57 @@ fn input_newline(&mut self, _: &(), ctx: &mut ViewContext<Self>) {
 
 ### Buffer
 
-The data structure that contains the text in the EditorView is the `Buffer`.
+`EditorView` 中包含文本的数据结构是 `Buffer`。
 
-Its most commonly used API of the `Buffer` is `chars_at()`, which returns an iterator we can use to traverse characters from a certain point.
+`Buffer` 最常用的 API 是 `chars_at()`，它会返回一个 iterator，可用于从某个位置开始遍历字符。
 
-Under the hood, the buffer is a `SumTree<Fragment>`. Each `Fragment` has a `Text`. The `Text` consists of `text` which is an `Arc<str>` and `runs` which is a `SumTree<Run>`. A run describes how much space the fragment is taking.
+底层实现中，buffer 是一个 `SumTree<Fragment>`。每个 `Fragment` 都有一个 `Text`。`Text` 由 `text` 和 `runs` 组成，其中 `text` 是 `Arc<str>`，`runs` 是 `SumTree<Run>`。run 描述 fragment 占用的空间。
 
-Another useful API of `Buffer` is `line_len(row_number)` which gives you the length of a row number.
+`Buffer` 的另一个有用 API 是 `line_len(row_number)`，它会给出某一行号对应行的长度。
 
-### Indexing into the Buffer
+### 索引 Buffer
 
-We use `Point` and `Offset` to index into the buffer. `Point` is a 2-dimensional location with `row` and `column` within the `Buffer`. `Offset` is a 1-dimensional `usize` within the `Buffer`. You can easily convert `Point` and `Anchor` to `Offset` via `to_offset()`. `Offset` is useful for traversing through the characters without having to worry about changing row and column numbers.
+我们使用 `Point` 和 `Offset` 来索引 buffer。`Point` 是 `Buffer` 内带有 `row` 和 `column` 的二维位置。`Offset` 是 `Buffer` 内的一维 `usize`。你可以通过 `to_offset()` 轻松将 `Point` 和 `Anchor` 转换为 `Offset`。`Offset` 适合遍历字符，因为不需要关心 row 和 column 数字变化。
 
-### DisplayPoints and DisplayMap
+### DisplayPoint 与 DisplayMap
 
-Another struct with `row` and `column` is the `DisplayPoint`. `DisplayPoint` is only relevant in `EditorView` and `DisplayMap`, but not the `Buffer`.
-`DisplayPoint` describes the location in the `DisplayMap`. The `DisplayMap` describes how the points **appear**—the visual coordinate system. The `Buffer` has no concept of how it's being displayed and could in fact be displayed in multiple views.
+另一个带有 `row` 和 `column` 的 struct 是 `DisplayPoint`。`DisplayPoint` 只与 `EditorView` 和 `DisplayMap` 相关，与 `Buffer` 无关。
+`DisplayPoint` 描述 `DisplayMap` 中的位置。`DisplayMap` 描述 point 如何**显示**，也就是视觉坐标系统。`Buffer` 并不知道自身如何被显示，事实上它可以被显示在多个 view 中。
 
-The values of `DisplayPoint`s and `Point`s differ when code folding or softwrapping occurs. We can translate between the `DisplayPoint` and `Point` using the `DisplayMap`.
+当发生代码折叠或 soft wrapping 时，`DisplayPoint` 和 `Point` 的值会不同。我们可以使用 `DisplayMap` 在 `DisplayPoint` 和 `Point` 之间转换。
 
-### Selections and Cursors
+### Selection 与 Cursor
 
-The input box supports the multiple selections we are used to in VSCode. So our `EditorView` has a `Vec<Selection>`.
+输入框支持我们在 VSCode 中熟悉的多 selection。因此我们的 `EditorView` 有一个 `Vec<Selection>`。
 
-A `Selection` has a `start` anchor and an `end` anchor to denote its start and end position.
+`Selection` 有一个 `start` anchor 和一个 `end` anchor，用来表示其起止位置。
 
-Selections and cursors are closely intertwined—wherever there is a selection, there is a cursor. **A cursor on its own is just an empty selection where `start==end`.** As such, there is always at least one `Selection`, with the first selection being the cursor.
+Selection 和 cursor 紧密交织：凡是有 selection 的地方就有 cursor。**单独的 cursor 只是一个 `start==end` 的空 selection。** 因此始终至少有一个 `Selection`，其中第一个 selection 就是 cursor。
 
-### Anchors
+### Anchor
 
-An `Anchor` is a bookmark into the text. It allows us to index for a relative position in the text even if its absolute position has changed. An `Anchor` can be converted to a `DisplayPoint` or a `Point`.
+`Anchor` 是文本中的一个书签。即使其绝对位置已经改变，它也允许我们索引文本中的相对位置。`Anchor` 可以转换为 `DisplayPoint` 或 `Point`。
 
-For example, imagine my cursor is between the characters 'l' and 'E' in 'PartialEq'. Say the absolute position is row 3 column 7:
+例如，假设我的 cursor 位于 'PartialEq' 中字符 'l' 和 'E' 之间。假设绝对位置是第 3 行第 7 列：
 
 ```
 Partial|Eq
 ```
 
-Then, we add 10 characters:
+然后我们添加 10 个字符：
 
 ```
 Partial1234567890|Eq
 ```
 
-The cursor's absolute position is now at row 3 column 17. To easily calculate this position, we can convert the `Anchor` to row 3 column 17.
+cursor 的绝对位置现在是第 3 行第 17 列。为了轻松计算该位置，我们可以将 `Anchor` 转换为第 3 行第 17 列。
 
-#### `AnchorBias::Left`, `AnchorBias::Right`
+#### `AnchorBias::Left`、`AnchorBias::Right`
 
-The AnchorBias determines whether the cursor ends up on the right side or the left side of the inserted text. The above example is when AnchorBias is `Right`. `AnchorBias::Left` looks like this:
+AnchorBias 决定 cursor 最终位于插入文本的右侧还是左侧。上面的示例是 AnchorBias 为 `Right` 的情况。`AnchorBias::Left` 如下：
 
 ```
 Partial|1234567890Eq
 ```
 
-`Anchor`s are most useful when we introduce collaborative editing, and it is important for users to know where they are typing in even when another user inserts text in the line they are on.
+当我们引入协同编辑时，`Anchor` 最有用；即使另一个用户在当前用户所在行中插入文本，也必须让用户知道自己正在何处输入。

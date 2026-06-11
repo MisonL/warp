@@ -1,23 +1,20 @@
-use super::{
-    settings_page::{
-        MatchData, PageType, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle,
-        SettingsWidget,
-    },
-    SettingsSection,
+use warpui::assets::asset_cache::AssetSource;
+use warpui::elements::{
+    Align, CacheOption, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Image,
+    MainAxisAlignment, MouseStateHandle, ParentElement, Wrap,
 };
-use crate::{
-    appearance::Appearance, channel::ChannelState, themes::theme::ColorScheme,
-    workspace::WorkspaceAction,
+use warpui::ui_components::components::UiComponent;
+use warpui::{AppContext, Entity, View, ViewContext, ViewHandle};
+
+use super::settings_page::{
+    MatchData, PageType, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle,
+    SettingsWidget,
 };
-use warpui::{
-    assets::asset_cache::AssetSource,
-    elements::{
-        Align, CacheOption, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Image,
-        MainAxisAlignment, MouseStateHandle, ParentElement, Wrap,
-    },
-    ui_components::components::UiComponent,
-    AppContext, Entity, View, ViewContext, ViewHandle,
-};
+use super::SettingsSection;
+use crate::appearance::Appearance;
+use crate::channel::ChannelState;
+use crate::themes::theme::ColorScheme;
+use crate::workspace::WorkspaceAction;
 
 pub struct AboutPageView {
     page: PageType<Self>,
@@ -61,7 +58,7 @@ impl SettingsWidget for AboutPageWidget {
         &self,
         _view: &AboutPageView,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder();
@@ -118,7 +115,10 @@ impl SettingsWidget for AboutPageWidget {
                 .with_child(version_row.finish())
                 .with_child(
                     ui_builder
-                        .span("Copyright 2026 Warp")
+                        .span(crate::localization::text_for_app(
+                            app,
+                            "settings.about.copyright",
+                        ))
                         .build()
                         .with_margin_top(16.)
                         .finish(),

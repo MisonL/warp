@@ -1,9 +1,12 @@
-use super::auth_manager::AuthManager;
-use crate::{appearance::Appearance, auth::login_error_modal::LoginErrorModal};
 use warpui::elements::{Align, MouseStateHandle, Shrinkable};
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
+
+use super::auth_manager::AuthManager;
+use crate::appearance::Appearance;
+use crate::auth::login_error_modal::LoginErrorModal;
+use crate::localization;
 
 #[derive(Debug)]
 pub enum NeedsSsoLinkViewAction {
@@ -54,7 +57,7 @@ impl View for NeedsSsoLinkView {
                         ButtonVariant::Accent,
                         self.mouse_state_handles.link_sso_handle.clone(),
                     )
-                    .with_text_label("Link SSO".to_string())
+                    .with_text_label(localization::text_for_app(app, "auth.sso.link_button"))
                     .with_style(UiComponentStyles {
                         padding: Some(Coords {
                             top: 10.,
@@ -75,8 +78,8 @@ impl View for NeedsSsoLinkView {
         .finish();
 
         LoginErrorModal::new(app)
-            .with_header("Your organization has enabled SSO for your account")
-            .with_detail("Click the button below to link your Warp account to your SSO provider.")
+            .with_header(localization::text_for_app(app, "auth.sso.header"))
+            .with_detail(localization::text_for_app(app, "auth.sso.detail"))
             .with_action(link_sso_button)
             .build()
             .finish()

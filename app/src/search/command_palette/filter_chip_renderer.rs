@@ -1,16 +1,17 @@
-use crate::appearance::Appearance;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
-use crate::drive::DriveObjectType;
-use crate::search::FilterChipRenderer as CommonFilterChipRenderer;
-use crate::search::QueryFilter;
-use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 use pathfinder_color::ColorU;
 use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable, Icon,
     MouseStateHandle, ParentElement, Radius, Text,
 };
 use warpui::platform::Cursor;
-use warpui::{Element, EventContext};
+use warpui::{AppContext, Element, EventContext};
+
+use crate::appearance::Appearance;
+use crate::drive::cloud_object_styling::warp_drive_icon_color;
+use crate::drive::DriveObjectType;
+use crate::localization;
+use crate::search::{FilterChipRenderer as CommonFilterChipRenderer, QueryFilter};
+use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 
 /// Trait to render filter chips for the command palette.
 pub trait FilterChipRenderer: crate::search::FilterChipRenderer {
@@ -18,6 +19,7 @@ pub trait FilterChipRenderer: crate::search::FilterChipRenderer {
     fn render_filter_chip(
         &self,
         mouse_state_handle: MouseStateHandle,
+        app: &AppContext,
         appearance: &Appearance,
         on_click_fn: fn(&mut EventContext, Self),
     ) -> Box<dyn Element>;
@@ -30,11 +32,14 @@ impl FilterChipRenderer for QueryFilter {
     fn render_filter_chip(
         &self,
         mouse_state_handle: MouseStateHandle,
+        app: &AppContext,
         appearance: &Appearance,
         on_click_fn: fn(&mut EventContext, Self),
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let self_copy: QueryFilter = *self;
+        let display_name =
+            localization::text_for_app_or(app, self.display_name_text_key(), self.display_name());
         Hoverable::new(mouse_state_handle, |mouse_state| {
             let font_size = appearance.monospace_font_size() - 2.;
             Container::new({
@@ -42,7 +47,7 @@ impl FilterChipRenderer for QueryFilter {
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(
                         Text::new_inline(
-                            self.display_name(),
+                            display_name.clone(),
                             appearance.ui_font_family(),
                             font_size,
                         )
@@ -100,6 +105,7 @@ impl FilterChipRenderer for QueryFilter {
             | QueryFilter::NaturalLanguage
             | QueryFilter::Actions
             | QueryFilter::Sessions
+            | QueryFilter::Tabs
             | QueryFilter::Drive
             | QueryFilter::LaunchConfigurations
             | QueryFilter::PromptHistory
@@ -118,7 +124,7 @@ impl FilterChipRenderer for QueryFilter {
                 .theme()
                 .main_text_color(appearance.theme().surface_2())
                 .into_solid(),
-            QueryFilter::Conversations | QueryFilter::HistoricalConversations => appearance
+            QueryFilter::Conversations => appearance
                 .theme()
                 .main_text_color(appearance.theme().surface_2())
                 .into_solid(),
@@ -146,8 +152,9 @@ impl FilterChipRenderer for QueryFilter {
 }
 
 mod styles {
-    use crate::themes::theme::{Blend, Fill, WarpTheme};
     use warpui::elements::{Border, MouseState};
+
+    use crate::themes::theme::{Blend, Fill, WarpTheme};
 
     /// Size of the border when the query filter is hovered.
     const HOVERED_BORDER_SIZE: f32 = 2.;

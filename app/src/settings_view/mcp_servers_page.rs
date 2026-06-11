@@ -1,33 +1,37 @@
 use std::collections::HashMap;
+
 use uuid::Uuid;
+use warpui::elements::{ChildView, Container};
+use warpui::ui_components::components::{Coords, UiComponentStyles};
 use warpui::{
-    elements::{ChildView, Container},
-    ui_components::components::{Coords, UiComponentStyles},
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::{
-    ai::mcp::{
-        gallery::MCPGalleryManager, templatable_installation::VariableValue, FileBasedMCPManager,
-        TemplatableMCPServer, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
-    },
-    appearance::Appearance,
-    cloud_object::Space,
-    modal::{Modal, ModalViewState},
-    server::cloud_objects::update_manager::InitiatedBy,
-    settings_view::{
-        mcp_servers::{
-            edit_page::{MCPServersEditPageView, MCPServersEditPageViewEvent},
-            installation_modal::{InstallationModalBody, InstallationModalBodyEvent},
-            list_page::{MCPServersListPageView, MCPServersListPageViewEvent},
-            style, ServerCardItemId,
-        },
-        settings_page::{MatchData, PageType, SettingsPageMeta, SettingsWidget},
-        SettingsSection,
-    },
-    view_components::DismissibleToast,
-    workspace::ToastStack,
+use crate::ai::mcp::gallery::MCPGalleryManager;
+use crate::ai::mcp::templatable_installation::VariableValue;
+use crate::ai::mcp::{
+    FileBasedMCPManager, TemplatableMCPServer, TemplatableMCPServerInstallation,
+    TemplatableMCPServerManager,
 };
+use crate::appearance::Appearance;
+use crate::cloud_object::Space;
+use crate::localization;
+use crate::modal::{Modal, ModalViewState};
+use crate::server::cloud_objects::update_manager::InitiatedBy;
+use crate::settings_view::mcp_servers::edit_page::{
+    MCPServersEditPageView, MCPServersEditPageViewEvent,
+};
+use crate::settings_view::mcp_servers::installation_modal::{
+    InstallationModalBody, InstallationModalBodyEvent,
+};
+use crate::settings_view::mcp_servers::list_page::{
+    MCPServersListPageView, MCPServersListPageViewEvent,
+};
+use crate::settings_view::mcp_servers::{style, ServerCardItemId};
+use crate::settings_view::settings_page::{MatchData, PageType, SettingsPageMeta, SettingsWidget};
+use crate::settings_view::SettingsSection;
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
 
 /// Describes where an MCP install request originated.
 ///
@@ -47,7 +51,7 @@ pub enum InstallOrigin {
     Deeplink,
 }
 
-const PAGE_TITLE_TEXT: &str = "MCP Servers";
+const PAGE_TITLE_KEY: &str = "settings.mcp.page.title";
 #[derive(Debug, Default, Copy, Clone)]
 pub enum MCPServersSettingsPage {
     #[default]
@@ -83,8 +87,7 @@ impl MCPServersSettingsPageView {
             me.handle_edit_view_event(event, ctx);
         });
 
-        let installation_modal_body =
-            ctx.add_typed_action_view(|_ctx| InstallationModalBody::new());
+        let installation_modal_body = ctx.add_typed_action_view(InstallationModalBody::new);
         ctx.subscribe_to_view(&installation_modal_body, |me, _, event, ctx| {
             me.handle_installation_modal_body_event(event, ctx);
         });
@@ -98,9 +101,9 @@ impl MCPServersSettingsPageView {
         let installation_modal_state = ModalViewState::new(installation_modal);
 
         Self {
-            page: PageType::new_monolith(
+            page: PageType::new_monolith_localized(
                 MCPServersSettingsWidget::default(),
-                Some(PAGE_TITLE_TEXT),
+                Some(PAGE_TITLE_KEY),
                 true,
             ),
             current_page: MCPServersSettingsPage::default(),
@@ -146,8 +149,9 @@ impl MCPServersSettingsPageView {
         ctx: &mut ViewContext<Self>,
     ) {
         let message = match server_name {
-            Some(name) => format!("Successfully logged out of {name} MCP server"),
-            None => "Successfully logged out of MCP server".to_string(),
+            Some(name) => localization::text_for_app(ctx, "settings.mcp.page.logged_out_named")
+                .replace("{name}", &name),
+            None => localization::text_for_app(ctx, "settings.mcp.page.logged_out"),
         };
         match item_id {
             ServerCardItemId::TemplatableMCP(_) => {
@@ -314,7 +318,7 @@ impl MCPServersSettingsPageView {
                 "Ignoring MCP deeplink autoinstall for '{autoinstall_param}': installation modal already open"
             );
             self.add_error_toast(
-                "Finish the current MCP install before opening another install link.".to_string(),
+                localization::text_for_app(ctx, "settings.mcp.page.error.finish_current_install"),
                 ctx,
             );
             return;
@@ -329,7 +333,11 @@ impl MCPServersSettingsPageView {
             log::warn!(
                 "Unrecognized autoinstall value '{autoinstall_param}': no matching gallery item found"
             );
-            self.add_error_toast(format!("Unknown MCP server '{autoinstall_param}'"), ctx);
+            self.add_error_toast(
+                localization::text_for_app(ctx, "settings.mcp.page.error.unknown_server")
+                    .replace("{name}", autoinstall_param),
+                ctx,
+            );
             return;
         };
 
@@ -357,7 +365,8 @@ impl MCPServersSettingsPageView {
             // gallery entry cannot be turned into a valid template. Surface the
             // failure to the user rather than silently returning.
             self.add_error_toast(
-                format!("MCP server '{gallery_title}' cannot be installed from this link."),
+                localization::text_for_app(ctx, "settings.mcp.page.error.cannot_install_from_link")
+                    .replace("{name}", &gallery_title),
                 ctx,
             );
             return;

@@ -1,63 +1,63 @@
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::time::Duration;
 
-use ai::agent::{
-    action::{AskUserQuestionItem, AskUserQuestionOption, AskUserQuestionType},
-    action_result::{AskUserQuestionAnswerItem, AskUserQuestionResult},
-};
+use ai::agent::action::{AskUserQuestionItem, AskUserQuestionOption, AskUserQuestionType};
+use ai::agent::action_result::{AskUserQuestionAnswerItem, AskUserQuestionResult};
 use itertools::Itertools;
-use warp_core::ui::theme::{color::internal_colors, WarpTheme};
+use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::theme::WarpTheme;
+use warpui::elements::new_scrollable::SingleAxisConfig;
+use warpui::elements::{
+    Border, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, Expanded, Fill, Flex, FormattedTextElement, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, ParentElement, Radius, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
+};
+use warpui::keymap::{FixedBinding, Keystroke};
+use warpui::r#async::{SpawnedFutureHandle, Timer};
+use warpui::ui_components::components::Coords;
+use warpui::units::Pixels;
 use warpui::{
-    elements::{
-        new_scrollable::SingleAxisConfig, Border, ChildView, Clipped, ClippedScrollStateHandle,
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Expanded, Fill, Flex,
-        FormattedTextElement, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
-        Radius, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
-    },
-    keymap::{FixedBinding, Keystroke},
-    r#async::{SpawnedFutureHandle, Timer},
-    units::Pixels,
-    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
+    AppContext, Element, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity,
+    TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::{
-    ai::{
-        agent::{
-            conversation::AIConversationId, icons::yellow_stop_icon, task::TaskId, AIAgentActionId,
-            AIAgentActionResult, AIAgentActionResultType,
-        },
-        blocklist::{
-            action_model::{AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel},
-            block::{
-                compact_agent_input,
-                number_shortcut_buttons::{
-                    self, NumberShortcutButtonBuilder, NumberShortcutButtons,
-                    NumberShortcutButtonsConfig,
-                },
-                view_impl::{CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN},
-            },
-            inline_action::{
-                inline_action_header::{
-                    ExpandedConfig, HeaderConfig, InteractionMode,
-                    INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
-                },
-                inline_action_icons::{self, icon_size},
-                requested_action::CTRL_C_KEYSTROKE,
-            },
-            BlocklistAIHistoryModel,
-        },
-    },
-    terminal::input::message_bar::{
-        common::{render_standard_message, standard_message_bar_height, styles},
-        Message, MessageItem,
-    },
-    ui_components::{blended_colors, icons::Icon},
-    view_components::{
-        action_button::{ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme},
-        compactible_action_button::CompactibleActionButton,
-    },
-    Appearance,
+use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::agent::icons::yellow_stop_icon;
+use crate::ai::agent::task::TaskId;
+use crate::ai::agent::{AIAgentActionId, AIAgentActionResult, AIAgentActionResultType};
+use crate::ai::blocklist::action_model::{
+    AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel,
 };
+use crate::ai::blocklist::block::compact_agent_input;
+use crate::ai::blocklist::block::number_shortcut_buttons::{
+    self, NumberShortcutButtonBuilder, NumberShortcutButtons, NumberShortcutButtonsConfig,
+};
+use crate::ai::blocklist::block::view_impl::{
+    render_autonomy_dropdown_setting_speedbump_footer, CONTENT_HORIZONTAL_PADDING,
+    CONTENT_ITEM_VERTICAL_MARGIN,
+};
+use crate::ai::blocklist::inline_action::inline_action_header::{
+    ExpandedConfig, HeaderConfig, InteractionMode, INLINE_ACTION_HEADER_VERTICAL_PADDING,
+    INLINE_ACTION_HORIZONTAL_PADDING,
+};
+use crate::ai::blocklist::inline_action::inline_action_icons::{self, icon_size};
+use crate::ai::blocklist::inline_action::requested_action::CTRL_C_KEYSTROKE;
+use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
+use crate::ai::execution_profiles::AskUserQuestionPermission;
+use crate::terminal::input::message_bar::common::{
+    render_standard_message, standard_message_bar_height, styles,
+};
+use crate::terminal::input::message_bar::{Message, MessageItem};
+use crate::ui_components::blended_colors;
+use crate::ui_components::icons::Icon;
+use crate::view_components::action_button::{
+    ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
+};
+use crate::view_components::compactible_action_button::CompactibleActionButton;
+use crate::view_components::dropdown::{Dropdown, DropdownItem};
+use crate::{localization, Appearance};
 
 const ASK_USER_QUESTION_ACTIVE: &str = "AskUserQuestionActive";
 
@@ -67,6 +67,28 @@ pub(crate) const ASK_USER_QUESTION_OPTION_BUTTON_VERTICAL_SPACING: f32 = 4.;
 pub(crate) const ASK_USER_QUESTION_TEXT_TOP_PADDING: f32 = 16.;
 pub(crate) const ASK_USER_QUESTION_TEXT_BOTTOM_PADDING: f32 = 8.;
 pub(crate) const ASK_USER_QUESTION_OPTIONS_BOTTOM_PADDING: f32 = 16.;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
+}
+
+fn ask_user_question_permission_label(
+    permission: &AskUserQuestionPermission,
+    app: &AppContext,
+) -> String {
+    let key = match permission {
+        AskUserQuestionPermission::Never => "settings.execution_profile.permission.never_ask",
+        AskUserQuestionPermission::AskExceptInAutoApprove | AskUserQuestionPermission::Unknown => {
+            "settings.execution_profile.permission.ask_unless_auto_approve"
+        }
+        AskUserQuestionPermission::AlwaysAsk => "settings.execution_profile.permission.always_ask",
+    };
+    text(app, key)
+}
 
 // Assumes single-line labels; wrapped text will be taller but the container
 // caps at ASK_USER_QUESTION_MAX_CONTAINER_HEIGHT and scrolls on overflow.
@@ -145,7 +167,7 @@ pub fn init(app: &mut AppContext) {
 }
 
 /// View-level interactions for the ask-user-question UI (buttons, keyboard, and text input).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AskUserQuestionViewAction {
     OptionToggled { option_index: usize },
     SelectionConfirmed,
@@ -156,12 +178,15 @@ pub enum AskUserQuestionViewAction {
     NavigatePrev,
     ToggleExpanded,
     EnterPressed,
+    SetPermission(AskUserQuestionPermission),
 }
 
 /// Emitted when local questionnaire state changes and the parent needs to refresh.
 #[derive(Clone, Debug)]
 pub enum AskUserQuestionViewEvent {
     Updated,
+    /// Fired when the user selects a new permission from the speedbump dropdown.
+    SpeedbumpPermissionChanged(AskUserQuestionPermission),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -732,6 +757,12 @@ pub(crate) struct AskUserQuestionView {
     toggle_mouse_state: MouseStateHandle,
     skip_button: CompactibleActionButton,
     next_button: CompactibleActionButton,
+    /// Settings link handle for the Ask-User-Question autonomy speedbump footer,
+    /// set by `AIBlock` when the speedbump is seeded for this action.
+    speedbump_settings_link_handle: Option<MouseStateHandle>,
+    /// Lazily created dropdown for the speedbump footer; owned here so the
+    /// view handle (and its event subscription) survives re-renders.
+    speedbump_dropdown: Option<ViewHandle<Dropdown<AskUserQuestionViewAction>>>,
 }
 
 impl AskUserQuestionView {
@@ -755,7 +786,7 @@ impl AskUserQuestionView {
             ctx,
         );
         let skip_button = CompactibleActionButton::new(
-            "Skip all".to_string(),
+            localization::text_for_app(ctx, "agent.ask_user_question.action.skip_all"),
             Some(KeystrokeSource::Fixed(CTRL_C_KEYSTROKE.clone())),
             ButtonSize::InlineActionHeader,
             AskUserQuestionViewAction::SkipAll,
@@ -764,7 +795,7 @@ impl AskUserQuestionView {
             ctx,
         );
         let next_button = CompactibleActionButton::new(
-            "Next".to_string(),
+            localization::text_for_app(ctx, "agent.ask_user_question.action.next"),
             Some(KeystrokeSource::Fixed(
                 Keystroke::parse("enter").expect("keystroke should parse"),
             )),
@@ -791,6 +822,8 @@ impl AskUserQuestionView {
             toggle_mouse_state: MouseStateHandle::default(),
             skip_button,
             next_button,
+            speedbump_settings_link_handle: None,
+            speedbump_dropdown: None,
         };
 
         ctx.subscribe_to_model(&action_model, |me, _, event, ctx| {
@@ -816,6 +849,79 @@ impl AskUserQuestionView {
 
     pub fn is_editing(&self) -> bool {
         self.session.is_editing()
+    }
+
+    /// Sets the settings-link mouse handle used in the speedbump footer.
+    /// The footer is only actually drawn during the completed/finished render paths.
+    pub fn set_speedbump_settings_link(
+        &mut self,
+        settings_link_handle: Option<MouseStateHandle>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.speedbump_settings_link_handle = settings_link_handle;
+        ctx.notify();
+    }
+
+    /// Creates the dropdown view for the speedbump footer. No-op if already initialized.
+    pub fn init_speedbump_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.speedbump_dropdown.is_some() {
+            return;
+        }
+        let view = ctx.add_typed_action_view(|ctx| {
+            let dropdown_font_size = Appearance::as_ref(ctx).monospace_font_size() - 1.;
+            let mut dropdown = Dropdown::new(ctx);
+            dropdown.set_font_size(dropdown_font_size, ctx);
+            dropdown.set_padding(
+                Coords {
+                    top: 2.,
+                    bottom: 2.,
+                    left: 8.,
+                    right: 8.,
+                },
+                ctx,
+            );
+            dropdown.set_vertical_margin(0., ctx);
+            dropdown.set_top_bar_height(24., ctx);
+            dropdown.set_main_axis_size(MainAxisSize::Min, ctx);
+            let permissions = [
+                AskUserQuestionPermission::Never,
+                AskUserQuestionPermission::AskExceptInAutoApprove,
+                AskUserQuestionPermission::AlwaysAsk,
+            ];
+            dropdown.set_items(
+                permissions
+                    .into_iter()
+                    .map(|p| {
+                        DropdownItem::new(
+                            ask_user_question_permission_label(&p, ctx),
+                            AskUserQuestionViewAction::SetPermission(p),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown
+        });
+        self.speedbump_dropdown = Some(view);
+    }
+
+    /// Updates the dropdown's selected item to match the active execution profile.
+    pub fn refresh_speedbump_dropdown_selection(
+        &mut self,
+        terminal_view_id: EntityId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(dropdown) = self.speedbump_dropdown.clone() else {
+            return;
+        };
+        let permission = AIExecutionProfilesModel::as_ref(ctx)
+            .active_profile(Some(terminal_view_id), ctx)
+            .data()
+            .ask_user_question;
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown
+                .set_selected_by_name(ask_user_question_permission_label(&permission, ctx), ctx);
+        });
     }
 
     /// Recover completed/cancelled status even if the live action entry is gone, so restored
@@ -882,7 +988,7 @@ impl AskUserQuestionView {
         } else {
             None
         };
-        let buttons = Self::build_question_buttons(current, text_input.as_ref());
+        let buttons = Self::build_question_buttons(current, text_input.as_ref(), ctx);
         AskUserQuestionInteractiveViews {
             buttons: ctx.add_typed_action_view(|ctx| {
                 NumberShortcutButtons::new_with_config(
@@ -902,6 +1008,7 @@ impl AskUserQuestionView {
     fn build_question_buttons(
         current: Option<AskUserQuestionCurrent<'_>>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        ctx: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let Some(current) = current else {
             return Vec::new();
@@ -917,6 +1024,7 @@ impl AskUserQuestionView {
                 *supports_other,
                 current.draft,
                 other_text_input,
+                ctx,
             ),
         }
     }
@@ -926,6 +1034,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        ctx: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let mut buttons = options
             .iter()
@@ -952,6 +1061,7 @@ impl AskUserQuestionView {
             supports_other,
             draft,
             other_text_input,
+            ctx,
         ) {
             buttons.push(other_button);
         }
@@ -964,6 +1074,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        ctx: &AppContext,
     ) -> Option<NumberShortcutButtonBuilder> {
         if !supports_other {
             return None;
@@ -988,7 +1099,7 @@ impl AskUserQuestionView {
             number,
             accepted_text
                 .clone()
-                .unwrap_or_else(|| "Other...".to_string()),
+                .unwrap_or_else(|| text(ctx, "agent.ask_user_question.other")),
             accepted_text.is_some(),
             false,
             true,
@@ -1004,7 +1115,10 @@ impl AskUserQuestionView {
         let initial_text = initial_text.map(String::from);
         let input = ctx.add_view(move |ctx| {
             let input = compact_agent_input::CompactAgentInput::new(ctx);
-            input.set_placeholder_text("Type your answer and press Enter", ctx);
+            input.set_placeholder_text(
+                localization::text_for_app(ctx, "agent.ask_user_question.placeholder"),
+                ctx,
+            );
             if let Some(initial_text) = initial_text.as_deref() {
                 input.set_text(initial_text, ctx);
             }
@@ -1185,7 +1299,7 @@ impl AskUserQuestionView {
         let current = self.session.current()?;
         let mut question_text = current.question.question.clone();
         if current.question.is_multiselect() {
-            question_text.push_str(" (select all that apply)");
+            question_text.push_str(&text(app, "agent.ask_user_question.select_all_suffix"));
         }
         let has_nav_footer = self.session.has_multiple_questions();
         let container_height = ask_user_question_container_height(
@@ -1207,10 +1321,13 @@ impl AskUserQuestionView {
                 .finish(),
         );
         content.add_child(
-            HeaderConfig::new("Agent questions", app)
-                .with_icon(yellow_stop_icon(appearance))
-                .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
-                .render_header(app, Some(header_right.finish())),
+            HeaderConfig::new(
+                localization::text_for_app(app, "agent.ask_user_question.title"),
+                app,
+            )
+            .with_icon(yellow_stop_icon(appearance))
+            .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
+            .render_header(app, Some(header_right.finish())),
         );
         content.add_child(
             Expanded::new(
@@ -1240,9 +1357,12 @@ impl AskUserQuestionView {
 
     fn render_unavailable(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         wrap_with_agent_output_item_spacing(
-            HeaderConfig::new("Questions unavailable".to_string(), app)
-                .with_icon(inline_action_icons::reverted_icon(appearance))
-                .render(app),
+            HeaderConfig::new(
+                localization::text_for_app(app, "agent.ask_user_question.unavailable"),
+                app,
+            )
+            .with_icon(inline_action_icons::reverted_icon(appearance))
+            .render(app),
             app,
         )
         .finish()
@@ -1255,7 +1375,7 @@ impl AskUserQuestionView {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let AskUserQuestionCompletionState { label, status_icon } =
-            ask_user_question_completion_state(answers, appearance);
+            ask_user_question_completion_state(answers, appearance, app);
         self.render_completed(
             self.session.questions(),
             Some(answers),
@@ -1275,17 +1395,20 @@ impl AskUserQuestionView {
         let (answers, label, status_icon) = match ask_result {
             AskUserQuestionResult::Success { answers } => {
                 let AskUserQuestionCompletionState { label, status_icon } =
-                    ask_user_question_completion_state(answers, appearance);
+                    ask_user_question_completion_state(answers, appearance, app);
                 (Some(answers.as_slice()), label, status_icon)
             }
             AskUserQuestionResult::Error(_) | AskUserQuestionResult::Cancelled => (
                 None,
-                "Questions skipped".to_string(),
+                localization::text_for_app(app, "agent.ask_user_question.status.skipped"),
                 inline_action_icons::reverted_icon(appearance),
             ),
             AskUserQuestionResult::SkippedByAutoApprove { .. } => (
                 None,
-                "Questions skipped due to auto-approve".to_string(),
+                localization::text_for_app(
+                    app,
+                    "agent.ask_user_question.status.skipped_auto_approve",
+                ),
                 inline_action_icons::reverted_icon(appearance),
             ),
         };
@@ -1309,25 +1432,81 @@ impl AskUserQuestionView {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let header = HeaderConfig::new(label, app)
+        let speedbump_footer = self
+            .speedbump_settings_link_handle
+            .clone()
+            .filter(|_| self.speedbump_dropdown.is_some())
+            .and_then(|handle| self.render_speedbump_footer(handle, appearance, app));
+        let has_speedbump_footer = speedbump_footer.is_some();
+
+        let mut header_config = HeaderConfig::new(label, app)
             .with_icon(status_icon)
             .with_interaction_mode(InteractionMode::ManuallyExpandable(
                 ExpandedConfig::new(self.is_expanded, self.toggle_mouse_state.clone())
                     .with_toggle_callback(|ctx| {
                         ctx.dispatch_typed_action(AskUserQuestionViewAction::ToggleExpanded);
                     }),
-            ))
-            .render(app);
+            ));
+        if has_speedbump_footer {
+            header_config = header_config
+                .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)));
+        }
+        let header = header_config.render(app);
+
+        // Collapsed state: just the header — but still draw the speedbump footer if it's
+        // present, since the autonomy nudge must stay visible even if the user collapses
+        // their answers.
         if !self.is_expanded {
+            if let Some(footer) = speedbump_footer {
+                let mut wrapper =
+                    Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+                wrapper.add_child(header);
+                wrapper.add_child(footer);
+                return wrap_with_agent_output_item_spacing(wrapper.finish(), app).finish();
+            }
             return wrap_with_agent_output_item_spacing(header, app).finish();
         }
 
         let mut wrapper = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
         wrapper.add_child(header);
-        wrapper.add_child(render_answers(questions, answers, appearance));
+        wrapper.add_child(render_answers(
+            questions,
+            answers,
+            appearance,
+            has_speedbump_footer,
+            app,
+        ));
+        if let Some(footer) = speedbump_footer {
+            wrapper.add_child(footer);
+            return wrap_with_agent_output_item_spacing(wrapper.finish(), app).finish();
+        }
         wrap_with_agent_output_item_spacing(wrapper.finish(), app)
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
             .finish()
+    }
+
+    fn render_speedbump_footer(
+        &self,
+        settings_link_handle: MouseStateHandle,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Option<Box<dyn Element>> {
+        let theme = appearance.theme();
+        let dropdown = self.speedbump_dropdown.as_ref()?;
+        let row = render_autonomy_dropdown_setting_speedbump_footer(
+            text(app, "agent.ask_user_question.speedbump.allow_questions"),
+            dropdown,
+            settings_link_handle,
+            app,
+        );
+        Some(
+            Container::new(row)
+                .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
+                .with_vertical_padding(4.)
+                .with_background(theme.surface_1())
+                .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
+                .finish(),
+        )
     }
 
     fn render_question_text(
@@ -1402,7 +1581,13 @@ impl AskUserQuestionView {
 
         let nav_message = Message::new(vec![
             MessageItem::clickable(
-                vec![MessageItem::keystroke(left_key), MessageItem::text("prev")],
+                vec![
+                    MessageItem::keystroke(left_key),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        "agent.ask_user_question.nav.prev",
+                    )),
+                ],
                 |ctx| {
                     ctx.dispatch_typed_action(AskUserQuestionViewAction::NavigatePrev);
                 },
@@ -1410,7 +1595,13 @@ impl AskUserQuestionView {
             ),
             MessageItem::text(" / "),
             MessageItem::clickable(
-                vec![MessageItem::keystroke(right_key), MessageItem::text("next")],
+                vec![
+                    MessageItem::keystroke(right_key),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        "agent.ask_user_question.nav.next",
+                    )),
+                ],
                 |ctx| {
                     ctx.dispatch_typed_action(AskUserQuestionViewAction::NavigateNext);
                 },
@@ -1506,11 +1697,13 @@ impl TypedActionView for AskUserQuestionView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         // Editing actions only run while this inline block is still the active user blocker. The
-        // completion summary stays interactive via ToggleExpanded after completion.
-        if !matches!(action, AskUserQuestionViewAction::ToggleExpanded)
-            && (!self.session.is_editing()
-                || !self.is_waiting_on_user_answers(ctx)
-                || self.session.current().is_none())
+        // completion summary stays interactive via ToggleExpanded and SetPermission after completion.
+        if !matches!(
+            action,
+            AskUserQuestionViewAction::ToggleExpanded | AskUserQuestionViewAction::SetPermission(_)
+        ) && (!self.session.is_editing()
+            || !self.is_waiting_on_user_answers(ctx)
+            || self.session.current().is_none())
         {
             return;
         }
@@ -1561,6 +1754,11 @@ impl TypedActionView for AskUserQuestionView {
             AskUserQuestionViewAction::ToggleExpanded => {
                 self.is_expanded = !self.is_expanded;
             }
+            AskUserQuestionViewAction::SetPermission(permission) => {
+                ctx.emit(AskUserQuestionViewEvent::SpeedbumpPermissionChanged(
+                    *permission,
+                ));
+            }
             AskUserQuestionViewAction::EnterPressed => {
                 self.abort_auto_advance();
                 let highlighted_index = self
@@ -1583,26 +1781,40 @@ impl TypedActionView for AskUserQuestionView {
 fn ask_user_question_completion_state(
     answers: &[AskUserQuestionAnswerItem],
     appearance: &Appearance,
+    app: &AppContext,
 ) -> AskUserQuestionCompletionState {
     let answered_count = answers.iter().filter(|answer| !answer.is_skipped()).count();
     let total = answers.len();
 
     if answered_count == 0 {
         AskUserQuestionCompletionState {
-            label: "Questions skipped".to_string(),
+            label: localization::text_for_app(app, "agent.ask_user_question.status.skipped"),
             status_icon: inline_action_icons::reverted_icon(appearance),
         }
     } else {
         let label = if answered_count == total {
             if total == 1 {
-                "Answered question".to_string()
+                text(app, "agent.ask_user_question.status.answered_one")
             } else {
-                format!("Answered all {total} questions")
+                text_with_args(
+                    app,
+                    "agent.ask_user_question.status.answered_all",
+                    &[("total", &total.to_string())],
+                )
             }
         } else {
-            format!(
-                "Answered {answered_count} of {total} question{}",
-                if total == 1 { "" } else { "s" }
+            let key = if total == 1 {
+                "agent.ask_user_question.status.answered_count_singular"
+            } else {
+                "agent.ask_user_question.status.answered_count_plural"
+            };
+            text_with_args(
+                app,
+                key,
+                &[
+                    ("answered_count", &answered_count.to_string()),
+                    ("total", &total.to_string()),
+                ],
             )
         };
         AskUserQuestionCompletionState {
@@ -1616,6 +1828,8 @@ fn render_answers(
     questions: &[AskUserQuestionItem],
     answers: Option<&[AskUserQuestionAnswerItem]>,
     appearance: &Appearance,
+    flatten_bottom: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let font_size = appearance.monospace_font_size();
@@ -1625,14 +1839,20 @@ fn render_answers(
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     for (index, question) in questions.iter().enumerate() {
         let answer = answers.and_then(|answers| answers.get(index));
-        let question_text = format!("Q: {}", question.question);
+        let question_text = format!(
+            "{} {}",
+            text(app, "agent.ask_user_question.summary.question_prefix"),
+            question.question
+        );
         let question_label =
             render_text_with_markdown_support(&question_text, font_size, text_color, appearance);
+        let answer_display = answer
+            .map(AskUserQuestionAnswerItem::display_text)
+            .unwrap_or_else(|| text(app, "agent.ask_user_question.summary.skipped"));
         let answer_text = format!(
-            "A: {}",
-            answer
-                .map(AskUserQuestionAnswerItem::display_text)
-                .unwrap_or_else(|| "Skipped".to_string())
+            "{} {}",
+            text(app, "agent.ask_user_question.summary.answer_prefix"),
+            answer_display
         );
         let answer_label =
             render_text_with_markdown_support(&answer_text, font_size, muted_color, appearance);
@@ -1651,10 +1871,11 @@ fn render_answers(
         content.add_child(item_container.finish());
     }
 
-    Container::new(content.finish())
-        .with_background(theme.surface_2())
-        .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
-        .finish()
+    let mut container = Container::new(content.finish()).with_background(theme.surface_2());
+    if !flatten_bottom {
+        container = container.with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)));
+    }
+    container.finish()
 }
 
 fn wrap_with_content_item_spacing(element: Box<dyn Element>) -> Container {

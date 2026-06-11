@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
 use pathfinder_geometry::vector::{Vector2F, vec2f};
-use warp_core::ui::{Icon, appearance::Appearance};
-use warpui::{
-    assets::asset_cache::AssetSource,
-    elements::{CacheOption, Dismiss, DispatchEventResult, EventHandler, Image, Shrinkable},
-    keymap::Keystroke,
-    prelude::{stack::*, *},
+use warp_core::ui::Icon;
+use warp_core::ui::appearance::Appearance;
+use warpui_core::assets::asset_cache::AssetSource;
+use warpui_core::elements::{
+    CacheOption, Dismiss, DispatchEventResult, EventHandler, Image, Shrinkable,
 };
+use warpui_core::keymap::Keystroke;
+use warpui_core::prelude::stack::*;
+use warpui_core::prelude::*;
 
 use crate::{Component, Options as _, button};
 
@@ -71,6 +73,12 @@ pub struct Params<'a> {
     /// The index of the currently displayed image.
     pub current_index: usize,
 
+    /// Text shown when the lightbox has no images.
+    pub no_images_label: String,
+
+    /// Text shown while an image is loading.
+    pub loading_label: String,
+
     /// Handler to invoke when the lightbox is dismissed.
     pub on_dismiss: DismissHandler,
 
@@ -118,6 +126,8 @@ impl Component for Lightbox {
         let on_dismiss = params.on_dismiss;
         let image_count = params.images.len();
         let current_index = params.current_index;
+        let no_images_label = params.no_images_label;
+        let loading_label = params.loading_label;
 
         // Extract current image data via direct indexing.
         let current_image = params.images.get(current_index);
@@ -130,7 +140,7 @@ impl Component for Lightbox {
             appearance,
             button::Params {
                 content: button::Content::Icon(Icon::X),
-                theme: &button::themes::Secondary,
+                theme: &ButtonTheme,
                 options: button::Options {
                     size: button::Size::Small,
                     on_click: Some(Box::new(move |ctx, app, _| {
@@ -151,7 +161,11 @@ impl Component for Lightbox {
                     let image = ConstrainedBox::new(
                         Image::new(asset_source.clone(), CacheOption::Original)
                             .contain()
-                            .before_load(Align::new(loading_element(appearance)).finish())
+                            .layout_using_paint_bounds()
+                            .before_load(
+                                Align::new(loading_element(appearance, loading_label.clone()))
+                                    .finish(),
+                            )
                             .finish(),
                     )
                     .with_max_width(native_size.x())
@@ -164,12 +178,12 @@ impl Component for Lightbox {
                 }
                 // No images provided at all.
                 _ if image_count == 0 => {
-                    Text::new("No images", appearance.ui_font_family(), text_size)
+                    Text::new(no_images_label, appearance.ui_font_family(), text_size)
                         .with_color(ColorU::white())
                         .finish()
                 }
                 // Still loading (either metadata or image bytes).
-                _ => loading_element(appearance),
+                _ => loading_element(appearance, loading_label),
             };
 
         // Show the description only when the image is fully loaded (native size known).
@@ -225,7 +239,7 @@ impl Component for Lightbox {
                     appearance,
                     button::Params {
                         content: button::Content::Icon(Icon::ChevronLeft),
-                        theme: &button::themes::Secondary,
+                        theme: &ButtonTheme,
                         options: button::Options {
                             size: button::Size::Small,
                             on_click: Some(Box::new(move |ctx, app, _| {
@@ -253,7 +267,7 @@ impl Component for Lightbox {
                     appearance,
                     button::Params {
                         content: button::Content::Icon(Icon::ChevronRight),
-                        theme: &button::themes::Secondary,
+                        theme: &ButtonTheme,
                         options: button::Options {
                             size: button::Size::Small,
                             on_click: Some(Box::new(move |ctx, app, _| {
@@ -281,9 +295,9 @@ impl Component for Lightbox {
 
 /// Builds the shared "Loading..." text element used in both the `Loading` state
 /// and as the `before_load` fallback while the `AssetCache` fetches image bytes.
-fn loading_element(appearance: &Appearance) -> Box<dyn Element> {
+fn loading_element(appearance: &Appearance, label: String) -> Box<dyn Element> {
     Text::new(
-        "Loading...",
+        label,
         appearance.ui_font_family(),
         lightbox_text_size(appearance),
     )
@@ -293,4 +307,39 @@ fn loading_element(appearance: &Appearance) -> Box<dyn Element> {
 
 fn lightbox_text_size(appearance: &Appearance) -> f32 {
     appearance.ui_font_size() + LIGHTBOX_TEXT_SIZE_DELTA
+}
+
+/// A custom button theme for lightbox buttons to force colors to match
+/// a Dark theme button, as these buttons always appear on top of a near-black
+/// scrim, independent of application theme.
+struct ButtonTheme;
+
+impl button::Theme for ButtonTheme {
+    fn background(
+        &self,
+        button_state: button::State,
+        _appearance: &Appearance,
+    ) -> Option<warp_core::ui::theme::Fill> {
+        match button_state {
+            button::State::Default => None,
+            button::State::Hovered => Some(warp_core::ui::theme::Fill::white().with_opacity(10)),
+            button::State::Pressed => Some(warp_core::ui::theme::Fill::white().with_opacity(15)),
+        }
+    }
+
+    fn text_color(
+        &self,
+        _background: Option<warp_core::ui::theme::Fill>,
+        _appearance: &Appearance,
+    ) -> ColorU {
+        ColorU::new(255, 255, 255, 255)
+    }
+
+    fn border(&self, _appearance: &Appearance) -> Option<ColorU> {
+        Some(ColorU::new(51, 51, 51, 255))
+    }
+
+    fn keyboard_shortcut_background(&self, _appearance: &Appearance) -> Option<ColorU> {
+        Some(ColorU::new(38, 38, 38, 255))
+    }
 }

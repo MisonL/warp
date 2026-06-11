@@ -16,6 +16,7 @@ use base64::Engine as _;
 use bounded_vec_deque::BoundedVecDeque;
 use pathfinder_geometry::vector::Vector2F;
 use rand::Rng;
+use tab_stops::TabStops;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
@@ -24,6 +25,7 @@ use warp_terminal::model::grid::cell;
 use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
 use warpui::image_cache::{resize_dimensions, FitType};
 
+use super::{AbsolutePoint, FullGridClearBehavior, GridHandler, PerformResetGridChecks, TermMode};
 use crate::server::telemetry::ImageProtocol;
 use crate::terminal::event::Event;
 use crate::terminal::event_listener::ChannelEventListener;
@@ -43,10 +45,6 @@ use crate::terminal::model::kitty::{
 use crate::terminal::model::selection::ScrollDelta;
 use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::{ClipboardType, SizeInfo};
-
-use super::{AbsolutePoint, GridHandler, PerformResetGridChecks, TermMode};
-
-use tab_stops::TabStops;
 
 const MAX_IMAGE_CELL_HEIGHT: u32 = 255;
 
@@ -158,7 +156,9 @@ enum ResetGridChecks {
 
 impl ansi::Handler for GridHandler {
     fn set_title(&mut self, _: Option<String>) {
-        log::error!("Handler method GridHandler::set_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::set_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn set_cursor_style(&mut self, style: Option<ansi::CursorStyle>) {
@@ -848,6 +848,8 @@ impl ansi::Handler for GridHandler {
             ansi::ClearMode::All => {
                 if self.ansi_handler_state.is_alt_screen {
                     self.grid.region_mut(..).each(|cell| *cell = bg.into());
+                } else if self.full_grid_clear_behavior == FullGridClearBehavior::Clear {
+                    self.clear_visible_rows_in_place(bg);
                 } else {
                     self.clear_viewport();
                 }
@@ -1137,15 +1139,21 @@ impl ansi::Handler for GridHandler {
     }
 
     fn set_color(&mut self, _: usize, _: warpui::color::ColorU) {
-        log::error!("Handler method GridHandler::set_color should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::set_color should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn dynamic_color_sequence<W: std::io::Write>(&mut self, _: &mut W, _: u8, _: usize, _: &str) {
-        log::error!("Handler method GridHandler::dynamic_color_sequence should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::dynamic_color_sequence should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn reset_color(&mut self, _: usize) {
-        log::error!("Handler method GridHandler::reset_color should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::reset_color should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn clipboard_store(&mut self, clipboard: u8, base64: &[u8]) {
@@ -1194,11 +1202,15 @@ impl ansi::Handler for GridHandler {
     }
 
     fn push_title(&mut self) {
-        log::error!("Handler method GridHandler::push_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::push_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn pop_title(&mut self) {
-        log::error!("Handler method GridHandler::pop_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::pop_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn text_area_size_pixels<W: std::io::Write>(&mut self, writer: &mut W) {
@@ -1364,7 +1376,7 @@ impl ansi::Handler for GridHandler {
             (scroll_right_px / (self.ansi_handler_state.cell_width as f32)).ceil() as usize;
 
         let image_id = image.metadata.id;
-        let placement_id = rand::thread_rng().gen();
+        let placement_id = rand::thread_rng().r#gen();
 
         self.ansi_handler_state
             .event_proxy
@@ -1701,6 +1713,31 @@ impl GridHandler {
         }
     }
 
+    fn clear_visible_rows_in_place(&mut self, bg: Color) {
+        self.grid.region_mut(..).each(|cell| *cell = bg.into());
+        let visible_start_row = self.history_size();
+        let visible_end_row = visible_start_row + self.visible_rows();
+        if visible_start_row < visible_end_row {
+            self.images.evict_image_ids_between_points_with_type(
+                AbsolutePoint::from_point(Point::new(visible_start_row, 0), self),
+                AbsolutePoint::from_point(Point::new(visible_end_row - 1, usize::MAX), self),
+                vec![ImageType::ITerm, ImageType::Kitty],
+            );
+            if self.columns() > 0 {
+                self.clear_secrets_in_range(
+                    Point::new(visible_start_row, 0)
+                        ..=Point::new(visible_end_row - 1, self.columns() - 1),
+                );
+            }
+        }
+        self.clear_displayed_rows_and_filter_matches();
+        if self.track_content_length {
+            self.bottommost_visible_content_row = self.bottommost_visible_content_row_backward();
+        }
+        self.ansi_handler_state.dirty_cells_range =
+            Point::new(visible_start_row, 0)..Point::new(visible_end_row, 0);
+    }
+
     pub(in crate::terminal::model) fn disable_reset_grid_checks(&mut self) {
         self.ansi_handler_state.reset_grid_checks = ResetGridChecks::Disabled;
     }
@@ -1732,7 +1769,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into())
+                        .into());
                     }
                 };
 
@@ -1755,7 +1792,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into())
+                        .into());
                     }
                 };
 
@@ -1857,7 +1894,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into())
+                        .into());
                     }
                 };
 

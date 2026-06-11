@@ -8,6 +8,7 @@ use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::Icon;
 use warp_graphql::billing::AddonCreditsOption;
+use warp_graphql::error::BudgetExceededError;
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, DropShadow, Expanded, Flex, FormattedTextElement, HighlightedHyperlink,
@@ -31,9 +32,12 @@ use crate::send_telemetry_from_ctx;
 use crate::server::ids::ServerId;
 use crate::server::telemetry::{OutOfCreditsBannerAction, TelemetryEvent};
 use crate::settings_view::create_discount_badge;
-use crate::view_components::Dropdown;
+use crate::view_components::{Dropdown, DropdownAction};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-use warp_graphql::error::BudgetExceededError;
+
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 #[derive(Default)]
 struct MouseStates {
@@ -137,6 +141,15 @@ impl BuyCreditsBanner {
                     .addon_credits_options
                     .get(self.selected_denomination_index)
                     .map(|option| option.credits);
+                let has_admin_permissions = {
+                    let auth_state = AuthStateProvider::as_ref(ctx).get();
+                    let current_team = UserWorkspaces::as_ref(ctx).current_team();
+                    auth_state
+                        .user_email()
+                        .zip(current_team)
+                        .map(|(email, team)| team.has_admin_permissions(&email))
+                        .unwrap_or_default()
+                };
 
                 // Things we always do:
                 // - emit telemetry
@@ -161,7 +174,7 @@ impl BuyCreditsBanner {
                 // - Banner toggle flow: optionally enable auto-reload immediately.
                 // - Post-purchase modal flow: show the modal.
                 if banner_toggle_flag_enabled {
-                    if self.auto_reload_enabled {
+                    if has_admin_permissions && self.auto_reload_enabled {
                         self.banner_auto_reload_update_in_flight = true;
 
                         if let Some(team_uid) = UserWorkspaces::as_ref(ctx).current_team_uid() {
@@ -176,7 +189,7 @@ impl BuyCreditsBanner {
                             });
                         }
                     }
-                } else if post_purchase_modal_flag_enabled {
+                } else if has_admin_permissions && post_purchase_modal_flag_enabled {
                     // Default selection in the modal should match the denomination the user clicked "buy" on.
                     ctx.emit(BuyCreditsBannerEvent::OpenAutoReloadModal {
                         purchased_credits: selected_credits.unwrap_or(0),
@@ -208,7 +221,10 @@ impl BuyCreditsBanner {
                 if self.banner_auto_reload_update_in_flight {
                     self.banner_auto_reload_update_in_flight = false;
                     ctx.emit(BuyCreditsBannerEvent::ShowAutoReloadError {
-                        error_message: "Failed to enable auto-reload for your team. Please try again in Settings > Billing and Usage.",
+                        error_message: text(
+                            ctx,
+                            "settings.billing.buy_credits_banner.auto_reload_failed",
+                        ),
                     });
                     ctx.notify();
                 }
@@ -217,7 +233,11 @@ impl BuyCreditsBanner {
         }
     }
 
-    fn render_auto_reload_checkbox(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_auto_reload_checkbox(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let check_color = theme.background().into_solid();
         let auto_reload_enabled = self.auto_reload_enabled;
@@ -241,9 +261,13 @@ impl BuyCreditsBanner {
 
         let sub_text_color = theme.sub_text_color(theme.surface_1());
 
-        let label = Text::new_inline("Auto reload", appearance.ui_font_family(), 12.)
-            .with_color(sub_text_color.into())
-            .finish();
+        let label = Text::new_inline(
+            text(app, "settings.billing.addon_credits.auto_reload.label"),
+            appearance.ui_font_family(),
+            12.,
+        )
+        .with_color(sub_text_color.into())
+        .finish();
 
         // Get the selected amount for the tooltip
         let selected_credits = self
@@ -252,10 +276,8 @@ impl BuyCreditsBanner {
             .map(|option| option.credits)
             .unwrap_or(0);
 
-        let tooltip_text = format!(
-            "When enabled, auto reload will purchase {} credits when your credit balance gets low",
-            selected_credits
-        );
+        let tooltip_text = text(app, "settings.billing.addon_credits.auto_reload.tooltip")
+            .replace("{count}", &selected_credits.to_string());
 
         // Create info icon with a custom sub_text_color & mouse cursor (i.e. as opposed to using IconWithTooltip)
         let ui_builder = appearance.ui_builder();
@@ -331,7 +353,7 @@ impl BuyCreditsBanner {
                 };
                 if discount_percent > 0 {
                     MenuItemFields::new_with_custom_label(
-                        Arc::new(enclose!((primary_text) move |is_selected, is_hovered, appearance, _| {
+                        Arc::new(enclose!((primary_text) move |is_selected, is_hovered, appearance, app| {
                             let text_color = appearance.theme().main_text_color(
                                 if is_selected || is_hovered {
                                     appearance.theme().accent()
@@ -347,7 +369,8 @@ impl BuyCreditsBanner {
                             .with_color(text_color.into())
                             .finish();
 
-                            let discount_badge = create_discount_badge(discount_percent, appearance);
+                            let discount_badge =
+                                create_discount_badge(discount_percent, appearance, app);
 
                             Flex::row()
                                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -359,11 +382,15 @@ impl BuyCreditsBanner {
                         })),
                         Some(primary_text)
                     )
-                    .with_on_select_action(Action::SelectDenomination(index).into())
+                    .with_on_select_action(DropdownAction::select_action_and_close(
+                        Action::SelectDenomination(index),
+                    ))
                     .into_item()
                 } else {
                     MenuItemFields::new(primary_text.clone())
-                        .with_on_select_action(Action::SelectDenomination(index).into())
+                        .with_on_select_action(DropdownAction::select_action_and_close(
+                            Action::SelectDenomination(index),
+                        ))
                         .into_item()
                 }
             })
@@ -404,16 +431,25 @@ impl BuyCreditsBanner {
 
         // Banner text with title and description based on admin status
         let banner_description = if has_admin_permissions {
-            "Your monthly spend limit has been reached. Increase it to continue."
+            text(
+                app,
+                "settings.billing.addon_credits.monthly_limit_reached.admin",
+            )
         } else {
-            "Contact a team admin to increase monthly limit."
+            text(
+                app,
+                "settings.billing.addon_credits.monthly_limit_reached.non_admin",
+            )
         };
 
         let banner_text = Flex::column()
             .with_children([
                 appearance
                     .ui_builder()
-                    .paragraph("Monthly limit reached")
+                    .paragraph(text(
+                        app,
+                        "settings.billing.addon_credits.monthly_limit_reached.title",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
                         ..Default::default()
@@ -464,7 +500,7 @@ impl BuyCreditsBanner {
                     }),
                     ..Default::default()
                 })
-                .with_text_label("Manage billing".to_string())
+                .with_text_label(text(app, "settings.billing.action.manage_billing"))
                 .build()
                 .on_click(|ctx, _, _| {
                     ctx.dispatch_typed_action(Action::ManageBilling);
@@ -549,7 +585,7 @@ impl BuyCreditsBanner {
         let make_banner_text = || {
             let mut banner_text_children = vec![appearance
                 .ui_builder()
-                .paragraph("Out of credits")
+                .paragraph(text(app, "settings.billing.out_of_credits.title"))
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     ..Default::default()
@@ -561,11 +597,18 @@ impl BuyCreditsBanner {
             if is_at_monthly_limit || would_purchase_exceed_limit {
                 // Create formatted text with clickable hyperlink
                 let warning_text_fragments = vec![
-                    FormattedTextFragment::plain_text(
-                        "Purchasing these credits would take you over your monthly spend limit. ",
+                    FormattedTextFragment::plain_text(text(
+                        app,
+                        "settings.billing.out_of_credits.exceed_limit.prefix",
+                    )),
+                    FormattedTextFragment::hyperlink_action(
+                        text(app, "settings.billing.out_of_credits.exceed_limit.link"),
+                        Action::ManageBilling,
                     ),
-                    FormattedTextFragment::hyperlink_action("Increase it", Action::ManageBilling),
-                    FormattedTextFragment::plain_text(" to continue."),
+                    FormattedTextFragment::plain_text(text(
+                        app,
+                        "settings.billing.out_of_credits.exceed_limit.suffix",
+                    )),
                 ];
 
                 let formatted_warning = FormattedTextElement::new(
@@ -593,9 +636,9 @@ impl BuyCreditsBanner {
             } else {
                 // Default message when not at limit
                 let banner_description = if has_admin_permissions {
-                    "Add more credits to your account to continue using Oz agents."
+                    text(app, "settings.billing.out_of_credits.admin")
                 } else {
-                    "Contact a team admin to purchase more credits to continue."
+                    text(app, "settings.billing.out_of_credits.non_admin")
                 };
 
                 banner_text_children.push(
@@ -634,9 +677,9 @@ impl BuyCreditsBanner {
                 || would_purchase_exceed_limit;
 
             let button_text = if self.purchase_addon_credits_loading {
-                "Buying…".to_string()
+                text(app, "settings.billing.addon_credits.buying")
             } else {
-                "Buy".to_string()
+                text(app, "settings.billing.addon_credits.buy")
             };
 
             let button_font_color = buy_button_disabled.then_some(
@@ -701,7 +744,7 @@ impl BuyCreditsBanner {
 
             if auto_reload_banner_toggle_ff {
                 children.push(
-                    Container::new(self.render_auto_reload_checkbox(appearance))
+                    Container::new(self.render_auto_reload_checkbox(appearance, app))
                         .with_margin_right(8.)
                         .finish(),
                 );
@@ -793,7 +836,7 @@ pub enum BuyCreditsBannerEvent {
     OpenBillingAndUsage,
     RefocusInput,
     OpenAutoReloadModal { purchased_credits: i32 },
-    ShowAutoReloadError { error_message: &'static str },
+    ShowAutoReloadError { error_message: String },
 }
 
 impl Entity for BuyCreditsBanner {
@@ -830,7 +873,7 @@ impl View for BuyCreditsBanner {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Action {
     SelectDenomination(usize),
     Close,

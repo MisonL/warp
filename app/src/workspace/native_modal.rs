@@ -1,20 +1,21 @@
-use crate::appearance::Appearance;
-use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
-use crate::ui_components::dialog::{dialog_styles, Dialog};
 use settings::Setting as _;
 use warp_core::ui::theme::Fill;
-use warpui::elements::{Align, Container, Empty, Flex, ParentElement};
+use warpui::elements::{Align, Container, Empty, Flex, MouseStateHandle, ParentElement};
+use warpui::fonts::Weight;
 use warpui::keymap::FixedBinding;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
-use warpui::ui_components::components::{Coords, UiComponent};
+use warpui::platform::Cursor;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::ui_components::text::Span;
 use warpui::{
-    elements::MouseStateHandle,
-    fonts::Weight,
-    platform::Cursor,
-    ui_components::{button::ButtonVariant, components::UiComponentStyles, text::Span},
-    Element, Entity, TypedActionView, View,
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
-use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext};
+
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
+use crate::ui_components::dialog::{dialog_styles, Dialog};
 
 pub(super) fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -137,7 +138,10 @@ impl View for NativeModal {
         let dont_show_again_checkbox = appearance
             .ui_builder()
             .checkbox(self.dont_show_again_mouse_state.clone(), Some(14.))
-            .with_label(Span::new("Don't show again.", Default::default()))
+            .with_label(Span::new(
+                localization::text_for_app(app, "workspace.close_session.dont_show_again"),
+                Default::default(),
+            ))
             .check(self.dont_show_again)
             .build()
             .with_cursor(Cursor::PointingHand)

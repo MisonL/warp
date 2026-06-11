@@ -1,39 +1,30 @@
-use super::OnboardingSlide;
-use crate::model::OnboardingStateModel;
-use crate::slides::{bottom_nav, layout, slide_content};
-use crate::telemetry::OnboardingEvent;
-use crate::OnboardingIntention;
 use ui_components::{button, Component as _, Options as _};
 use warp_core::send_telemetry_from_ctx;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::Fill;
-use warp_core::ui::{appearance::Appearance, theme::color::internal_colors, Icon};
-use warpui::prelude::Align;
-use warpui::{
-    elements::{
-        Border, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, DropShadow, Flex, FormattedTextElement, Hoverable, MainAxisAlignment,
-        MainAxisSize, MouseStateHandle, ParentElement, Radius, SizeConstraintCondition,
-        SizeConstraintSwitch,
-    },
-    fonts::Weight,
-    keymap::Keystroke,
-    platform::Cursor,
-    text_layout::TextAlignment,
-    ui_components::components::{UiComponent as _, UiComponentStyles},
+use warp_core::ui::Icon;
+use warpui_core::elements::{
+    Border, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    DropShadow, Flex, FormattedTextElement, Hoverable, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, ParentElement, Radius, SizeConstraintCondition, SizeConstraintSwitch,
+};
+use warpui_core::fonts::Weight;
+use warpui_core::keymap::Keystroke;
+use warpui_core::platform::Cursor;
+use warpui_core::prelude::Align;
+use warpui_core::text_layout::TextAlignment;
+use warpui_core::ui_components::components::{UiComponent as _, UiComponentStyles};
+use warpui_core::{
     AppContext, Element, Entity, ModelHandle, SingletonEntity as _, TypedActionView, View,
     ViewContext,
 };
 
-const SUBSCRIBE_ITEMS: &[&str] = &[
-    "1,500 credits per month",
-    "Access to frontier OpenAI, Anthropic, and Google models",
-    "Access to Reload credits and volume-based discounts",
-    "Extended cloud agents access",
-    "Highest codebase indexing limits",
-    "Unlimited Warp Drive objects and collaboration",
-    "Private email support",
-    "Unlimited cloud conversation storage",
-];
+use super::OnboardingSlide;
+use crate::model::OnboardingStateModel;
+use crate::slides::{bottom_nav, layout, slide_content};
+use crate::telemetry::OnboardingEvent;
+use crate::{OnboardingIntention, SUBSCRIBE_ITEM_KEYS};
 
 #[derive(Debug, Clone)]
 pub enum FreeUserNoAiSlideAction {
@@ -81,15 +72,18 @@ impl FreeUserNoAiSlide {
         // living on the CTA in the right pane
         subscribe_in_nav: bool,
         agent_price_badge: &str,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let bottom_nav =
-            Align::new(self.render_bottom_nav(appearance, selected_index, subscribe_in_nav))
+            Align::new(self.render_bottom_nav(appearance, selected_index, subscribe_in_nav, app))
                 .finish();
 
         slide_content::onboarding_slide_content(
             vec![
-                Align::new(self.render_header(appearance)).left().finish(),
-                Align::new(self.render_options(appearance, selected_index, agent_price_badge))
+                Align::new(self.render_header(appearance, app))
+                    .left()
+                    .finish(),
+                Align::new(self.render_options(appearance, selected_index, agent_price_badge, app))
                     .finish(),
             ],
             bottom_nav,
@@ -98,10 +92,11 @@ impl FreeUserNoAiSlide {
         )
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         appearance
             .ui_builder()
-            .paragraph("Let's get started.")
+            .paragraph(copy.text_owned("onboarding.free_user_no_ai.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -116,13 +111,15 @@ impl FreeUserNoAiSlide {
         appearance: &Appearance,
         selected_index: usize,
         agent_price_badge: &str,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let agent_button = self.render_option_button(
             appearance,
             0,
             Icon::Code2,
-            "Agent driven development with Warp's built-in agent",
-            "Iterate, plan, and build with Oz: Warp's built-in agent. Available locally or in the cloud.",
+            copy.text_owned("onboarding.free_user_no_ai.agent.title"),
+            copy.text_owned("onboarding.free_user_no_ai.agent.description"),
             agent_price_badge.to_string(),
             true, // badge is green
             self.agent_mouse_state.clone(),
@@ -133,9 +130,9 @@ impl FreeUserNoAiSlide {
             appearance,
             1,
             Icon::Terminal,
-            "Classic terminal with third-party agents",
-            "A modern terminal that supports third-party agents (Claude Code, Codex, Gemini CLI) and classic terminal workflows.",
-            "Free".to_string(),
+            copy.text_owned("onboarding.free_user_no_ai.terminal.title"),
+            copy.text_owned("onboarding.free_user_no_ai.terminal.description"),
+            copy.text_owned("onboarding.common.free"),
             false, // badge is gray
             self.classic_terminal_mouse_state.clone(),
             selected_index,
@@ -162,7 +159,7 @@ impl FreeUserNoAiSlide {
         &self,
         appearance: &Appearance,
         text: String,
-        text_color: warpui::color::ColorU,
+        text_color: warpui_core::color::ColorU,
         border_color: Fill,
     ) -> Box<dyn Element> {
         let label = appearance
@@ -190,8 +187,8 @@ impl FreeUserNoAiSlide {
         appearance: &Appearance,
         index: usize,
         icon: Icon,
-        label: &'static str,
-        description: &'static str,
+        label: String,
+        description: String,
         badge_text: String,
         badge_green: bool,
         mouse_state: MouseStateHandle,
@@ -247,7 +244,7 @@ impl FreeUserNoAiSlide {
 
             let label_el = appearance
                 .ui_builder()
-                .paragraph(label)
+                .paragraph(label.clone())
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     font_weight: Some(Weight::Normal),
@@ -257,12 +254,13 @@ impl FreeUserNoAiSlide {
                 .build()
                 .finish();
 
-            let description_el = FormattedTextElement::from_str(description, ui_font_family, 12.)
-                .with_color(text_color)
-                .with_weight(Weight::Normal)
-                .with_alignment(TextAlignment::Left)
-                .with_line_height_ratio(1.4)
-                .finish();
+            let description_el =
+                FormattedTextElement::from_str(description.clone(), ui_font_family, 12.)
+                    .with_color(text_color)
+                    .with_weight(Weight::Normal)
+                    .with_alignment(TextAlignment::Left)
+                    .with_line_height_ratio(1.4)
+                    .finish();
 
             let content = Flex::column()
                 .with_main_axis_size(MainAxisSize::Min)
@@ -296,11 +294,13 @@ impl FreeUserNoAiSlide {
         appearance: &Appearance,
         selected_index: usize,
         subscribe_in_nav: bool,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(copy.text_owned("onboarding.common.back").into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -316,7 +316,9 @@ impl FreeUserNoAiSlide {
             self.next_button.render(
                 appearance,
                 button::Params {
-                    content: button::Content::Label("Get Warping".into()),
+                    content: button::Content::Label(
+                        copy.text_owned("onboarding.common.get_warping").into(),
+                    ),
                     theme: &button::themes::Primary,
                     options: button::Options {
                         keystroke: Some(enter),
@@ -331,7 +333,9 @@ impl FreeUserNoAiSlide {
             self.subscribe_nav_button.render(
                 appearance,
                 button::Params {
-                    content: button::Content::Label("Subscribe".into()),
+                    content: button::Content::Label(
+                        copy.text_owned("onboarding.common.subscribe").into(),
+                    ),
                     theme: &button::themes::Primary,
                     options: button::Options {
                         on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -345,7 +349,9 @@ impl FreeUserNoAiSlide {
             self.next_button.render(
                 appearance,
                 button::Params {
-                    content: button::Content::Label("Next".into()),
+                    content: button::Content::Label(
+                        copy.text_owned("onboarding.common.next").into(),
+                    ),
                     theme: &button::themes::Primary,
                     options: button::Options {
                         disabled: true,
@@ -359,16 +365,21 @@ impl FreeUserNoAiSlide {
         bottom_nav::onboarding_bottom_nav(appearance, 1, 4, Some(back_button), Some(next_button))
     }
 
-    fn render_subscribe_panel(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_subscribe_panel(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let ui_font_family = appearance.ui_font_family();
+        let copy = self.onboarding_state.as_ref(app).copy();
 
         let card_bg = theme.surface_2();
         let text_main = internal_colors::text_main(theme, internal_colors::neutral_2(theme));
         let text_sub = internal_colors::text_sub(theme, internal_colors::neutral_2(theme));
 
         let title = FormattedTextElement::from_str(
-            "Subscribe to access agent driven development in Warp.",
+            copy.text_owned("onboarding.free_user_no_ai.subscribe.title"),
             ui_font_family,
             24.,
         )
@@ -383,10 +394,11 @@ impl FreeUserNoAiSlide {
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(8.);
 
-        for item_text in SUBSCRIBE_ITEMS {
+        for item_key in SUBSCRIBE_ITEM_KEYS {
+            let item_text = copy.text(item_key);
             let bullet = appearance
                 .ui_builder()
-                .paragraph(format!("\u{2022} {item_text}"))
+                .paragraph(format!("- {item_text}"))
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     font_weight: Some(Weight::Normal),
@@ -399,6 +411,7 @@ impl FreeUserNoAiSlide {
         }
 
         let fg_color = theme.foreground().into_solid();
+        let subscribe_label = copy.text_owned("onboarding.common.subscribe");
         let subscribe_btn = Hoverable::new(
             self.subscribe_panel_mouse_state.clone(),
             move |mouse_state| {
@@ -415,15 +428,15 @@ impl FreeUserNoAiSlide {
                     .with_main_axis_alignment(MainAxisAlignment::Center)
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(
-                        warpui::elements::Text::new_inline(
-                            "Subscribe",
+                        warpui_core::elements::Text::new_inline(
+                            subscribe_label.clone(),
                             appearance.ui_font_family(),
                             14.,
                         )
                         .with_color(fg_color)
-                        .with_style(warpui::fonts::Properties {
+                        .with_style(warpui_core::fonts::Properties {
                             weight: Weight::Semibold,
-                            style: warpui::fonts::Style::Normal,
+                            style: warpui_core::fonts::Style::Normal,
                         })
                         .with_selectable(false)
                         .finish(),
@@ -495,12 +508,12 @@ impl View for FreeUserNoAiSlide {
         // Wide (right panel visible): greyed-out Next in nav.
         // Narrow (right panel hidden): Subscribe in nav (the only CTA visible).
         let wide = layout::static_left(
-            || self.render_content(appearance, selected_index, false, agent_price_badge),
-            || self.render_subscribe_panel(appearance),
+            || self.render_content(appearance, selected_index, false, agent_price_badge, app),
+            || self.render_subscribe_panel(appearance, app),
         );
         let narrow = layout::static_left(
-            || self.render_content(appearance, selected_index, true, agent_price_badge),
-            || self.render_subscribe_panel(appearance),
+            || self.render_content(appearance, selected_index, true, agent_price_badge, app),
+            || self.render_subscribe_panel(appearance, app),
         );
 
         SizeConstraintSwitch::new(

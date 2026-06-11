@@ -1,12 +1,30 @@
+use std::cell::RefCell;
+
+use pathfinder_color::ColorU;
+use pathfinder_geometry::vector::Vector2F;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::theme::Fill;
+use warp_editor::render::element::VerticalExpansionBehavior;
+use warpui::elements::{
+    Border, ChildView, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex,
+    MainAxisAlignment, MainAxisSize, ParentElement, Radius, Shrinkable, Text,
+};
+use warpui::keymap::Keystroke;
+use warpui::text_layout::ClipConfig;
+use warpui::units::Pixels;
+use warpui::{
+    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
+};
+
 use crate::code::editor::comments::{EditorCommentsModel, PendingCommentEvent};
 use crate::code::editor::line::EditorLineLocation;
 use crate::code_review::comments::{CommentId, CommentOrigin};
 use crate::editor::InteractionState;
-use crate::notebooks::editor::{
-    model::NotebooksEditorModel,
-    rich_text_styles,
-    view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorView},
-};
+use crate::localization;
+use crate::notebooks::editor::model::NotebooksEditorModel;
+use crate::notebooks::editor::rich_text_styles;
+use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorView};
 use crate::notebooks::link::{NotebookLinks, SessionSource};
 use crate::settings::FontSettings;
 use crate::ui_components::blended_colors;
@@ -14,25 +32,13 @@ use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, DangerNakedTheme, KeystrokeSource, NakedTheme, PrimaryTheme,
 };
-use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::Vector2F;
-use std::cell::RefCell;
-use warp_core::ui::{appearance::Appearance, theme::Fill};
-use warp_editor::render::element::VerticalExpansionBehavior;
-use warpui::{
-    elements::{
-        Border, ChildView, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-        Flex, MainAxisAlignment, MainAxisSize, ParentElement, Radius, Shrinkable, Text,
-    },
-    keymap::Keystroke,
-    text_layout::ClipConfig,
-    units::Pixels,
-    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
-};
 
 /// Default width of the comment editor, in pixels.
 pub(crate) const DEFAULT_COMMENT_MAX_WIDTH: f32 = 750.0;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[derive(Debug)]
 pub enum CommentEditorEvent {
@@ -163,7 +169,7 @@ impl CommentEditor {
         ViewHandle<ActionButton>,
     ) {
         let save_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Comment", PrimaryTheme)
+            ActionButton::new(text(ctx, "code.comment.action.comment"), PrimaryTheme)
                 .with_keybinding(
                     KeystrokeSource::Fixed(Keystroke::parse("cmdorctrl-enter").unwrap_or_default()),
                     ctx,
@@ -178,16 +184,16 @@ impl CommentEditor {
             button.set_disabled(true, ctx);
         });
 
-        let close_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", NakedTheme)
+        let close_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(text(ctx, "settings.action.cancel"), NakedTheme)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(CommentEditorAction::CloseEditor);
                 })
                 .with_size(ButtonSize::Small)
         });
 
-        let remove_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Remove", DangerNakedTheme)
+        let remove_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(text(ctx, "code.comment.action.remove"), DangerNakedTheme)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(CommentEditorAction::RemoveComment);
                 })
@@ -275,7 +281,7 @@ impl CommentEditor {
         self.is_imported_comment = origin.is_imported_from_github();
 
         self.save_button.update(ctx, |button, ctx| {
-            button.set_label("Update", ctx);
+            button.set_label(text(ctx, "settings.action.update"), ctx);
         });
         ctx.notify();
 
@@ -294,7 +300,7 @@ impl CommentEditor {
         self.is_imported_comment = false;
 
         self.save_button.update(ctx, |button, ctx| {
-            button.set_label("Comment", ctx);
+            button.set_label(text(ctx, "code.comment.action.comment"), ctx);
         });
         ctx.notify();
 
@@ -322,6 +328,7 @@ impl CommentEditor {
         &self,
         appearance: &Appearance,
         background: ColorU,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let sub_text_color = theme.sub_text_color(Fill::Solid(background)).into_solid();
@@ -330,7 +337,7 @@ impl CommentEditor {
             .finish();
 
         let label = Text::new(
-            "Comment imported from GitHub".to_string(),
+            text(app, "code.comment.imported_from_github"),
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
@@ -366,7 +373,12 @@ impl CommentEditor {
             .finish()
     }
 
-    fn render_footer_row(&self, appearance: &Appearance, background: ColorU) -> Box<dyn Element> {
+    fn render_footer_row(
+        &self,
+        appearance: &Appearance,
+        background: ColorU,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let action_buttons = self.render_action_buttons();
         let footer_row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
@@ -377,7 +389,7 @@ impl CommentEditor {
                 .with_child(
                     Shrinkable::new(
                         1.,
-                        self.render_github_import_indicator(appearance, background),
+                        self.render_github_import_indicator(appearance, background, app),
                     )
                     .finish(),
                 )
@@ -403,7 +415,7 @@ impl View for CommentEditor {
         let background = blended_colors::neutral_2(theme);
         let border_color = blended_colors::neutral_4(theme);
 
-        let footer_row = self.render_footer_row(appearance, background);
+        let footer_row = self.render_footer_row(appearance, background, ctx);
 
         Container::new(
             ConstrainedBox::new(
@@ -423,8 +435,8 @@ impl View for CommentEditor {
                     )
                     .with_child(
                         Container::new(footer_row)
-                            .with_vertical_padding(8.)
-                            .with_horizontal_padding(8.)
+                            .with_vertical_padding(4.)
+                            .with_horizontal_padding(4.)
                             .with_border(Border::top(1.).with_border_fill(border_color))
                             .finish(),
                     )

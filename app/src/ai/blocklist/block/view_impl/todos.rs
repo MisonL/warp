@@ -1,38 +1,29 @@
 //! Rendering logic for todo list components in AI blocks.
 
+use warpui::elements::{
+    Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Flex, Highlight,
+    ParentElement, Radius, Shrinkable, Text,
+};
 use warpui::fonts::Properties;
 use warpui::text_layout::TextStyle;
-use warpui::{
-    elements::{
-        Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Flex,
-        Highlight, ParentElement, Radius, Shrinkable, Text,
-    },
-    AppContext, Element, SingletonEntity,
-};
-
-use crate::ai::agent::conversation::{AIConversation, TodoStatus};
-use crate::ai::agent::icons::{gray_stop_icon, in_progress_icon, pending_icon, succeeded_icon};
-use crate::ai::agent::todos::AIAgentTodoList;
-use crate::ai::agent::{AIAgentTodo, MessageId};
-use crate::ai::blocklist::inline_action::inline_action_icons::cancelled_icon;
-use crate::{
-    ai::{
-        agent::icons::todo_list_icon,
-        blocklist::{
-            block::{AIBlockAction, TodoListElementState},
-            inline_action::{
-                inline_action_header::{
-                    ExpandedConfig, HeaderConfig, InteractionMode, INLINE_ACTION_HORIZONTAL_PADDING,
-                },
-                inline_action_icons::icon_size,
-            },
-        },
-    },
-    appearance::Appearance,
-    ui_components::{blended_colors, icons::Icon},
-};
+use warpui::{AppContext, Element, SingletonEntity};
 
 use super::WithContentItemSpacing;
+use crate::ai::agent::conversation::{AIConversation, TodoStatus};
+use crate::ai::agent::icons::{
+    gray_stop_icon, in_progress_icon, pending_icon, succeeded_icon, todo_list_icon,
+};
+use crate::ai::agent::todos::AIAgentTodoList;
+use crate::ai::agent::{AIAgentTodo, MessageId};
+use crate::ai::blocklist::block::{AIBlockAction, TodoListElementState};
+use crate::ai::blocklist::inline_action::inline_action_header::{
+    ExpandedConfig, HeaderConfig, InteractionMode, INLINE_ACTION_HORIZONTAL_PADDING,
+};
+use crate::ai::blocklist::inline_action::inline_action_icons::{cancelled_icon, icon_size};
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::ui_components::blended_colors;
+use crate::ui_components::icons::Icon;
 
 pub(super) fn render_todos(
     id: &MessageId,
@@ -46,14 +37,17 @@ pub(super) fn render_todos(
 
     // Add collapsible header.
     let id = id.clone();
-    let mut header_config = HeaderConfig::new("Tasks", app)
-        .with_interaction_mode(InteractionMode::ManuallyExpandable(
-            ExpandedConfig::new(state.is_expanded, state.header_toggle_mouse_state.clone())
-                .with_toggle_callback(move |ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::ToggleTodoListExpanded(id.clone()));
-                }),
-        ))
-        .with_icon(todo_list_icon(appearance));
+    let mut header_config =
+        HeaderConfig::new(localization::text_for_app(app, "agent.todos.title"), app)
+            .with_interaction_mode(InteractionMode::ManuallyExpandable(
+                ExpandedConfig::new(state.is_expanded, state.header_toggle_mouse_state.clone())
+                    .with_toggle_callback(move |ctx| {
+                        ctx.dispatch_typed_action(AIBlockAction::ToggleTodoListExpanded(
+                            id.clone(),
+                        ));
+                    }),
+            ))
+            .with_icon(todo_list_icon(appearance));
 
     let mut has_cancelled_todo = false;
     let mut rendered_todos = vec![];
@@ -70,7 +64,8 @@ pub(super) fn render_todos(
     let is_list_outdated = has_cancelled_todo
         || todos.len() != conversation.active_todo_list().map_or(0, |list| list.len());
     if is_list_outdated {
-        header_config = header_config.with_badge("Outdated".to_string());
+        header_config =
+            header_config.with_badge(localization::text_for_app(app, "agent.todos.outdated"));
     }
 
     let header_element = header_config.render(app);

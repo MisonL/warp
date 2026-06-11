@@ -1,26 +1,28 @@
 use warp_core::ui::appearance::Appearance;
-use warpui::{
-    elements::{
-        Border, Container, CrossAxisAlignment, Element, Empty, Fill, Flex, MouseStateHandle,
-        ParentElement,
-    },
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
+use warpui::elements::{
+    Border, Container, CrossAxisAlignment, Element, Empty, Fill, Flex, MouseStateHandle,
+    ParentElement,
 };
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 
 use crate::ui_components::blended_colors;
 
 pub struct SettingsTab {
     pub label: String,
+    pub value: String,
     pub mouse_state: MouseStateHandle,
 }
 
 impl SettingsTab {
-    pub fn new(label: impl Into<String>, mouse_state: MouseStateHandle) -> Self {
+    pub fn new_with_value(
+        label: impl Into<String>,
+        value: impl Into<String>,
+        mouse_state: MouseStateHandle,
+    ) -> Self {
         Self {
             label: label.into(),
+            value: value.into(),
             mouse_state,
         }
     }
@@ -43,7 +45,7 @@ where
         .with_cross_axis_alignment(CrossAxisAlignment::End);
 
     for tab in tabs {
-        let is_selected = tab.label == selected_label;
+        let is_selected = tab.value == selected_label;
 
         let tab_button_styles = UiComponentStyles {
             font_color: Some(if is_selected {
@@ -69,7 +71,7 @@ where
             .with_text_label(tab.label.clone())
             .build()
             .on_click(move |ctx, _, _| {
-                on_select_clone(&tab.label, ctx);
+                on_select_clone(&tab.value, ctx);
             })
             .finish();
 

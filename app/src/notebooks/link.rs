@@ -1,33 +1,27 @@
 //! Link-opening behavior for notebooks.
-use std::{
-    borrow::Cow,
-    fmt,
-    future::{self, Future},
-    net::IpAddr,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::future::{self, Future};
+use std::net::IpAddr;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use futures_util::future::Either;
 use url::Url;
 use warp_util::path::{CleanPathResult, LineAndColumnArg};
-use warpui::{
-    r#async::SpawnedFutureHandle, AppContext, Entity, ModelContext, ModelHandle, SingletonEntity,
-    WindowId,
-};
+use warpui::r#async::SpawnedFutureHandle;
+use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, WindowId};
 
+use super::file::is_markdown_file;
+use crate::drive::OpenWarpDriveObjectArgs;
+use crate::localization;
+use crate::terminal::model::session::Session;
+use crate::uri::parse_url_paths::{get_item_data_from_warp_link, WarpWebLink};
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::{is_supported_image_file, resolve_file_target, FileTarget};
-use crate::{
-    drive::OpenWarpDriveObjectArgs,
-    terminal::model::session::Session,
-    uri::parse_url_paths::{get_item_data_from_warp_link, WarpWebLink},
-    workspace::ActiveSession,
-};
-
-use super::file::is_markdown_file;
+use crate::workspace::ActiveSession;
 
 #[cfg(test)]
 #[path = "link_tests.rs"]
@@ -53,19 +47,20 @@ pub enum LinkTarget {
 
 impl LinkTarget {
     /// A secondary action to show in the tooltip for this link.
-    pub fn secondary_action(&self) -> Option<SecondaryAction> {
+    pub fn secondary_action(&self, app: &AppContext) -> Option<SecondaryAction> {
         match self {
             LinkTarget::LocalDirectory { .. } => Some(SecondaryAction {
-                label: "New session".into(),
-                tooltip: Some("Open a new terminal session in this directory".into()),
-                accessibility_content: "Open in terminal session".into(),
+                label: text(app, "notebook.link.action.new_session").into(),
+                tooltip: Some(text(app, "notebook.link.action.new_session_tooltip").into()),
+                accessibility_content: text(app, "notebook.link.action.open_in_terminal_session")
+                    .into(),
             }),
             LinkTarget::LocalFile {
                 is_markdown: true, ..
             } => Some(SecondaryAction {
-                label: "Open in editor".into(),
+                label: text(app, "notebook.link.action.open_in_editor").into(),
                 tooltip: None,
-                accessibility_content: "Edit Markdown file".into(),
+                accessibility_content: text(app, "notebook.link.action.edit_markdown_file").into(),
             }),
             LinkTarget::Url(_) | LinkTarget::LocalFile { .. } => None,
         }
@@ -110,6 +105,10 @@ impl fmt::Display for LinkTarget {
             LinkTarget::LocalDirectory { path, .. } => path.display().fmt(f),
         }
     }
+}
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
 }
 
 /// Model for resolving and opening links in a notebook, taking into account their context (for
@@ -221,7 +220,7 @@ impl NotebookLinks {
                     match self.session_source.base_directory(ctx) {
                         Some(directory) => directory.join(clean_path),
                         None => {
-                            return Either::Right(future::ready(Err(ResolveError::MissingContext)))
+                            return Either::Right(future::ready(Err(ResolveError::MissingContext)));
                         }
                     }
                 } else {
@@ -260,7 +259,7 @@ impl NotebookLinks {
 
     /// Open a resolved link:
     /// * URLs are opened in the web browser or system-default application.
-    /// * Markdown files are opened in Warp (if the `FileNotebooks` feature flag is enabled).
+    /// * Markdown files are opened according to the user's Markdown Viewer preference.
     /// * Other files are opened in the configured editor or system-default application.
     pub fn open(&self, link: LinkTarget, ctx: &mut ModelContext<Self>) {
         match link {
@@ -275,11 +274,27 @@ impl NotebookLinks {
             }
             LinkTarget::LocalFile {
                 path,
+                line_and_column,
                 session,
                 is_markdown: true,
-                ..
             } => {
-                ctx.emit(LinkEvent::OpenFileNotebook { path, session });
+                #[cfg(not(feature = "local_fs"))]
+                let _ = line_and_column;
+
+                #[cfg(feature = "local_fs")]
+                {
+                    let settings = EditorSettings::as_ref(ctx);
+                    if *settings.prefer_markdown_viewer {
+                        ctx.emit(LinkEvent::OpenFileNotebook { path, session });
+                    } else {
+                        open_file(path, line_and_column, ctx);
+                    }
+                }
+
+                #[cfg(not(feature = "local_fs"))]
+                {
+                    ctx.emit(LinkEvent::OpenFileNotebook { path, session });
+                }
             }
             LinkTarget::LocalFile {
                 path,
@@ -398,6 +413,16 @@ impl fmt::Display for ResolveError {
             ResolveError::FileNotFound => f.write_str("File not found"),
             ResolveError::MissingContext => f.write_str("No base directory"),
             ResolveError::Unknown => f.write_str("Broken file link"),
+        }
+    }
+}
+
+impl ResolveError {
+    pub fn localized_message(&self, app: &AppContext) -> String {
+        match self {
+            ResolveError::FileNotFound => text(app, "notebook.link.error.file_not_found"),
+            ResolveError::MissingContext => text(app, "notebook.link.error.missing_context"),
+            ResolveError::Unknown => text(app, "notebook.link.error.unknown"),
         }
     }
 }

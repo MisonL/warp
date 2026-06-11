@@ -2,81 +2,71 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::document::ai_document_model::{AIDocumentSaveStatus, AIDocumentUserEditStatus};
-use crate::appearance::Appearance;
-use crate::drive::{items::WarpDriveItemId, sharing::ShareableObject, CloudObjectTypeAndId};
-use crate::notebooks::editor::view::RichTextEditorConfig;
-use crate::pane_group::focus_state::PaneFocusHandle;
-use crate::pane_group::pane::view::header::components::{
-    render_pane_header_buttons, render_pane_header_title_text, render_three_column_header,
-    CenteredHeaderEdgeWidth,
-};
-use crate::pane_group::pane::view::header::toolbelt_button_position_id;
-use crate::pane_group::pane::view::header::PaneHeaderAction;
-use crate::send_telemetry_from_ctx;
-use crate::settings::FontSettings;
-use crate::terminal::input::MenuPositioning;
-use crate::terminal::view::TerminalView;
-use crate::util::bindings::keybinding_name_to_keystroke;
-use crate::view_components::action_button::{
-    ButtonSize, NakedTheme, SecondaryTheme, TooltipAlignment,
-};
-use crate::view_components::DismissibleToast;
-use crate::workspace::ToastStack;
-use crate::BlocklistAIHistoryModel;
-use crate::{
-    ai::document::ai_document_model::{
-        AIDocumentId, AIDocumentInstance, AIDocumentModel, AIDocumentModelEvent,
-        AIDocumentUpdateSource, AIDocumentVersion,
-    },
-    editor::InteractionState,
-    menu::{Menu, MenuItem, MenuItemFields},
-    notebooks::{
-        editor::{
-            model::NotebooksEditorModel,
-            rich_text_styles,
-            view::{EditorViewEvent, RichTextEditorView},
-        },
-        link::{NotebookLinks, SessionSource},
-    },
-    pane_group::{pane::view, BackingView, PaneConfiguration, PaneEvent},
-    server::telemetry::TelemetryEvent,
-    ui_components::buttons::icon_button,
-    ui_components::icons::Icon,
-    view_components::action_button::{ActionButton, PrimaryTheme},
-};
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::icons;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_core::ui::theme::Fill as ThemeFill;
 use warpui::clipboard::ClipboardContent;
-use warpui::elements::CrossAxisAlignment;
-use warpui::elements::MainAxisAlignment;
-use warpui::elements::MainAxisSize;
-use warpui::elements::{ChildAnchor, PositionedElementAnchor, PositionedElementOffsetBounds};
-use warpui::keymap::EditableBinding;
-use warpui::keymap::FixedBinding;
+use warpui::elements::{
+    ChildAnchor, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Flex, Hoverable,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement,
+    PositionedElementAnchor, PositionedElementOffsetBounds, SavePosition, Stack,
+};
+use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonTooltipPosition;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
-    elements::{
-        ChildView, ConstrainedBox, Container, Flex, Hoverable, MouseStateHandle, OffsetPositioning,
-        ParentElement, SavePosition, Stack,
-    },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    id, AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
-use warpui::{id, EntityId};
+
+use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
+use crate::ai::document::ai_document_model::{
+    AIDocumentId, AIDocumentInstance, AIDocumentModel, AIDocumentModelEvent, AIDocumentSaveStatus,
+    AIDocumentUpdateSource, AIDocumentUserEditStatus, AIDocumentVersion,
+};
+use crate::ai::document::orchestration_config_block::OrchestrationConfigBlockView;
+use crate::appearance::Appearance;
+use crate::code::view::{save_file_binding_description, SAVE_FILE_BINDING_NAME};
+use crate::drive::items::WarpDriveItemId;
+use crate::drive::sharing::ShareableObject;
+use crate::drive::CloudObjectTypeAndId;
+use crate::editor::InteractionState;
+use crate::menu::{Menu, MenuItem, MenuItemFields};
+use crate::notebooks::editor::model::NotebooksEditorModel;
+use crate::notebooks::editor::rich_text_styles;
+use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorView};
+use crate::notebooks::link::{NotebookLinks, SessionSource};
+use crate::pane_group::focus_state::PaneFocusHandle;
+use crate::pane_group::pane::view;
+use crate::pane_group::pane::view::header::components::{
+    render_pane_header_buttons, render_pane_header_title_text, render_three_column_header,
+    CenteredHeaderEdgeWidth,
+};
+use crate::pane_group::pane::view::header::{toolbelt_button_position_id, PaneHeaderAction};
+use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
+use crate::server::telemetry::TelemetryEvent;
+use crate::settings::FontSettings;
+use crate::terminal::input::MenuPositioning;
+use crate::terminal::view::TerminalView;
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::icons::Icon;
+use crate::util::bindings::keybinding_name_to_keystroke;
+use crate::view_components::action_button::{
+    ActionButton, ButtonSize, NakedTheme, PrimaryTheme, SecondaryTheme, TooltipAlignment,
+};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
+use crate::{localization, send_telemetry_from_ctx, BlocklistAIHistoryModel};
 
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(
         // Reuse the save file keybinding name and description
         // so that there's only one entry in settings reused for both cases.
         SAVE_FILE_BINDING_NAME,
-        SAVE_FILE_BINDING_DESCRIPTION,
+        save_file_binding_description(),
         AIDocumentAction::SendUpdatedPlan,
     )
     .with_context_predicate(id!("AIDocumentView") & !id!("IMEOpen"))
@@ -90,17 +80,25 @@ pub fn init(app: &mut AppContext) {
     )]);
 }
 
+fn ai_document_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn ai_document_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
+}
+
+#[cfg(feature = "local_fs")]
+use warp_util::path::LineAndColumnArg;
+
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
+// Import keybinding constants from code view to ensure consistency
+use crate::notebooks::file::MarkdownDisplayMode;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::EditorLayout;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
-#[cfg(feature = "local_fs")]
-use warp_util::path::LineAndColumnArg;
-
-// Import keybinding constants from code view to ensure consistency
-use crate::code::view::{SAVE_FILE_BINDING_DESCRIPTION, SAVE_FILE_BINDING_NAME};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AIDocumentAction {
@@ -143,8 +141,6 @@ impl From<PaneEvent> for AIDocumentEvent {
     }
 }
 
-pub const DEFAULT_PLANNING_DOCUMENT_TITLE: &str = "Planning document";
-
 /// Entry for the version history dropdown menu.
 struct VersionMenuEntry {
     version: AIDocumentVersion,
@@ -170,6 +166,7 @@ pub struct AIDocumentView {
     synced_status_mouse_state: MouseStateHandle,
     view_position_id: String,
     version_button: ViewHandle<ActionButton>,
+    orchestration_config_block: Option<ViewHandle<OrchestrationConfigBlockView>>,
 }
 
 impl AIDocumentView {
@@ -287,6 +284,41 @@ impl AIDocumentView {
                         // Try to populate terminal view if conversations were restored
                         me.maybe_populate_terminal_view(*terminal_view_id, conversation_ids, ctx);
                     }
+                    BlocklistAIHistoryEvent::OrchestrationConfigUpdated {
+                        conversation_id: cid,
+                        from_restore,
+                    } => {
+                        let our_conv = AIDocumentModel::as_ref(ctx)
+                            .get_conversation_id_for_document_id(&document_id);
+                        if our_conv.as_ref() == Some(cid) {
+                            // Lazily create the config block view if the
+                            // plan sidebar opened before the orchestration
+                            // config arrived.
+                            let was_freshly_created = if me.orchestration_config_block.is_none() {
+                                let conv_id = *cid;
+                                // TODO: introduce DocumentId / PlanId newtypes to make this
+                                // conversion type-safe.
+                                let plan_id = document_id.to_string();
+                                me.orchestration_config_block =
+                                    Some(ctx.add_typed_action_view(move |ctx| {
+                                        OrchestrationConfigBlockView::new(conv_id, plan_id, ctx)
+                                    }));
+                                true
+                            } else {
+                                false
+                            };
+                            // Arm auto-pop for live agent dispatches but
+                            // not for restore-hydrated events.
+                            if was_freshly_created && !*from_restore {
+                                if let Some(block) = &me.orchestration_config_block {
+                                    block.update(ctx, |block, ctx| {
+                                        block.arm_for_fresh_dispatch(ctx);
+                                    });
+                                }
+                            }
+                            ctx.notify();
+                        }
+                    }
                     _ => {}
                 }
             },
@@ -304,7 +336,9 @@ impl AIDocumentView {
                     let appearance = Appearance::as_ref(ctx);
                     let font_settings = FontSettings::as_ref(ctx);
                     let styles = rich_text_styles(appearance, font_settings);
-                    NotebooksEditorModel::new_unbound(styles, ctx)
+                    let mut model = NotebooksEditorModel::new_unbound(styles, ctx);
+                    model.set_default_mermaid_display_mode(MarkdownDisplayMode::Rendered, ctx);
+                    model
                 })
             });
 
@@ -331,7 +365,7 @@ impl AIDocumentView {
         let document_title = AIDocumentModel::as_ref(ctx)
             .get_document(&document_id, document_version)
             .map(|doc| doc.get_title())
-            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
+            .unwrap_or_else(|| ai_document_text(ctx, "ai_document.title.default"));
         let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(document_title));
 
         // Create version menu view and subscribe to close events to hide overlay
@@ -346,11 +380,14 @@ impl AIDocumentView {
         });
 
         // Anchor overlay to the toolbelt "Show version history" button
-        let version_button = ctx.add_typed_action_view(|_| {
+        let version_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(icons::Icon::History)
                 .with_size(ButtonSize::Small)
-                .with_tooltip("Show version history")
+                .with_tooltip(ai_document_text(
+                    ctx,
+                    "ai_document.tooltip.show_version_history",
+                ))
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(
                         PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
@@ -373,34 +410,65 @@ impl AIDocumentView {
         // Read the actual configured keybinding for the save action
         let save_action = keybinding_name_to_keystroke(SAVE_FILE_BINDING_NAME, ctx)
             .map(|k| k.displayed())
-            .unwrap_or("Click".to_string());
-        let tooltip_text = format!("This plan has changes the agent isn't aware of. {save_action} to stop the agent's current task and send the updated plan");
-        let update_plan_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Update Agent", PrimaryTheme)
-                .with_size(ButtonSize::Small)
-                .with_tooltip(tooltip_text)
-                .with_tooltip_alignment(TooltipAlignment::Right)
-                .with_tooltip_positioning_provider(Arc::new(MenuPositioning::BelowInputBox))
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
-                            AIDocumentAction::SendUpdatedPlan,
-                        ),
-                    );
-                })
+            .unwrap_or_else(|| ai_document_text(ctx, "ai_document.action.click"));
+        let tooltip_text = ai_document_text_with_args(
+            ctx,
+            "ai_document.tooltip.update_agent",
+            &[("save_action", &save_action)],
+        );
+        let update_plan_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_document_text(ctx, "ai_document.action.update_agent"),
+                PrimaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .with_tooltip(tooltip_text)
+            .with_tooltip_alignment(TooltipAlignment::Right)
+            .with_tooltip_positioning_provider(Arc::new(MenuPositioning::BelowInputBox))
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(
+                    PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
+                        AIDocumentAction::SendUpdatedPlan,
+                    ),
+                );
+            })
         });
 
         // Create restore button
-        let restore_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Restore", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
-                            AIDocumentAction::RevertToDocumentVersion,
-                        ),
-                    );
+        let restore_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                ai_document_text(ctx, "ai_document.action.restore"),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(
+                    PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
+                        AIDocumentAction::RevertToDocumentVersion,
+                    ),
+                );
+            })
+        });
+
+        // Create the orchestration config block if there's an active config
+        // for this document's conversation.
+        let doc_conversation_id =
+            AIDocumentModel::as_ref(ctx).get_conversation_id_for_document_id(&document_id);
+        let has_orchestration_config = doc_conversation_id.and_then(|cid| {
+            BlocklistAIHistoryModel::as_ref(ctx)
+                .conversation(&cid)
+                .and_then(|conv| {
+                    let plan_id_str = document_id.to_string();
+                    conv.orchestration_config_for_plan(&plan_id_str)
+                        .map(|_| cid)
                 })
+        });
+        let doc_id_for_block = document_id;
+        let orchestration_config_block = has_orchestration_config.map(|conv_id| {
+            let plan_id = doc_id_for_block.to_string();
+            ctx.add_typed_action_view(move |ctx| {
+                OrchestrationConfigBlockView::new(conv_id, plan_id, ctx)
+            })
         });
 
         let mut me = Self {
@@ -420,6 +488,7 @@ impl AIDocumentView {
             synced_status_mouse_state: MouseStateHandle::default(),
             view_position_id,
             version_button,
+            orchestration_config_block,
         };
         // Force update the editor view based on the initial document version
         me.refresh(ctx);
@@ -610,7 +679,10 @@ impl AIDocumentView {
                 let appearance = Appearance::as_ref(app);
                 let ui_builder = appearance.ui_builder().clone();
                 let tooltip = ui_builder
-                    .tool_tip("Save and auto-sync this plan to your Warp Drive".to_string())
+                    .tool_tip(ai_document_text(
+                        app,
+                        "ai_document.tooltip.save_and_sync_to_warp_drive",
+                    ))
                     .build()
                     .finish();
                 let sync_button_mouse_state = self.sync_button_mouse_state.clone();
@@ -663,8 +735,7 @@ impl AIDocumentView {
                 let color = theme.nonactive_ui_detail().into_solid();
                 let ui_builder = appearance.ui_builder().clone();
                 let tooltip_text =
-                    "This plan is synced to your Warp Drive and will auto save any edits you make."
-                        .to_string();
+                    ai_document_text(app, "ai_document.tooltip.synced_to_warp_drive");
                 let synced_status_mouse_state = self.synced_status_mouse_state.clone();
                 Container::new(
                     ConstrainedBox::new(
@@ -721,7 +792,7 @@ impl AIDocumentView {
         let title = AIDocumentModel::as_ref(app)
             .get_current_document(&self.document_id)
             .map(|doc| doc.title.clone())
-            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
+            .unwrap_or_else(|| ai_document_text(app, "ai_document.title.default"));
 
         let version_button = SavePosition::new(
             ChildView::new(&self.version_button).finish(),
@@ -855,7 +926,14 @@ impl AIDocumentView {
             .iter()
             .map(|entry| {
                 let label = if let Some(from_version) = entry.restored_from {
-                    format!("{} (restored from {})", entry.version, from_version)
+                    crate::localization::text_for_app_with_args(
+                        ctx,
+                        "ai_document.version.restored_from",
+                        &[
+                            ("version", &entry.version.to_string()),
+                            ("from_version", &from_version.to_string()),
+                        ],
+                    )
                 } else {
                     entry.version.to_string()
                 };
@@ -958,20 +1036,21 @@ impl AIDocumentView {
     /// Export the current content as a markdown file.
     #[cfg(feature = "local_fs")]
     fn export(&self, ctx: &mut ViewContext<Self>) {
-        use crate::drive::export::safe_filename;
         use warpui::platform::SaveFilePickerConfiguration;
+
+        use crate::drive::export::safe_filename;
         let markdown = self.editor.as_ref(ctx).markdown_unescaped(ctx);
 
         // Get the document title from the model
         let title = AIDocumentModel::as_ref(ctx)
             .get_current_document(&self.document_id)
             .map(|doc| doc.title.clone())
-            .unwrap_or_else(|| "Untitled".to_string());
+            .unwrap_or_else(|| ai_document_text(ctx, "ai_document.title.untitled"));
 
         // Sanitize the title for use as a filename
         let sanitized_title = safe_filename(&title);
         let filename = if sanitized_title.is_empty() {
-            "Untitled.md".to_string()
+            format!("{}.md", ai_document_text(ctx, "ai_document.title.untitled"))
         } else {
             format!("{sanitized_title}.md")
         };
@@ -1015,12 +1094,41 @@ impl View for AIDocumentView {
         "AIDocumentView"
     }
 
-    fn render(&self, _app: &AppContext) -> Box<dyn warpui::Element> {
+    fn render(&self, app: &AppContext) -> Box<dyn warpui::Element> {
+        let has_orchestration_config = AIDocumentModel::as_ref(app)
+            .get_conversation_id_for_document_id(&self.document_id)
+            .and_then(|cid| {
+                let plan_id_str = self.document_id.to_string();
+                BlocklistAIHistoryModel::as_ref(app)
+                    .conversation(&cid)
+                    .and_then(|conv| conv.orchestration_config_for_plan(&plan_id_str).map(|_| ()))
+            })
+            .is_some();
+
+        let mut content_column =
+            Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+
+        // Orchestration config block — shown above the editor when the
+        // conversation has an active OrchestrationConfigSnapshot.
+        if has_orchestration_config {
+            if let Some(config_block) = &self.orchestration_config_block {
+                content_column.add_child(
+                    Container::new(ChildView::new(config_block).finish())
+                        .with_horizontal_padding(16.)
+                        .with_padding_bottom(12.)
+                        .with_padding_top(8.)
+                        .finish(),
+                );
+            }
+        }
+
         let editor = Container::new(ChildView::new(&self.editor).finish())
             .with_padding_left(8.)
             .with_padding_right(8.)
             .finish();
-        let mut stack = Stack::new().with_child(editor);
+        content_column.add_child(warpui::elements::Expanded::new(1.0, editor).finish());
+
+        let mut stack = Stack::new().with_child(content_column.finish());
 
         if self.is_version_menu_open {
             stack.add_positioned_overlay_child(
@@ -1064,7 +1172,10 @@ impl TypedActionView for AIDocumentView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Link copied to clipboard".to_string()),
+                        DismissibleToast::success(ai_document_text(
+                            ctx,
+                            "ai_document.toast.link_copied",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -1077,7 +1188,10 @@ impl TypedActionView for AIDocumentView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Plan ID copied to clipboard".to_string()),
+                        DismissibleToast::success(ai_document_text(
+                            ctx,
+                            "ai_document.toast.plan_id_copied",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -1158,7 +1272,7 @@ impl TypedActionView for AIDocumentView {
                         .ai_controller()
                         .update(ctx, |controller, ctx| {
                             controller.send_user_query_in_conversation(
-                                "I've updated the plan.".to_string(),
+                                ai_document_text(ctx, "ai_document.message.updated_plan"),
                                 conversation_id,
                                 None,
                                 ctx,
@@ -1227,13 +1341,13 @@ impl BackingView for AIDocumentView {
             AIDocumentModel::as_ref(ctx).get_document_warp_drive_object_link(&self.document_id, ctx)
         {
             menu_items.push(
-                MenuItemFields::new("Copy link")
+                MenuItemFields::new(ai_document_text(ctx, "ai_document.menu.copy_link"))
                     .with_on_select_action(AIDocumentAction::CopyLink(link))
                     .with_icon(Icon::Link)
                     .into_item(),
             );
             menu_items.push(
-                MenuItemFields::new("Show in Warp Drive")
+                MenuItemFields::new(ai_document_text(ctx, "ai_document.menu.show_in_warp_drive"))
                     .with_on_select_action(AIDocumentAction::ShowInWarpDrive)
                     .with_icon(Icon::WarpDrive)
                     .into_item(),
@@ -1243,24 +1357,30 @@ impl BackingView for AIDocumentView {
         #[cfg(feature = "local_fs")]
         {
             menu_items.push(
-                crate::menu::MenuItemFields::new("Save as markdown file")
-                    .with_on_select_action(AIDocumentAction::Export)
-                    .with_icon(Icon::Download)
-                    .into_item(),
+                crate::menu::MenuItemFields::new(ai_document_text(
+                    ctx,
+                    "ai_document.menu.save_as_markdown",
+                ))
+                .with_on_select_action(AIDocumentAction::Export)
+                .with_icon(Icon::Download)
+                .into_item(),
             );
         }
 
         // Add "Attach to active session" menu item
         menu_items.push(
-            MenuItemFields::new("Attach to active session")
-                .with_on_select_action(AIDocumentAction::AttachToActiveSession)
-                .with_icon(Icon::Paperclip)
-                .into_item(),
+            MenuItemFields::new(ai_document_text(
+                ctx,
+                "ai_document.menu.attach_to_active_session",
+            ))
+            .with_on_select_action(AIDocumentAction::AttachToActiveSession)
+            .with_icon(Icon::Paperclip)
+            .into_item(),
         );
 
         // Add "Copy plan ID" menu item
         menu_items.push(
-            MenuItemFields::new("Copy plan ID")
+            MenuItemFields::new(ai_document_text(ctx, "ai_document.menu.copy_plan_id"))
                 .with_on_select_action(AIDocumentAction::CopyPlanId)
                 .with_icon(Icon::Copy)
                 .into_item(),

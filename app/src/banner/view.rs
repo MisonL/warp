@@ -1,26 +1,25 @@
-use std::{marker::PhantomData, rc::Rc};
+use std::marker::PhantomData;
+use std::rc::Rc;
 
 use markdown_parser::{
     FormattedText, FormattedTextFragment, FormattedTextInline, FormattedTextLine,
 };
-use warpui::elements::HyperlinkLens;
+use pathfinder_geometry::vector::Vector2F;
+use warpui::elements::{
+    ConstrainedBox, Container, CrossAxisAlignment, Flex, FormattedTextElement,
+    HighlightedHyperlink, HyperlinkLens, HyperlinkUrl, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, ParentElement, Shrinkable,
+};
+use warpui::fonts::Weight;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        ConstrainedBox, Container, CrossAxisAlignment, Flex, FormattedTextElement,
-        HighlightedHyperlink, HyperlinkUrl, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-        ParentElement, Shrinkable,
-    },
-    fonts::Weight,
-    ui_components::{
-        button::ButtonVariant,
-        components::{UiComponent, UiComponentStyles},
-    },
     Action, AppContext, Element, Entity, EventContext, SingletonEntity, TypedActionView, View,
     ViewContext,
 };
 
-use crate::{appearance::Appearance, ui_components::icons::Icon};
-use pathfinder_geometry::vector::Vector2F;
+use crate::appearance::Appearance;
+use crate::ui_components::icons::Icon;
 
 const CLOSE_BUTTON_DIAMETER: f32 = 20.;
 const INNER_MARGIN: f32 = 12.;
@@ -163,20 +162,23 @@ impl<T: Action + Clone> Banner<T> {
         Self::new_internal(content, buttons, with_close_button)
     }
 
-    /// Creates a banner with a single "Don't show me again" button
+    /// Creates a banner with a single permanent-dismissal button
     /// that will permanently dismiss the banner when clicked, as well
     /// as a close button that will temporarily dismiss it when clicked.
-    pub fn new_permanently_dismissible(content: BannerTextContent<T>) -> Self {
+    pub fn new_permanently_dismissible(
+        content: BannerTextContent<T>,
+        permanent_dismissal_label: String,
+    ) -> Self {
         Self::new_with_buttons(
             content,
-            vec![Self::permanent_dismissal_button()],
+            vec![Self::permanent_dismissal_button(permanent_dismissal_label)],
             /* with_close_button */ true,
         )
     }
 
-    fn permanent_dismissal_button() -> BannerTextButton {
+    fn permanent_dismissal_button(label: String) -> BannerTextButton {
         BannerTextButton::new(
-            String::from("Don't show me again"),
+            label,
             Rc::new(|ctx, _, _| {
                 ctx.dispatch_typed_action(BannerAction::<T>::Dismiss(DismissalType::Permanent));
             }),

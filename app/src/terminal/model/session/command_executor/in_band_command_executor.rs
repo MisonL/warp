@@ -1,31 +1,27 @@
 use std::any::Any;
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::fmt;
 use std::sync::Arc;
-use std::{collections::VecDeque, fmt};
 
 use anyhow::Result;
 use async_channel::{self, Receiver, Sender};
 use async_trait::async_trait;
-use chrono::DateTime;
 use parking_lot::{Mutex, MutexGuard};
+use warp_completer::completer::{CommandExitStatus, CommandOutput};
 use warp_core::command::ExitCode;
 use warp_terminal::model::Point;
+use warp_util::on_cancel::OnCancelFutureExt;
 use warpui::r#async::block_on;
 
+use super::ExecuteCommandOptions;
 use crate::safe_info;
-use crate::server::datetime_ext::DateTimeExt;
 use crate::terminal::event::ExecutedExecutorCommandEvent;
-use crate::terminal::shell::{Shell, ShellType};
-use warp_util::on_cancel::OnCancelFutureExt;
-
 use crate::terminal::model::session::command_executor::{
     shared, CommandExecutor, ExecutorCommandEvent,
 };
+use crate::terminal::shell::{Shell, ShellType};
 use crate::terminal::SizeInfo;
-use warp_completer::completer::{CommandExitStatus, CommandOutput};
-
-use super::ExecuteCommandOptions;
 
 #[derive(Clone, Debug)]
 pub struct InBandCommand {
@@ -236,7 +232,11 @@ impl InBandCommandExecutor {
                         }
                     }
                 } else {
-                    log::warn!("Cached in-band command ID {} does not match ID of executed in-band command output {}", cmd.id, &event.command_id);
+                    log::warn!(
+                        "Cached in-band command ID {} does not match ID of executed in-band command output {}",
+                        cmd.id,
+                        &event.command_id
+                    );
                     // If the command event that we received is not for the current running command,
                     // we need to restore the command as the currently running command.
                     *current_command = Some(cmd);
@@ -329,7 +329,9 @@ impl InBandCommandExecutor {
 
                 let in_band_command = match shell.shell_type() {
                     ShellType::PowerShell => {
-                        format!("Warp-Run-GeneratorCommand {id} '{escaped_command}' -ErrorAction Ignore")
+                        format!(
+                            "Warp-Run-GeneratorCommand {id} '{escaped_command}' -ErrorAction Ignore"
+                        )
                     }
                     ShellType::Fish => {
                         // Add a leading space for in-band commands in fish, which omits them from
@@ -396,7 +398,7 @@ impl CommandExecutor for InBandCommandExecutor {
         _environment_variables: Option<HashMap<String, String>>,
         _execute_command_options: ExecuteCommandOptions,
     ) -> Result<CommandOutput> {
-        let command_id = DateTime::now().timestamp_micros().to_string();
+        let command_id = chrono::Local::now().timestamp_micros().to_string();
 
         // If the future is aborted (via a call to `AbortHandle#abort`) we need to make sure to
         // remove the command from the in-band generator pending command queue to ensure that

@@ -1,64 +1,60 @@
-#[cfg(not(target_family = "wasm"))]
+use std::collections::HashMap;
+use std::path::Path;
+#[cfg(feature = "local_fs")]
 use std::sync::Arc;
-use std::{collections::HashMap, path::Path};
 
+#[cfg(feature = "local_fs")]
 #[cfg(not(target_family = "wasm"))]
 use diesel::SqliteConnection;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "local_fs")]
 use parking_lot::Mutex;
 use pathfinder_geometry::vector::vec2f;
 use uuid::Uuid;
-use warp_core::{
-    send_telemetry_from_ctx,
-    ui::{appearance::Appearance, theme::color::internal_colors},
+use warp_core::send_telemetry_from_ctx;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::theme::color::internal_colors;
+use warp_editor::content::buffer::InitialBufferState;
+use warp_editor::render::element::VerticalExpansionBehavior;
+use warpui::elements::{
+    Border, ChildAnchor, ChildView, Container, CornerRadius, CrossAxisAlignment, Flex,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
 };
-use warp_editor::{
-    content::buffer::InitialBufferState, render::element::VerticalExpansionBehavior,
-};
+use warpui::platform::Cursor;
+use warpui::ui_components::components::UiComponent;
 use warpui::{
-    elements::{
-        Border, ChildAnchor, ChildView, Container, CornerRadius, CrossAxisAlignment, Flex,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
-        ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
-    },
-    platform::Cursor,
-    ui_components::components::UiComponent,
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::{
-    ai::{
-        blocklist::secret_redaction::find_secrets_in_text,
-        mcp::{
-            parsing::{prettify_json, resolve_json, ParsedTemplatableMCPServerResult},
-            templatable::CloudTemplatableMCPServer,
-            MCPServer, TemplatableMCPServer, TemplatableMCPServerInstallation,
-            TemplatableMCPServerManager, TransportType,
-        },
-    },
-    banner::{Banner, BannerTextContent},
-    cloud_object::{CloudObject, Space},
-    code::editor::view::{CodeEditorRenderOptions, CodeEditorView},
-    persistence::ModelEvent,
-    server::{
-        cloud_objects::update_manager::InitiatedBy,
-        telemetry::{MCPTemplateCreationSource, TelemetryEvent},
-    },
-    settings_view::mcp_servers::{
-        destructive_mcp_confirmation_dialog::{
-            DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
-            DestructiveMCPConfirmationDialogVariant,
-        },
-        style, ServerCardItemId,
-    },
-    ui_components::{buttons::icon_button, icons::Icon},
-    view_components::{
-        action_button::{ActionButton, DangerNakedTheme, DangerSecondaryTheme, PrimaryTheme},
-        DismissibleToast,
-    },
-    workspace::ToastStack,
-    GlobalResourceHandlesProvider,
+use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
+use crate::ai::mcp::parsing::{prettify_json, resolve_json, ParsedTemplatableMCPServerResult};
+use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
+use crate::ai::mcp::{
+    MCPServer, TemplatableMCPServer, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
+    TransportType,
 };
+use crate::banner::{Banner, BannerTextContent};
+use crate::cloud_object::{CloudObject, Space};
+use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
+use crate::localization::LocalizationUpdater;
+use crate::persistence::ModelEvent;
+#[cfg(feature = "local_fs")]
+use crate::persistence::{database_file_path_for_scope, establish_ro_connection, PersistenceScope};
+use crate::server::cloud_objects::update_manager::InitiatedBy;
+use crate::server::telemetry::{MCPTemplateCreationSource, TelemetryEvent};
+use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::{
+    DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
+    DestructiveMCPConfirmationDialogVariant,
+};
+use crate::settings_view::mcp_servers::{style, ServerCardItemId};
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::icons::Icon;
+use crate::view_components::action_button::{
+    ActionButton, DangerNakedTheme, DangerSecondaryTheme, PrimaryTheme,
+};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
+use crate::{localization, GlobalResourceHandlesProvider};
 
 const DEFAULT_JSON_TEXT: &str = r#"{
     "": {
@@ -124,41 +120,54 @@ pub struct MCPServersEditPageView {
     log_out_icon_button_mouse_handle: MouseStateHandle,
     editing_disabled_banner: ViewHandle<Banner<()>>,
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "local_fs")]
     #[allow(dead_code)]
     database_connection: Option<Arc<Mutex<SqliteConnection>>>,
 }
 
 impl MCPServersEditPageView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let save_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Save", PrimaryTheme)
-                .with_icon(Icon::Check)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(MCPServersEditPageViewAction::Save);
-                })
+        let save_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.save"),
+                PrimaryTheme,
+            )
+            .with_icon(Icon::Check)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(MCPServersEditPageViewAction::Save);
+            })
         });
 
-        let reinstall_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Edit Variables", PrimaryTheme).on_click(|ctx| {
+        let reinstall_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.mcp.edit.edit_variables"),
+                PrimaryTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(MCPServersEditPageViewAction::Reinstall);
             })
         });
 
-        let delete_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Delete MCP", DangerSecondaryTheme)
-                .with_icon(Icon::Trash)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(MCPServersEditPageViewAction::Delete);
-                })
+        let delete_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.mcp.edit.delete_mcp"),
+                DangerSecondaryTheme,
+            )
+            .with_icon(Icon::Trash)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(MCPServersEditPageViewAction::Delete);
+            })
         });
 
-        let unshare_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Remove from team", DangerNakedTheme)
-                .with_icon(Icon::MinusCircle)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(MCPServersEditPageViewAction::Unshare);
-                })
+        let unshare_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.mcp.edit.remove_from_team"),
+                DangerNakedTheme,
+            )
+            .with_icon(Icon::MinusCircle)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(MCPServersEditPageViewAction::Unshare);
+            })
         });
 
         let json_editor = ctx.add_typed_action_view(|ctx| {
@@ -175,7 +184,7 @@ impl MCPServersEditPageView {
                     true,
                 ),
             );
-            editor.set_language_with_path(Path::new("mcp.json"), ctx);
+            editor.set_language_with_local_path(Path::new("/mcp.json"), ctx);
             editor
         });
 
@@ -185,24 +194,24 @@ impl MCPServersEditPageView {
             me.handle_delete_confirmation_event(event, ctx);
         });
 
-        let editing_disabled_banner = ctx.add_typed_action_view(|_| {
-            Banner::new_without_close(BannerTextContent::plain_text(
-                "Only team admins and the creator of the MCP server can edit the MCP server.",
-            ))
+        let editing_disabled_banner = ctx.add_typed_action_view(|ctx| {
+            Banner::new_without_close(BannerTextContent::plain_text(localization::text_for_app(
+                ctx,
+                "settings.mcp.edit.editing_disabled",
+            )))
             .with_icon(Icon::Warning)
         });
 
-        #[cfg(not(target_family = "wasm"))]
-        let database_connection =
-            crate::persistence::database_file_path()
-                .to_str()
-                .and_then(|db_url| {
-                    crate::persistence::establish_ro_connection(db_url)
-                        .ok()
-                        .map(|conn| Arc::new(Mutex::new(conn)))
-                });
+        #[cfg(feature = "local_fs")]
+        let database_connection = database_file_path_for_scope(&PersistenceScope::App)
+            .to_str()
+            .and_then(|db_url| {
+                establish_ro_connection(db_url)
+                    .ok()
+                    .map(|conn| Arc::new(Mutex::new(conn)))
+            });
 
-        Self {
+        let me = Self {
             server_card_item_id: None,
             server_model: ServerModel::None,
             save_button,
@@ -215,9 +224,45 @@ impl MCPServersEditPageView {
             log_out_icon_button_mouse_handle: Default::default(),
             editing_disabled_banner,
 
-            #[cfg(not(target_family = "wasm"))]
+            #[cfg(feature = "local_fs")]
             database_connection,
-        }
+        };
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.save_button.update(ctx, |button, ctx| {
+                button.set_label(localization::text_for_app(ctx, "settings.action.save"), ctx);
+            });
+            me.reinstall_button.update(ctx, |button, ctx| {
+                button.set_label(
+                    localization::text_for_app(ctx, "settings.mcp.edit.edit_variables"),
+                    ctx,
+                );
+            });
+            me.delete_button.update(ctx, |button, ctx| {
+                button.set_label(
+                    localization::text_for_app(ctx, "settings.mcp.edit.delete_mcp"),
+                    ctx,
+                );
+            });
+            me.unshare_button.update(ctx, |button, ctx| {
+                button.set_label(
+                    localization::text_for_app(ctx, "settings.mcp.edit.remove_from_team"),
+                    ctx,
+                );
+            });
+            me.editing_disabled_banner.update(ctx, |banner, ctx| {
+                banner.set_content(
+                    BannerTextContent::plain_text(localization::text_for_app(
+                        ctx,
+                        "settings.mcp.edit.editing_disabled",
+                    )),
+                    ctx,
+                );
+            });
+            ctx.notify();
+        });
+
+        me
     }
 
     pub fn set_mcp_server(
@@ -312,21 +357,28 @@ impl MCPServersEditPageView {
     fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let title = if self.server_card_item_id.is_none() {
-            "Add New MCP Server".to_string()
+            localization::text_for_app(app, "settings.mcp.edit.title.add")
         } else if let Some(name) = self.server_model.name() {
-            format!("Edit {name} MCP Server")
+            localization::text_for_app(app, "settings.mcp.edit.title.edit_named")
+                .replace("{name}", &name)
         } else {
-            "Edit MCP Server".to_string()
+            localization::text_for_app(app, "settings.mcp.edit.title.edit")
         };
 
         let ui_builder = appearance.ui_builder().clone();
+        let log_out_tooltip = localization::text_for_app(app, "settings.mcp.edit.log_out");
         let log_out_icon_button = icon_button(
             appearance,
             Icon::LogOut,
             false,
             self.log_out_icon_button_mouse_handle.clone(),
         )
-        .with_tooltip(move || ui_builder.tool_tip("Log out".to_string()).build().finish())
+        .with_tooltip(move || {
+            ui_builder
+                .tool_tip(log_out_tooltip.clone())
+                .build()
+                .finish()
+        })
         .build()
         .on_click(|ctx, _, _| ctx.dispatch_typed_action(MCPServersEditPageViewAction::LogOut))
         .finish();
@@ -485,10 +537,17 @@ impl MCPServersEditPageView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                 .with_child(
                     Container::new(
-                        Container::new(Text::new("JSON", ui_font_family, font_size).finish())
-                            .with_vertical_padding(10.)
-                            .with_horizontal_padding(16.)
+                        Container::new(
+                            Text::new(
+                                localization::text_for_app(app, "settings.mcp.edit.json"),
+                                ui_font_family,
+                                font_size,
+                            )
                             .finish(),
+                        )
+                        .with_vertical_padding(10.)
+                        .with_horizontal_padding(16.)
+                        .finish(),
                     )
                     .with_background_color(border_color)
                     .finish(),
@@ -535,15 +594,17 @@ impl MCPServersEditPageView {
             !find_secrets_in_text(&templatable_mcp_server.template.json).is_empty();
 
         if contains_secrets {
+            let message =
+                localization::text_for_app(ctx, "settings.mcp.edit.error.contains_secrets");
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error("This MCP server contains secrets. Visit Settings > Privacy to modify your secret redaction settings.".to_string()),
+                    DismissibleToast::error(message.clone()),
                     window_id,
                     ctx,
                 );
             });
-            return Err("This MCP server contains secrets. Visit Settings > Privacy to modify your secret redaction settings.".to_string());
+            return Err(message);
         }
 
         Ok(())
@@ -595,34 +656,35 @@ impl MCPServersEditPageView {
         let parsed_templatable_mcp_servers = self.parse_templatable_json(ctx, json);
 
         if parsed_templatable_mcp_servers.is_empty() {
+            let message =
+                localization::text_for_app(ctx, "settings.mcp.edit.error.no_server_specified");
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error("No MCP Server specified.".to_string()),
+                    DismissibleToast::error(message.clone()),
                     window_id,
                     ctx,
                 );
             });
 
-            return Err("No MCP Server specified.".to_string());
+            return Err(message);
         }
 
         if parsed_templatable_mcp_servers.len() > 1 {
+            let message = localization::text_for_app(
+                ctx,
+                "settings.mcp.edit.error.multiple_servers_in_single_edit",
+            );
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error(
-                        "Cannot add multiple MCP servers while editing a single server."
-                            .to_string(),
-                    ),
+                    DismissibleToast::error(message.clone()),
                     window_id,
                     ctx,
                 );
             });
 
-            return Err(
-                "Cannot add multiple MCP servers while editing a single server.".to_string(),
-            );
+            return Err(message);
         }
 
         Ok(parsed_templatable_mcp_servers[0].clone())
@@ -892,14 +954,31 @@ impl TypedActionView for MCPServersEditPageView {
                         };
 
                     if parsed_servers.is_empty() {
+                        let message = localization::text_for_app(
+                            ctx,
+                            "settings.mcp.edit.error.no_server_specified",
+                        );
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error("No MCP Server specified.".to_string()),
+                                DismissibleToast::error(message.clone()),
                                 window_id,
                                 ctx,
                             );
                         });
+                        return;
+                    }
+
+                    if parsed_servers
+                        .iter()
+                        .try_for_each(|parsed_server| {
+                            self.detect_secrets_in_templatable_mcp_server(
+                                ctx,
+                                &parsed_server.templatable_mcp_server,
+                            )
+                        })
+                        .is_err()
+                    {
                         return;
                     }
 

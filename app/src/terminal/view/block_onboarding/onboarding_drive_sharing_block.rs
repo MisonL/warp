@@ -1,26 +1,21 @@
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
-use warpui::{
-    elements::{
-        Border, Container, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
-        Text,
-    },
-    fonts::{Properties, Weight},
-    platform::Cursor,
-    ui_components::{
-        button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
-        components::{UiComponent, UiComponentStyles},
-    },
-    AppContext, Element, Entity, SingletonEntity, View, ViewContext,
+use warpui::elements::{
+    Border, Container, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Text,
 };
+use warpui::fonts::{Properties, Weight};
+use warpui::platform::Cursor;
+use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, Entity, SingletonEntity, View, ViewContext};
 
-use crate::{
-    cloud_object::model::persistence::{CloudModel, CloudModelEvent},
-    drive::CloudObjectTypeAndId,
-    terminal::view::telemetry::SharingDialogSource,
-    ui_components::icons::Icon,
-    workspace::WorkspaceAction,
-};
+use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType, ObjectType};
+use crate::drive::CloudObjectTypeAndId;
+use crate::localization;
+use crate::terminal::view::telemetry::SharingDialogSource;
+use crate::ui_components::icons::Icon;
+use crate::workspace::WorkspaceAction;
 
 /// A rich onboarding block that prompts the user to share a newly-created personal Warp Drive
 /// object.
@@ -51,12 +46,6 @@ impl Entity for OnboardingDriveSharingBlock {
     type Event = ();
 }
 
-const TITLE_TEXT: &str = "Sharing in Warp Drive";
-const BODY_TEXT: &[&str] = &[
-    "You can now share drive objects, in Warp or on the web, with anyone - Warp user or not. Click Share in the Warp Drive menu or the pane header to share via link or email.",
-    "You’ll be able to modify the access permissions any time.",
-];
-
 const BLOCK_PADDING: f32 = 16.;
 const BUTTON_WIDTH: f32 = 100.;
 const BUTTON_HEIGHT: f32 = 32.;
@@ -73,21 +62,28 @@ impl View for OnboardingDriveSharingBlock {
         let font_size = appearance.monospace_font_size();
 
         let header = Container::new(
-            Text::new(TITLE_TEXT, font_family, font_size)
-                .with_color(appearance.theme().accent().into_solid())
-                .with_style(Properties::default().weight(Weight::Bold))
-                .finish(),
+            Text::new(
+                localization::text_for_app(app, "drive.sharing_onboarding.title"),
+                font_family,
+                font_size,
+            )
+            .with_color(appearance.theme().accent().into_solid())
+            .with_style(Properties::default().weight(Weight::Bold))
+            .finish(),
         )
         .with_padding_bottom(BLOCK_PADDING)
         .finish();
 
         let mut content = Flex::column().with_child(header);
 
-        for paragraph in BODY_TEXT.iter() {
+        for key in [
+            "drive.sharing_onboarding.body.primary",
+            "drive.sharing_onboarding.body.permissions",
+        ] {
             content.add_child(
                 appearance
                     .ui_builder()
-                    .paragraph(*paragraph)
+                    .paragraph(localization::text_for_app(app, key))
                     .with_style(UiComponentStyles {
                         font_family_id: Some(font_family),
                         font_size: Some(font_size),
@@ -100,8 +96,17 @@ impl View for OnboardingDriveSharingBlock {
         }
 
         let button_label = match CloudModel::as_ref(app).get_by_uid(&self.object_id.uid()) {
-            Some(object) => format!("Share {}", object.display_name()),
-            None => format!("Share this {}", self.object_id.object_type()),
+            Some(object) => {
+                let object_name = object.display_name();
+                localization::text_for_app_with_args(
+                    app,
+                    "drive.sharing_onboarding.share_named",
+                    &[("object", object_name.as_str())],
+                )
+            }
+            None => {
+                localization::text_for_app(app, share_kind_label_key(self.object_id.object_type()))
+            }
         };
         let object_id = self.object_id;
         let button = appearance
@@ -140,5 +145,20 @@ impl View for OnboardingDriveSharingBlock {
             .with_uniform_padding(BLOCK_PADDING)
             .with_border(Border::top(1.).with_border_fill(appearance.theme().outline()))
             .finish()
+    }
+}
+
+fn share_kind_label_key(object_type: ObjectType) -> &'static str {
+    match object_type {
+        ObjectType::Notebook => "drive.sharing_onboarding.share_kind.notebook",
+        ObjectType::Workflow => "drive.sharing_onboarding.share_kind.workflow",
+        ObjectType::Folder => "drive.sharing_onboarding.share_kind.folder",
+        ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
+            JsonObjectType::EnvVarCollection,
+        )) => "drive.sharing_onboarding.share_kind.environment_variables",
+        ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
+            JsonObjectType::AIFact,
+        )) => "drive.sharing_onboarding.share_kind.rule",
+        ObjectType::GenericStringObject(_) => "drive.sharing_onboarding.share_kind.item",
     }
 }

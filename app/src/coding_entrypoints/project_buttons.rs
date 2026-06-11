@@ -2,26 +2,33 @@ use std::borrow::Cow;
 
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::{
-    features::FeatureFlag,
-    ui::{appearance::Appearance, color::blend::Blend as _, theme::color::internal_colors, Icon},
+use warp_core::features::FeatureFlag;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::color::blend::Blend as _;
+use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::Icon;
+use warpui::elements::{
+    ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DropShadow, Expanded,
+    Flex, Hoverable, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement as _,
+    ParentOffsetBounds, Radius, Stack,
 };
+use warpui::fonts::Weight;
+use warpui::keymap::EditableBinding;
+use warpui::platform::file_picker::FilePickerError;
+use warpui::platform::{Cursor, FilePickerConfiguration};
+use warpui::ui_components::components::{UiComponent as _, UiComponentStyles};
 use warpui::{
-    elements::{
-        ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DropShadow,
-        Expanded, Flex, Hoverable, MouseStateHandle, OffsetPositioning, ParentAnchor,
-        ParentElement as _, ParentOffsetBounds, Radius, Stack,
-    },
-    fonts::Weight,
-    keymap::EditableBinding,
-    platform::{file_picker::FilePickerError, Cursor, FilePickerConfiguration},
-    ui_components::components::{UiComponent as _, UiComponentStyles},
     AppContext, Element, Entity, SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
+use crate::localization;
 use crate::util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction};
 
 const BUTTON_MIN_WIDTH: f32 = 149.;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -29,7 +36,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "project_buttons:open_repository",
-            "Open repository",
+            text(app, "coding_entrypoints.open_repository.label"),
             ProjectButtonsAction::OpenRepository,
         )
         .with_context_predicate(id!("ProjectButons"))
@@ -37,7 +44,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::OpenRepository),
         EditableBinding::new(
             "project_buttons:create_new_project",
-            "Create new project",
+            text(app, "coding_entrypoints.create_project.label"),
             ProjectButtonsAction::CreateProject,
         )
         .with_context_predicate(id!("ProjectButons"))
@@ -222,11 +229,11 @@ impl View for ProjectButtons {
         if FeatureFlag::CreateProjectFlow.is_enabled() {
             row.add_children([
                 Container::new(self.glowing_button(
-                    "Create new project",
+                    text(app, "coding_entrypoints.create_project.label"),
                     Icon::Plus,
                     ProjectButtonsAction::CreateProject,
                     TooltipData {
-                        text: "Create and initialize a brand new project".to_string(),
+                        text: text(app, "coding_entrypoints.create_project.tooltip"),
                         keybinding: keybinding_name_to_display_string(
                             "project_buttons:create_new_project",
                             app,
@@ -238,11 +245,11 @@ impl View for ProjectButtons {
                 .with_margin_right(16.)
                 .finish(),
                 Container::new(self.glowing_button(
-                    "Open repository",
+                    text(app, "coding_entrypoints.open_repository.label"),
                     Icon::Folder,
                     ProjectButtonsAction::OpenRepository,
                     TooltipData {
-                        text: "Open an existing local folder or repository".to_string(),
+                        text: text(app, "coding_entrypoints.open_repository.tooltip"),
                         keybinding: keybinding_name_to_display_string(
                             "project_buttons:open_repository",
                             app,
@@ -254,11 +261,11 @@ impl View for ProjectButtons {
                 .with_margin_right(16.)
                 .finish(),
                 self.glowing_button(
-                    "Clone repository",
+                    text(app, "coding_entrypoints.clone_repository.label"),
                     Icon::Duplicate,
                     ProjectButtonsAction::CloneRepository,
                     TooltipData {
-                        text: "Clone a repo from GitHub or another source".to_string(),
+                        text: text(app, "coding_entrypoints.clone_repository.tooltip"),
                         keybinding: None,
                     },
                     self.state_handles.clone_repo_button.clone(),
@@ -270,11 +277,11 @@ impl View for ProjectButtons {
                 Expanded::new(
                     1.,
                     self.glowing_button(
-                        "Open repository",
+                        text(app, "coding_entrypoints.open_repository.label"),
                         Icon::Plus,
                         ProjectButtonsAction::CreateProject,
                         TooltipData {
-                            text: "Open an existing local folder or repository".to_string(),
+                            text: text(app, "coding_entrypoints.open_repository.tooltip"),
                             keybinding: keybinding_name_to_display_string(
                                 "project_buttons:open_repository",
                                 app,

@@ -1,17 +1,17 @@
+use std::borrow::Cow;
+use std::collections::HashSet;
+
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use std::{borrow::Cow, collections::HashSet};
 use url::{Origin, ParseError, Url};
 
-use crate::AppId;
-use crate::{
-    channel::config::{
-        ChannelConfig, McpOAuthProviderConfig, OzConfig, RudderStackDestination, WarpServerConfig,
-    },
-    features::FeatureFlag,
-};
-
 use super::Channel;
+use crate::channel::config::{
+    ChannelConfig, IapConfig, McpOAuthProviderConfig, OzConfig, RudderStackDestination,
+    WarpServerConfig,
+};
+use crate::features::FeatureFlag;
+use crate::AppId;
 
 lazy_static! {
     static ref CHANNEL_STATE: Mutex<ChannelState> = Mutex::new(ChannelState::init());
@@ -57,6 +57,19 @@ impl ChannelState {
     pub fn new(channel: Channel, mut config: ChannelConfig) -> Self {
         if let Some(app_id) = app_id_from_bundle() {
             config.app_id = app_id;
+        }
+        if config.server_config.iap_config.is_some()
+            && config.server_config.iap_protected_server_root_url.is_none()
+        {
+            config.server_config.iap_protected_server_root_url =
+                Some(config.server_config.server_root_url.clone());
+        }
+        if config.server_config.iap_config.is_some()
+            && config.server_config.iap_protected_rtc_http_url.is_none()
+        {
+            config.server_config.iap_protected_rtc_http_url =
+                derive_http_origin_from_ws_url(&config.server_config.rtc_server_url)
+                    .map(Cow::Owned);
         }
         Self {
             channel,
@@ -213,6 +226,28 @@ impl ChannelState {
             .config
             .server_config
             .firebase_auth_api_key
+            .clone()
+    }
+
+    pub fn iap_config() -> Option<IapConfig> {
+        CHANNEL_STATE.lock().config.server_config.iap_config.clone()
+    }
+
+    pub fn iap_protected_server_root_url() -> Option<Cow<'static, str>> {
+        CHANNEL_STATE
+            .lock()
+            .config
+            .server_config
+            .iap_protected_server_root_url
+            .clone()
+    }
+
+    pub fn iap_protected_rtc_http_url() -> Option<Cow<'static, str>> {
+        CHANNEL_STATE
+            .lock()
+            .config
+            .server_config
+            .iap_protected_rtc_http_url
             .clone()
     }
 
@@ -394,7 +429,6 @@ impl ChannelState {
 /// (`wss`→`https`, `ws`→`http`) and stripping the path, query, and fragment.
 /// Returns [`None`] when the input cannot be parsed as a URL or uses a scheme
 /// other than `ws` or `wss`.
-#[cfg(not(feature = "test-util"))]
 fn derive_http_origin_from_ws_url(ws_url: &str) -> Option<String> {
     let url = Url::parse(ws_url).ok()?;
     let http_scheme = match url.scheme() {
@@ -422,28 +456,17 @@ fn app_id_from_bundle() -> Option<AppId> {
     // We skip this for tests, as the call to `mainBundle` can take 30+ms,
     // which is a significant portion of the total test runtime.
     #[cfg(all(target_os = "macos", not(feature = "test-util")))]
-    #[allow(deprecated)]
-    unsafe {
-        use cocoa::{
-            base::{id, nil},
-            foundation::NSBundle,
-        };
-        use objc::{msg_send, sel, sel_impl};
-        use warpui::platform::mac::utils::nsstring_as_str;
+    {
+        use objc2_foundation::NSBundle;
 
-        let bundle = id::mainBundle();
-        if bundle != nil {
-            let nsstring: id = msg_send![bundle, bundleIdentifier];
-            if nsstring != nil {
-                let app_id = nsstring_as_str(nsstring)
-                    .expect("bundle IDs should always be valid UTF-8 strings");
-
-                if !app_id.is_empty() {
-                    return Some(
-                        AppId::parse(app_id)
-                            .expect("macOS bundle identifier has an unexpected format"),
-                    );
-                }
+        let bundle = NSBundle::mainBundle();
+        if let Some(bundle_identifier) = bundle.bundleIdentifier() {
+            let app_id = bundle_identifier.to_string();
+            if !app_id.is_empty() {
+                return Some(
+                    AppId::parse(&app_id)
+                        .expect("macOS bundle identifier has an unexpected format"),
+                );
             }
         }
     }

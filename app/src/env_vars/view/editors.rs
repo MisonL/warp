@@ -1,35 +1,30 @@
 use warp_editor::editor::NavigationKey;
-use warpui::{
-    elements::{
-        Align, ConstrainedBox, Container, Flex, ParentElement, SavePosition, Shrinkable, Stack,
-    },
-    fonts::FamilyId,
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Element, ViewContext, ViewHandle,
+use warpui::elements::{
+    Align, ConstrainedBox, Container, Flex, ParentElement, SavePosition, Shrinkable, Stack,
 };
+use warpui::fonts::FamilyId;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, ViewContext, ViewHandle};
 
-use crate::{
-    editor::{
-        EditOrigin, EditorOptions, EditorView, Event as EditorEvent, InteractionState,
-        PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
-    },
-    env_vars::{
-        active_env_var_collection_data::SavingStatus,
-        view::env_var_collection::{
-            EditorType, EnvVarCollectionView, DESCRIPTION_EDITOR_POSITION, ROW_SPACING,
-        },
-        EnvVarValue,
-    },
-    Appearance,
+use crate::editor::{
+    EditOrigin, EditorOptions, EditorView, Event as EditorEvent, InteractionState,
+    PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
+use crate::env_vars::active_env_var_collection_data::SavingStatus;
+use crate::env_vars::view::env_var_collection::{
+    EditorType, EnvVarCollectionView, DESCRIPTION_EDITOR_POSITION, ROW_SPACING,
+};
+use crate::env_vars::EnvVarValue;
+use crate::Appearance;
+
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 // Metadata labels (name and description)
 const LABEL_FONT_SIZE: f32 = 12.;
 const METADATA_SPACING: f32 = 8.;
 const LAST_ROW_ELEMENT_SPACING: f32 = 2.;
-const TITLE_LABEL_TEXT: &str = "Title";
-const DESCRIPTION_LABEL_TEXT: &str = "Description";
-
 const VERTICAL_TEXT_INPUT_PADDING: f32 = 5.;
 const HORIZONTAL_TEXT_INPUT_PADDING: f32 = 10.;
 const SECRET_ICON_BUTTON_MARGIN: f32 = 2.;
@@ -363,15 +358,21 @@ impl EnvVarCollectionView {
     }
 
     // "Metadata" references the object level title and description fields
-    pub(super) fn render_metadata(&self, appearance: &Appearance) -> Box<dyn Element> {
+    pub(super) fn render_metadata(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let title_has_error = self.form_validation_state.title_error.is_some();
         let description_has_error = self.form_validation_state.description_error.is_some();
 
         Flex::column()
             .with_child(
-                Container::new(self.render_metadata_label(TITLE_LABEL_TEXT, appearance))
-                    .with_margin_bottom(METADATA_SPACING)
-                    .finish(),
+                Container::new(
+                    self.render_metadata_label(text(app, "env_vars.metadata.title"), appearance),
+                )
+                .with_margin_bottom(METADATA_SPACING)
+                .finish(),
             )
             .with_child(
                 Container::new(self.render_metadata_editor(
@@ -384,9 +385,12 @@ impl EnvVarCollectionView {
             )
             .with_child(
                 SavePosition::new(
-                    Container::new(self.render_metadata_label(DESCRIPTION_LABEL_TEXT, appearance))
-                        .with_margin_bottom(METADATA_SPACING)
-                        .finish(),
+                    Container::new(self.render_metadata_label(
+                        text(app, "env_vars.metadata.description"),
+                        appearance,
+                    ))
+                    .with_margin_bottom(METADATA_SPACING)
+                    .finish(),
                     DESCRIPTION_EDITOR_POSITION,
                 )
                 .finish(),

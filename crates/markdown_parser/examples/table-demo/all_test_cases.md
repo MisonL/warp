@@ -1,16 +1,16 @@
-# Markdown Table Test Cases
+# Markdown 表格测试用例
 
 ## 01_simple_2x2
 
-| Header 1 | Header 2 |
+| 表头 1 | 表头 2 |
 | --- | --- |
-| Cell 1 | Cell 2 |
+| 单元格 1 | 单元格 2 |
 
 ---
 
 ## 02_three_columns
 
-| Name | Age | City |
+| 姓名 | 年龄 | 城市 |
 | --- | --- | --- |
 | Alice | 30 | NYC |
 | Bob | 25 | LA |
@@ -19,7 +19,7 @@
 
 ## 03_multiple_rows
 
-| ID | Value |
+| ID | 值 |
 | --- | --- |
 | 1 | Apple |
 | 2 | Banana |
@@ -31,61 +31,61 @@
 
 ## 04_left_aligned
 
-| Left 1 | Left 2 |
+| 左 1 | 左 2 |
 | :--- | :--- |
-| Short | Text |
-| Much longer text | Another |
+| 短文本 | 文本 |
+| 长得多的文本 | 另一个 |
 
 ---
 
 ## 05_right_aligned
 
-| Right 1 | Right 2 |
+| 右 1 | 右 2 |
 | ---: | ---: |
-| Short | Text |
-| Much longer text | Another |
+| 短文本 | 文本 |
+| 长得多的文本 | 另一个 |
 
 ---
 
 ## 06_center_aligned
 
-| Center 1 | Center 2 |
+| 居中 1 | 居中 2 |
 | :---: | :---: |
-| Short | Text |
-| Much longer text | Another |
+| 短文本 | 文本 |
+| 长得多的文本 | 另一个 |
 
 ---
 
 ## 07_mixed_alignment
 
-| Left | Center | Right |
+| 左 | 中 | 右 |
 | :--- | :---: | ---: |
 | L | C | R |
-| Left-aligned | Centered | Right-aligned |
+| 左对齐 | 居中 | 右对齐 |
 
 ---
 
 ## 08_bold
 
-| Header | Value |
+| 表头 | 值 |
 | --- | --- |
-| **Bold** | Normal |
-| Text | **Bold too** |
+| **粗体** | 普通 |
+| 文本 | **也是粗体** |
 
 ---
 
 ## 09_italic
 
-| Header | Value |
+| 表头 | 值 |
 | --- | --- |
-| *Italic* | Normal |
-| Text | *Italic too* |
+| *斜体* | 普通 |
+| 文本 | *也是斜体* |
 
 ---
 
 ## 10_inline_code
 
-| Function | Returns |
+| 函数 | 返回 |
 | --- | --- |
 | `foo()` | `String` |
 | `bar()` | `i32` |
@@ -94,29 +94,29 @@
 
 ## 11_links
 
-| Site | URL |
+| 站点 | URL |
 | --- | --- |
-| Google | [Link](https://google.com) |
-| GitHub | [Link](https://github.com) |
+| Google | [链接](https://google.com) |
+| GitHub | [链接](https://github.com) |
 
 ---
 
 ## 12_strikethrough
 
-| Item | Status |
+| 项目 | 状态 |
 | --- | --- |
-| ~~Deprecated~~ | Old |
-| Active | Current |
+| ~~已弃用~~ | 旧 |
+| 活跃 | 当前 |
 
 ---
 
 ## 13_mixed_formatting
 
-| Feature | Description |
+| 功能 | 描述 |
 | --- | --- |
-| **Bold** with *italic* | Mixed |
-| `code` and **bold** | Combined |
-| ~~Strike~~ and *italic* | More |
+| **粗体** 加 *斜体* | 混合 |
+| `code` 和 **粗体** | 组合 |
+| ~~删除线~~ 和 *斜体* | 更多 |
 
 ---
 
@@ -124,8 +124,8 @@
 
 | A | B | C |
 | --- | --- | --- |
-|  | filled |  |
-| filled |  | filled |
+|  | 已填充 |  |
+| 已填充 |  | 已填充 |
 
 ---
 
@@ -133,42 +133,42 @@
 
 | A | B |
 | --- | --- |
-|   | space |
-| tab	 | text |
+|   | 空格 |
+| tab	 | 文本 |
 
 ---
 
 ## 16_escaped_pipes
 
-| Expression | Result |
+| 表达式 | 结果 |
 | --- | --- |
-| A \| B | OR operation |
-| X \| Y \| Z | Multiple |
+| A \| B | OR 操作 |
+| X \| Y \| Z | 多个 |
 
 ---
 
 ## 17_long_content
 
-| Short | Very Long Content |
+| 短 | 很长的内容 |
 | --- | --- |
-| A | This is a very long cell with lots of text that should wrap or truncate |
-| B | Another cell with substantial content |
+| A | 这是一个包含大量文本的很长单元格，应当换行或截断 |
+| B | 另一个包含大量内容的单元格 |
 
 ---
 
 ## 18_html_entities
 
-| Symbol | Code |
+| 符号 | 代码 |
 | --- | --- |
-| &lt; | Less than |
-| &gt; | Greater than |
+| &lt; | 小于 |
+| &gt; | 大于 |
 | &amp; | Ampersand |
 
 ---
 
 ## 19_unicode_emoji
 
-| Icon | Name |
+| 图标 | 名称 |
 | --- | --- |
 | 🚀 | Rocket |
 | ⭐ | Star |
@@ -188,28 +188,28 @@
 
 ## 21_deep_table
 
-| ID | Value |
+| ID | 值 |
 | --- | --- |
-| 1 | Row 1 |
-| 2 | Row 2 |
-| 3 | Row 3 |
-| 4 | Row 4 |
-| 5 | Row 5 |
-| 6 | Row 6 |
-| 7 | Row 7 |
-| 8 | Row 8 |
-| 9 | Row 9 |
-| 10 | Row 10 |
-| 11 | Row 11 |
-| 12 | Row 12 |
-| 13 | Row 13 |
-| 14 | Row 14 |
-| 15 | Row 15 |
-| 16 | Row 16 |
-| 17 | Row 17 |
-| 18 | Row 18 |
-| 19 | Row 19 |
-| 20 | Row 20 |
+| 1 | 行 1 |
+| 2 | 行 2 |
+| 3 | 行 3 |
+| 4 | 行 4 |
+| 5 | 行 5 |
+| 6 | 行 6 |
+| 7 | 行 7 |
+| 8 | 行 8 |
+| 9 | 行 9 |
+| 10 | 行 10 |
+| 11 | 行 11 |
+| 12 | 行 12 |
+| 13 | 行 13 |
+| 14 | 行 14 |
+| 15 | 行 15 |
+| 16 | 行 16 |
+| 17 | 行 17 |
+| 18 | 行 18 |
+| 19 | 行 19 |
+| 20 | 行 20 |
 
 ---
 

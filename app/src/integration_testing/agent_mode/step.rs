@@ -1,18 +1,24 @@
-use std::{fs::read, io::Cursor, path::Path, time::Duration};
+use std::fs::read;
+use std::io::Cursor;
+use std::path::Path;
+use std::time::Duration;
 
 use prost::Message;
-use warpui::{async_assert, integration::TestStep, SingletonEntity};
+use warpui::integration::{AssertionCallback, TestStep};
+use warpui::{async_assert, SingletonEntity};
 
+use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::ActionPermission;
 use crate::ai::llms::{LLMId, LLMPreferences};
-use crate::integration_testing::agent_mode::ConversationTarget;
-use crate::integration_testing::{
-    agent_mode::{assert_latest_task_succeeds_or_blocked, assert_task_is_blocked},
-    step::{new_step_with_default_assertions, new_step_with_default_assertions_for_pane},
-    terminal::assert_input_is_focused,
-    view_getters::terminal_view,
+use crate::integration_testing::agent_mode::{
+    assert_latest_task_succeeds_or_blocked, assert_task_is_blocked, ConversationTarget,
 };
+use crate::integration_testing::step::{
+    new_step_with_default_assertions, new_step_with_default_assertions_for_pane,
+};
+use crate::integration_testing::terminal::assert_input_is_focused;
+use crate::integration_testing::view_getters::terminal_view;
 
 pub const AGENT_MODE_RUNNING_STEP_GROUP_NAME: &str = "Agent mode running";
 
@@ -24,23 +30,48 @@ pub fn enter_agent_view() -> TestStep {
         .with_keystrokes(&["ctrl-shift-enter"])
         .add_named_assertion(
             "Assert that we are in Agent View and AI input mode",
-            move |app, window_id| {
-                let terminal_view = terminal_view(app, window_id, 0, 0);
-                terminal_view.read(app, |terminal_view, app| {
-                    let is_ai_input_mode = terminal_view
-                        .input()
-                        .read(app, |input, app| input.input_type(app).is_ai());
-                    let agent_view_state = {
-                        let model = terminal_view.model.lock();
-                        model.block_list().agent_view_state().clone()
-                    };
-                    async_assert!(
-                        is_ai_input_mode && agent_view_state.is_active(),
-                        "Expected fullscreen Agent View + AI input mode, got agent_view_state={agent_view_state:?}, is_ai_input_mode={is_ai_input_mode}"
-                    )
-                })
-            },
+            assert_agent_view_active(),
         )
+}
+
+pub fn enter_agent_view_directly() -> TestStep {
+    new_step_with_default_assertions("Enter Agent View directly")
+        .with_action(|app, window_id, _| {
+            let terminal_view = terminal_view(app, window_id, 0, 0);
+            terminal_view.update(app, |terminal_view, ctx| {
+                terminal_view.enter_agent_view(
+                    None,
+                    None,
+                    AgentViewEntryOrigin::Input {
+                        was_prompt_autodetected: false,
+                    },
+                    ctx,
+                );
+            });
+        })
+        .add_named_assertion(
+            "Assert that we are in Agent View and AI input mode",
+            assert_agent_view_active(),
+        )
+}
+
+fn assert_agent_view_active() -> AssertionCallback {
+    Box::new(move |app, window_id| {
+        let terminal_view = terminal_view(app, window_id, 0, 0);
+        terminal_view.read(app, |terminal_view, app| {
+            let is_ai_input_mode = terminal_view
+                .input()
+                .read(app, |input, app| input.input_type(app).is_ai());
+            let agent_view_state = {
+                let model = terminal_view.model.lock();
+                model.block_list().agent_view_state().clone()
+            };
+            async_assert!(
+                is_ai_input_mode && agent_view_state.is_active(),
+                "Expected fullscreen Agent View + AI input mode, got agent_view_state={agent_view_state:?}, is_ai_input_mode={is_ai_input_mode}"
+            )
+        })
+    })
 }
 
 /// Assumes that the terminal input is currently in AI input mode.
@@ -162,8 +193,9 @@ pub fn submit_ai_query(query: &str, timeout: Duration) -> TestStep {
 fn print_conversation_id_assertion(
 ) -> impl FnMut(&mut warpui::App, warpui::WindowId) -> warpui::integration::AssertionOutcome {
     |app, window_id| {
-        use crate::BlocklistAIHistoryModel;
         use warpui::integration::AssertionOutcome;
+
+        use crate::BlocklistAIHistoryModel;
         let terminal_view = terminal_view(app, window_id, 0, 0);
         BlocklistAIHistoryModel::handle(app).read(app, |history_model, _| {
             if let Some(conversation) = history_model.active_conversation(terminal_view.id()) {

@@ -2,62 +2,56 @@
 //! connect to and communicate with the shared session.
 //! Adheres to the [`session-sharing-protocol`].
 
+use std::pin::pin;
+use std::sync::Arc;
+use std::time::Duration;
+
 use anyhow::bail;
 use async_channel::Receiver;
+use futures_util::stream::AbortHandle;
+use futures_util::{SinkExt, StreamExt};
 use instant::Instant;
-use std::{pin::pin, sync::Arc};
-use warpui::r#async::{SpawnedFutureHandle, Timer};
-
-use futures_util::{stream::AbortHandle, SinkExt, StreamExt};
-
 use parking_lot::FairMutex;
-use session_sharing_protocol::{
-    common::{
-        ActivePrompt, ActivePromptUpdate, AddGuestsResponse, AgentAttachment,
-        AgentPromptFailureReason, AgentPromptRequest, AgentPromptRequestId,
-        CommandExecutionFailureReason, ControlAction, ControlActionFailureReason, FeatureSupport,
-        InputOperationId, InputOperationSeqNo, InputUpdate, LinkAccessLevelUpdateResponse,
-        ParticipantId, ParticipantList, ParticipantPresenceUpdate, RemoveGuestResponse, Role,
-        RoleRequestId, RoleRequestResponse, Selection, SelectionUpdate, ServerConversationToken,
-        SessionId, TeamAccessLevelUpdateResponse, TeamAclData, TelemetryContext,
-        UniversalDeveloperInputContext, UniversalDeveloperInputContextUpdate,
-        UpdatePendingUserRoleResponse, UserID, WindowSize, WriteToPtyFailureReason,
-        WriteToPtyRequestId, WriteToPtySeqNo,
-    },
-    sharer::SessionSourceType,
-    viewer::{
-        DownstreamMessage, InitPayload, RoleUpdatedReason, SessionEndedReason, UpstreamMessage,
-        ViewerRemovedReason,
-    },
+use session_sharing_protocol::common::{
+    ActivePrompt, ActivePromptUpdate, AddGuestsResponse, AgentAttachment, AgentPromptFailureReason,
+    AgentPromptRequest, AgentPromptRequestId, CommandExecutionFailureReason, ControlAction,
+    ControlActionFailureReason, FeatureSupport, InputOperationId, InputOperationSeqNo, InputUpdate,
+    LinkAccessLevelUpdateResponse, ParticipantId, ParticipantList, ParticipantPresenceUpdate,
+    RemoveGuestResponse, Role, RoleRequestId, RoleRequestResponse, Selection, SelectionUpdate,
+    ServerConversationToken, SessionId, TeamAccessLevelUpdateResponse, TeamAclData,
+    TelemetryContext, UniversalDeveloperInputContext, UniversalDeveloperInputContextUpdate,
+    UpdatePendingUserRoleResponse, UserID, WindowSize, WriteToPtyFailureReason,
+    WriteToPtyRequestId, WriteToPtySeqNo,
 };
-
-use std::time::Duration;
+use session_sharing_protocol::viewer::{
+    DownstreamMessage, InitPayload, RoleUpdatedReason, SessionEndedReason, UpstreamMessage,
+    ViewerRemovedReason,
+};
 use warp_core::features::FeatureFlag;
+use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{
     Entity, ModelContext, ModelHandle, RequestState, RetryOption, SingletonEntity, WeakViewHandle,
 };
 use websocket::{Message, Sink, Stream, WebsocketMessage as _};
 
-use crate::{
-    auth::{auth_state::AuthState, AuthStateProvider, UserUid},
-    editor::{CrdtOperation, ReplicaId},
-    server::{
-        server_api::{auth::AuthClient, ServerApiProvider},
-        telemetry::telemetry_context,
-    },
-    terminal::{
-        event_listener::ChannelEventListener,
-        model::block::BlockId,
-        shared_session::{
-            connect_endpoint,
-            network::heartbeat::{Event as HeartbeatEvent, Heartbeat},
-            viewer::event_loop::{EventLoop, SharedSessionInitialLoadMode},
-            EventNumber, SELECTION_THROTTLE_PERIOD,
-        },
-        TerminalModel, TerminalView,
-    },
-    throttle::throttle,
+use crate::auth::auth_state::AuthState;
+use crate::auth::{AuthStateProvider, UserUid};
+use crate::editor::{CrdtOperation, ReplicaId};
+use crate::server::iap::IapManager;
+use crate::server::server_api::auth::AuthClient;
+use crate::server::server_api::ServerApiProvider;
+use crate::server::telemetry::telemetry_context;
+use crate::terminal::event_listener::ChannelEventListener;
+use crate::terminal::model::block::BlockId;
+use crate::terminal::shared_session::network::heartbeat::{Event as HeartbeatEvent, Heartbeat};
+use crate::terminal::shared_session::viewer::event_loop::{
+    EventLoop, SharedSessionInitialLoadMode,
 };
+use crate::terminal::shared_session::{
+    connect_endpoint, EventNumber, SharedSessionSource, SELECTION_THROTTLE_PERIOD,
+};
+use crate::terminal::{TerminalModel, TerminalView};
+use crate::throttle::throttle;
 
 /// The amount of time we will wait to batch consecutive write to pty requests before sending an event to the server.
 const PTY_WRITES_BATCH_THRESHOLD: Duration = if cfg!(test) {
@@ -264,7 +258,7 @@ impl Network {
             participant_list: Default::default(),
             input_replica_id: ReplicaId::random(),
             universal_developer_input_context: None,
-            source_type: SessionSourceType::default(),
+            source: SharedSessionSource::default(),
         });
 
         model.start_write_to_pty_events_listener(write_to_pty_events_rx, ctx);
@@ -316,12 +310,15 @@ impl Network {
         session_id: SessionId,
         auth_client: Arc<dyn AuthClient>,
         auth_state: Arc<AuthState>,
+        iap_headers: Vec<(&'static str, String)>,
     ) -> anyhow::Result<((impl Sink, impl Stream), UserID)> {
         let Some(join_endpoint) = connect_endpoint(format!("/sessions/join/{session_id}")) else {
             bail!("This channel does not support session-sharing.");
         };
         let user_id = Self::get_user_id(auth_client, &auth_state).await?;
-        let socket = websocket::WebSocket::connect(join_endpoint, None /* protocols */).await?;
+        let socket =
+            websocket::WebSocket::connect_with_headers(&join_endpoint, None::<&str>, iap_headers)
+                .await?;
         anyhow::Ok(((socket.split().await), user_id))
     }
 
@@ -364,25 +361,32 @@ impl Network {
         );
 
         // Send messages back up the websocket to the server.
-        ctx.spawn(async move {
-            let mut ws_proxy_rx = pin!(ws_proxy_rx);
-            while let Some(message) = ws_proxy_rx.next().await {
-                let serialized = message.to_json();
-                match serialized {
-                    Ok(serialized) => {
-                        if let Err(e) = sink.send(Message::new(serialized)).await {
-                            log::warn!("Failed to send message over shared session websocket: {e}");
-                            break;
+        ctx.spawn(
+            async move {
+                let mut ws_proxy_rx = pin!(ws_proxy_rx);
+                while let Some(message) = ws_proxy_rx.next().await {
+                    let serialized = message.to_json();
+                    match serialized {
+                        Ok(serialized) => {
+                            if let Err(e) = sink.send(Message::new(serialized)).await {
+                                log::warn!(
+                                    "Failed to send message over shared session websocket: {e}"
+                                );
+                                break;
+                            }
                         }
+                        Err(e) => log::warn!(
+                            "Failed to serialize message to send over shared session websocket: {e}"
+                        ),
                     }
-                    Err(e) => log::warn!("Failed to serialize message to send over shared session websocket: {e}")
                 }
-            }
-            log::info!("Closing websocket to session sharing server as viewer");
-            if let Err(e) = sink.close().await {
-                log::error!("Failed to close session sharing websocket due to {e}");
-            }
-        }, |_, _, _| {});
+                log::info!("Closing websocket to session sharing server as viewer");
+                if let Err(e) = sink.close().await {
+                    log::error!("Failed to close session sharing websocket due to {e}");
+                }
+            },
+            |_, _, _| {},
+        );
     }
 
     fn start_websocket(
@@ -393,10 +397,20 @@ impl Network {
     ) {
         let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
+        let iap_headers: Vec<(&'static str, String)> = IapManager::as_ref(ctx)
+            .iap_state()
+            .and_then(|state| state.proxy_auth_header())
+            .into_iter()
+            .collect();
         // Open a websocket to the server to join the session.
         ctx.spawn(
-            Self::connect_websocket_and_get_user_id(session_id, auth_client, auth_state.clone()),
-            |network, conn, ctx| match conn {
+            Self::connect_websocket_and_get_user_id(
+                session_id,
+                auth_client,
+                auth_state.clone(),
+                iap_headers,
+            ),
+            move |network, conn, ctx| match conn {
                 Ok(((sink, stream), user_id)) => {
                     let initialize_message = UpstreamMessage::Initialize(InitPayload {
                         viewer_id: network.id.clone(),
@@ -418,7 +432,13 @@ impl Network {
                     network.on_websocket_connected(ws_proxy_rx, sink, stream, ctx)
                 }
                 Err(e) => {
-                    log::error!("Failed to join shared session: {e}");
+                    log::error!(
+                        "viewer Network::start_websocket: WS connect FAILED for \
+                         session_id={session_id}: {e:#}; emitting FailedToJoin (no automatic retry)"
+                    );
+                    IapManager::handle(ctx).update(ctx, |manager, ctx| {
+                        manager.check_ws_connect_error(&e, ctx);
+                    });
                     ctx.emit(NetworkEvent::FailedToJoin {
                         reason: FailedToJoinReason::FailedToConnectToServer,
                     });
@@ -443,10 +463,23 @@ impl Network {
         let session_id = self.session_id;
         let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
+        let iap_state = IapManager::as_ref(ctx).iap_state();
         let abort_handle = ctx.spawn_with_retry_on_error(
             move || {
                 log::info!("Attempting to reconnect to session sharing server as viewer");
-                Self::connect_websocket_and_get_user_id(session_id, auth_client.clone(), auth_state.clone())
+                // Re-read the IAP header each attempt so a refresh that landed
+                // since the last try is picked up (staging only).
+                let iap_headers: Vec<(&'static str, String)> = iap_state
+                    .as_ref()
+                    .and_then(|state| state.proxy_auth_header())
+                    .into_iter()
+                    .collect();
+                Self::connect_websocket_and_get_user_id(
+                    session_id,
+                    auth_client.clone(),
+                    auth_state.clone(),
+                    iap_headers,
+                )
             },
             RECONNECT_RETRY_STRATEGY,
             move |network, conn, ctx| match conn {
@@ -476,6 +509,9 @@ impl Network {
                     network.on_websocket_connected(ws_proxy_rx, sink, stream, ctx)
                 }
                 RequestState::RequestFailedRetryPending(e) => {
+                    IapManager::handle(ctx).update(ctx, |manager, ctx| {
+                        manager.check_ws_connect_error(&e, ctx);
+                    });
                     log::warn!("Failed to reconnect to shared session as viewer, will retry: {e}");
                 }
                 RequestState::RequestFailed(e) => {
@@ -493,10 +529,10 @@ impl Network {
 
     /// Fetches the new user id and reconnectes to the websocket.
     pub fn reauthenticate_viewer(&mut self, ctx: &mut ModelContext<Self>) {
-        let server_api = ServerApiProvider::as_ref(ctx).get();
+        let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
         ctx.spawn(
-            async move { Self::get_user_id(server_api, &auth_state).await },
+            async move { Self::get_user_id(auth_client, &auth_state).await },
             |network, res, ctx| match res {
                 Ok(user_id) => {
                     let message = UpstreamMessage::Reauthenticated { user_id };
@@ -533,15 +569,19 @@ impl Network {
                 // We use the more detailed source type here,
                 // ignoring the legacy source_type field (which was kept around for backwards compatibility).
                 detailed_source_type: source_type,
+                source_task_id,
                 ..
             } => {
+                let source = SharedSessionSource {
+                    source_type,
+                    source_task_id,
+                };
                 if matches!(self.stage, Stage::JoinedSuccessfully) {
                     log::warn!(
                         "Received unexpected JoinedSuccessfully message when we've already joined"
                     );
                     return;
                 }
-                log::info!("Successfully joined shared session.");
                 self.id = Some(viewer_id.clone());
                 self.stage = Stage::JoinedSuccessfully;
 
@@ -571,12 +611,14 @@ impl Network {
                     participant_list: Box::new(*participant_list),
                     input_replica_id: input_replica_id.into(),
                     universal_developer_input_context,
-                    source_type,
+                    source,
                 });
             }
             DownstreamMessage::RejoinedSuccessfully { participant_list } => {
                 if matches!(self.stage, Stage::JoinedSuccessfully) {
-                    log::warn!("Received unexpected RejoinedSuccessfully message when we've already joined");
+                    log::warn!(
+                        "Received unexpected RejoinedSuccessfully message when we've already joined"
+                    );
                     return;
                 }
                 log::info!("Successfully reconnected to shared session as viewer.");
@@ -620,7 +662,13 @@ impl Network {
                 ));
             }
             DownstreamMessage::FailedToJoin { reason } => {
-                log::warn!("Failed to join shared session: {reason:?}");
+                log::warn!(
+                    "viewer Network: server replied FailedToJoin for \
+                     session_id={} reason={reason:?} stage={:?} (no automatic retry on initial \
+                     join failure)",
+                    self.session_id,
+                    std::mem::discriminant(&self.stage),
+                );
 
                 if let Stage::Reconnecting { abort_handle } = &self.stage {
                     abort_handle.abort();
@@ -1114,7 +1162,7 @@ pub enum NetworkEvent {
         participant_list: Box<ParticipantList>,
         input_replica_id: ReplicaId,
         universal_developer_input_context: Option<UniversalDeveloperInputContext>,
-        source_type: SessionSourceType,
+        source: SharedSessionSource,
     },
     FailedToJoin {
         reason: FailedToJoinReason,
@@ -1193,5 +1241,5 @@ impl Drop for Network {
 }
 
 #[cfg(test)]
-#[path = "network_test.rs"]
+#[path = "network_tests.rs"]
 mod tests;

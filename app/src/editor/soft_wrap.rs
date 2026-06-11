@@ -1,10 +1,11 @@
-use anyhow::anyhow;
-use parking_lot::Mutex;
 use std::sync::Arc;
 
+use anyhow::anyhow;
+use parking_lot::Mutex;
 use warpui::text_layout;
 
-use crate::editor::{view::DisplayPoint, Point};
+use crate::editor::view::DisplayPoint;
+use crate::editor::Point;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub struct SoftWrapPoint(Point);
@@ -56,7 +57,9 @@ impl SoftWrapState {
         let frame_layouts = self.0.lock();
         match &*frame_layouts {
             Some(frame_layouts) => callback(Ok(frame_layouts)),
-            None => callback(Err(anyhow!("No frame layout. This should only happen if we attempt to read before a frame of the editor has been laid out"))),
+            None => callback(Err(anyhow!(
+                "No frame layout. This should only happen if we attempt to read before a frame of the editor has been laid out"
+            ))),
         }
     }
 }
@@ -238,5 +241,5 @@ impl<'a> Iterator for FrameLayoutDisplayedLines<'a> {
 }
 
 #[cfg(test)]
-#[path = "soft_wrap_test.rs"]
+#[path = "soft_wrap_tests.rs"]
 mod tests;

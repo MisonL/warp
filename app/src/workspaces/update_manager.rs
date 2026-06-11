@@ -1,3 +1,12 @@
+use std::sync::mpsc::SyncSender;
+use std::sync::Arc;
+
+use anyhow::{Context, Result};
+use futures::channel::oneshot::{self, Receiver};
+use futures::stream::AbortHandle;
+use warpui::r#async::Timer;
+use warpui::{duration_with_jitter, Entity, ModelContext, RequestState, SingletonEntity};
+
 use super::team_tester::{TeamTesterStatus, TeamTesterStatusEvent};
 use super::user_workspaces::{
     CreateTeamResponse, UserWorkspaces, WorkspacesMetadataResponse, WorkspacesMetadataWithPricing,
@@ -17,14 +26,6 @@ use crate::server::retry_strategies::{
 use crate::server::server_api::team::TeamClient;
 use crate::server::server_api::ServerApiProvider;
 use crate::{report_error, report_if_error};
-use anyhow::{Context, Result};
-use futures::channel::oneshot::{self, Receiver};
-use futures::stream::AbortHandle;
-use std::sync::mpsc::SyncSender;
-use std::sync::Arc;
-use warpui::r#async::Timer;
-use warpui::{duration_with_jitter, RequestState};
-use warpui::{Entity, ModelContext, SingletonEntity};
 
 pub enum TeamUpdateManagerEvent {
     LeaveSuccess,
@@ -446,7 +447,9 @@ impl TeamUpdateManager {
                 );
             }
             RequestState::RequestFailed(err) => {
-                log::info!("get_workspaces_metadata_for_user: request failed with error {err:#}. Retries exhausted.");
+                log::info!(
+                    "get_workspaces_metadata_for_user: request failed with error {err:#}. Retries exhausted."
+                );
             }
         }
     }

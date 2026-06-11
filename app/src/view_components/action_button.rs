@@ -1,33 +1,34 @@
+use std::borrow::Cow;
+use std::sync::Arc;
+
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::{vec2f, Vector2F};
-use std::{borrow::Cow, sync::Arc};
-use warp_core::ui::{
-    appearance::Appearance,
-    color::{coloru_with_opacity, contrast::MinimumAllowedContrast, ContrastingColor},
-    theme::{color::internal_colors, AnsiColorIdentifier, Fill},
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::color::contrast::MinimumAllowedContrast;
+use warp_core::ui::color::{coloru_with_opacity, ContrastingColor};
+use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
+use warpui::elements::{
+    Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex,
+    Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, Padding,
+    ParentAnchor, ParentElement as _, ParentOffsetBounds, Radius, Stack, Text,
+    DEFAULT_UI_LINE_HEIGHT_RATIO,
 };
-use warpui::{elements::MainAxisAlignment, Gradient};
-use warpui::{elements::MainAxisSize, text_layout::ClipConfig};
+use warpui::fonts::{Properties, Weight};
+use warpui::keymap::Keystroke;
+use warpui::platform::Cursor;
+use warpui::text_layout::ClipConfig;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex,
-        Hoverable, MouseStateHandle, OffsetPositioning, Padding, ParentAnchor, ParentElement as _,
-        ParentOffsetBounds, Radius, Stack, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
-    },
-    fonts::{Properties, Weight},
-    keymap::Keystroke,
-    platform::Cursor,
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, BlurContext, Element, Entity, EventContext, FocusContext, SingletonEntity as _,
-    TypedActionView, View, ViewContext,
+    AppContext, BlurContext, Element, Entity, EventContext, FocusContext, Gradient,
+    SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
-use crate::{
-    settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier},
-    terminal::input::{MenuPositioning, MenuPositioningProvider},
-    ui_components::icons::Icon,
-    util::bindings::keybinding_name_to_keystroke,
-};
+use crate::localization;
+use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
+use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
+use crate::ui_components::icons::Icon;
+use crate::util::bindings::keybinding_name_to_keystroke;
 
 /// Maximum width of a tooltip before it soft-wraps.
 const TOOLTIP_MAX_WIDTH: f32 = 300.;
@@ -324,6 +325,10 @@ impl ActionButton {
         self.has_menu = has_menu;
         self
     }
+    pub fn set_has_menu(&mut self, has_menu: bool, ctx: &mut ViewContext<Self>) {
+        self.has_menu = has_menu;
+        ctx.notify();
+    }
 
     #[allow(dead_code)]
     pub fn with_callout(mut self, callout: Callout) -> Self {
@@ -432,6 +437,11 @@ impl ActionButton {
         ctx.notify();
     }
 
+    pub fn clear_tooltip(&mut self, ctx: &mut ViewContext<Self>) {
+        self.tooltip = None;
+        ctx.notify();
+    }
+
     pub fn set_tooltip_sublabel(
         &mut self,
         tooltip_sublabel: Option<impl Into<String>>,
@@ -523,7 +533,7 @@ impl ActionButton {
                 Some(
                     Container::new(
                         Text::new_inline(
-                            "Beta",
+                            localization::text_for_app(app, "view_components.action_button.beta"),
                             appearance.ui_font_family(),
                             overall_height - padding.top() - padding.bottom(),
                         )

@@ -1,21 +1,16 @@
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
-use warpui::{
-    elements::{
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Flex,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
-    },
-    keymap::FixedBinding,
-    ui_components::{
-        button::{Button, ButtonVariant},
-        components::{UiComponent, UiComponentStyles},
-    },
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
+use warpui::elements::{
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Flex, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
 };
-
-use crate::ui_components::icons::Icon;
+use warpui::keymap::FixedBinding;
+use warpui::ui_components::button::{Button, ButtonVariant};
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use super::numbered_button::render_recommended_badge;
+use crate::ui_components::icons::Icon;
 
 const MARGIN_BETWEEN_BUTTONS: f32 = 4.;
 const HAS_OPTIONS: &str = "HasOptions";
@@ -132,6 +127,7 @@ fn build_rich_navigation_label(
     recommended: bool,
     show_enter_indicator: bool,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let font_size = appearance.monospace_font_size();
@@ -153,7 +149,7 @@ fn build_rich_navigation_label(
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(title)
             .with_child(
-                Container::new(render_recommended_badge(appearance))
+                Container::new(render_recommended_badge(appearance, app))
                     .with_margin_left(8.)
                     .finish(),
             )
@@ -263,6 +259,7 @@ pub fn rich_navigation_button<A: warpui::Action + Clone + 'static>(
                 recommended,
                 is_selected,
                 appearance,
+                app,
             );
 
             appearance

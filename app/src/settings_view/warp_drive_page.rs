@@ -1,28 +1,58 @@
-use super::{
-    settings_page::{
-        render_body_item, AdditionalInfo, MatchData, PageType, SettingsPageMeta,
-        SettingsPageViewHandle, SettingsWidget,
-    },
-    LocalOnlyIconState, SettingsSection, ToggleState,
+use warp_core::features::FeatureFlag;
+use warp_core::report_if_error;
+use warp_core::settings::ToggleableSetting as _;
+use warpui::elements::{
+    Container, Element, Flex, MouseStateHandle, ParentElement, Shrinkable, Text,
 };
-use crate::{appearance::Appearance, auth::AuthStateProvider, drive::settings::WarpDriveSettings};
-use warp_core::{features::FeatureFlag, report_if_error, settings::ToggleableSetting as _};
+use warpui::fonts::Weight;
+use warpui::keymap::ContextPredicate;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
-    elements::{Container, Element, Flex, MouseStateHandle, ParentElement, Shrinkable, Text},
-    fonts::Weight,
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-        switch::SwitchStateHandle,
-    },
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+    id, Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
+
+use super::settings_page::{
+    render_body_item, AdditionalInfo, MatchData, PageType, SettingsPageMeta,
+    SettingsPageViewHandle, SettingsWidget,
+};
+use super::{
+    flags, LocalOnlyIconState, SettingActionPairContexts, SettingActionPairDescriptions,
+    SettingsAction, SettingsSection, ToggleSettingActionPair, ToggleState,
+};
+use crate::appearance::Appearance;
+use crate::auth::AuthStateProvider;
+use crate::drive::settings::WarpDriveSettings;
+use crate::localization;
 
 #[derive(Debug, Clone)]
 pub enum WarpDriveSettingsPageAction {
     ToggleShowWarpDrive,
     SignUp,
     OpenUrl(String),
+}
+
+pub fn init_actions_from_parent_view<T: Action + Clone>(
+    app: &mut AppContext,
+    context: &ContextPredicate,
+    builder: fn(SettingsAction) -> T,
+) {
+    ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
+        vec![ToggleSettingActionPair::custom(
+            SettingActionPairDescriptions::new_localized_toggle(app, "settings.warp_drive.label"),
+            builder(SettingsAction::WarpDrive(
+                WarpDriveSettingsPageAction::ToggleShowWarpDrive,
+            )),
+            SettingActionPairContexts::new(
+                context.clone() & !id!(flags::ENABLE_WARP_DRIVE) & !id!("IsAnonymousUser"),
+                context.clone() & id!(flags::ENABLE_WARP_DRIVE) & !id!("IsAnonymousUser"),
+            ),
+            None,
+        )
+        .with_enabled(|| FeatureFlag::OpenWarpNewSettingsModes.is_enabled())],
+        app,
+    );
 }
 
 pub enum WarpDriveSettingsPageEvent {
@@ -133,13 +163,13 @@ impl SettingsWidget for WarpDriveHeaderWidget {
         &self,
         _view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
 
         let message = Container::new(
             Text::new_inline(
-                "To use Warp Drive, please create an account.".to_string(),
+                localization::text_for_app(app, "settings.warp_drive.sign_up_required"),
                 appearance.ui_font_family(),
                 14.,
             )
@@ -171,7 +201,10 @@ impl SettingsWidget for WarpDriveHeaderWidget {
                     }),
                     ..Default::default()
                 })
-                .with_text_label("Sign up".to_owned())
+                .with_text_label(localization::text_for_app(
+                    app,
+                    "settings.warp_drive.sign_up",
+                ))
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(WarpDriveSettingsPageAction::SignUp);
@@ -218,7 +251,7 @@ impl SettingsWidget for WarpDriveToggleWidget {
                 .is_anonymous_or_logged_out();
 
         render_body_item::<WarpDriveSettingsPageAction>(
-            "Warp Drive".into(),
+            localization::text_for_app(app, "settings.warp_drive.label"),
             Some(AdditionalInfo {
                 mouse_state: self.info_icon_mouse_state.clone(),
                 on_click_action: Some(WarpDriveSettingsPageAction::OpenUrl(
@@ -242,13 +275,14 @@ impl SettingsWidget for WarpDriveToggleWidget {
                 .build()
                 .on_click(move |ctx, _, _| {
                     if !is_anonymous_or_logged_out {
-                        ctx.dispatch_typed_action(
-                            WarpDriveSettingsPageAction::ToggleShowWarpDrive,
-                        );
+                        ctx.dispatch_typed_action(WarpDriveSettingsPageAction::ToggleShowWarpDrive);
                     }
                 })
                 .finish(),
-            Some("Warp Drive is a workspace in your terminal where you can save Workflows, Notebooks, Prompts, and Environment Variables for personal use or to share with a team.".into()),
+            Some(localization::text_for_app(
+                app,
+                "settings.warp_drive.description",
+            )),
         )
     }
 }

@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
-
-use crate::context_chips::{agent_footer_available_chips, available_chips, ContextChipKind};
-use crate::features::FeatureFlag;
-use crate::terminal::shared_session::SharedSessionStatus;
-use crate::ui_components::icons::Icon;
+use warpui::SingletonEntity;
 
 use super::editor::AgentToolbarEditorMode;
+use crate::context_chips::{agent_footer_available_chips, available_chips, ContextChipKind};
+use crate::features::FeatureFlag;
+use crate::localization;
+use crate::settings::AISettings;
+use crate::terminal::shared_session::SharedSessionStatus;
+use crate::ui_components::icons::Icon;
 
 /// Declares which footer(s) a toolbar item is available in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +70,9 @@ pub enum AgentToolbarItemKind {
 
     // Agent view only – shows fast-forward (auto-approve) toggle in the footer
     FastForwardToggle,
+
+    // Agent view only – "Hand off to cloud" chip.
+    HandoffToCloud,
 }
 
 impl AgentToolbarItemKind {
@@ -79,7 +84,8 @@ impl AgentToolbarItemKind {
             Self::ModelSelector
             | Self::NLDToggle
             | Self::ContextWindowUsage
-            | Self::FastForwardToggle => ToolbarAvailability::AgentViewOnly,
+            | Self::FastForwardToggle
+            | Self::HandoffToCloud => ToolbarAvailability::AgentViewOnly,
             Self::FileExplorer | Self::RichInput | Self::Settings => {
                 ToolbarAvailability::CLIAgentOnly
             }
@@ -98,6 +104,8 @@ impl AgentToolbarItemKind {
             Self::Settings | Self::ShareSession | Self::FileExplorer => !status.is_viewer(),
             Self::FileAttach => !status.is_viewer() || is_cloud_mode,
             Self::FastForwardToggle => !status.is_viewer() || status.is_executor(),
+            // Handoff is host-initiated; viewers cannot hand off another user's conversation.
+            Self::HandoffToCloud => !status.is_viewer(),
             Self::ContextChip(_)
             | Self::ModelSelector
             | Self::NLDToggle
@@ -107,19 +115,27 @@ impl AgentToolbarItemKind {
         }
     }
 
-    pub fn display_label(&self) -> &'static str {
+    pub fn display_label(&self, app: &warpui::AppContext) -> String {
+        if matches!(self, Self::ShareSession) {
+            return "/remote-control".to_owned();
+        }
+        localization::text_for_app(app, self.display_label_key())
+    }
+
+    fn display_label_key(&self) -> &'static str {
         match self {
-            Self::ContextChip(_) => "Context Chip",
-            Self::ModelSelector => "Model Selector",
-            Self::NLDToggle => "Autodetection",
-            Self::VoiceInput => "Voice Input",
-            Self::FileAttach => "Attach File",
-            Self::ContextWindowUsage => "Context Usage",
-            Self::FileExplorer => "File Explorer",
-            Self::RichInput => "Rich Input",
-            Self::ShareSession => "/remote-control",
-            Self::Settings => "Settings",
-            Self::FastForwardToggle => "Fast Forward",
+            Self::ContextChip(_) => "agent.input_footer.toolbar_item.context_chip",
+            Self::ModelSelector => "agent.input_footer.toolbar_item.model_selector",
+            Self::NLDToggle => "agent.input_footer.toolbar_item.autodetection",
+            Self::VoiceInput => "agent.input_footer.toolbar_item.voice_input",
+            Self::FileAttach => "agent.input_footer.toolbar_item.attach_file",
+            Self::ContextWindowUsage => "agent.input_footer.toolbar_item.context_usage",
+            Self::FileExplorer => "agent.input_footer.toolbar_item.file_explorer",
+            Self::RichInput => "agent.input_footer.toolbar_item.rich_input",
+            Self::ShareSession => unreachable!("handled by display_label"),
+            Self::Settings => "agent.input_footer.toolbar_item.settings",
+            Self::FastForwardToggle => "agent.input_footer.toolbar_item.fast_forward",
+            Self::HandoffToCloud => "agent.input_footer.toolbar_item.handoff_to_cloud",
         }
     }
 
@@ -136,6 +152,37 @@ impl AgentToolbarItemKind {
             Self::ShareSession => Some(Icon::Phone01),
             Self::Settings => Some(Icon::Settings),
             Self::FastForwardToggle => Some(Icon::FastForward),
+            // The bundled `upload-cloud-01.svg` (cloud-with-upward-arrow) is the
+            // closest fit among the existing icons for V0; design may swap it later.
+            Self::HandoffToCloud => Some(Icon::UploadCloud),
+        }
+    }
+
+    /// Whether this item should remain visible during `&` handoff-compose mode.
+    /// Only items relevant to composing a cloud run are shown.
+    pub(super) fn is_available_during_handoff_compose(&self) -> bool {
+        match self {
+            Self::ContextChip(ContextChipKind::ShellGitBranch) => true,
+            Self::ModelSelector | Self::VoiceInput | Self::FileAttach => true,
+            Self::ContextChip(_)
+            | Self::NLDToggle
+            | Self::ContextWindowUsage
+            | Self::FastForwardToggle
+            | Self::HandoffToCloud
+            | Self::ShareSession
+            | Self::FileExplorer
+            | Self::RichInput
+            | Self::Settings => false,
+        }
+    }
+
+    /// Whether this item should be included in the toolbar given the current app state.
+    /// Feature-flag checks live in `all_available()` / `default_*()`. This method
+    /// handles runtime conditions that depend on user settings or workspace state.
+    pub fn is_available(&self, app: &warpui::AppContext) -> bool {
+        match self {
+            Self::HandoffToCloud => AISettings::as_ref(app).is_cloud_handoff_enabled(app),
+            _ => true,
         }
     }
 
@@ -177,6 +224,12 @@ impl AgentToolbarItemKind {
         {
             items.push(Self::ShareSession);
         }
+        if FeatureFlag::OzHandoff.is_enabled()
+            && FeatureFlag::HandoffLocalCloud.is_enabled()
+            && cfg!(all(feature = "local_fs", not(target_family = "wasm")))
+        {
+            items.push(Self::HandoffToCloud);
+        }
         items.push(Self::VoiceInput);
         items.push(Self::FileAttach);
         items
@@ -202,6 +255,12 @@ impl AgentToolbarItemKind {
             && FeatureFlag::HOARemoteControl.is_enabled()
         {
             items.push(Self::ShareSession);
+        }
+        if FeatureFlag::OzHandoff.is_enabled()
+            && FeatureFlag::HandoffLocalCloud.is_enabled()
+            && cfg!(all(feature = "local_fs", not(target_family = "wasm")))
+        {
+            items.push(Self::HandoffToCloud);
         }
         items
     }

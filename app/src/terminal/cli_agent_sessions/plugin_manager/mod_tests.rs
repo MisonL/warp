@@ -1,6 +1,9 @@
 use std::cmp::Ordering;
 
-use super::{compare_versions, plugin_manager_for};
+use warp_localization::LocaleId;
+
+use super::{compare_versions, plugin_manager_for, PluginInstallError};
+use crate::localization;
 use crate::terminal::CLIAgent;
 
 #[test]
@@ -35,6 +38,18 @@ fn returns_none_for_unsupported_agents() {
     assert!(plugin_manager_for(CLIAgent::Droid).is_none());
     assert!(plugin_manager_for(CLIAgent::Copilot).is_none());
     assert!(plugin_manager_for(CLIAgent::Unknown).is_none());
+}
+
+#[test]
+fn localized_plugin_install_error_display_uses_readable_fallback() {
+    let key = "agent.input_footer.plugin_auto_install_unsupported";
+    let error = PluginInstallError::localized(key, vec![], String::new());
+
+    assert_eq!(
+        error.to_string(),
+        localization::text_for_locale(LocaleId::EnUs, key)
+    );
+    assert_ne!(error.to_string(), key);
 }
 
 #[test]

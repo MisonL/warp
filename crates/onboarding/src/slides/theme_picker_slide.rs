@@ -1,27 +1,30 @@
+use pathfinder_color::ColorU;
+use ui_components::{button, Component as _, Options as _};
+use warp_core::features::FeatureFlag;
+use warp_core::send_telemetry_from_ctx;
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::theme::WarpTheme;
+use warpui_core::elements::{
+    Border, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    Empty, Flex, FormattedTextElement, Hoverable, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, ParentElement, Radius, Text,
+};
+use warpui_core::fonts::{Properties, Weight};
+use warpui_core::keymap::Keystroke;
+use warpui_core::platform::Cursor;
+use warpui_core::text_layout::TextAlignment;
+use warpui_core::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui_core::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+};
+
 use super::OnboardingSlide;
 use crate::model::{OnboardingStateEvent, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::telemetry::OnboardingEvent;
 use crate::visuals::theme_picker_visual;
 use crate::OnboardingIntention;
-use pathfinder_color::ColorU;
-use ui_components::{button, Component as _, Options as _};
-use warp_core::features::FeatureFlag;
-use warp_core::send_telemetry_from_ctx;
-use warp_core::ui::{appearance::Appearance, theme::color::internal_colors, theme::WarpTheme};
-use warpui::{
-    elements::{
-        Border, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, Empty, Flex, FormattedTextElement, Hoverable, MainAxisAlignment,
-        MainAxisSize, MouseStateHandle, ParentElement, Radius, Text,
-    },
-    fonts::{Properties, Weight},
-    keymap::Keystroke,
-    platform::Cursor,
-    text_layout::TextAlignment,
-    ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-};
 
 #[derive(Debug, Clone)]
 pub enum ThemePickerSlideEvent {
@@ -121,11 +124,18 @@ impl ThemePickerSlide {
         }
     }
 
-    fn theme_display_name(&self, index: usize) -> String {
+    fn theme_display_name(&self, index: usize, app: &AppContext) -> String {
         self.theme_options
             .get(index)
             .and_then(|option| option.theme.name())
-            .unwrap_or_else(|| format!("Theme {}", index + 1))
+            .unwrap_or_else(|| {
+                let copy = self.onboarding_state.as_ref(app).copy();
+                format!(
+                    "{} {}",
+                    copy.text("onboarding.theme.default_theme_name"),
+                    index + 1
+                )
+            })
     }
 
     fn render_theme_picker_content(
@@ -134,16 +144,19 @@ impl ThemePickerSlide {
         app: &AppContext,
     ) -> Box<dyn Element> {
         // The option "chrome" (background, borders, text) should be styled using the currently
-        // selected theme.
-        let selected_theme = self
-            .theme_options
-            .get(self.selected_theme_index)
-            .map(|option| option.theme.clone())
-            .unwrap_or_else(|| self.theme_options[0].theme.clone());
+        // selected theme, if sync_with_os is not selected.
+        let selected_theme = if self.sync_with_os {
+            appearance.theme().clone()
+        } else {
+            self.theme_options
+                .get(self.selected_theme_index)
+                .map(|option| option.theme.clone())
+                .unwrap_or_else(|| self.theme_options[0].theme.clone())
+        };
 
         let bottom_nav = self.render_bottom_nav(appearance, app);
 
-        let theme_options = self.render_theme_options(appearance, &selected_theme);
+        let theme_options = self.render_theme_options(appearance, &selected_theme, app);
 
         // Apply a semi-transparent overlay to visually disable the theme options
         // when the "Sync with OS" checkbox is checked.
@@ -157,24 +170,27 @@ impl ThemePickerSlide {
             theme_options
         };
 
-        let mut content = vec![self.render_header_text(appearance), theme_options_section];
+        let mut content = vec![
+            self.render_header_text(appearance, app),
+            theme_options_section,
+        ];
 
         if FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
-            content.push(self.render_sync_with_os_section(appearance));
+            content.push(self.render_sync_with_os_section(appearance, app));
         }
 
         // Add the Privacy Settings / Terms of Service disclaimer block below the
         // theme options when the user has selected the terminal intention and
         // won't hit the login slide afterwards. The terminal-intent flow skips
         // the login slide (which surfaces the same links) unless Warp Drive is
-        // enabled — in that case the login slide will still run after the theme
+        // enabled; in that case the login slide will still run after the theme
         // step and show the disclaimer, so duplicating it here is unnecessary.
         let state = self.onboarding_state.as_ref(app);
         let is_terminal = matches!(state.intention(), OnboardingIntention::Terminal);
         let warp_drive_enabled = state.ui_customization().show_warp_drive;
         if is_terminal && !warp_drive_enabled && FeatureFlag::OpenWarpNewSettingsModes.is_enabled()
         {
-            content.push(self.render_disclaimer_section(appearance));
+            content.push(self.render_disclaimer_section(appearance, app));
         }
 
         slide_content::onboarding_slide_content(
@@ -185,10 +201,11 @@ impl ThemePickerSlide {
         )
     }
 
-    fn render_header_text(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header_text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let title = appearance
             .ui_builder()
-            .paragraph("Choose a theme")
+            .paragraph(copy.text_owned("onboarding.theme.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -198,7 +215,7 @@ impl ThemePickerSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            "Click or use arrow keys to select, Enter to confirm.",
+            copy.text_owned("onboarding.theme.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -223,10 +240,11 @@ impl ThemePickerSlide {
         &self,
         appearance: &Appearance,
         chrome_theme: &WarpTheme,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let options = (0..self.theme_options.len())
             .map(|index| {
-                let theme_name = self.theme_display_name(index);
+                let theme_name = self.theme_display_name(index, app);
                 let option = &self.theme_options[index];
 
                 self.render_theme_option(
@@ -252,10 +270,11 @@ impl ThemePickerSlide {
     }
 
     fn render_bottom_nav(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(copy.text_owned("onboarding.common.back").into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -268,9 +287,9 @@ impl ThemePickerSlide {
 
         let theme_picker_last = FeatureFlag::OpenWarpNewSettingsModes.is_enabled();
         let next_label = if theme_picker_last {
-            "Get Warping"
+            copy.text_owned("onboarding.common.get_warping")
         } else {
-            "Next"
+            copy.text_owned("onboarding.common.next")
         };
 
         let enter = Keystroke::parse("enter").unwrap_or_default();
@@ -460,7 +479,7 @@ impl ThemePickerSlide {
             OnboardingIntention::AgentDrivenDevelopment => "agent_intention",
             OnboardingIntention::Terminal => "terminal_intention",
         };
-        let theme_name = self.theme_display_name(self.selected_theme_index);
+        let theme_name = self.theme_display_name(self.selected_theme_index, app);
         let name_key = match theme_name.as_str() {
             "Phenomenon" => "phenomenon",
             "Dark" => "dark",
@@ -511,9 +530,14 @@ impl View for ThemePickerSlide {
 }
 
 impl ThemePickerSlide {
-    fn render_sync_with_os_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_sync_with_os_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let background_for_text = theme.background().into_solid();
+        let copy = self.onboarding_state.as_ref(app).copy();
 
         let checkbox = appearance
             .ui_builder()
@@ -526,7 +550,7 @@ impl ThemePickerSlide {
             .finish();
 
         let label = Text::new(
-            "Sync light/dark theme with OS",
+            copy.text_owned("onboarding.theme.sync_with_os"),
             appearance.ui_font_family(),
             14.0,
         )
@@ -549,10 +573,15 @@ impl ThemePickerSlide {
         .finish()
     }
 
-    fn render_disclaimer_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_disclaimer_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let sub_text_color = internal_colors::text_sub(theme, theme.background().into_solid());
         let ui_builder = appearance.ui_builder();
+        let copy = self.onboarding_state.as_ref(app).copy();
 
         let disclaimer_styles = UiComponentStyles {
             font_color: Some(sub_text_color),
@@ -570,7 +599,7 @@ impl ThemePickerSlide {
         let privacy_line = Flex::row()
             .with_child(
                 ui_builder
-                    .span("If you'd like to opt out of analytics, you can adjust your ")
+                    .span(copy.text_owned("onboarding.theme.privacy_prefix"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -578,7 +607,7 @@ impl ThemePickerSlide {
             .with_child(
                 ui_builder
                     .link(
-                        "Privacy Settings".into(),
+                        copy.text_owned("onboarding.theme.privacy_link"),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(
@@ -597,7 +626,7 @@ impl ThemePickerSlide {
         let tos_line = Flex::row()
             .with_child(
                 ui_builder
-                    .span("By continuing, you agree to Warp's ")
+                    .span(copy.text_owned("onboarding.theme.tos_prefix"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -605,7 +634,7 @@ impl ThemePickerSlide {
             .with_child(
                 ui_builder
                     .link(
-                        "Terms of Service".into(),
+                        copy.text_owned("onboarding.theme.tos_link"),
                         Some(TOS_URL.into()),
                         None,
                         self.tos_mouse_state.clone(),
@@ -632,7 +661,7 @@ impl ThemePickerSlide {
     fn select_theme(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
         self.sync_with_os = false;
         self.selected_theme_index = index;
-        let theme_name = self.theme_display_name(index);
+        let theme_name = self.theme_display_name(index, ctx);
         send_telemetry_from_ctx!(
             OnboardingEvent::SettingChanged {
                 setting: "theme".to_string(),

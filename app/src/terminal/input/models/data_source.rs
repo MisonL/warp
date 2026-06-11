@@ -11,15 +11,21 @@ use warpui::elements::{
     MouseStateHandle, Radius, Text,
 };
 use warpui::fonts::{Properties, Style, Weight};
-use warpui::platform::Cursor;
+use warpui::keymap::Keystroke;
+use warpui::platform::{Cursor, OperatingSystem};
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, EntityId, SingletonEntity as _};
 
+use super::model_spec_scores::{
+    render_model_spec_header, render_model_spec_scores, CostRow, CostRowTooltip,
+    ModelSpecScoresLayout,
+};
+use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
-    is_using_api_key_for_provider, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMProvider,
-    LLMSpec,
+    is_using_api_key_for_provider, should_show_bedrock_icon_for_model, DisableReason, LLMId,
+    LLMInfo, LLMPreferences, LLMProvider, LLMSpec,
 };
 use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
@@ -29,19 +35,16 @@ use crate::search::result_renderer::ItemHighlightState;
 use crate::search::{SearchItem, SyncDataSource};
 use crate::settings_view::SettingsSection;
 use crate::terminal::input::inline_menu::{
-    default_navigation_message_items, InlineMenuAction, InlineMenuMessageArgs, InlineMenuType,
+    default_navigation_message_items, styles as inline_styles, DetailsRenderConfig,
+    InlineMenuAction, InlineMenuMessageArgs, InlineMenuType,
 };
-use crate::terminal::input::inline_menu::{styles as inline_styles, DetailsRenderConfig};
 use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use warpui::keymap::Keystroke;
-use warpui::platform::OperatingSystem;
 
-use super::model_spec_scores::{
-    render_model_spec_header, render_model_spec_scores, CostRow, ModelSpecScoresLayout,
-    MODEL_SPECS_DESCRIPTION, MODEL_SPECS_TITLE, REASONING_LEVEL_DESCRIPTION, REASONING_LEVEL_TITLE,
-};
+fn localized_text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 #[derive(Clone, Debug)]
 pub struct AcceptModel {
@@ -61,7 +64,10 @@ impl InlineMenuAction for AcceptModel {
                 key: "enter".to_owned(),
                 ..Default::default()
             }),
-            MessageItem::text(" to select"),
+            MessageItem::text(localized_text(
+                args.app,
+                "settings.ai.model_selector.message.to_select",
+            )),
             MessageItem::keystroke(if OperatingSystem::get().is_mac() {
                 Keystroke {
                     key: "enter".to_owned(),
@@ -76,7 +82,10 @@ impl InlineMenuAction for AcceptModel {
                     ..Default::default()
                 }
             }),
-            MessageItem::text(" select and save to profile"),
+            MessageItem::text(localized_text(
+                args.app,
+                "settings.ai.model_selector.message.select_and_save_to_profile",
+            )),
         ];
 
         if args.inline_menu_model.tab_configs().len() > 1 {
@@ -85,7 +94,10 @@ impl InlineMenuAction for AcceptModel {
                 shift: true,
                 ..Default::default()
             }));
-            items.push(MessageItem::text(" to cycle tabs"));
+            items.push(MessageItem::text(localized_text(
+                args.app,
+                "terminal.inline_menu.navigation.to_cycle_tabs",
+            )));
         }
 
         items.push(MessageItem::clickable(
@@ -94,7 +106,10 @@ impl InlineMenuAction for AcceptModel {
                     key: "escape".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(" to dismiss"),
+                MessageItem::text(localized_text(
+                    args.app,
+                    "terminal.inline_menu.navigation.to_dismiss",
+                )),
             ],
             |ctx| {
                 ctx.dispatch_typed_action(
@@ -136,6 +151,31 @@ impl ModelSelectorDataSource {
     pub fn new(terminal_view_id: EntityId) -> Self {
         Self { terminal_view_id }
     }
+
+    fn order_model_choices<'a>(
+        llm_preferences: &LLMPreferences,
+        choices: Vec<&'a LLMInfo>,
+    ) -> Vec<&'a LLMInfo> {
+        let mut auto_choices = Vec::new();
+        let mut custom_choices = Vec::new();
+        let mut other_choices = Vec::new();
+
+        for llm in choices {
+            if is_auto(llm) {
+                auto_choices.push(llm);
+            } else if llm_preferences.custom_llm_info_for_id(&llm.id).is_some() {
+                custom_choices.push(llm);
+            } else {
+                other_choices.push(llm);
+            }
+        }
+
+        auto_choices
+            .into_iter()
+            .chain(custom_choices)
+            .chain(other_choices)
+            .collect()
+    }
 }
 
 impl SyncDataSource for ModelSelectorDataSource {
@@ -161,13 +201,14 @@ impl SyncDataSource for ModelSelectorDataSource {
                 .clone()
         };
 
-        let choices: Vec<&LLMInfo> = if is_full_terminal {
-            llm_preferences.get_cli_agent_llm_choices().collect_vec()
+        let choices = if is_full_terminal {
+            llm_preferences.get_cli_agent_llm_choices(app).collect_vec()
         } else {
             llm_preferences
-                .get_base_llm_choices_for_agent_mode()
+                .get_base_llm_choices_for_agent_mode(app)
                 .collect_vec()
         };
+        let choices = Self::order_model_choices(llm_preferences, choices);
 
         let query_text = query.text.trim().to_lowercase();
 
@@ -210,15 +251,24 @@ struct ModelSearchItem {
     id: LLMId,
     provider: LLMProvider,
     spec: Option<LLMSpec>,
-    provider_icon: Option<Icon>,
+    leading_icon: Icon,
+    credential_icon: Option<Icon>,
     display_text: String,
     is_selected: bool,
+    is_custom_endpoint: bool,
     disable_reason: Option<DisableReason>,
+    disable_reason_tooltip: Option<String>,
+    is_auto: bool,
+    is_using_bedrock: bool,
     name_match_result: Option<FuzzyMatchResult>,
     score: OrderedFloat<f64>,
     manage_api_key_mouse_state: MouseStateHandle,
+    cost_row_tooltip_mouse_state: MouseStateHandle,
     reasoning_level: Option<String>,
     discount_percentage: Option<f32>,
+    accessibility_prefix: String,
+    selected_accessibility_label: String,
+    disabled_accessibility_label: String,
 }
 
 impl ModelSearchItem {
@@ -232,19 +282,53 @@ impl ModelSearchItem {
         } else {
             llm.disable_reason.clone()
         };
+        let is_custom_endpoint = LLMPreferences::as_ref(app)
+            .custom_llm_info_for_id(&llm.id)
+            .is_some();
+        let is_auto = is_auto(llm);
+        let is_using_bedrock = should_show_bedrock_icon_for_model(llm, app);
+        let is_using_api_key =
+            is_custom_endpoint || is_using_api_key_for_provider(&llm.provider, app);
+        let leading_icon = if is_using_bedrock {
+            Icon::Aws
+        } else {
+            llm.provider.icon().unwrap_or(Icon::Oz)
+        };
+        let credential_icon = if !is_using_bedrock && is_using_api_key {
+            Some(Icon::Key)
+        } else {
+            None
+        };
         Self {
             id: llm.id.clone(),
             provider: llm.provider.clone(),
             spec: llm.spec.clone(),
-            provider_icon: llm.provider.icon(),
+            leading_icon,
+            credential_icon,
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
+            is_custom_endpoint,
+            disable_reason_tooltip: disable_reason
+                .as_ref()
+                .map(|reason| localized_text(app, reason.tooltip_key())),
             disable_reason,
+            is_auto,
+            is_using_bedrock,
             name_match_result: None,
             score: OrderedFloat(f64::MIN),
             manage_api_key_mouse_state: Default::default(),
+            cost_row_tooltip_mouse_state: Default::default(),
             reasoning_level: llm.reasoning_level(),
             discount_percentage: llm.discount_percentage,
+            accessibility_prefix: localized_text(app, "settings.ai.model_selector.a11y.prefix"),
+            selected_accessibility_label: localized_text(
+                app,
+                "settings.ai.model_selector.a11y.selected",
+            ),
+            disabled_accessibility_label: localized_text(
+                app,
+                "settings.ai.model_selector.a11y.disabled",
+            ),
         }
     }
 
@@ -270,11 +354,7 @@ impl SearchItem for ModelSearchItem {
         let icon_size = inline_styles::font_size(appearance);
         let icon_color = inline_styles::icon_color(appearance);
 
-        let icon = self
-            .provider_icon
-            .unwrap_or(Icon::Oz)
-            .to_warpui_icon(icon_color)
-            .finish();
+        let icon = self.leading_icon.to_warpui_icon(icon_color).finish();
 
         Container::new(
             ConstrainedBox::new(icon)
@@ -329,20 +409,23 @@ impl SearchItem for ModelSearchItem {
         let mut row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(text.finish());
-
-        if is_using_api_key_for_provider(&self.provider, app) {
-            let key_icon =
-                ConstrainedBox::new(Icon::Key.to_warpui_icon(secondary_text_color).finish())
+        if let Some(icon) = self.credential_icon {
+            let credential_icon =
+                ConstrainedBox::new(icon.to_warpui_icon(secondary_text_color).finish())
                     .with_width(font_size)
                     .with_height(font_size)
                     .finish();
-            row = row.with_child(Container::new(key_icon).with_margin_left(6.).finish());
+            row = row.with_child(
+                Container::new(credential_icon)
+                    .with_margin_left(6.)
+                    .finish(),
+            );
         }
 
         if self.is_selected {
-            let selected_label = "(selected)";
+            let selected_label = localized_text(app, "settings.ai.model_selector.selected");
             let selected_text = Text::new_inline(
-                selected_label.to_string(),
+                selected_label.clone(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -359,9 +442,9 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_disabled() {
-            let disabled_label = "(disabled)";
+            let disabled_label = localized_text(app, "settings.ai.model_selector.disabled");
             let disabled_text = Text::new_inline(
-                disabled_label.to_string(),
+                disabled_label.clone(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -379,12 +462,15 @@ impl SearchItem for ModelSearchItem {
 
         if should_show_discount_chip(
             self.discount_percentage,
-            is_using_api_key_for_provider(&self.provider, app),
+            is_using_api_key_for_provider(&self.provider, app) || self.is_using_bedrock,
         ) {
             let discount_percentage = self.discount_percentage.unwrap_or(0.);
             let chip = Container::new(
                 Text::new_inline(
-                    format!("{}% off!", discount_percentage.round() as u32),
+                    localized_text(app, "settings.ai.model_selector.discount_chip").replace(
+                        "{discount}",
+                        &(discount_percentage.round() as u32).to_string(),
+                    ),
                     appearance.ui_font_family(),
                     font_size,
                 )
@@ -418,21 +504,37 @@ impl SearchItem for ModelSearchItem {
         let theme = appearance.theme();
 
         let (title, description) = if self.reasoning_level.is_some() {
-            (REASONING_LEVEL_TITLE, REASONING_LEVEL_DESCRIPTION)
+            (
+                localized_text(app, "terminal.input.models.reasoning_level.title"),
+                localized_text(app, "terminal.input.models.reasoning_level.description"),
+            )
         } else {
-            (MODEL_SPECS_TITLE, MODEL_SPECS_DESCRIPTION)
+            (
+                localized_text(app, "terminal.input.models.model_specs.title"),
+                localized_text(app, "terminal.input.models.model_specs.description"),
+            )
         };
-        let header = render_model_spec_header(title, description, app);
+        let header = render_model_spec_header(&title, &description, app);
 
-        let is_using_api_key = is_using_api_key_for_provider(&self.provider, app);
-        let cost_row = if is_using_api_key {
+        let is_using_api_key =
+            self.is_custom_endpoint || is_using_api_key_for_provider(&self.provider, app);
+        let cost_row = if self.is_using_bedrock || is_using_api_key {
+            let search_query = if self.is_using_bedrock {
+                "bedrock"
+            } else {
+                "api"
+            }
+            .to_string();
             let manage_button = appearance
                 .ui_builder()
                 .button(
                     ButtonVariant::Outlined,
                     self.manage_api_key_mouse_state.clone(),
                 )
-                .with_text_label("Manage".to_string())
+                .with_text_label(localized_text(
+                    app,
+                    "settings.ai.model_selector.manage_api_keys",
+                ))
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -445,15 +547,32 @@ impl SearchItem for ModelSearchItem {
                 })
                 .with_cursor(Some(Cursor::PointingHand))
                 .build()
-                .on_click(|ctx, _, _| {
+                .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                        search_query: "api".to_string(),
+                        search_query: search_query.clone(),
                         section: Some(SettingsSection::WarpAgent),
                     });
                 })
                 .finish();
-
-            CostRow::BilledToApi {
+            CostRow::BilledToProvider {
+                label: if self.is_using_bedrock && self.is_auto {
+                    localized_text(app, "settings.ai.model_selector.cost.may_use_bedrock")
+                } else if self.is_using_bedrock {
+                    localized_text(app, "settings.ai.model_selector.cost.via_bedrock")
+                } else {
+                    localized_text(app, "settings.ai.model_selector.cost.via_api_key")
+                },
+                tooltip: if self.is_using_bedrock && self.is_auto {
+                    Some(CostRowTooltip {
+                        text: localized_text(
+                            app,
+                            "settings.ai.model_selector.cost.auto_bedrock_tooltip",
+                        ),
+                        mouse_state: self.cost_row_tooltip_mouse_state.clone(),
+                    })
+                } else {
+                    None
+                },
                 manage_button: Container::new(manage_button).finish(),
             }
         } else {
@@ -493,23 +612,30 @@ impl SearchItem for ModelSearchItem {
 
             // Show a BYOK option when the user's tier supports it and the provider
             // is one that accepts user-supplied API keys.
-            let byok_available = UserWorkspaces::as_ref(app).is_byo_api_key_enabled()
+            let byok_available = UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app)
                 && matches!(
                     self.provider,
                     LLMProvider::OpenAI | LLMProvider::Anthropic | LLMProvider::Google
                 );
 
             let mut text_fragments = vec![
-                FormattedTextFragment::plain_text(format!(
-                    "{display_name} is not available for free users. "
-                )),
-                FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
+                FormattedTextFragment::plain_text(
+                    localized_text(app, "settings.ai.model_selector.upgrade_required.prefix")
+                        .replace("{name}", &display_name),
+                ),
+                FormattedTextFragment::hyperlink(
+                    localized_text(app, "settings.billing.upgrade.generic"),
+                    upgrade_url,
+                ),
             ];
 
             if byok_available {
-                text_fragments.push(FormattedTextFragment::plain_text(" or ".to_string()));
+                text_fragments.push(FormattedTextFragment::plain_text(localized_text(
+                    app,
+                    "settings.billing.upgrade.or",
+                )));
                 text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    "bring your own key",
+                    localized_text(app, "settings.billing.upgrade.bring_own_key"),
                     WorkspaceAction::ShowSettingsPageWithSearch {
                         search_query: "api".to_string(),
                         section: Some(SettingsSection::WarpAgent),
@@ -578,18 +704,18 @@ impl SearchItem for ModelSearchItem {
     }
 
     fn tooltip(&self) -> Option<String> {
-        self.disable_reason
-            .as_ref()
-            .map(|reason| reason.tooltip_text().to_string())
+        self.disable_reason_tooltip.clone()
     }
 
     fn accessibility_label(&self) -> String {
-        let mut label = format!("Model: {}", self.display_text);
+        let mut label = format!("{}: {}", self.accessibility_prefix, self.display_text);
         if self.is_selected {
-            label.push_str(" (selected)");
+            label.push(' ');
+            label.push_str(&self.selected_accessibility_label);
         }
         if self.is_disabled() {
-            label.push_str(" (disabled)");
+            label.push(' ');
+            label.push_str(&self.disabled_accessibility_label);
         }
         label
     }

@@ -1,31 +1,29 @@
-use crate::{
-    appearance::Appearance,
-    send_telemetry_from_ctx,
-    server::telemetry::TelemetryEvent,
-    settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier},
-    themes::theme::Fill,
+use warpui::elements::{
+    Align, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Hoverable, Icon,
+    MouseState, MouseStateHandle, ParentElement, Shrinkable,
 };
+use warpui::fonts::Weight;
+use warpui::platform::Cursor;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Align, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Hoverable, Icon,
-        MouseState, MouseStateHandle, ParentElement, Shrinkable,
-    },
-    fonts::Weight,
-    platform::Cursor,
-    ui_components::components::{UiComponent, UiComponentStyles},
     Action, AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, WindowId,
-};
-
-use crate::resource_center::{
-    complete_tips_and_write_to_user_defaults, main_page::ActionTarget,
-    skip_tips_and_write_to_user_defaults, FeatureItem, FeatureSectionData, Tip, TipsCompleted,
 };
 
 use super::{
     SectionAction, SectionView, CHEVRON_ICON_SIZE, DESCRIPTION_FONT_SIZE, ELLIPSE_ICON_SIZE,
     ELLIPSE_SVG_PATH, ICON_PADDING, ITEM_PADDING_BOTTOM, SCROLLBAR_OFFSET, SECTION_SPACING,
 };
+use crate::appearance::Appearance;
+use crate::resource_center::main_page::ActionTarget;
+use crate::resource_center::{
+    complete_tips_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults, FeatureItem,
+    FeatureSectionData, Tip, TipsCompleted,
+};
+use crate::send_telemetry_from_ctx;
+use crate::server::telemetry::TelemetryEvent;
+use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
+use crate::themes::theme::Fill;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FeatureSection {
@@ -36,12 +34,12 @@ pub enum FeatureSection {
 }
 
 impl FeatureSection {
-    pub fn section_name_string(&self) -> &'static str {
+    pub fn section_name_key(&self) -> &'static str {
         match self {
-            FeatureSection::WhatsNew => "What's New?",
-            FeatureSection::GettingStarted => "Getting Started",
-            FeatureSection::MaximizeWarp => "Maximize Warp",
-            FeatureSection::AdvancedSetup => "Advanced Setup",
+            FeatureSection::WhatsNew => "resource_center.section.whats_new",
+            FeatureSection::GettingStarted => "resource_center.section.getting_started",
+            FeatureSection::MaximizeWarp => "resource_center.section.maximize_warp",
+            FeatureSection::AdvancedSetup => "resource_center.section.advanced_setup",
         }
     }
 }
@@ -204,14 +202,19 @@ impl FeatureSectionView {
         .finish()
     }
 
-    fn render_item_title(&self, item: &FeatureItem, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_item_title(
+        &self,
+        item: &FeatureItem,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         let title_color = appearance.theme().active_ui_text_color();
 
         Align::new(
             Container::new(
                 appearance
                     .ui_builder()
-                    .wrappable_text(item.title.to_string(), true)
+                    .wrappable_text(item.title(app), true)
                     .with_style(UiComponentStyles {
                         font_size: Some(DESCRIPTION_FONT_SIZE),
                         font_color: (Some(title_color.into())),
@@ -229,13 +232,13 @@ impl FeatureSectionView {
 
     fn render_description(
         &self,
-        item: &FeatureItem,
+        description: String,
         appearance: &Appearance,
         color: Fill,
     ) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .wrappable_text(item.description.to_string(), true)
+            .wrappable_text(description, true)
             .with_style(UiComponentStyles {
                 font_size: Some(DESCRIPTION_FONT_SIZE),
                 font_color: Some(color.into()),
@@ -248,6 +251,7 @@ impl FeatureSectionView {
     pub fn build_feature_item(
         &self,
         item: &FeatureItem,
+        app: &AppContext,
         appearance: &Appearance,
         state: Option<&MouseState>,
         is_completed: bool,
@@ -260,7 +264,7 @@ impl FeatureSectionView {
 
         // title
         element_title
-            .add_child(Shrinkable::new(1., self.render_item_title(item, appearance)).finish());
+            .add_child(Shrinkable::new(1., self.render_item_title(item, app, appearance)).finish());
 
         // keyboard shortcut
         if let Some(keystroke) = &item.shortcut {
@@ -285,7 +289,11 @@ impl FeatureSectionView {
         };
 
         // description
-        element.add_child(self.render_description(item, appearance, description_color));
+        element.add_child(self.render_description(
+            item.description(app),
+            appearance,
+            description_color,
+        ));
 
         let mut feature_item = Flex::row();
         if !is_completed && show_gamified {
@@ -307,6 +315,7 @@ impl FeatureSectionView {
     pub fn render_feature_item(
         &self,
         feature_item: FeatureItem,
+        app: &AppContext,
         appearance: &Appearance,
         index: usize,
         is_tip_completed: bool,
@@ -315,6 +324,7 @@ impl FeatureSectionView {
         match feature_item.feature {
             Tip::Hint(_) => self.build_feature_item(
                 &feature_item,
+                app,
                 appearance,
                 None,
                 is_tip_completed,
@@ -326,6 +336,7 @@ impl FeatureSectionView {
                     |state| {
                         self.build_feature_item(
                             &feature_item,
+                            app,
                             appearance,
                             Some(state),
                             is_tip_completed,
@@ -428,7 +439,11 @@ impl SectionView for FeatureSectionView {
         }
     }
 
-    fn section_link(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn section_link(
+        &self,
+        _appearance: &Appearance,
+        _ctx: &AppContext,
+    ) -> Option<Box<dyn Element>> {
         None
     }
 }
@@ -459,6 +474,7 @@ impl View for FeatureSectionView {
                         |(index, feature_item)| {
                             self.render_feature_item(
                                 feature_item.clone(),
+                                app,
                                 appearance,
                                 index,
                                 tips_completed.features_used.contains(&feature_item.feature),

@@ -1,60 +1,54 @@
-use crate::appearance::Appearance;
-use crate::drive::CloudObjectTypeAndId;
-use crate::search::binding_source::{BindingFilterFn, BindingSource};
-use crate::search::command_palette::mixer::CommandPaletteItemAction;
-use crate::search::command_palette::SelectedItems;
-use crate::search::result_renderer::QueryResultRenderer;
-use crate::search::search_bar::SelectionUpdate;
-use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
-use crate::search::QueryFilter;
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::LaunchConfigUiLocation;
-use crate::server::telemetry::TelemetryEvent;
-use crate::settings::CtrlTabBehavior;
-use crate::terminal::keys_settings::KeysSettings;
-use crate::themes::theme::WarpTheme;
-use crate::view_components::DismissibleToast;
-use crate::ToastStack;
-use lazy_static::lazy_static;
-use warp_core::send_telemetry_from_app_ctx;
-use warp_util::path::LineAndColumnArg;
-
-use crate::search::action::search_item::MatchedBinding;
-use itertools::Itertools;
-use warpui::elements::DispatchEventResult;
-use warpui::elements::EventHandler;
-use warpui::event::KeyState;
-use warpui::platform::keyboard::KeyCode;
-use warpui::FocusContext;
-
-use crate::search::command_palette::zero_state::{self, Event as ZeroStateEvent, ZeroState};
-use crate::search::data_source::QueryResult;
-
 use std::collections::HashSet;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use crate::features::FeatureFlag;
-use crate::palette::PaletteMode;
-use crate::root_view::OpenLaunchConfigArg;
-use crate::search::command_palette::data_sources::DataSourceStore;
-use crate::server::ids::SyncId;
-use crate::session_management::SessionSource;
-use crate::workspace::{active_terminal_in_window, ForkedConversationDestination, WorkspaceAction};
+use itertools::Itertools;
+use lazy_static::lazy_static;
+use warp_core::send_telemetry_from_app_ctx;
+use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
     Align, Border, ChildView, Clipped, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
-    Container, CornerRadius, Dismiss, Empty, Fill, Flex, ParentElement, Radius, SavePosition,
-    Shrinkable,
+    Container, CornerRadius, Dismiss, DispatchEventResult, Empty, EventHandler, Fill, Flex,
+    ParentElement, Radius, SavePosition, Shrinkable,
 };
+use warpui::event::KeyState;
 use warpui::keymap::BindingId;
+use warpui::platform::keyboard::KeyCode;
 use warpui::units::{IntoPixels, Pixels};
 use warpui::{
-    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView,
-    ViewContext, ViewHandle, WindowId,
+    AppContext, Element, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity,
+    TypedActionView, ViewContext, ViewHandle, WindowId,
 };
 
 use super::super::palette_styles as styles;
 use super::CommandPaletteMixer;
+use crate::appearance::Appearance;
+use crate::drive::CloudObjectTypeAndId;
+use crate::features::FeatureFlag;
+use crate::palette::PaletteMode;
+use crate::root_view::OpenLaunchConfigArg;
+use crate::search::action::search_item::MatchedBinding;
+use crate::search::binding_source::{BindingFilterFn, BindingSource};
+use crate::search::command_palette::data_sources::DataSourceStore;
+use crate::search::command_palette::mixer::CommandPaletteItemAction;
+use crate::search::command_palette::zero_state::{self, Event as ZeroStateEvent, ZeroState};
+use crate::search::command_palette::SelectedItems;
+use crate::search::data_source::QueryResult;
+use crate::search::result_renderer::QueryResultRenderer;
+use crate::search::search_bar::{
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
+    SelectionUpdate,
+};
+use crate::search::QueryFilter;
+use crate::server::ids::SyncId;
+use crate::server::telemetry::{LaunchConfigUiLocation, TelemetryEvent};
+use crate::session_management::SessionSource;
+use crate::settings::CtrlTabBehavior;
+use crate::terminal::keys_settings::KeysSettings;
+use crate::themes::theme::WarpTheme;
+use crate::view_components::DismissibleToast;
+use crate::workspace::{active_terminal_in_window, ForkedConversationDestination, WorkspaceAction};
+use crate::{localization, send_telemetry_from_ctx, ToastStack};
 
 lazy_static! {
     /// Set of hardcoded action names that we want to show in the command palette zero state.
@@ -131,8 +125,6 @@ pub struct View {
     /// Model to lists the current active session.
     session_source: ModelHandle<SessionSource>,
     zero_state_handle: ViewHandle<ZeroState>,
-    /// Placeholder element to render when no results are found.
-    placeholder_query_renderer: QueryResultRenderer<CommandPaletteItemAction>,
     /// List of [`BindingId`]s that should be shown in the zero state as "suggested" items.
     suggested_binding_ids: Vec<BindingId>,
     /// Store of all the data sources that should be used for the [`SearchMixer`].
@@ -179,7 +171,7 @@ impl warpui::View for View {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let body = if self.search_bar_state.as_ref(app).should_show_zero_state() {
+        let body = if self.search_bar.as_ref(app).should_show_zero_state(app) {
             ChildView::new(&self.zero_state_handle).finish()
         } else {
             self.render_palette_list(theme, app)
@@ -286,7 +278,7 @@ impl View {
             SearchBar::new(
                 mixer.clone(),
                 search_bar_state.clone(),
-                "Search for a command",
+                SearchBarPlaceholder::localized("search.command_palette.placeholder"),
                 Self::create_query_result_renderer,
                 ctx,
             )
@@ -296,13 +288,6 @@ impl View {
         ctx.subscribe_to_view(&search_bar, |me, _, event, ctx| {
             me.handle_search_bar_event(event, ctx);
         });
-
-        let placeholder_element = QueryResultRenderer::new(
-            MatchedBinding::placeholder("No results found".into()).into(),
-            "command_palette:no_results".into(),
-            |_, _, _| {},
-            *styles::QUERY_RESULT_RENDERER_STYLES,
-        );
 
         Self {
             navigation_mode,
@@ -315,7 +300,6 @@ impl View {
             session_source,
             data_source_store,
             zero_state_handle: zero_state,
-            placeholder_query_renderer: placeholder_element,
             suggested_binding_ids,
             zero_state_items,
             is_shared_session_viewer: false,
@@ -337,22 +321,10 @@ impl View {
             .map(|item| &item.search_result)
     }
 
-    pub fn set_fixed_query_filters(
-        &mut self,
-        title: String,
-        filters: Vec<QueryFilter>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.search_bar.update(ctx, |search_bar, ctx| {
-            search_bar.set_fixed_filters(title, filters, ctx);
-        });
-        ctx.notify();
-    }
-
     /// Set the active query filter in the search bar to be `filter`.
     pub fn set_active_query_filter(&mut self, filter: QueryFilter, ctx: &mut ViewContext<Self>) {
         self.search_bar.update(ctx, |view, ctx| {
-            view.set_visible_query_filter(Some((filter, filter.filter_atom().primary_text)), ctx)
+            view.set_query_filter(Some((filter, filter.filter_atom().primary_text)), ctx)
         });
         ctx.notify();
     }
@@ -364,15 +336,15 @@ impl View {
     }
 
     pub fn select_next_item(&mut self, ctx: &mut ViewContext<Self>) {
-        self.search_bar_state.update(ctx, |state, ctx| {
-            state.handle_selection_update(SelectionUpdate::Down, ctx);
+        self.search_bar.update(ctx, |search_bar, ctx| {
+            search_bar.handle_selection_update(SelectionUpdate::Down, ctx);
         });
         ctx.notify();
     }
 
     pub fn select_prev_item(&mut self, ctx: &mut ViewContext<Self>) {
-        self.search_bar_state.update(ctx, |state, ctx| {
-            state.handle_selection_update(SelectionUpdate::Up, ctx);
+        self.search_bar.update(ctx, |search_bar, ctx| {
+            search_bar.handle_selection_update(SelectionUpdate::Up, ctx);
         });
         ctx.notify();
     }
@@ -385,9 +357,7 @@ impl View {
 
     /// Returns the active query filters
     pub fn active_query_filter(&self, app: &AppContext) -> Option<QueryFilter> {
-        self.search_bar_state
-            .as_ref(app)
-            .active_visible_query_filter()
+        self.search_bar_state.as_ref(app).active_query_filter()
     }
 
     pub fn is_mode_enabled(&self, mode: PaletteMode, app: &AppContext) -> bool {
@@ -698,10 +668,7 @@ impl View {
     fn render_palette_list(&self, theme: &WarpTheme, app: &AppContext) -> Box<dyn Element> {
         match self.search_bar_state.as_ref(app).query_result_renderers() {
             None => Empty::new().finish(),
-            Some(renderers) if renderers.is_empty() => {
-                self.placeholder_query_renderer
-                    .render(0, true /* is_selected */, app)
-            }
+            Some(renderers) if renderers.is_empty() => Self::render_no_results(app),
             Some(renderers) => {
                 let selected_index = self.search_bar_state.as_ref(app).selected_index();
                 let list = Flex::column()
@@ -733,16 +700,34 @@ impl View {
         }
     }
 
+    fn render_no_results(app: &AppContext) -> Box<dyn Element> {
+        QueryResultRenderer::new(
+            MatchedBinding::placeholder(localization::text_for_app(app, "search.no_results"))
+                .into(),
+            "command_palette:no_results".into(),
+            |_, _, _| {},
+            *styles::QUERY_RESULT_RENDERER_STYLES,
+        )
+        .render(0, true /* is_selected */, app)
+    }
+
     /// Handles the `CommandPaletteItemAction` action and closes the search panel.
     fn handle_result_accepted(
         &mut self,
         result_action: CommandPaletteItemAction,
         ctx: &mut ViewContext<Self>,
     ) {
-        let selected_items_handle = SelectedItems::handle(ctx);
-        selected_items_handle.update(ctx, |selected_items, _ctx| {
-            selected_items.enqueue(result_action.to_summary())
-        });
+        // Tab navigations don't appear in the main command palette to avoid confusion with session
+        // navigations, so they can't evict real recent items from SelectedItems.
+        if !matches!(
+            result_action,
+            CommandPaletteItemAction::NavigateToTab { .. }
+        ) {
+            let selected_items_handle = SelectedItems::handle(ctx);
+            selected_items_handle.update(ctx, |selected_items, _ctx| {
+                selected_items.enqueue(result_action.to_summary())
+            });
+        }
 
         if let CommandPaletteItemAction::AcceptBinding { binding } = &result_action {
             if let Some(action) = &binding.action {
@@ -812,6 +797,20 @@ impl View {
 
                 send_telemetry_from_ctx!(TelemetryEvent::SelectNavigationPaletteItem, ctx);
             }
+            CommandPaletteItemAction::NavigateToTab {
+                pane_group_id,
+                window_id,
+            } => {
+                if let Some(root_view_id) = ctx.root_view_id(window_id) {
+                    ctx.dispatch_action_for_view(
+                        window_id,
+                        root_view_id,
+                        "root_view:activate_tab_by_pane_group_id",
+                        &pane_group_id,
+                    );
+                }
+                send_telemetry_from_ctx!(TelemetryEvent::SelectNavigationPaletteItem, ctx);
+            }
             CommandPaletteItemAction::NavigateToConversation {
                 pane_view_locator,
                 window_id,
@@ -835,10 +834,10 @@ impl View {
                     if let Some(window_id) = window_id {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "Cannot switch conversations while agent is monitoring a command."
-                                        .to_string(),
-                                ),
+                                DismissibleToast::error(localization::text_for_app(
+                                    ctx,
+                                    "search.command_palette.error.agent_monitoring_switch",
+                                )),
                                 window_id,
                                 ctx,
                             );
@@ -976,9 +975,10 @@ impl View {
                 if can_start_new_conversation {
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Cannot start a new conversation while agent is monitoring a command.".to_string(),
-                            ),
+                            DismissibleToast::error(localization::text_for_app(
+                                ctx,
+                                "search.command_palette.error.agent_monitoring_new_conversation",
+                            )),
                             window_id,
                             ctx,
                         );

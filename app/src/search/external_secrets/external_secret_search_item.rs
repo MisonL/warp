@@ -1,22 +1,16 @@
 use ordered_float::OrderedFloat;
-use warpui::{
-    elements::{ConstrainedBox, Container, Highlight, Text},
-    fonts::{Properties, Weight},
-    AppContext, Element, SingletonEntity,
-};
+use warpui::elements::{ConstrainedBox, Container, Highlight, Text};
+use warpui::fonts::{Properties, Weight};
+use warpui::{AppContext, Element, SingletonEntity};
 
-use crate::search::item::SearchItem;
+use super::external_secret_fuzzy_match::FuzzyMatchExternalSecretResult;
+use super::searcher::ExternalSecretSearchItemAction;
+use crate::appearance::Appearance;
+use crate::external_secrets::{ExternalSecret, ExternalSecretManager};
+use crate::localization;
+use crate::search::external_secrets::view::styles;
+use crate::search::item::{IconLocation, SearchItem};
 use crate::search::result_renderer::ItemHighlightState;
-use crate::{
-    appearance::Appearance,
-    external_secrets::{ExternalSecret, ExternalSecretManager},
-    search::{external_secrets::view::styles, item::IconLocation},
-};
-
-use super::{
-    external_secret_fuzzy_match::FuzzyMatchExternalSecretResult,
-    searcher::ExternalSecretSearchItemAction,
-};
 
 const ICON_SIZE: f32 = 16.;
 
@@ -102,5 +96,10 @@ impl SearchItem for ExternalSecretSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Secret: {}", &self.external_secret.get_display_name())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let name = self.external_secret.get_display_name();
+        localization::text_for_app_with_args(app, "search.a11y.type.secret", &[("name", &name)])
     }
 }

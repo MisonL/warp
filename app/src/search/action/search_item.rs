@@ -1,7 +1,21 @@
+use std::sync::Arc;
+
+use fuzzy_match::FuzzyMatchResult;
+use ordered_float::OrderedFloat;
+use pathfinder_color::ColorU;
+use warpui::elements::{
+    Align, ConstrainedBox, Container, Flex, Highlight, ParentElement, Shrinkable, Text,
+};
+use warpui::fonts::{Properties, Weight};
+use warpui::keymap::{DescriptionContext, Keystroke};
+use warpui::ui_components::components::UiComponent;
+use warpui::{AppContext, Element, SingletonEntity};
+
 use crate::appearance::Appearance;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::DriveObjectType;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::{
     colors, render_search_item_icon, render_search_item_icon_placeholder,
@@ -10,17 +24,6 @@ use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::{BindingGroup, CommandBinding};
-use fuzzy_match::FuzzyMatchResult;
-use ordered_float::OrderedFloat;
-use pathfinder_color::ColorU;
-use std::sync::Arc;
-use warpui::elements::{
-    Align, ConstrainedBox, Container, Flex, Highlight, ParentElement, Shrinkable, Text,
-};
-use warpui::fonts::{Properties, Weight};
-use warpui::keymap::{DescriptionContext, Keystroke};
-use warpui::ui_components::components::UiComponent;
-use warpui::{AppContext, Element, SingletonEntity};
 
 /// A matched binding from a search query.
 #[derive(Debug)]
@@ -146,12 +149,31 @@ impl SearchItem for MatchedBinding {
         let trigger = self.binding.trigger.as_ref();
 
         format!(
-            "Selected {}, {}.",
+            "{}, {}.",
             &self
                 .binding
                 .description
                 .in_context(DescriptionContext::Default),
             trigger.map(Keystroke::normalized).unwrap_or_default()
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let description = self
+            .binding
+            .description
+            .in_context(DescriptionContext::Default);
+        let binding = self
+            .binding
+            .trigger
+            .as_ref()
+            .map(Keystroke::normalized)
+            .unwrap_or_default();
+
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.item_with_binding",
+            &[("description", description), ("binding", &binding)],
         )
     }
 
@@ -166,6 +188,20 @@ impl SearchItem for MatchedBinding {
                 )
             })
             .into()
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(self.binding.trigger.as_ref().map_or_else(
+            || localization::text_for_app(app, "search.a11y.help.confirm"),
+            |trigger| {
+                let binding = trigger.normalized();
+                localization::text_for_app_with_args(
+                    app,
+                    "search.a11y.help.confirm_with_binding",
+                    &[("binding", &binding)],
+                )
+            },
+        ))
     }
 }
 

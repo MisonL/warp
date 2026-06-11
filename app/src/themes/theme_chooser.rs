@@ -1,58 +1,50 @@
 use pathfinder_color::ColorU;
 use settings::Setting as _;
 use warp_editor::editor::NavigationKey;
+use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
+use warpui::elements::{
+    Align, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+    DispatchEventResult, Element, Empty, EventHandler, Fill, Flex, Hoverable, Icon,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, Rect, SavePosition, ScrollStateHandle, Scrollable,
+    ScrollableElement, ScrollbarWidth, Shrinkable, Stack, Text, UniformList, UniformListState,
+};
+use warpui::fonts::{FamilyId, Weight};
+use warpui::geometry::vector::vec2f;
+use warpui::keymap::FixedBinding;
+use warpui::platform::{Cursor, SystemTheme};
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::windowing::{StateEvent, WindowManager};
 use warpui::{
-    accessibility::{AccessibilityContent, WarpA11yRole},
-    elements::{
-        Align, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-        DispatchEventResult, Element, Empty, EventHandler, Fill, Flex, Hoverable, Icon,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
-        ParentElement, ParentOffsetBounds, Radius, Rect, SavePosition, ScrollStateHandle,
-        Scrollable, ScrollableElement, ScrollbarWidth, Shrinkable, Stack, Text, UniformList,
-        UniformListState,
-    },
-    fonts::{FamilyId, Weight},
-    geometry::vector::vec2f,
-    keymap::FixedBinding,
-    platform::{Cursor, SystemTheme},
-    ui_components::components::{UiComponent, UiComponentStyles},
-    windowing::{StateEvent, WindowManager},
     AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, Tracked, TypedActionView,
     UpdateModel, View, ViewContext, ViewHandle,
 };
 
-use crate::resource_center::{mark_feature_used_and_write_to_user_defaults, Tip, TipAction};
-use crate::themes::theme::{RespectSystemTheme, ThemeKind, WarpTheme};
-use crate::util::traffic_lights::traffic_light_data;
-use crate::workspace::PANEL_HEADER_HEIGHT;
-use crate::{
-    appearance::Appearance,
-    editor::{
-        Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
-    },
-    referral_theme_status::ReferralThemeStatus,
-    report_if_error,
-    settings::{respect_system_theme, ThemeSettings},
-    themes::theme::SelectedSystemThemes,
-    user_config::{load_theme_configs, themes_dir, WarpConfig, WarpConfigUpdateEvent},
-    util::traffic_lights::{TrafficLightData, TrafficLightSide},
-    window_settings::WindowSettings,
-};
-use crate::{appearance::AppearanceManager, send_telemetry_from_ctx};
-use crate::{editor::EditorView, resource_center::TipsCompleted};
-use crate::{
-    server::telemetry::TelemetryEvent, ui_components::window_focus_dimming::WindowFocusDimming,
-};
-use crate::{
-    themes::theme::WarpThemeConfig,
-    ui_components::buttons::{close_button, icon_button},
-    ui_components::icons,
-};
-
 use super::theme;
+use crate::appearance::{Appearance, AppearanceManager};
+use crate::editor::{
+    EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
+    TextOptions,
+};
+use crate::referral_theme_status::ReferralThemeStatus;
+use crate::resource_center::{
+    mark_feature_used_and_write_to_user_defaults, Tip, TipAction, TipsCompleted,
+};
+use crate::server::telemetry::TelemetryEvent;
+use crate::settings::{respect_system_theme, ThemeSettings};
+use crate::themes::theme::{
+    RespectSystemTheme, SelectedSystemThemes, ThemeKind, WarpTheme, WarpThemeConfig,
+};
+use crate::ui_components::buttons::{close_button, icon_button};
+use crate::ui_components::icons;
+use crate::ui_components::window_focus_dimming::WindowFocusDimming;
+use crate::user_config::{load_theme_configs, themes_dir, WarpConfig, WarpConfigUpdateEvent};
+use crate::util::traffic_lights::{traffic_light_data, TrafficLightData, TrafficLightSide};
+use crate::window_settings::WindowSettings;
+use crate::workspace::PANEL_HEADER_HEIGHT;
+use crate::{report_if_error, send_telemetry_from_ctx};
 
 // All units in px
-const THEME_CHOOSER_TITLE: &str = "Themes";
 const CLOSE_BUTTON_MARGIN_RIGHT: f32 = 6.;
 const TITLE_FONT_SIZE: f32 = 16.;
 const TITLE_MARGIN: f32 = 12.;
@@ -64,6 +56,10 @@ const DELETE_BUTTON_LINE_HEIGHT: f32 = 1.33;
 const DELETE_BUTTON_SIZE: f32 = 16.;
 const DELETE_BUTTON_MARGIN_RIGHT: f32 = 16.;
 const THEME_CHOOSER_ITEM_PADDING: f32 = 16.;
+
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -118,17 +114,17 @@ impl ThemeChooserMode {
         }
     }
 
-    fn render_hint_text(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_hint_text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let hint_text = match self {
             ThemeChooserMode::SystemAgnostic => appearance
                 .ui_builder()
-                .paragraph("Change your current theme.".to_string()),
+                .paragraph(text(app, "theme_chooser.hint.current")),
             ThemeChooserMode::SystemLight => appearance
                 .ui_builder()
-                .paragraph("Pick a theme for when your system is in light mode.".to_string()),
+                .paragraph(text(app, "theme_chooser.hint.light")),
             ThemeChooserMode::SystemDark => appearance
                 .ui_builder()
-                .paragraph("Pick a theme for when your system is in dark mode.".to_string()),
+                .paragraph(text(app, "theme_chooser.hint.dark")),
         };
         hint_text
             .build()
@@ -634,7 +630,7 @@ impl ThemeChooser {
         )
     }
 
-    fn render_title_row(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_title_row(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let mut title_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
@@ -643,7 +639,7 @@ impl ThemeChooser {
                     Align::new(
                         appearance
                             .ui_builder()
-                            .span(THEME_CHOOSER_TITLE.to_string())
+                            .span(text(app, "theme_chooser.title"))
                             .with_style(UiComponentStyles {
                                 font_family_id: Some(appearance.ui_font_family()),
                                 font_size: Some(TITLE_FONT_SIZE),
@@ -732,7 +728,7 @@ impl ThemeChooser {
         .finish()
     }
 
-    fn render_list(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_list(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let themes = self
             .filtered_themes
             .as_ref()
@@ -749,7 +745,7 @@ impl ThemeChooser {
                 .with_child(
                     appearance
                         .ui_builder()
-                        .span("No matching themes!".to_string())
+                        .span(text(app, "theme_chooser.no_matching_themes"))
                         .build()
                         .finish(),
                 )
@@ -844,11 +840,11 @@ impl View for ThemeChooser {
         "ThemeChooser"
     }
 
-    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-                "Theme chooser. Unfortunately, theme chooser window isn't compatible with screen readers yet.",
-                "Press escape to close.",
-                WarpA11yRole::WindowRole,
+            text(app, "theme_chooser.a11y.description"),
+            text(app, "theme_chooser.a11y.help"),
+            WarpA11yRole::WindowRole,
         ))
     }
 
@@ -859,10 +855,10 @@ impl View for ThemeChooser {
         Container::new(
             Flex::column()
                 .with_child(self.render_header(traffic_light_data.as_ref(), appearance, app))
-                .with_child(self.render_title_row(appearance))
-                .with_child(self.mode.render_hint_text(appearance))
+                .with_child(self.render_title_row(appearance, app))
+                .with_child(self.mode.render_hint_text(appearance, app))
                 .with_child(self.render_search_bar(appearance))
-                .with_child(self.render_list(appearance))
+                .with_child(self.render_list(appearance, app))
                 .finish(),
         )
         .finish()

@@ -1,11 +1,14 @@
-use super::{
-    run_jq_filter, write_filter_output, write_json, write_json_line, write_list, TableFormat,
-};
 use comfy_table::Cell;
 use serde::Serialize;
 use serde_json::json;
 use warp_cli::agent::OutputFormat;
 use warp_cli::json_filter::parse_jq_filter;
+use warp_localization::LocaleId;
+
+use super::{
+    run_jq_filter, write_filter_output, write_json, write_json_line, write_list,
+    write_list_for_locale, TableFormat,
+};
 
 #[derive(Serialize)]
 struct TestItem {
@@ -20,6 +23,34 @@ impl TableFormat for TestItem {
 
     fn row(&self) -> Vec<Cell> {
         vec![Cell::new(self.id), Cell::new(self.subject)]
+    }
+}
+
+#[derive(Serialize)]
+struct LocaleNeutralItem {
+    scope: &'static str,
+}
+
+impl TableFormat for LocaleNeutralItem {
+    fn header() -> Vec<Cell> {
+        vec![Cell::new("SCOPE")]
+    }
+
+    fn row(&self) -> Vec<Cell> {
+        vec![Cell::new(self.scope)]
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
+        let scope = match self.scope {
+            crate::ai::agent_sdk::common::OWNER_SCOPE_TEAM => {
+                crate::localization::text_for_locale(locale, "agent_sdk.common.owner.team")
+            }
+            crate::ai::agent_sdk::common::OWNER_SCOPE_PERSONAL => {
+                crate::localization::text_for_locale(locale, "agent_sdk.common.owner.personal")
+            }
+            other => other.to_string(),
+        };
+        vec![Cell::new(scope)]
     }
 }
 
@@ -58,6 +89,37 @@ fn write_list_emits_ndjson_for_ndjson_output_format() {
         rendered,
         "{\"id\":\"message-1\",\"subject\":\"Build update\"}\n{\"id\":\"message-2\",\"subject\":\"Pivot\"}\n"
     );
+}
+
+#[test]
+fn write_list_for_locale_keeps_json_fields_locale_neutral() {
+    let localized_team =
+        crate::localization::text_for_locale(LocaleId::ZhCn, "agent_sdk.common.owner.team");
+    let item = LocaleNeutralItem {
+        scope: crate::ai::agent_sdk::common::OWNER_SCOPE_TEAM,
+    };
+
+    let mut json_output = Vec::new();
+    write_list_for_locale([item], OutputFormat::Json, &mut json_output, LocaleId::ZhCn).unwrap();
+
+    let rendered = String::from_utf8(json_output).unwrap();
+    assert_eq!(rendered, r#"[{"scope":"team"}]"#);
+    assert!(!rendered.contains(&localized_team));
+}
+
+#[test]
+fn write_list_for_locale_localizes_text_rows() {
+    let localized_team =
+        crate::localization::text_for_locale(LocaleId::ZhCn, "agent_sdk.common.owner.team");
+    let item = LocaleNeutralItem {
+        scope: crate::ai::agent_sdk::common::OWNER_SCOPE_TEAM,
+    };
+
+    let mut text_output = Vec::new();
+    write_list_for_locale([item], OutputFormat::Text, &mut text_output, LocaleId::ZhCn).unwrap();
+
+    let rendered = String::from_utf8(text_output).unwrap();
+    assert!(rendered.contains(&localized_team));
 }
 
 #[test]

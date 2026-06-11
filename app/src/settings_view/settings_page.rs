@@ -1,61 +1,55 @@
-use crate::ui_components::blended_colors;
 use core::fmt::{self, Display};
-use itertools::Itertools as _;
-use pathfinder_color::ColorU;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use super::{
-    about_page::AboutPageView,
-    ai_page::{AISettingsPageAction, AISettingsPageView},
-    appearance_page::AppearanceSettingsPageView,
-    billing_and_usage_page::BillingAndUsagePageView,
-    code_page::CodeSettingsPageView,
-    environments_page::EnvironmentsPageView,
-    features_page::FeaturesPageView,
-    keybindings::KeybindingsView,
-    main_page::MainSettingsPageView,
-    mcp_servers_page::MCPServersSettingsPageView,
-    privacy_page::PrivacyPageView,
-    referrals_page::ReferralsPageView,
-    show_blocks_view::ShowBlocksView,
-    teams_page::TeamsPageView,
-    warp_drive_page::WarpDriveSettingsPageView,
-    warpify_page::WarpifyPageView,
-    SettingsSection,
-};
-use crate::{
-    appearance::Appearance,
-    settings::CloudPreferencesSettings,
-    themes::theme::Fill,
-    ui_components::icons::Icon,
-    view_components::{Dropdown, SubmittableTextInput},
-};
+use itertools::Itertools as _;
+use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use settings::Setting;
-use warp_core::{
-    settings::SyncToCloud,
-    ui::{color::blend::Blend, theme::color::internal_colors},
+use warp_core::settings::SyncToCloud;
+use warp_core::ui::color::blend::Blend;
+use warp_core::ui::theme::color::internal_colors;
+use warpui::elements::new_scrollable::{
+    ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig,
 };
-use warpui::{
-    elements::{
-        new_scrollable::{ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig},
-        Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
-        CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Flex, Hoverable,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, OffsetPositioning,
-        ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition, ScrollTarget,
-        ScrollToPositionMode, Shrinkable, SizeConstraintCondition, SizeConstraintSwitch, Stack,
-        Text,
-    },
-    fonts::{Properties, Weight},
-    platform::Cursor,
-    ui_components::{
-        button::{Button, ButtonVariant},
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
-    units::Pixels,
-    Action, AppContext, SingletonEntity, ViewContext, ViewHandle,
+use warpui::elements::{
+    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Flex, Hoverable, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, NewScrollable, OffsetPositioning, ParentAnchor, ParentElement,
+    ParentOffsetBounds, Radius, SavePosition, ScrollTarget, ScrollToPositionMode, Shrinkable,
+    SizeConstraintCondition, SizeConstraintSwitch, Stack, Text,
 };
+use warpui::fonts::{Properties, Weight};
+use warpui::platform::Cursor;
+use warpui::ui_components::button::{Button, ButtonVariant};
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::units::Pixels;
+use warpui::{Action, AppContext, SingletonEntity, ViewContext, ViewHandle};
+
+use super::about_page::AboutPageView;
+use super::ai_page::{AISettingsPageAction, AISettingsPageView};
+use super::appearance_page::AppearanceSettingsPageView;
+use super::billing_and_usage_dispatch::BillingAndUsageDispatchView;
+use super::code_page::CodeSettingsPageView;
+use super::environments_page::EnvironmentsPageView;
+use super::features_page::FeaturesPageView;
+use super::keybindings::KeybindingsView;
+use super::main_page::MainSettingsPageView;
+use super::mcp_servers_page::MCPServersSettingsPageView;
+use super::privacy_page::PrivacyPageView;
+use super::referrals_page::ReferralsPageView;
+use super::show_blocks_view::ShowBlocksView;
+use super::teams_page::TeamsPageView;
+use super::warp_drive_page::WarpDriveSettingsPageView;
+use super::warpify_page::WarpifyPageView;
+use super::SettingsSection;
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::settings::CloudPreferencesSettings;
+use crate::themes::theme::Fill;
+use crate::ui_components::blended_colors;
+use crate::ui_components::icons::Icon;
+use crate::view_components::{Dropdown, DropdownItemAction, SubmittableTextInput};
 
 pub const TOGGLE_BUTTON_RIGHT_PADDING: f32 = 5.;
 pub const HEADER_PADDING: f32 = 15.;
@@ -70,6 +64,7 @@ const ALTERNATING_LIST_ITEM_PADDING: f32 = 8.0;
 const GREY_TEXT_OPACITY: u8 = 60;
 const MIN_PAGE_WIDTH: f32 = 520.;
 const MAX_PAGE_WIDTH: f32 = 800.;
+const INFO_TOOLTIP_MAX_WIDTH: f32 = 320.;
 
 /// Left margin for top-level sidebar nav items (pages and umbrella labels).
 pub(super) const NAV_ITEM_LEFT_MARGIN: f32 = 12.;
@@ -119,7 +114,7 @@ pub enum SettingsPageViewHandle {
     Referrals(ViewHandle<ReferralsPageView>),
     AI(ViewHandle<AISettingsPageView>),
     CloudEnvironments(ViewHandle<EnvironmentsPageView>),
-    BillingAndUsage(ViewHandle<BillingAndUsagePageView>),
+    BillingAndUsage(ViewHandle<BillingAndUsageDispatchView>),
     MCPServers(ViewHandle<MCPServersSettingsPageView>),
     WarpDrive(ViewHandle<WarpDriveSettingsPageView>),
 }
@@ -170,6 +165,7 @@ impl SettingsPage {
 
     pub fn render_page_button(
         &self,
+        app: &AppContext,
         appearance: &Appearance,
         match_data: MatchData,
         clicked: bool,
@@ -184,7 +180,7 @@ impl SettingsPage {
                 },
                 self.button_state_handle.clone(),
             )
-            .with_text_label(self.section.to_string() + &match_data.to_string())
+            .with_text_label(self.section.localized_label(app) + &match_data.to_string())
             .with_style(
                 UiComponentStyles::default()
                     .set_border_width(0.)
@@ -259,17 +255,13 @@ pub fn render_sub_header(
         );
     if let Some(LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     }) = local_only_icon_state
     {
         sub_header.add_child(
-            Container::new(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
-            .with_padding_top(3.)
-            .finish(),
+            Container::new(render_local_only_icon(appearance, mouse_state, tooltip))
+                .with_padding_top(3.)
+                .finish(),
         );
     }
     sub_header.finish()
@@ -340,13 +332,13 @@ pub fn render_sub_sub_header(
     );
     if let Some(LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     }) = local_only_icon_state
     {
         sub_sub_header.add_child(render_local_only_icon(
             appearance,
             mouse_state.clone(),
-            custom_tooltip,
+            tooltip,
         ));
     }
     sub_sub_header.finish()
@@ -499,7 +491,7 @@ pub enum LocalOnlyIconState {
     Hidden,
     Visible {
         mouse_state: MouseStateHandle,
-        custom_tooltip: Option<String>,
+        tooltip: String,
     },
 }
 
@@ -539,7 +531,7 @@ impl LocalOnlyIconState {
                     .clone();
                 Self::Visible {
                     mouse_state,
-                    custom_tooltip: None,
+                    tooltip: localization::text_for_app(app, "settings.local_only.tooltip"),
                 }
             }
             _ => Self::Hidden,
@@ -551,48 +543,68 @@ pub fn render_info_icon<T: Clone + Action>(
     appearance: &Appearance,
     additional_info: AdditionalInfo<T>,
 ) -> Box<dyn Element> {
-    let info_button = appearance
-        .ui_builder()
-        .info_button_with_tooltip(
-            13.,
-            additional_info
-                .tooltip_override_text
-                .unwrap_or("Click to learn more in docs".to_owned()),
-            additional_info.mouse_state.clone(),
+    let tooltip_text = additional_info
+        .tooltip_override_text
+        .unwrap_or("Click to learn more in docs".to_owned());
+    let icon = Container::new(
+        ConstrainedBox::new(
+            Icon::Info
+                .to_warpui_icon(appearance.theme().active_ui_text_color())
+                .finish(),
         )
-        .on_click(move |ctx, _, _| {
-            if let Some(on_click_action) = &additional_info.on_click_action {
-                ctx.dispatch_typed_action(on_click_action.clone());
-            }
-        })
-        .finish();
+        .with_width(13.)
+        .with_height(13.)
+        .finish(),
+    )
+    .finish();
 
-    Container::new(info_button)
+    let mut info_button = Hoverable::new(additional_info.mouse_state.clone(), move |state| {
+        let mut stack = Stack::new().with_child(icon);
+        if state.is_hovered() {
+            let tool_tip = ConstrainedBox::new(
+                appearance
+                    .ui_builder()
+                    .tool_tip(tooltip_text)
+                    .build()
+                    .finish(),
+            )
+            .with_max_width(INFO_TOOLTIP_MAX_WIDTH)
+            .finish();
+            stack.add_positioned_child(
+                tool_tip,
+                OffsetPositioning::offset_from_parent(
+                    vec2f(0., -3.),
+                    ParentOffsetBounds::WindowByPosition,
+                    ParentAnchor::TopMiddle,
+                    ChildAnchor::BottomMiddle,
+                ),
+            );
+        }
+        stack.finish()
+    })
+    .with_cursor(Cursor::PointingHand);
+
+    if let Some(on_click_action) = additional_info.on_click_action {
+        info_button = info_button
+            .on_click(move |ctx, _, _| ctx.dispatch_typed_action(on_click_action.clone()));
+    }
+
+    Container::new(Box::new(info_button))
         .with_margin_left(4.)
-        // Since the icon is smaller than the font, we need some margin to be in alignment.
-        .with_margin_top(1.5)
         .finish()
 }
 
 pub fn render_local_only_icon(
     appearance: &Appearance,
     mouse_state: MouseStateHandle,
-    custom_tooltip: Option<String>,
+    tooltip: String,
 ) -> Box<dyn Element> {
     let info_button = appearance
         .ui_builder()
-        .local_only_icon_with_tooltip(
-            13.,
-            custom_tooltip.unwrap_or("This setting is not synced to your other devices".to_owned()),
-            mouse_state.clone(),
-        )
+        .local_only_icon_with_tooltip(13., tooltip, mouse_state.clone())
         .finish();
 
-    Container::new(info_button)
-        .with_margin_left(4.)
-        // Since the icon is smaller than the font, we need some margin to be in alignment.
-        .with_margin_top(1.5)
-        .finish()
+    Container::new(info_button).with_margin_left(4.).finish()
 }
 
 pub fn render_body_item_label<T: Clone + Action>(
@@ -703,14 +715,10 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
             .with_child(render_info_icon(appearance, additional_info));
         if let LocalOnlyIconState::Visible {
             mouse_state,
-            custom_tooltip,
+            tooltip,
         } = local_only_icon_state
         {
-            row.add_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ));
+            row.add_child(render_local_only_icon(appearance, mouse_state, tooltip));
         }
         if let Some(child) = secondary_text_child {
             row.add_child(child);
@@ -718,17 +726,13 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
         row.finish()
     } else if let LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     } = local_only_icon_state
     {
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(label)
-            .with_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
+            .with_child(render_local_only_icon(appearance, mouse_state, tooltip))
             .finish()
     } else {
         label
@@ -762,8 +766,9 @@ pub fn render_body_item<T: Clone + Action>(
     description_text: Option<String>,
 ) -> Box<dyn Element> {
     build_toggle_element(
-        render_body_item_label(
+        render_body_item_label_internal(
             label_text,
+            None,
             None,
             additional_info,
             local_only_icon_state,
@@ -841,6 +846,22 @@ pub fn render_dropdown_item_label(
     color_override: Option<Fill>,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
+    render_dropdown_item_label_internal(
+        label_text,
+        secondary_text,
+        local_only_icon_state,
+        color_override,
+        appearance,
+    )
+}
+
+fn render_dropdown_item_label_internal(
+    label_text: String,
+    secondary_text: Option<String>,
+    local_only_icon_state: LocalOnlyIconState,
+    color_override: Option<Fill>,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
     let label = Text::new(label_text, appearance.ui_font_family(), CONTENT_FONT_SIZE)
         .with_color(
             color_override
@@ -879,24 +900,20 @@ pub fn render_dropdown_item_label(
 
     if let LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     } = local_only_icon_state
     {
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(Shrinkable::new(1.0, label).finish())
-            .with_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
+            .with_child(render_local_only_icon(appearance, mouse_state, tooltip))
             .finish()
     } else {
         label
     }
 }
 
-pub(crate) fn render_dropdown_item<T: Clone + Action>(
+pub(crate) fn render_dropdown_item<T: DropdownItemAction>(
     appearance: &Appearance,
     label: &str,
     secondary_text: Option<&str>,
@@ -907,7 +924,7 @@ pub(crate) fn render_dropdown_item<T: Clone + Action>(
 ) -> Box<dyn Element> {
     let row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 
-    let dropdown_item_label = Align::new(render_dropdown_item_label(
+    let dropdown_item_label = Align::new(render_dropdown_item_label_internal(
         label.to_string(),
         secondary_text.map(|secondary_text| secondary_text.to_string()),
         local_only_icon_state,
@@ -1018,6 +1035,7 @@ pub struct InputListItem<SettingsPageAction: Action + Clone> {
 ///
 /// TODO: standardize this and remove [`render_alternating_color_list`].
 pub fn render_input_list<SettingsPageAction: Action + Clone>(
+    app: &AppContext,
     title: Option<&str>,
     items: impl IntoIterator<Item = InputListItem<SettingsPageAction>>,
     handle: Option<&ViewHandle<SubmittableTextInput>>,
@@ -1056,7 +1074,7 @@ pub fn render_input_list<SettingsPageAction: Action + Clone>(
             appearance,
         );
         let row_element = if let Some(tooltip_mouse_state) = item.tooltip_mouse_state {
-            render_workspace_override_row_tooltip(row_element, tooltip_mouse_state, appearance)
+            render_workspace_override_row_tooltip(row_element, tooltip_mouse_state, appearance, app)
         } else {
             row_element
         };
@@ -1106,13 +1124,18 @@ fn render_workspace_override_row_tooltip(
     child: Box<dyn Element>,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     Hoverable::new(mouse_state, |state| {
         let mut stack = Stack::new().with_child(child);
         if state.is_hovered() {
             let tooltip = appearance
                 .ui_builder()
-                .tool_tip(WORKSPACE_OVERRIDE_TOOLTIP_TEXT.to_string())
+                .tool_tip(crate::localization::text_for_app_or(
+                    app,
+                    "settings.tooltip.organization_enforced",
+                    WORKSPACE_OVERRIDE_TOOLTIP_TEXT,
+                ))
                 .build()
                 .finish();
             stack.add_positioned_child(
@@ -1231,6 +1254,7 @@ pub(super) enum PageType<V: warpui::View> {
     Monolith {
         widget: Box<dyn SettingsWidget<View = V>>,
         title: Option<&'static str>,
+        title_is_localization_key: bool,
         filter: bool,
         vertical_scroll_state: Option<ClippedScrollStateHandle>,
         horizontal_scroll_state: Option<ClippedScrollStateHandle>,
@@ -1240,6 +1264,7 @@ pub(super) enum PageType<V: warpui::View> {
     Uncategorized {
         widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
         title: Option<&'static str>,
+        title_is_localization_key: bool,
         filter: Vec<usize>,
         vertical_scroll_state: ClippedScrollStateHandle,
         horizontal_scroll_state: ClippedScrollStateHandle,
@@ -1250,6 +1275,7 @@ pub(super) enum PageType<V: warpui::View> {
     Categorized {
         categories: Vec<Category<V>>,
         title: Option<&'static str>,
+        title_is_localization_key: bool,
         filter: Vec<Vec<usize>>,
         vertical_scroll_state: ClippedScrollStateHandle,
         horizontal_scroll_state: ClippedScrollStateHandle,
@@ -1323,10 +1349,27 @@ impl<V: warpui::View> PageType<V> {
             filter: true,
             widget: Box::new(widget),
             title,
+            title_is_localization_key: false,
             vertical_scroll_state,
             horizontal_scroll_state,
             min_page_width: MIN_PAGE_WIDTH,
         }
+    }
+
+    pub(super) fn new_monolith_localized(
+        widget: impl SettingsWidget<View = V> + 'static,
+        title_key: Option<&'static str>,
+        is_dual_scrollable: bool,
+    ) -> Self {
+        let mut page = Self::new_monolith(widget, title_key, is_dual_scrollable);
+        if let Self::Monolith {
+            title_is_localization_key,
+            ..
+        } = &mut page
+        {
+            *title_is_localization_key = true;
+        }
+        page
     }
 
     /// A page which is a series of [`SettingsWidget`]s that don't fall under sub-categories.
@@ -1338,11 +1381,27 @@ impl<V: warpui::View> PageType<V> {
             filter: widgets.iter().enumerate().map(|(i, _)| i).collect(),
             widgets,
             title,
+            title_is_localization_key: false,
             vertical_scroll_state: Default::default(),
             horizontal_scroll_state: Default::default(),
             highlighted_widget_id: Default::default(),
             min_page_width: MIN_PAGE_WIDTH,
         }
+    }
+
+    pub(super) fn new_uncategorized_localized(
+        widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
+        title_key: Option<&'static str>,
+    ) -> Self {
+        let mut page = Self::new_uncategorized(widgets, title_key);
+        if let Self::Uncategorized {
+            title_is_localization_key,
+            ..
+        } = &mut page
+        {
+            *title_is_localization_key = true;
+        }
+        page
     }
 
     /// A page which is a series of [`SettingsWidget`]s that fall under sub-categories.
@@ -1364,6 +1423,7 @@ impl<V: warpui::View> PageType<V> {
                 .collect(),
             categories,
             title,
+            title_is_localization_key: false,
             vertical_scroll_state: Default::default(),
             horizontal_scroll_state: Default::default(),
             highlighted_widget_id: Default::default(),
@@ -1499,12 +1559,14 @@ impl<V: warpui::View> PageType<V> {
                 widget,
                 filter,
                 title,
+                title_is_localization_key,
                 vertical_scroll_state,
                 horizontal_scroll_state,
                 ..
             } => FilteredPageType::Monolith {
                 widget: filter.then_some(widget.as_ref()),
                 title: *title,
+                title_is_localization_key: *title_is_localization_key,
                 vertical_scroll_state: vertical_scroll_state.clone(),
                 horizontal_scroll_state: horizontal_scroll_state.clone(),
             },
@@ -1512,6 +1574,7 @@ impl<V: warpui::View> PageType<V> {
                 widgets,
                 filter,
                 title,
+                title_is_localization_key,
                 vertical_scroll_state,
                 horizontal_scroll_state,
                 highlighted_widget_id,
@@ -1519,6 +1582,7 @@ impl<V: warpui::View> PageType<V> {
             } => FilteredPageType::Uncategorized {
                 widgets: filter.iter().map(|i| widgets[*i].as_ref()).collect(),
                 title: *title,
+                title_is_localization_key: *title_is_localization_key,
                 vertical_scroll_state: vertical_scroll_state.clone(),
                 horizontal_scroll_state: horizontal_scroll_state.clone(),
                 highlighted_widget_id: *highlighted_widget_id,
@@ -1527,6 +1591,7 @@ impl<V: warpui::View> PageType<V> {
                 categories,
                 filter,
                 title,
+                title_is_localization_key,
                 vertical_scroll_state,
                 horizontal_scroll_state,
                 highlighted_widget_id,
@@ -1540,7 +1605,9 @@ impl<V: warpui::View> PageType<V> {
                         let category = &categories[i];
                         FilteredCategory {
                             title: category.title,
+                            title_is_localization_key: category.title_is_localization_key,
                             subtitle: category.subtitle,
+                            subtitle_is_localization_key: category.subtitle_is_localization_key,
                             widgets: indices
                                 .iter()
                                 .map(|i| category.widgets[*i].as_ref())
@@ -1549,6 +1616,7 @@ impl<V: warpui::View> PageType<V> {
                     })
                     .collect(),
                 title: *title,
+                title_is_localization_key: *title_is_localization_key,
                 vertical_scroll_state: vertical_scroll_state.clone(),
                 horizontal_scroll_state: horizontal_scroll_state.clone(),
                 highlighted_widget_id: *highlighted_widget_id,
@@ -1603,13 +1671,23 @@ impl<V: warpui::View> PageType<V> {
     pub(super) fn render_page(&self, view: &V, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let page = match self.get_filtered() {
-            FilteredPageType::Monolith { widget, title, .. } => {
+            FilteredPageType::Monolith {
+                widget,
+                title,
+                title_is_localization_key,
+                ..
+            } => {
                 let mut page = Empty::new().finish();
                 if let Some(widget) = widget {
                     if widget.should_render(app) {
                         if let Some(title) = title {
+                            let title = if title_is_localization_key {
+                                localization::text_for_app(app, title)
+                            } else {
+                                title.to_string()
+                            };
                             let col = Flex::column()
-                                .with_child(render_page_title(title, HEADER_FONT_SIZE, appearance))
+                                .with_child(render_page_title(&title, HEADER_FONT_SIZE, appearance))
                                 .with_child(widget.render_widget(view, false, appearance, app));
                             page = col.finish();
                         } else {
@@ -1622,12 +1700,18 @@ impl<V: warpui::View> PageType<V> {
             FilteredPageType::Uncategorized {
                 widgets,
                 title,
+                title_is_localization_key,
                 highlighted_widget_id,
                 ..
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    let title = if title_is_localization_key {
+                        localization::text_for_app(app, title)
+                    } else {
+                        title.to_string()
+                    };
+                    page.add_child(render_page_title(&title, HEADER_FONT_SIZE, appearance));
                 }
                 for widget in widgets {
                     let highlighted =
@@ -1641,24 +1725,40 @@ impl<V: warpui::View> PageType<V> {
             FilteredPageType::Categorized {
                 categories,
                 title,
+                title_is_localization_key,
                 highlighted_widget_id,
                 ..
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    let title = if title_is_localization_key {
+                        localization::text_for_app(app, title)
+                    } else {
+                        title.to_string()
+                    };
+                    page.add_child(render_page_title(&title, HEADER_FONT_SIZE, appearance));
                 }
                 let num_categories = categories.len();
                 for (i, category) in categories.into_iter().enumerate() {
                     if !category.title.is_empty() {
+                        let category_title = if category.title_is_localization_key {
+                            localization::text_for_app(app, category.title)
+                        } else {
+                            category.title.to_string()
+                        };
                         if let Some(subtitle) = category.subtitle {
+                            let subtitle = if category.subtitle_is_localization_key {
+                                localization::text_for_app(app, subtitle)
+                            } else {
+                                subtitle.to_string()
+                            };
                             page.add_child(render_sub_header_with_description(
                                 appearance,
-                                category.title,
+                                category_title,
                                 subtitle,
                             ));
                         } else {
-                            page.add_child(render_sub_header(appearance, category.title, None));
+                            page.add_child(render_sub_header(appearance, category_title, None));
                         }
                     }
                     for widget in &category.widgets {
@@ -1777,12 +1877,14 @@ pub(super) enum FilteredPageType<'a, V: warpui::View> {
     Monolith {
         widget: Option<&'a dyn SettingsWidget<View = V>>,
         title: Option<&'static str>,
+        title_is_localization_key: bool,
         vertical_scroll_state: Option<ClippedScrollStateHandle>,
         horizontal_scroll_state: Option<ClippedScrollStateHandle>,
     },
     Uncategorized {
         widgets: Vec<&'a dyn SettingsWidget<View = V>>,
         title: Option<&'static str>,
+        title_is_localization_key: bool,
         vertical_scroll_state: ClippedScrollStateHandle,
         horizontal_scroll_state: ClippedScrollStateHandle,
         highlighted_widget_id: Option<&'static str>,
@@ -1790,6 +1892,7 @@ pub(super) enum FilteredPageType<'a, V: warpui::View> {
     Categorized {
         categories: Vec<FilteredCategory<'a, V>>,
         title: Option<&'static str>,
+        title_is_localization_key: bool,
         vertical_scroll_state: ClippedScrollStateHandle,
         horizontal_scroll_state: ClippedScrollStateHandle,
         highlighted_widget_id: Option<&'static str>,
@@ -1799,7 +1902,9 @@ pub(super) enum FilteredPageType<'a, V: warpui::View> {
 /// A grouping of related [`SettingsWidget`]s that fall under the same sub-header.
 pub(super) struct Category<V: warpui::View> {
     title: &'static str,
+    title_is_localization_key: bool,
     subtitle: Option<&'static str>,
+    subtitle_is_localization_key: bool,
     widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
 }
 
@@ -1810,13 +1915,29 @@ impl<V: warpui::View> Category<V> {
     ) -> Self {
         Self {
             title,
+            title_is_localization_key: false,
             subtitle: None,
+            subtitle_is_localization_key: false,
             widgets,
         }
     }
 
-    pub(super) fn with_subtitle(mut self, subtitle: &'static str) -> Self {
-        self.subtitle = Some(subtitle);
+    pub(super) fn new_localized(
+        title_key: &'static str,
+        widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
+    ) -> Self {
+        Self {
+            title: title_key,
+            title_is_localization_key: true,
+            subtitle: None,
+            subtitle_is_localization_key: false,
+            widgets,
+        }
+    }
+
+    pub(super) fn with_localized_subtitle(mut self, subtitle_key: &'static str) -> Self {
+        self.subtitle = Some(subtitle_key);
+        self.subtitle_is_localization_key = true;
         self
     }
 }
@@ -1824,7 +1945,9 @@ impl<V: warpui::View> Category<V> {
 /// A [`Category`] with only the results which match a search query.
 pub(super) struct FilteredCategory<'a, V: warpui::View> {
     pub(super) title: &'static str,
+    pub(super) title_is_localization_key: bool,
     pub(super) subtitle: Option<&'static str>,
+    pub(super) subtitle_is_localization_key: bool,
     pub(super) widgets: Vec<&'a dyn SettingsWidget<View = V>>,
 }
 
@@ -1882,6 +2005,7 @@ pub(super) trait SettingsWidget {
 /// Callers should add an `on_click` handler and add the button to the UI below
 /// the setting.
 pub(super) fn build_reset_button(
+    app: &AppContext,
     appearance: &Appearance,
     mouse_state: MouseStateHandle,
     changed_from_default: bool,
@@ -1900,5 +2024,8 @@ pub(super) fn build_reset_button(
             font_size: Some(appearance.ui_font_size() * 0.8),
             ..Default::default()
         })
-        .with_text_label("Reset to default".to_owned())
+        .with_text_label(localization::text_for_app(
+            app,
+            "settings.action.reset_to_default",
+        ))
 }

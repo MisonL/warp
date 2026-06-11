@@ -1,38 +1,11 @@
-use crate::ai::agent::conversation::ConversationStatus;
-use crate::ai::conversation_status_ui::{render_status_element, STATUS_ELEMENT_PADDING};
-use crate::appearance::Appearance;
-/// Tab module contains structures related to Tabs (such as TabData or TabComponent) that simplify
-/// the rendering and management of tabs in general.
-use crate::editor::EditorView;
-use crate::features::FeatureFlag;
-use crate::launch_configs::launch_config::LaunchConfig;
-use crate::menu::{MenuAction, MenuItem, MenuItemFields};
-use crate::pane_group::PaneGroup;
-use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
-use settings::Setting as _;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::shell_indicator::ShellIndicatorType;
-use crate::terminal::shared_session::render_util::shared_session_indicator_color;
-use crate::terminal::view::TerminalViewState;
-use crate::themes::theme::{AnsiColorIdentifier, Fill as ThemeFill, VerticalGradient};
-use crate::ui_components::buttons::icon_button;
-use crate::ui_components::color_dot::{render_color_dot, TAB_COLOR_OPTIONS};
-use crate::ui_components::icons::{Icon, ICON_DIMENSIONS};
-use crate::util::color::{coloru_with_opacity, Opacity};
-use crate::util::truncation::truncate_from_end;
-
-use crate::window_settings::WindowSettings;
-use crate::workspace::sync_inputs::SyncedInputState;
-use crate::workspace::tab_settings::{TabCloseButtonPosition, TabSettings};
-use crate::workspace::{
-    PaneViewLocator, TabBarDropTargetData, TabBarLocation, TabContextMenuAnchor, WorkspaceAction,
-};
-use crate::BlocklistAIHistoryModel;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use serde::{Deserialize, Serialize};
+use settings::Setting as _;
 use warp_core::context_flag::ContextFlag;
 use warp_core::ui::builder::UiBuilder;
 use warp_core::ui::theme::color::internal_colors;
@@ -51,8 +24,41 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::text_input::TextInput;
 use warpui::{AppContext, SingletonEntity, ViewHandle};
 
+use crate::ai::agent::conversation::ConversationStatus;
+use crate::ai::conversation_status_ui::{render_status_element, STATUS_ELEMENT_PADDING};
+use crate::appearance::Appearance;
+/// Tab module contains structures related to Tabs (such as TabData or TabComponent) that simplify
+/// the rendering and management of tabs in general.
+use crate::editor::EditorView;
+use crate::features::FeatureFlag;
+use crate::launch_configs::launch_config::LaunchConfig;
+use crate::menu::{MenuAction, MenuItem, MenuItemFields};
+use crate::pane_group::{PaneGroup, PaneId};
+use crate::shell_indicator::ShellIndicatorType;
+use crate::terminal::shared_session::render_util::shared_session_indicator_color;
+use crate::terminal::view::TerminalViewState;
+use crate::themes::theme::{AnsiColorIdentifier, Fill as ThemeFill, VerticalGradient};
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::color_dot::{render_color_dot, TAB_COLOR_OPTIONS};
+use crate::ui_components::icons::{Icon, ICON_DIMENSIONS};
+use crate::util::color::{coloru_with_opacity, Opacity};
+use crate::util::truncation::truncate_from_end;
+use crate::window_settings::WindowSettings;
+use crate::workspace::sync_inputs::SyncedInputState;
+use crate::workspace::tab_group::{TabGroup, TabGroupId};
+use crate::workspace::tab_settings::{
+    TabCloseButtonPosition, TabSettings, VerticalTabsDisplayGranularity,
+};
+use crate::workspace::{
+    PaneViewLocator, TabBarDropTargetData, TabBarLocation, TabContextMenuAnchor, WorkspaceAction,
+};
+use crate::{localization, BlocklistAIHistoryModel};
+
 pub const TAB_BAR_BORDER_HEIGHT: f32 = 1.0;
 const TAB_INDICATOR_HEIGHT: f32 = 14.0;
+
+/// SavePosition id for the tab right-click menu's "Move to group" submenu parent.
+pub const MOVE_TO_GROUP_POSITION_ID: &str = "tab_menu:move_to_group";
 
 /// True when the user has opted into vertical tabs and the feature flag is on.
 /// Exposed so binding-description overrides in `workspace/mod.rs` and context-
@@ -115,13 +121,15 @@ pub enum NewSessionMenuItem {
     OpenLaunchConfig(LaunchConfig),
     OpenLaunchConfigDocs,
     CreateNewTabConfig,
+    /// Creates a new tab group. Gated by `FeatureFlag::GroupedTabs`.
+    CreateNewTabGroup,
 }
 
 #[derive(Clone, Copy)]
 pub struct PaneNameMenuTarget {
     pub locator: PaneViewLocator,
-    pub rename_label: &'static str,
-    pub reset_label: &'static str,
+    pub rename_label_key: &'static str,
+    pub reset_label_key: &'static str,
 }
 
 /// TabData struct holds the state of the given tab. It includes the pane group and mouse states
@@ -144,6 +152,8 @@ pub struct TabData {
     pub indicator_hover_state: MouseStateHandle,
     // Used by a later drag-tab branch to distinguish tabs that have moved into detached windows.
     pub detached: bool,
+    /// Tab group this tab belongs to, if any
+    pub group_id: Option<TabGroupId>,
 }
 
 const TAB_COLOR_ICON_PATH: &str = "bundled/svg/ellipse.svg";
@@ -161,6 +171,7 @@ impl TabData {
             selected_color: SelectedTabColor::Unset,
             indicator_hover_state: Default::default(),
             detached: false,
+            group_id: None,
         }
     }
 
@@ -174,15 +185,17 @@ impl TabData {
         &self,
         index: usize,
         tabs_len: usize,
+        tab_groups: &HashMap<TabGroupId, TabGroup>,
         ctx: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
-        self.menu_items_with_pane_name_target(index, tabs_len, None, ctx)
+        self.menu_items_with_pane_name_target(index, tabs_len, tab_groups, None, ctx)
     }
 
     pub fn menu_items_with_pane_name_target(
         &self,
         index: usize,
         tabs_len: usize,
+        tab_groups: &HashMap<TabGroupId, TabGroup>,
         pane_name_target: Option<PaneNameMenuTarget>,
         ctx: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
@@ -191,10 +204,12 @@ impl TabData {
         let mut menu_items = vec![];
 
         for section_items in [
+            self.tab_group_menu_items(index, tab_groups, ctx),
             self.session_sharing_menu_items(index, ctx),
+            self.copy_metadata_menu_items(pane_name_target, ctx),
             self.modify_tab_menu_items(index, tabs_len, pane_name_target, ctx),
             self.close_tab_menu_items(index, tabs_len, ctx),
-            Self::save_config_menu_items(index),
+            Self::save_config_menu_items(index, ctx),
             self.color_option_menu_items(index, terminal_colors),
         ] {
             if menu_items
@@ -232,17 +247,23 @@ impl TabData {
                     .is_active_sharer()
                 {
                     menu_items.push(
-                        MenuItemFields::new("Stop sharing")
-                            .with_on_select_action(WorkspaceAction::StopSharingSessionFromTabMenu {
-                                terminal_view_id: focused_session_view.id(),
-                            })
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            ctx,
+                            "tab.menu.stop_sharing",
+                        ))
+                        .with_on_select_action(WorkspaceAction::StopSharingSessionFromTabMenu {
+                            terminal_view_id: focused_session_view.id(),
+                        })
+                        .into_item(),
                     );
                 } else {
                     menu_items.push(
-                        MenuItemFields::new("Share session")
-                            .with_on_select_action(WorkspaceAction::OpenShareSessionModal(index))
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            ctx,
+                            "tab.menu.share_session",
+                        ))
+                        .with_on_select_action(WorkspaceAction::OpenShareSessionModal(index))
+                        .into_item(),
                     );
                 }
             }
@@ -250,11 +271,14 @@ impl TabData {
             // Always show an option to stop sharing all when there's at least 1 shared session in the tab.
             if !shared_session_view_ids.is_empty() {
                 menu_items.push(
-                    MenuItemFields::new("Stop sharing all")
-                        .with_on_select_action(WorkspaceAction::StopSharingAllSessionsInTab {
-                            pane_group: self.pane_group.downgrade(),
-                        })
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "tab.menu.stop_sharing_all",
+                    ))
+                    .with_on_select_action(WorkspaceAction::StopSharingAllSessionsInTab {
+                        pane_group: self.pane_group.downgrade(),
+                    })
+                    .into_item(),
                 );
             }
         }
@@ -275,7 +299,7 @@ impl TabData {
 
         if is_shared_or_viewed {
             menu_items.push(
-                MenuItemFields::new("Copy link")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.copy_link"))
                     .with_on_select_action(WorkspaceAction::CopySharedSessionLinkFromTab {
                         tab_index: index,
                     })
@@ -284,6 +308,119 @@ impl TabData {
         }
 
         menu_items
+    }
+
+    fn copyable_pane_title(
+        pane_group: &PaneGroup,
+        pane_id: PaneId,
+        ctx: &AppContext,
+    ) -> Option<String> {
+        pane_group.pane_by_id(pane_id).and_then(|pane| {
+            let configuration = pane.pane_configuration();
+            let configuration = configuration.as_ref(ctx);
+            let title = configuration
+                .custom_vertical_tabs_title()
+                .unwrap_or_else(|| configuration.title());
+            Self::copyable_metadata_value(Some(title.to_string()))
+        })
+    }
+
+    fn copy_metadata_menu_items(
+        &self,
+        pane_name_target: Option<PaneNameMenuTarget>,
+        ctx: &AppContext,
+    ) -> Vec<MenuItem<WorkspaceAction>> {
+        let pane_group = self.pane_group.as_ref(ctx);
+        let mut menu_items = vec![];
+        let tab_title = Self::copyable_metadata_value(Some(pane_group.display_title(ctx)));
+        if !uses_vertical_tabs(ctx) {
+            Self::push_copy_metadata_menu_item(
+                &mut menu_items,
+                localization::text_for_app(ctx, "tab.menu.copy_tab_title"),
+                tab_title,
+            );
+            return menu_items;
+        }
+
+        let vertical_tabs_display_granularity = *TabSettings::as_ref(ctx)
+            .vertical_tabs_display_granularity
+            .value();
+        let (title_label, title, terminal_view) = if matches!(
+            vertical_tabs_display_granularity,
+            VerticalTabsDisplayGranularity::Panes
+        ) {
+            let pane_id = pane_name_target
+                .filter(|target| self.pane_group.id() == target.locator.pane_group_id)
+                .and_then(|target| {
+                    pane_group
+                        .pane_by_id(target.locator.pane_id)
+                        .map(|_| target.locator.pane_id)
+                })
+                .unwrap_or_else(|| pane_group.focused_pane_id(ctx));
+            (
+                localization::text_for_app(ctx, "tab.menu.copy_pane_title"),
+                Self::copyable_pane_title(pane_group, pane_id, ctx),
+                pane_group.terminal_view_from_pane_id(pane_id, ctx),
+            )
+        } else {
+            let terminal_view = pane_name_target
+                .filter(|target| self.pane_group.id() == target.locator.pane_group_id)
+                .and_then(|target| {
+                    pane_group.terminal_view_from_pane_id(target.locator.pane_id, ctx)
+                })
+                .or_else(|| pane_group.focused_session_view(ctx));
+            (
+                localization::text_for_app(ctx, "tab.menu.copy_tab_title"),
+                tab_title,
+                terminal_view,
+            )
+        };
+
+        if let Some(terminal_view) = terminal_view {
+            let terminal_view = terminal_view.as_ref(ctx);
+            Self::push_copy_metadata_menu_item(
+                &mut menu_items,
+                localization::text_for_app(ctx, "terminal.menu.copy_git_branch"),
+                Self::copyable_metadata_value(terminal_view.current_git_branch(ctx)),
+            );
+            Self::push_copy_metadata_menu_item(&mut menu_items, title_label, title);
+            Self::push_copy_metadata_menu_item(
+                &mut menu_items,
+                localization::text_for_app(ctx, "terminal.menu.copy_working_directory"),
+                Self::copyable_metadata_value(
+                    terminal_view
+                        .pwd()
+                        .or_else(|| terminal_view.display_working_directory(ctx)),
+                ),
+            );
+            Self::push_copy_metadata_menu_item(
+                &mut menu_items,
+                localization::text_for_app(ctx, "tab.menu.copy_pull_request_link"),
+                Self::copyable_metadata_value(terminal_view.current_pull_request_url(ctx)),
+            );
+        } else {
+            Self::push_copy_metadata_menu_item(&mut menu_items, title_label, title);
+        }
+
+        menu_items
+    }
+
+    fn push_copy_metadata_menu_item(
+        menu_items: &mut Vec<MenuItem<WorkspaceAction>>,
+        label: String,
+        value: Option<String>,
+    ) {
+        if let Some(value) = value {
+            menu_items.push(
+                MenuItemFields::new(label)
+                    .with_on_select_action(WorkspaceAction::CopyTextToClipboard(value))
+                    .into_item(),
+            );
+        }
+    }
+
+    fn copyable_metadata_value(value: Option<String>) -> Option<String> {
+        value.filter(|value| !value.trim().is_empty())
     }
 
     fn modify_tab_menu_items(
@@ -298,15 +435,18 @@ impl TabData {
 
         // TODO add option to show the keybinding once we figure out a nice API to retrieve
         // the actual keybinding (based on the user's preferences etc.)
-        menu_items.append(&mut vec![MenuItemFields::new("Rename tab")
-            .with_on_select_action(WorkspaceAction::RenameTab(index))
-            .into_item()]);
+        menu_items.append(&mut vec![MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "tab.menu.rename_tab",
+        ))
+        .with_on_select_action(WorkspaceAction::RenameTab(index))
+        .into_item()]);
         // Group together with rename option (note, resetting doesn't make
         // sense unless you're able to rename a tab).
         let title = self.pane_group.as_ref(ctx).custom_title(ctx);
         if title.is_some() {
             menu_items.push(
-                MenuItemFields::new("Reset tab name")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.reset_tab_name"))
                     .with_on_select_action(WorkspaceAction::ResetTabName(index))
                     .into_item(),
             );
@@ -320,9 +460,9 @@ impl TabData {
         if not_last_tab {
             menu_items.push(
                 MenuItemFields::new(if uses_vertical_tabs {
-                    "Move Tab Down"
+                    localization::text_for_app(ctx, "tab.menu.move_down")
                 } else {
-                    "Move Tab Right"
+                    localization::text_for_app(ctx, "tab.menu.move_right")
                 })
                 .with_on_select_action(WorkspaceAction::MoveTabRight(index))
                 .into_item(),
@@ -331,9 +471,9 @@ impl TabData {
         if index != 0 {
             menu_items.push(
                 MenuItemFields::new(if uses_vertical_tabs {
-                    "Move Tab Up"
+                    localization::text_for_app(ctx, "tab.menu.move_up")
                 } else {
-                    "Move Tab Left"
+                    localization::text_for_app(ctx, "tab.menu.move_left")
                 })
                 .with_on_select_action(WorkspaceAction::MoveTabLeft(index))
                 .into_item(),
@@ -360,12 +500,15 @@ impl TabData {
             .custom_vertical_tabs_title()
             .is_some();
 
-        let mut menu_items = vec![MenuItemFields::new(target.rename_label)
-            .with_on_select_action(WorkspaceAction::RenamePane(target.locator))
-            .into_item()];
+        let mut menu_items =
+            vec![
+                MenuItemFields::new(localization::text_for_app(ctx, target.rename_label_key))
+                    .with_on_select_action(WorkspaceAction::RenamePane(target.locator))
+                    .into_item(),
+            ];
         if has_custom_name {
             menu_items.push(
-                MenuItemFields::new(target.reset_label)
+                MenuItemFields::new(localization::text_for_app(ctx, target.reset_label_key))
                     .with_on_select_action(WorkspaceAction::ResetPaneName(target.locator))
                     .into_item(),
             );
@@ -384,14 +527,14 @@ impl TabData {
 
         if ContextFlag::CloseWindow.is_enabled() || tabs_len != 1 {
             menu_items.push(
-                MenuItemFields::new("Close tab")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.close_tab"))
                     .with_on_select_action(WorkspaceAction::CloseTab(index))
                     .into_item(),
             );
         }
         if tabs_len > 1 {
             menu_items.push(
-                MenuItemFields::new("Close other tabs")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.close_other_tabs"))
                     .with_on_select_action(WorkspaceAction::CloseOtherTabs(index))
                     .into_item(),
             );
@@ -400,9 +543,9 @@ impl TabData {
         if not_last_tab {
             menu_items.push(
                 MenuItemFields::new(if uses_vertical_tabs {
-                    "Close Tabs Below"
+                    localization::text_for_app(ctx, "tab.menu.close_tabs_below")
                 } else {
-                    "Close Tabs to the Right"
+                    localization::text_for_app(ctx, "tab.menu.close_tabs_to_right")
                 })
                 .with_on_select_action(WorkspaceAction::CloseTabsRight(index))
                 .into_item(),
@@ -411,13 +554,63 @@ impl TabData {
         menu_items
     }
 
-    fn save_config_menu_items(index: usize) -> Vec<MenuItem<WorkspaceAction>> {
+    fn save_config_menu_items(index: usize, ctx: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
         if !FeatureFlag::TabConfigs.is_enabled() {
             return vec![];
         }
-        vec![MenuItemFields::new("Save as new config")
-            .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
-            .into_item()]
+        vec![MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "tab.menu.save_as_new_config",
+        ))
+        .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
+        .into_item()]
+    }
+
+    /// Returns the tab-group entries for the top-level right-click menu:
+    /// `New group with tab` (always available when the FF is on),
+    /// `Move to group` (when at least one other group exists), and
+    /// `Remove from group` (only when the tab is currently in a group).
+    ///
+    /// The `Move to group` item is a submenu parent - selecting/hovering it
+    /// opens a sidecar populated by the workspace; it has no
+    /// `on_select_action` of its own.
+    fn tab_group_menu_items(
+        &self,
+        index: usize,
+        tab_groups: &HashMap<TabGroupId, TabGroup>,
+        ctx: &AppContext,
+    ) -> Vec<MenuItem<WorkspaceAction>> {
+        if !FeatureFlag::GroupedTabs.is_enabled() {
+            return vec![];
+        }
+        let mut menu_items = vec![MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "tab.menu.new_group_with_tab",
+        ))
+        .with_on_select_action(WorkspaceAction::NewTabGroupFromTab(index))
+        .into_item()];
+        let has_other_groups = tab_groups.keys().any(|gid| Some(*gid) != self.group_id);
+        if has_other_groups {
+            menu_items.push(
+                MenuItemFields::new_submenu(localization::text_for_app(
+                    ctx,
+                    "tab.menu.move_to_group",
+                ))
+                .with_save_position_id(MOVE_TO_GROUP_POSITION_ID)
+                .into_item(),
+            );
+        }
+        if self.group_id.is_some() {
+            menu_items.push(
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "tab.menu.remove_from_group",
+                ))
+                .with_on_select_action(WorkspaceAction::RemoveTabFromGroup(index))
+                .into_item(),
+            );
+        }
+        menu_items
     }
 
     fn color_option_menu_items(
@@ -446,7 +639,7 @@ impl TabData {
 
         vec![MenuItem::Item(
             MenuItemFields::new_with_custom_label(
-                Arc::new(move |_is_selected, _is_hovered, appearance, _app| {
+                Arc::new(move |_is_selected, _is_hovered, appearance, app| {
                     let theme = appearance.theme();
                     let ring_color: ColorU = theme.accent().into();
 
@@ -468,7 +661,7 @@ impl TabData {
                             Some(id) => id.to_ansi_color(&terminal_colors).into(),
                         };
                         let tooltip = match ansi_id {
-                            None => "Default (no color)".to_string(),
+                            None => localization::text_for_app(app, "tab.tooltip.default_color"),
                             Some(id) => id.to_string(),
                         };
 
@@ -593,6 +786,7 @@ pub struct TabComponent<'a> {
     tab_index: usize,
     styles: TabStyles,
     ui_builder: UiBuilder,
+    ambient_agent_tooltip: String,
     indicator: Indicator,
     close_button_position: TabCloseButtonPosition,
     appearance: &'a Appearance,
@@ -682,14 +876,19 @@ impl<'a> TabComponent<'a> {
         let active_pane_is_ambient_agent_session = tab
             .pane_group
             .as_ref(ctx)
-            .active_session_terminal_model(ctx)
-            .map(|model| {
-                let model = model.lock();
-                model.is_shared_ambient_agent_session()
-                    || matches!(
-                        model.conversation_transcript_viewer_status(),
-                        Some(ConversationTranscriptViewerStatus::ViewingAmbientConversation(_))
-                    )
+            .active_session_view(ctx)
+            .map(|view| {
+                let view = view.as_ref(ctx);
+                view.is_ambient_agent_session(ctx) || {
+                    let model = view.model.lock();
+                    model.is_shared_ambient_agent_session()
+                        || matches!(
+                            model.conversation_transcript_viewer_status(),
+                            Some(
+                                crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus::ViewingAmbientConversation(_)
+                            )
+                        )
+                }
             })
             .unwrap_or(false);
         let active_pane_has_unsaved_code_changes = tab
@@ -757,6 +956,7 @@ impl<'a> TabComponent<'a> {
             tab_index,
             styles: TabStyles::default(appearance, tab.color()),
             ui_builder: appearance.ui_builder().clone(),
+            ambient_agent_tooltip: localization::text_for_app(ctx, "tab.tooltip.cloud_agent_run"),
             indicator,
             close_button_position,
             appearance,
@@ -1154,16 +1354,15 @@ impl<'a> TabComponent<'a> {
 
                 let ui_builder = self.ui_builder.clone();
                 let mouse_state = self.tab.indicator_hover_state.clone();
+                let tooltip_text = self.ambient_agent_tooltip.clone();
                 Some(
                     Hoverable::new(mouse_state, move |state| {
                         let mut stack = Stack::new()
                             .with_child(Icon::OzCloud.to_warpui_icon(icon_color.into()).finish());
 
                         if state.is_hovered() {
-                            let tooltip = ui_builder
-                                .tool_tip("Cloud agent run".to_string())
-                                .build()
-                                .finish();
+                            let tooltip =
+                                ui_builder.tool_tip(tooltip_text.clone()).build().finish();
                             stack.add_positioned_overlay_child(
                                 tooltip,
                                 OffsetPositioning::offset_from_parent(

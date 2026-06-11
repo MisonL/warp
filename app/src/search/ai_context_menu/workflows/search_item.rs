@@ -1,18 +1,20 @@
-use fuzzy_match::FuzzyMatchResult;
-use ordered_float::OrderedFloat;
 use std::fmt::Debug;
 
-use crate::appearance::Appearance;
-use crate::cloud_object::ObjectType;
-use crate::search::ai_context_menu::styles;
-use crate::search::ai_context_menu::{mixer::AIContextMenuSearchableAction, safe_truncate};
-use crate::search::item::SearchItem;
-use crate::search::result_renderer::ItemHighlightState;
+use fuzzy_match::FuzzyMatchResult;
+use ordered_float::OrderedFloat;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, Icon, ParentElement, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
+
+use crate::appearance::Appearance;
+use crate::cloud_object::ObjectType;
+use crate::localization;
+use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
+use crate::search::ai_context_menu::{safe_truncate, styles};
+use crate::search::item::SearchItem;
+use crate::search::result_renderer::ItemHighlightState;
 
 const MAX_COMBINED_LENGTH: usize = 55;
 
@@ -181,6 +183,25 @@ impl SearchItem for WorkflowSearchItem {
             format!("Workflow: {} - {}", self.workflow_name, description)
         } else {
             format!("Workflow: {}", self.workflow_name)
+        }
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        if let Some(description) = &self.workflow_description {
+            localization::text_for_app_with_args(
+                app,
+                "search.a11y.type.workflow_with_description",
+                &[
+                    ("name", &self.workflow_name),
+                    ("description", description.as_str()),
+                ],
+            )
+        } else {
+            localization::text_for_app_with_args(
+                app,
+                "search.a11y.type.workflow",
+                &[("name", &self.workflow_name)],
+            )
         }
     }
 

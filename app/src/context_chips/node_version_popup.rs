@@ -2,24 +2,21 @@ use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
-    ChildView, ClippedScrollStateHandle, ClippedScrollable, Dismiss, ParentElement, ScrollbarWidth,
+    ChildView, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, Dismiss, DropShadow, Flex, MainAxisAlignment, MainAxisSize,
+    ParentElement, Radius, ScrollbarWidth, Text,
 };
-use warpui::fonts::FamilyId;
+use warpui::fonts::{FamilyId, Properties};
+use warpui::keymap::FixedBinding;
 use warpui::{
-    elements::{
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DropShadow, Flex,
-        MainAxisAlignment, MainAxisSize, Radius, Text,
-    },
-    fonts::Properties,
-    keymap::FixedBinding,
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
 };
 
+use crate::localization;
 use crate::menu::{self, Event as MenuEvent, Menu, MenuItemFields};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
-use crate::ui_components::blended_colors;
-use crate::ui_components::icons;
+use crate::ui_components::{blended_colors, icons};
 use crate::view_components::action_button::{ActionButton, SecondaryTheme};
 
 const MENU_WIDTH: f32 = 300.0;
@@ -76,19 +73,25 @@ impl NodeVersionPopupView {
         model_events: &ModelHandle<ModelEventDispatcher>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let install_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Install nvm", SecondaryTheme)
-                .with_icon(icons::Icon::Terminal)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(NodeVersionPopupAction::InstallNvm);
-                })
+        let install_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "context_chips.node.install_nvm"),
+                SecondaryTheme,
+            )
+            .with_icon(icons::Icon::Terminal)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(NodeVersionPopupAction::InstallNvm);
+            })
         });
-        let install_latest_node_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("nvm install node", SecondaryTheme)
-                .with_icon(icons::Icon::Terminal)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(NodeVersionPopupAction::InstallLatestNodeVersion);
-                })
+        let install_latest_node_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "context_chips.node.install_latest_command"),
+                SecondaryTheme,
+            )
+            .with_icon(icons::Icon::Terminal)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(NodeVersionPopupAction::InstallLatestNodeVersion);
+            })
         });
         let has_nvm = detect_nvm_installed();
         let versions = if has_nvm {
@@ -181,7 +184,7 @@ impl NodeVersionPopupView {
 
         col.add_child(
             Text::new(
-                "Install nvm to enable version switching",
+                localization::text_for_app(app, "context_chips.node.install_nvm_empty_title"),
                 styles.ui_font_family,
                 styles.detail_font_size + 2.,
             )
@@ -193,7 +196,10 @@ impl NodeVersionPopupView {
         col.add_child(
             Container::new(
                 Text::new(
-                    "This menu helps you switch between Node.js versions — but it requires nvm to be installed.",
+                    localization::text_for_app(
+                        app,
+                        "context_chips.node.install_nvm_empty_description",
+                    ),
                     styles.ui_font_family,
                     styles.detail_font_size,
                 )
@@ -242,7 +248,7 @@ impl NodeVersionPopupView {
         // Heading
         col.add_child(
             Text::new(
-                "No node versions installed",
+                localization::text_for_app(app, "context_chips.node.no_versions_title"),
                 styles.ui_font_family,
                 styles.detail_font_size + 2.,
             )
@@ -255,7 +261,7 @@ impl NodeVersionPopupView {
         col.add_child(
             Container::new(
                 Text::new(
-                    "Try installing versions with nvm",
+                    localization::text_for_app(app, "context_chips.node.no_versions_description"),
                     styles.ui_font_family,
                     styles.detail_font_size,
                 )
@@ -286,10 +292,14 @@ impl NodeVersionPopupView {
 
         col.add_child(
             Container::new(
-                Text::new("Installed", styles.ui_font_family, styles.detail_font_size)
-                    .with_style(Properties::default())
-                    .with_color(styles.secondary_text_color)
-                    .finish(),
+                Text::new(
+                    localization::text_for_app(app, "context_chips.node.installed"),
+                    styles.ui_font_family,
+                    styles.detail_font_size,
+                )
+                .with_style(Properties::default())
+                .with_color(styles.secondary_text_color)
+                .finish(),
             )
             .with_horizontal_padding(12.)
             .finish(),

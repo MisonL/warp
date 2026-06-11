@@ -1,30 +1,30 @@
+use std::collections::HashSet;
+use std::ops::Range;
+
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use std::{collections::HashSet, ops::Range};
-
+use warpui::elements::{
+    Align, ConstrainedBox, Container, CornerRadius, Dismiss, Empty, Fill, Flex, ParentElement,
+    Radius, SavePosition, ScrollStateHandle, Scrollable, ScrollableElement, Shrinkable,
+    UniformList, UniformListState,
+};
+use warpui::presenter::ChildView;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Align, ConstrainedBox, Container, CornerRadius, Dismiss, Empty, Fill, Flex, ParentElement,
-        Radius, SavePosition, ScrollStateHandle, Scrollable, ScrollableElement, Shrinkable,
-        UniformList, UniformListState,
-    },
-    presenter::ChildView,
-    ui_components::components::{UiComponent, UiComponentStyles},
     AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle, WeakViewHandle,
 };
 
-use crate::{
-    appearance::Appearance,
-    external_secrets::ExternalSecret,
-    search::{
-        external_secrets::{
-            external_secret_data_source::ExternalSecretDataSource,
-            searcher::{ExternalSecretSearchItemAction, ExternalSecretSearchMixer},
-        },
-        result_renderer::{QueryResultRenderer, QueryResultRendererStyles},
-        search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering},
-    },
+use crate::appearance::Appearance;
+use crate::external_secrets::ExternalSecret;
+use crate::localization;
+use crate::search::external_secrets::external_secret_data_source::ExternalSecretDataSource;
+use crate::search::external_secrets::searcher::{
+    ExternalSecretSearchItemAction, ExternalSecretSearchMixer,
+};
+use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
+use crate::search::search_bar::{
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
 };
 
 lazy_static! {
@@ -40,8 +40,6 @@ lazy_static! {
             ..Default::default()
         };
 }
-
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search for a secret";
 
 pub struct ExternalSecretsMenu {
     scroll_state: ScrollStateHandle,
@@ -88,7 +86,7 @@ impl ExternalSecretsMenu {
             SearchBar::new(
                 mixer.clone(),
                 search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
+                SearchBarPlaceholder::localized("search.external_secrets.placeholder"),
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -179,11 +177,11 @@ impl ExternalSecretsMenu {
         self.close(ctx);
     }
 
-    fn render_no_results(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_no_results(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         // There are no results to display, so notify the user of that fact.
         let text = appearance
             .ui_builder()
-            .span("No results found.")
+            .span(localization::text_for_app(app, "search.no_results"))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.monospace_font_size()),
                 font_family_id: Some(appearance.ui_font_family()),
@@ -278,7 +276,7 @@ impl ExternalSecretsMenu {
         let selected_index = self.search_bar_state.as_ref(app).selected_index();
         match (query_result_renderers, selected_index) {
             (Some(query_result_renderers), _) if query_result_renderers.is_empty() => {
-                self.render_no_results(appearance)
+                self.render_no_results(appearance, app)
             }
             (Some(query_result_renderers), Some(selected_index)) => {
                 self.render_present_results(appearance, selected_index, query_result_renderers)
@@ -369,7 +367,8 @@ pub mod styles {
     use pathfinder_color::ColorU;
     use warpui::elements::{Border, DropShadow, ScrollbarWidth};
 
-    use crate::{appearance::Appearance, themes::theme::Fill};
+    use crate::appearance::Appearance;
+    use crate::themes::theme::Fill;
 
     pub const CORNER_RADIUS: f32 = 6.;
     pub const VIEW_WIDTH: f32 = 450.;

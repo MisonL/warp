@@ -1,20 +1,22 @@
-use crate::editor::Event as EditorEvent;
-use crate::modal::{Modal, ModalViewState};
-use crate::{
-    appearance::Appearance,
-    editor::{EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions},
-};
 use regex::Regex;
 use warp_editor::editor::NavigationKey;
-use warpui::elements::{CrossAxisAlignment, Expanded, MainAxisSize};
+use warpui::elements::{
+    ChildView, Container, CrossAxisAlignment, Empty, Expanded, Flex, MainAxisSize,
+    MouseStateHandle, ParentElement, Text,
+};
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{ChildView, Container, Empty, Flex, MouseStateHandle, ParentElement, Text},
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
+
+use crate::appearance::Appearance;
+use crate::editor::{
+    EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
+    TextOptions,
+};
+use crate::localization;
+use crate::modal::{Modal, ModalViewState};
 
 const LABEL_FONT_SIZE: f32 = 12.;
 
@@ -51,7 +53,10 @@ impl AddRegexModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g. \"Google API Key\"", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.privacy.name_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -66,7 +71,10 @@ impl AddRegexModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("\\bAIza[0-9A-Za-z-_]{35}\\b", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.privacy.regex_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -190,7 +198,7 @@ impl View for AddRegexModal {
         let is_submit_enabled = !pattern_text.trim().is_empty() && is_valid_regex;
 
         let name_label = Text::new(
-            "Name (optional)",
+            localization::text_for_app(app, "settings.privacy.name_optional"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -198,7 +206,7 @@ impl View for AddRegexModal {
         .finish();
 
         let regex_label = Text::new(
-            "Regex pattern",
+            localization::text_for_app(app, "settings.privacy.regex_pattern"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -217,7 +225,10 @@ impl View for AddRegexModal {
                 ButtonVariant::Accent,
                 self.submit_button_mouse_state.clone(),
             )
-            .with_text_label("Add regex".to_string())
+            .with_text_label(localization::text_for_app(
+                app,
+                "settings.privacy.add_regex",
+            ))
             .with_style(button_style);
 
         if !is_submit_enabled {
@@ -232,7 +243,7 @@ impl View for AddRegexModal {
                     1.,
                     Container::new(if !is_valid_regex && !pattern_text.trim().is_empty() {
                         Text::new(
-                            "Invalid regex",
+                            localization::text_for_app(app, "settings.privacy.invalid_regex"),
                             appearance.ui_font_family(),
                             LABEL_FONT_SIZE,
                         )
@@ -258,7 +269,7 @@ impl View for AddRegexModal {
                         ButtonVariant::Secondary,
                         self.cancel_button_mouse_state.clone(),
                     )
-                    .with_text_label("Cancel".to_string())
+                    .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
                     .with_style(button_style)
                     .build()
                     .on_click(move |ctx, _, _| {

@@ -3,28 +3,25 @@
 //! Uses the shared [`ChipConfigurator`] with `LeftRightZones` layout to let users
 //! drag/drop chips between left, right, and unused banks.
 
+use settings::Setting as _;
 use warpui::keymap::FixedBinding;
-
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
+use super::toolbar_item::AgentToolbarItemKind;
 use crate::chip_configurator::{
     render_chip_editor_modal, render_chip_editor_sections, ChipConfigurator,
     ChipConfiguratorAction, ChipConfiguratorLayout, ChipEditorModalConfig, ChipEditorMouseHandles,
     ChipEditorSectionsConfig,
 };
-use crate::report_if_error;
 use crate::terminal::session_settings::{
     AgentToolbarChipSelection, CLIAgentToolbarChipSelection, SessionSettings,
     SessionSettingsChangedEvent, ToolbarChipSelection,
 };
-use crate::Appearance;
+use crate::{localization, report_if_error, Appearance};
 
-use settings::Setting as _;
-
-use super::toolbar_item::AgentToolbarItemKind;
-
-const AGENT_MODAL_TITLE: &str = "Edit agent toolbelt";
-const CLI_MODAL_TITLE: &str = "Edit CLI agent toolbelt";
+const AGENT_MODAL_TITLE_KEY: &str = "terminal.menu.edit_agent_toolbelt";
+const CLI_MODAL_TITLE_KEY: &str = "agent.input_footer.edit_cli_agent_toolbelt";
+const AVAILABLE_CHIPS_KEY: &str = "agent.input_footer.available_chips";
 
 /// Controls which set of items and settings the editor modal operates on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -93,6 +90,25 @@ fn open_toolbar_items_from_settings<V: View>(
             )
         }
     };
+
+    // Filter out items that are unavailable due to runtime state (user settings,
+    // workspace config, etc.) on top of the feature-flag checks in all_available().
+    let available: Vec<AgentToolbarItemKind> = available
+        .into_iter()
+        .filter(|item| item.is_available(ctx))
+        .collect();
+
+    // Drop saved items that are no longer available (e.g. their feature flag was disabled
+    // or a setting was turned off).
+    let filter_unavailable = |items: Vec<AgentToolbarItemKind>| -> Vec<AgentToolbarItemKind> {
+        items
+            .into_iter()
+            .filter(|item| available.contains(item))
+            .collect()
+    };
+    let current_left = filter_unavailable(current_left);
+    let current_right = filter_unavailable(current_right);
+
     chip_configurator.open_left_right_zones_with_items(
         current_left,
         current_right,
@@ -108,6 +124,15 @@ fn open_default_toolbar_items<V: View>(
 ) {
     let appearance = Appearance::as_ref(ctx);
     let (left, right, available) = AgentToolbarItemKind::defaults_for_mode(mode);
+    let filter_runtime = |items: Vec<AgentToolbarItemKind>| -> Vec<AgentToolbarItemKind> {
+        items
+            .into_iter()
+            .filter(|item| item.is_available(ctx))
+            .collect()
+    };
+    let left = filter_runtime(left);
+    let right = filter_runtime(right);
+    let available = filter_runtime(available);
     chip_configurator.open_left_right_zones_with_items(left, right, available, appearance);
 }
 
@@ -209,10 +234,11 @@ impl View for AgentToolbarInlineEditor {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let available_section_label = localization::text_for_app(app, AVAILABLE_CHIPS_KEY);
         render_chip_editor_sections(
             &self.chip_configurator,
             ChipEditorSectionsConfig {
-                available_section_label: "Available chips",
+                available_section_label: &available_section_label,
                 is_at_defaults: self.is_at_defaults(),
                 reset_action: AgentToolbarInlineEditorAction::ResetDefault,
                 activate_action: AgentToolbarInlineEditorAction::Activate,
@@ -220,6 +246,7 @@ impl View for AgentToolbarInlineEditor {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }
@@ -301,10 +328,10 @@ impl AgentToolbarEditorModal {
         self.is_dirty = false;
     }
 
-    fn modal_title(&self) -> &'static str {
+    fn modal_title_key(&self) -> &'static str {
         match self.mode {
-            AgentToolbarEditorMode::AgentView => AGENT_MODAL_TITLE,
-            AgentToolbarEditorMode::CLIAgent => CLI_MODAL_TITLE,
+            AgentToolbarEditorMode::AgentView => AGENT_MODAL_TITLE_KEY,
+            AgentToolbarEditorMode::CLIAgent => CLI_MODAL_TITLE_KEY,
         }
     }
 }
@@ -358,11 +385,13 @@ impl View for AgentToolbarEditorModal {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let title = localization::text_for_app(app, self.modal_title_key());
+        let available_section_label = localization::text_for_app(app, AVAILABLE_CHIPS_KEY);
         render_chip_editor_modal(
             &self.chip_configurator,
             ChipEditorModalConfig {
-                title: self.modal_title(),
-                available_section_label: "Available chips",
+                title: &title,
+                available_section_label: &available_section_label,
                 is_at_defaults: self.is_at_defaults(),
                 is_dirty: self.is_dirty,
                 cancel_action: AgentToolbarEditorAction::Cancel,
@@ -373,6 +402,7 @@ impl View for AgentToolbarEditorModal {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }

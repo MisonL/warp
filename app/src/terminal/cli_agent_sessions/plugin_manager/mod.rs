@@ -5,20 +5,22 @@ pub(crate) mod opencode;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fmt;
-use std::io;
 use std::path::PathBuf;
+use std::{fmt, io};
 
 use async_trait::async_trait;
-
-use crate::features::FeatureFlag;
-use crate::terminal::model::session::LocalCommandExecutor;
-use crate::terminal::shell::ShellType;
-use crate::terminal::CLIAgent;
 use claude::ClaudeCodePluginManager;
 use codex::CodexPluginManager;
 use gemini::GeminiPluginManager;
 use opencode::OpenCodePluginManager;
+use warp_localization::LocaleId;
+use warpui::AppContext;
+
+use crate::features::FeatureFlag;
+use crate::localization;
+use crate::terminal::model::session::LocalCommandExecutor;
+use crate::terminal::shell::ShellType;
+use crate::terminal::CLIAgent;
 
 /// Distinguishes whether the plugin instructions modal should show install or update steps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +31,7 @@ pub enum PluginModalKind {
 
 /// A single step in the plugin install/update instructions pane.
 pub(crate) struct PluginInstructionStep {
+    pub description_key: &'static str,
     pub description: &'static str,
     pub command: &'static str,
     /// When true, the code block shows a "Run" button that inserts the command into the terminal.
@@ -42,21 +45,77 @@ pub(crate) struct PluginInstructionStep {
 
 /// All content needed to render the plugin instructions pane for a given agent.
 pub(crate) struct PluginInstructions {
+    pub title_key: &'static str,
     pub title: &'static str,
+    pub subtitle_key: &'static str,
     pub subtitle: &'static str,
     pub steps: &'static [PluginInstructionStep],
+    pub post_install_note_keys: &'static [&'static str],
     /// Displayed after the steps in the same style as the subtitle, one per paragraph.
     pub post_install_notes: &'static [&'static str],
 }
 
 /// Error returned when plugin installation fails.
-/// Carries both a short user-facing message (for the toast) and a detailed
-/// command log (for the log file the user can inspect).
+/// Carries a readable fallback message, optional localized UI message metadata,
+/// and a detailed command log.
 pub(crate) struct PluginInstallError {
-    /// Short description shown in the toast notification.
+    /// Readable fallback used by Display/logs, and by UI paths without a localization key.
     pub message: String,
     /// Detailed log of every command/step that was attempted.
     pub log: String,
+    message_key: Option<&'static str>,
+    message_args: Vec<(&'static str, String)>,
+}
+
+impl PluginInstallError {
+    pub(crate) fn new(message: impl Into<String>, log: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            log: log.into(),
+            message_key: None,
+            message_args: vec![],
+        }
+    }
+
+    pub(crate) fn localized(
+        message_key: &'static str,
+        message_args: Vec<(&'static str, String)>,
+        log: impl Into<String>,
+    ) -> Self {
+        let message = message_for_locale(LocaleId::EnUs, message_key, &message_args);
+        Self {
+            message,
+            log: log.into(),
+            message_key: Some(message_key),
+            message_args,
+        }
+    }
+
+    pub(crate) fn localized_message(&self, app: &AppContext) -> String {
+        let Some(key) = self.message_key else {
+            return self.message.clone();
+        };
+        if self.message_args.is_empty() {
+            return localization::text_for_app(app, key);
+        }
+        let args = self
+            .message_args
+            .iter()
+            .map(|(key, value)| (*key, value.as_str()))
+            .collect::<Vec<_>>();
+        localization::text_for_app_with_args(app, key, &args)
+    }
+}
+
+fn message_for_locale(locale: LocaleId, key: &str, args: &[(&'static str, String)]) -> String {
+    if args.is_empty() {
+        return localization::text_for_locale(locale, key);
+    }
+    let args = args
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect::<Vec<_>>();
+    localization::text_for_locale_with_args(locale, key, &args)
 }
 
 impl fmt::Display for PluginInstallError {
@@ -68,10 +127,7 @@ impl fmt::Display for PluginInstallError {
 impl From<io::Error> for PluginInstallError {
     fn from(err: io::Error) -> Self {
         let msg = err.to_string();
-        Self {
-            message: msg.clone(),
-            log: msg,
-        }
+        Self::new(msg.clone(), msg)
     }
 }
 
@@ -120,17 +176,19 @@ pub(crate) async fn run_cli_command_logged(
                 log.push('\n');
                 return Ok(());
             }
-            Err(PluginInstallError {
-                message: format!("'{display_cmd}' failed"),
-                log: log.to_owned(),
-            })
+            Err(PluginInstallError::localized(
+                "agent.input_footer.plugin_command_failed",
+                vec![("command", display_cmd.clone())],
+                log.to_owned(),
+            ))
         }
         Err(err) => {
             log.push_str(&format!("error: {err}\n"));
-            Err(PluginInstallError {
-                message: format!("failed to run '{display_cmd}'"),
-                log: log.clone(),
-            })
+            Err(PluginInstallError::localized(
+                "agent.input_footer.plugin_command_run_failed",
+                vec![("command", display_cmd)],
+                log.clone(),
+            ))
         }
     }
 }
@@ -160,32 +218,43 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
         false
     }
 
+    /// Whether this agent's Oz platform plugin is already installed.
+    /// Default returns `true` because most agents do not have a platform plugin.
+    fn is_platform_plugin_installed(&self) -> bool {
+        true
+    }
+    /// Whether this agent's Oz platform plugin is below the minimum required version.
+    /// Default returns `false` because most agents do not have a platform plugin.
+    fn platform_plugin_needs_update(&self) -> bool {
+        false
+    }
+
+    /// Whether the agent's plugin marketplace is currently overridden to a
+    /// local filesystem path. This is used by local test flows to avoid
+    /// clobbering a developer's marketplace override while still preserving
+    /// normal install/update behavior in staging and production.
+    fn has_local_marketplace_override(&self) -> bool {
+        false
+    }
+
     /// Install the Warp notification plugin.
     /// Default returns an error — only agents with `can_auto_install() == true` should override.
     async fn install(&self) -> Result<(), PluginInstallError> {
-        Err(PluginInstallError {
-            message: "Auto-install not supported for this agent".to_owned(),
-            log: String::new(),
-        })
+        Err(PluginInstallError::localized(
+            "agent.input_footer.plugin_auto_install_unsupported",
+            vec![],
+            String::new(),
+        ))
     }
 
     /// Update the Warp notification plugin to the latest version.
     /// Default returns an error — only agents with `can_auto_install() == true` should override.
     async fn update(&self) -> Result<(), PluginInstallError> {
-        Err(PluginInstallError {
-            message: "Auto-update not supported for this agent".to_owned(),
-            log: String::new(),
-        })
-    }
-
-    /// Toast message shown after a successful auto-install.
-    fn install_success_message(&self) -> &'static str {
-        "Warp plugin installed. Please restart the session to activate."
-    }
-
-    /// Toast message shown after a successful auto-update.
-    fn update_success_message(&self) -> &'static str {
-        "Warp plugin updated. Please restart the session to activate."
+        Err(PluginInstallError::localized(
+            "agent.input_footer.plugin_auto_update_unsupported",
+            vec![],
+            String::new(),
+        ))
     }
 
     /// Manual installation instructions for the modal UI.
@@ -206,6 +275,12 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
     /// Default is a no-op — only agents with a platform plugin should override.
     async fn install_platform_plugin(&self) -> Result<(), PluginInstallError> {
         Ok(())
+    }
+    /// Update the Oz platform plugin for this CLI agent, if one exists.
+    /// Default reuses the install path because most agents do not have a
+    /// platform plugin or need distinct update behavior.
+    async fn update_platform_plugin(&self) -> Result<(), PluginInstallError> {
+        self.install_platform_plugin().await
     }
 }
 
@@ -242,7 +317,11 @@ pub(crate) fn plugin_manager_for_with_shell(
             if FeatureFlag::CodexNotifications.is_enabled()
                 && FeatureFlag::HOANotifications.is_enabled() =>
         {
-            Some(Box::new(CodexPluginManager))
+            Some(Box::new(CodexPluginManager::new(
+                shell_path,
+                shell_type,
+                path_env_var,
+            )))
         }
         CLIAgent::Gemini
             if FeatureFlag::GeminiNotifications.is_enabled()
@@ -263,6 +342,7 @@ pub(crate) fn plugin_manager_for_with_shell(
         | CLIAgent::Pi
         | CLIAgent::Auggie
         | CLIAgent::CursorCli
+        | CLIAgent::Hermes
         | CLIAgent::Goose
         | CLIAgent::Vibe
         | CLIAgent::Unknown => None,

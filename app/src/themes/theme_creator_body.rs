@@ -1,18 +1,11 @@
-use crate::appearance::{Appearance, AppearanceManager};
-use crate::editor::{EditorView, Event as EditorEvent};
-use crate::themes::theme::{InMemoryThemeOptions, ThemeKind};
-use crate::user_config;
-#[cfg(feature = "local_fs")]
-use crate::{
-    send_telemetry_from_ctx, server::telemetry::TelemetryEvent, themes::theme::CustomTheme,
-};
-use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::vec2f;
 use std::default::Default;
 use std::fmt;
 use std::path::PathBuf;
 #[cfg(feature = "local_fs")]
 use std::{fs::copy, io::Write};
+
+use pathfinder_color::ColorU;
+use pathfinder_geometry::vector::vec2f;
 #[cfg(feature = "local_fs")]
 use warp_core::ui::theme::WarpTheme;
 use warpui::elements::{
@@ -21,27 +14,27 @@ use warpui::elements::{
     ParentElement, Radius, Rect, SavePosition, Shrinkable, Text,
 };
 use warpui::fonts::Weight;
+use warpui::platform::Cursor;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::text_input::TextInput;
-use warpui::ViewHandle;
 use warpui::{
-    platform::Cursor, AppContext, Element, Entity, SingletonEntity, TypedActionView, View,
-    ViewContext,
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+};
+
+use crate::appearance::{Appearance, AppearanceManager};
+use crate::editor::{EditorView, Event as EditorEvent};
+use crate::themes::theme::{InMemoryThemeOptions, ThemeKind};
+use crate::{localization, user_config};
+#[cfg(feature = "local_fs")]
+use crate::{
+    send_telemetry_from_ctx, server::telemetry::TelemetryEvent, themes::theme::CustomTheme,
 };
 
 const BUTTON_PADDING: f32 = 12.;
 const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BORDER_WIDTH: f32 = 1.;
-
-const MODAL_SUBHEADER: &str =
-    "Automatically generate a theme based on extracted colors from an image (.png, .jpg).";
-const IMAGE_PICKER_BUTTON_PRE_SELECT_TEXT: &str = "Select an image";
-const IMAGE_PICKER_BUTTON_SELECTING_TEXT: &str = "Selecting image...";
-const IMAGE_PICKER_BUTTON_POST_SELECT_TEXT: &str = "Select a new image";
-const CANCEL_BUTTON_TEXT: &str = "Cancel";
-const CREATE_BUTTON_TEXT: &str = "Create theme";
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -81,16 +74,28 @@ pub enum ThemeCreatorImageState {
     Uploaded,
 }
 
+impl ThemeCreatorImageState {
+    fn label(&self, app: &AppContext) -> String {
+        match self {
+            ThemeCreatorImageState::Empty => {
+                localization::text_for_app(app, "settings.theme_creator.select_image")
+            }
+            ThemeCreatorImageState::Uploading => {
+                localization::text_for_app(app, "settings.theme_creator.selecting_image")
+            }
+            ThemeCreatorImageState::Uploaded => {
+                localization::text_for_app(app, "settings.theme_creator.select_new_image")
+            }
+        }
+    }
+}
+
 impl fmt::Display for ThemeCreatorImageState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ThemeCreatorImageState::Empty => write!(f, "{IMAGE_PICKER_BUTTON_PRE_SELECT_TEXT}"),
-            ThemeCreatorImageState::Uploading => {
-                write!(f, "{IMAGE_PICKER_BUTTON_SELECTING_TEXT}")
-            }
-            ThemeCreatorImageState::Uploaded => {
-                write!(f, "{IMAGE_PICKER_BUTTON_POST_SELECT_TEXT}")
-            }
+            ThemeCreatorImageState::Empty => write!(f, "empty"),
+            ThemeCreatorImageState::Uploading => write!(f, "uploading"),
+            ThemeCreatorImageState::Uploaded => write!(f, "uploaded"),
         }
     }
 }
@@ -175,8 +180,7 @@ impl ThemeCreatorBody {
 
             let Some(image_extension) = image_extension else {
                 self.send_error_toast(
-                    "Failed to process selected image. Please try again with a different image."
-                        .to_string(),
+                    localization::text_for_app(ctx, "settings.theme_creator.error.process_image"),
                     ctx,
                 );
                 return;
@@ -211,7 +215,10 @@ impl ThemeCreatorBody {
             #[cfg(not(feature = "local_fs"))]
             log::warn!("Tried to save theme without a local filesystem.");
             if errored {
-                self.send_error_toast("Something went wrong".to_string(), ctx);
+                self.send_error_toast(
+                    localization::text_for_app(ctx, "settings.theme_creator.error.generic"),
+                    ctx,
+                );
             }
         }
     }
@@ -259,25 +266,27 @@ impl ThemeCreatorBody {
 
         ctx.spawn(
             InMemoryThemeOptions::new(file_stem_string.clone(), path.clone()),
-            move |theme_creator_body, theme_options, ctx| {
-                match theme_options {
-                    Ok(theme_options) => {
-                        AppearanceManager::handle(ctx).update(ctx, |appearance_manager, ctx| {
-                            appearance_manager.clear_transient_theme(ctx);
-                        });
+            move |theme_creator_body, theme_options, ctx| match theme_options {
+                Ok(theme_options) => {
+                    AppearanceManager::handle(ctx).update(ctx, |appearance_manager, ctx| {
+                        appearance_manager.clear_transient_theme(ctx);
+                    });
 
-                        theme_creator_body.theme_options = Some(theme_options);
-                        theme_creator_body.editor.update(ctx, |editor, ctx| {
-                            editor.set_buffer_text(&file_stem_string, ctx);
-                        });
-                        theme_creator_body.image_state = ThemeCreatorImageState::Uploaded;
-                    },
-                    Err(e) => {
-                        theme_creator_body.send_error_toast(
-                            format!("Failed to process selected image due to error: {e}. Please try again with a different image."),
+                    theme_creator_body.theme_options = Some(theme_options);
+                    theme_creator_body.editor.update(ctx, |editor, ctx| {
+                        editor.set_buffer_text(&file_stem_string, ctx);
+                    });
+                    theme_creator_body.image_state = ThemeCreatorImageState::Uploaded;
+                }
+                Err(e) => {
+                    theme_creator_body.send_error_toast(
+                        localization::text_for_app_with_args(
                             ctx,
-                        );
-                    }
+                            "settings.theme_creator.error.process_image_with_error",
+                            &[("error", &e.to_string())],
+                        ),
+                        ctx,
+                    );
                 }
             },
         );
@@ -417,7 +426,10 @@ impl View for ThemeCreatorBody {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_centered_text_label(CANCEL_BUTTON_TEXT.into());
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "settings.theme_creator.cancel",
+            ));
 
         let mut create_button = appearance
             .ui_builder()
@@ -429,15 +441,22 @@ impl View for ThemeCreatorBody {
                 Some(create_hovered_styles),
                 Some(disabled_styles),
             )
-            .with_centered_text_label(CREATE_BUTTON_TEXT.into());
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "settings.theme_creator.create_theme",
+            ));
 
         let mut flex: Flex = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(
                 Container::new(
-                    Text::new_inline(MODAL_SUBHEADER, appearance.ui_font_family(), 14.)
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(app, "settings.theme_creator.subheader"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .finish(),
             );
@@ -445,9 +464,13 @@ impl View for ThemeCreatorBody {
         if let Some(theme_options) = &self.theme_options {
             flex.add_child(
                 Container::new(
-                    Text::new_inline("Theme name", appearance.ui_font_family(), 14.)
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(app, "settings.theme_creator.theme_name"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .with_margin_top(12.)
                 .finish(),
@@ -474,9 +497,13 @@ impl View for ThemeCreatorBody {
 
             flex.add_child(
                 Container::new(
-                    Text::new_inline("Background color", appearance.ui_font_family(), 14.)
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(app, "settings.theme_creator.background_color"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .with_margin_top(24.)
                 .finish(),
@@ -549,7 +576,7 @@ impl View for ThemeCreatorBody {
             Container::new(
                 if let ThemeCreatorImageState::Uploading = self.image_state {
                     image_picker_button
-                        .with_centered_text_label(self.image_state.to_string())
+                        .with_centered_text_label(self.image_state.label(app))
                         .disabled()
                         .build()
                         .finish()
@@ -558,7 +585,7 @@ impl View for ThemeCreatorBody {
                         .with_text_and_icon_label(
                             TextAndIcon::new(
                                 TextAndIconAlignment::TextFirst,
-                                self.image_state.to_string(),
+                                self.image_state.label(app),
                                 Icon::new("bundled/svg/upload-01.svg", ColorU::white()),
                                 MainAxisSize::Max,
                                 MainAxisAlignment::Center,

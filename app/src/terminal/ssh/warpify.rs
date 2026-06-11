@@ -2,20 +2,24 @@ use asset_macro::bundled_asset;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::ui::theme::WarpTheme;
 use warpui::assets::asset_cache::{AssetCache, AssetState};
+use warpui::elements::{
+    Border, Container, CrossAxisAlignment, Flex, HighlightedHyperlink, Hoverable, Icon,
+    MouseStateHandle, ParentElement,
+};
+use warpui::keymap::FixedBinding;
+use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::shell::ShellType;
 use crate::terminal::warpify;
 use crate::terminal::warpify::render::SSH_DOCS_URL;
 use crate::ui_components::icons::Icon as UiIcon;
-use warpui::elements::{HighlightedHyperlink, Hoverable, Icon, MouseStateHandle};
-use warpui::keymap::FixedBinding;
-use warpui::AppContext;
-use warpui::{
-    elements::{Border, Container, CrossAxisAlignment, Flex, ParentElement},
-    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
-};
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[derive(Debug, Clone)]
 pub enum SshWarpifyBlockEvent {
@@ -65,9 +69,19 @@ impl Entity for SshWarpifyBlock {
 }
 
 impl SshWarpifyBlock {
-    fn render_title_ui(&self, theme: &WarpTheme, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_title_ui(
+        &self,
+        app: &AppContext,
+        theme: &WarpTheme,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         let icon = Icon::new(UiIcon::Warp.into(), theme.active_ui_detail());
-        warpify::render::header_row("Warpifying SSH Session...", icon, theme, appearance)
+        warpify::render::header_row(
+            text(app, "terminal.ssh_warpify.title"),
+            icon,
+            theme,
+            appearance,
+        )
     }
 }
 
@@ -79,10 +93,8 @@ pub fn warpify_description(
     let theme = appearance.theme();
 
     let description = FormattedText::new(vec![FormattedTextLine::Line(vec![
-        FormattedTextFragment::plain_text(
-            "Bring Warp's features to your remote session. Blocks, full text editing, auto-complete, Oz, and more. "
-        ),
-        FormattedTextFragment::hyperlink("Learn more", SSH_DOCS_URL),
+        FormattedTextFragment::plain_text(text(app, "terminal.ssh_warpify.description")),
+        FormattedTextFragment::hyperlink(text(app, "auth.learn_more"), SSH_DOCS_URL),
     ])]);
     warpify::render::build_description_row(description, theme, appearance, hyperlink_index.clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
@@ -103,7 +115,7 @@ impl View for SshWarpifyBlock {
 
         let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
-        content.add_child(self.render_title_ui(theme, appearance));
+        content.add_child(self.render_title_ui(app, theme, appearance));
 
         content.add_child(
             Container::new(
@@ -183,5 +195,5 @@ pub fn warpify_ssh_session_command(
     }
 }
 #[cfg(test)]
-#[path = "warpify_test.rs"]
+#[path = "warpify_tests.rs"]
 mod tests;

@@ -1,12 +1,7 @@
-use crate::appearance::Appearance;
-use crate::search::mixer::SearchMixer;
-use crate::search::search_bar::{
-    CreateQueryResultRendererFn, SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering,
-};
-use crate::search::QueryFilter;
-use itertools::Itertools;
 use std::marker::PhantomData;
 use std::ops::Range;
+
+use itertools::Itertools;
 use warpui::elements::{
     ConstrainedBox, Container, Empty, Flex, ParentElement, SavePosition, ScrollStateHandle,
     Scrollable, ScrollableElement, ScrollbarWidth, Text, UniformList, UniformListState,
@@ -18,6 +13,13 @@ use warpui::{
 };
 
 use super::styles::{ESTIMATED_RESULT_HEIGHT, MAX_DISPLAYED_RESULT_COUNT};
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::search::mixer::SearchMixer;
+use crate::search::search_bar::{
+    CreateQueryResultRendererFn, SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering,
+};
+use crate::search::QueryFilter;
 
 const HEADER_HORIZONTAL_PADDING: f32 = 16.;
 const HEADER_VERTICAL_PADDING: f32 = 4.;
@@ -190,7 +192,7 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "No results found",
+                localization::text_for_app(app, "search.no_results"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -267,7 +269,7 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
         ctx: &mut ViewContext<Self>,
     ) {
         self.search_bar.update(ctx, |view, ctx| {
-            view.set_visible_query_filter(
+            view.set_query_filter(
                 filter.map(|filter| (filter, filter.filter_atom().primary_text)),
                 ctx,
             )
@@ -282,17 +284,17 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
         let selected_index = state.selected_index();
         let query_result_renderers = state.query_result_renderers();
 
-        let active_filter = state.active_visible_query_filter();
+        let active_filter = state.active_query_filter();
         let appearance = Appearance::as_ref(app);
 
         let mut column = Flex::column();
 
-        if let Some(title) = active_filter.and_then(renderable_title_name) {
+        if let Some(title_key) = active_filter.and_then(renderable_title_key) {
             column.add_child(
                 Container::new(
                     appearance
                         .ui_builder()
-                        .span(title)
+                        .span(localization::text_for_app(app, title_key))
                         .with_style(UiComponentStyles {
                             font_color: Some(
                                 appearance
@@ -338,9 +340,9 @@ impl<T: Action + Clone> View for SearchResultsMenuView<T> {
     }
 }
 
-fn renderable_title_name(query_filter: QueryFilter) -> Option<&'static str> {
+fn renderable_title_key(query_filter: QueryFilter) -> Option<&'static str> {
     if matches!(query_filter, QueryFilter::AgentModeWorkflows) {
-        return Some("Prompts");
+        return Some("search.results.title.agent_mode_workflows");
     }
 
     None

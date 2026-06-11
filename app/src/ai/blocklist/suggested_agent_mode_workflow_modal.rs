@@ -1,32 +1,30 @@
-use crate::{
-    ai::agent::SuggestedAgentModeWorkflow,
-    modal::{Modal, ModalEvent},
-    pane_group::PaneEvent,
-    server::ids::SyncId,
-    ui_components::blended_colors,
-    workflows::{
-        workflow_view::{WorkflowView, WorkflowViewEvent},
-        WorkflowSelectionSource, WorkflowSource, WorkflowType,
-    },
-    workspaces::user_workspaces::UserWorkspaces,
-    TelemetryEvent,
-};
+use std::collections::HashMap;
+use std::default::Default;
+use std::sync::Arc;
+
 use pathfinder_geometry::vector::vec2f;
-use std::{collections::HashMap, default::Default, sync::Arc};
-use warp_core::{send_telemetry_from_ctx, ui::appearance::Appearance};
+use warp_core::send_telemetry_from_ctx;
+use warp_core::ui::appearance::Appearance;
+use warpui::elements::{
+    ChildAnchor, Empty, OffsetPositioning, PositionedElementAnchor, PositionedElementOffsetBounds,
+};
+use warpui::fonts::Weight;
+use warpui::keymap::FixedBinding;
+use warpui::presenter::ChildView;
+use warpui::ui_components::components::{Coords, UiComponentStyles};
 use warpui::{
-    elements::{
-        ChildAnchor, Empty, OffsetPositioning, PositionedElementAnchor,
-        PositionedElementOffsetBounds,
-    },
-    fonts::Weight,
-    keymap::FixedBinding,
-    presenter::ChildView,
-    ui_components::components::{Coords, UiComponentStyles},
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-const SUGGESTED_PROMPT_MODAL_HEADER: &str = "Prompt";
+use crate::ai::agent::SuggestedAgentModeWorkflow;
+use crate::modal::{Modal, ModalEvent};
+use crate::pane_group::PaneEvent;
+use crate::server::ids::SyncId;
+use crate::ui_components::blended_colors;
+use crate::workflows::workflow_view::{WorkflowView, WorkflowViewEvent};
+use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
+use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, TelemetryEvent};
 
 /// A modal component for displaying and managing suggested agent mode workflows.
 /// This component wraps a WorkflowView in a modal dialog with proper styling and
@@ -113,7 +111,10 @@ impl SuggestedAgentModeWorkflowModal {
 
         let modal = ctx.add_typed_action_view(|ctx| {
             let mut modal = Modal::new(
-                Some(SUGGESTED_PROMPT_MODAL_HEADER.to_string()),
+                Some(localization::text_for_app(
+                    ctx,
+                    "agent.suggested_workflow.modal.title",
+                )),
                 workflow_view_handle,
                 ctx,
             )

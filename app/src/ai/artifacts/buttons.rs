@@ -5,11 +5,10 @@ use warp_core::ui::theme::AnsiColorIdentifier;
 use warpui::elements::{ChildView, Element, Empty, ParentElement, Wrap};
 use warpui::{AppContext, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
+use super::{file_button_label, Artifact};
+use crate::localization;
 use crate::notebooks::NotebookId;
 use crate::terminal::input::MenuPositioning;
-
-use super::file_button_label;
-use super::Artifact;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, SecondaryTheme, TooltipAlignment,
 };
@@ -143,10 +142,12 @@ fn collect_buttons(
             } => {
                 // Only show plan button if synced to Warp Drive (has notebook_uid)
                 if let Some(notebook_uid) = notebook_uid {
-                    let button_text = title.clone().unwrap_or("Untitled Plan".to_string());
+                    let button_text = title.clone().unwrap_or_else(|| {
+                        localization::text_for_app(ctx, "artifact.plan.untitled")
+                    });
                     let theme = theme.clone();
-                    buttons.push(ctx.add_typed_action_view(move |_| {
-                        make_plan_button(button_text, *notebook_uid, theme)
+                    buttons.push(ctx.add_typed_action_view(move |ctx| {
+                        make_plan_button(button_text, *notebook_uid, theme, ctx)
                     }));
                 }
             }
@@ -158,17 +159,15 @@ fn collect_buttons(
             } => {
                 if !branch.is_empty() {
                     let theme = theme.clone();
-                    buttons.push(
-                        ctx.add_typed_action_view(move |_| {
-                            make_branch_button(branch.clone(), theme)
-                        }),
-                    );
+                    buttons.push(ctx.add_typed_action_view(move |ctx| {
+                        make_branch_button(branch.clone(), theme, ctx)
+                    }));
                 }
 
                 if !url.is_empty() {
                     let theme = theme.clone();
-                    buttons.push(ctx.add_typed_action_view(move |_| {
-                        make_pr_button(url.clone(), repo.clone(), *number, theme)
+                    buttons.push(ctx.add_typed_action_view(move |ctx| {
+                        make_pr_button(url.clone(), repo.clone(), *number, theme, ctx)
                     }));
                 }
             }
@@ -187,8 +186,8 @@ fn collect_buttons(
             } => {
                 let button_text = file_button_label(filename, filepath);
                 let theme = theme.clone();
-                buttons.push(ctx.add_typed_action_view(move |_| {
-                    make_file_button(button_text, artifact_uid.clone(), theme)
+                buttons.push(ctx.add_typed_action_view(move |ctx| {
+                    make_file_button(button_text, artifact_uid.clone(), theme, ctx)
                 }));
             }
         }
@@ -196,8 +195,9 @@ fn collect_buttons(
 
     if !screenshot_uids.is_empty() {
         let theme = theme.clone();
-        buttons.push(ctx.add_typed_action_view(move |_| {
-            make_screenshot_button("Screenshots".to_string(), screenshot_uids, theme)
+        let label = localization::text_for_app(ctx, "artifact.screenshot.label");
+        buttons.push(ctx.add_typed_action_view(move |ctx| {
+            make_screenshot_button(label, screenshot_uids, theme, ctx)
         }));
     }
 
@@ -208,25 +208,32 @@ fn make_plan_button(
     title: String,
     notebook_uid: NotebookId,
     theme: Arc<dyn ActionButtonTheme>,
+    app: &AppContext,
 ) -> ActionButton {
     make_artifact_button(
         title,
         Icon::Compass,
-        "Open plan",
+        "artifact.tooltip.open_plan",
         None,
         ArtifactButtonAction::OpenPlan { notebook_uid },
         theme,
+        app,
     )
 }
 
-fn make_branch_button(branch: String, theme: Arc<dyn ActionButtonTheme>) -> ActionButton {
+fn make_branch_button(
+    branch: String,
+    theme: Arc<dyn ActionButtonTheme>,
+    app: &AppContext,
+) -> ActionButton {
     make_artifact_button(
         branch.clone(),
         Icon::GitBranch,
-        "Copy branch name",
+        "artifact.tooltip.copy_branch_name",
         Some(AnsiColorIdentifier::Green),
         ArtifactButtonAction::CopyBranch { branch },
         theme,
+        app,
     )
 }
 
@@ -235,6 +242,7 @@ fn make_pr_button(
     repo: Option<String>,
     number: Option<u32>,
     theme: Arc<dyn ActionButtonTheme>,
+    app: &AppContext,
 ) -> ActionButton {
     let display_text = match (repo, number) {
         (Some(repo), Some(num)) => format!("{repo} #{num}"),
@@ -245,10 +253,11 @@ fn make_pr_button(
     make_artifact_button(
         display_text,
         Icon::Github,
-        "Open pull request",
+        "artifact.tooltip.open_pull_request",
         None,
         ArtifactButtonAction::OpenPullRequest { url },
         theme,
+        app,
     )
 }
 
@@ -256,14 +265,16 @@ fn make_screenshot_button(
     label: String,
     artifact_uids: Vec<String>,
     theme: Arc<dyn ActionButtonTheme>,
+    app: &AppContext,
 ) -> ActionButton {
     make_artifact_button(
         label,
         Icon::Image,
-        "View screenshots",
+        "artifact.tooltip.view_screenshots",
         None,
         ArtifactButtonAction::ViewScreenshots { artifact_uids },
         theme,
+        app,
     )
 }
 
@@ -271,29 +282,32 @@ fn make_file_button(
     label: String,
     artifact_uid: String,
     theme: Arc<dyn ActionButtonTheme>,
+    app: &AppContext,
 ) -> ActionButton {
     make_artifact_button(
         label,
         Icon::File,
-        "Download file",
+        "artifact.tooltip.download_file",
         None,
         ArtifactButtonAction::DownloadFile { artifact_uid },
         theme,
+        app,
     )
 }
 
 fn make_artifact_button(
     display_text: String,
     icon: Icon,
-    tooltip: &str,
+    tooltip_key: &str,
     icon_color: Option<AnsiColorIdentifier>,
     action: ArtifactButtonAction,
     theme: Arc<dyn ActionButtonTheme>,
+    app: &AppContext,
 ) -> ActionButton {
     let mut button = ActionButton::new_with_boxed_theme(display_text, theme)
         .with_size(ButtonSize::Small)
         .with_icon(icon)
-        .with_tooltip(tooltip)
+        .with_tooltip(localization::text_for_app(app, tooltip_key))
         .with_tooltip_alignment(TooltipAlignment::Center)
         .with_tooltip_positioning_provider(Arc::new(MenuPositioning::BelowInputBox))
         .with_max_label_width(BUTTON_MAX_TEXT_WIDTH)

@@ -1,32 +1,30 @@
-use std::{collections::HashSet, ops::Range};
+use std::collections::HashSet;
+use std::ops::Range;
 
-use crate::{
-    appearance::Appearance,
-    cloud_object::Space,
-    search::{
-        notebook_embedding::notebooks::CloudNotebooksDataSource,
-        notebook_embedding::workflows::CloudWorkflowsDataSource,
-        result_renderer::{QueryResultRenderer, QueryResultRendererStyles},
-        search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering},
-    },
-};
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use warpui::elements::{
+    Align, ConstrainedBox, Container, CornerRadius, Dismiss, Empty, Fill, Flex, ParentElement,
+    Radius, SavePosition, ScrollStateHandle, Scrollable, ScrollableElement, Shrinkable,
+    UniformList, UniformListState,
+};
+use warpui::presenter::ChildView;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Align, ConstrainedBox, Container, CornerRadius, Dismiss, Empty, Fill, Flex, ParentElement,
-        Radius, SavePosition, ScrollStateHandle, Scrollable, ScrollableElement, Shrinkable,
-        UniformList, UniformListState,
-    },
-    presenter::ChildView,
-    ui_components::components::{UiComponent, UiComponentStyles},
     AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle, WeakViewHandle,
 };
 
 use super::searcher::{EmbeddingSearchItemAction, EmbeddingSearchMixer};
-
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search for a reference";
+use crate::appearance::Appearance;
+use crate::cloud_object::Space;
+use crate::localization;
+use crate::search::notebook_embedding::notebooks::CloudNotebooksDataSource;
+use crate::search::notebook_embedding::workflows::CloudWorkflowsDataSource;
+use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
+use crate::search::search_bar::{
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
+};
 
 lazy_static! {
     static ref QUERY_RESULT_RENDERER_STYLES: QueryResultRendererStyles =
@@ -86,7 +84,7 @@ impl EmbeddingSearchMenu {
             SearchBar::new(
                 mixer.clone(),
                 search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
+                SearchBarPlaceholder::localized("search.notebook_embedding.placeholder"),
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -203,7 +201,7 @@ impl EmbeddingSearchMenu {
                 // There are no results to display, so notify the user of that fact.
                 let text = appearance
                     .ui_builder()
-                    .span("No results found.")
+                    .span(localization::text_for_app(app, "search.no_results"))
                     .with_style(UiComponentStyles {
                         font_size: Some(appearance.monospace_font_size()),
                         font_family_id: Some(appearance.ui_font_family()),
@@ -379,7 +377,8 @@ pub mod styles {
     use pathfinder_color::ColorU;
     use warpui::elements::{Border, DropShadow, ScrollbarWidth};
 
-    use crate::{appearance::Appearance, themes::theme::Fill};
+    use crate::appearance::Appearance;
+    use crate::themes::theme::Fill;
 
     pub const CORNER_RADIUS: f32 = 6.;
     pub const VIEW_WIDTH: f32 = 450.;

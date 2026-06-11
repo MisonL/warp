@@ -1,11 +1,12 @@
+use ai::LLMId;
+use warp_core::send_telemetry_from_ctx;
+use warpui_core::{Entity, ModelContext};
+
 use crate::slides::{
     AgentAutonomy, AgentDevelopmentSettings, OnboardingModelInfo, ProjectOnboardingSettings,
 };
 use crate::telemetry::OnboardingEvent;
-use crate::OnboardingIntention;
-use ai::LLMId;
-use warp_core::send_telemetry_from_ctx;
-use warpui::{Entity, ModelContext};
+use crate::{OnboardingCopy, OnboardingIntention};
 
 /// UI customization settings chosen during the "Customize your UI" onboarding slide.
 #[derive(Clone, Debug)]
@@ -132,6 +133,16 @@ pub(crate) enum OnboardingStateEvent {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct OnboardingStateModelOptions {
+    pub workspace_enforces_autonomy: bool,
+    pub agent_modality_enabled: bool,
+    pub free_user_no_ai_experiment: bool,
+    pub agent_price_cents: Option<i32>,
+    pub auth_state: OnboardingAuthState,
+    pub copy: OnboardingCopy,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct OnboardingStateModel {
     step: OnboardingStep,
     intention: OnboardingIntention,
@@ -152,6 +163,7 @@ pub(crate) struct OnboardingStateModel {
     agent_price_cents: Option<i32>,
     /// Auth / billing state of the user.
     auth_state: OnboardingAuthState,
+    copy: OnboardingCopy,
 }
 
 impl OnboardingStateModel {
@@ -159,11 +171,7 @@ impl OnboardingStateModel {
     pub(crate) fn new(
         models: Vec<OnboardingModelInfo>,
         default_model_id: LLMId,
-        workspace_enforces_autonomy: bool,
-        agent_modality_enabled: bool,
-        free_user_no_ai_experiment: bool,
-        agent_price_cents: Option<i32>,
-        auth_state: OnboardingAuthState,
+        options: OnboardingStateModelOptions,
     ) -> Self {
         Self {
             step: OnboardingStep::Intro,
@@ -172,12 +180,17 @@ impl OnboardingStateModel {
             project_settings: ProjectOnboardingSettings::default(),
             ui_customization: UICustomizationSettings::agent_defaults(),
             models,
-            workspace_enforces_autonomy,
-            agent_modality_enabled,
-            free_user_no_ai_experiment,
-            agent_price_cents,
-            auth_state,
+            workspace_enforces_autonomy: options.workspace_enforces_autonomy,
+            agent_modality_enabled: options.agent_modality_enabled,
+            free_user_no_ai_experiment: options.free_user_no_ai_experiment,
+            agent_price_cents: options.agent_price_cents,
+            auth_state: options.auth_state,
+            copy: options.copy,
         }
+    }
+
+    pub(crate) fn copy(&self) -> &OnboardingCopy {
+        &self.copy
     }
 
     pub(crate) fn auth_state(&self) -> OnboardingAuthState {
@@ -297,7 +310,7 @@ impl OnboardingStateModel {
     pub(crate) fn agent_price_badge(&self) -> String {
         const DEFAULT_AGENT_PRICE_CENTS: i32 = 1800;
         let cents = self.agent_price_cents.unwrap_or(DEFAULT_AGENT_PRICE_CENTS);
-        format!("Starting at ${}/mo", cents / 100)
+        self.copy.price_badge(cents / 100)
     }
 
     pub(crate) fn set_agent_price_cents(

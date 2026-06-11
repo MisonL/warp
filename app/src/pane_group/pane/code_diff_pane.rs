@@ -1,16 +1,15 @@
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
-use crate::{
-    ai::blocklist::inline_action::code_diff_view::{CodeDiffView, CodeDiffViewEvent},
-    app_state::{CodePaneSnapShot, CodePaneTabSnapshot, LeafContents},
-    code::editor_management::{CodeManager, CodeSource},
-    pane_group::PaneGroup,
-};
-
+use super::code_diff_pane_model::CodeDiffPaneModel;
 use super::{
-    code_diff_pane_model::CodeDiffPaneModel, DetachType, PaneConfiguration, PaneContent, PaneEvent,
-    PaneId, PaneView, ShareableLink, ShareableLinkError,
+    DetachType, PaneConfiguration, PaneContent, PaneEvent, PaneId, PaneView, ShareableLink,
+    ShareableLinkError,
 };
+use crate::ai::blocklist::inline_action::code_diff_view::{CodeDiffView, CodeDiffViewEvent};
+use crate::app_state::{CodePaneSnapShot, CodePaneTabSnapshot, LeafContents};
+use crate::code::editor_management::{CodeManager, CodeSource};
+use crate::localization;
+use crate::pane_group::PaneGroup;
 
 pub struct CodeDiffPane {
     view: ViewHandle<PaneView<CodeDiffView>>,
@@ -24,7 +23,10 @@ impl CodeDiffPane {
         let pane_configuration = ctx.add_model(|_ctx| {
             let mut config = PaneConfiguration::new("");
             // This title must be set with .set_title and not just ::new() to ensure that the tab renders immediately.
-            config.set_title("Requested Edit", _ctx);
+            config.set_title(
+                localization::text_for_app(_ctx, "agent.code_diff.requested_edit"),
+                _ctx,
+            );
             config
         });
 

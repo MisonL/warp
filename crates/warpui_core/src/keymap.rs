@@ -1,25 +1,25 @@
-use crate::actions::StandardAction;
-use crate::AppContext;
-use crate::{Action, Tracked};
+use std::any::Any;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
 use anyhow::anyhow;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{
-    any::Any,
-    collections::{HashMap, HashSet},
-    fmt,
-    sync::Arc,
-};
 use titlecase::titlecase;
+
+use crate::actions::StandardAction;
+use crate::{Action, AppContext, Tracked};
 
 mod context;
 mod matcher;
 
-use crate::platform::OperatingSystem;
 pub use context::{macros, Context, ContextPredicate};
 pub use matcher::{IsBindingValid, MatchResult, Matcher};
+
+use crate::platform::OperatingSystem;
 
 #[derive(Default)]
 pub struct Keymap {
@@ -66,7 +66,8 @@ pub enum DescriptionContext {
 
 /// Closure that can override a [`BindingDescription`] from live app state. See
 /// [`BindingDescription::with_dynamic_override`].
-pub type DynamicDescriptionResolver = Arc<dyn Fn(&AppContext) -> Option<String> + Send + Sync>;
+pub type DynamicDescriptionResolver =
+    Arc<dyn Fn(&AppContext, DescriptionContext) -> Option<String> + Send + Sync>;
 
 #[derive(Default, Clone)]
 /// A description of the binding.  Supports a single default context and
@@ -149,6 +150,16 @@ impl BindingDescription {
     where
         F: Fn(&AppContext) -> Option<String> + Send + Sync + 'static,
     {
+        self.dynamic_override = Some(Arc::new(move |ctx, _context| resolver(ctx)));
+        self
+    }
+
+    /// Attach a dynamic override that can return different labels for
+    /// different description contexts.
+    pub fn with_contextual_dynamic_override<F>(mut self, resolver: F) -> Self
+    where
+        F: Fn(&AppContext, DescriptionContext) -> Option<String> + Send + Sync + 'static,
+    {
         self.dynamic_override = Some(Arc::new(resolver));
         self
     }
@@ -163,8 +174,8 @@ impl BindingDescription {
     /// [`Self::in_context`] anywhere `&AppContext` is in scope.
     pub fn resolve(&self, ctx: &AppContext, context: DescriptionContext) -> Cow<'_, str> {
         match &self.dynamic_override {
-            Some(f) => match f(ctx) {
-                Some(description) => Cow::Owned(titlecase(&description)),
+            Some(f) => match f(ctx, context) {
+                Some(description) => Cow::Owned(description),
                 None => Cow::Borrowed(self.in_context(context)),
             },
             None => Cow::Borrowed(self.in_context(context)),
@@ -229,7 +240,7 @@ impl<S: Into<String>> From<S> for BindingDescription {
 /// its context predicate is false, the binding is still registered in the total set of bindings.
 ///
 /// Enabled predicates dynamically decide if a binding is registered or not. They're similar to
-/// conditionally calling [`warpui::app::AppContext::register_editable_bindings`], except
+/// conditionally calling [`warpui_core::app::AppContext::register_editable_bindings`], except
 /// that the condition is re-evaluated at runtime. The main use for enabled predicates is to check
 /// feature flags that might change post-initialization. If a feature is disabled, any bindings
 /// related to it should be as well. Once the feature is enabled, the UI framework will start
@@ -337,8 +348,8 @@ impl schemars::JsonSchema for Keystroke {
         std::borrow::Cow::Borrowed("Keystroke")
     }
 
-    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        gen.subschema_for::<String>()
+    fn json_schema(schema_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schema_generator.subschema_for::<String>()
     }
 }
 
@@ -1066,5 +1077,5 @@ impl Keystroke {
 }
 
 #[cfg(test)]
-#[path = "keymap_test.rs"]
+#[path = "keymap_tests.rs"]
 mod tests;

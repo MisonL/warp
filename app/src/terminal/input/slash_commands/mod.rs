@@ -3,14 +3,15 @@ mod data_source;
 mod search_item;
 pub(super) mod view;
 
-pub use cloud_mode_v2_view::{CloudModeV2SlashCommandView, Section as CloudModeV2Section};
-pub use data_source::*;
-pub use view::{CloseReason, InlineSlashCommandView, SlashCommandsEvent};
-
 #[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 
 use ai::skills::SkillReference;
+pub use cloud_mode_v2_view::{CloudModeV2SlashCommandView, Section as CloudModeV2Section};
+pub use data_source::*;
+pub use view::{CloseReason, InlineSlashCommandView, SlashCommandsEvent};
+#[cfg(not(target_family = "wasm"))]
+use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
@@ -18,7 +19,7 @@ use warp_core::ui::theme::AnsiColorIdentifier;
 #[cfg(feature = "local_fs")]
 use warp_util::path::{CleanPathResult, LineAndColumnArg};
 use warpui::clipboard::ClipboardContent;
-use warpui::{SingletonEntity, ViewContext};
+use warpui::{AppContext, SingletonEntity, ViewContext};
 
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent::conversation::AIConversationId;
@@ -26,10 +27,17 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_management::telemetry::AgentManagementTelemetryEvent;
+#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+use crate::ai::ambient_agents::telemetry::HandoffEntryPoint;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryOrigin, DismissalStrategy, EphemeralMessage, ENTER_OR_EXIT_CONFIRMATION_WINDOW,
 };
-use crate::ai::blocklist::{BlocklistAIHistoryModel, SlashCommandRequest};
+#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+use crate::ai::blocklist::handoff::PendingCloudLaunch;
+use crate::ai::blocklist::{
+    BlocklistAIHistoryModel, InputTypeAutoDetectionSource, QueuedQuery, QueuedQueryModel,
+    QueuedQueryOrigin, SlashCommandRequest,
+};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
@@ -42,6 +50,7 @@ use crate::tab::SelectedTabColor;
 use crate::terminal::input::decorations::InputBackgroundJobOptions;
 use crate::terminal::input::inline_menu::{InlineMenuAction, InlineMenuType};
 use crate::terminal::input::message_bar::Message;
+use crate::terminal::input::models::InlineModelSelectorTab;
 use crate::terminal::input::slash_command_model::{
     SlashCommandEntryState, UpdatedSlashCommandModel,
 };
@@ -55,11 +64,7 @@ use crate::ui_components::color_dot;
 use crate::view_components::DismissibleToast;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
-use crate::TelemetryEvent;
-#[cfg(not(target_family = "wasm"))]
-use warp_cli::agent::Harness;
-#[cfg(not(target_family = "wasm"))]
-use warpui::AppContext;
+use crate::{localization, TelemetryEvent};
 
 #[derive(Debug, Clone)]
 pub enum AcceptSlashCommandOrSavedPrompt {
@@ -144,12 +149,30 @@ fn open_file_command_path(
 }
 
 impl Input {
+    fn is_slash_command_available(&self, command: &StaticCommand, ctx: &AppContext) -> bool {
+        let slash_command_data_source = if self.is_cloud_mode_input_v2_composing(ctx) {
+            let Some(data_source) = self.cloud_mode_composer_slash_command_data_source.as_ref()
+            else {
+                return false;
+            };
+            data_source
+        } else {
+            &self.slash_command_data_source
+        };
+        slash_command_data_source
+            .as_ref(ctx)
+            .command_is_active(command, ctx)
+    }
+
     pub(super) fn select_slash_command(
         &mut self,
         command: &StaticCommand,
         trigger: SlashCommandTrigger,
         ctx: &mut ViewContext<Self>,
     ) {
+        if !self.is_slash_command_available(command, ctx) {
+            return;
+        }
         if command.argument.as_ref().is_none() {
             self.execute_slash_command(
                 command, None, trigger, /*is_queued_prompt*/ false, ctx,
@@ -235,7 +258,7 @@ impl Input {
                 if detected_command.command.auto_enter_ai_mode
                     || !FeatureFlag::AgentView.is_enabled()
                 {
-                    self.enter_ai_mode(ctx);
+                    self.enter_ai_mode(Some(InputTypeAutoDetectionSource::SlashCommand), ctx);
                 }
 
                 if detected_command.command.name == commands::EDIT.name
@@ -262,7 +285,7 @@ impl Input {
                 }
 
                 // Skill commands always require AI mode
-                self.enter_ai_mode(ctx);
+                self.enter_ai_mode(Some(InputTypeAutoDetectionSource::SlashCommand), ctx);
             }
         }
     }
@@ -361,7 +384,11 @@ impl Input {
         if command.availability.contains(Availability::AI_ENABLED)
             && !AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
         {
-            show_error_toast(format!("{} requires AI to be enabled", command.name), ctx);
+            show_error_toast(
+                localization::text_for_app(ctx, "terminal.slash.error.ai_required")
+                    .replace("{command}", command.name),
+                ctx,
+            );
             return true;
         }
 
@@ -386,9 +413,10 @@ impl Input {
                 {
                     self.ephemeral_message_model.update(ctx, |model, ctx| {
                         let appearance = Appearance::handle(ctx).as_ref(ctx);
-                        let message = Message::from_text(
-                            "cannot start new conversation while terminal command is running",
-                        )
+                        let message = Message::from_text(localization::text_for_app(
+                            ctx,
+                            "terminal.slash.new_conversation.command_running",
+                        ))
                         .with_text_color(appearance.theme().ansi_fg_red());
                         model.show_ephemeral_message(
                             EphemeralMessage::new(
@@ -473,7 +501,7 @@ impl Input {
                     .filter(|name| !name.is_empty())
                 else {
                     show_error_toast(
-                        "Please provide a tab name after /rename-tab".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.rename_tab.name_required"),
                         ctx,
                     );
                     return true;
@@ -496,10 +524,8 @@ impl Input {
                     .filter(|name| !name.is_empty())
                 else {
                     show_error_toast(
-                        format!(
-                            "Please provide a color after /set-tab-color ({})",
-                            supported_options()
-                        ),
+                        localization::text_for_app(ctx, "terminal.slash.set_tab_color.required")
+                            .replace("{options}", &supported_options()),
                         ctx,
                     );
                     return true;
@@ -516,10 +542,12 @@ impl Input {
                         Some(c) => SelectedTabColor::Color(c),
                         None => {
                             show_error_toast(
-                                format!(
-                                    "Unknown tab color '{arg}'. Use one of: {}.",
-                                    supported_options()
-                                ),
+                                localization::text_for_app(
+                                    ctx,
+                                    "terminal.slash.set_tab_color.unknown",
+                                )
+                                .replace("{color}", arg)
+                                .replace("{options}", &supported_options()),
                                 ctx,
                             );
                             return true;
@@ -545,8 +573,10 @@ impl Input {
             create_project if command.name == commands::CREATE_NEW_PROJECT.name => {
                 if argument.is_none_or(|args| args.is_empty()) {
                     show_error_toast(
-                        "Please describe the project you want to create after /create-new-project"
-                            .to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.create_project.description_required",
+                        ),
                         ctx,
                     );
                     return true;
@@ -571,10 +601,10 @@ impl Input {
                             let window_id = ctx.window_id();
                             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                                 toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(
-                                        "The /open-file command is only available for local sessions"
-                                            .to_owned(),
-                                    ),
+                                    DismissibleToast::error(localization::text_for_app(
+                                        ctx,
+                                        "terminal.slash.open_file.local_only",
+                                    )),
                                     window_id,
                                     ctx,
                                 );
@@ -607,15 +637,21 @@ impl Input {
                             }
                             Ok(_) => {
                                 show_error_toast(
-                                    "The /open-file command only works for files, not directories"
-                                        .to_owned(),
+                                    localization::text_for_app(
+                                        ctx,
+                                        "terminal.slash.open_file.files_only",
+                                    ),
                                     ctx,
                                 );
                                 return true;
                             }
                             Err(_) => {
                                 show_error_toast(
-                                    format!("File not found: {}", file_path.display()),
+                                    localization::text_for_app(
+                                        ctx,
+                                        "terminal.slash.open_file.not_found",
+                                    )
+                                    .replace("{path}", &file_path.display().to_string()),
                                     ctx,
                                 );
                                 return true;
@@ -633,7 +669,10 @@ impl Input {
                 #[cfg(not(feature = "local_fs"))]
                 {
                     show_error_toast(
-                        "The /open-file command is not supported in this build".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.open_file.unsupported_build",
+                        ),
                         ctx,
                     );
                     return true;
@@ -645,7 +684,10 @@ impl Input {
                     .as_ref(ctx)
                     .active_conversation(self.terminal_view_id)
                 else {
-                    show_error_toast("No active conversation to export".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.export.no_active"),
+                        ctx,
+                    );
                     return true;
                 };
 
@@ -658,8 +700,9 @@ impl Input {
                 // Show a toast to confirm the export
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::default(String::from(
-                        "Conversation exported to clipboard",
+                    let toast = DismissibleToast::default(localization::text_for_app(
+                        ctx,
+                        "terminal.slash.export.copied",
                     ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -675,7 +718,10 @@ impl Input {
                 #[cfg(target_family = "wasm")]
                 {
                     show_error_toast(
-                        "Export conversation to file unsupported in web".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.export.file_unsupported_web",
+                        ),
                         ctx,
                     );
                     return true;
@@ -786,8 +832,22 @@ impl Input {
                         footer.open_v2_model_selector(ctx);
                     });
                     return true;
+                } else if trigger.is_keybinding() {
+                    // A keybinding may carry a pre-existing prompt in the buffer; open
+                    // like the model chip so the prompt is parked for search and
+                    // restored when a model is selected (or the selector is dismissed).
+                    self.open_model_selector_and_snapshot_prompt(
+                        InlineModelSelectorTab::BaseAgent,
+                        ctx,
+                    );
                 } else {
-                    self.open_model_selector(ctx);
+                    // Typed `/model`: the buffer holds the consumable command text.
+                    // Just switch into the model selector; `set_mode` snapshots the
+                    // buffer so it's restored on dismiss but cleared on selection.
+                    self.suggestions_mode_model.update(ctx, |model, ctx| {
+                        model.set_mode(InputSuggestionsMode::ModelSelector, ctx);
+                    });
+                    ctx.notify();
                 }
             }
             profiles if command.name == commands::PROFILE.name => {
@@ -821,7 +881,9 @@ impl Input {
                     .map(|path| path.to_path_buf())
                     .map(|path| path.to_string_lossy().to_string())
                 else {
-                    log::error!("Expected a valid working directory since /pr-comments is only available from the terminal");
+                    log::error!(
+                        "Expected a valid working directory since /pr-comments is only available from the terminal"
+                    );
                     return false;
                 };
 
@@ -847,7 +909,13 @@ impl Input {
                     .shared_session_status()
                     .is_sharer_or_viewer()
                 {
-                    show_error_toast("Session is already being shared".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.remote_control.already_shared",
+                        ),
+                        ctx,
+                    );
                     return true;
                 }
                 ctx.emit(Event::StartRemoteControl);
@@ -859,21 +927,67 @@ impl Input {
                     .active_conversation(self.terminal_view_id);
                 if conversation.is_none() {
                     show_error_toast(
-                        "Cannot show conversation cost: no active conversation".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.cost.no_active"),
                         ctx,
                     );
                 } else if conversation.is_some_and(|c| c.is_empty()) {
                     show_error_toast(
-                        "Cannot show conversation cost: conversation is empty".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.cost.empty"),
                         ctx,
                     );
                 } else if conversation.is_some_and(|c| !c.status().is_done()) {
                     show_error_toast(
-                        "Cannot show conversation cost: conversation is in progress".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.cost.in_progress"),
                         ctx,
                     );
                 } else {
                     ctx.dispatch_typed_action(&TerminalAction::ToggleUsageFooter);
+                }
+            }
+            #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+            move_to_cloud if command.name == commands::MOVE_TO_CLOUD.name => {
+                if !AISettings::as_ref(ctx).is_cloud_handoff_enabled(ctx) {
+                    return false;
+                }
+                let prompt = argument
+                    .map(|argument| argument.trim())
+                    .filter(|argument| !argument.is_empty())
+                    .map(str::to_owned);
+                if let Some(prompt) = prompt {
+                    // `/handoff query` auto-submits, same as `& query`.
+                    let attachments = self.collect_cloud_launch_attachments(ctx);
+                    let launch = PendingCloudLaunch {
+                        prompt,
+                        attachments,
+                    };
+                    ctx.dispatch_typed_action_deferred(
+                        WorkspaceAction::OpenLocalToCloudHandoffPane {
+                            launch: Some(launch),
+                            environment_id: None,
+                            entry_point: HandoffEntryPoint::SlashCommand,
+                        },
+                    );
+                } else if self.source_conversation_has_content(ctx) {
+                    // Empty `/handoff` with a non-empty source conversation:
+                    // dispatch the immediate empty-prompt handoff (continue /
+                    // snapshot rehydration); the workspace synthesizes the
+                    // launch and collects attachments.
+                    ctx.dispatch_typed_action_deferred(
+                        WorkspaceAction::OpenLocalToCloudHandoffPane {
+                            launch: None,
+                            environment_id: None,
+                            entry_point: HandoffEntryPoint::SlashCommand,
+                        },
+                    );
+                } else {
+                    // Empty `/handoff` with no source content — surface a toast
+                    // so the user knows why nothing happened. The chip falls
+                    // back to `&` compose mode here; the slash-command flow
+                    // does not because it has no compose-draft state to seed.
+                    show_error_toast(
+                        "Nothing to hand off — start a conversation first.".to_owned(),
+                        ctx,
+                    );
                 }
             }
             fork if command.name == commands::FORK.name => {
@@ -882,7 +996,10 @@ impl Input {
                     .as_ref(ctx)
                     .selected_conversation_id(ctx)
                 else {
-                    show_error_toast("/fork requires an active conversation".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.fork.no_active"),
+                        ctx,
+                    );
                     return true;
                 };
 
@@ -913,7 +1030,10 @@ impl Input {
                     .selected_conversation_id(ctx)
                 else {
                     show_error_toast(
-                        "/continue-locally requires an active conversation".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.continue_locally.no_active",
+                        ),
                         ctx,
                     );
                     return true;
@@ -921,7 +1041,10 @@ impl Input {
 
                 if !conversation_is_cloud_oz_for_slash_command(conversation_id, ctx) {
                     show_error_toast(
-                        "/continue-locally is only available for cloud Oz conversations".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.continue_locally.cloud_only",
+                        ),
                         ctx,
                     );
                     return true;
@@ -954,7 +1077,10 @@ impl Input {
                     .selected_conversation_id(ctx)
                 else {
                     show_error_toast(
-                        "/fork-and-compact requires an active conversation".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.fork_and_compact.no_active",
+                        ),
                         ctx,
                     );
                     return true;
@@ -983,7 +1109,7 @@ impl Input {
                     .is_none()
                 {
                     show_error_toast(
-                        "/compact-and requires an active conversation".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.compact_and.no_active"),
                         ctx,
                     );
                     return true;
@@ -1000,24 +1126,38 @@ impl Input {
                     .as_ref(ctx)
                     .selected_conversation_id(ctx)
                 else {
-                    show_error_toast("/queue requires an active conversation".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.queue.no_active"),
+                        ctx,
+                    );
                     return true;
                 };
 
                 let Some(prompt) = argument.filter(|a| !a.is_empty()).cloned() else {
-                    show_error_toast("/queue requires a prompt argument".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.queue.prompt_required"),
+                        ctx,
+                    );
                     return true;
                 };
 
                 let history = BlocklistAIHistoryModel::handle(ctx);
-                let is_in_progress = history
+                // An empty conversation defaults to `InProgress` even though nothing is
+                // running, so exclude it here to auto-send rather than queue.
+                let should_queue = history
                     .as_ref(ctx)
                     .conversation(&conversation_id)
-                    .is_some_and(|c| c.status().is_in_progress() || c.status().is_blocked());
+                    .is_some_and(|c| {
+                        !c.is_empty() && (c.status().is_in_progress() || c.status().is_blocked())
+                    });
 
-                if is_in_progress {
-                    ctx.dispatch_typed_action(&WorkspaceAction::QueuePromptForConversation {
-                        prompt,
+                if should_queue {
+                    QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+                        model.append(
+                            conversation_id,
+                            QueuedQuery::new(prompt, QueuedQueryOrigin::QueueSlashCommand),
+                            ctx,
+                        );
                     });
                 } else {
                     self.submit_queued_prompt(prompt, ctx);
@@ -1119,6 +1259,9 @@ impl Input {
             SlashCommandEntryState::SlashCommand(detected_command) => {
                 let command = detected_command.command.clone();
                 let argument = detected_command.argument.clone();
+                if !self.is_slash_command_available(&command, ctx) {
+                    return false;
+                }
                 self.execute_slash_command(
                     &command,
                     argument.as_ref(),
@@ -1217,6 +1360,9 @@ impl Input {
             SlashCommandEntryState::SlashCommand(detected_command) => {
                 let command = detected_command.command.clone();
                 let argument = detected_command.argument.clone();
+                if !self.is_slash_command_available(&command, ctx) {
+                    return false;
+                }
                 self.execute_slash_command(
                     &command,
                     argument.as_ref(),
@@ -1240,68 +1386,6 @@ impl Input {
             SlashCommandEntryState::None
             | SlashCommandEntryState::Composing { .. }
             | SlashCommandEntryState::DisabledUntilEmptyBuffer => false,
-        }
-    }
-}
-
-#[cfg(all(test, feature = "local_fs", windows))]
-mod tests {
-    use super::*;
-    use std::sync::Arc;
-
-    use crate::terminal::model::session::command_executor::testing::TestCommandExecutor;
-    use crate::terminal::model::session::SessionInfo;
-    use crate::terminal::shell::ShellType;
-    use crate::terminal::ShellLaunchData;
-
-    fn wsl_session() -> Session {
-        Session::new(
-            SessionInfo::new_for_test().with_shell_type(ShellType::Bash),
-            Arc::new(TestCommandExecutor::default()),
-        )
-        .with_shell_launch_data(ShellLaunchData::WSL {
-            distro: "Ubuntu".to_owned(),
-        })
-    }
-
-    #[test]
-    fn open_file_command_converts_wsl_paths_to_host_paths() {
-        let session = wsl_session();
-        let cases = [
-            (
-                "/home/ubuntu",
-                "subdir/test.txt",
-                r"\\WSL$\Ubuntu\home\ubuntu\subdir\test.txt",
-                None,
-            ),
-            (
-                "/home/ubuntu/project",
-                "../test.txt",
-                r"\\WSL$\Ubuntu\home\ubuntu\test.txt",
-                None,
-            ),
-            (
-                "/home/ubuntu",
-                "subdir/file\\ name.txt",
-                r"\\WSL$\Ubuntu\home\ubuntu\subdir\file name.txt",
-                None,
-            ),
-            (
-                "/home/ubuntu",
-                "subdir/test.txt:4:2",
-                r"\\WSL$\Ubuntu\home\ubuntu\subdir\test.txt",
-                Some(LineAndColumnArg {
-                    line_num: 4,
-                    column_num: Some(2),
-                }),
-            ),
-        ];
-
-        for (current_dir, raw_arg, expected_path, expected_line_col) in cases {
-            let (path, line_col) = open_file_command_path(&session, current_dir, raw_arg);
-
-            assert_eq!(path, PathBuf::from(expected_path));
-            assert_eq!(line_col, expected_line_col);
         }
     }
 }
@@ -1338,3 +1422,7 @@ fn conversation_is_cloud_oz_for_slash_command(
         None => true,
     }
 }
+
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod tests;

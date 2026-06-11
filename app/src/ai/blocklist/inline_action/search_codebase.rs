@@ -2,50 +2,47 @@ use std::ops::Range;
 use std::sync::{Arc, RwLock};
 
 use warp_core::ui::appearance::Appearance;
+use warpui::elements::{
+    Container, CornerRadius, CrossAxisAlignment, Element, Flex, FormattedTextElement,
+    MainAxisAlignment, ParentElement, Radius, SelectableArea, SelectionHandle, Shrinkable,
+};
 use warpui::ui_components::components::UiComponentStyles;
 use warpui::{
-    elements::{
-        Container, CornerRadius, CrossAxisAlignment, Element, Flex, FormattedTextElement,
-        MainAxisAlignment, ParentElement, Radius, SelectableArea, SelectionHandle, Shrinkable,
-    },
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use super::search_results_common::{
     render_collapsible_search_results, CollapsibleSearchResultsState,
 };
+use crate::ai::agent::icons::yellow_running_icon;
+use crate::ai::agent::FileContext;
+use crate::ai::blocklist::action_model::AIActionStatus;
+use crate::ai::blocklist::block::find::FindState;
+use crate::ai::blocklist::block::secret_redaction::SecretRedactionState;
+use crate::ai::blocklist::block::view_impl::output::{
+    render_read_files_text, LinkActionConstructors, RenderContext, RenderReadFileArg,
+};
+use crate::ai::blocklist::block::view_impl::{FindContext, WithContentItemSpacing};
+use crate::ai::blocklist::inline_action::inline_action_header::{
+    INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
+};
+use crate::ai::blocklist::inline_action::inline_action_icons::cancelled_icon;
 use crate::ai::blocklist::TextLocation;
-use crate::ai::{
-    agent::icons::yellow_running_icon,
-    blocklist::inline_action::{
-        inline_action_header::{
-            INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
-        },
-        inline_action_icons::cancelled_icon,
-    },
-};
-use crate::ai::{
-    agent::FileContext,
-    blocklist::{
-        action_model::AIActionStatus,
-        block::{
-            find::FindState,
-            secret_redaction::SecretRedactionState,
-            view_impl::{
-                output::{
-                    render_read_files_text, LinkActionConstructors, RenderContext,
-                    RenderReadFileArg,
-                },
-                FindContext, WithContentItemSpacing,
-            },
-        },
-    },
-};
+use crate::localization;
+use crate::terminal::find::TerminalFindModel;
 use crate::terminal::view::RichContentLink;
-use crate::terminal::{find::TerminalFindModel, ShellLaunchData};
+use crate::terminal::ShellLaunchData;
 use crate::util::link_detection::{
     detect_links, DetectedLinkType, DetectedLinksState, LinkLocation,
 };
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
+}
 
 pub enum SearchCodebaseViewEvent {
     OpenLinkTooltip {
@@ -166,10 +163,18 @@ impl SearchCodebaseView {
         file_contexts: &[FileContext],
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let title_text = if let Some(repo_name) = &self.repo_name {
-            format!("Searched for \"{}\" in {}", self.search_query, repo_name)
+        let title_text = if let Some(repo) = &self.repo_name {
+            text_with_args(
+                app,
+                "agent.search_codebase.searched_in_repo",
+                &[("query", &self.search_query), ("repo", repo)],
+            )
         } else {
-            format!("Searched for \"{}\"", self.search_query)
+            text_with_args(
+                app,
+                "agent.search_codebase.searched",
+                &[("query", &self.search_query)],
+            )
         };
 
         let body = if self.collapsible.is_expanded {
@@ -181,7 +186,7 @@ impl SearchCodebaseView {
         render_collapsible_search_results(
             title_text,
             file_contexts.len(),
-            "results",
+            &text(app, "agent.search_results.results_label"),
             &self.collapsible,
             body,
             |ctx| {
@@ -241,7 +246,11 @@ impl SearchCodebaseView {
                 font_size: Some(appearance.monospace_font_size()),
                 ..Default::default()
             };
-            self.render_formatted_text("No results found".to_string(), no_results_style, appearance)
+            self.render_formatted_text(
+                text(app, "agent.search_codebase.no_results_found"),
+                no_results_style,
+                appearance,
+            )
         } else {
             render_read_files_text(
                 render_read_file_args,
@@ -472,10 +481,18 @@ impl View for SearchCodebaseView {
                 | AIActionStatus::Queued
                 | AIActionStatus::RunningAsync,
             ) => {
-                let loading_text = if let Some(repo_name) = &self.repo_name {
-                    format!("Searching for \"{}\" in {}", self.search_query, repo_name)
+                let loading_text = if let Some(repo) = &self.repo_name {
+                    text_with_args(
+                        app,
+                        "agent.search_codebase.searching_in_repo",
+                        &[("query", &self.search_query), ("repo", repo)],
+                    )
                 } else {
-                    format!("Searching codebase for \"{}\"", self.search_query)
+                    text_with_args(
+                        app,
+                        "agent.search_codebase.searching",
+                        &[("query", &self.search_query)],
+                    )
                 };
                 let loading_icon = yellow_running_icon(appearance);
                 self.render_header(appearance, loading_text, loading_icon, app)
@@ -483,13 +500,18 @@ impl View for SearchCodebaseView {
                     .finish()
             }
             Some(AIActionStatus::Finished(result)) if result.result.is_cancelled() => {
-                let cancelled_text = if let Some(repo_name) = &self.repo_name {
-                    format!(
-                        "Search for \"{}\" in {} cancelled",
-                        self.search_query, repo_name
+                let cancelled_text = if let Some(repo) = &self.repo_name {
+                    text_with_args(
+                        app,
+                        "agent.search_codebase.cancelled_in_repo",
+                        &[("query", &self.search_query), ("repo", repo)],
                     )
                 } else {
-                    format!("Search for \"{}\" cancelled", self.search_query)
+                    text_with_args(
+                        app,
+                        "agent.search_codebase.cancelled",
+                        &[("query", &self.search_query)],
+                    )
                 };
                 let cancelled_icon = cancelled_icon(appearance);
                 self.render_header(appearance, cancelled_text, cancelled_icon, app)
@@ -501,13 +523,18 @@ impl View for SearchCodebaseView {
                 .with_agent_output_item_spacing(app)
                 .finish(),
             _ => {
-                let text = if let Some(repo_name) = &self.repo_name {
-                    format!(
-                        "Searched codebase for \"{}\" in {}",
-                        self.search_query, repo_name
+                let text = if let Some(repo) = &self.repo_name {
+                    text_with_args(
+                        app,
+                        "agent.search_codebase.searched_codebase_in_repo",
+                        &[("query", &self.search_query), ("repo", repo)],
                     )
                 } else {
-                    format!("Searched codebase for \"{}\"", self.search_query)
+                    text_with_args(
+                        app,
+                        "agent.search_codebase.searched_codebase",
+                        &[("query", &self.search_query)],
+                    )
                 };
                 self.render_simple_header(text, app)
                     .with_agent_output_item_spacing(app)

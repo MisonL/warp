@@ -1,13 +1,17 @@
 use itertools::Itertools;
-use warp_core::ui::theme::Fill;
-
 use pathfinder_geometry::vector::vec2f;
 use serde::Serialize;
+use settings::Setting as _;
+use warp_core::ui::theme::Fill;
+use warpui::elements::{
+    Align, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, Empty, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Stack,
+};
 use warpui::keymap::FixedBinding;
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
@@ -18,24 +22,15 @@ use crate::context_chips::renderer::Renderer as ContextChipRenderer;
 use crate::context_chips::{
     available_chips, ChipAvailability, ChipRuntimeCapabilities, ContextChipKind,
 };
-
 use crate::server::telemetry::{PromptChoice, TelemetryEvent};
 use crate::settings::{FontSettings, WarpPromptSeparator};
 use crate::terminal::blockgrid_element::BlockGridElement;
-use crate::terminal::SizeInfo;
-use settings::Setting as _;
-
 use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::session_settings::SessionSettings;
+use crate::terminal::SizeInfo;
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::Appearance;
-use crate::{report_if_error, send_telemetry_from_ctx};
-use warpui::elements::{
-    Align, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, Empty, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Stack,
-};
+use crate::{report_if_error, send_telemetry_from_ctx, Appearance};
 
 const MODAL_WIDTH: f32 = 700.;
 const BORDER_WIDTH: f32 = 1.;
@@ -56,10 +51,9 @@ const DROPDOWN_WIDTH: f32 = 72.;
 const MODAL_CONTENT_FONT_SIZE: f32 = 14.;
 const CHECKBOX_SIZE: f32 = 16.;
 
-const MODAL_TITLE: &str = "Edit prompt";
-const WARP_PROMPT_SECTION_HEADER: &str = "Warp terminal prompt";
-const SHELL_PROMPT_SECTION_HEADER: &str = "Shell prompt (PS1)";
-const RESTORE_DEFAULT_BUTTON: &str = "Restore default";
+fn text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -152,7 +146,7 @@ impl PromptType {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EditorModalAction {
     Cancel,
     Save,
@@ -239,6 +233,7 @@ impl EditorModal {
         &self,
         kind: ContextChipKind,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<ContextChipRenderer> {
         let availability = kind
             .to_chip()
@@ -248,7 +243,7 @@ impl EditorModal {
             return None;
         }
 
-        ContextChipRenderer::default_from_kind(kind, availability, appearance)
+        ContextChipRenderer::default_from_kind(kind, availability, appearance, app)
     }
 
     fn update_used_chips(&mut self, used_chips: Vec<ContextChipKind>, ctx: &mut ViewContext<Self>) {
@@ -256,12 +251,12 @@ impl EditorModal {
         let unused_chips = available_chips()
             .into_iter()
             .filter(|kind| !used_chips.contains(kind))
-            .filter_map(|kind| self.chip_renderer_for_kind(kind, appearance))
+            .filter_map(|kind| self.chip_renderer_for_kind(kind, appearance, ctx))
             .collect::<Vec<_>>();
 
         let used_chips = used_chips
             .into_iter()
-            .filter_map(|kind| self.chip_renderer_for_kind(kind, appearance))
+            .filter_map(|kind| self.chip_renderer_for_kind(kind, appearance, ctx))
             .collect::<Vec<_>>();
         self.chip_configurator
             .open_single_zone_with_renderers(used_chips, unused_chips);
@@ -481,10 +476,10 @@ impl EditorModal {
         .finish()
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .span(MODAL_TITLE.to_string())
+            .span(text(app, "prompt.editor.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_TITLE_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Bold),
@@ -494,19 +489,21 @@ impl EditorModal {
             .finish()
     }
 
-    fn render_unused_chips(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_unused_chips(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         self.chip_configurator.render_unused_chips_bank(
             EditorModalAction::UseWarpPrompt,
             EditorModalAction::Chip,
             appearance,
+            app,
         )
     }
 
-    fn render_used_chips(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_used_chips(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         self.chip_configurator.render_used_drop_zone(
             EditorModalAction::UseWarpPrompt,
             EditorModalAction::Chip,
             appearance,
+            app,
         )
     }
 
@@ -567,6 +564,7 @@ impl EditorModal {
     fn render_restore_default_warp_prompt_button(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let button = Hoverable::new(
             self.mouse_state_handles
@@ -575,7 +573,7 @@ impl EditorModal {
             |_state| {
                 appearance
                     .ui_builder()
-                    .span(RESTORE_DEFAULT_BUTTON.to_string())
+                    .span(text(app, "prompt.editor.restore_default"))
                     .with_style(UiComponentStyles {
                         font_size: Some(MODAL_CONTENT_FONT_SIZE),
                         ..Default::default()
@@ -596,10 +594,14 @@ impl EditorModal {
 
     // TODO: consider supporting SLP with the new Warp prompt.
     #[allow(dead_code)]
-    fn render_same_line_prompt_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_same_line_prompt_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let label = appearance
             .ui_builder()
-            .span("Same line prompt".to_string())
+            .span(text(app, "prompt.editor.same_line_prompt"))
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 ..Default::default()
@@ -637,7 +639,7 @@ impl EditorModal {
                 Container::new(
                     appearance
                         .ui_builder()
-                        .span("Separator".to_string())
+                        .span(text(app, "prompt.editor.separator"))
                         .with_style(UiComponentStyles {
                             font_size: Some(MODAL_CONTENT_FONT_SIZE),
                             ..Default::default()
@@ -657,15 +659,19 @@ impl EditorModal {
             .finish()
     }
 
-    fn render_warp_prompt_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_warp_prompt_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let body = Flex::column()
             .with_child(
-                Container::new(self.render_unused_chips(appearance))
+                Container::new(self.render_unused_chips(appearance, app))
                     .with_margin_top(10.)
                     .finish(),
             )
             .with_child(
-                Container::new(self.render_used_chips(appearance))
+                Container::new(self.render_used_chips(appearance, app))
                     .with_margin_top(10.)
                     .finish(),
             )
@@ -675,7 +681,7 @@ impl EditorModal {
             .with_child(
                 appearance
                     .ui_builder()
-                    .span(WARP_PROMPT_SECTION_HEADER.to_string())
+                    .span(text(app, "prompt.editor.warp_prompt_section"))
                     .with_style(UiComponentStyles {
                         font_size: Some(MODAL_CONTENT_FONT_SIZE),
                         font_weight: Some(warpui::fonts::Weight::Semibold),
@@ -684,7 +690,7 @@ impl EditorModal {
                     .build()
                     .finish(),
             )
-            .with_child(self.render_restore_default_warp_prompt_button(appearance))
+            .with_child(self.render_restore_default_warp_prompt_button(appearance, app))
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_main_axis_size(MainAxisSize::Max)
             .finish();
@@ -724,7 +730,7 @@ impl EditorModal {
 
         let header = appearance
             .ui_builder()
-            .span(SHELL_PROMPT_SECTION_HEADER.to_string())
+            .span(text(app, "prompt.editor.shell_prompt_section"))
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Semibold),
@@ -782,9 +788,9 @@ impl EditorModal {
             .finish()
     }
 
-    fn render_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let cancel_button = self.render_primary_button(
-            "Cancel".to_string(),
+            text(app, "prompt.editor.cancel"),
             ButtonVariant::Outlined,
             false,
             self.mouse_state_handles.cancel_button_handle.clone(),
@@ -799,7 +805,7 @@ impl EditorModal {
             || (matches!(self.prompt_type, PromptType::Warp)
                 && self.chip_configurator.used_chips.is_empty());
         let save_button = self.render_primary_button(
-            "Save changes".to_string(),
+            text(app, "prompt.editor.save_changes"),
             ButtonVariant::Accent,
             save_disabled,
             self.mouse_state_handles.save_button_handle.clone(),
@@ -836,7 +842,7 @@ impl View for EditorModal {
         let column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(
-                Container::new(self.render_header(appearance))
+                Container::new(self.render_header(appearance, app))
                     .with_margin_bottom(MARGIN_BETWEEN_MODAL_SECTIONS)
                     .finish(),
             );
@@ -845,7 +851,7 @@ impl View for EditorModal {
             ConstrainedBox::new(
                 column
                     .with_child(
-                        Container::new(self.render_warp_prompt_section(appearance))
+                        Container::new(self.render_warp_prompt_section(appearance, app))
                             .with_margin_bottom(MARGIN_BETWEEN_MODAL_SECTIONS)
                             .finish(),
                     )
@@ -854,7 +860,7 @@ impl View for EditorModal {
                             .with_margin_bottom(MARGIN_BETWEEN_MODAL_SECTIONS)
                             .finish(),
                     )
-                    .with_child(self.render_buttons(appearance))
+                    .with_child(self.render_buttons(appearance, app))
                     .finish(),
             )
             .with_max_width(MODAL_WIDTH)

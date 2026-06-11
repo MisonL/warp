@@ -1,28 +1,29 @@
-use crate::model::OnboardingStateModel;
-use crate::slides::{bottom_nav, layout, slide_content};
-use crate::telemetry::OnboardingEvent;
-use crate::visuals::project_visual;
 use ui_components::{button, keyboard_shortcut, Component as _, Options as _};
 use warp_core::send_telemetry_from_ctx;
-use warp_core::ui::{
-    appearance::Appearance, color::coloru_with_opacity, theme::color::internal_colors, Icon,
+use warp_core::ui::appearance::Appearance;
+use warp_core::ui::color::coloru_with_opacity;
+use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::Icon;
+use warpui_core::elements::{
+    Align, ClippedScrollStateHandle, ConstrainedBox, Container, CrossAxisAlignment, Flex,
+    MouseStateHandle, ParentElement, Shrinkable,
 };
-use warpui::prelude::{MainAxisAlignment, MainAxisSize, Vector2F};
-use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
-use warpui::{
-    elements::{
-        Align, ClippedScrollStateHandle, ConstrainedBox, Container, CrossAxisAlignment, Flex,
-        MouseStateHandle, ParentElement, Shrinkable,
-    },
-    fonts::Weight,
-    keymap::Keystroke,
-    platform::file_picker::{FilePickerConfiguration, FilePickerError},
-    ui_components::components::{UiComponent as _, UiComponentStyles},
+use warpui_core::fonts::Weight;
+use warpui_core::keymap::Keystroke;
+use warpui_core::platform::file_picker::{FilePickerConfiguration, FilePickerError};
+use warpui_core::prelude::{MainAxisAlignment, MainAxisSize, Vector2F};
+use warpui_core::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
+use warpui_core::ui_components::components::{UiComponent as _, UiComponentStyles};
+use warpui_core::{
     AppContext, Element, Entity, ModelHandle, SingletonEntity as _, TypedActionView, View,
     ViewContext,
 };
 
 use super::OnboardingSlide;
+use crate::model::OnboardingStateModel;
+use crate::slides::{bottom_nav, layout, slide_content};
+use crate::telemetry::OnboardingEvent;
+use crate::visuals::project_visual;
 
 const LEFT_COLUMN_W: f32 = 428.;
 
@@ -88,10 +89,11 @@ impl ProjectSlide {
         appearance: &Appearance,
         settings: &ProjectOnboardingSettings,
         agent_modality_enabled: bool,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut children = vec![
-            Align::new(self.render_header(appearance)).finish(),
-            Align::new(self.render_open_folder_button(appearance, settings)).finish(),
+            Align::new(self.render_header(appearance, app)).finish(),
+            Align::new(self.render_open_folder_button(appearance, settings, app)).finish(),
         ];
 
         // Only show the "Initialize project automatically" checkbox when AgentView is NOT enabled.
@@ -103,15 +105,17 @@ impl ProjectSlide {
             } = settings
             {
                 children.push(
-                    Align::new(
-                        self.render_project_options(*initialize_projects_automatically, appearance),
-                    )
+                    Align::new(self.render_project_options(
+                        *initialize_projects_automatically,
+                        appearance,
+                        app,
+                    ))
                     .finish(),
                 );
             }
         }
 
-        let bottom_nav = Align::new(self.render_bottom_nav(appearance, settings)).finish();
+        let bottom_nav = Align::new(self.render_bottom_nav(appearance, settings, app)).finish();
         slide_content::onboarding_slide_content(
             children,
             bottom_nav,
@@ -120,10 +124,11 @@ impl ProjectSlide {
         )
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let title = appearance
             .ui_builder()
-            .paragraph("Open a project")
+            .paragraph(copy.text_owned("onboarding.project.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -134,7 +139,7 @@ impl ProjectSlide {
 
         let subtitle = appearance
             .ui_builder()
-            .paragraph("Set up a project to optimize it for coding in Warp.")
+            .paragraph(copy.text_owned("onboarding.project.subtitle"))
             .with_style(UiComponentStyles {
                 font_size: Some(20.),
                 font_weight: Some(Weight::Normal),
@@ -162,6 +167,7 @@ impl ProjectSlide {
         &self,
         appearance: &Appearance,
         settings: &ProjectOnboardingSettings,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         // Match the intention/agent layout: a wide button within the left column.
 
@@ -212,7 +218,12 @@ impl ProjectSlide {
                 let folder_text = Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph("Open local folder")
+                        .paragraph(
+                            self.onboarding_state
+                                .as_ref(app)
+                                .copy()
+                                .text_owned("onboarding.project.open_local_folder"),
+                        )
                         .with_style(UiComponentStyles {
                             font_color: Some(text_color),
                             ..Default::default()
@@ -275,11 +286,13 @@ impl ProjectSlide {
         &self,
         appearance: &Appearance,
         settings: &ProjectOnboardingSettings,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(copy.text_owned("onboarding.common.back").into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -296,15 +309,15 @@ impl ProjectSlide {
         let (label, keystroke, action) = match settings {
             ProjectOnboardingSettings::Project { .. } => (
                 if theme_picker_last {
-                    "Next"
+                    copy.text_owned("onboarding.common.next")
                 } else {
-                    "Get Warping"
+                    copy.text_owned("onboarding.common.get_warping")
                 },
                 Keystroke::parse("enter").unwrap_or_default(),
                 ProjectSlideAction::NextClicked,
             ),
             ProjectOnboardingSettings::NoProject => (
-                "Skip",
+                copy.text_owned("onboarding.common.skip"),
                 Keystroke::parse("cmdorctrl-enter").unwrap_or_default(),
                 ProjectSlideAction::SkipClicked,
             ),
@@ -325,7 +338,7 @@ impl ProjectSlide {
             },
         );
 
-        // The project slide is unreachable in the new flow (ThirdParty → ThemePicker),
+        // The project slide is unreachable in the new flow (ThirdParty to ThemePicker),
         // so only the legacy step counts apply.
         let (step_index, step_count) = (3, 4);
         bottom_nav::onboarding_bottom_nav(
@@ -342,8 +355,8 @@ impl ProjectSlide {
         appearance: &Appearance,
         mouse_state: MouseStateHandle,
         checked: bool,
-        title: &'static str,
-        description: &'static str,
+        title: String,
+        description: String,
         action: ProjectSlideAction,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
@@ -402,13 +415,15 @@ impl ProjectSlide {
         &self,
         initialize_projects_automatically: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let copy = self.onboarding_state.as_ref(app).copy();
         let initialize = self.render_option(
             appearance,
             self.initialize_projects_automatically_mouse_state.clone(),
             initialize_projects_automatically,
-            "Initialize project automatically",
-            "Prepares the project environment, builds an index of your code, and generates project rules—giving the agent deeper understanding and better performance.",
+            copy.text_owned("onboarding.project.initialize.title"),
+            copy.text_owned("onboarding.project.initialize.description"),
             ProjectSlideAction::ToggleInitializeProjectsAutomatically,
         );
 
@@ -452,7 +467,7 @@ impl View for ProjectSlide {
         let agent_modality_enabled = self.onboarding_state.as_ref(app).agent_modality_enabled();
 
         layout::static_left(
-            || self.render_content(appearance, settings, agent_modality_enabled),
+            || self.render_content(appearance, settings, agent_modality_enabled, app),
             || self.render_visual(appearance),
         )
     }

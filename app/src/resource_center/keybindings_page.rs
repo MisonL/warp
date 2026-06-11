@@ -1,51 +1,49 @@
 use enum_iterator::{all, Sequence};
 use itertools::{Either, Itertools};
-use warpui::elements::CornerRadius;
+use warpui::elements::{
+    Align, Border, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, Element, Fill, Flex, MainAxisSize, MouseStateHandle,
+    ParentElement, Radius, Shrinkable,
+};
+use warpui::keymap::{DescriptionContext, Keystroke};
 use warpui::presenter::ChildView;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::units::Pixels;
-use warpui::FocusContext;
 use warpui::{
-    elements::{
-        Align, Border, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
-        CrossAxisAlignment, Element, Fill, Flex, MainAxisSize, MouseStateHandle, ParentElement,
-        Radius, Shrinkable,
-    },
-    keymap::{DescriptionContext, Keystroke},
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
-use crate::settings_view;
+use super::section_views::{
+    DESCRIPTION_FONT_SIZE, ITEM_PADDING_BOTTOM, SCROLLBAR_OFFSET, SCROLLBAR_WIDTH,
+    SECTION_HEADER_FONT_SIZE, SECTION_SPACING,
+};
+use super::utils::{
+    get_additional_keybindings, BLOCKS_KEYBINDINGS, FUNDAMENTALS_KEYBINDINGS,
+    INPUT_EDITOR_KEYBINDINGS, TERMINAL_KEYBINDINGS,
+};
+use crate::appearance::Appearance;
+use crate::command_palette::PRIORITIZED_KEYBINDINGS;
+use crate::editor::{
+    EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
+    TextOptions,
+};
+use crate::search_bar::SearchBar;
+use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
+use crate::util::bindings::{filter_bindings_including_keystroke, CommandBinding};
 use crate::workspace::tab_settings::TabSettings;
-use crate::{
-    appearance::Appearance,
-    command_palette::PRIORITIZED_KEYBINDINGS,
-    search_bar::SearchBar,
-    settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier},
-    util::bindings::filter_bindings_including_keystroke,
-    workspace::WorkspaceAction,
-};
-use warpui::ModelHandle;
-
-use crate::{
-    editor::{
-        EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
-        TextOptions,
-    },
-    util::bindings::CommandBinding,
-};
-
-use super::{
-    section_views::{
-        DESCRIPTION_FONT_SIZE, ITEM_PADDING_BOTTOM, SCROLLBAR_OFFSET, SCROLLBAR_WIDTH,
-        SECTION_HEADER_FONT_SIZE, SECTION_SPACING,
-    },
-    utils::{get_additional_keybindings, FUNDAMENTALS_KEYBINDINGS},
-};
-
-use super::utils::{BLOCKS_KEYBINDINGS, INPUT_EDITOR_KEYBINDINGS, TERMINAL_KEYBINDINGS};
+use crate::workspace::WorkspaceAction;
+use crate::{localization, settings_view};
 
 const KEYBINDINGS_PAGE_SHORTCUT: &str = "workspace:toggle_keybindings_page";
+const TOGGLE_THIS_PANEL_KEY: &str = "resource_center.keybindings.toggle_this_panel";
+const SETTINGS_INSTRUCTIONS_KEY: &str = "resource_center.keybindings.settings_instructions";
+const SETTINGS_LINK_KEY: &str = "resource_center.keybindings.settings_link";
+const SECTION_ESSENTIALS_KEY: &str = "resource_center.keybindings.section.essentials";
+const SECTION_BLOCKS_KEY: &str = "resource_center.keybindings.section.blocks";
+const SECTION_INPUT_EDITOR_KEY: &str = "resource_center.keybindings.section.input_editor";
+const SECTION_TERMINAL_KEY: &str = "resource_center.keybindings.section.terminal";
+const SECTION_FUNDAMENTALS_KEY: &str = "resource_center.keybindings.section.fundamentals";
 const LINK_WIDTH: f32 = 30.;
 
 #[derive(Default)]
@@ -100,7 +98,10 @@ impl KeybindingsView {
 
         search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
-            editor.set_placeholder_text(settings_view::keybindings::SEARCH_PLACEHOLDER, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, settings_view::keybindings::SEARCH_PLACEHOLDER_KEY),
+                ctx,
+            );
         });
 
         let search_bar = {
@@ -133,6 +134,22 @@ impl KeybindingsView {
         let tab_settings_handle = TabSettings::handle(ctx);
         ctx.observe(&tab_settings_handle, Self::rebuild_bindings);
 
+        ctx.subscribe_to_model(
+            &localization::LocalizationUpdater::handle(ctx),
+            |me, _, _, ctx| {
+                me.search_editor.update(ctx, |editor, ctx| {
+                    editor.set_placeholder_text(
+                        localization::text_for_app(
+                            ctx,
+                            settings_view::keybindings::SEARCH_PLACEHOLDER_KEY,
+                        ),
+                        ctx,
+                    );
+                });
+                me.rebuild_bindings(TabSettings::handle(ctx), ctx);
+            },
+        );
+
         Self {
             bindings: bindings.clone(),
             binding_results: bindings,
@@ -146,7 +163,7 @@ impl KeybindingsView {
     fn build_bindings(ctx: &AppContext) -> Vec<CommandBinding> {
         ctx.get_key_bindings()
             .filter_map(|lens| CommandBinding::from_lens(lens, ctx))
-            .chain(get_additional_keybindings())
+            .chain(get_additional_keybindings(ctx))
             .filter(|a| {
                 a.trigger.is_some()
                     && !a
@@ -325,7 +342,7 @@ impl KeybindingsView {
             .finish()
     }
 
-    fn render_subheader(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_subheader(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let bindings = self
             .bindings
             .as_ref()
@@ -356,7 +373,11 @@ impl KeybindingsView {
                         .build()
                         .finish(),
                 )
-                .with_child(self.render_text("To toggle this panel".into(), None, appearance))
+                .with_child(self.render_text(
+                    localization::text_for_app(app, TOGGLE_THIS_PANEL_KEY),
+                    None,
+                    appearance,
+                ))
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .finish();
 
@@ -371,7 +392,7 @@ impl KeybindingsView {
             appearance
                 .ui_builder()
                 .link(
-                    "here.".into(),
+                    localization::text_for_app(app, SETTINGS_LINK_KEY),
                     None,
                     Some(Box::new(|ctx| {
                         ctx.dispatch_typed_action(WorkspaceAction::ConfigureKeybindingSettings {
@@ -394,7 +415,7 @@ impl KeybindingsView {
         Container::new(
             column
                 .with_child(self.render_text(
-                    "Go to settings > keyboard shortcuts to configure custom keybindings".into(),
+                    localization::text_for_app(app, SETTINGS_INSTRUCTIONS_KEY),
                     None,
                     appearance,
                 ))
@@ -411,6 +432,7 @@ impl KeybindingsView {
     fn render_section(
         &self,
         section: KeybindingSection,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
         let mut bindings = self.get_bindings_by_section(section.clone()).peekable();
@@ -422,15 +444,15 @@ impl KeybindingsView {
             Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
         let title = match section {
-            KeybindingSection::Essentials => "Essentials",
-            KeybindingSection::Blocks => "Blocks",
-            KeybindingSection::InputEditor => "Input Editor",
-            KeybindingSection::Terminal => "Terminal",
-            KeybindingSection::Fundamentals => "Fundamentals",
+            KeybindingSection::Essentials => SECTION_ESSENTIALS_KEY,
+            KeybindingSection::Blocks => SECTION_BLOCKS_KEY,
+            KeybindingSection::InputEditor => SECTION_INPUT_EDITOR_KEY,
+            KeybindingSection::Terminal => SECTION_TERMINAL_KEY,
+            KeybindingSection::Fundamentals => SECTION_FUNDAMENTALS_KEY,
         };
 
         let mut section_header = self.render_text(
-            title.into(),
+            localization::text_for_app(app, title),
             Some(UiComponentStyles {
                 font_color: Some(appearance.theme().active_ui_text_color().into()),
                 font_size: Some(SECTION_HEADER_FONT_SIZE),
@@ -490,12 +512,12 @@ impl KeybindingsView {
         Some(binding_list.finish())
     }
 
-    fn render_body(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_body(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let keybinding_sections = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_children(
                 all::<KeybindingSection>()
-                    .filter_map(|section| self.render_section(section, appearance))
+                    .filter_map(|section| self.render_section(section, app, appearance))
                     .map(|child| {
                         Container::new(child)
                             .with_margin_bottom(SECTION_SPACING)
@@ -548,8 +570,8 @@ impl View for KeybindingsView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let search_bar = ChildView::new(&self.search_bar).finish();
-        let subheader = self.render_subheader(appearance);
-        let body = self.render_body(appearance);
+        let subheader = self.render_subheader(app, appearance);
+        let body = self.render_body(app, appearance);
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)

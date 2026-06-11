@@ -1,29 +1,21 @@
 use pathfinder_color::ColorU;
-use warpui::{
-    elements::{
-        Align, ConstrainedBox, Container, CrossAxisAlignment, Flex, HighlightedHyperlink,
-        MouseStateHandle, ParentElement, Shrinkable,
-    },
-    fonts::Weight,
-    keymap::Keystroke,
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
-    AppContext, Element,
+use warpui::elements::{
+    Align, ConstrainedBox, Container, CrossAxisAlignment, Flex, HighlightedHyperlink,
+    MouseStateHandle, ParentElement, Shrinkable,
 };
-
-use crate::{
-    appearance::Appearance,
-    terminal::{
-        ssh::warpify::warpify_description,
-        view::{RememberForWarpification, TerminalAction},
-    },
-    themes::theme::Fill,
-    ui_components::blended_colors,
-};
+use warpui::fonts::Weight;
+use warpui::keymap::Keystroke;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element};
 
 use super::{render_block_banner, BLOCK_BANNER_DESCRIPTION_MAX_HEIGHT};
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::terminal::ssh::warpify::warpify_description;
+use crate::terminal::view::{RememberForWarpification, TerminalAction};
+use crate::themes::theme::Fill;
+use crate::ui_components::blended_colors;
 
 const CLOSE_BUTTON_DIAMETER: f32 = 20.0;
 const STANDARD_PADDING: f32 = 8.0;
@@ -95,10 +87,15 @@ impl WarpifyBannerState {
         self.mode.is_ssh()
     }
 
-    pub fn title(&self) -> &str {
+    pub fn title(&self, app: &AppContext) -> String {
         match &self.mode {
-            WarpificationMode::Ssh { .. } => "Warpify SSH session",
-            WarpificationMode::Subshell { .. } => "Warpify subshell",
+            WarpificationMode::Ssh { .. } => localization::text_for_app(
+                app,
+                "terminal.use_agent_footer.action.warpify_ssh_session",
+            ),
+            WarpificationMode::Subshell { .. } => {
+                localization::text_for_app(app, "terminal.use_agent_footer.action.warpify_subshell")
+            }
         }
     }
 
@@ -150,6 +147,7 @@ pub fn render_warpification_banner(
         &state.initialize_warpify_keybinding,
         &state.accept_button_mouse_state,
         appearance,
+        app,
     );
 
     let remember = state.remember_for_warpification(true);
@@ -160,7 +158,10 @@ pub fn render_warpification_banner(
                 ButtonVariant::Text,
                 state.dont_ask_button_mouse_state.clone(),
             )
-            .with_text_label("Do not show again".to_owned())
+            .with_text_label(localization::text_for_app(
+                app,
+                "terminal.use_agent_footer.action.dont_show_again",
+            ))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::DismissWarpifyBanner(
@@ -231,11 +232,12 @@ fn render_yes_button(
     initialize_warpification_keybinding: &Option<Keystroke>,
     mouse_state: &MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let yes_button = match initialize_warpification_keybinding {
         Some(keystroke) => appearance
             .ui_builder()
-            .keyboard_shortcut_button(state.title().to_owned(), keystroke, mouse_state.clone())
+            .keyboard_shortcut_button(state.title(app), keystroke, mouse_state.clone())
             .with_style(UiComponentStyles {
                 height: Some(36.),
                 padding: Some(Coords {
@@ -249,7 +251,7 @@ fn render_yes_button(
         None => appearance
             .ui_builder()
             .button(ButtonVariant::Basic, mouse_state.clone())
-            .with_text_label(state.title().to_owned())
+            .with_text_label(state.title(app))
             .with_style(UiComponentStyles {
                 background: Some(Fill::Solid(ColorU::transparent_black()).into()),
                 height: Some(36.),

@@ -1,34 +1,35 @@
-use crate::ai::agent::{SuggestedAgentModeWorkflow, SuggestedLoggingId, SuggestedRule};
-use crate::ai::facts::CloudAIFactModel;
-use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::drive::CloudObjectTypeAndId;
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManagerEvent,
-};
-use crate::server::ids::SyncId;
-use crate::view_components::action_button::{ActionButton, ActionButtonTheme, SecondaryTheme};
-use crate::TelemetryEvent;
-use crate::{
-    ai::facts::{AIFact, AIMemory},
-    server::{cloud_objects::update_manager::UpdateManager, ids::ClientId},
-    ui_components::{blended_colors, icons::Icon},
-};
 use pathfinder_color::ColorU;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
+use warpui::elements::{Align, ChildView, Container, ParentElement, SavePosition, Stack};
 use warpui::{
-    elements::{Align, ChildView, Container, ParentElement, SavePosition, Stack},
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use super::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use super::suggested_rule_modal::SuggestedRuleAndId;
+use crate::ai::agent::{SuggestedAgentModeWorkflow, SuggestedLoggingId, SuggestedRule};
+use crate::ai::facts::{AIFact, AIMemory, CloudAIFactModel};
+use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
+use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::drive::CloudObjectTypeAndId;
+use crate::server::cloud_objects::update_manager::{
+    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
+};
+use crate::server::ids::{ClientId, SyncId};
+use crate::ui_components::blended_colors;
+use crate::ui_components::icons::Icon;
+use crate::view_components::action_button::{ActionButton, ActionButtonTheme, SecondaryTheme};
+use crate::{localization, TelemetryEvent};
 
 const MAX_CHIP_WIDTH: f32 = 316.;
 
 const MAX_PROMPT_TOOLTIP_LENGTH: usize = 200;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// A chip view component for displaying suggested rules and agent mode workflows.
 ///
@@ -145,11 +146,10 @@ impl Suggestion {
         }
     }
 
-    pub fn tooltip(&self) -> String {
+    pub fn tooltip(&self, app: &AppContext) -> String {
         match self {
-            Suggestion::Rule { rule, .. } => {
-                format!("Add rule: {}", rule.content.clone())
-            }
+            Suggestion::Rule { rule, .. } => text(app, "agent.suggested_rule.tooltip.add_rule")
+                .replace("{content}", &rule.content),
             Suggestion::AgentModeWorkflow { workflow, .. } => {
                 let prompt = if workflow.prompt.chars().count() > MAX_PROMPT_TOOLTIP_LENGTH {
                     let truncated: String = workflow
@@ -161,7 +161,11 @@ impl Suggestion {
                 } else {
                     workflow.prompt.clone()
                 };
-                format!("Suggested prompt:\n{prompt}")
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.suggested_workflow.tooltip.prompt",
+                    &[("prompt", &prompt)],
+                )
             }
         }
     }
@@ -331,7 +335,7 @@ impl SuggestionChipView {
         self.sync_id = SyncId::ClientId(ClientId::default());
         self.is_saved = false;
         let icon: Icon = self.suggestion.icon();
-        let tooltip: String = self.suggestion.tooltip();
+        let tooltip: String = self.suggestion.tooltip(ctx);
         let label: String = self.suggestion.chip_label();
         self.chip.update(ctx, |chip, ctx| {
             chip.set_icon(Some(icon), ctx);
@@ -346,7 +350,7 @@ impl SuggestionChipView {
     /// Fetches the rule from the cloud model, and updates the UI to reflect that.
     fn load_suggestion(&mut self, ctx: &mut ViewContext<Self>) {
         let cloud_model = CloudModel::handle(ctx);
-        let tooltip = self.suggestion.tooltip();
+        let tooltip = self.suggestion.tooltip(ctx);
 
         match &mut self.suggestion {
             Suggestion::Rule { .. } => {
