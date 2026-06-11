@@ -5,6 +5,7 @@ use futures::channel::oneshot;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use itertools::Itertools;
+use warp_localization::LocaleId;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use super::{
@@ -23,7 +24,7 @@ use crate::ai::get_relevant_files::controller::{
 };
 use crate::features::FeatureFlag;
 use crate::terminal::model::session::active_session::ActiveSession;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 pub struct SearchCodebaseExecutor {
     active_session: ModelHandle<ActiveSession>,
@@ -91,8 +92,9 @@ impl SearchCodebaseExecutor {
                                     if !result.missing_files.is_empty() {
                                         let missing_files = result.missing_files.join(", ");
                                         SearchCodebaseResult::Failed {
-                                            message: format!(
-                                                "These files do not exist: {missing_files}"
+                                            message: protocol_message_with_args(
+                                                "agent.search_codebase.error.missing_files",
+                                                &[("files", &missing_files)],
                                             ),
                                             reason: SearchCodebaseFailureReason::InvalidFilePaths,
                                         }
@@ -125,8 +127,7 @@ impl SearchCodebaseExecutor {
                         return;
                     };
                     if let Err(e) = result_tx.send(SearchCodebaseResult::Failed {
-                        message: "The search failed. Try another way to locate the relevant files."
-                            .to_owned(),
+                        message: search_failed_message(),
                         reason: SearchCodebaseFailureReason::GetRelevantFilesError,
                     }) {
                         log::warn!("Failed to send search codebase results to receiver {e:?}.");
@@ -228,7 +229,7 @@ impl SearchCodebaseExecutor {
                 return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
                     SearchCodebaseResult::Failed {
                         reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-                        message: "The search failed because the codebase is not available. Try another way to locate the relevant files.".to_owned(),
+                        message: codebase_unavailable_message(),
                     },
                 ));
             };
@@ -277,7 +278,9 @@ impl SearchCodebaseExecutor {
                     ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
                         SearchCodebaseResult::Failed {
                             reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-                            message: "Remote codebase search is unavailable.".to_owned(),
+                            message: protocol_message(
+                                "agent.search_codebase.error.remote_unavailable",
+                            ),
                         },
                     ))
                 }
@@ -296,8 +299,7 @@ impl SearchCodebaseExecutor {
                 return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
                     SearchCodebaseResult::Failed {
                         reason: SearchCodebaseFailureReason::MissingCurrentWorkingDirectory,
-                        message: "The search failed. Try another way to locate the relevant files."
-                            .to_string(),
+                        message: search_failed_message(),
                     },
                 ));
             };
@@ -339,10 +341,12 @@ impl SearchCodebaseExecutor {
                         ctx
                     );
                 });
-                return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Failed {
-                    message: "The search failed because the codebase is not available. Try another way to locate the relevant files.".to_owned(),
-                    reason: SearchCodebaseFailureReason::CodebaseNotIndexed
-                }));
+                return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
+                    SearchCodebaseResult::Failed {
+                        message: codebase_unavailable_message(),
+                        reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
+                    },
+                ));
             };
 
             // Add the repo root as a temporary permission; if the user gave us permission to
@@ -388,16 +392,16 @@ impl SearchCodebaseExecutor {
                     log::warn!("Failed to send get_relevant_files request for directory: {e:?}");
 
                     let error_message = match e {
-                            GetRelevantFilesError::Pending => {
-                                "The current git repository is still being indexed, so search is unavailable right now. You can try again later".to_owned()
-                            }
-                            GetRelevantFilesError::CreateFailed => {
-                                "Relevant file search in the current directory is not available".to_owned()
-                            }
-                            GetRelevantFilesError::Missing => {
-                                "The current directory isn't within a git repository, which is necessary to search for relevant files.".to_owned()
-                            }
-                        };
+                        GetRelevantFilesError::Pending => {
+                            protocol_message("agent.search_codebase.error.indexing")
+                        }
+                        GetRelevantFilesError::CreateFailed => protocol_message(
+                            "agent.search_codebase.error.current_directory_unavailable",
+                        ),
+                        GetRelevantFilesError::Missing => {
+                            protocol_message("agent.search_codebase.error.missing_git_repo")
+                        }
+                    };
                     ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
                         SearchCodebaseResult::Failed {
                             reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
@@ -498,3 +502,23 @@ impl SearchCodebaseExecutor {
 impl Entity for SearchCodebaseExecutor {
     type Event = ();
 }
+
+fn search_failed_message() -> String {
+    protocol_message("agent.search_codebase.error.search_failed")
+}
+
+fn codebase_unavailable_message() -> String {
+    protocol_message("agent.search_codebase.error.codebase_unavailable")
+}
+
+fn protocol_message(key: &str) -> String {
+    localization::text_for_locale(LocaleId::EnUs, key)
+}
+
+fn protocol_message_with_args(key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_locale_with_args(LocaleId::EnUs, key, args)
+}
+
+#[cfg(test)]
+#[path = "search_codebase_tests.rs"]
+mod tests;
