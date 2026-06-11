@@ -71,22 +71,7 @@ fn with_cost_and_profile_info<A: Action + Clone>(
 }
 
 fn disable_reason_tooltip_text(app: &AppContext, reason: &DisableReason) -> String {
-    let key = match reason {
-        DisableReason::AdminDisabled => {
-            "settings.execution_profile.model.disable_reason.admin_disabled"
-        }
-        DisableReason::OutOfRequests => {
-            "settings.execution_profile.model.disable_reason.out_of_requests"
-        }
-        DisableReason::ProviderOutage => {
-            "settings.execution_profile.model.disable_reason.provider_outage"
-        }
-        DisableReason::RequiresUpgrade => {
-            "settings.execution_profile.model.disable_reason.requires_upgrade"
-        }
-        DisableReason::Unavailable => "settings.execution_profile.model.disable_reason.unavailable",
-    };
-    crate::localization::text_for_app(app, key)
+    crate::localization::text_for_app(app, reason.tooltip_key())
 }
 
 fn make_item_fields<A: Action + Clone>(

@@ -1,6 +1,5 @@
 //! Shared tooltip UI components for file path and link tooltips
 
-use crate::localization;
 #[cfg(feature = "local_fs")]
 use std::path::Path;
 
@@ -11,6 +10,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, EventContext, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::settings::PrivacySettings;
 use crate::terminal::model::secrets::SecretLevel;
 use crate::ui_components::blended_colors;
@@ -136,18 +136,19 @@ where
                 redaction,
                 TooltipRedaction::SecretNotSentToLLMMessaging { .. }
             ) {
-                "This wasn't included in the AI conversation."
+                localization::text_for_app(app, "tooltip.secret_redaction.not_included")
             } else {
-                "This won't be included in any AI conversations or shared blocks."
+                localization::text_for_app(app, "tooltip.secret_redaction.will_not_include")
             };
 
-            // Generate the appropriate message based on secret level
             let secret_message = match secret_level {
                 Some(SecretLevel::Enterprise) => {
-                    "Pattern matched your organization's secret redaction regex list."
+                    localization::text_for_app(app, "tooltip.secret_redaction.pattern.enterprise")
                 }
-                Some(SecretLevel::User) => "Pattern matched your secret redaction regex list.",
-                None => "Pattern matched the secret redaction regex list.",
+                Some(SecretLevel::User) => {
+                    localization::text_for_app(app, "tooltip.secret_redaction.pattern.user")
+                }
+                None => localization::text_for_app(app, "tooltip.secret_redaction.pattern.default"),
             };
 
             tooltip.add_child(

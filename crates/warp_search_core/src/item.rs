@@ -89,9 +89,19 @@ pub trait SearchItem: Send + Sync {
     /// Returns the text that describes this item for accessibility purposes.
     fn accessibility_label(&self) -> String;
 
+    /// Returns the localized text that describes this item for accessibility purposes.
+    fn accessibility_label_for_app(&self, _app: &AppContext) -> String {
+        self.accessibility_label()
+    }
+
     /// Returns the a11y help message, if any, that describes this item.
     fn accessibility_help_message(&self) -> Option<String> {
         None
+    }
+
+    /// Returns the localized a11y help message, if any, that describes this item.
+    fn accessibility_help_message_for_app(&self, _app: &AppContext) -> Option<String> {
+        self.accessibility_help_message()
     }
 
     /// Returns an optional deduplication key for this item.

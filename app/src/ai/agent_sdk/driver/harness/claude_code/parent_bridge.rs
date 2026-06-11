@@ -7,7 +7,6 @@
 //! - `surfaced/` holds the fully hydrated records currently exposed to Claude.
 //! - `pending-hook-output.json` plus `pending-hook-output.ack` coordinates the
 //!   handoff between Warp's driver and the Claude hook process.
-use super::super::{default_text, default_text_with_args, default_text_with_path};
 use std::fmt::Write as _;
 use std::fs;
 use std::io::Write;
@@ -24,6 +23,7 @@ use uuid::Uuid;
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::ModelSpawner;
 
+use super::super::{default_text, default_text_with_args, default_text_with_path};
 use crate::ai::agent_events::{
     run_agent_event_driver, AgentEventConsumer, AgentEventConsumerControlFlow,
     AgentEventDriverConfig, AgentMessageEventMetadata, MessageHydrator, ServerApiAgentEventSource,

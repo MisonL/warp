@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
@@ -15,6 +14,7 @@ use crate::ai::blocklist::inline_action::inline_action_header::{
     ExpandedConfig, HeaderConfig, InteractionMode,
 };
 use crate::ai::blocklist::inline_action::inline_action_icons::green_check_icon;
+use crate::localization;
 use crate::terminal::event::BlockCompletedEvent;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::ambient_agent::{

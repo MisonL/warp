@@ -1,13 +1,12 @@
-use crate::localization;
 use warpui::elements::{MouseStateHandle, Text};
-use warpui::AppContext;
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::{
     render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
     InlineBannerContent, InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonVariant,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::alias::AliasedCommand;
 use crate::terminal::view::TerminalAction;
 

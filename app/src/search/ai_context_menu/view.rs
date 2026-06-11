@@ -24,9 +24,7 @@ use warpui::{
 
 use super::styles;
 use crate::appearance::Appearance;
-use crate::debounce;
 use crate::drive::settings::WarpDriveSettings;
-use crate::localization;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::blocks::data_source::BlockDataSource;
 #[cfg(not(target_family = "wasm"))]
@@ -59,6 +57,7 @@ use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, Searc
 use crate::settings::InputSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::workspace::ActiveSession;
+use crate::{debounce, localization};
 
 const CORNER_RADIUS: f32 = 8.0;
 const DEFAULT_PALETTE_WIDTH: f32 = 320.0;

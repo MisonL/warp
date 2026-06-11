@@ -1,4 +1,3 @@
-use crate::localization;
 use std::path::{Path, PathBuf};
 
 use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent};
@@ -36,6 +35,7 @@ use crate::ai::paths::host_native_absolute_path;
 use crate::editor::{
     EditorView, Event as EditorEvent, InteractionState, SingleLineEditorOptions, TextOptions,
 };
+use crate::localization::{self, LocalizationUpdater};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
@@ -54,6 +54,132 @@ const MODEL_MENU_WIDTH: f32 = 250.;
 
 fn text(ctx: &AppContext, key: &str) -> String {
     localization::text_for_app(ctx, key)
+}
+
+fn action_permission_dropdown_items(
+    ctx: &AppContext,
+    action: fn(ActionPermission) -> ExecutionProfileEditorViewAction,
+) -> Vec<DropdownItem<ExecutionProfileEditorViewAction>> {
+    vec![
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.agent_decides"),
+            action(ActionPermission::AgentDecides),
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_allow"),
+            action(ActionPermission::AlwaysAllow),
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_ask"),
+            action(ActionPermission::AlwaysAsk),
+        ),
+    ]
+}
+
+fn write_to_pty_dropdown_items(
+    ctx: &AppContext,
+) -> Vec<DropdownItem<ExecutionProfileEditorViewAction>> {
+    vec![
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_allow"),
+            ExecutionProfileEditorViewAction::SetWriteToPty {
+                permission: WriteToPtyPermission::AlwaysAllow,
+            },
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_ask"),
+            ExecutionProfileEditorViewAction::SetWriteToPty {
+                permission: WriteToPtyPermission::AlwaysAsk,
+            },
+        ),
+        DropdownItem::new(
+            text(
+                ctx,
+                "settings.execution_profile.permission.ask_on_first_write",
+            ),
+            ExecutionProfileEditorViewAction::SetWriteToPty {
+                permission: WriteToPtyPermission::AskOnFirstWrite,
+            },
+        ),
+    ]
+}
+
+fn computer_use_dropdown_items(
+    ctx: &AppContext,
+) -> Vec<DropdownItem<ExecutionProfileEditorViewAction>> {
+    vec![
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.never"),
+            ExecutionProfileEditorViewAction::SetComputerUse {
+                permission: super::ComputerUsePermission::Never,
+            },
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_ask"),
+            ExecutionProfileEditorViewAction::SetComputerUse {
+                permission: super::ComputerUsePermission::AlwaysAsk,
+            },
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_allow"),
+            ExecutionProfileEditorViewAction::SetComputerUse {
+                permission: super::ComputerUsePermission::AlwaysAllow,
+            },
+        ),
+    ]
+}
+
+fn ask_user_question_dropdown_items(
+    ctx: &AppContext,
+) -> Vec<DropdownItem<ExecutionProfileEditorViewAction>> {
+    vec![
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.never_ask"),
+            ExecutionProfileEditorViewAction::SetAskUserQuestion {
+                permission: super::AskUserQuestionPermission::Never,
+            },
+        ),
+        DropdownItem::new(
+            text(
+                ctx,
+                "settings.execution_profile.permission.ask_unless_auto_approve",
+            ),
+            ExecutionProfileEditorViewAction::SetAskUserQuestion {
+                permission: super::AskUserQuestionPermission::AskExceptInAutoApprove,
+            },
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_ask"),
+            ExecutionProfileEditorViewAction::SetAskUserQuestion {
+                permission: super::AskUserQuestionPermission::AlwaysAsk,
+            },
+        ),
+    ]
+}
+
+fn run_agents_dropdown_items(
+    ctx: &AppContext,
+) -> Vec<DropdownItem<ExecutionProfileEditorViewAction>> {
+    vec![
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.never"),
+            ExecutionProfileEditorViewAction::SetRunAgents {
+                permission: RunAgentsPermission::NeverAllow,
+            },
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_allow"),
+            ExecutionProfileEditorViewAction::SetRunAgents {
+                permission: RunAgentsPermission::AlwaysAllow,
+            },
+        ),
+        DropdownItem::new(
+            text(ctx, "settings.execution_profile.permission.always_ask"),
+            ExecutionProfileEditorViewAction::SetRunAgents {
+                permission: RunAgentsPermission::AlwaysAsk,
+            },
+        ),
+    ]
 }
 
 /// Renders a footer banner for model dropdowns informing free-plan users that
@@ -295,26 +421,9 @@ impl ExecutionProfileEditorView {
         let apply_code_diffs_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.agent_decides"),
-                        ExecutionProfileEditorViewAction::SetApplyCodeDiffs {
-                            permission: ActionPermission::AgentDecides,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_allow"),
-                        ExecutionProfileEditorViewAction::SetApplyCodeDiffs {
-                            permission: ActionPermission::AlwaysAllow,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_ask"),
-                        ExecutionProfileEditorViewAction::SetApplyCodeDiffs {
-                            permission: ActionPermission::AlwaysAsk,
-                        },
-                    ),
-                ],
+                action_permission_dropdown_items(ctx, |permission| {
+                    ExecutionProfileEditorViewAction::SetApplyCodeDiffs { permission }
+                }),
                 ctx,
             );
             dropdown
@@ -323,26 +432,9 @@ impl ExecutionProfileEditorView {
         let read_files_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.agent_decides"),
-                        ExecutionProfileEditorViewAction::SetReadFiles {
-                            permission: ActionPermission::AgentDecides,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_allow"),
-                        ExecutionProfileEditorViewAction::SetReadFiles {
-                            permission: ActionPermission::AlwaysAllow,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_ask"),
-                        ExecutionProfileEditorViewAction::SetReadFiles {
-                            permission: ActionPermission::AlwaysAsk,
-                        },
-                    ),
-                ],
+                action_permission_dropdown_items(ctx, |permission| {
+                    ExecutionProfileEditorViewAction::SetReadFiles { permission }
+                }),
                 ctx,
             );
             dropdown
@@ -351,26 +443,9 @@ impl ExecutionProfileEditorView {
         let execute_commands_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.agent_decides"),
-                        ExecutionProfileEditorViewAction::SetExecuteCommands {
-                            permission: ActionPermission::AgentDecides,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_allow"),
-                        ExecutionProfileEditorViewAction::SetExecuteCommands {
-                            permission: ActionPermission::AlwaysAllow,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_ask"),
-                        ExecutionProfileEditorViewAction::SetExecuteCommands {
-                            permission: ActionPermission::AlwaysAsk,
-                        },
-                    ),
-                ],
+                action_permission_dropdown_items(ctx, |permission| {
+                    ExecutionProfileEditorViewAction::SetExecuteCommands { permission }
+                }),
                 ctx,
             );
             dropdown
@@ -378,58 +453,16 @@ impl ExecutionProfileEditorView {
 
         let write_to_pty_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_allow"),
-                        ExecutionProfileEditorViewAction::SetWriteToPty {
-                            permission: WriteToPtyPermission::AlwaysAllow,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_ask"),
-                        ExecutionProfileEditorViewAction::SetWriteToPty {
-                            permission: WriteToPtyPermission::AlwaysAsk,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(
-                            ctx,
-                            "settings.execution_profile.permission.ask_on_first_write",
-                        ),
-                        ExecutionProfileEditorViewAction::SetWriteToPty {
-                            permission: WriteToPtyPermission::AskOnFirstWrite,
-                        },
-                    ),
-                ],
-                ctx,
-            );
+            dropdown.set_items(write_to_pty_dropdown_items(ctx), ctx);
             dropdown
         });
 
         let call_mcp_servers_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.agent_decides"),
-                        ExecutionProfileEditorViewAction::SetCallMcpServers {
-                            permission: ActionPermission::AgentDecides,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_allow"),
-                        ExecutionProfileEditorViewAction::SetCallMcpServers {
-                            permission: ActionPermission::AlwaysAllow,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_ask"),
-                        ExecutionProfileEditorViewAction::SetCallMcpServers {
-                            permission: ActionPermission::AlwaysAsk,
-                        },
-                    ),
-                ],
+                action_permission_dropdown_items(ctx, |permission| {
+                    ExecutionProfileEditorViewAction::SetCallMcpServers { permission }
+                }),
                 ctx,
             );
             dropdown
@@ -437,88 +470,19 @@ impl ExecutionProfileEditorView {
 
         let computer_use_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.never"),
-                        ExecutionProfileEditorViewAction::SetComputerUse {
-                            permission: super::ComputerUsePermission::Never,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_ask"),
-                        ExecutionProfileEditorViewAction::SetComputerUse {
-                            permission: super::ComputerUsePermission::AlwaysAsk,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_allow"),
-                        ExecutionProfileEditorViewAction::SetComputerUse {
-                            permission: super::ComputerUsePermission::AlwaysAllow,
-                        },
-                    ),
-                ],
-                ctx,
-            );
+            dropdown.set_items(computer_use_dropdown_items(ctx), ctx);
             dropdown
         });
 
         let ask_user_question_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.never_ask"),
-                        ExecutionProfileEditorViewAction::SetAskUserQuestion {
-                            permission: super::AskUserQuestionPermission::Never,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(
-                            ctx,
-                            "settings.execution_profile.permission.ask_unless_auto_approve",
-                        ),
-                        ExecutionProfileEditorViewAction::SetAskUserQuestion {
-                            permission: super::AskUserQuestionPermission::AskExceptInAutoApprove,
-                        },
-                    ),
-                    DropdownItem::new(
-                        text(ctx, "settings.execution_profile.permission.always_ask"),
-                        ExecutionProfileEditorViewAction::SetAskUserQuestion {
-                            permission: super::AskUserQuestionPermission::AlwaysAsk,
-                        },
-                    ),
-                ],
-                ctx,
-            );
+            dropdown.set_items(ask_user_question_dropdown_items(ctx), ctx);
             dropdown
         });
 
         let run_agents_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_items(
-                vec![
-                    DropdownItem::new(
-                        "Never",
-                        ExecutionProfileEditorViewAction::SetRunAgents {
-                            permission: RunAgentsPermission::NeverAllow,
-                        },
-                    ),
-                    DropdownItem::new(
-                        "Always allow",
-                        ExecutionProfileEditorViewAction::SetRunAgents {
-                            permission: RunAgentsPermission::AlwaysAllow,
-                        },
-                    ),
-                    DropdownItem::new(
-                        "Always ask",
-                        ExecutionProfileEditorViewAction::SetRunAgents {
-                            permission: RunAgentsPermission::AlwaysAsk,
-                        },
-                    ),
-                ],
-                ctx,
-            );
+            dropdown.set_items(run_agents_dropdown_items(ctx), ctx);
             dropdown
         });
 
@@ -911,6 +875,9 @@ impl ExecutionProfileEditorView {
                 ctx.notify();
             }
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_profile_state(ctx);
+        });
 
         Self::update_all_editor_interaction_states(&view, workspace, ctx);
 
@@ -1019,18 +986,21 @@ impl ExecutionProfileEditorView {
             &self.apply_code_diffs_dropdown,
             current_permissions.apply_code_diffs,
             apply_code_diffs_disabled,
+            |permission| ExecutionProfileEditorViewAction::SetApplyCodeDiffs { permission },
             ctx,
         );
         Self::refresh_execution_profile_dropdown_menu(
             &self.read_files_dropdown,
             current_permissions.read_files,
             read_files_disabled,
+            |permission| ExecutionProfileEditorViewAction::SetReadFiles { permission },
             ctx,
         );
         Self::refresh_execution_profile_dropdown_menu(
             &self.execute_commands_dropdown,
             current_permissions.execute_commands,
             execute_commands_disabled,
+            |permission| ExecutionProfileEditorViewAction::SetExecuteCommands { permission },
             ctx,
         );
         Self::refresh_write_to_pty_dropdown_menu(
@@ -1043,6 +1013,7 @@ impl ExecutionProfileEditorView {
             &self.call_mcp_servers_dropdown,
             current_permissions.mcp_permissions,
             mcp_disabled,
+            |permission| ExecutionProfileEditorViewAction::SetCallMcpServers { permission },
             ctx,
         );
         Self::refresh_computer_use_dropdown_menu(
@@ -1086,6 +1057,7 @@ impl ExecutionProfileEditorView {
         menu: &ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
         current_permission: ActionPermission,
         disabled: bool,
+        action: fn(ActionPermission) -> ExecutionProfileEditorViewAction,
         ctx: &mut ViewContext<Self>,
     ) {
         menu.update(ctx, |menu, ctx| {
@@ -1094,6 +1066,8 @@ impl ExecutionProfileEditorView {
             } else {
                 menu.set_disabled(ctx);
             }
+
+            menu.set_items(action_permission_dropdown_items(ctx, action), ctx);
 
             let active = match current_permission {
                 ActionPermission::AgentDecides | ActionPermission::Unknown => 0,
@@ -1120,6 +1094,8 @@ impl ExecutionProfileEditorView {
                 menu.set_disabled(ctx);
             }
 
+            menu.set_items(write_to_pty_dropdown_items(ctx), ctx);
+
             let active = match current_permission {
                 WriteToPtyPermission::AlwaysAllow => 0,
                 WriteToPtyPermission::AlwaysAsk | WriteToPtyPermission::Unknown => 1,
@@ -1144,6 +1120,8 @@ impl ExecutionProfileEditorView {
             } else {
                 menu.set_disabled(ctx);
             }
+
+            menu.set_items(computer_use_dropdown_items(ctx), ctx);
 
             let active = match current_permission {
                 super::ComputerUsePermission::Never | super::ComputerUsePermission::Unknown => 0,
@@ -1170,6 +1148,8 @@ impl ExecutionProfileEditorView {
                 menu.set_disabled(ctx);
             }
 
+            menu.set_items(ask_user_question_dropdown_items(ctx), ctx);
+
             let active = match current_permission {
                 super::AskUserQuestionPermission::Never => 0,
                 super::AskUserQuestionPermission::AskExceptInAutoApprove
@@ -1195,6 +1175,8 @@ impl ExecutionProfileEditorView {
             } else {
                 menu.set_disabled(ctx);
             }
+
+            menu.set_items(run_agents_dropdown_items(ctx), ctx);
 
             let active = match current_permission {
                 RunAgentsPermission::NeverAllow | RunAgentsPermission::Unknown => 0,

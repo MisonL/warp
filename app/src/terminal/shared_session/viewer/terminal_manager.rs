@@ -1252,7 +1252,10 @@ impl TerminalManager {
                     }
                     LinkAccessLevelUpdateResponse::Error => {
                         terminal_view.show_persistent_toast(
-                            "Failed to update permissions for shared session".to_owned(),
+                            crate::localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );
@@ -1281,7 +1284,10 @@ impl TerminalManager {
                     }
                     TeamAccessLevelUpdateResponse::Error(_) => {
                         terminal_view.show_persistent_toast(
-                            "Something went wrong. Please try again.".to_owned(),
+                            crate::localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );
@@ -1301,7 +1307,10 @@ impl TerminalManager {
                             session_sharing_protocol::common::FailedToAddGuestsReason::GuestAlreadyAdded => {
                                 "One or more of the guests has already been added.".to_owned()
                             }
-                            _ => "Something went wrong. Please try again.".to_owned(),
+                            _ => crate::localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                         };
                         terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                     });
@@ -1314,7 +1323,10 @@ impl TerminalManager {
                     };
                     view.update(ctx, |terminal_view, ctx| {
                         terminal_view.show_persistent_toast(
-                            "Something went wrong. Please try again.".to_owned(),
+                            crate::localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );
@@ -1328,7 +1340,10 @@ impl TerminalManager {
                     };
                     view.update(ctx, |terminal_view, ctx| {
                         terminal_view.show_persistent_toast(
-                            "Something went wrong. Please try again.".to_owned(),
+                            crate::localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );

@@ -97,10 +97,11 @@ impl CliAgentPluginManager for GeminiPluginManager {
             .unwrap_or(true);
         if still_outdated {
             log.push_str("Post-update version check: plugin is still outdated\n");
-            return Err(PluginInstallError {
-                message: "Plugin update did not take effect".to_owned(),
+            return Err(PluginInstallError::localized(
+                "agent.input_footer.plugin_update_no_effect",
+                vec![],
                 log,
-            });
+            ));
         }
         Ok(())
     }

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -19,6 +18,7 @@ use crate::ai::blocklist::block::view_impl::{
     CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::block_list_element::BlockListMenuSource;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::blended_colors;

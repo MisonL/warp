@@ -23,6 +23,7 @@ pub fn initialize_settings_for_tests_with_mode(
     mode: warp_core::execution_mode::ExecutionMode,
     is_sandboxed: bool,
 ) {
+    use settings::Setting as _;
     use warp_core::execution_mode::AppExecutionMode;
     use warp_core::semantic_selection::SemanticSelection;
 
@@ -52,7 +53,6 @@ pub fn initialize_settings_for_tests_with_mode(
     use crate::user_config::WarpConfig;
     use crate::window_settings::WindowSettings;
     use crate::workspace::tab_settings::TabSettings;
-    use settings::Setting as _;
     app.add_singleton_model(|ctx| AppExecutionMode::new(mode, is_sandboxed, ctx));
 
     app.update(init_and_register_user_preferences);

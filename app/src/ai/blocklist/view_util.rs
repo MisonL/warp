@@ -1,9 +1,8 @@
 //! This module contains common utilities for rendering Blocklist AI UI.
-use crate::localization;
-
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
+use warp_localization::LocaleId;
 use warpui::elements::{
     ChildAnchor, ConstrainedBox, Container, CrossAxisAlignment, Flex, Hoverable, MainAxisAlignment,
     MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
@@ -15,6 +14,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::text::Span;
 use warpui::{AppContext, Element, EntityId, EventContext, SingletonEntity};
 
+use crate::localization;
 use crate::themes::theme::{AnsiColorIdentifier, Fill, WarpTheme};
 use crate::ui_components::icons::Icon;
 
@@ -137,17 +137,28 @@ pub fn get_ai_block_overflow_menu_element_position_id(view_id: EntityId) -> Stri
 /// Formats credit count to display as whole numbers when the value is effectively a whole number,
 /// otherwise displays with one decimal place.
 /// Returns a formatted string with proper pluralization ("credit" vs "credits").
-pub fn format_credits(credits: f32) -> String {
+pub fn format_credits(app: &AppContext, credits: f32) -> String {
+    format_credits_for_locale(localization::current_locale(app), credits)
+}
+
+pub(crate) fn format_credits_for_locale(locale: LocaleId, credits: f32) -> String {
     // If the first part of the decimal is 0, we just display the whole number.
     if credits.fract() < 0.1 {
         let whole = credits.trunc() as i32;
-        if whole == 1 {
-            format!("{whole} credit")
+        let count = whole.to_string();
+        let key = if whole == 1 {
+            "agent.usage.credit.singular"
         } else {
-            format!("{whole} credits")
-        }
+            "agent.usage.credit.plural"
+        };
+        localization::text_for_locale_with_args(locale, key, &[("count", &count)])
     } else {
-        format!("{credits:.1} credits")
+        let count = format!("{credits:.1}");
+        localization::text_for_locale_with_args(
+            locale,
+            "agent.usage.credit.plural",
+            &[("count", &count)],
+        )
     }
 }
 

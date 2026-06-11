@@ -181,7 +181,7 @@ pub fn render_never_warpify_ssh_link(
     let link = appearance
         .ui_builder()
         .link(
-            "Never Warpify this host".into(),
+            crate::localization::text_for_app(app, "terminal.warpify.never_warpify_host"),
             None,
             Some(Box::new({
                 let ssh_host = ssh_host.clone();

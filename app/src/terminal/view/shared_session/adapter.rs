@@ -1,6 +1,5 @@
 //! An adapter to make session-sharing work with the [`TerminalView`].
 
-use crate::localization;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
@@ -16,6 +15,7 @@ use super::sharer::Sharer;
 use super::viewer::Viewer;
 use crate::auth::UserUid;
 use crate::banner::{Banner, BannerTextContent};
+use crate::localization;
 use crate::terminal::shared_session::participant_avatar_view::ParticipantAvatarView;
 use crate::terminal::shared_session::presence_manager::PresenceManager;
 use crate::terminal::shared_session::render_util::{

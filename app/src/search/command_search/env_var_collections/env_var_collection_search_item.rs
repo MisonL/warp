@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
+use warp_localization::replace_placeholders;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, Icon, MainAxisAlignment,
     MainAxisSize, ParentElement, Text,
@@ -22,21 +23,24 @@ const ENV_VAR_COLLECTION_ICON_PATH: &str = "bundled/svg/env-var-collection.svg";
 pub struct EnvVarCollectionSearchItem {
     pub env_var_collection: CloudEnvVarCollection,
     pub fuzzy_matched_env_var_collection: FuzzyMatchEnvVarCollectionResult,
+    pub untitled_fallback: String,
+    pub accessibility_label_template: String,
 }
 
 impl EnvVarCollectionSearchItem {
-    fn render_name(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let env_var_collection = self.env_var_collection.model().string_model.clone();
+    fn title(&self) -> String {
+        self.env_var_collection
+            .model()
+            .string_model
+            .title
+            .clone()
+            .unwrap_or_else(|| self.untitled_fallback.clone())
+    }
 
+    fn render_name(&self, appearance: &Appearance) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .wrappable_text(
-                env_var_collection
-                    .title
-                    .clone()
-                    .unwrap_or("Untitled".to_owned()),
-                true,
-            )
+            .wrappable_text(self.title(), true)
             .with_style(UiComponentStyles {
                 font_family_id: Some(appearance.ui_font_family()),
                 font_color: Some(
@@ -85,14 +89,10 @@ impl SearchItem for EnvVarCollectionSearchItem {
         highlight_state: ItemHighlightState,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let env_var_collection = self.env_var_collection.model().string_model.clone();
         let appearance = Appearance::as_ref(app);
 
         let mut title_text = Text::new_inline(
-            env_var_collection
-                .title
-                .clone()
-                .unwrap_or("Untitled".to_owned()),
+            self.title(),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -213,15 +213,11 @@ impl SearchItem for EnvVarCollectionSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        let env_var_collection = self.env_var_collection.model().string_model.clone();
-
-        format!(
-            "Environment Variables: {}",
-            env_var_collection
-                .title
-                .clone()
-                .unwrap_or("Untitled".to_owned())
+        replace_placeholders(
+            &self.accessibility_label_template,
+            &[("title", &self.title())],
         )
+        .expect("env var collection accessibility label template must use title")
     }
 }
 

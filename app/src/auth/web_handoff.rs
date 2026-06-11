@@ -7,9 +7,8 @@ use super::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::auth_view_modal::AuthRedirectPayload;
 use crate::auth::credentials::RefreshToken;
 use crate::auth::login_error_modal::LoginErrorModal;
-use crate::localization;
 use crate::platform::wasm::{user_handoff, AuthHandoffError};
-use crate::report_error;
+use crate::{localization, report_error};
 
 #[wasm_bindgen]
 extern "C" {}

@@ -1,5 +1,6 @@
-use crate::localization;
 use warpui::keymap::{BindingDescription, DescriptionContext, EditableBinding};
+
+use crate::localization;
 mod action;
 mod active_session;
 pub(crate) mod auto_handoff;
@@ -1021,14 +1022,20 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:set_a11y_concise_verbosity_level",
-                "[a11y] Set concise accessibility announcements",
+                binding_description(
+                    "[a11y] Set concise accessibility announcements",
+                    "workspace.binding.set_a11y_concise_announcements",
+                ),
                 WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Concise),
             )
             .with_context_predicate(id!("Workspace"))
             .with_key_binding("cmdorctrl-alt-c"),
             EditableBinding::new(
                 "workspace:set_a11y_verbose_verbosity_level",
-                "[a11y] Set verbose accessibility announcements",
+                binding_description(
+                    "[a11y] Set verbose accessibility announcements",
+                    "workspace.binding.set_a11y_verbose_announcements",
+                ),
                 WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Verbose),
             )
             .with_context_predicate(id!("Workspace"))
@@ -1055,7 +1062,10 @@ pub fn init(app: &mut AppContext) {
     // reachable via the binding registry.
     app.register_editable_bindings([EditableBinding::new(
         "workspace:rename_active_pane",
-        "Rename the current pane",
+        binding_description(
+            "Rename the current pane",
+            "workspace.binding.rename_current_pane",
+        ),
         WorkspaceAction::RenameActivePane,
     )
     .with_group(bindings::BindingGroup::Settings.as_str())

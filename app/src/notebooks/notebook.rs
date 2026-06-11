@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -91,7 +90,7 @@ use crate::view_components::{DismissibleToast, ToastType};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{cmd_or_ctrl_shift, report_if_error, safe_info, send_telemetry_from_ctx};
+use crate::{cmd_or_ctrl_shift, localization, report_if_error, safe_info, send_telemetry_from_ctx};
 
 mod details_bar;
 
@@ -101,6 +100,10 @@ mod tests;
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
 }
 
 const EDIT_BUTTON_MARGIN: f32 = 6.;
@@ -474,7 +477,7 @@ impl NotebookView {
     fn title_from_editor(title_editor: &ViewHandle<EditorView>, app: &AppContext) -> String {
         let mut title = title_editor.as_ref(app).buffer_text(app);
         if title.is_empty() {
-            title.push_str("Untitled");
+            title.push_str(&text(app, "notebook.placeholder.untitled"));
         }
         title
     }
@@ -2165,8 +2168,9 @@ impl View for NotebookView {
     }
 
     fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
+        let title = self.title(ctx);
         Some(AccessibilityContent::new_without_help(
-            format!("{} notebook", self.title(ctx)),
+            text_with_args(ctx, "notebook.a11y.label", &[("title", &title)]),
             WarpA11yRole::TextRole,
         ))
     }

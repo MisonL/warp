@@ -10,7 +10,7 @@ use itertools::Itertools;
 use repo_metadata::repositories::DetectedRepositories;
 use warpui::{AppContext, SingletonEntity};
 
-use super::search_item::FileSearchItem;
+use super::search_item::{FileSearchItem, FileSearchItemAccessibilityCopy};
 #[cfg(feature = "local_fs")]
 use crate::code::opened_files::OpenedFilesModel;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
@@ -32,6 +32,7 @@ pub(crate) struct FileSnapshot {
     /// `OpenedFilesModel` at snapshot time. Used as a secondary recency
     /// signal within each scoring tier.
     pub(crate) last_opened: HashMap<String, instant::Instant>,
+    pub(crate) accessibility_copy: FileSearchItemAccessibilityCopy,
 }
 
 /// Builds the repository-backed file search source used by the AI context menu.
@@ -47,11 +48,13 @@ pub fn file_data_source_for_current_repo(
                     git_changed_files: HashSet::new(),
                     query_text: query.text.clone(),
                     last_opened: HashMap::new(),
+                    accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
                 };
             }
 
             let file_search_model = FileSearchModel::as_ref(app);
             let last_opened = snapshot_last_opened(app);
+            let accessibility_copy = FileSearchItemAccessibilityCopy::new(app);
             if query.text.is_empty() {
                 let (contents, git_changed_files) =
                     file_search_model.get_repo_contents_with_git_status(app);
@@ -60,6 +63,7 @@ pub fn file_data_source_for_current_repo(
                     git_changed_files,
                     query_text: query.text.clone(),
                     last_opened,
+                    accessibility_copy,
                 }
             } else {
                 let contents = file_search_model.get_repo_contents(app);
@@ -68,6 +72,7 @@ pub fn file_data_source_for_current_repo(
                     git_changed_files: HashSet::new(),
                     query_text: query.text.clone(),
                     last_opened,
+                    accessibility_copy,
                 }
             }
         },
@@ -85,13 +90,14 @@ pub fn file_data_source_for_pwd(
     let cached_contents = Arc::new(cached_contents);
 
     AsyncSnapshotDataSource::new(
-        move |query: &Query, _app: &AppContext| {
+        move |query: &Query, app: &AppContext| {
             if FileSearchModel::should_skip_overly_broad_query(&query.text) {
                 return FileSnapshot {
                     contents: Arc::new(Vec::new()),
                     git_changed_files: HashSet::new(),
                     query_text: query.text.clone(),
                     last_opened: HashMap::new(),
+                    accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
                 };
             }
 
@@ -100,6 +106,7 @@ pub fn file_data_source_for_pwd(
                 git_changed_files: HashSet::new(),
                 query_text: query.text.clone(),
                 last_opened: HashMap::new(),
+                accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
             }
         },
         fuzzy_match_files,
@@ -203,6 +210,7 @@ async fn fuzzy_match_files_zero_state(
                     path: PathBuf::from(&item.path),
                     match_result,
                     is_directory: item.is_directory,
+                    accessibility_copy: snapshot.accessibility_copy.clone(),
                 };
                 results.push(QueryResult::from(search_item));
             }
@@ -225,6 +233,7 @@ async fn fuzzy_match_files_zero_state(
                     path: PathBuf::from(&item.path),
                     match_result,
                     is_directory: item.is_directory,
+                    accessibility_copy: snapshot.accessibility_copy.clone(),
                 };
                 results.push(QueryResult::from(search_item));
             }
@@ -267,6 +276,7 @@ async fn fuzzy_match_files_query(
                     path: PathBuf::from(&item.path),
                     match_result,
                     is_directory: item.is_directory,
+                    accessibility_copy: snapshot.accessibility_copy.clone(),
                 };
                 results.push(QueryResult::from(search_item));
             }

@@ -1,4 +1,3 @@
-use crate::localization;
 use warp_core::send_telemetry_from_ctx;
 use warpui::{SingletonEntity, UpdateView};
 
@@ -11,6 +10,7 @@ use super::{
     ServerConversationToken, ServerOutputId, ShareableObject, TelemetryEvent, TerminalAction,
     TerminalModel, TerminalView, Tip, TipHint, Vector2F, ViewContext, CONTEXT_MENU_WIDTH,
 };
+use crate::localization;
 
 impl TerminalView {
     pub(super) fn ai_block_copying_menu_items(

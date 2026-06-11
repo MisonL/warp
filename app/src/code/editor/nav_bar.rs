@@ -1,7 +1,5 @@
 #![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
-use crate::localization;
 // Adding this file level gate as some of the code around editability is not used in WASM yet.
-
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warp_editor::model::CoreEditorModel;
@@ -20,6 +18,7 @@ use warpui::{
 
 use super::model::{CodeEditorModel, CodeEditorModelEvent};
 use crate::editor::InteractionState;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 use crate::view_components::find::FIND_BAR_PADDING;

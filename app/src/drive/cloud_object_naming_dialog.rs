@@ -1,4 +1,3 @@
-use crate::localization;
 use warpui::elements::{
     Border, Clipped, Container, CornerRadius, Dismiss, Empty, Flex, MainAxisSize, MouseStateHandle,
     ParentElement, Radius, Shrinkable, Text,
@@ -15,6 +14,7 @@ use super::DriveObjectType;
 use crate::appearance::Appearance;
 use crate::cloud_object::Space;
 use crate::editor::EditorView;
+use crate::localization;
 use crate::server::ids::SyncId;
 use crate::ui_components::blended_colors;
 

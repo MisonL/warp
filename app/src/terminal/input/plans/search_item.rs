@@ -13,6 +13,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::ai::document::ai_document_model::{AIDocument, AIDocumentVersion};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::inline_menu::styles as inline_styles;
 use crate::terminal::input::plans::AcceptPlan;
@@ -161,5 +162,13 @@ impl SearchItem for PlanSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Plan: {}", self.title)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.plans.a11y.label",
+            &[("title", &self.title)],
+        )
     }
 }

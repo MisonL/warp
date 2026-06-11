@@ -4,6 +4,7 @@ use warpui::elements::{ConstrainedBox, Container, Icon, Text};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
@@ -82,5 +83,13 @@ impl SearchItem for CommandSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Command: {}", self.command)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.command",
+            &[("command", &self.command)],
+        )
     }
 }

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
@@ -9,6 +8,7 @@ use warpui::prelude::Empty;
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
 use super::{AgentFooterButtonTheme, USE_AGENT_KEYSTROKE};
+use crate::localization;
 use crate::terminal::view::block_banner::WarpificationMode;
 use crate::terminal::view::{TerminalModel, PADDING_LEFT};
 use crate::ui_components::icons::Icon;

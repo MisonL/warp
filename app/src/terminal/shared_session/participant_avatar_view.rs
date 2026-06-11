@@ -1,4 +1,3 @@
-use crate::localization;
 use instant::Duration;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
@@ -20,6 +19,7 @@ use warpui::{
 
 use super::render_util::non_hoverable_participant_avatar;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::{PaneHeaderAction, PaneHeaderCustomAction};
 use crate::terminal::view::TerminalAction;

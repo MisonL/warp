@@ -237,22 +237,25 @@ fn rebuild_dock_menu(app: &mut App) {
 }
 
 fn apply_menu_bar(menu_bar: MenuBar) {
-    unsafe {
-        let pool = NSAutoreleasePool::new(nil);
+    autoreleasepool(|_| unsafe {
+        let mtm = MainThreadMarker::new_unchecked();
+        let ns_app = NSApplication::sharedApplication(mtm);
         let nsmenu = make_main_menu(menu_bar);
-        let _: () = msg_send![NSApp(), setMainMenu: nsmenu];
-        let _: () = msg_send![pool, drain];
-    }
+        ns_app.setMainMenu(Some(&nsmenu));
+    });
 }
 
 fn apply_dock_menu(dock_menu: Menu) {
-    unsafe {
-        let pool = NSAutoreleasePool::new(nil);
-        let app_delegate: id = msg_send![NSApp(), delegate];
+    autoreleasepool(|_| unsafe {
+        let mtm = MainThreadMarker::new_unchecked();
+        let ns_app = NSApplication::sharedApplication(mtm);
+        let app_delegate = ns_app
+            .delegate()
+            .expect("the warp app always has a delegate");
         let nsmenu = make_dock_menu(dock_menu);
-        let _: () = msg_send![app_delegate, setDockMenu: nsmenu];
-        let _: () = msg_send![pool, drain];
-    }
+        // `setDockMenu:` is a custom warp app-delegate selector.
+        let _: () = msg_send![&*app_delegate, setDockMenu: &*nsmenu];
+    });
 }
 
 #[allow(dead_code)]

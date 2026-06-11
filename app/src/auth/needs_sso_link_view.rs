@@ -1,4 +1,3 @@
-use crate::localization;
 use warpui::elements::{Align, MouseStateHandle, Shrinkable};
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -7,6 +6,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 use super::auth_manager::AuthManager;
 use crate::appearance::Appearance;
 use crate::auth::login_error_modal::LoginErrorModal;
+use crate::localization;
 
 #[derive(Debug)]
 pub enum NeedsSsoLinkViewAction {

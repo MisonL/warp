@@ -1,13 +1,12 @@
 use chrono::Utc;
-use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_server_client::auth::AgentIdentity;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Empty, Expanded, Fill, Flex, FormattedTextElement, HighlightedHyperlink, MainAxisAlignment,
-    MainAxisSize, MouseStateHandle, OffsetPositioning, Padding, ParentElement,
-    PositionedElementAnchor, PositionedElementOffsetBounds, Radius, SavePosition, Stack, Text,
+    Empty, Expanded, Fill, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+    OffsetPositioning, Padding, ParentElement, PositionedElementAnchor,
+    PositionedElementOffsetBounds, Radius, SavePosition, Stack, Text,
 };
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -23,6 +22,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization::LocalizationUpdater;
 use crate::modal::{Modal, ModalViewState};
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::dropdown::{DROPDOWN_PADDING, TOP_MENU_BAR_HEIGHT};
@@ -30,8 +30,6 @@ use crate::view_components::{Dropdown as DropdownView, DropdownItem};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const OZ_AGENTS_URL: &str = "https://oz.warp.dev/agents?new=true";
-const API_KEY_DOCS_URL: &str =
-    "https://docs.warp.dev/reference/cli/api-keys/#personal-vs-agent-keys";
 
 const LABEL_FONT_SIZE: f32 = 14.;
 const INPUT_WIDTH: f32 = 428.; // 460px - (2 * 16px) padding
@@ -256,17 +254,12 @@ impl CreateApiKeyModal {
         ctx.subscribe_to_view(&name_editor, |me, _, event, ctx| {
             me.handle_name_editor_event(event, ctx);
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_static_controls(ctx);
+        });
 
         let default_expiration = ExpirationOption::NinetyDays;
-        let items: Vec<DropdownItem<CreateApiKeyModalAction>> = ExpirationOption::all()
-            .into_iter()
-            .map(|opt| {
-                DropdownItem::new(
-                    opt.display_text(ctx),
-                    CreateApiKeyModalAction::SetExpiration(opt),
-                )
-            })
-            .collect();
+        let items = expiration_dropdown_items(ctx);
         expiration_dropdown.update(ctx, |dropdown, ctx| {
             dropdown.set_items(items, ctx);
             dropdown.set_top_bar_max_width(INPUT_WIDTH);
@@ -344,6 +337,24 @@ impl CreateApiKeyModal {
         });
     }
 
+    fn refresh_localized_static_controls(&mut self, ctx: &mut ViewContext<Self>) {
+        self.name_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                api_key_modal_text(ctx, "settings.platform.api_keys.default_name"),
+                ctx,
+            );
+        });
+
+        let expiration = self.expiration;
+        let items = expiration_dropdown_items(ctx);
+        self.expiration_dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(items, ctx);
+            dropdown
+                .set_selected_by_action(CreateApiKeyModalAction::SetExpiration(expiration), ctx);
+        });
+        ctx.notify();
+    }
+
     fn create(&mut self, ctx: &mut ViewContext<Self>) {
         if self.request_state == RequestState::Pending {
             return;
@@ -375,7 +386,10 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message: "Please select an agent.".to_string(),
+                        message: api_key_modal_text(
+                            ctx,
+                            "settings.platform.api_keys.error.no_agent_selected",
+                        ),
                     });
                     ctx.notify();
                     return;
@@ -392,9 +406,10 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message:
-                            "Unable to create a team API key because there is no current team."
-                                .to_string(),
+                        message: api_key_modal_text(
+                            ctx,
+                            "settings.platform.api_keys.error.no_current_team",
+                        ),
                     });
                     ctx.notify();
                     return;
@@ -425,7 +440,12 @@ impl CreateApiKeyModal {
                     }
                     Ok(warp_graphql::mutations::generate_api_key::GenerateApiKeyResult::Unknown) | Err(_) => {
                         me.request_state = RequestState::Idle;
-                        ctx.emit(CreateApiKeyModalEvent::Error { message: "Failed to create API key. Please try again.".to_string() });
+                        ctx.emit(CreateApiKeyModalEvent::Error {
+                            message: api_key_modal_text(
+                                ctx,
+                                "settings.platform.api_keys.error.create_failed",
+                            ),
+                        });
                         ctx.notify();
                     }
                 }
@@ -922,6 +942,14 @@ impl CreateApiKeyModalViewState {
         self.state.render()
     }
 
+    pub fn is_succeeded<T: View>(&self, ctx: &mut ViewContext<T>) -> bool {
+        self.state.view.read(ctx, |modal, ctx| {
+            modal
+                .body()
+                .read(ctx, |body, _| body.request_state == RequestState::Succeeded)
+        })
+    }
+
     pub fn open<T: View>(&mut self, ctx: &mut ViewContext<T>) {
         self.state.open();
         self.state.view.update(ctx, |modal, ctx| {
@@ -947,6 +975,18 @@ impl CreateApiKeyModalViewState {
             });
         });
     }
+}
+
+fn expiration_dropdown_items(app: &AppContext) -> Vec<DropdownItem<CreateApiKeyModalAction>> {
+    ExpirationOption::all()
+        .into_iter()
+        .map(|opt| {
+            DropdownItem::new(
+                opt.display_text(app),
+                CreateApiKeyModalAction::SetExpiration(opt),
+            )
+        })
+        .collect()
 }
 
 fn api_key_type_control_styles(app: &AppContext) -> UiComponentStyles {

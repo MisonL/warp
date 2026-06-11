@@ -44,7 +44,6 @@ use crate::ai::local_harness_setup::{
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObjectLookup as _;
-use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -53,7 +52,7 @@ use crate::view_components::dropdown::{
 };
 use crate::view_components::FilterableDropdown;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{report_if_error, LLMPreferences};
+use crate::{localization, report_if_error, LLMPreferences};
 
 /// Env var override for the workspace default host (developer testing).
 /// Mirrors the single-agent ambient flow.
@@ -81,6 +80,24 @@ fn auth_secret_inherit_label(app: &AppContext) -> String {
 
 fn auth_secret_create_new_label(app: &AppContext) -> String {
     text(app, "agent.orchestration.controls.auth_secret_create_new")
+}
+
+fn local_harness_product_disabled_key(harness: Harness) -> Option<&'static str> {
+    match harness {
+        Harness::Codex => Some("agent.orchestration.controls.local_codex_disabled"),
+        Harness::Oz | Harness::Claude | Harness::OpenCode | Harness::Gemini | Harness::Unknown => {
+            None
+        }
+    }
+}
+
+fn local_harness_missing_key(harness: Harness) -> Option<&'static str> {
+    match harness {
+        Harness::Claude => Some("agent.orchestration.controls.local_claude_install_required"),
+        Harness::Oz | Harness::Codex | Harness::OpenCode | Harness::Gemini | Harness::Unknown => {
+            None
+        }
+    }
 }
 
 pub const ORCHESTRATION_PICKER_HEIGHT: f32 = 36.;
@@ -262,18 +279,16 @@ impl OrchestrationEditState {
         }
     }
 
-    /// Returns `Some(reason)` if Accept / Apply must be disabled.
+    /// Returns `Some(localization_key)` if Accept / Apply must be disabled.
     /// Hard blocks: OpenCode + Cloud, and product-disabled local harnesses.
     pub fn accept_disabled_reason(&self) -> Option<&'static str> {
         match &self.execution_mode {
             RunAgentsExecutionMode::Local => Harness::parse_local_child_harness(&self.harness_type)
-                .and_then(local_harness_product_disabled_message),
+                .and_then(local_harness_product_disabled_key),
             RunAgentsExecutionMode::Remote { .. }
                 if self.harness_type.eq_ignore_ascii_case("opencode") =>
             {
-                Some(
-                    "OpenCode is not supported on Cloud yet. Switch to Local or pick a different harness.",
-                )
+                Some("agent.orchestration.controls.opencode_cloud_unsupported")
             }
             RunAgentsExecutionMode::Remote { .. } => None,
         }
@@ -739,12 +754,20 @@ pub fn populate_harness_picker<A: OrchestrationControlAction, V: View>(
                 ));
             } else {
                 fields = fields.with_disabled(true);
-                let tooltip = match local_setup_state {
-                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip,
-                    Some(LocalHarnessSetupState::ProductDisabled { message }) => message,
-                    Some(LocalHarnessSetupState::Ready) | None => "Disabled by your administrator",
+                let tooltip_key = match local_setup_state {
+                    Some(LocalHarnessSetupState::MissingHarness { .. }) => {
+                        local_harness_missing_key(harness)
+                    }
+                    Some(LocalHarnessSetupState::ProductDisabled { .. }) => {
+                        local_harness_product_disabled_key(harness)
+                    }
+                    Some(LocalHarnessSetupState::Ready) | None => {
+                        Some("agent.orchestration.controls.disabled_by_admin")
+                    }
                 };
-                fields = fields.with_tooltip(tooltip);
+                if let Some(tooltip_key) = tooltip_key {
+                    fields = fields.with_tooltip(text(ctx_dropdown, tooltip_key));
+                }
             }
             // Match by harness string first, then fall back to matching
             // the display_name against the client-side name for the target
@@ -1179,16 +1202,20 @@ pub fn accept_disabled_reason_with_auth(
     ctx: &AppContext,
 ) -> Option<String> {
     if let Some(reason) = state.accept_disabled_reason() {
-        return Some(reason.to_string());
+        return Some(text(ctx, reason));
     }
     if matches!(state.execution_mode, RunAgentsExecutionMode::Local) {
         if let Some(harness) = Harness::parse_local_child_harness(&state.harness_type) {
             match local_harness_setup_state(harness) {
-                LocalHarnessSetupState::MissingHarness { tooltip } => {
-                    return Some(tooltip.to_string());
+                LocalHarnessSetupState::MissingHarness { .. } => {
+                    if let Some(key) = local_harness_missing_key(harness) {
+                        return Some(text(ctx, key));
+                    }
                 }
-                LocalHarnessSetupState::ProductDisabled { message } => {
-                    return Some(message.to_string());
+                LocalHarnessSetupState::ProductDisabled { .. } => {
+                    if let Some(key) = local_harness_product_disabled_key(harness) {
+                        return Some(text(ctx, key));
+                    }
                 }
                 LocalHarnessSetupState::Ready => {}
             }
@@ -1652,7 +1679,7 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
         };
         environment_picker.update(ctx, |dropdown, ctx_dropdown| {
             if env_id.is_empty() {
-                dropdown.set_selected_by_name(&empty_environment_label(ctx_dropdown), ctx_dropdown);
+                dropdown.set_selected_by_name(empty_environment_label(ctx_dropdown), ctx_dropdown);
                 return;
             }
             let all_envs = CloudAmbientAgentEnvironment::get_all(ctx_dropdown);
@@ -2154,8 +2181,14 @@ pub fn empty_env_recommendation_message(
     }
     let env_count = CloudAmbientAgentEnvironment::get_all(app).len();
     Some(if env_count > 0 {
-        "We recommend selecting an environment for cloud agents.".to_string()
+        text(
+            app,
+            "agent.orchestration.controls.recommend_select_environment",
+        )
     } else {
-        "We recommend creating an environment for cloud agents.".to_string()
+        text(
+            app,
+            "agent.orchestration.controls.recommend_create_environment",
+        )
     })
 }

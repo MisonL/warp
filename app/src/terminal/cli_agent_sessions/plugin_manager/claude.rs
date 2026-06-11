@@ -137,10 +137,11 @@ impl CliAgentPluginManager for ClaudeCodePluginManager {
             .unwrap_or(true);
         if still_outdated {
             log.push_str("Post-update version check: plugin is still outdated\n");
-            return Err(PluginInstallError {
-                message: "Plugin update did not take effect".to_owned(),
+            return Err(PluginInstallError::localized(
+                "agent.input_footer.plugin_update_no_effect",
+                vec![],
                 log,
-            });
+            ));
         }
         Ok(())
     }
@@ -186,10 +187,11 @@ impl CliAgentPluginManager for ClaudeCodePluginManager {
             .unwrap_or(true);
         if still_outdated {
             log.push_str("Post-install version check: platform plugin is still outdated\n");
-            return Err(PluginInstallError {
-                message: "Platform plugin installation did not take effect".to_owned(),
+            return Err(PluginInstallError::localized(
+                "agent.input_footer.platform_plugin_install_no_effect",
+                vec![],
                 log,
-            });
+            ));
         }
         Ok(())
     }
@@ -209,10 +211,11 @@ impl CliAgentPluginManager for ClaudeCodePluginManager {
             .unwrap_or(true);
         if still_outdated {
             log.push_str("Post-update version check: platform plugin is still outdated\n");
-            return Err(PluginInstallError {
-                message: "Platform plugin update did not take effect".to_owned(),
+            return Err(PluginInstallError::localized(
+                "agent.input_footer.platform_plugin_update_no_effect",
+                vec![],
                 log,
-            });
+            ));
         }
         Ok(())
     }

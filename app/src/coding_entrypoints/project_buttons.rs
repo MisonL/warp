@@ -21,10 +21,8 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
-use crate::{
-    localization,
-    util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction},
-};
+use crate::localization;
+use crate::util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction};
 
 const BUTTON_MIN_WIDTH: f32 = 149.;
 

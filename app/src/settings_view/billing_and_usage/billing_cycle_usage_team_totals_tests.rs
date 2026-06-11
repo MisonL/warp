@@ -35,8 +35,8 @@ fn entries_two_per_source() -> Vec<BillingCycleUsageEntry> {
     ]
 }
 
-fn titles(summaries: &[TeamTotalCardSummary]) -> Vec<&'static str> {
-    summaries.iter().map(|s| s.title).collect()
+fn title_keys(summaries: &[TeamTotalCardSummary]) -> Vec<&'static str> {
+    summaries.iter().map(|s| s.title_key).collect()
 }
 
 #[test]
@@ -48,7 +48,10 @@ fn team_aggregate_visibility_yields_overall_card_only() {
         &entries_two_per_source(),
         &visibility(UsageVisibilityGranularity::TeamAggregate),
     );
-    assert_eq!(titles(&summaries), vec!["Overall usage"]);
+    assert_eq!(
+        title_keys(&summaries),
+        vec!["settings.billing.team_totals.overall"]
+    );
 }
 
 #[test]
@@ -59,7 +62,10 @@ fn own_only_visibility_yields_overall_card_only() {
         &entries_two_per_source(),
         &visibility(UsageVisibilityGranularity::OwnOnly),
     );
-    assert_eq!(titles(&summaries), vec!["Overall usage"]);
+    assert_eq!(
+        title_keys(&summaries),
+        vec!["settings.billing.team_totals.overall"]
+    );
 }
 
 #[test]
@@ -68,7 +74,10 @@ fn per_user_totals_visibility_yields_overall_card_only() {
         &entries_two_per_source(),
         &visibility(UsageVisibilityGranularity::PerUserTotals),
     );
-    assert_eq!(titles(&summaries), vec!["Overall usage"]);
+    assert_eq!(
+        title_keys(&summaries),
+        vec!["settings.billing.team_totals.overall"]
+    );
 }
 
 #[test]
@@ -79,8 +88,12 @@ fn full_breakdown_visibility_returns_three_cards_with_partitioned_sums() {
     );
 
     assert_eq!(
-        titles(&summaries),
-        vec!["Overall usage", "Local agent usage", "Cloud agent usage"]
+        title_keys(&summaries),
+        vec![
+            "settings.billing.team_totals.overall",
+            "settings.billing.team_totals.local_agent",
+            "settings.billing.team_totals.cloud_agent"
+        ]
     );
 
     // Overall = Local + Cloud; Local card = only Local entries; Cloud card =

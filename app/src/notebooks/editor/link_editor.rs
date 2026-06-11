@@ -1,4 +1,3 @@
-use crate::localization;
 use warp_editor::editor::NavigationKey;
 use warp_editor::model::RichTextEditorModel;
 use warp_editor::render::model::RenderState;
@@ -20,6 +19,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 
 const EDITOR_WIDTH: f32 = 368.;
 const EDITOR_VERTICAL_PADDING: f32 = 12.;

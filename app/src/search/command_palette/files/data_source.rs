@@ -12,7 +12,10 @@ use itertools::Itertools;
 use warp_util::path::CleanPathResult;
 use warpui::{AppContext, Entity, SingletonEntity};
 
-use super::search_item::{CreateFileSearchItem, FileSearchItem};
+use super::search_item::{
+    CreateFileSearchItem, CreateFileSearchItemAccessibilityCopy, FileSearchItem,
+    FileSearchItemAccessibilityCopy,
+};
 use crate::code::opened_files::{OpenedFilesInRepo, OpenedFilesModel};
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
@@ -139,6 +142,7 @@ impl FileDataSource {
         let opened_files = repo_root
             .and_then(|repo_root| opened_files.opened_files_for_repo(&repo_root))
             .cloned();
+        let accessibility_copy = FileSearchItemAccessibilityCopy::new(app);
 
         Box::pin(async move {
             let mut results = Vec::new();
@@ -171,6 +175,7 @@ impl FileDataSource {
                         match_result,
                         line_and_column_arg: None,
                         is_directory: item.is_directory,
+                        accessibility_copy: accessibility_copy.clone(),
                     };
                     results.push((file_ranking, QueryResult::from(search_item)));
                 }
@@ -196,6 +201,8 @@ impl FileDataSource {
         let file_search_model = FileSearchModel::as_ref(app);
 
         let contents = self.contents(app);
+        let accessibility_copy = FileSearchItemAccessibilityCopy::new(app);
+        let create_file_accessibility_copy = CreateFileSearchItemAccessibilityCopy::new(app);
 
         // Strip any trailing : in case user is in the middle of typing a line / column arg.
         let query_text = query_text.strip_suffix(':').unwrap_or(query_text);
@@ -278,6 +285,7 @@ impl FileDataSource {
                         line_and_column_arg: text.line_and_column_num,
                         match_result,
                         is_directory: item.is_directory,
+                        accessibility_copy: accessibility_copy.clone(),
                     };
                     results.push(search_item);
                 }
@@ -297,6 +305,7 @@ impl FileDataSource {
                     let create_item = CreateFileSearchItem {
                         file_name: query_file_name,
                         current_directory: current_dir,
+                        accessibility_copy: create_file_accessibility_copy,
                     };
                     results.push(QueryResult::from(create_item));
                 }

@@ -27,6 +27,7 @@ use onboarding::{OnboardingCalloutView, OnboardingCopy, OnboardingKeybindings};
 
 use crate::ai::block_context::BlockContext;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
+use crate::localization;
 pub(crate) mod docker_sandbox;
 mod link_detection;
 mod open_in_warp;
@@ -4472,7 +4473,10 @@ impl TerminalView {
                             me.show_ssh_remote_server_failed_banner(
                                 *session_id,
                                 remote_server::transport::UserFacingError {
-                                    body: "Failed to start SSH extension".into(),
+                                    body: localization::text_for_app(
+                                        ctx,
+                                        "terminal.ssh_error.start_extension_failed",
+                                    ),
                                     detail: if error.is_empty() {
                                         None
                                     } else {
@@ -25219,10 +25223,10 @@ impl TerminalView {
     ) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Can not invoke environment variable subshell in a non-local session"
-                        .to_owned(),
-                ),
+                DismissibleToast::error(terminal_text(
+                    ctx,
+                    "terminal.toast.env_var_subshell_non_local",
+                )),
                 window_id,
                 ctx,
             );
@@ -25314,7 +25318,7 @@ impl TerminalView {
                 env_var_collection
                     .title
                     .clone()
-                    .unwrap_or("Untitled".to_owned()),
+                    .unwrap_or_else(|| terminal_text(ctx, "env_vars.title.untitled")),
                 env_var_collection
                     .vars
                     .iter()
@@ -25370,7 +25374,9 @@ impl TerminalView {
         // subshell start
         self.env_vars = env_var_collection.vars;
         self.model.lock().set_env_var_collection_name(Some(
-            env_var_collection.title.unwrap_or("Untitled".to_owned()),
+            env_var_collection
+                .title
+                .unwrap_or_else(|| terminal_text(ctx, "env_vars.title.untitled")),
         ));
         self.set_and_execute_subshell_command(&shell_path_string, shell_type, ctx);
 
@@ -27183,9 +27189,10 @@ impl TypedActionView for TerminalView {
                             let window_id = ctx.window_id();
                             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                                 toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(
-                                        "Bundled skills cannot be edited".to_string(),
-                                    ),
+                                    DismissibleToast::error(terminal_text(
+                                        ctx,
+                                        "terminal.toast.bundled_skills_cannot_be_edited",
+                                    )),
                                     window_id,
                                     ctx,
                                 );
@@ -27200,9 +27207,10 @@ impl TypedActionView for TerminalView {
                     let window_id = ctx.window_id();
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Editing skills is not supported in this build".to_string(),
-                            ),
+                            DismissibleToast::error(terminal_text(
+                                ctx,
+                                "terminal.toast.editing_skills_unsupported_build",
+                            )),
                             window_id,
                             ctx,
                         );

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -20,7 +19,7 @@ use crate::util::file::external_editor::settings::{
 };
 use crate::util::file::external_editor::{EditorSettings, SUPPORTED_EDITORS};
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::{report_if_error, send_telemetry_from_ctx};
+use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 fn text(app: &warpui::AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

@@ -22,6 +22,7 @@ pub(crate) struct NotebookMatchCandidate {
 pub(crate) struct NotebooksSnapshot {
     candidates: Vec<NotebookMatchCandidate>,
     query_text: String,
+    accessibility_label_template: String,
 }
 
 /// Creates an async data source for cloud notebooks.
@@ -33,6 +34,8 @@ pub fn notebooks_data_source() -> AsyncSnapshotDataSource<NotebooksSnapshot, Com
     AsyncSnapshotDataSource::new(
         |query: &Query, app: &AppContext| {
             let notebook_manager = NotebookManager::as_ref(app);
+            let accessibility_label_template =
+                crate::localization::text_for_app(app, "search.notebook.a11y.label");
             let candidates: Vec<NotebookMatchCandidate> = CloudModel::as_ref(app)
                 .get_all_active_notebooks()
                 .map(|notebook| NotebookMatchCandidate {
@@ -45,6 +48,7 @@ pub fn notebooks_data_source() -> AsyncSnapshotDataSource<NotebooksSnapshot, Com
             NotebooksSnapshot {
                 candidates,
                 query_text: query.text.clone(),
+                accessibility_label_template,
             }
         },
         fuzzy_match_notebooks,
@@ -83,6 +87,9 @@ pub(crate) fn fuzzy_match_notebooks(
                             model: candidate.model.clone(),
                             name_match_result,
                             content_match_result,
+                            accessibility_label_template: snapshot
+                                .accessibility_label_template
+                                .clone(),
                         }
                         .into(),
                     );

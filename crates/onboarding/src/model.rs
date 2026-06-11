@@ -133,6 +133,16 @@ pub(crate) enum OnboardingStateEvent {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct OnboardingStateModelOptions {
+    pub workspace_enforces_autonomy: bool,
+    pub agent_modality_enabled: bool,
+    pub free_user_no_ai_experiment: bool,
+    pub agent_price_cents: Option<i32>,
+    pub auth_state: OnboardingAuthState,
+    pub copy: OnboardingCopy,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct OnboardingStateModel {
     step: OnboardingStep,
     intention: OnboardingIntention,
@@ -161,12 +171,7 @@ impl OnboardingStateModel {
     pub(crate) fn new(
         models: Vec<OnboardingModelInfo>,
         default_model_id: LLMId,
-        workspace_enforces_autonomy: bool,
-        agent_modality_enabled: bool,
-        free_user_no_ai_experiment: bool,
-        agent_price_cents: Option<i32>,
-        auth_state: OnboardingAuthState,
-        copy: OnboardingCopy,
+        options: OnboardingStateModelOptions,
     ) -> Self {
         Self {
             step: OnboardingStep::Intro,
@@ -175,12 +180,12 @@ impl OnboardingStateModel {
             project_settings: ProjectOnboardingSettings::default(),
             ui_customization: UICustomizationSettings::agent_defaults(),
             models,
-            workspace_enforces_autonomy,
-            agent_modality_enabled,
-            free_user_no_ai_experiment,
-            agent_price_cents,
-            auth_state,
-            copy,
+            workspace_enforces_autonomy: options.workspace_enforces_autonomy,
+            agent_modality_enabled: options.agent_modality_enabled,
+            free_user_no_ai_experiment: options.free_user_no_ai_experiment,
+            agent_price_cents: options.agent_price_cents,
+            auth_state: options.auth_state,
+            copy: options.copy,
         }
     }
 

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::fmt::Debug;
 
 use pathfinder_geometry::rect::RectF;
@@ -30,13 +29,13 @@ use crate::pane_group::pane::{
     ToolbeltButton,
 };
 use crate::pane_group::{BackingView, Direction, PaneDragDropLocation, PaneId, TabBarHoverIndex};
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{SharingDialogSource, TelemetryEvent};
 use crate::settings::CodeSettings;
 use crate::tab::tab_position_id;
 use crate::terminal::view::TerminalAction;
 use crate::view_components::{FeaturePopup, NewFeaturePopupEvent, NewFeaturePopupLabel};
 use crate::workspace::{TabBarDropTargetData, TabBarLocation, VerticalTabsPaneDropTargetData};
+use crate::{localization, send_telemetry_from_ctx};
 
 mod sharing;
 

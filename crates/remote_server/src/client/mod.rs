@@ -83,12 +83,6 @@ pub enum ClientEvent {
     CodebaseIndexStatusUpdated { status: RemoteCodebaseIndexStatus },
     /// A server message could not be decoded and had no parseable request_id.
     MessageDecodingError,
-    /// The writer task failed while writing a host-scoped request before it
-    /// could be handed off to the daemon. The manager owns host-scoped
-    /// lifecycle tracking, so it handles retrying this request through another
-    /// connected session for the same host (or failing the request if none
-    /// exists).
-    HostScopedWriteFailed { request_id: RequestId },
     /// A server response carried a parseable `request_id` but could not be
     /// decoded, and the id did not match a session-scoped pending request (so
     /// it belongs to a host-scoped request the manager is tracking). The
@@ -145,6 +139,14 @@ pub struct InitializeParams {
 pub struct RequestFailedEvent {
     pub operation: crate::manager::RemoteServerOperation,
     pub error_kind: crate::manager::RemoteServerErrorKind,
+}
+
+/// A host-scoped request could not be written to this connection. Delivered on
+/// a dedicated writer channel so the writer task does not keep the lifecycle
+/// [`ClientEvent`] stream alive after the reader observes a disconnect.
+#[derive(Clone, Debug)]
+pub struct HostScopedWriteFailedEvent {
+    pub request_id: RequestId,
 }
 
 /// Client for communicating with a `remote_server` process over the remote server protocol.
@@ -234,12 +236,21 @@ impl RemoteServerClient {
         Self,
         async_channel::Receiver<ClientEvent>,
         async_channel::Receiver<RequestFailedEvent>,
+        async_channel::Receiver<HostScopedWriteFailedEvent>,
         async_channel::Receiver<ServerMessage>,
         RemoteServerLog,
     ) {
         let stderr_tail = spawn_stderr_forwarder(stderr, executor);
-        let (client, event_rx, failure_rx, host_response_rx) = Self::new(stdout, stdin, executor);
-        (client, event_rx, failure_rx, host_response_rx, stderr_tail)
+        let (client, event_rx, failure_rx, host_write_failure_rx, host_response_rx) =
+            Self::new(stdout, stdin, executor);
+        (
+            client,
+            event_rx,
+            failure_rx,
+            host_write_failure_rx,
+            host_response_rx,
+            stderr_tail,
+        )
     }
 }
 
@@ -257,6 +268,7 @@ impl RemoteServerClient {
         Self,
         async_channel::Receiver<ClientEvent>,
         async_channel::Receiver<RequestFailedEvent>,
+        async_channel::Receiver<HostScopedWriteFailedEvent>,
         async_channel::Receiver<ServerMessage>,
     ) {
         let pending_requests: Arc<
@@ -265,6 +277,8 @@ impl RemoteServerClient {
         let (outbound_tx, outbound_rx) = async_channel::unbounded::<ClientMessage>();
         let (event_tx, event_rx) = async_channel::unbounded::<ClientEvent>();
         let (failure_tx, failure_rx) = async_channel::unbounded::<RequestFailedEvent>();
+        let (host_write_failure_tx, host_write_failure_rx) =
+            async_channel::unbounded::<HostScopedWriteFailedEvent>();
         let (host_response_tx, host_response_rx) = async_channel::unbounded::<ServerMessage>();
         let disconnected = Arc::new(AtomicBool::new(false));
 
@@ -273,7 +287,7 @@ impl RemoteServerClient {
                 writer,
                 outbound_rx,
                 Arc::clone(&pending_requests),
-                event_tx.clone(),
+                host_write_failure_tx,
             ))
             .detach();
         executor
@@ -296,6 +310,7 @@ impl RemoteServerClient {
             },
             event_rx,
             failure_rx,
+            host_write_failure_rx,
             host_response_rx,
         )
     }
@@ -728,10 +743,9 @@ impl RemoteServerClient {
         }
     }
 
-    /// Wrapper around [`send_request_internal`] that automatically fires a
-    /// [`ClientEvent::RequestFailed`] event on error, so transport-level
-    /// failures are tracked for telemetry without requiring each caller
-    /// to instrument its own error path.
+    /// Wrapper around [`send_request_internal`] that automatically emits a
+    /// [`RequestFailedEvent`] on error, so transport-level failures are tracked
+    /// for telemetry without requiring each caller to instrument its own error path.
     async fn send_request(
         &self,
         request_id: RequestId,
@@ -855,7 +869,7 @@ impl RemoteServerClient {
         pending_requests: Arc<
             DashMap<RequestId, oneshot::Sender<Result<ServerMessage, ClientError>>>,
         >,
-        event_tx: async_channel::Sender<ClientEvent>,
+        host_write_failure_tx: async_channel::Sender<HostScopedWriteFailedEvent>,
     ) {
         let mut writer = futures::io::BufWriter::new(writer);
         while let Ok(msg) = outbound_rx.recv().await {
@@ -866,8 +880,8 @@ impl RemoteServerClient {
             );
             if let Err(e) = protocol::write_client_message(&mut writer, &msg).await {
                 if is_host_scoped
-                    && event_tx
-                        .try_send(ClientEvent::HostScopedWriteFailed {
+                    && host_write_failure_tx
+                        .try_send(HostScopedWriteFailedEvent {
                             request_id: request_id.clone(),
                         })
                         .is_err()

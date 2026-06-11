@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
@@ -49,6 +48,7 @@ use crate::editor::accept_autosuggestion_keybinding_view::{
 use crate::editor::autosuggestion_ignore_view::AutosuggestionIgnore;
 use crate::editor::position_id_for_first_cursor;
 use crate::editor::view::AutosuggestionLocation;
+use crate::localization;
 use crate::settings::CursorDisplayType;
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::path::PathBuf;
 
 use warpui::elements::{
@@ -13,6 +12,8 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::checkbox::Checkbox;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
+
+use crate::localization;
 
 /// Registers keybindings for the new-worktree modal (ESC to close).
 pub fn init(app: &mut AppContext) {

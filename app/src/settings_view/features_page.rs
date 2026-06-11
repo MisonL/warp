@@ -305,8 +305,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             context,
             flags::AUTOSUGGESTION_KEYBINDING_HINT_FLAG,
         ),
-        ToggleSettingActionPair::new(
-            "autosuggestion ignore button",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.autosuggestion_ignore_button.label",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleShowAutosuggestionIgnoreButton,
             )),
@@ -340,8 +341,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::LINK_TOOLTIP_CONTEXT_FLAG,
     ));
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "long-running command notifications",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.notifications.long_running.label",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleLongRunningNotifications,
             )),
@@ -355,8 +357,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "agent task completion notifications",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.notifications.agent_completed",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleAgentTaskCompletedNotifications,
             )),
@@ -370,8 +373,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "needs-attention notifications",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.notifications.agent_needs_attention",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleNeedsAttentionNotifications,
             )),
@@ -386,8 +390,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     #[cfg(target_os = "macos")]
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "notification sounds",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.notifications.play_sound",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleNotificationSound,
             )),
@@ -401,8 +406,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "in-app agent notifications",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.notifications.in_app_agent.label",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleAgentInAppNotifications,
             )),
@@ -429,8 +435,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "mouse reporting",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.mouse_reporting.label",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleMouseReporting,
             )),
@@ -591,8 +598,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     ));
     if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
         toggle_binding_pairs.push(
-            ToggleSettingActionPair::new(
-                "help block in new sessions",
+            ToggleSettingActionPair::new_localized(
+                app,
+                "settings.features.zero_state_block.label",
                 builder(SettingsAction::FeaturesPageToggle(
                     FeaturesPageAction::ToggleShowTerminalZeroStateBlock,
                 )),
@@ -620,8 +628,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         .with_enabled(|| FeatureFlag::AgentView.is_enabled()),
     );
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "'@' context menu in terminal mode",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.at_context_menu.label",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleAtContextMenuInTerminalMode,
             )),
@@ -664,8 +673,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     }
     if FeatureFlag::AIContextMenuCode.is_enabled() {
         toggle_binding_pairs.push(
-            ToggleSettingActionPair::new(
-                "codebase symbols in the '@' context menu",
+            ToggleSettingActionPair::new_localized(
+                app,
+                "settings.features.outline_codebase_symbols.label",
                 builder(SettingsAction::FeaturesPageToggle(
                     FeaturesPageAction::ToggleOutlineCodebaseSymbolsForAtContextMenu,
                 )),
@@ -680,8 +690,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         );
     }
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "global workflows in Command Search",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.features.global_workflows.label",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleGlobalWorkflowsInUniversalSearch,
             )),
@@ -4408,7 +4419,6 @@ impl FeaturesPageView {
 
     fn render_setting_subgroup_item(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
         local_only_icon_state: LocalOnlyIconState,
         switch: Box<dyn Element>,
@@ -4421,7 +4431,6 @@ impl FeaturesPageView {
                         1.0,
                         Container::new(
                             Align::new(render_body_item_label::<FeaturesPageAction>(
-                                app,
                                 label_text.into(),
                                 None,
                                 None,
@@ -5624,7 +5633,6 @@ impl SettingsWidget for StartupShellWidget {
         Flex::column()
             .with_children([
                 render_sub_sub_header(
-                    app,
                     appearance,
                     crate::localization::text_for_app(app, "settings.features.default_shell.label"),
                     Some(LocalOnlyIconState::for_setting(
@@ -5664,7 +5672,6 @@ impl SettingsWidget for WorkingDirectoryWidget {
         Flex::column()
             .with_children([
                 render_sub_sub_header(
-                    app,
                     appearance,
                     crate::localization::text_for_app(
                         app,
@@ -6419,7 +6426,6 @@ impl SettingsWidget for VimModeWidget {
                 })
                 .finish();
             let clipboard_setting = view.render_setting_subgroup_item(
-                app,
                 appearance,
                 LocalOnlyIconState::for_setting(
                     VimUnnamedSystemClipboard::storage_key(),
@@ -6444,7 +6450,6 @@ impl SettingsWidget for VimModeWidget {
                 })
                 .finish();
             let status_bar_setting = view.render_setting_subgroup_item(
-                app,
                 appearance,
                 LocalOnlyIconState::for_setting(
                     VimStatusBar::storage_key(),
@@ -6973,7 +6978,7 @@ impl SettingsWidget for TabKeyBehaviorWidget {
                 view.button_mouse_states
                     .tab_behavior_local_only_icon
                     .clone(),
-                None,
+                feature_text(app, "settings.local_only.tooltip"),
             ));
         }
 
@@ -7061,8 +7066,7 @@ impl SettingsWidget for MouseReportingWidget {
     ) -> Box<dyn Element> {
         let reporting_settings = AltScreenReporting::as_ref(app);
         let ui_builder = appearance.ui_builder();
-        render_body_item::<FeaturesPageAction>(
-            feature_text(app, "settings.features.mouse_reporting.label"),
+        render_body_item::<FeaturesPageAction>(feature_text(app, "settings.features.mouse_reporting.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
@@ -7530,7 +7534,6 @@ impl SettingsWidget for DefaultSessionModeWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let label = render_dropdown_item_label(
-            app,
             feature_text(app, "settings.features.default_session_mode.label"),
             None,
             LocalOnlyIconState::for_setting(
@@ -7934,8 +7937,7 @@ impl SettingsWidget for AsyncFindWidget {
         let ui_builder = appearance.ui_builder();
 
         let label = render_body_item_label::<FeaturesPageAction>(
-            app,
-            feature_text(app, "settings.features.async_find.label").into(),
+            feature_text(app, "settings.features.async_find.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -7970,7 +7972,10 @@ impl SettingsWidget for AsyncFindWidget {
             label_with_chip,
             switch,
             appearance,
-            Some(feature_text(app, "settings.features.async_find.description").into()),
+            Some(feature_text(
+                app,
+                "settings.features.async_find.description",
+            )),
         )
     }
 }

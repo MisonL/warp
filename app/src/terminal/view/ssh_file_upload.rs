@@ -1,7 +1,5 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::path::Path;
-use warpui::AppContext;
 
 use itertools::Itertools;
 use markdown_parser::{
@@ -16,8 +14,9 @@ use warpui::elements::{
 };
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::UiComponent as _;
-use warpui::{Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
+use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
+use crate::localization;
 use crate::terminal::ssh::util::InteractiveSshCommand;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
@@ -320,7 +319,7 @@ impl FileUpload {
         session_action_row.add_child(button_group.finish());
 
         let mut file_info_and_status = Flex::column()
-            .with_child(self.render_file_details(file, appearance))
+            .with_child(self.render_file_details(file, appearance, app))
             .with_child(session_action_row.finish());
 
         if let FileUploadStatus::Completed { successful: _ } = file.status {
@@ -353,9 +352,10 @@ impl FileUpload {
         &self,
         file: &FileUploadInfo,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         FormattedTextElement::new(
-            self.render_file_detail_text(file),
+            self.render_file_detail_text(file, app),
             appearance.ui_font_size(),
             appearance.ui_font_family(),
             appearance.monospace_font_family(),
@@ -370,11 +370,17 @@ impl FileUpload {
 
     /// Helper function to `render_file_details` with logic for formatted text
     /// assembly.
-    fn render_file_detail_text(&self, file: &FileUploadInfo) -> FormattedText {
+    fn render_file_detail_text(&self, file: &FileUploadInfo, app: &AppContext) -> FormattedText {
         let status_string = match file.status {
-            FileUploadStatus::Started | FileUploadStatus::AwaitingPassword => "Uploading",
-            FileUploadStatus::Completed { successful: true } => "Uploaded",
-            FileUploadStatus::Completed { successful: false } => "Failed to upload",
+            FileUploadStatus::Started | FileUploadStatus::AwaitingPassword => {
+                text(app, "terminal.ssh_file_upload.status.uploading")
+            }
+            FileUploadStatus::Completed { successful: true } => {
+                text(app, "terminal.ssh_file_upload.status.uploaded")
+            }
+            FileUploadStatus::Completed { successful: false } => {
+                text(app, "terminal.ssh_file_upload.status.failed")
+            }
         };
 
         let mut file_iter = file.local_file_paths.iter().peekable();
@@ -399,7 +405,7 @@ impl FileUpload {
         }
 
         let mut dest_fragments = vec![
-            FormattedTextFragment::plain_text(" to "),
+            FormattedTextFragment::plain_text(text(app, "terminal.ssh_file_upload.destination")),
             FormattedTextFragment::inline_code(&file.remote_host),
         ];
         if let Some(remote_path) = &file.remote_dest_path {

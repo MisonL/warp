@@ -1,4 +1,3 @@
-use crate::localization;
 use std::path::PathBuf;
 
 use futures_util::stream::AbortHandle;
@@ -22,6 +21,7 @@ use super::nodes::{
 use super::queue::{ImportQueue, ImportQueueArgs, ImportQueueEvent, ParentId, RequestContent};
 use crate::appearance::Appearance;
 use crate::cloud_object::Owner;
+use crate::localization;
 use crate::server::ids::{ClientId, SyncId};
 use crate::server::sync_queue::SyncQueue;
 use crate::ui_components::icons::Icon;

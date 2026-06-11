@@ -1,6 +1,5 @@
 //! Common utilities for agent SDK commands.
 
-use crate::localization;
 use std::error::Error;
 use std::fmt;
 use std::future::Future;
@@ -22,6 +21,7 @@ use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::auth::auth_state::AuthStateProvider;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _, Owner};
+use crate::localization;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ai::AIClient;
@@ -31,6 +31,10 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// How long to wait for workspace metadata to refresh.
 pub const WORKSPACE_METADATA_REFRESH_TIMEOUT: Duration = Duration::from_secs(10);
+pub const OWNER_SCOPE_PERSONAL: &str = "personal";
+pub const OWNER_SCOPE_TEAM: &str = "team";
+pub const UNSYNCED_ID: &str = "Unsynced";
+pub const UNKNOWN_VALUE: &str = "Unknown";
 
 fn text(ctx: &AppContext, key: &str) -> String {
     localization::text_for_app(ctx, key)
@@ -216,12 +220,43 @@ pub(super) async fn fetch_and_validate_conversation_harness(
     Ok(metadata)
 }
 
-pub fn format_owner_for_app(owner: &Owner, ctx: &AppContext) -> String {
-    let key = match owner {
-        Owner::User { .. } => "agent_sdk.common.owner.personal",
-        Owner::Team { .. } => "agent_sdk.common.owner.team",
-    };
-    text(ctx, key)
+pub fn owner_scope(owner: &Owner) -> &'static str {
+    match owner {
+        Owner::User { .. } => OWNER_SCOPE_PERSONAL,
+        Owner::Team { .. } => OWNER_SCOPE_TEAM,
+    }
+}
+
+pub fn format_owner_scope_for_app(scope: &str, ctx: &AppContext) -> String {
+    match scope {
+        OWNER_SCOPE_PERSONAL => text(ctx, "agent_sdk.common.owner.personal"),
+        OWNER_SCOPE_TEAM => text(ctx, "agent_sdk.common.owner.team"),
+        other => other.to_string(),
+    }
+}
+
+pub fn format_owner_scope_for_locale(scope: &str, locale: LocaleId) -> String {
+    match scope {
+        OWNER_SCOPE_PERSONAL => {
+            localization::text_for_locale(locale, "agent_sdk.common.owner.personal")
+        }
+        OWNER_SCOPE_TEAM => localization::text_for_locale(locale, "agent_sdk.common.owner.team"),
+        other => other.to_string(),
+    }
+}
+
+pub fn format_sync_id_for_app(id: &str, ctx: &AppContext) -> String {
+    match id {
+        UNSYNCED_ID => text(ctx, "agent_sdk.common.value.unsynced"),
+        other => other.to_string(),
+    }
+}
+
+pub fn format_unknown_for_app(value: &str, ctx: &AppContext) -> String {
+    match value {
+        UNKNOWN_VALUE => text(ctx, "agent_sdk.common.value.unknown"),
+        other => other.to_string(),
+    }
 }
 
 /// An error resolving an agent option, which we may have prompted the user for.

@@ -1,6 +1,5 @@
 //! Components for the notebook header.
 
-use crate::localization;
 use warp_core::features::FeatureFlag;
 use warpui::elements::{
     Container, CrossAxisAlignment, Flex, Highlight, MainAxisAlignment, MainAxisSize,
@@ -16,6 +15,7 @@ use crate::appearance::Appearance;
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::drive::sharing::ContentEditability;
+use crate::localization;
 use crate::notebooks::active_notebook_data::Mode;
 use crate::notebooks::styles;
 use crate::ui_components::breadcrumb::{render_breadcrumbs, BreadcrumbState};

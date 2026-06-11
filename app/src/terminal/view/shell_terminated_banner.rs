@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::cell::RefCell;
 
@@ -14,7 +13,7 @@ use warpui::ui_components::components::UiComponent as _;
 use warpui::{Entity, SingletonEntity as _, TypedActionView, View, ViewContext};
 
 use crate::terminal::model::terminal_model::ExitReason;
-use crate::ui_components;
+use crate::{localization, ui_components};
 
 /// A banner to display when the shell process terminates.
 ///

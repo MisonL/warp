@@ -25,9 +25,8 @@ use warpui_core::actions::StandardAction;
 use warpui_core::keymap::Keystroke;
 use warpui_core::platform::menu::{MenuItem, MenuItemPropertyChanges};
 
-use crate::platform::mac::utils::nsstring_as_str;
-
 use super::{apply_changes, make_menu_item};
+use crate::platform::mac::utils::nsstring_as_str;
 
 /// How many outer pool cycles for the retain → autorelease test.
 const MENU_ITEM_OUTER: usize = 40;

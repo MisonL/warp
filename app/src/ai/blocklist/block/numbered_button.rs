@@ -1,4 +1,3 @@
-use crate::localization;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
@@ -12,6 +11,7 @@ use warpui::{AppContext, Element, SingletonEntity, ViewHandle};
 
 use super::compact_agent_input::CompactAgentInput;
 use crate::context_chips::spacing;
+use crate::localization;
 
 fn render_number_badge(
     number: usize,

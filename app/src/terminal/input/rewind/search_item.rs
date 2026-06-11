@@ -27,6 +27,53 @@ use crate::terminal::input::rewind::data_source::{FileChangesInfo, SelectRewindP
 
 const ICON_PADDING: f32 = 4.;
 
+#[derive(Debug, Clone)]
+pub struct RewindSearchItemAccessibilityCopy {
+    current_item_label: String,
+    current_label: String,
+    rewind_with_changes_label: String,
+    rewind_no_changes_label: String,
+}
+
+impl RewindSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            current_item_label: localization::text_for_app(app, "terminal.rewind.current"),
+            current_label: localization::text_for_app(app, "terminal.rewind.a11y.current"),
+            rewind_with_changes_label: localization::text_for_app(
+                app,
+                "terminal.rewind.a11y.rewind_to_with_changes",
+            ),
+            rewind_no_changes_label: localization::text_for_app(
+                app,
+                "terminal.rewind.a11y.rewind_to_no_changes",
+            ),
+        }
+    }
+
+    fn label(&self, query: &str, file_changes: &FileChangesInfo, is_current: bool) -> String {
+        if is_current {
+            self.current_label.clone()
+        } else if file_changes.lines_added > 0 || file_changes.lines_removed > 0 {
+            warp_localization::replace_placeholders(
+                &self.rewind_with_changes_label,
+                &[
+                    ("query", query),
+                    ("added", &file_changes.lines_added.to_string()),
+                    ("removed", &file_changes.lines_removed.to_string()),
+                ],
+            )
+            .expect("rewind a11y template arguments must match the catalog")
+        } else {
+            warp_localization::replace_placeholders(
+                &self.rewind_no_changes_label,
+                &[("query", query)],
+            )
+            .expect("rewind a11y template arguments must match the catalog")
+        }
+    }
+}
+
 /// Search item for rendering a rewind point in the rewind menu.
 #[derive(Debug, Clone)]
 pub struct RewindSearchItem {
@@ -37,18 +84,21 @@ pub struct RewindSearchItem {
     query_match_result: Option<FuzzyMatchResult>,
     score: OrderedFloat<f64>,
     is_current: bool,
+    accessibility_copy: RewindSearchItemAccessibilityCopy,
 }
 
 impl RewindSearchItem {
     /// Create a "Current" item that dismisses the menu without rewinding.
-    pub fn new_current() -> Self {
+    pub fn new_current(accessibility_copy: RewindSearchItemAccessibilityCopy) -> Self {
+        let query_text = accessibility_copy.current_item_label.clone();
         Self {
             exchange_id: None,
-            query_text: "Current".to_string(),
+            query_text,
             file_changes: FileChangesInfo::default(),
             query_match_result: None,
             score: OrderedFloat(0.0),
             is_current: true,
+            accessibility_copy,
         }
     }
 
@@ -57,6 +107,7 @@ impl RewindSearchItem {
         exchange_id: AIAgentExchangeId,
         query_text: String,
         file_changes: FileChangesInfo,
+        accessibility_copy: RewindSearchItemAccessibilityCopy,
     ) -> Self {
         Self {
             exchange_id: Some(exchange_id),
@@ -65,6 +116,7 @@ impl RewindSearchItem {
             query_match_result: None,
             score: OrderedFloat(0.0),
             is_current: false,
+            accessibility_copy,
         }
     }
 
@@ -116,10 +168,11 @@ impl SearchItem for RewindSearchItem {
         let theme = appearance.theme();
         let background = menu_background_color(app);
         let secondary_font_size = font_size(appearance) - 2.;
+        let query_label = self.query_text.clone();
 
         // Line 1: Query text with fuzzy match highlighting
         let mut query_text = Text::new_inline(
-            self.query_text.clone(),
+            query_label,
             appearance.ui_font_family(),
             font_size(appearance),
         )
@@ -218,15 +271,7 @@ impl SearchItem for RewindSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        if self.is_current {
-            "Current state (no rewind)".to_string()
-        } else if self.has_code_changes() {
-            format!(
-                "Rewind to: {} (+{} -{})",
-                self.query_text, self.file_changes.lines_added, self.file_changes.lines_removed
-            )
-        } else {
-            format!("Rewind to: {} (no code changes)", self.query_text)
-        }
+        self.accessibility_copy
+            .label(&self.query_text, &self.file_changes, self.is_current)
     }
 }

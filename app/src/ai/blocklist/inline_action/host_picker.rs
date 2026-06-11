@@ -27,6 +27,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization::{self, LocalizationUpdater};
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -49,9 +50,28 @@ pub enum HostPickerEvent {
     Closed,
 }
 
-const CUSTOM_HOST_LABEL: &str = "Custom host…";
-const DEFAULT_BADGE: &str = "Default";
-const EDITOR_PLACEHOLDER: &str = "my-worker-host";
+const CUSTOM_HOST_LABEL_KEY: &str = "agent.orchestration.host_picker.custom_host";
+const DEFAULT_BADGE_KEY: &str = "agent.orchestration.host_picker.default_badge";
+const EDITOR_PLACEHOLDER_KEY: &str = "agent.orchestration.host_picker.placeholder";
+
+#[derive(Debug)]
+pub(crate) struct HostPickerLabels {
+    custom_host: String,
+    default_badge: String,
+}
+
+impl HostPickerLabels {
+    fn from_app(app: &AppContext) -> Self {
+        Self {
+            custom_host: text(app, CUSTOM_HOST_LABEL_KEY),
+            default_badge: text(app, DEFAULT_BADGE_KEY),
+        }
+    }
+}
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 // ── Internal action plumbing ────────────────────────────────────────
 
@@ -136,11 +156,14 @@ impl HostPicker {
                 },
                 ctx_editor,
             );
-            editor.set_placeholder_text(EDITOR_PLACEHOLDER, ctx_editor);
+            editor.set_placeholder_text(text(ctx_editor, EDITOR_PLACEHOLDER_KEY), ctx_editor);
             editor
         });
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| {
             me.handle_editor_event(event, ctx);
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_copy(ctx);
         });
 
         let mut me = Self {
@@ -237,18 +260,30 @@ impl HostPicker {
     }
 
     fn repopulate_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        let labels = HostPickerLabels::from_app(ctx);
         let items = build_menu_items(
             self.default_host.as_deref(),
             self.recent_host.as_deref(),
             &self.connected_hosts,
+            &labels,
         );
         self.dropdown.update(ctx, |dropdown, ctx_dropdown| {
             dropdown.set_rich_items(items, ctx_dropdown);
         });
     }
 
+    fn refresh_localized_copy(&mut self, ctx: &mut ViewContext<Self>) {
+        self.editor.update(ctx, |editor, ctx_editor| {
+            editor.set_placeholder_text(text(ctx_editor, EDITOR_PLACEHOLDER_KEY), ctx_editor);
+        });
+        self.repopulate_menu(ctx);
+        self.sync_dropdown_selection(ctx);
+        ctx.notify();
+    }
+
     fn sync_dropdown_selection(&mut self, ctx: &mut ViewContext<Self>) {
-        let label = menu_label_for(&self.current_slug, self.default_host.as_deref());
+        let labels = HostPickerLabels::from_app(ctx);
+        let label = menu_label_for(&self.current_slug, self.default_host.as_deref(), &labels);
         self.dropdown.update(ctx, |dropdown, ctx_dropdown| {
             dropdown.set_selected_by_name(&label, ctx_dropdown);
         });
@@ -422,6 +457,7 @@ pub(crate) fn build_menu_items(
     default_host: Option<&str>,
     recent_host: Option<&str>,
     connected_hosts: &[String],
+    labels: &HostPickerLabels,
 ) -> Vec<MenuItem<DropdownAction>> {
     let mut items: Vec<MenuItem<DropdownAction>> = Vec::new();
     let mut known_slugs: Vec<String> = Vec::new();
@@ -429,7 +465,7 @@ pub(crate) fn build_menu_items(
     if let Some(slug) = default_host {
         items.push(menu_item_for_known(
             slug,
-            Some(DEFAULT_BADGE),
+            Some(&labels.default_badge),
             InternalAction::SelectKnown(slug.to_string()),
         ));
         known_slugs.push(slug.to_string());
@@ -471,7 +507,7 @@ pub(crate) fn build_menu_items(
         }
     }
     items.push(MenuItem::Item(
-        MenuItemFields::new(CUSTOM_HOST_LABEL).with_on_select_action(
+        MenuItemFields::new(&labels.custom_host).with_on_select_action(
             DropdownAction::select_action_and_close(InternalAction::EnterCustomMode),
         ),
     ));
@@ -481,9 +517,13 @@ pub(crate) fn build_menu_items(
 
 /// Returns the menu label corresponding to `slug`, including the "Default"
 /// badge when it matches the workspace default.
-pub(crate) fn menu_label_for(slug: &str, default_host: Option<&str>) -> String {
+pub(crate) fn menu_label_for(
+    slug: &str,
+    default_host: Option<&str>,
+    labels: &HostPickerLabels,
+) -> String {
     if default_host == Some(slug) {
-        format_known_label(slug, Some(DEFAULT_BADGE))
+        format_known_label(slug, Some(&labels.default_badge))
     } else {
         format_known_label(slug, None)
     }

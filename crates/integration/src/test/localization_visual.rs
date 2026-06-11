@@ -16,8 +16,8 @@ use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for
 use warp::integration_testing::view_getters::single_input_view_for_tab;
 use warp::settings::{AppLanguage, LanguageSettings};
 use warp::settings_view::{SettingsSection, SettingsView};
-use warpui::integration::TestStep;
-use warpui::{async_assert, SingletonEntity, ViewHandle};
+use warpui_core::integration::TestStep;
+use warpui_core::{async_assert, App, SingletonEntity, ViewContext, ViewHandle, WindowId};
 
 use crate::Builder;
 
@@ -84,14 +84,14 @@ fn open_settings_tab() -> TestStep {
 
 fn open_appearance_page_and_capture() -> TestStep {
     TestStep::new("Open Appearance settings page and capture zh-CN language UI")
-        .with_action(|app, window_id, _| {
+        .with_action(|app: &mut App, window_id: WindowId, _| {
             let settings_view = app
                 .views_of_type::<SettingsView>(window_id)
                 .expect("Settings view must exist")
                 .first()
                 .expect("Settings view must exist")
                 .clone();
-            settings_view.update(app, |view, ctx| {
+            settings_view.update(app, |view: &mut SettingsView, ctx: &mut ViewContext<SettingsView>| {
                 view.set_and_refresh_current_page(SettingsSection::Appearance, ctx);
             });
         })
@@ -113,7 +113,7 @@ fn open_appearance_page_and_capture() -> TestStep {
                 .first()
                 .expect("Settings view must exist")
                 .clone();
-            settings_view.read(app, |view, _| {
+            settings_view.read(app, |view: &SettingsView, _| {
                 let current_section = view.current_settings_section();
                 async_assert!(
                     language == AppLanguage::SimplifiedChinese

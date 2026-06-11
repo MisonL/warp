@@ -1,4 +1,3 @@
-use crate::localization;
 use std::fmt;
 use std::num::NonZeroUsize;
 
@@ -26,6 +25,7 @@ use crate::appearance::Appearance;
 use crate::context_chips::display::PromptDisplay;
 use crate::context_chips::spacing;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::settings::{FontSettings, InputSettings};
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::grid_size_util::grid_compute_baseline_position_fn;

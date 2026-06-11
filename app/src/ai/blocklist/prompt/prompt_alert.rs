@@ -1,4 +1,3 @@
-use crate::localization;
 use ai::api_keys::ApiKeyManager;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::ui::appearance::Appearance;
@@ -11,6 +10,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 use crate::ai::blocklist::error_color;
 use crate::ai::AIRequestUsageModel;
 use crate::auth::AuthStateProvider;
+use crate::localization;
 use crate::network::NetworkStatus;
 use crate::server::ids::ServerId;
 use crate::settings::PrivacySettings;

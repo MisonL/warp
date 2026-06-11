@@ -63,21 +63,19 @@ impl ZeroStatePromptSuggestionType {
     /// Constant for the number of zero-state prompt suggestion types.
     pub const COUNT: usize = 5;
 
-    pub fn query(&self) -> &'static str {
+    pub fn query_key(&self) -> &'static str {
         match self {
-            Self::Explain => "Explain this to me.",
-            Self::Fix => "Help me fix this.",
-            Self::Install => {
-                "Help me install a binary/dependency. What information do I need to provide to you to do this?"
-            }
-            Self::Code => {
-                "Help me write some code. What information do I need to provide to you to do this?"
-            }
-            Self::Deploy => {
-                "Help me deploy my project. What information do I need to provide to you to do this?"
-            }
-            Self::SomethingElse => "Something else?",
+            Self::Explain => "terminal.prompt_suggestion.zero_state.explain",
+            Self::Fix => "terminal.prompt_suggestion.zero_state.fix",
+            Self::Install => "terminal.prompt_suggestion.zero_state.install",
+            Self::Code => "terminal.prompt_suggestion.zero_state.code",
+            Self::Deploy => "terminal.prompt_suggestion.zero_state.deploy",
+            Self::SomethingElse => "terminal.prompt_suggestion.zero_state.something_else",
         }
+    }
+
+    pub fn prompt(&self) -> String {
+        crate::localization::text_for_locale(warp_localization::LocaleId::EnUs, self.query_key())
     }
 
     pub fn static_query_type(&self) -> Option<StaticQueryType> {

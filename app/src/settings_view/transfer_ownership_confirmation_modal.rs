@@ -5,9 +5,10 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
+use crate::appearance::Appearance;
 use crate::auth::UserUid;
+use crate::localization;
 use crate::server::ids::ServerId;
-use crate::{appearance::Appearance, localization};
 
 pub struct TransferOwnershipConfirmationModal {
     cancel_mouse_state: MouseStateHandle,

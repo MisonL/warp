@@ -1,7 +1,7 @@
 use fuzzy_match::FuzzyMatchResult;
 use warpui::{AppContext, SingletonEntity};
 
-use super::search_item::NotebookSearchItem;
+use super::search_item::{NotebookSearchItem, NotebookSearchItemAccessibilityCopy};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::CloudModelType;
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
@@ -39,6 +39,7 @@ impl SyncDataSource for NotebookDataSource {
         // Get all notebooks from CloudModel
         let cloud_model = CloudModel::as_ref(app);
         let _user_workspaces = UserWorkspaces::as_ref(app);
+        let accessibility_copy = NotebookSearchItemAccessibilityCopy::new(app);
 
         // Get notebooks from all spaces the user has access to
         let mut notebook_results = Vec::new();
@@ -140,6 +141,7 @@ impl SyncDataSource for NotebookDataSource {
                 match_result,
                 ai_document_uid: ai_document_uid.map(|id| id.to_string()),
                 is_match_on_name,
+                accessibility_copy: accessibility_copy.clone(),
             };
 
             notebook_results.push(QueryResult::from(search_item));

@@ -22,9 +22,7 @@ use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::harness_availability::{
     AuthSecretFetchState, HarnessAvailabilityEvent, HarnessAvailabilityModel,
 };
-use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields, MenuVariant};
-use crate::report_if_error;
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::terminal::view::ambient_agent::delete_auth_secret_confirmation_dialog::{
     DeleteAuthSecretConfirmationDialog, DeleteAuthSecretConfirmationDialogEvent,
@@ -36,6 +34,7 @@ use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize};
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
+use crate::{localization, report_if_error};
 
 const HEADER_FONT_SIZE: f32 = 12.;
 
@@ -402,7 +401,11 @@ impl AuthSecretSelector {
         // window) shouldn't pop a duplicate confirmation here.
         if removed_pending {
             let window_id = ctx.window_id();
-            let message = format!("API key '{name}' deleted.");
+            let message = localization::text_for_app_with_args(
+                ctx,
+                "terminal.auth_secret.toast.deleted",
+                &[("name", &name)],
+            );
             ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                 ts.add_ephemeral_toast(DismissibleToast::success(message), window_id, ctx);
             });
@@ -431,7 +434,11 @@ impl AuthSecretSelector {
         // double-toasting if another surface also tried to delete.
         if removed_pending {
             let window_id = ctx.window_id();
-            let message = format!("Failed to delete API key '{name}': {error}");
+            let message = localization::text_for_app_with_args(
+                ctx,
+                "terminal.auth_secret.toast.delete_failed",
+                &[("name", &name), ("error", &error)],
+            );
             ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                 ts.add_ephemeral_toast(DismissibleToast::error(message), window_id, ctx);
             });
@@ -611,7 +618,11 @@ fn build_main_menu_items(
                         name: secret.name.clone(),
                         owner: secret.owner.clone(),
                     })
-                    .with_right_side_icon_a11y_label(format!("Delete API key {}", secret.name))
+                    .with_right_side_icon_a11y_label(localization::text_for_app_with_args(
+                        app,
+                        "terminal.auth_secret.delete.a11y_label",
+                        &[("name", &secret.name)],
+                    ))
                     .with_right_side_icon_disabled(is_pending_delete);
                 items.push(MenuItem::Item(fields));
             }

@@ -1,9 +1,9 @@
-use crate::localization;
 use session_sharing_protocol::common::{Role, WindowSize};
 use warpui::elements::MouseStateHandle;
 use warpui::{ViewContext, ViewHandle};
 
 use super::adapter::Participant;
+use crate::localization;
 use crate::menu::{Menu, MenuItem, MenuItemFields};
 use crate::pane_group::{PaneHeaderAction, PaneHeaderCustomAction};
 use crate::terminal::view::{TerminalAction, TerminalView};

@@ -1,10 +1,8 @@
-use crate::localization;
 use std::sync::Arc;
-use warpui::AppContext;
 
 use warpui::elements::MouseStateHandle;
 use warpui::fonts::Weight;
-use warpui::{Element, EntityId};
+use warpui::{AppContext, Element, EntityId};
 
 use super::{
     render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
@@ -12,6 +10,7 @@ use super::{
     InlineBannerTextButtonVariant,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::model::session::Session;
 use crate::terminal::view::open_in_warp::OpenablePath;
 use crate::terminal::view::{InlineBannerId, TerminalAction};

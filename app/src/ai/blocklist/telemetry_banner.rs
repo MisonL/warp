@@ -1,4 +1,3 @@
-use crate::localization;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize,
     MouseStateHandle, ParentElement, Shrinkable, Text,
@@ -14,7 +13,7 @@ use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::UgcCollectionEnablementSetting;
-use crate::{Appearance, FeatureFlag, WorkspaceAction};
+use crate::{localization, Appearance, FeatureFlag, WorkspaceAction};
 
 const PRIVACY_URL: &str = "https://warp.dev/privacy";
 

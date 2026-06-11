@@ -1,4 +1,3 @@
-use crate::localization;
 use std::ops::Not;
 use std::path::Path;
 use std::rc::Rc;
@@ -36,6 +35,7 @@ use crate::ai::blocklist::{
 };
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
+use crate::localization;
 use crate::persistence::model::AgentConversationData;
 use crate::server::server_api::ServerApiProvider;
 use crate::terminal::find::TerminalFindModel;

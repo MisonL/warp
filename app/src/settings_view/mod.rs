@@ -1,8 +1,6 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
-use warpui::keymap::BindingDescription;
 
 use about_page::AboutPageView;
 use ai_page::{AISettingsPageAction, AISettingsPageEvent, AISettingsPageView, AISubpage};
@@ -43,7 +41,7 @@ use warpui::elements::{
     Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::keymap::{ContextPredicate, EnabledPredicate, FixedBinding};
+use warpui::keymap::{BindingDescription, ContextPredicate, EnabledPredicate, FixedBinding};
 use warpui::{
     id, Action, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView,
     UpdateView as _, View, ViewContext, ViewHandle,
@@ -70,7 +68,7 @@ use crate::ui_components::icons;
 use crate::util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction};
 use crate::view_components::ToastFlavor;
 use crate::workspace::WorkspaceAction;
-use crate::{GlobalResourceHandlesProvider, TelemetryEvent};
+use crate::{localization, GlobalResourceHandlesProvider, TelemetryEvent};
 
 mod about_page;
 mod admin_actions;

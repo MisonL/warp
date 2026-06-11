@@ -1,11 +1,9 @@
-use crate::localization;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::channel::ChannelState;
 use warp_core::ui::theme::WarpTheme;
-use warpui::elements::Text;
 use warpui::elements::{
     Border, Container, CrossAxisAlignment, Flex, HighlightedHyperlink, Hoverable, Icon,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::FixedBinding;
@@ -18,6 +16,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::model::ansi::WarpificationUnavailableReason;
 use crate::terminal::warpify;
 use crate::terminal::warpify::render::{apply_spacing_styles, build_description_row};

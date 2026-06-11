@@ -22,6 +22,7 @@ pub mod localization_visual;
 pub mod navigation_palette;
 pub mod notebook;
 pub mod pane_group;
+pub mod passive_suggestions;
 pub mod persistence;
 #[cfg(target_os = "macos")]
 pub mod preview_config_migration;

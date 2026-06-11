@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -20,6 +19,7 @@ use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{ObjectIdType, Space};
 use crate::drive::CloudObjectTypeAndId;
+use crate::localization;
 use crate::menu::{self, Menu, MenuItemFields};
 use crate::notebooks::telemetry::EmbeddedObjectInfo;
 use crate::search::notebook_embedding::searcher::EmbeddingSearchItemAction;
@@ -238,11 +238,12 @@ impl RichTextEditorView {
 
     /// Insert an embedded notebook inline view at the current insertion menu source.
     fn insert_embedded_notebook(&mut self, id: &SyncId, ctx: &mut ViewContext<Self>) {
+        let untitled = text(ctx, "notebook.placeholder.untitled");
         let (title, link) = CloudModel::handle(ctx).read(ctx, |model, _| {
             let title = model
                 .get_notebook(id)
                 .map(|notebook| notebook.model().title.clone())
-                .unwrap_or_else(|| "Untitled".to_string());
+                .unwrap_or_else(|| untitled.clone());
             let link = model
                 .get_by_uid(&CloudObjectTypeAndId::Notebook(*id).uid())
                 .and_then(|object| object.object_link());

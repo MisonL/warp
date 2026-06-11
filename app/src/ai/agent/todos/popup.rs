@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
@@ -20,6 +19,7 @@ use crate::ai::blocklist::{
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIHistoryEvent,
     BlocklistAIHistoryModel,
 };
+use crate::localization;
 use crate::ui_components::blended_colors;
 
 pub struct AgentTodosPopupView {

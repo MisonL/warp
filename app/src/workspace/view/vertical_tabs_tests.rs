@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
+use settings::{Setting as _, SettingsManager};
 use warpui::elements::PositionedElementOffsetBounds;
-use warpui::App;
-use warpui::EntityId;
+use warpui::{App, EntityId};
 
 use super::{
     branch_label_display, coalesce_summary_branch_entries, code_detail_kind_label,
@@ -30,7 +30,6 @@ use crate::safe_triangle::SafeTriangle;
 use crate::settings::{init_and_register_user_preferences, AppLanguage, LanguageSettings};
 use crate::terminal::CLIAgent;
 use crate::workspace::tab_settings::VerticalTabsDisplayGranularity;
-use settings::{Setting as _, SettingsManager};
 
 fn label(text: &str) -> VerticalTabsSummaryPrimaryLabel {
     VerticalTabsSummaryPrimaryLabel {

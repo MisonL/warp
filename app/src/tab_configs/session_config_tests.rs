@@ -101,6 +101,22 @@ fn terminal_with_worktree() {
 }
 
 #[test]
+fn worktree_branch_description_can_be_supplied_by_caller() {
+    let config = build_tab_config_with_worktree_branch_description(
+        &SessionType::Terminal,
+        Path::new("/home/user/repo"),
+        true,
+        false,
+        Some("Localized branch name"),
+    );
+
+    assert_eq!(
+        config.params["worktree_branch_name"].description.as_deref(),
+        Some("Localized branch name")
+    );
+}
+
+#[test]
 fn cli_agent_with_worktree() {
     let config = build_tab_config(
         &SessionType::CliAgent(CLIAgent::Gemini),

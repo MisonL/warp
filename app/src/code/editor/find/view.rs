@@ -1,7 +1,5 @@
 #![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
-use crate::localization;
 // Adding this file level gate as some of the code around editability is not used in WASM yet.
-
 use pathfinder_color::ColorU;
 use warp_editor::editor::NavigationKey;
 use warp_editor::search::{SearchEvent, Searcher};
@@ -29,7 +27,6 @@ use crate::editor::{
     SingleLineEditorOptions, TextOptions,
 };
 use crate::features::FeatureFlag;
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{FindOption, TelemetryEvent};
 use crate::settings::AppEditorSettings;
 use crate::themes::theme::Fill;
@@ -37,6 +34,7 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, DisabledSecondaryTheme, SecondaryTheme};
 use crate::view_components::find::FindDirection;
+use crate::{localization, send_telemetry_from_ctx};
 
 pub const FIND_BAR_WIDTH: f32 = 500.;
 const ICON_PADDING: f32 = 4.;

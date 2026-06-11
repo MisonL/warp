@@ -1,8 +1,6 @@
-use crate::localization;
 use std::cmp::Reverse;
 use std::fmt;
 use std::io::{self, IsTerminal as _};
-use warp_localization::LocaleId;
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
@@ -19,13 +17,14 @@ use warp_graphql::mutations::expire_api_key::ExpireApiKeyResult;
 use warp_graphql::mutations::generate_api_key::GenerateApiKeyResult;
 use warp_graphql::queries::api_keys::ApiKeyProperties;
 use warp_graphql::scalars::Time;
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::{self, TableFormat};
 use crate::server::ids::ApiKeyUid;
 use crate::util::time_format::format_approx_duration_from_now_utc;
-use crate::ServerApiProvider;
+use crate::{localization, ServerApiProvider};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
@@ -117,7 +116,7 @@ impl ApiKeyCommandRunner {
         args: CreateApiKeyArgs,
         ctx: &mut ModelContext<Self>,
     ) {
-        let server_api = ServerApiProvider::as_ref(ctx).get();
+        let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
         let unknown_error = text(ctx, "agent_sdk.api_key.error.create_failed");
         let name = args.name;
         let agent_uid = args.agent_uid;
@@ -128,7 +127,7 @@ impl ApiKeyCommandRunner {
             async move {
                 let expires_at = expires_at_from_args(expiration)?;
                 let agent_uid = agent_uid.map(cynic::Id::new);
-                let result = server_api
+                let result = auth_client
                     .create_api_key(name, None, agent_uid, expires_at)
                     .await?;
                 let result = match result {
@@ -166,12 +165,12 @@ impl ApiKeyCommandRunner {
         let key_identifier = args.key_uid;
         let force = args.force;
         let json_output = args.json_output;
-        let server_api = ServerApiProvider::as_ref(ctx).get();
+        let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
         let unknown_error = text(ctx, "agent_sdk.api_key.error.expire_failed");
 
         ctx.spawn(
             async move {
-                let keys = server_api
+                let keys = auth_client
                     .list_api_keys()
                     .await?
                     .into_iter()
@@ -248,10 +247,10 @@ impl ApiKeyCommandRunner {
                 }
 
                 let uid = ApiKeyUid::from(key.uid);
-                let server_api = ServerApiProvider::as_ref(ctx).get();
+                let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
                 ctx.spawn(
                     async move {
-                        let result = server_api.expire_api_key(&uid).await?;
+                        let result = auth_client.expire_api_key(&uid).await?;
                         let expired = match result {
                             ExpireApiKeyResult::ExpireApiKeyOutput(output) => output.success,
                             ExpireApiKeyResult::UserFacingError(e) => {
@@ -321,6 +320,38 @@ impl fmt::Display for ApiKeyInfo {
         let uid = &self.uid;
         let created_at = self.created_at.format("%Y-%m-%d %H:%M:%S UTC");
         write!(f, "{name} ({uid}, created {created_at})")
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ApiKeySelection {
+    label: String,
+    key: ApiKeyInfo,
+}
+
+impl ApiKeySelection {
+    fn new(key: ApiKeyInfo, app: &AppContext) -> Self {
+        let uid_label = text(app, "agent_sdk.api_key.table.uid");
+        let created_label = text(app, "agent_sdk.api_key.table.created");
+        let label = format!(
+            "{} ({} {}, {} {})",
+            key.name,
+            uid_label,
+            key.uid,
+            created_label,
+            key.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+        );
+        Self { label, key }
+    }
+
+    fn into_key(self) -> ApiKeyInfo {
+        self.key
+    }
+}
+
+impl fmt::Display for ApiKeySelection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.label)
     }
 }
 
@@ -445,8 +476,12 @@ fn resolve_api_key_identifier(
             "agent_sdk.api_key.prompt.select_key_to_expire",
             &[("key_identifier", key_identifier)],
         );
-        return match Select::new(&prompt, matches).prompt() {
-            Ok(key) => Ok(Some(key)),
+        let selections = matches
+            .into_iter()
+            .map(|key| ApiKeySelection::new(key, app))
+            .collect::<Vec<_>>();
+        return match Select::new(&prompt, selections).prompt() {
+            Ok(selection) => Ok(Some(selection.into_key())),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => Ok(None),
             Err(err) => Err(err.into()),
         };

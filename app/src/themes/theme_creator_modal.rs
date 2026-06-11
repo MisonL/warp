@@ -1,4 +1,3 @@
-use crate::localization;
 use std::default::Default;
 use std::path::PathBuf;
 
@@ -12,6 +11,7 @@ use warpui::{
     ViewHandle,
 };
 
+use crate::localization;
 use crate::modal::Modal;
 use crate::themes::theme::ThemeKind;
 use crate::themes::theme_creator_body::{

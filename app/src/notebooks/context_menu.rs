@@ -1,6 +1,5 @@
 //! Shared context menu implementation for notebooks.
 
-use crate::localization;
 use pathfinder_geometry::vector::Vector2F;
 use warp_core::context_flag::ContextFlag;
 use warpui::elements::{ChildAnchor, OffsetPositioning, ParentAnchor, ParentOffsetBounds, Stack};
@@ -12,6 +11,7 @@ use super::editor::keys::custom_action_to_display;
 use super::editor::view::RichTextEditorView;
 use super::telemetry::ActionEntrypoint;
 use crate::editor::EditorView;
+use crate::localization;
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::{PaneEvent, SplitPaneState};

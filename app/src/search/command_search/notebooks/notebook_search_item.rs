@@ -26,6 +26,7 @@ pub struct NotebookSearchItem {
     pub model: Arc<CloudNotebookModel>,
     pub name_match_result: Option<fuzzy_match::FuzzyMatchResult>,
     pub content_match_result: Option<fuzzy_match::FuzzyMatchResult>,
+    pub accessibility_label_template: String,
 }
 
 impl SearchItem for NotebookSearchItem {
@@ -136,6 +137,7 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.model.title)
+        self.accessibility_label_template
+            .replace("{title}", &self.model.title)
     }
 }

@@ -1,34 +1,3 @@
-use crate::localization;
-use crate::{
-    ai_assistant::{
-        execution_context::WarpAiExecutionContext, GenerateCommandsFromNaturalLanguageError,
-    },
-    appearance::Appearance,
-    auth::{
-        auth_manager::AuthManager, auth_state::AuthState, auth_view_modal::AuthViewVariant,
-        AuthStateProvider, UserUid,
-    },
-    completer::SessionContext,
-    drive::settings::WarpDriveSettings,
-    search::{
-        command_search::searcher::{CommandSearchItemAction, CommandSearchMixer},
-        result_renderer::{QueryResultRenderer, QueryResultRendererStyles},
-        search_bar::{
-            SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
-        },
-        QueryFilter,
-    },
-    send_telemetry_from_ctx,
-    server::{ids::ServerId, server_api::ai::AIClient, telemetry::TelemetryEvent},
-    settings::AISettings,
-    terminal::{
-        input::MenuPositioning,
-        model::session::SessionId,
-        resizable_data::{ModalType, ResizableData, DEFAULT_UNIVERSAL_SEARCH_WIDTH},
-        History, HistoryEvent,
-    },
-    workspaces::user_workspaces::UserWorkspaces,
-};
 use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
@@ -62,7 +31,32 @@ use super::notebooks::notebooks_data_source;
 use super::warp_ai::WarpAIDataSource;
 use super::workflows::{cloud_workflows_data_source, WorkflowsDataSource};
 use super::zero_state::{CommandSearchZeroStateEvent, CommandSearchZeroStateView};
+use crate::ai_assistant::execution_context::WarpAiExecutionContext;
+use crate::ai_assistant::GenerateCommandsFromNaturalLanguageError;
+use crate::appearance::Appearance;
+use crate::auth::auth_manager::AuthManager;
+use crate::auth::auth_state::AuthState;
+use crate::auth::auth_view_modal::AuthViewVariant;
+use crate::auth::{AuthStateProvider, UserUid};
+use crate::completer::SessionContext;
+use crate::drive::settings::WarpDriveSettings;
+use crate::search::command_search::searcher::{CommandSearchItemAction, CommandSearchMixer};
 use crate::search::mixer::AddAsyncSourceOptions;
+use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
+use crate::search::search_bar::{
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
+};
+use crate::search::QueryFilter;
+use crate::server::ids::ServerId;
+use crate::server::server_api::ai::AIClient;
+use crate::server::telemetry::TelemetryEvent;
+use crate::settings::AISettings;
+use crate::terminal::input::MenuPositioning;
+use crate::terminal::model::session::SessionId;
+use crate::terminal::resizable_data::{ModalType, ResizableData, DEFAULT_UNIVERSAL_SEARCH_WIDTH};
+use crate::terminal::{History, HistoryEvent};
+use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
 const PANEL_POSITION_ID: &str = "CommandSearchViewPanel";
 const DETAILS_PANEL_MARGIN: f32 = 4.;

@@ -1,5 +1,4 @@
 use settings::{define_settings_group, SupportedPlatforms, SyncToCloud};
-
 pub use warp_localization::AppLanguage;
 
 define_settings_group!(LanguageSettings, settings: [

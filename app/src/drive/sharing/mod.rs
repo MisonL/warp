@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 
 use chrono::{DateTime, Local};
@@ -12,6 +11,7 @@ use warpui::{AppContext, SingletonEntity, WeakViewHandle};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::localization;
 use crate::server::ids::ServerId;
 use crate::server::server_api::object::GuestIdentifier;
 use crate::terminal::shared_session::join_link;

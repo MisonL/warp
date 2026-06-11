@@ -1,12 +1,11 @@
-use crate::localization;
 use warpui::elements::Text;
-use warpui::AppContext;
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::{
     render_inline_block_list_banner, InlineBannerContent, InlineBannerIcon, InlineBannerStyle,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 
 pub fn render_shell_process_terminated_banner(
     appearance: &Appearance,

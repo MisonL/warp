@@ -341,10 +341,10 @@ pub enum EnvVarCollectionAction {
 /// Defines the view for a collection of environment variables
 impl ValidationError {
     /// Create validation error from detected secret level
-    fn from_secret_level(secret_level: SecretLevel) -> Self {
+    fn from_secret_level(secret_level: SecretLevel, app: &AppContext) -> Self {
         let message = match secret_level {
-            SecretLevel::Enterprise => "This environment variable cannot be created due to conflicts with your enterprise's secret redaction settings. Contact a team admin for details.".to_string(),
-            SecretLevel::User => "This environment variable cannot be created due to conflicts with your secret redaction settings. Save the secret as an environment variable (in your shell config or a .env file), or update your secret redaction settings in Settings > Privacy.".to_string(),
+            SecretLevel::Enterprise => text(app, "env_vars.validation.secret_conflict.enterprise"),
+            SecretLevel::User => text(app, "env_vars.validation.secret_conflict.user"),
         };
         Self {
             secret_level,
@@ -355,7 +355,7 @@ impl ValidationError {
 
 impl EnvVarCollectionView {
     /// Validates field content for secrets and returns validation error if found
-    fn validate_field_content(text: &str) -> Option<ValidationError> {
+    fn validate_field_content(text: &str, app: &AppContext) -> Option<ValidationError> {
         let detected_secrets = find_secrets_in_text_with_levels(text);
         if detected_secrets.is_empty() {
             return None;
@@ -367,7 +367,7 @@ impl EnvVarCollectionView {
             .map(|(_, level)| *level)
             .max_by_key(|level| level.priority())
             .map(|highest_priority_level| {
-                ValidationError::from_secret_level(highest_priority_level)
+                ValidationError::from_secret_level(highest_priority_level, app)
             })
     }
 
@@ -386,7 +386,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text)
+            Self::validate_field_content(text, ctx)
         } else {
             None
         };
@@ -402,7 +402,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text)
+            Self::validate_field_content(text, ctx)
         } else {
             None
         };
@@ -420,7 +420,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text)
+            Self::validate_field_content(text, ctx)
         } else {
             None
         };
@@ -654,7 +654,12 @@ impl EnvVarCollectionView {
 
         let title = collection.title.clone().unwrap_or_default();
 
-        self.set_pane_title(if title.is_empty() { "Untitled" } else { &title }, ctx);
+        let pane_title = if title.is_empty() {
+            text(ctx, "env_vars.title.untitled")
+        } else {
+            title.clone()
+        };
+        self.set_pane_title(&pane_title, ctx);
         if let Some(server_id) = env_var_collection.id.into_server() {
             self.pane_configuration.update(ctx, |pane_config, ctx| {
                 pane_config
@@ -758,7 +763,12 @@ impl EnvVarCollectionView {
         }
 
         let title = self.title_editor.as_ref(ctx).buffer_text(ctx);
-        self.set_pane_title(&title, ctx);
+        let pane_title = if title.is_empty() {
+            text(ctx, "env_vars.title.untitled")
+        } else {
+            title.clone()
+        };
+        self.set_pane_title(&pane_title, ctx);
 
         let title = if title.is_empty() { None } else { Some(title) };
 
@@ -1578,7 +1588,11 @@ impl BackingView for EnvVarCollectionView {
         app: &AppContext,
     ) -> view::HeaderContent {
         let title = self.title_editor.as_ref(app).buffer_text(app);
-        let title = if title.is_empty() { "Untitled" } else { &title };
+        let title = if title.is_empty() {
+            text(app, "env_vars.title.untitled")
+        } else {
+            title
+        };
         view::HeaderContent::simple(title)
     }
 

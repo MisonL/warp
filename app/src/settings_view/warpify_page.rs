@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -36,7 +35,7 @@ use crate::terminal::warpify::settings::{
 use crate::ui_components::blended_colors;
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
 use crate::view_components::{SubmittableTextInput, SubmittableTextInputEvent};
-use crate::{report_if_error, send_telemetry_from_ctx};
+use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
     app: &mut AppContext,
@@ -50,8 +49,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             .enable_ssh_warpification
             .is_supported_on_current_platform()
     {
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "SSH Warpification",
+        toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+            app,
+            "settings.warpify.ssh_warpification.label",
             builder(SettingsAction::WarpifyPageToggle(
                 WarpifyPageAction::ToggleSshWarpification,
             )),

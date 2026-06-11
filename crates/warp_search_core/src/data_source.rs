@@ -532,8 +532,16 @@ impl<T: Action + Clone> QueryResult<T> {
         self.item.accessibility_label()
     }
 
+    pub fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        self.item.accessibility_label_for_app(app)
+    }
+
     pub fn accessibility_help_message(&self) -> Option<String> {
         self.item.accessibility_help_message()
+    }
+
+    pub fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        self.item.accessibility_help_message_for_app(app)
     }
 
     pub fn detail_data(&self) -> Option<crate::item::SearchItemDetail> {

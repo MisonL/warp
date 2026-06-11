@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cmp::Ordering;
 use std::path::Path;
 use std::rc::Rc;
@@ -93,7 +92,7 @@ use crate::view_components::compactible_action_button::{
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
 use crate::view_components::DismissibleToast;
 use crate::workspace::WorkspaceAction;
-use crate::{send_telemetry_from_ctx, BlocklistAIHistoryModel, ToastStack};
+use crate::{localization, send_telemetry_from_ctx, BlocklistAIHistoryModel, ToastStack};
 const MENU_WIDTH: f32 = 200.0;
 const MAX_HEIGHT: f32 = 320.0;
 const AVATAR_RIGHT_MARGIN: f32 = 8.;

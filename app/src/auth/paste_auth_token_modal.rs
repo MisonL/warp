@@ -6,7 +6,6 @@
 //! This lives in the app crate (not the onboarding crate) because it reuses
 //! `EditorView` for the text input, which the onboarding crate doesn't
 //! depend on.
-use crate::localization;
 use pathfinder_color::ColorU;
 use ui_components::{button, Component as _, Options as _};
 use warp_core::ui::theme::color::internal_colors;
@@ -32,6 +31,7 @@ use crate::auth::login_failure_notification::LoginFailureReason;
 use crate::editor::{
     EditorView, InteractionState, SingleLineEditorOptions, TextColors, TextOptions,
 };
+use crate::localization;
 use crate::server::server_api::auth::UserAuthenticationError;
 use crate::themes::theme::Fill as ThemeFill;
 use crate::util::bindings::CustomAction;

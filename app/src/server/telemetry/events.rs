@@ -1641,7 +1641,6 @@ pub enum TelemetryEvent {
     WarpAIAction {
         action_type: WarpAIActionType,
     },
-    /// This is purely for static prompts! Do not send user-written prompts with this event.
     UsedWarpAIPreparedPrompt {
         prompt: &'static str,
     },
@@ -3378,9 +3377,9 @@ impl TelemetryEvent {
             TelemetryEvent::AISuggestedRuleContentChanged { rule_id, is_saved } => {
                 Some(json!({ "rule_id": rule_id, "is_saved": is_saved }))
             }
-            TelemetryEvent::UsedWarpAIPreparedPrompt { prompt } => {
-                Some(json!({ "prompt": prompt }))
-            }
+            TelemetryEvent::UsedWarpAIPreparedPrompt { prompt } => Some(json!({
+                "prompt": prompt,
+            })),
             TelemetryEvent::ExperimentTriggered {
                 experiment,
                 layer,
@@ -5557,7 +5556,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenedWarpAI => EnablementState::Always,
             Self::WarpAIRequestIssued => EnablementState::Always,
             Self::WarpAIAction => EnablementState::Always,
-            Self::UsedWarpAIPreparedPrompt => EnablementState::Always,
+            Self::UsedWarpAIPreparedPrompt { .. } => EnablementState::Always,
             Self::WarpAICharacterLimitExceeded => EnablementState::Always,
             Self::OpenInputContextMenu => EnablementState::Always,
             Self::InputCutSelectedText => EnablementState::Always,
@@ -6071,7 +6070,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenedWarpAI => "Opened Warp AI",
             Self::WarpAIRequestIssued => "Warp AI Request Issued",
             Self::WarpAIAction => "Warp AI Action",
-            Self::UsedWarpAIPreparedPrompt => "Used Warp AI Prepared Prompt",
+            Self::UsedWarpAIPreparedPrompt { .. } => "Used Warp AI Prepared Prompt",
             Self::WarpAICharacterLimitExceeded => "Warp AI Character Limit Exceeded",
             Self::OpenInputContextMenu => "OpenInputBoxContextMenu",
             Self::InputCutSelectedText => "InputBoxCutSelectedText",
@@ -6733,7 +6732,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::OpenedWarpAI => "Activated Warp AI",
             Self::WarpAIRequestIssued => "Issued a question to Warp AI",
             Self::WarpAIAction => "Executed a Warp AI action: Restart, Copy, Insert into terminal",
-            Self::UsedWarpAIPreparedPrompt => {
+            Self::UsedWarpAIPreparedPrompt { .. } => {
                 "Used one of the Warp-provided prompts, like \"Show examples\""
             }
             Self::WarpAICharacterLimitExceeded => {

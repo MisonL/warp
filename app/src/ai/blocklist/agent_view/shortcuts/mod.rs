@@ -16,13 +16,13 @@ use warpui::{AppContext, Element, SingletonEntity};
 use crate::ai::blocklist::agent_view::{
     ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE, ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
 };
-use crate::cmd_or_ctrl_shift;
 use crate::terminal::{self, TOGGLE_AUTOEXECUTE_MODE_KEYBINDING};
 use crate::ui_components::blended_colors;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::view::{
     TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, TOGGLE_RIGHT_PANEL_BINDING_NAME,
 };
+use crate::{cmd_or_ctrl_shift, localization};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct AgentShortcutsViewContext {
@@ -122,7 +122,11 @@ pub fn render_agent_shortcuts_view(
                     key: "!".to_owned(),
                     ..Default::default()
                 },
-                text: "input shell command".into(),
+                text: localization::text_for_app(
+                    app,
+                    "agent.zero_state.shortcut.input_shell_command",
+                )
+                .into(),
                 ..Default::default()
             },
             app,
@@ -135,7 +139,8 @@ pub fn render_agent_shortcuts_view(
                 key: "/".to_owned(),
                 ..Default::default()
             },
-            text: "for slash commands".into(),
+            text: localization::text_for_app(app, "agent.zero_state.shortcut.slash_commands")
+                .into(),
             ..Default::default()
         },
         app,
@@ -147,7 +152,8 @@ pub fn render_agent_shortcuts_view(
                 key: "@".to_owned(),
                 ..Default::default()
             },
-            text: "for file paths and attaching other context".into(),
+            text: localization::text_for_app(app, "agent.zero_state.shortcut.attach_context")
+                .into(),
             ..Default::default()
         },
         app,
@@ -160,7 +166,11 @@ pub fn render_agent_shortcuts_view(
             shortcuts.push(render_shortcut(
                 ShortcutProps {
                     keystroke,
-                    text: "open code review".into(),
+                    text: localization::text_for_app(
+                        app,
+                        "agent.zero_state.shortcut.open_code_review",
+                    )
+                    .into(),
                     ..Default::default()
                 },
                 app,
@@ -175,7 +185,11 @@ pub fn render_agent_shortcuts_view(
             shortcuts.push(render_shortcut(
                 ShortcutProps {
                     keystroke,
-                    text: "toggle conversation list".into(),
+                    text: localization::text_for_app(
+                        app,
+                        "agent.zero_state.shortcut.toggle_conversation_list",
+                    )
+                    .into(),
                     ..Default::default()
                 },
                 app,
@@ -186,7 +200,8 @@ pub fn render_agent_shortcuts_view(
     shortcuts.push(render_shortcut(
         ShortcutProps {
             keystroke: Keystroke::parse(cmd_or_ctrl_shift("y")).expect("is valid keystroke"),
-            text: "search and continue conversations".into(),
+            text: localization::text_for_app(app, "agent.zero_state.shortcut.search_conversations")
+                .into(),
             ..Default::default()
         },
         app,
@@ -202,7 +217,15 @@ pub fn render_agent_shortcuts_view(
     shortcuts.push(render_shortcut(
         ShortcutProps {
             keystroke: new_conversation_keystroke.clone(),
-            text: "start a new conversation".into(),
+            text: localization::text_for_app(
+                app,
+                if context.is_cloud_agent {
+                    "agent.zero_state.shortcut.new_cloud_agent_conversation"
+                } else {
+                    "agent.zero_state.shortcut.new_agent_conversation"
+                },
+            )
+            .into(),
             ..Default::default()
         },
         app,
@@ -215,7 +238,8 @@ pub fn render_agent_shortcuts_view(
             shortcuts.push(render_shortcut(
                 ShortcutProps {
                     keystroke,
-                    text: "toggle auto-accept".into(),
+                    text: localization::text_for_app(app, "agent.zero_state.shortcut.auto_accept")
+                        .into(),
                     ..Default::default()
                 },
                 app,
@@ -230,7 +254,7 @@ pub fn render_agent_shortcuts_view(
                 ctrl: true,
                 ..Default::default()
             },
-            text: "pause agent".into(),
+            text: localization::text_for_app(app, "agent.zero_state.shortcut.pause_agent").into(),
             ..Default::default()
         },
         app,
@@ -242,7 +266,8 @@ pub fn render_agent_shortcuts_view(
                 key: "escape".to_owned(),
                 ..Default::default()
             },
-            text: "go back to terminal".into(),
+            text: localization::text_for_app(app, "agent.zero_state.shortcut.go_back_to_terminal")
+                .into(),
             ..Default::default()
         },
         app,

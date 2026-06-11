@@ -1,16 +1,15 @@
-use crate::localization;
+use warpui::elements::{
+    Border, ChildView, Container, CrossAxisAlignment, Empty, Flex, MouseStateHandle, ParentElement,
+    Text,
+};
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Border, ChildView, Container, CrossAxisAlignment, Empty, Flex, MouseStateHandle,
-        ParentElement, Text,
-    },
-    ui_components::{
-        button::ButtonVariant,
-        components::{UiComponent, UiComponentStyles},
-    },
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
 };
+
+use crate::localization;
 mod lsp_server_selector;
 pub mod model;
 
@@ -1085,9 +1084,10 @@ impl InitStepBlock {
 
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::success(format!(
-                                "{} installed and enabled successfully.",
-                                server_type.binary_name()
+                            DismissibleToast::success(localization::text_for_app_with_args(
+                                ctx,
+                                "terminal.init_project.lsp.install_success",
+                                &[("server", server_type.binary_name())],
                             )),
                             window_id,
                             ctx,
@@ -1107,11 +1107,16 @@ impl InitStepBlock {
                         ctx
                     );
 
+                    let error = e.to_string();
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(format!(
-                                "Failed to install {}: {e}",
-                                server_type.binary_name()
+                            DismissibleToast::error(localization::text_for_app_with_args(
+                                ctx,
+                                "terminal.init_project.lsp.install_failed",
+                                &[
+                                    ("server", server_type.binary_name()),
+                                    ("error", error.as_str()),
+                                ],
                             )),
                             window_id,
                             ctx,
@@ -1231,11 +1236,13 @@ impl TypedActionView for InitStepBlock {
                     let window_id = ctx.window_id();
                     let server_names: Vec<_> =
                         servers_to_install.iter().map(|s| s.binary_name()).collect();
+                    let servers = server_names.join(", ");
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::default(format!(
-                                "Installing {} in background...",
-                                server_names.join(", ")
+                            DismissibleToast::default(localization::text_for_app_with_args(
+                                ctx,
+                                "terminal.init_project.lsp.installing_background",
+                                &[("servers", servers.as_str())],
                             )),
                             window_id,
                             ctx,

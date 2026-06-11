@@ -26,6 +26,7 @@ use warpui::platform::keyboard::KeyCode;
 use warpui::platform::OperatingSystem;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
 
+use crate::ai::agent::conversation::AIConversation;
 use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::auth::AuthStateProvider;
 use crate::report_if_error;
@@ -1722,6 +1723,16 @@ impl AISettings {
             crate::workspaces::workspace::AdminEnablementSetting::Disable
         )
     }
+
+    pub fn is_cloud_handoff_enabled_for_conversation(
+        &self,
+        conversation: Option<&AIConversation>,
+        app: &warpui::AppContext,
+    ) -> bool {
+        self.is_cloud_handoff_enabled(app)
+            && conversation.is_none_or(|conversation| !conversation.has_parent_agent())
+    }
+
     pub fn is_ampersand_handoff_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_cloud_handoff_enabled(app) && !*self.should_force_disable_ampersand_handoff
     }

@@ -1,4 +1,4 @@
-use ::ai::api_keys::{ApiKeyManager, ApiKeys};
+use ::ai::api_keys::{ApiKeyManager, ApiKeys, AwsCredentialsState};
 use enum_iterator::all;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
@@ -954,7 +954,13 @@ impl AISettingsPageView {
                 let expanded = host_native_absolute_path(s, &None, &None);
                 Path::new(&expanded).is_dir()
             });
-            input.set_placeholder_text("e.g. ~/code-repos/repo", ctx);
+            input.set_placeholder_text(
+                ai_settings_text(
+                    ctx,
+                    "settings.execution_profile.editor.directory_allowlist_placeholder",
+                ),
+                ctx,
+            );
             input
         });
         Self::update_editor_interaction_state(
@@ -1018,7 +1024,13 @@ impl AISettingsPageView {
         let command_execution_allowlist_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
-            input.set_placeholder_text("e.g. ls .*", ctx);
+            input.set_placeholder_text(
+                ai_settings_text(
+                    ctx,
+                    "settings.execution_profile.editor.command_allowlist_placeholder",
+                ),
+                ctx,
+            );
             input
         });
         Self::update_editor_interaction_state(
@@ -1050,7 +1062,13 @@ impl AISettingsPageView {
         let command_execution_denylist_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
-            input.set_placeholder_text("e.g. rm .*", ctx);
+            input.set_placeholder_text(
+                ai_settings_text(
+                    ctx,
+                    "settings.execution_profile.editor.command_denylist_placeholder",
+                ),
+                ctx,
+            );
             input
         });
         Self::update_editor_interaction_state(
@@ -1082,7 +1100,10 @@ impl AISettingsPageView {
         let cli_agent_footer_command_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
-            input.set_placeholder_text("command (supports regex)", ctx);
+            input.set_placeholder_text(
+                ai_settings_text(ctx, "settings.ai.cli_agent_toolbar.commands.placeholder"),
+                ctx,
+            );
             input
         });
         // The coding agent footer command editor is always enabled,
@@ -1532,7 +1553,13 @@ impl AISettingsPageView {
                 let expanded = host_native_absolute_path(s, &None, &None);
                 Path::new(&expanded).is_dir()
             });
-            input.set_placeholder_text("e.g. ~/code-repos/repo", ctx);
+            input.set_placeholder_text(
+                ai_settings_text(
+                    ctx,
+                    "settings.execution_profile.editor.directory_allowlist_placeholder",
+                ),
+                ctx,
+            );
             input
         });
 
@@ -1567,7 +1594,13 @@ impl AISettingsPageView {
         let command_denylist_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
-            input.set_placeholder_text("e.g. rm .*", ctx);
+            input.set_placeholder_text(
+                ai_settings_text(
+                    ctx,
+                    "settings.execution_profile.editor.command_denylist_placeholder",
+                ),
+                ctx,
+            );
             input
         });
         Self::update_editor_interaction_state(
@@ -1605,7 +1638,13 @@ impl AISettingsPageView {
         let command_allowlist_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
-            input.set_placeholder_text("e.g. ls .*", ctx);
+            input.set_placeholder_text(
+                ai_settings_text(
+                    ctx,
+                    "settings.execution_profile.editor.command_allowlist_placeholder",
+                ),
+                ctx,
+            );
             input
         });
         Self::update_editor_interaction_state(
@@ -3855,7 +3894,6 @@ fn render_ai_setting_toggle<S: Setting>(
     let appearance = Appearance::as_ref(app);
     build_toggle_element(
         render_body_item_label::<AISettingsPageAction>(
-            app,
             label.into(),
             Some(styles::header_font_color(is_setting_toggleable, app)),
             None,
@@ -3888,7 +3926,6 @@ fn render_ai_setting_label<S: Setting>(
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     Container::new(render_body_item_label::<AISettingsPageAction>(
-        app,
         label.into(),
         Some(styles::header_font_color(is_setting_toggleable, app)),
         None,
@@ -4992,7 +5029,6 @@ impl AgentsWidget {
         let max = cw.max;
 
         let label = Container::new(render_body_item_label::<AISettingsPageAction>(
-            app,
             ai_settings_text(app, "settings.ai.agents.context_window.label"),
             None,
             None,
@@ -5094,7 +5130,7 @@ impl AgentsWidget {
             .should_show_long_context_pricing_warning(view.dragged_context_window_value, app)
         {
             column.add_child(render_warning_box(
-                WarningBoxConfig::formatted_title(long_context_pricing_warning_title()),
+                WarningBoxConfig::formatted_title(long_context_pricing_warning_title(app)),
                 appearance,
             ));
         }
@@ -5760,7 +5796,6 @@ impl AgentsWidget {
                     Shrinkable::new(
                         1.0,
                         Container::new(render_dropdown_item_label(
-                            app,
                             title,
                             Some(description),
                             LocalOnlyIconState::Hidden,
@@ -5895,14 +5930,14 @@ impl SettingsWidget for AIInputWidget {
         ));
 
         if FeatureFlag::QueueSlashCommand.is_enabled() {
+            let prompt_submission_mode_label =
+                ai_settings_text(app, "settings.ai.input.prompt_submission_mode.label");
+            let prompt_submission_mode_description =
+                ai_settings_text(app, "settings.ai.input.prompt_submission_mode.description");
             widget_children.push(render_dropdown_item(
                 appearance,
-                "Default prompt submission mode",
-                Some(
-                    "What happens when you submit a new prompt while the agent is still \
-                     responding. You can override this per conversation using the auto-queue \
-                     toggle.",
-                ),
+                &prompt_submission_mode_label,
+                Some(&prompt_submission_mode_description),
                 None,
                 LocalOnlyIconState::for_setting(
                     PromptSubmissionMode::storage_key(),
@@ -6693,8 +6728,11 @@ impl SettingsWidget for OtherAIWidget {
 
         column.add_child(render_dropdown_item(
             appearance,
-            "Orchestration message display",
-            Some("Controls whether orchestration messages stay expanded."),
+            &ai_settings_text(app, "settings.ai.other.orchestration_message_display.label"),
+            Some(&ai_settings_text(
+                app,
+                "settings.ai.other.orchestration_message_display.description",
+            )),
             None,
             LocalOnlyIconState::for_setting(
                 OrchestrationMessageDisplayMode::storage_key(),
@@ -6833,7 +6871,6 @@ impl SettingsWidget for CLIAgentWidget {
             if FeatureFlag::CLIAgentRichInput.is_enabled() {
                 // Setting 1: Auto show/hide rich input based on agent status
                 let auto_show_toggle_label = render_body_item_label::<AISettingsPageAction>(
-                    app,
                     ai_settings_text(
                         app,
                         "settings.ai.cli_agent_toolbar.auto_toggle_rich_input.label",
@@ -6901,7 +6938,10 @@ impl SettingsWidget for CLIAgentWidget {
 
                 // Setting 3: Submit Rich Input with Ctrl+Enter
                 column.add_child(render_ai_setting_toggle::<SubmitRichInputOnCtrlEnter>(
-                    "Submit Rich Input with Ctrl+Enter",
+                    ai_settings_text(
+                        app,
+                        "settings.ai.cli_agent_toolbar.submit_rich_input_on_ctrl_enter.label",
+                    ),
                     AISettingsPageAction::ToggleSubmitRichInputOnCtrlEnter,
                     *ai_settings.submit_on_ctrl_enter,
                     true,
@@ -7141,7 +7181,6 @@ impl SettingsWidget for AgentAttributionWidget {
 
         let toggle_row = build_toggle_element(
             render_body_item_label::<AISettingsPageAction>(
-                app,
                 ai_settings_text(app, "settings.ai.agent_attribution.enable"),
                 Some(styles::header_font_color(!state.is_disabled, app)),
                 None,
@@ -7247,7 +7286,6 @@ impl SettingsWidget for CloudAgentComputerUseWidget {
 
         let toggle_row = build_toggle_element(
             render_body_item_label::<AISettingsPageAction>(
-                app,
                 ai_settings_text(app, "settings.ai.cloud_agent_computer_use.label"),
                 Some(styles::header_font_color(!is_disabled, app)),
                 None,
@@ -7351,7 +7389,6 @@ impl SettingsWidget for CloudHandoffWidget {
 
         let handoff_row = build_toggle_element(
             render_body_item_label::<AISettingsPageAction>(
-                app,
                 ai_settings_text(app, "settings.ai.cloud_handoff.label"),
                 Some(styles::header_font_color(!is_force_disabled, app)),
                 None,
@@ -7397,7 +7434,6 @@ impl SettingsWidget for CloudHandoffWidget {
                     .finish();
                 let auto_handoff_on_sleep_row = build_toggle_element(
                     render_body_item_label::<AISettingsPageAction>(
-                        app,
                         ai_settings_text(app, "settings.ai.cloud_handoff.auto_sleep.label"),
                         Some(styles::header_font_color(true, app)),
                         None,
@@ -7427,7 +7463,6 @@ impl SettingsWidget for CloudHandoffWidget {
 
             let ampersand_row = build_toggle_element(
                 render_body_item_label::<AISettingsPageAction>(
-                    app,
                     ai_settings_text(app, "settings.ai.cloud_handoff.ampersand.label"),
                     Some(styles::header_font_color(true, app)),
                     None,
@@ -8112,7 +8147,13 @@ impl AwsBedrockWidget {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("aws login", ctx);
+            editor.set_placeholder_text(
+                ai_settings_text(
+                    ctx,
+                    "settings.ai.aws_bedrock.credentials.refresh_command_placeholder",
+                ),
+                ctx,
+            );
             editor.set_buffer_text(&aws_auth_refresh_command, ctx);
             editor
         });
@@ -8368,13 +8409,48 @@ impl AwsBedrockWidget {
             are_credentials_enabled: bool,
             app: &AppContext,
         ) -> Box<dyn Element> {
+            fn localized_aws_credentials_state(
+                state: &AwsCredentialsState,
+                app: &AppContext,
+            ) -> (String, String, Icon) {
+                let (_, default_detail, icon) = state.user_facing_components();
+                let (title_key, detail_key) = match state {
+                    AwsCredentialsState::Missing => (
+                        "settings.ai.aws_bedrock.credentials.status.missing.title",
+                        Some("settings.ai.aws_bedrock.credentials.status.missing.detail"),
+                    ),
+                    AwsCredentialsState::Disabled => (
+                        "settings.ai.aws_bedrock.credentials.status.disabled.title",
+                        Some("settings.ai.aws_bedrock.credentials.status.disabled.detail"),
+                    ),
+                    AwsCredentialsState::Refreshing => (
+                        "settings.ai.aws_bedrock.credentials.status.refreshing.title",
+                        Some("settings.ai.aws_bedrock.credentials.status.refreshing.detail"),
+                    ),
+                    AwsCredentialsState::Loaded { .. } => (
+                        "settings.ai.aws_bedrock.credentials.status.loaded.title",
+                        None,
+                    ),
+                    AwsCredentialsState::Failed { .. } => (
+                        "settings.ai.aws_bedrock.credentials.status.failed.title",
+                        None,
+                    ),
+                };
+                let title = ai_settings_text(app, title_key);
+                let detail = detail_key
+                    .map(|key| ai_settings_text(app, key))
+                    .unwrap_or(default_detail);
+                (title, detail, icon)
+            }
+
             let (title_color, detail_color) = (
                 styles::header_font_color(are_credentials_enabled, app),
                 styles::description_font_color(are_credentials_enabled, app),
             );
-            let (title_text, detail_text, icon) = ApiKeyManager::as_ref(app)
-                .aws_credentials_state()
-                .user_facing_components();
+            let (title_text, detail_text, icon) = localized_aws_credentials_state(
+                ApiKeyManager::as_ref(app).aws_credentials_state(),
+                app,
+            );
 
             let icon = Container::new(
                 ConstrainedBox::new(icon.to_warpui_icon(title_color).finish())

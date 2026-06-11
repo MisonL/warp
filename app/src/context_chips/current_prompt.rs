@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
 use std::sync::Arc;
@@ -30,6 +29,7 @@ use crate::code_review::git_status_update::{GitRepoStatusEvent, GitRepoStatusMod
 use crate::context_chips::display_chip::GitLineChanges;
 use crate::editor::EditorView;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::settings::{InputSettings, WarpPromptSeparator};
 use crate::terminal::event::{BlockType, UserBlockCompleted};

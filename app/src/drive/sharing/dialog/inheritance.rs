@@ -1,6 +1,5 @@
 //! Support for displaying inherited ACLs.
 
-use crate::localization;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{CrossAxisAlignment, Flex, MouseStateHandle, ParentElement as _};
 use warpui::ui_components::components::UiComponent as _;
@@ -10,6 +9,7 @@ use super::style;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::ServerObjectContainer;
 use crate::drive::CloudObjectTypeAndId;
+use crate::localization;
 use crate::server::ids::SyncId;
 use crate::server::telemetry::SharingDialogSource;
 use crate::workspace::WorkspaceAction;

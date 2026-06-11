@@ -23,6 +23,38 @@ use crate::server::ids::{ObjectUid, SyncId};
 use crate::settings::AISettings;
 use crate::workflows::CloudWorkflow;
 
+fn notebook_search_item(
+    match_result: FuzzyMatchNotebookResult,
+    cloud_notebook: CloudNotebook,
+    app: &AppContext,
+) -> NotebookSearchItem {
+    NotebookSearchItem {
+        match_result,
+        cloud_notebook,
+        untitled_fallback: crate::localization::text_for_app(app, "notebook.placeholder.untitled"),
+        accessibility_label_template: crate::localization::text_for_app(
+            app,
+            "search.notebook.a11y.label",
+        ),
+    }
+}
+
+fn env_var_collection_search_item(
+    match_result: FuzzyMatchEnvVarCollectionResult,
+    cloud_env_var_collection: CloudEnvVarCollection,
+    app: &AppContext,
+) -> EnvVarCollectionSearchItem {
+    EnvVarCollectionSearchItem {
+        match_result,
+        cloud_env_var_collection,
+        untitled_fallback: crate::localization::text_for_app(app, "env_vars.title.untitled"),
+        accessibility_label_template: crate::localization::text_for_app(
+            app,
+            "search.env_var_collection.a11y.label",
+        ),
+    }
+}
+
 /// Datasource that searches against all Warp Drive objects
 pub struct DataSource {
     searcher: Box<dyn WarpDriveSearcher>,
@@ -252,18 +284,20 @@ impl DataSource {
 
         let notebook: Option<&CloudNotebook> = object.into();
         if let Some(notebook) = notebook {
-            return Some(QueryResult::from(NotebookSearchItem {
-                match_result: FuzzyMatchNotebookResult::no_match(),
-                cloud_notebook: notebook.clone(),
-            }));
+            return Some(QueryResult::from(notebook_search_item(
+                FuzzyMatchNotebookResult::no_match(),
+                notebook.clone(),
+                app,
+            )));
         }
 
         let env_var_collection: Option<&CloudEnvVarCollection> = object.into();
         if let Some(env_var_collection) = env_var_collection {
-            return Some(QueryResult::from(EnvVarCollectionSearchItem {
-                match_result: FuzzyMatchEnvVarCollectionResult::no_match(),
-                cloud_env_var_collection: env_var_collection.clone(),
-            }));
+            return Some(QueryResult::from(env_var_collection_search_item(
+                FuzzyMatchEnvVarCollectionResult::no_match(),
+                env_var_collection.clone(),
+                app,
+            )));
         }
 
         None
@@ -451,10 +485,7 @@ impl WarpDriveSearcher for FuzzyWarpDriveSearcher {
         Ok(cloud_notebooks
             .filter_map(|cloud_notebook| {
                 FuzzyMatchNotebookResult::try_match(query, cloud_notebook, app).map(
-                    |match_result| NotebookSearchItem {
-                        match_result,
-                        cloud_notebook: cloud_notebook.clone(),
-                    },
+                    |match_result| notebook_search_item(match_result, cloud_notebook.clone(), app),
                 )
             })
             .collect())
@@ -471,10 +502,7 @@ impl WarpDriveSearcher for FuzzyWarpDriveSearcher {
         Ok(cloud_notebooks
             .filter_map(|cloud_notebook| {
                 FuzzyMatchNotebookResult::try_match(query, cloud_notebook, app).map(
-                    |match_result| NotebookSearchItem {
-                        match_result,
-                        cloud_notebook: cloud_notebook.clone(),
-                    },
+                    |match_result| notebook_search_item(match_result, cloud_notebook.clone(), app),
                 )
             })
             .collect())
@@ -526,9 +554,12 @@ impl WarpDriveSearcher for FuzzyWarpDriveSearcher {
                     &cloud_env_var_collection.model().string_model,
                     cloud_env_var_collection.breadcrumbs(app).as_str(),
                 )
-                .map(|match_result| EnvVarCollectionSearchItem {
-                    match_result,
-                    cloud_env_var_collection: cloud_env_var_collection.clone(),
+                .map(|match_result| {
+                    env_var_collection_search_item(
+                        match_result,
+                        cloud_env_var_collection.clone(),
+                        app,
+                    )
                 })
             })
             .collect())
@@ -553,7 +584,9 @@ mod full_text_searcher {
     use crate::env_vars::CloudEnvVarCollection;
     use crate::notebooks::manager::NotebookManager;
     use crate::notebooks::CloudNotebook;
-    use crate::search::command_palette::warp_drive::data_source::WarpDriveSearcher;
+    use crate::search::command_palette::warp_drive::data_source::{
+        env_var_collection_search_item, notebook_search_item, WarpDriveSearcher,
+    };
     use crate::search::command_palette::warp_drive::env_var_collection_search_item::{
         EnvVarCollectionSearchItem, ENV_VAR_NAME_SEPARATOR,
     };
@@ -647,10 +680,11 @@ mod full_text_searcher {
                             return None;
                         }
 
-                        Some(NotebookSearchItem {
-                            match_result: FuzzyMatchNotebookResult::no_match(),
-                            cloud_notebook: cloud_notebook.clone(),
-                        })
+                        Some(notebook_search_item(
+                            FuzzyMatchNotebookResult::no_match(),
+                            cloud_notebook.clone(),
+                            app,
+                        ))
                     })
                     .collect());
             }
@@ -683,14 +717,15 @@ mod full_text_searcher {
                         matched_indices: search_match.highlights.folder,
                     });
 
-                    Some(NotebookSearchItem {
-                        match_result: FuzzyMatchNotebookResult {
+                    Some(notebook_search_item(
+                        FuzzyMatchNotebookResult {
                             name_match_result,
                             content_match_result,
                             folder_match_result,
                         },
-                        cloud_notebook: notebook.clone(),
-                    })
+                        notebook.clone(),
+                        app,
+                    ))
                 })
                 .collect())
         }
@@ -1062,10 +1097,11 @@ mod full_text_searcher {
                                 .into();
                         let env_var_collection = env_var_collection?;
 
-                        Some(EnvVarCollectionSearchItem {
-                            match_result: FuzzyMatchEnvVarCollectionResult::no_match(),
-                            cloud_env_var_collection: env_var_collection.clone(),
-                        })
+                        Some(env_var_collection_search_item(
+                            FuzzyMatchEnvVarCollectionResult::no_match(),
+                            env_var_collection.clone(),
+                            app,
+                        ))
                     })
                     .collect());
             }
@@ -1099,15 +1135,16 @@ mod full_text_searcher {
                         matched_indices: search_match.highlights.folder,
                     });
 
-                    Some(EnvVarCollectionSearchItem {
-                        match_result: FuzzyMatchEnvVarCollectionResult {
+                    Some(env_var_collection_search_item(
+                        FuzzyMatchEnvVarCollectionResult {
                             title_match_result,
                             var_name_match_result,
                             description_match_result,
                             breadcrumbs_match_result,
                         },
-                        cloud_env_var_collection: env_var_collection.clone(),
-                    })
+                        env_var_collection.clone(),
+                        app,
+                    ))
                 })
                 .collect())
         }

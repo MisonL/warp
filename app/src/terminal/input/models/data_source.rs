@@ -42,8 +42,6 @@ use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-const AUTO_BEDROCK_TOOLTIP: &str = "Warp uses Bedrock when the model Auto selects supports it; otherwise it may use Warp-hosted inference.";
-
 fn localized_text(app: &AppContext, key: &str) -> String {
     crate::localization::text_for_app(app, key)
 }
@@ -259,6 +257,7 @@ struct ModelSearchItem {
     is_selected: bool,
     is_custom_endpoint: bool,
     disable_reason: Option<DisableReason>,
+    disable_reason_tooltip: Option<String>,
     is_auto: bool,
     is_using_bedrock: bool,
     name_match_result: Option<FuzzyMatchResult>,
@@ -309,6 +308,9 @@ impl ModelSearchItem {
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
             is_custom_endpoint,
+            disable_reason_tooltip: disable_reason
+                .as_ref()
+                .map(|reason| localized_text(app, reason.tooltip_key())),
             disable_reason,
             is_auto,
             is_using_bedrock,
@@ -554,15 +556,18 @@ impl SearchItem for ModelSearchItem {
                 .finish();
             CostRow::BilledToProvider {
                 label: if self.is_using_bedrock && self.is_auto {
-                    "Inference may use Bedrock"
+                    localized_text(app, "settings.ai.model_selector.cost.may_use_bedrock")
                 } else if self.is_using_bedrock {
-                    "Inference via Bedrock"
+                    localized_text(app, "settings.ai.model_selector.cost.via_bedrock")
                 } else {
-                    "Inference via API key"
+                    localized_text(app, "settings.ai.model_selector.cost.via_api_key")
                 },
                 tooltip: if self.is_using_bedrock && self.is_auto {
                     Some(CostRowTooltip {
-                        text: AUTO_BEDROCK_TOOLTIP,
+                        text: localized_text(
+                            app,
+                            "settings.ai.model_selector.cost.auto_bedrock_tooltip",
+                        ),
                         mouse_state: self.cost_row_tooltip_mouse_state.clone(),
                     })
                 } else {
@@ -699,9 +704,7 @@ impl SearchItem for ModelSearchItem {
     }
 
     fn tooltip(&self) -> Option<String> {
-        self.disable_reason
-            .as_ref()
-            .map(|reason| reason.tooltip_text().to_string())
+        self.disable_reason_tooltip.clone()
     }
 
     fn accessibility_label(&self) -> String {

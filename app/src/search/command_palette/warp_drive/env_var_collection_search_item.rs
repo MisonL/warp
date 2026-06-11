@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
+use warp_localization::replace_placeholders;
 use warpui::elements::{Container, Flex, Highlight, ParentElement, Text};
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
@@ -24,6 +25,19 @@ pub const ENV_VAR_NAME_SEPARATOR: &str = ", ";
 pub struct EnvVarCollectionSearchItem {
     pub match_result: FuzzyMatchEnvVarCollectionResult,
     pub cloud_env_var_collection: CloudEnvVarCollection,
+    pub untitled_fallback: String,
+    pub accessibility_label_template: String,
+}
+
+impl EnvVarCollectionSearchItem {
+    fn title(&self) -> String {
+        self.cloud_env_var_collection
+            .model()
+            .string_model
+            .title
+            .clone()
+            .unwrap_or_else(|| self.untitled_fallback.clone())
+    }
 }
 
 impl SearchItem for EnvVarCollectionSearchItem {
@@ -58,13 +72,7 @@ impl SearchItem for EnvVarCollectionSearchItem {
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut title_text = Text::new_inline(
-            self.cloud_env_var_collection
-                .model()
-                .string_model
-                .title
-                .clone()
-                .unwrap_or("Untitled".to_owned())
-                .to_owned(),
+            self.title(),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -163,14 +171,10 @@ impl SearchItem for EnvVarCollectionSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!(
-            "Environment Variables: {}",
-            self.cloud_env_var_collection
-                .model()
-                .string_model
-                .title
-                .clone()
-                .unwrap_or("Untitled".to_owned())
+        replace_placeholders(
+            &self.accessibility_label_template,
+            &[("title", &self.title())],
         )
+        .expect("env var collection accessibility label template must use title")
     }
 }

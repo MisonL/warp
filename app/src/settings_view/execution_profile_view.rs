@@ -16,11 +16,11 @@ use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId,
 };
 use crate::ai::execution_profiles::{
-    ActionPermission, AskUserQuestionPermission, RunAgentsPermission, WriteToPtyPermission,
+    AIExecutionProfileAppExt, ActionPermission, AskUserQuestionPermission, RunAgentsPermission,
+    WriteToPtyPermission,
 };
 use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
-use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::localization::{self, LocalizationUpdater};
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
@@ -148,14 +148,18 @@ impl View for ExecutionProfileView {
                         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
                         .with_child(
-                            Text::new(profile.display_name(), appearance.ui_font_family(), 14.)
-                                .with_style(Properties::default().weight(Weight::Medium))
-                                .with_color(if is_any_ai_enabled {
-                                    appearance.theme().active_ui_text_color().into()
-                                } else {
-                                    appearance.theme().disabled_ui_text_color().into()
-                                })
-                                .finish(),
+                            Text::new(
+                                profile.display_name_for_app(app),
+                                appearance.ui_font_family(),
+                                14.,
+                            )
+                            .with_style(Properties::default().weight(Weight::Medium))
+                            .with_color(if is_any_ai_enabled {
+                                appearance.theme().active_ui_text_color().into()
+                            } else {
+                                appearance.theme().disabled_ui_text_color().into()
+                            })
+                            .finish(),
                         )
                         .with_child(self.edit_button.as_ref(app).render(app))
                         .finish(),

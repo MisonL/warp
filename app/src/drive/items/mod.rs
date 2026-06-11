@@ -28,7 +28,7 @@ pub trait WarpDriveItem {
     fn object_type(&self) -> Option<DriveObjectType>;
     fn secondary_icon(&self, color: Option<Fill>) -> Option<Box<dyn Element>>; // The optional icon to the right of the name
     fn click_action(&self) -> Option<DriveIndexAction>;
-    fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>>;
+    fn preview(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>>;
     fn warp_drive_id(&self) -> WarpDriveItemId;
     fn sync_status_icon(
         &self,

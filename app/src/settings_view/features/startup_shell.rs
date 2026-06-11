@@ -1,4 +1,3 @@
-use crate::localization;
 use warpui::elements::{CrossAxisAlignment, Fill, Flex, ParentElement, Shrinkable};
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -12,7 +11,7 @@ use crate::terminal::local_tty::shell::is_valid_path_or_command_for_supported_sh
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::view_components::dropdown::TOP_MENU_BAR_HEIGHT;
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::{report_if_error, send_telemetry_from_ctx};
+use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 fn text(app: &warpui::AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

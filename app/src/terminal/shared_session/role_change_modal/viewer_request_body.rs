@@ -1,4 +1,3 @@
-use crate::localization;
 use session_sharing_protocol::common::Role;
 use warpui::elements::{
     Container, CrossAxisAlignment, Flex, MainAxisAlignment, MouseStateHandle, ParentElement, Text,
@@ -11,6 +10,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use super::{BODY_PADDING, HEADER_FONT_SIZE, MODAL_PADDING, TEXT_FONT_SIZE};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 
 pub const BUTTON_HEIGHT: f32 = 40.;

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
@@ -9,8 +8,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use warp_localization::replace_placeholders;
-use warp_localization::LocaleId;
 
 use futures::channel::oneshot;
 use session_sharing_protocol::common::{Role, SessionId};
@@ -19,6 +16,7 @@ use warp_cli::share::{ShareAccessLevel, ShareRequest, ShareSubject};
 use warp_completer::completer::CommandOutput;
 use warp_core::command::ExitCode;
 use warp_core::features::FeatureFlag;
+use warp_localization::{replace_placeholders, LocaleId};
 use warp_terminal::model::grid::Dimensions;
 use warp_util::path::ShellFamily;
 use warp_util::sync::Condition;
@@ -28,6 +26,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity as _
 use super::AgentDriverError;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::attachment_utils::attachments_download_dir;
+use crate::localization;
 use crate::pane_group::NewTerminalOptions;
 use crate::root_view::{open_new_with_workspace_source, NewWorkspaceSource};
 use crate::terminal::model::block::{BlockId, SerializedBlock};

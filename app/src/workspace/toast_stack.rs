@@ -1,7 +1,7 @@
-use crate::localization;
 use warp_localization::LocaleId;
 use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
 
+use crate::localization;
 use crate::view_components::{DismissibleToast, ToastType};
 use crate::workspace::WorkspaceAction;
 

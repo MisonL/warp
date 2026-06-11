@@ -1,17 +1,15 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::ffi::OsString;
-use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::Duration;
+use std::{fmt, thread};
 
 use ai::skills::{ParsedSkill, SKILL_PROVIDER_DEFINITIONS};
 use anyhow::{anyhow, Context as _};
@@ -77,7 +75,6 @@ use crate::ai::skills::{
 };
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
-use crate::send_telemetry_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::harness_support::{
@@ -92,6 +89,7 @@ use crate::terminal::cli_agent_sessions::{
 };
 use crate::terminal::model::BlockId;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
+use crate::{localization, send_telemetry_from_app_ctx};
 
 pub(crate) mod attachments;
 pub(crate) mod cloud_provider;

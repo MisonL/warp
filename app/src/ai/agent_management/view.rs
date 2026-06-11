@@ -68,7 +68,6 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
     PropagateHorizontalNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
-use crate::localization;
 use crate::localization::LocalizationUpdater;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::notebooks::NotebookId;
@@ -92,7 +91,7 @@ use crate::workspace::{
     ForkedConversationDestination, RestoreConversationLayout, ToastStack, WorkspaceAction,
 };
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{send_telemetry_from_ctx, AgentModeEntrypoint};
+use crate::{localization, send_telemetry_from_ctx, AgentModeEntrypoint};
 
 lazy_static! {
     static ref HASHER: SipHasher = SipHasher::new_with_keys(0, 0);
@@ -1915,7 +1914,11 @@ impl AgentManagementView {
             ));
         }
 
-        if let Some(usage) = entry.display.request_usage.map(format_credits) {
+        if let Some(usage) = entry
+            .display
+            .request_usage
+            .map(|credits| format_credits(app, credits))
+        {
             metadata_parts.push(format!(
                 "{}: {usage}",
                 text(app, "agent_management.metadata.credits_used")

@@ -1,5 +1,4 @@
 #![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
-use crate::localization;
 // Adding this file level gate as some of the code around editability is not used in WASM yet.
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -78,6 +77,7 @@ use crate::code::{
 use crate::code_review::comments::{CommentId, CommentOrigin};
 use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::notebooks::editor::rich_text_styles;
 use crate::settings::{AppEditorSettings, CodeEditorLineNumberMode, FontSettings};
 use crate::view_components::find::FindDirection;

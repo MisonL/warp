@@ -1,17 +1,15 @@
-use crate::appearance::Appearance;
-use crate::localization;
-use crate::localization::LocalizationUpdater;
-use crate::server::ids::SyncId;
-use crate::ui_components::dialog::dialog_styles;
-use crate::ui_components::dialog::Dialog;
-use crate::view_components::action_button::ActionButton;
-use crate::view_components::action_button::DangerPrimaryTheme;
-use crate::view_components::action_button::NakedTheme;
 use warpui::elements::{ChildView, Container, Dismiss, Empty};
 use warpui::ui_components::components::UiComponent;
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
+
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::localization::LocalizationUpdater;
+use crate::server::ids::SyncId;
+use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::view_components::action_button::{ActionButton, DangerPrimaryTheme, NakedTheme};
 
 const DIALOG_WIDTH: f32 = 450.;
 

@@ -6,7 +6,7 @@ use cloud_object_client::MockObjectClient;
 use lazy_static::lazy_static;
 use mockall::Sequence;
 use rand::Rng;
-use settings::{RespectUserSyncSetting, SyncToCloud};
+use settings::{RespectUserSyncSetting, Setting as _, SettingsManager, SyncToCloud};
 use warpui::{App, ModelHandle};
 
 use super::*;
@@ -35,7 +35,9 @@ use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
-use crate::settings::{init_and_register_user_preferences, Preference};
+use crate::settings::{
+    init_and_register_user_preferences, AppLanguage, LanguageSettings, Preference,
+};
 use crate::system::SystemStats;
 use crate::workflows::CloudWorkflowModel;
 use crate::workspaces::team::Team;
@@ -1238,7 +1240,28 @@ fn test_breadcrumbs() {
     .collect::<Vec<_>>();
 
     App::test((), |mut app| async move {
-        let cloud_object_server_api_mock = base_mock_cloud_object_server_api();
+        app.update(init_and_register_user_preferences);
+        app.add_singleton_model(|_| SettingsManager::default());
+        let language_settings = LanguageSettings::register(&mut app);
+        language_settings.update(&mut app, |settings, ctx| {
+            settings
+                .app_language
+                .set_value(AppLanguage::English, ctx)
+                .expect("test app language should be configurable");
+        });
+
+        let mut cloud_object_server_api_mock = base_mock_cloud_object_server_api();
+        cloud_object_server_api_mock
+            .expect_fetch_changed_objects()
+            .times(1)
+            .withf(|objects_to_update, force_refresh| {
+                objects_to_update.notebooks.is_empty()
+                    && objects_to_update.workflows.is_empty()
+                    && objects_to_update.folders.is_empty()
+                    && objects_to_update.generic_string_objects.is_empty()
+                    && *force_refresh
+            })
+            .return_once(move |_, _| Ok(InitialLoadResponse::default()));
         initialize_app(
             &mut app,
             folders.clone(),

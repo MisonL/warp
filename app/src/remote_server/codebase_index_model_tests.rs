@@ -1,5 +1,7 @@
 use super::*;
 
+const HOST_DISCONNECTED_FAILURE_MESSAGE: &str = "The remote host is currently disconnected.";
+
 fn host() -> HostId {
     HostId::new("host".to_string())
 }
@@ -52,6 +54,13 @@ fn status_with_path(repo_path: &str) -> RemoteCodebaseIndexStatusWithPath {
         remote_path: remote_path(repo_path),
         status: ready_status(repo_path),
     }
+}
+
+fn mark_host_disconnected(model: &mut RemoteCodebaseIndexModel, host: &HostId) -> bool {
+    model.mark_host_unavailable_with_message(
+        host,
+        Some(HOST_DISCONNECTED_FAILURE_MESSAGE.to_string()),
+    )
 }
 
 #[test]
@@ -252,20 +261,21 @@ fn host_disconnect_marks_settings_entries_unavailable_without_removing_them() {
     let host = host();
     model.apply_status_update(remote_path("/repo"), ready_status("/repo"));
     model.record_navigated_directory(session(1), &remote_path("/repo"), true);
-    assert!(model.mark_host_unavailable(&host));
-    assert!(!model.mark_host_unavailable(&host));
+    assert!(mark_host_disconnected(&mut model, &host));
+    assert!(!mark_host_disconnected(&mut model, &host));
 
     let status = model.status_for_repo(&remote_path("/repo")).unwrap();
     assert_eq!(status.state, RemoteCodebaseIndexState::Unavailable);
     assert_eq!(
         status.failure_message.as_deref(),
-        Some("The remote host is currently disconnected.")
+        Some(HOST_DISCONNECTED_FAILURE_MESSAGE)
     );
     assert_eq!(model.entries_for_settings().len(), 1);
-    assert!(matches!(
-        model.availability_for_remote(&host, Some("/repo"), None),
-        RemoteCodebaseSearchAvailability::Unavailable { .. }
-    ));
+    let availability = model.availability_for_remote(&host, Some("/repo"), None);
+    let RemoteCodebaseSearchAvailability::Unavailable { message, .. } = availability else {
+        panic!("Expected disconnected host to be unavailable");
+    };
+    assert_eq!(message, HOST_DISCONNECTED_FAILURE_MESSAGE);
 }
 
 #[test]
@@ -590,6 +600,18 @@ fn missing_root_hash_is_unavailable() {
 }
 
 #[test]
+fn unavailable_status_without_failure_message_uses_default_message() {
+    let status = status_with_state("/repo", RemoteCodebaseIndexState::Unavailable);
+
+    let availability = search_availability_for_status(&status, remote_path("/repo"));
+
+    let RemoteCodebaseSearchAvailability::Unavailable { message, .. } = availability else {
+        panic!("Expected unavailable status to be unavailable");
+    };
+    assert_eq!(message, "Remote codebase search is unavailable.");
+}
+
+#[test]
 fn auto_index_navigated_git_repo_when_status_is_missing() {
     let model = RemoteCodebaseIndexModel::default();
 
@@ -732,7 +754,7 @@ fn remove_host_clears_active_git_repo_for_host() {
     let other_path = remote_path_for_host(&other_host, "/other-repo");
     model.record_navigated_directory(session(1), &remote_path("/repo"), true);
     model.record_navigated_directory(session(2), &other_path, true);
-    model.mark_host_unavailable(&host);
+    mark_host_disconnected(&mut model, &host);
 
     assert_eq!(
         model.active_git_repo_paths_needing_auto_index(),

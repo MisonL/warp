@@ -1,5 +1,4 @@
 //! Provider command for linking third-party services.
-use crate::localization;
 use comfy_table::Cell;
 use serde::Serialize;
 use warp_cli::provider::{ProviderCommand, ProviderType};
@@ -10,7 +9,10 @@ use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
+use crate::localization;
 use crate::workspaces::user_workspaces::UserWorkspaces;
+
+const PROVIDER_STATUS_NOT_CONNECTED: &str = "Not Connected";
 
 /// Handle provider-related CLI commands.
 pub fn run(
@@ -111,14 +113,14 @@ impl ProviderCommandRunner {
                 let mut allowed_for = Vec::new();
 
                 if provider.allowed_in_personal_context() {
-                    allowed_for.push(text(ctx, "agent_sdk.common.owner.personal"));
+                    allowed_for.push(super::common::OWNER_SCOPE_PERSONAL);
                 }
                 if provider.allowed_in_team_context() {
-                    allowed_for.push(text(ctx, "agent_sdk.common.owner.team"));
+                    allowed_for.push(super::common::OWNER_SCOPE_TEAM);
                 }
 
                 let allowed_str = allowed_for.join(", ");
-                let status = text(ctx, "agent_sdk.provider.status.not_connected");
+                let status = PROVIDER_STATUS_NOT_CONNECTED.to_string();
 
                 ProviderInfo {
                     name,
@@ -190,6 +192,15 @@ impl TableFormat for ProviderInfo {
             Cell::new(&self.status),
         ]
     }
+
+    fn row_for_app(&self, app: &AppContext) -> Vec<Cell> {
+        vec![
+            Cell::new(&self.name),
+            Cell::new(&self.slug),
+            Cell::new(localize_allowed_for(&self.allowed_for, app)),
+            Cell::new(localize_provider_status(&self.status, app)),
+        ]
+    }
 }
 
 fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
@@ -202,4 +213,19 @@ fn text(app: &AppContext, key: &str) -> String {
 
 fn text_for_locale(locale: LocaleId, key: &str) -> String {
     localization::text_for_locale(locale, key)
+}
+
+fn localize_allowed_for(allowed_for: &str, app: &AppContext) -> String {
+    allowed_for
+        .split(", ")
+        .map(|scope| super::common::format_owner_scope_for_app(scope, app))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn localize_provider_status(status: &str, app: &AppContext) -> String {
+    match status {
+        PROVIDER_STATUS_NOT_CONNECTED => text(app, "agent_sdk.provider.status.not_connected"),
+        other => other.to_string(),
+    }
 }

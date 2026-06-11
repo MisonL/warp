@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::future::Future;
@@ -17,6 +16,7 @@ use super::super::terminal::TerminalDriver;
 use super::{CloudProvider, CloudProviderSetupError, Result};
 use crate::ai::aws_credentials::aws_role_session_name;
 use crate::ai::cloud_environments::AwsProviderConfig;
+use crate::localization;
 
 /// Default duration for OIDC identity tokens issued for cloud provider auth.
 /// The AWS CLI doesn't offer a mechanism for refreshing web identity tokens, so we

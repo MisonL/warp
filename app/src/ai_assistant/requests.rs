@@ -1,4 +1,3 @@
-use crate::localization;
 // TODO(roland): Delete all of this once agent mode fully replaces the AI assistant panel.
 // app/src/ai/request_usage_model duplicates much of this logic.
 use std::sync::Arc;
@@ -14,11 +13,11 @@ use super::utils::{markdown_segments_from_text, FormattedTranscriptMessage, Tran
 use crate::ai::{RequestLimitInfo, RequestUsageInfo};
 use crate::ai_assistant::utils::{AssistantTranscriptPart, TranscriptPartSubType};
 use crate::auth::AuthStateProvider;
-use crate::send_telemetry_from_ctx;
 use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::ServerApi;
 use crate::server::telemetry::{TelemetryEvent, WarpAIRequestResult};
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
 /// The key for the corresponding entry in UserDefaults.
 /// Not wiring through Settings for now since this data is only needed by the panel view.

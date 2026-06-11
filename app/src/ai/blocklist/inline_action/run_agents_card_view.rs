@@ -61,7 +61,7 @@ use crate::ai::harness_availability::{
 };
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -328,7 +328,7 @@ impl RunAgentsCardView {
         let accept_keystroke = ENTER_KEYSTROKE.clone();
 
         let reject_button = CompactibleActionButton::new(
-            "Reject".to_string(),
+            run_agents_text(ctx, "agent.orchestration.run_agents.reject"),
             Some(KeystrokeSource::Fixed(reject_keystroke)),
             ButtonSize::Small,
             RunAgentsCardViewAction::Reject,
@@ -338,7 +338,7 @@ impl RunAgentsCardView {
         );
         let position_id_prefix = format!("{action_id:?}");
         let accept_button = CompactibleSplitActionButton::new(
-            "Accept".to_string(),
+            run_agents_text(ctx, "agent.orchestration.run_agents.accept"),
             Some(KeystrokeSource::Fixed(accept_keystroke)),
             ButtonSize::Small,
             RunAgentsCardViewAction::Accept,
@@ -364,6 +364,10 @@ impl RunAgentsCardView {
                 ctx.notify();
             }
             MenuEvent::ItemSelected | MenuEvent::ItemHovered => {}
+        });
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_controls(ctx);
         });
 
         let action_id_for_subscription = action_id.clone();
@@ -726,9 +730,38 @@ impl RunAgentsCardView {
             return;
         };
         accept.set_disabled(reason.is_some(), ctx);
-        // Tooltip explains why the button is disabled; falls back to "Accept".
-        accept.set_tooltip(reason.or_else(|| Some("Accept".to_string())), ctx);
+        accept.set_tooltip(
+            reason.or_else(|| {
+                Some(run_agents_text(
+                    ctx,
+                    "agent.orchestration.run_agents.accept",
+                ))
+            }),
+            ctx,
+        );
         self.handles.accept_button = Some(accept);
+    }
+
+    fn refresh_localized_controls(&mut self, ctx: &mut ViewContext<Self>) {
+        if let Some(mut reject) = self.handles.reject_button.clone() {
+            reject.set_label(
+                run_agents_text(ctx, "agent.orchestration.run_agents.reject"),
+                ctx,
+            );
+            self.handles.reject_button = Some(reject);
+        }
+        if let Some(mut accept) = self.handles.accept_button.clone() {
+            accept.set_label(
+                run_agents_text(ctx, "agent.orchestration.run_agents.accept"),
+                ctx,
+            );
+            self.handles.accept_button = Some(accept);
+        }
+        self.refresh_accept_button_state(ctx);
+        if self.is_accept_menu_open {
+            self.populate_accept_menu(ctx);
+        }
+        ctx.notify();
     }
 
     /// Construct the picker dropdown views (idempotent).
@@ -938,20 +971,23 @@ impl RunAgentsCardView {
     fn toggle_accept_menu(&mut self, ctx: &mut ViewContext<Self>) {
         self.is_accept_menu_open = !self.is_accept_menu_open;
         if self.is_accept_menu_open {
-            let item = MenuItemFields::new_with_label(
-                run_agents_text(ctx, "agent.orchestration.run_agents.accept_without"),
-                String::new(),
-            )
-            .with_on_select_action(RunAgentsCardViewAction::AcceptWithoutOrchestration)
-            .into_item();
-            self.accept_menu.update(ctx, |menu, ctx| {
-                menu.set_items(vec![item], ctx);
-            });
-            self.accept_menu
-                .update(ctx, |menu, ctx| menu.set_selected_by_index(0, ctx));
+            self.populate_accept_menu(ctx);
             ctx.focus(&self.accept_menu);
         }
         ctx.notify();
+    }
+
+    fn populate_accept_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        let item = MenuItemFields::new_with_label(
+            run_agents_text(ctx, "agent.orchestration.run_agents.accept_without"),
+            String::new(),
+        )
+        .with_on_select_action(RunAgentsCardViewAction::AcceptWithoutOrchestration)
+        .into_item();
+        self.accept_menu.update(ctx, |menu, ctx| {
+            menu.set_items(vec![item], ctx);
+            menu.set_selected_by_index(0, ctx);
+        });
     }
 
     fn get_position_id_for_accept_split_button(prefix: &str) -> String {

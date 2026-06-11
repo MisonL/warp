@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 
 use markdown_parser::parse_markdown;
@@ -22,6 +21,7 @@ use crate::ai::mcp::templatable_installation::{VariableType, VariableValue};
 use crate::ai::mcp::{TemplatableMCPServer, TemplatableMCPServerManager, TemplateVariable};
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
+use crate::localization;
 use crate::settings_view::mcp_servers::style::{
     INSTALLATION_MODAL_BUTTON_GAP, INSTALLATION_MODAL_BUTTON_PADDING,
     INSTALLATION_MODAL_INPUT_VERTICAL_SPACING, INSTALLATION_MODAL_LABEL_VERTICAL_SPACING,
@@ -566,7 +566,7 @@ impl View for InstallationModalBody {
                 .finish()
         } else {
             Text::new(
-                "No MCP server selected",
+                localization::text_for_app(ctx, "settings.mcp.install.no_server_selected"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )

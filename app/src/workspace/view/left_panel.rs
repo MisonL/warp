@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -61,7 +60,7 @@ use crate::workspace::view::{
     TOGGLE_PROJECT_EXPLORER_BINDING_NAME, TOGGLE_WARP_DRIVE_BINDING_NAME,
 };
 use crate::workspace::WorkspaceAction;
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

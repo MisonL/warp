@@ -1,14 +1,14 @@
-use crate::localization;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use warpui::AppContext;
 
 use super::ChipValue;
+use crate::localization;
 use crate::terminal::model::block::{Block, BlockMetadata};
 use crate::terminal::model::session::{Session, SessionId};
 use crate::terminal::shell::ShellType;
-use warpui::AppContext;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShellCommandGenerator {

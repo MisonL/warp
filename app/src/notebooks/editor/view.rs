@@ -1,33 +1,7 @@
-use crate::localization;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use warpui::{
-    accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
-    assets::asset_cache::{AssetCache, AssetHandle, AssetState},
-    clipboard::ClipboardContent,
-    elements::{
-        AnchorPair, Axis, Border, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
-        Dismiss, Fill, Flex, Icon, MouseStateHandle, OffsetPositioning, OffsetType, ParentAnchor,
-        ParentElement, PositionedElementOffsetBounds, PositioningAxis, Radius, ScrollStateHandle,
-        Scrollable, ScrollableElement, ScrollbarWidth, Stack, XAxisAnchor, YAxisAnchor,
-    },
-    event::ModifiersState,
-    fonts::{FallbackFontEvent, FallbackFontModel},
-    image_cache::ImageType,
-    keymap::{BindingDescription, EditableBinding, FixedBinding},
-    platform::{Cursor, OperatingSystem},
-    presenter::ChildView,
-    r#async::SpawnedFutureHandle,
-    ui_components::{
-        button::ButtonVariant,
-        components::{Coords, UiComponent, UiComponentStyles},
-    },
-    units::Pixels,
-    windowing, AppContext, BlurContext, CursorInfo, Element, Entity, FocusContext, ModelHandle,
-    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WeakViewHandle,
-};
 
 use markdown_parser::{parse_html, parse_markdown, FormattedText};
 use pathfinder_geometry::vector::vec2f;
@@ -44,12 +18,34 @@ use warp_editor::render::model::{BlockItem, HitTestBlockType, Location, RenderSt
 use warp_editor::selection::{TextDirection, TextUnit};
 use warp_util::path::LineAndColumnArg;
 use warp_util::user_input::UserInput;
+use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
 use warpui::actions::StandardAction;
-use warpui::elements::Hoverable;
-use warpui::keymap::PerPlatformKeystroke;
+use warpui::assets::asset_cache::{AssetCache, AssetHandle, AssetState};
+use warpui::clipboard::ClipboardContent;
+use warpui::elements::{
+    AnchorPair, Axis, Border, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
+    Dismiss, Fill, Flex, Hoverable, Icon, MouseStateHandle, OffsetPositioning, OffsetType,
+    ParentAnchor, ParentElement, PositionedElementOffsetBounds, PositioningAxis, Radius,
+    ScrollStateHandle, Scrollable, ScrollableElement, ScrollbarWidth, Stack, XAxisAnchor,
+    YAxisAnchor,
+};
+use warpui::event::ModifiersState;
+use warpui::fonts::{FallbackFontEvent, FallbackFontModel};
+use warpui::image_cache::ImageType;
+use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding, PerPlatformKeystroke};
+use warpui::platform::{Cursor, OperatingSystem};
+use warpui::presenter::ChildView;
+use warpui::r#async::SpawnedFutureHandle;
 #[cfg(feature = "local_fs")]
 use warpui::text::word_boundaries::WordBoundariesPolicy;
+use warpui::ui_components::button::ButtonVariant;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::units::Pixels;
 use warpui::windowing::WindowManager;
+use warpui::{
+    windowing, AppContext, BlurContext, CursorInfo, Element, Entity, FocusContext, ModelHandle,
+    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WeakViewHandle,
+};
 
 use super::block_insertion_menu::{BlockInsertionMenuState, BlockInsertionSource};
 use super::find_bar::{FindBar, FindBarEvent, FindBarState};
@@ -59,7 +55,6 @@ use super::model::{NotebooksEditorModel, RichTextEditorModelEvent};
 use super::omnibar::{Omnibar, OmnibarEvent};
 use super::{rich_text_styles, BlockType, NotebookWorkflow};
 use crate::appearance::Appearance;
-use crate::cmd_or_ctrl_shift;
 use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
 use crate::notebooks::editor::find_bar::FindBarAction;
@@ -80,6 +75,7 @@ use crate::util::tooltips::{
 };
 use crate::view_components::DismissibleToast;
 use crate::workspace::WorkspaceAction;
+use crate::{cmd_or_ctrl_shift, localization};
 
 #[cfg(test)]
 #[path = "view_tests.rs"]

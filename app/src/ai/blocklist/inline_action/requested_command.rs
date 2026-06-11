@@ -1,10 +1,8 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::cmp::{Ordering, PartialEq};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use warpui::keymap::BindingDescription;
 
 use lazy_static::lazy_static;
 use parking_lot::FairMutex;
@@ -18,7 +16,7 @@ use warpui::elements::{
     Expanded, Flex, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement, Radius,
     ScrollbarWidth, SelectableArea, SelectionHandle, Stack, Text,
 };
-use warpui::keymap::{Context, EditableBinding, FixedBinding, Keystroke};
+use warpui::keymap::{BindingDescription, Context, EditableBinding, FixedBinding, Keystroke};
 use warpui::ui_components::components::UiComponent as _;
 use warpui::{
     AppContext, Element, Entity, EntityId, EventContext, ModelHandle, SingletonEntity,
@@ -50,7 +48,6 @@ use crate::ai::blocklist::{
     AIBlock, BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIHistoryModel,
     ClientIdentifiers,
 };
-use crate::cmd_or_ctrl_shift;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
 use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
@@ -66,6 +63,7 @@ use crate::view_components::compactible_action_button::{
     MEDIUM_SIZE_SWITCH_THRESHOLD, SMALL_SIZE_SWITCH_THRESHOLD,
 };
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
+use crate::{cmd_or_ctrl_shift, localization};
 
 /// The vertical padding applied to the requested command row's content body.
 /// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.
@@ -779,7 +777,7 @@ impl RequestedCommandView {
                             appearance
                                 .ui_builder()
                                 .link(
-                                    "Manage command execution setting".into(),
+                                    text(app, "agent.requested_command.manage_execution_setting"),
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(

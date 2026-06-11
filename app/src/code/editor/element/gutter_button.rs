@@ -1,4 +1,3 @@
-use crate::localization;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
 use warp_core::ui::color::ContrastingColor;
@@ -7,6 +6,8 @@ use warp_core::ui::theme::Fill;
 use warp_core::ui::Icon;
 use warpui::elements::MouseState;
 use warpui::AppContext;
+
+use crate::localization;
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

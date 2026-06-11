@@ -19,14 +19,13 @@ use crate::ai::execution_profiles::{
     WriteToPtyPermission,
 };
 use crate::editor::EditorView;
-use crate::localization;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::{
     render_warning_box, Dropdown, DropdownItemAction, FilterableDropdown, SubmittableTextInput,
     WarningBoxConfig,
 };
-use crate::{Appearance, TemplatableMCPServerManager};
+use crate::{localization, Appearance, TemplatableMCPServerManager};
 
 const CONTEXT_WINDOW_SLIDER_WIDTH: f32 = 220.;
 const CONTEXT_WINDOW_INPUT_BOX_WIDTH: f32 = 120.;
@@ -308,11 +307,26 @@ fn render_info_section(
         .finish();
     Container::new(description).with_margin_bottom(12.).finish()
 }
-fn render_long_context_pricing_warning(appearance: &Appearance) -> Box<dyn Element> {
+fn render_long_context_pricing_warning(
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     render_warning_box(
-        WarningBoxConfig::formatted_title(long_context_pricing_warning_title()),
+        WarningBoxConfig::formatted_title(long_context_pricing_warning_title(app)),
         appearance,
     )
+}
+
+struct WorkspaceOverrideTooltip {
+    show: bool,
+    mouse_state: MouseStateHandle,
+}
+
+fn workspace_override_tooltip(
+    show: bool,
+    mouse_state: MouseStateHandle,
+) -> WorkspaceOverrideTooltip {
+    WorkspaceOverrideTooltip { show, mouse_state }
 }
 
 fn render_permission_row<T: DropdownItemAction>(
@@ -321,8 +335,7 @@ fn render_permission_row<T: DropdownItemAction>(
     label: &str,
     dropdown: &ViewHandle<Dropdown<T>>,
     info_text: &str,
-    show_workspace_override_tooltip: bool,
-    tooltip_mouse_state: MouseStateHandle,
+    workspace_override: WorkspaceOverrideTooltip,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let icon_elem = Container::new(
@@ -344,10 +357,10 @@ fn render_permission_row<T: DropdownItemAction>(
         .with_child(label_elem)
         .finish();
     let dropdown_element = ChildView::new(dropdown).finish();
-    let dropdown_row = if show_workspace_override_tooltip {
+    let dropdown_row = if workspace_override.show {
         wrap_disabled_with_workspace_override_tooltip(
             dropdown_element,
-            tooltip_mouse_state,
+            workspace_override.mouse_state,
             appearance,
             app,
         )
@@ -556,7 +569,7 @@ fn render_context_window_row(
         .permissions_profile_for_id(app, view.profile_id())
         .should_show_long_context_pricing_warning(view.dragged_context_window_value, app)
     {
-        column.add_child(render_long_context_pricing_warning(appearance));
+        column.add_child(render_long_context_pricing_warning(appearance, app));
     }
 
     Some(
@@ -585,10 +598,12 @@ pub fn render_permissions_section(
             &text(app, "settings.execution_profile.editor.apply_code_diffs"),
             &view.apply_code_diffs_dropdown,
             &action_permission_description(app, profile_data.apply_code_diffs),
-            !ai_settings.is_code_diffs_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .apply_code_diffs_tooltip_mouse_state
-                .clone(),
+            workspace_override_tooltip(
+                !ai_settings.is_code_diffs_permissions_editable(app),
+                view.tooltip_mouse_state_handles
+                    .apply_code_diffs_tooltip_mouse_state
+                    .clone(),
+            ),
             app,
         ),
         render_permission_row(
@@ -597,10 +612,12 @@ pub fn render_permissions_section(
             &text(app, "settings.execution_profile.editor.read_files"),
             &view.read_files_dropdown,
             &action_permission_description(app, profile_data.read_files),
-            !ai_settings.is_read_files_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .read_files_tooltip_mouse_state
-                .clone(),
+            workspace_override_tooltip(
+                !ai_settings.is_read_files_permissions_editable(app),
+                view.tooltip_mouse_state_handles
+                    .read_files_tooltip_mouse_state
+                    .clone(),
+            ),
             app,
         ),
     ]);
@@ -622,10 +639,12 @@ pub fn render_permissions_section(
         &text(app, "settings.execution_profile.editor.execute_commands"),
         &view.execute_commands_dropdown,
         &action_permission_description(app, profile_data.execute_commands),
-        !ai_settings.is_execute_commands_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .execute_commands_tooltip_mouse_state
-            .clone(),
+        workspace_override_tooltip(
+            !ai_settings.is_execute_commands_permissions_editable(app),
+            view.tooltip_mouse_state_handles
+                .execute_commands_tooltip_mouse_state
+                .clone(),
+        ),
         app,
     ));
 
@@ -663,10 +682,12 @@ pub fn render_permissions_section(
         ),
         &view.write_to_pty_dropdown,
         &write_to_pty_permission_description(app, profile_data.write_to_pty),
-        !ai_settings.is_write_to_pty_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .write_to_pty_tooltip_mouse_state
-            .clone(),
+        workspace_override_tooltip(
+            !ai_settings.is_write_to_pty_permissions_editable(app),
+            view.tooltip_mouse_state_handles
+                .write_to_pty_tooltip_mouse_state
+                .clone(),
+        ),
         app,
     ));
 
@@ -677,10 +698,12 @@ pub fn render_permissions_section(
             &text(app, "settings.execution_profile.editor.computer_use"),
             &view.computer_use_dropdown,
             &computer_use_permission_description(app, profile_data.computer_use),
-            !ai_settings.is_computer_use_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .computer_use_tooltip_mouse_state
-                .clone(),
+            workspace_override_tooltip(
+                !ai_settings.is_computer_use_permissions_editable(app),
+                view.tooltip_mouse_state_handles
+                    .computer_use_tooltip_mouse_state
+                    .clone(),
+            ),
             app,
         ));
     }
@@ -691,10 +714,12 @@ pub fn render_permissions_section(
         &text(app, "settings.execution_profile.editor.ask_questions"),
         &view.ask_user_question_dropdown,
         &ask_user_question_permission_description(app, profile_data.ask_user_question),
-        !ai_settings.is_ask_user_question_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .ask_user_question_tooltip_mouse_state
-            .clone(),
+        workspace_override_tooltip(
+            !ai_settings.is_ask_user_question_permissions_editable(app),
+            view.tooltip_mouse_state_handles
+                .ask_user_question_tooltip_mouse_state
+                .clone(),
+        ),
         app,
     ));
     column.add_child(render_permission_row(
@@ -706,10 +731,12 @@ pub fn render_permissions_section(
         ),
         &view.run_agents_dropdown,
         &run_agents_permission_description(app, profile_data.run_agents),
-        !ai_settings.is_run_agents_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .run_agents_tooltip_mouse_state
-            .clone(),
+        workspace_override_tooltip(
+            !ai_settings.is_run_agents_permissions_editable(app),
+            view.tooltip_mouse_state_handles
+                .run_agents_tooltip_mouse_state
+                .clone(),
+        ),
         app,
     ));
 
@@ -719,10 +746,12 @@ pub fn render_permissions_section(
         &text(app, "settings.execution_profile.editor.call_mcp_servers"),
         &view.call_mcp_servers_dropdown,
         &action_permission_description(app, profile_data.mcp_permissions),
-        !ai_settings.is_mcp_permission_editable(app), // Use MCP override for this permission
-        view.tooltip_mouse_state_handles
-            .call_mcp_servers_tooltip_mouse_state
-            .clone(),
+        workspace_override_tooltip(
+            !ai_settings.is_mcp_permission_editable(app), // Use MCP override for this permission
+            view.tooltip_mouse_state_handles
+                .call_mcp_servers_tooltip_mouse_state
+                .clone(),
+        ),
         app,
     ));
 

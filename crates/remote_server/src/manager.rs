@@ -78,6 +78,7 @@ struct InitializeHandshake {
     host_id: HostId,
     event_rx: async_channel::Receiver<ClientEvent>,
     failure_rx: async_channel::Receiver<crate::client::RequestFailedEvent>,
+    host_write_failure_rx: async_channel::Receiver<crate::client::HostScopedWriteFailedEvent>,
     host_response_rx: async_channel::Receiver<crate::proto::ServerMessage>,
 }
 
@@ -266,7 +267,6 @@ fn client_event_kind(event: &ClientEvent) -> &'static str {
             "codebase_index_statuses_snapshot"
         }
         ClientEvent::CodebaseIndexStatusUpdated { .. } => "codebase_index_status_updated",
-        ClientEvent::HostScopedWriteFailed { .. } => "host_scoped_write_failed",
         ClientEvent::HostScopedDecodeFailed { .. } => "host_scoped_decode_failed",
         ClientEvent::BufferUpdated { .. } => "buffer_updated",
         ClientEvent::BufferConflictDetected { .. } => "buffer_conflict_detected",
@@ -1828,6 +1828,7 @@ impl RemoteServerManager {
             client,
             event_rx,
             failure_rx,
+            host_write_failure_rx,
             host_response_rx,
             child,
             control_path,
@@ -1931,6 +1932,7 @@ impl RemoteServerManager {
             host_id: HostId::new(resp.host_id),
             event_rx,
             failure_rx,
+            host_write_failure_rx,
             host_response_rx,
         })
     }
@@ -2770,7 +2772,7 @@ impl RemoteServerManager {
                             "Remote server load_repo_metadata_directory failed: session={session_id:?} error={e}"
                         );
                         // Transport-level telemetry is emitted automatically
-                        // by send_tracked_request via ClientEvent::RequestFailed.
+                        // by send_tracked_request via RequestFailedEvent.
                     }
                 }
             })
@@ -2845,9 +2847,6 @@ impl RemoteServerManager {
             }
             ClientEvent::MessageDecodingError => {
                 ctx.emit(RemoteServerManagerEvent::ServerMessageDecodingError { session_id });
-            }
-            ClientEvent::HostScopedWriteFailed { request_id } => {
-                self.handle_host_scoped_write_failed(session_id, request_id);
             }
             ClientEvent::HostScopedDecodeFailed { request_id } => {
                 self.fail_host_request_decode_error(request_id);
@@ -2926,6 +2925,7 @@ impl RemoteServerManager {
             host_id,
             event_rx,
             failure_rx,
+            host_write_failure_rx,
             host_response_rx,
         } = handshake;
         log::info!("Remote server connected: session={session_id:?} host={host_id}");
@@ -2977,6 +2977,16 @@ impl RemoteServerManager {
                     operation: event.operation,
                     error_kind: event.error_kind,
                 });
+            },
+            |_, _| {}, // no-op on done
+        );
+        // Drain writer-task host-scoped write failures separately from the
+        // lifecycle stream, so the writer cannot keep `event_rx` alive after
+        // reader-side disconnect.
+        ctx.spawn_stream_local(
+            host_write_failure_rx,
+            move |me, event, _ctx| {
+                me.handle_host_scoped_write_failed(session_id, event.request_id);
             },
             |_, _| {}, // no-op on done
         );

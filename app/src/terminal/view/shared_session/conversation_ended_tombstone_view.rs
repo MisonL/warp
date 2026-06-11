@@ -1,10 +1,10 @@
-use crate::localization;
 use std::path::Path;
 
 use warp_core::paths::home_relative_path;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
+use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, MainAxisSize, Padding, ParentElement, Radius, Shrinkable, Text,
@@ -23,8 +23,9 @@ use crate::ai::ambient_agents::{
     AmbientConversationStatus,
 };
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
-use crate::ai::blocklist::{format_credits, BlocklistAIHistoryModel};
+use crate::ai::blocklist::{format_credits, format_credits_for_locale, BlocklistAIHistoryModel};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::ai::{AISettings, AISettingsChangedEvent};
@@ -109,13 +110,13 @@ impl TombstoneDisplayData {
             source: None,
             skill_name: None,
             run_time,
-            credits: Some(format_credits(conversation.credits_spent())),
+            credits: Some(format_credits(ctx, conversation.credits_spent())),
             working_directory: conversation.initial_working_directory(),
             artifacts: conversation.artifacts().to_vec(),
         }
     }
 
-    fn enrich_from_task(&mut self, task: AmbientAgentTask) {
+    fn enrich_from_task(&mut self, task: AmbientAgentTask, locale: LocaleId) {
         // Use task title if we don't have a conversation title.
         if self.title.is_none() {
             self.title = Some(task.title.clone());
@@ -143,7 +144,7 @@ impl TombstoneDisplayData {
             self.run_time = Some(human_readable_precise_duration(run_time));
         }
         if let Some(credits) = task.credits_used() {
-            self.credits = Some(format_credits(credits));
+            self.credits = Some(format_credits_for_locale(locale, credits));
         }
 
         // Surface task artifacts (plans, PRs, files, screenshots) for third-party
@@ -348,7 +349,8 @@ impl ConversationEndedTombstoneView {
                 async move { ai_client.get_ambient_agent_task(&task_id).await },
                 |me, result, ctx| match result {
                     Ok(task) => {
-                        me.display_data.enrich_from_task(task);
+                        let locale = localization::current_locale(ctx);
+                        me.display_data.enrich_from_task(task, locale);
                         me.artifact_buttons_view.update(ctx, |row, ctx| {
                             row.update_artifacts(&me.display_data.artifacts, ctx);
                         });

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::Arc;
 
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
@@ -31,7 +30,7 @@ use crate::view_components::action_button::{
 use crate::view_components::compactible_action_button::{
     render_compact_and_regular_button_rows, CompactibleActionButton, MEDIUM_SIZE_SWITCH_THRESHOLD,
 };
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

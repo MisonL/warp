@@ -1,39 +1,3 @@
-use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
-use crate::ai::mcp::parsing::prettify_json;
-use crate::ai::mcp::parsing::resolve_json;
-use crate::ai::mcp::parsing::ParsedTemplatableMCPServerResult;
-use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
-use crate::ai::mcp::MCPServer;
-use crate::ai::mcp::TemplatableMCPServer;
-use crate::ai::mcp::TemplatableMCPServerInstallation;
-use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::ai::mcp::TransportType;
-use crate::banner::Banner;
-use crate::banner::BannerTextContent;
-use crate::cloud_object::CloudObject;
-use crate::cloud_object::Space;
-use crate::code::editor::view::CodeEditorRenderOptions;
-use crate::code::editor::view::CodeEditorView;
-use crate::localization;
-use crate::localization::LocalizationUpdater;
-use crate::persistence::ModelEvent;
-use crate::server::cloud_objects::update_manager::InitiatedBy;
-use crate::server::telemetry::MCPTemplateCreationSource;
-use crate::server::telemetry::TelemetryEvent;
-use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::DestructiveMCPConfirmationDialog;
-use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::DestructiveMCPConfirmationDialogEvent;
-use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::DestructiveMCPConfirmationDialogVariant;
-use crate::settings_view::mcp_servers::style;
-use crate::settings_view::mcp_servers::ServerCardItemId;
-use crate::ui_components::buttons::icon_button;
-use crate::ui_components::icons::Icon;
-use crate::view_components::action_button::ActionButton;
-use crate::view_components::action_button::DangerNakedTheme;
-use crate::view_components::action_button::DangerSecondaryTheme;
-use crate::view_components::action_button::PrimaryTheme;
-use crate::view_components::DismissibleToast;
-use crate::workspace::ToastStack;
-use crate::GlobalResourceHandlesProvider;
 use std::collections::HashMap;
 use std::path::Path;
 #[cfg(feature = "local_fs")]
@@ -62,8 +26,35 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
+use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
+use crate::ai::mcp::parsing::{prettify_json, resolve_json, ParsedTemplatableMCPServerResult};
+use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
+use crate::ai::mcp::{
+    MCPServer, TemplatableMCPServer, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
+    TransportType,
+};
+use crate::banner::{Banner, BannerTextContent};
+use crate::cloud_object::{CloudObject, Space};
+use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
+use crate::localization::LocalizationUpdater;
+use crate::persistence::ModelEvent;
 #[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path_for_scope, establish_ro_connection, PersistenceScope};
+use crate::server::cloud_objects::update_manager::InitiatedBy;
+use crate::server::telemetry::{MCPTemplateCreationSource, TelemetryEvent};
+use crate::settings_view::mcp_servers::destructive_mcp_confirmation_dialog::{
+    DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
+    DestructiveMCPConfirmationDialogVariant,
+};
+use crate::settings_view::mcp_servers::{style, ServerCardItemId};
+use crate::ui_components::buttons::icon_button;
+use crate::ui_components::icons::Icon;
+use crate::view_components::action_button::{
+    ActionButton, DangerNakedTheme, DangerSecondaryTheme, PrimaryTheme,
+};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
+use crate::{localization, GlobalResourceHandlesProvider};
 
 const DEFAULT_JSON_TEXT: &str = r#"{
     "": {

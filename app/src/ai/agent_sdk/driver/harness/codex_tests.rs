@@ -86,15 +86,20 @@ fn prepare_codex_auth_writes_with_0600_perms() {
 }
 
 #[test]
+#[serial_test::serial]
 fn resolve_openai_api_key_returns_value_from_resolved_map() {
+    let prev = std::env::var(OPENAI_API_KEY_ENV).ok();
+    std::env::remove_var(OPENAI_API_KEY_ENV);
     let resolved = HashMap::from([(
         OsString::from("OPENAI_API_KEY"),
         OsString::from("sk-from-secret"),
     )]);
-    assert_eq!(
-        resolve_openai_api_key(&resolved).as_deref(),
-        Some("sk-from-secret")
-    );
+    let result = resolve_openai_api_key(&resolved);
+
+    if let Some(v) = prev {
+        std::env::set_var(OPENAI_API_KEY_ENV, v);
+    }
+    assert_eq!(result.as_deref(), Some("sk-from-secret"));
 }
 
 #[test]

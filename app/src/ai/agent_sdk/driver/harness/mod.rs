@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
@@ -6,8 +5,6 @@ use std::fmt;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
-use warp_localization::replace_placeholders;
-use warp_localization::LocaleId;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -18,6 +15,7 @@ use warp_cli::{
     SESSION_SHARING_SERVER_URL_OVERRIDE_ENV, WS_SERVER_URL_OVERRIDE_ENV,
 };
 use warp_core::channel::ChannelState;
+use warp_localization::{replace_placeholders, LocaleId};
 use warp_managed_secrets::ManagedSecretValue;
 use warpui::{ModelHandle, ModelSpawner, SingletonEntity};
 
@@ -32,6 +30,7 @@ use crate::ai::agent_sdk::setup_observability::SetupClientEventReporter;
 use crate::ai::ambient_agents::task::HarnessModelConfig;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::mcp::JSONMCPServer;
+use crate::localization;
 use crate::server::server_api::harness_support::{upload_to_target, HarnessSupportClient};
 use crate::server::server_api::ServerApi;
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionStatus, CLIAgentSessionsModel};

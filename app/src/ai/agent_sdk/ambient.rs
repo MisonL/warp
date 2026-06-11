@@ -1,10 +1,7 @@
 //! Commands to interact with ambient agents on Warp's platform.
-use crate::localization;
 use std::io::Write as _;
 use std::sync::Arc;
 use std::time::Duration;
-use warp_localization::replace_placeholders;
-use warp_localization::LocaleId;
 
 use anyhow::{anyhow, Context as _};
 use comfy_table::Cell;
@@ -20,6 +17,7 @@ use warp_cli::task::{
 use warp_cli::{GlobalOptions, SortOrderArg};
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
+use warp_localization::{replace_placeholders, LocaleId};
 use warpui::platform::TerminationMode;
 use warpui::r#async::{Spawnable, Timer};
 use warpui::{AppContext, ModelContext, SingletonEntity};
@@ -49,7 +47,7 @@ use crate::server::server_api::ServerApi;
 use crate::terminal::shared_session;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::ServerApiProvider;
+use crate::{localization, ServerApiProvider};
 
 const MAX_LINE_WIDTH: usize = 90;
 const STREAM_RETRY_BACKOFF_STEPS: &[u64] = &[1, 2, 5, 10];
@@ -1093,7 +1091,7 @@ impl AmbientAgentRunner {
 
             // Artifacts (if available)
             if !task.artifacts.is_empty() {
-                let artifacts_cell = Self::format_artifacts(&task.artifacts);
+                let artifacts_cell = Self::format_artifacts(&task.artifacts, locale);
                 table.add_row(vec![artifacts_cell]);
             }
 
@@ -1116,9 +1114,11 @@ impl AmbientAgentRunner {
         }
     }
 
-    /// Format artifacts for display.
-    fn format_artifacts(artifacts: &[Artifact]) -> String {
-        let mut lines = vec!["Artifacts:".to_string()];
+    fn format_artifacts(artifacts: &[Artifact], locale: Option<LocaleId>) -> String {
+        let mut lines = vec![Self::ambient_text(
+            locale,
+            "agent_sdk.ambient.artifacts.header",
+        )];
 
         for artifact in artifacts {
             match artifact {
@@ -1130,25 +1130,45 @@ impl AmbientAgentRunner {
                     ..
                 } => {
                     let pr_display = match (repo, number) {
-                        (Some(repo), Some(num)) => format!("  PR: {} #{}", repo, num),
-                        _ => "  PR:".to_string(),
+                        (Some(repo), Some(num)) => Self::ambient_text_with_args(
+                            locale,
+                            "agent_sdk.ambient.artifacts.pull_request_with_repo",
+                            &[("repo", repo), ("number", &num.to_string())],
+                        ),
+                        _ => Self::ambient_text(locale, "agent_sdk.ambient.artifacts.pull_request"),
                     };
                     lines.push(pr_display);
-                    lines.push(format!("    Branch: {}", branch));
-                    lines.push(format!("    Link: {}", url));
+                    lines.push(Self::ambient_text_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.branch",
+                        &[("branch", branch)],
+                    ));
+                    lines.push(Self::ambient_text_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.link",
+                        &[("url", url)],
+                    ));
                 }
                 Artifact::Plan {
                     notebook_uid,
                     title,
                     ..
                 } => {
-                    let plan_title = title.as_deref().unwrap_or("Untitled Plan");
-                    lines.push(format!("  Plan: {}", plan_title));
+                    let plan_title = title.as_deref().map(str::to_owned).unwrap_or_else(|| {
+                        Self::ambient_text(locale, "agent_sdk.ambient.artifacts.untitled_plan")
+                    });
+                    lines.push(Self::ambient_text_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.plan",
+                        &[("title", &plan_title)],
+                    ));
                     if let Some(id) = notebook_uid {
-                        lines.push(format!(
-                            "    Link: {}/drive/notebook/{}",
-                            ChannelState::server_root_url(),
-                            id
+                        let url =
+                            format!("{}/drive/notebook/{}", ChannelState::server_root_url(), id);
+                        lines.push(Self::ambient_text_with_args(
+                            locale,
+                            "agent_sdk.ambient.artifacts.link",
+                            &[("url", &url)],
                         ));
                     }
                 }
@@ -1157,8 +1177,17 @@ impl AmbientAgentRunner {
                     description,
                     ..
                 } => {
-                    let desc = description.as_deref().unwrap_or("No description");
-                    lines.push(format!("  Screenshot: {} ({})", artifact_uid, desc));
+                    let desc = description
+                        .as_deref()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| {
+                            Self::ambient_text(locale, "agent_sdk.ambient.artifacts.no_description")
+                        });
+                    lines.push(Self::ambient_text_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.screenshot",
+                        &[("artifact_uid", artifact_uid), ("description", &desc)],
+                    ));
                 }
                 Artifact::File {
                     filename,
@@ -1167,16 +1196,44 @@ impl AmbientAgentRunner {
                     ..
                 } => {
                     let label = super::super::artifacts::file_button_label(filename, filepath);
-                    lines.push(format!("  File: {}", label));
-                    lines.push(format!("    Path: {}", filepath));
+                    lines.push(Self::ambient_text_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.file",
+                        &[("label", &label)],
+                    ));
+                    lines.push(Self::ambient_text_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.path",
+                        &[("path", filepath)],
+                    ));
                     if let Some(description) = description {
-                        lines.push(format!("    Description: {}", description));
+                        lines.push(Self::ambient_text_with_args(
+                            locale,
+                            "agent_sdk.ambient.artifacts.description",
+                            &[("description", description)],
+                        ));
                     }
                 }
             }
         }
 
         lines.join("\n")
+    }
+
+    fn ambient_text(locale: Option<LocaleId>, key: &str) -> String {
+        locale
+            .map(|locale| text_for_locale(locale, key))
+            .unwrap_or_else(|| text_for_locale(LocaleId::EnUs, key))
+    }
+
+    fn ambient_text_with_args(
+        locale: Option<LocaleId>,
+        key: &str,
+        args: &[(&str, &str)],
+    ) -> String {
+        locale
+            .map(|locale| text_for_locale_with_args(locale, key, args))
+            .unwrap_or_else(|| text_for_locale_with_args(LocaleId::EnUs, key, args))
     }
 }
 

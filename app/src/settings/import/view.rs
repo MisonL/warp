@@ -1,4 +1,3 @@
-use crate::localization;
 use itertools::Itertools;
 use warp_core::settings::Setting;
 use warp_core::ui::appearance::Appearance;
@@ -30,7 +29,8 @@ use crate::ui_components::blended_colors;
 use crate::user_config::{self, WarpConfig};
 use crate::window_settings::WindowSettings;
 use crate::{
-    report_if_error, send_telemetry_from_ctx, GlobalResourceHandlesProvider, TelemetryEvent,
+    localization, report_if_error, send_telemetry_from_ctx, GlobalResourceHandlesProvider,
+    TelemetryEvent,
 };
 
 // UI does not scale, so we set a fixed size for all text.

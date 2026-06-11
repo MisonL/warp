@@ -1,4 +1,3 @@
-use crate::localization;
 /// Git credentials management for cloud agent sandboxes.
 ///
 /// This module handles:
@@ -12,14 +11,14 @@ use crate::localization;
 ///   server and overwrites the credential files, keeping long-running agents
 ///   authenticated for their entire duration.
 use std::{path::PathBuf, sync::Arc, time::Duration};
-use warp_localization::replace_placeholders;
-use warp_localization::LocaleId;
 
 use anyhow::{Context, Result};
 // Use the project's allowed Command wrapper (not std::process::Command, which is
 // disallowed by clippy rules because it flashes a terminal window on Windows).
 use command::blocking::Command as BlockingCommand;
+use warp_localization::{replace_placeholders, LocaleId};
 
+use crate::localization;
 use crate::server::server_api::ai::{AIClient, GitCredential};
 
 /// How long to wait between credential refresh attempts (~50 minutes, staying

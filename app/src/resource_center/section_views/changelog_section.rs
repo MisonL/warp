@@ -1,11 +1,3 @@
-use crate::localization;
-use crate::{
-    appearance::Appearance,
-    changelog_model::{ChangelogHeader, ChangelogModel, ChangelogState, Event as ChangelogEvent},
-    settings::LanguageSettings,
-    themes::theme::Fill,
-    ui_components::icons,
-};
 use instant::Instant;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::features::FeatureFlag;
@@ -23,8 +15,15 @@ use warpui::{
 
 use super::feature_section::FeatureSection;
 use super::{SectionAction, SectionView};
-use crate::send_telemetry_from_ctx;
+use crate::appearance::Appearance;
+use crate::changelog_model::{
+    ChangelogHeader, ChangelogModel, ChangelogState, Event as ChangelogEvent,
+};
 use crate::server::telemetry::TelemetryEvent;
+use crate::settings::LanguageSettings;
+use crate::themes::theme::Fill;
+use crate::ui_components::icons;
+use crate::{localization, send_telemetry_from_ctx};
 
 #[derive(Default)]
 struct ChangelogMouseStateHandles {
@@ -135,8 +134,10 @@ impl ChangelogSectionView {
         content: &mut Flex,
         model: &ChangelogModel,
         appearance: &Appearance,
+        app: &AppContext,
     ) {
         let title = ChangelogHeader::NewFeatures.to_string();
+        let localized_title = localized_changelog_header(app, ChangelogHeader::NewFeatures);
         let icon = icons::Icon::Gift;
         let Some(markdown) = model.parsed_changelog.get(&title) else {
             return;
@@ -145,13 +146,13 @@ impl ChangelogSectionView {
         // Section Title
         if self.show_special_new_features_header {
             content.add_child(render_special_changelog_header(
-                &title,
+                &localized_title,
                 render_icon(icon, appearance.theme().terminal_colors().normal.red.into()),
                 appearance,
             ));
         } else {
             content.add_child(render_basic_changelog_header(
-                &title,
+                &localized_title,
                 render_icon(
                     icon,
                     appearance
@@ -200,8 +201,9 @@ impl ChangelogSectionView {
         content: &mut Flex,
         model: &ChangelogModel,
         appearance: &Appearance,
+        app: &AppContext,
     ) {
-        self.generate_new_features_section(content, model, appearance);
+        self.generate_new_features_section(content, model, appearance, app);
 
         let additional_sections = [
             (
@@ -218,13 +220,14 @@ impl ChangelogSectionView {
 
         for (section, icon, link) in additional_sections {
             let title = section.to_string();
+            let localized_title = localized_changelog_header(app, section);
             let Some(markdown) = model.parsed_changelog.get(&title) else {
                 continue;
             };
 
             // Title
             content.add_child(render_basic_changelog_header(
-                &title,
+                &localized_title,
                 render_icon(
                     icon,
                     appearance
@@ -238,6 +241,15 @@ impl ChangelogSectionView {
             content.add_child(render_changelog_body(markdown.clone(), link, appearance));
         }
     }
+}
+
+fn localized_changelog_header(app: &AppContext, header: ChangelogHeader) -> String {
+    let key = match header {
+        ChangelogHeader::NewFeatures => "resource_center.changelog.header.new_features",
+        ChangelogHeader::Improvements => "resource_center.changelog.header.improvements",
+        ChangelogHeader::BugFixes => "resource_center.changelog.header.bug_fixes",
+    };
+    localization::text_for_app(app, key)
 }
 
 fn render_icon(icon: icons::Icon, color: Fill) -> ConstrainedBox {
@@ -432,6 +444,7 @@ impl View for ChangelogSectionView {
                         &mut content_flex,
                         changelog_model,
                         appearance,
+                        app,
                     );
                 }
                 ChangelogState::Pending => {

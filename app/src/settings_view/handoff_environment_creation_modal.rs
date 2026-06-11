@@ -12,6 +12,7 @@ use warpui::{
 use crate::ai::ambient_agents::github_auth_url::{AuthSource, GithubAuthRedirectTarget};
 use crate::ai::cloud_environments;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::modal::MODAL_BACKDROP_OPACITY;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
@@ -115,7 +116,10 @@ impl HandoffEnvironmentCreationModal {
                 let Some(owner) = owner else {
                     log::error!("Unable to create environment: not logged in");
                     ctx.emit(HandoffEnvironmentCreationModalEvent::CreationFailed {
-                        error_message: "Not logged in".to_string(),
+                        error_message: localization::text_for_app(
+                            ctx,
+                            "settings.environment.error.not_logged_in_short",
+                        ),
                     });
                     return;
                 };
@@ -194,7 +198,7 @@ impl HandoffEnvironmentCreationModal {
             .finish();
 
         let dialog = Dialog::new(
-            "Create environment".to_string(),
+            localization::text_for_app(app, "settings.environment.form.create_environment"),
             None,
             dialog_styles(appearance),
         )

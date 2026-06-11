@@ -24,13 +24,13 @@ pub enum CostRow {
         value: Option<f32>,
     },
     BilledToProvider {
-        label: &'static str,
+        label: String,
         tooltip: Option<CostRowTooltip>,
         manage_button: Box<dyn Element>,
     },
 }
 pub struct CostRowTooltip {
-    pub text: &'static str,
+    pub text: String,
     pub mouse_state: MouseStateHandle,
 }
 
@@ -103,7 +103,7 @@ enum ScoreRowKind {
         value: Option<f32>,
     },
     BilledToProvider {
-        label: &'static str,
+        label: String,
         manage_button: Box<dyn Element>,
     },
 }
@@ -204,7 +204,7 @@ fn render_score_row(
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(render_provider_label(label, appearance))
+                .with_child(render_provider_label(&label, appearance))
                 .with_child(manage_button)
                 .finish(),
         )
@@ -254,7 +254,7 @@ fn render_row_label(
         .finish()
 }
 
-fn render_provider_label(label: &'static str, appearance: &Appearance) -> Box<dyn Element> {
+fn render_provider_label(label: &str, appearance: &Appearance) -> Box<dyn Element> {
     Container::new(
         Text::new(label.to_string(), appearance.ui_font_family(), 14.)
             .with_color(appearance.theme().disabled_ui_text_color().into())
@@ -266,7 +266,7 @@ fn render_provider_label(label: &'static str, appearance: &Appearance) -> Box<dy
 fn render_info_tooltip(tooltip: CostRowTooltip, appearance: &Appearance) -> Box<dyn Element> {
     let icon_color = appearance.theme().disabled_ui_text_color();
     let ui_builder = appearance.ui_builder();
-    let tooltip_text = tooltip.text.to_string();
+    let tooltip_text = tooltip.text;
     Hoverable::new(tooltip.mouse_state, move |state| {
         let info_icon = Container::new(
             ConstrainedBox::new(WarpUiIcon::new("bundled/svg/info.svg", icon_color).finish())

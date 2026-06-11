@@ -1,6 +1,5 @@
 //! Rich-text notebooks editor.
 
-use crate::localization;
 use std::sync::Arc;
 
 use markdown_parser::markdown_parser::CODE_BLOCK_DEFAULT_MARKDOWN_LANG;
@@ -20,6 +19,7 @@ use warpui::fonts::FamilyId;
 use warpui::ui_components::checkbox::HOVER_BACKGROUND_COLOR;
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::notebooks::editor::embedded_item::EmbeddedWorkflow;
 use crate::settings::{derived_notebook_font_size, FontSettings};
 use crate::themes::theme::Fill;

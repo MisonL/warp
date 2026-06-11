@@ -7,10 +7,8 @@ use warp_localization::{
 };
 use warpui::{AppContext, AssetProvider as _, Entity, ModelContext, SingletonEntity as _};
 
-use crate::{
-    settings::{LanguageSettings, LanguageSettingsChangedEvent},
-    ASSETS,
-};
+use crate::settings::{LanguageSettings, LanguageSettingsChangedEvent};
+use crate::ASSETS;
 
 pub(crate) enum LocalizationEvent {
     LocaleChanged,
@@ -84,7 +82,6 @@ pub(crate) fn text_for_locale(locale: LocaleId, key: &str) -> String {
     text(locale, key)
 }
 
-#[cfg(test)]
 pub(crate) fn text_for_locale_with_args(
     locale: LocaleId,
     key: &str,
@@ -159,7 +156,9 @@ fn environment_locale_candidates_from(mut get: impl FnMut(&str) -> Option<String
 
 #[cfg(target_os = "macos")]
 fn platform_locale_candidates() -> Vec<String> {
-    use objc::{class, msg_send, rc::autoreleasepool, runtime::Object, sel, sel_impl};
+    use objc::rc::autoreleasepool;
+    use objc::runtime::Object;
+    use objc::{class, msg_send, sel, sel_impl};
     use warpui::platform::mac::utils::nsstring_as_str;
 
     autoreleasepool(|| unsafe {

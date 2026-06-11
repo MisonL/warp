@@ -1,5 +1,6 @@
-use crate::localization;
 use std::borrow::Cow;
+
+use crate::localization;
 pub mod telemetry;
 
 use std::cell::RefCell;
@@ -2524,19 +2525,22 @@ fn render_grouped_tabs_header(
         if let Some(editor) = rename_editor.filter(|_| is_being_renamed) {
             render_inline_tab_rename_editor(editor, appearance, app)
         } else {
-            let title_text = group
-                .name
-                .clone()
-                .unwrap_or_else(|| "New Group".to_string());
+            let title_text = group.name.clone().unwrap_or_else(|| {
+                localization::text_for_app(app, "workspace.vertical_tabs.group.new")
+            });
             Text::new_inline(title_text, font_family, 12.)
                 .with_clip(ClipConfig::ellipsis())
                 .with_color(main_text_color.into())
                 .finish()
         };
     let subtitle_text = if member_count == 1 {
-        "1 tab".to_string()
+        localization::text_for_app(app, "workspace.vertical_tabs.group.tab_count.singular")
     } else {
-        format!("{member_count} tabs")
+        localization::text_for_app_with_args(
+            app,
+            "workspace.vertical_tabs.group.tab_count.plural",
+            &[("count", &member_count.to_string())],
+        )
     };
     let subtitle = Text::new_inline(subtitle_text, font_family, 10.)
         .with_clip(ClipConfig::ellipsis())

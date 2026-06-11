@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cell::OnceCell;
 use std::sync::Arc;
 use std::{fmt, vec};
@@ -29,6 +28,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::safe_triangle::SafeTriangle;
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::icon_button_with_color;
@@ -474,6 +474,7 @@ pub struct MenuItemFields<A: Action + Clone> {
     /// [`MenuItemLabel::Text`] labels — multiline/stacked/labeled/icon/custom
     /// variants ignore this field.
     clip_config: Option<ClipConfig>,
+    save_position_id: Option<String>,
 }
 
 impl<A: Action + Clone> std::fmt::Debug for MenuItemFields<A> {
@@ -515,6 +516,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
+            save_position_id: None,
         }
     }
 
@@ -545,6 +547,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
+            save_position_id: None,
         }
     }
 
@@ -578,6 +581,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
+            save_position_id: None,
         }
     }
 
@@ -614,6 +618,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
+            save_position_id: None,
         }
     }
 
@@ -648,6 +653,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
+            save_position_id: None,
         }
     }
 
@@ -681,6 +687,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
+            save_position_id: None,
         }
     }
 
@@ -711,6 +718,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
+            save_position_id: None,
         }
     }
 
@@ -763,6 +771,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: self.override_hover_background_color,
             icon_size_override: self.icon_size_override,
             clip_config: self.clip_config,
+            save_position_id: self.save_position_id,
         }
     }
 
@@ -876,6 +885,11 @@ impl<A: Action + Clone> MenuItemFields<A> {
         self
     }
 
+    pub fn with_save_position_id(mut self, save_position_id: impl Into<String>) -> Self {
+        self.save_position_id = Some(save_position_id.into());
+        self
+    }
+
     pub(crate) fn with_tooltip_position(mut self, position: MenuTooltipPosition) -> Self {
         self.tooltip_position = position;
         self
@@ -930,6 +944,13 @@ impl<A: Action + Clone> MenuItemFields<A> {
 
     pub fn label(&self) -> &str {
         self.element.label().unwrap_or_default()
+    }
+
+    pub fn save_position_id(&self) -> &str {
+        match &self.save_position_id {
+            Some(save_position_id) => save_position_id,
+            None => self.label(),
+        }
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -1457,7 +1478,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 .finish();
         }
 
-        SavePosition::new(element, self.label()).finish()
+        SavePosition::new(element, self.save_position_id()).finish()
     }
 }
 

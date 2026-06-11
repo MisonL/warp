@@ -1161,7 +1161,6 @@ impl SettingsWidget for SecretRedactionWidget {
                     Shrinkable::new(
                         1.0,
                         render_sub_header(
-                            app,
                             appearance,
                             crate::localization::text_for_app(
                                 app,
@@ -1235,7 +1234,6 @@ impl SettingsWidget for SecretRedactionWidget {
 
             // Create the label with local-only icon if needed
             let label_with_icon = super::settings_page::render_dropdown_item_label(
-                app,
                 crate::localization::text_for_app(
                     app,
                     "settings.privacy.secret_visual_redaction.title",
@@ -1496,7 +1494,6 @@ impl SettingsWidget for AppAnalyticsWidget {
             Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(render_body_item_label::<PrivacyPageAction>(
-                    app,
                     crate::localization::text_for_app(app, "settings.privacy.telemetry.title"),
                     None,
                     None,
@@ -1508,7 +1505,6 @@ impl SettingsWidget for AppAnalyticsWidget {
                 .finish()
         } else {
             render_body_item_label::<PrivacyPageAction>(
-                app,
                 crate::localization::text_for_app(app, "settings.privacy.telemetry.title"),
                 None,
                 None,
@@ -2063,8 +2059,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     ));
 
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "cloud AI conversation storage",
+        ToggleSettingActionPair::new_localized(
+            app,
+            "settings.privacy.cloud_conversation_storage.title",
             builder(SettingsAction::PrivacyPageToggle(
                 PrivacyPageAction::ToggleCloudConversationStorage,
             )),

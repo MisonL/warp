@@ -13,6 +13,7 @@ use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationEntry;
 use crate::ai::conversation_status_ui::render_status_element;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::conversations::AcceptConversation;
 use crate::terminal::input::inline_menu::styles as inline_styles;
@@ -173,5 +174,13 @@ impl SearchItem for ConversationSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Conversation: {}", self.entry.display.title)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.conversations.a11y.label",
+            &[("title", &self.entry.display.title)],
+        )
     }
 }

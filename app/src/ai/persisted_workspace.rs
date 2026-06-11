@@ -50,7 +50,7 @@ use crate::settings::CodeSettings;
 use crate::terminal::local_shell::LocalShellState;
 use crate::terminal::TerminalView;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-use crate::{report_if_error, send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, report_if_error, send_telemetry_from_ctx, TelemetryEvent};
 #[cfg(feature = "local_fs")]
 use crate::{view_components::DismissibleToast, workspace::ToastStack};
 
@@ -971,9 +971,10 @@ impl PersistedWorkspace {
                     if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::success(format!(
-                                    "{} installed and enabled successfully.",
-                                    server_type.binary_name()
+                                DismissibleToast::success(localization::text_for_app_with_args(
+                                    ctx,
+                                    "terminal.init_project.lsp.install_success",
+                                    &[("server", server_type.binary_name())],
                                 )),
                                 window_id,
                                 ctx,
@@ -1008,12 +1009,16 @@ impl PersistedWorkspace {
 
                     // Show error toast
                     if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
+                        let error = e.to_string();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(format!(
-                                    "Failed to install {}: {}",
-                                    server_type.binary_name(),
-                                    e
+                                DismissibleToast::error(localization::text_for_app_with_args(
+                                    ctx,
+                                    "terminal.init_project.lsp.install_failed",
+                                    &[
+                                        ("server", server_type.binary_name()),
+                                        ("error", error.as_str()),
+                                    ],
                                 )),
                                 window_id,
                                 ctx,
@@ -1127,12 +1132,16 @@ impl PersistedWorkspace {
                         },
                         ctx
                     );
-                    if let Some(window_id) = WindowManager::as_ref(ctx).active_window()
-                    {
+                    if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
+                        let path = workspace_root_display.as_str();
+                        let error = e.to_string();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                            let toast = DismissibleToast::error(format!(
-                                "Failed to start LSP server for {workspace_root_display} with error {e}",
-                            ));
+                            let toast =
+                                DismissibleToast::error(localization::text_for_app_with_args(
+                                    ctx,
+                                    "terminal.lsp.start_failed",
+                                    &[("path", path), ("error", error.as_str())],
+                                ));
                             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                         });
                     }

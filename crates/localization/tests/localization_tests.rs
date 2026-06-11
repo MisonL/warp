@@ -271,12 +271,19 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "agent.zero_state.local_description_with_location",
         "agent.zero_state.local_title",
         "agent.zero_state.oz_updates",
+        "agent.zero_state.shortcut.attach_context",
+        "agent.zero_state.shortcut.auto_accept",
         "agent.zero_state.shortcut.go_back_to_terminal",
+        "agent.zero_state.shortcut.input_shell_command",
         "agent.zero_state.shortcut.new_agent_conversation",
         "agent.zero_state.shortcut.new_cloud_agent_conversation",
         "agent.zero_state.shortcut.open_code_review",
         "agent.zero_state.shortcut.open_history",
+        "agent.zero_state.shortcut.pause_agent",
+        "agent.zero_state.shortcut.search_conversations",
+        "agent.zero_state.shortcut.slash_commands",
         "agent.zero_state.shortcut.switch_model",
+        "agent.zero_state.shortcut.toggle_conversation_list",
         "agent.zero_state.recent_activity",
         "agent.zero_state.view_changelog",
         "ai_document.action.restore",
@@ -391,6 +398,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "auth.welcome",
         "auth.web_handoff.error",
         "env_vars.title.untitled",
+        "agent.child_agent.name",
+        "agent.child_agent.untitled",
         "code.action.accept_and_save",
         "code.action.discard_this_version",
         "code.action.overwrite",
@@ -399,6 +408,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "code.binding.close_saved_tabs",
         "code.binding.save_file",
         "code.binding.save_file_as",
+        "code.find.scanning",
         "drive.export.exported_named",
         "drive.export.exported_object",
         "drive.export.failed",
@@ -406,6 +416,21 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "drive.export.finished_objects",
         "drive.export.open_in_finder",
         "drive.export.open_in_folder",
+        "env_vars.validation.secret_conflict.enterprise",
+        "env_vars.validation.secret_conflict.user",
+        "drive.sharing_onboarding.body.permissions",
+        "drive.sharing_onboarding.body.primary",
+        "drive.sharing_onboarding.share_kind.environment_variables",
+        "drive.sharing_onboarding.share_kind.folder",
+        "drive.sharing_onboarding.share_kind.item",
+        "drive.sharing_onboarding.share_kind.notebook",
+        "drive.sharing_onboarding.share_kind.rule",
+        "drive.sharing_onboarding.share_kind.workflow",
+        "drive.sharing_onboarding.share_named",
+        "drive.sharing_onboarding.title",
+        "drive.space.personal",
+        "drive.space.shared_with_me",
+        "drive.space.team",
         "editor.image_context.tooltip.attach",
         "editor.image_context.tooltip.conversation_limit",
         "editor.image_context.tooltip.query_limit",
@@ -416,6 +441,23 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "editor.voice.tooltip.hold_key",
         "editor.voice.tooltip.microphone_denied",
         "editor.voice.try_voice_input",
+        "cloud_object.semantic.edited",
+        "cloud_object.semantic.edited_by",
+        "cloud_object.semantic.last_edited_by",
+        "cloud_object.semantic.permadeletion.plural",
+        "cloud_object.semantic.permadeletion.singular",
+        "cloud_object.time.day_many",
+        "cloud_object.time.day_one",
+        "cloud_object.time.hour_many",
+        "cloud_object.time.hour_one",
+        "cloud_object.time.just_now",
+        "cloud_object.time.minute",
+        "cloud_object.time.month_many",
+        "cloud_object.time.month_one",
+        "cloud_object.time.week_many",
+        "cloud_object.time.week_one",
+        "cloud_object.time.year_many",
+        "cloud_object.time.year_one",
         "cloud_object.toast.deleted_forever",
         "cloud_object.toast.failed_create",
         "cloud_object.toast.failed_delete",
@@ -600,6 +642,15 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "agent.block.action.send_feedback",
         "agent.block.toast.copied_to_clipboard",
         "agent.block.toast.feedback_thanks",
+        "agent.orchestration.back_to_parent_conversation",
+        "agent.orchestration.menu.delete_agent",
+        "agent.orchestration.menu.focus_pane",
+        "agent.orchestration.menu.kill_agent",
+        "agent.orchestration.menu.open_in_new_pane",
+        "agent.orchestration.menu.open_in_new_tab",
+        "agent.orchestration.menu.stop_agent",
+        "agent.orchestration.menu.view_in_oz",
+        "agent.orchestration.parent_conversation",
         "agent.orchestration.sending_message_to",
         "agent.orchestration.started_agent",
         "agent_sdk.api_key.error.create_failed",
@@ -838,6 +889,9 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.cloud_mode_v2_history.no_results",
         "terminal.inline_conversation.tab.all",
         "terminal.inline_conversation.tab.current_directory",
+        "terminal.inline_history.a11y.ai_prompt",
+        "terminal.inline_history.a11y.command",
+        "terminal.inline_history.a11y.conversation",
         "terminal.inline_history.configure",
         "terminal.inline_history.header",
         "terminal.inline_history.tab.all",
@@ -869,8 +923,26 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.ssh_error.unsupported_shell",
         "terminal.ssh_error.unsupported_tmux_version",
         "terminal.ssh_error.warpify_timeout",
+        "terminal.ssh_file_upload.clear_upload",
+        "terminal.ssh_file_upload.close_session",
+        "terminal.ssh_file_upload.destination",
+        "terminal.ssh_file_upload.header",
+        "terminal.ssh_file_upload.status.failed",
+        "terminal.ssh_file_upload.status.uploaded",
+        "terminal.ssh_file_upload.status.uploading",
+        "terminal.ssh_file_upload.view_session",
+        "terminal.ssh_file_upload.waiting_for_password",
         "terminal.queued_prompts.tooltip.delete",
         "terminal.queued_prompts.tooltip.edit",
+        "terminal.queued_prompts.tooltip.initial_cloud_mode_prompt",
+        "terminal.queued_prompts.tooltip.send_now",
+        "terminal.queued_prompts.tooltip.send_now_cloud_setup",
+        "terminal.queued_prompts.tooltip.send_now_full_terminal_use_agent",
+        "terminal.rewind.a11y.current",
+        "terminal.rewind.a11y.rewind_to_no_changes",
+        "terminal.rewind.a11y.rewind_to_with_changes",
+        "terminal.rewind.current",
+        "terminal.rewind.no_code_to_restore",
         "terminal.status.loading_session",
         "terminal.status.starting_shell",
         "terminal.init_project.action.enable_language_support",
@@ -892,7 +964,11 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.init_project.environment.skipped",
         "terminal.init_project.lsp.enabled",
         "terminal.init_project.lsp.enabled_one_suffix",
+        "terminal.init_project.lsp.install_failed",
+        "terminal.init_project.lsp.install_success",
+        "terminal.init_project.lsp.installing_background",
         "terminal.init_project.lsp.installation_started",
+        "terminal.lsp.start_failed",
         "terminal.init_project.lsp.multiple_prompt",
         "terminal.init_project.lsp.single_prompt_prefix",
         "terminal.init_project.lsp.single_prompt_suffix",
@@ -905,6 +981,21 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.init_project.project_rules.skipped",
         "terminal.init_project.welcome.already_setup",
         "terminal.init_project.welcome.onboarding",
+        "terminal.input.conversations.a11y.label",
+        "terminal.input.plans.a11y.label",
+        "terminal.input.prompts.a11y.label",
+        "terminal.input.repos.a11y.indexed_repository",
+        "terminal.input.skills.a11y.label",
+        "terminal.input.user_query.a11y.label",
+        "terminal.prompt_suggestion.execute_this_plan",
+        "terminal.prompt_suggestion.zero_state.code",
+        "terminal.prompt_suggestion.zero_state.deploy",
+        "terminal.prompt_suggestion.zero_state.explain",
+        "terminal.prompt_suggestion.zero_state.fix",
+        "terminal.prompt_suggestion.zero_state.install",
+        "terminal.prompt_suggestion.zero_state.something_else",
+        "terminal.prompt_suggestions.tooltip.out_of_credits",
+        "terminal.prompt_suggestions.tooltip.restricted_payment_issue",
         "terminal.share_block_modal.action.copy",
         "terminal.share_block_modal.action.create_link",
         "terminal.share_block_modal.action.get_embed",
@@ -936,6 +1027,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.shared_session.tooltip.open_in_warp",
         "terminal.shared_session.toast.continue_cloud_failed",
         "terminal.shared_session.toast.edit_permissions_revoked_sharer_idle",
+        "terminal.shared_session.toast.link_copied",
         "terminal.shared_session.toast.shared_edit_permissions_revoked_inactivity",
         "terminal.shared_session.toast.sharing_ended_inactivity",
         "terminal.use_agent_footer.action.dismiss",
@@ -1022,6 +1114,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "wasm_nux.web_preference.title",
         "terminal.agent_title.new_agent_conversation",
         "terminal.agent_title.new_cloud_agent",
+        "terminal.ambient_agent.header.running",
         "theme_chooser.a11y.description",
         "theme_chooser.a11y.help",
         "theme_chooser.hint.current",
@@ -1032,6 +1125,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.pane_header.show_details",
         "editor.autosuggestion.keybinding.custom",
         "search.a11y.error_finding_results",
+        "search.a11y.item_with_binding",
         "search.a11y.loading_suggestions",
         "search.a11y.selected_item",
         "search.command_search.out_of_credits_contact_admin",
@@ -1472,6 +1566,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.ai.cli_agent_toolbar.requires_plugin.tooltip",
         "settings.ai.cli_agent_toolbar.section",
         "settings.ai.cli_agent_toolbar.select_coding_agent",
+        "settings.ai.cli_agent_toolbar.submit_rich_input_on_ctrl_enter.label",
         "settings.ai.cloud_agent_computer_use.description",
         "settings.ai.cloud_agent_computer_use.label",
         "settings.ai.cloud_agent_computer_use.section",
@@ -1524,6 +1619,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.ai.input.natural_language_denylist.label",
         "settings.ai.input.natural_language_detection.description",
         "settings.ai.input.natural_language_detection.label",
+        "settings.ai.input.prompt_submission_mode.description",
+        "settings.ai.input.prompt_submission_mode.label",
         "settings.ai.input.section",
         "settings.ai.input.show_agent_tips.label",
         "settings.ai.input.show_hint_text.label",
@@ -1543,6 +1640,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.ai.orchestration.label",
         "settings.ai.other.conversation_history.label",
         "settings.ai.other.conversation_layout.label",
+        "settings.ai.other.orchestration_message_display.description",
+        "settings.ai.other.orchestration_message_display.label",
         "settings.ai.other.oz_changelog.label",
         "settings.ai.other.section",
         "settings.ai.other.thinking.description",
@@ -1937,6 +2036,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.execution_profile.execute_commands",
         "settings.execution_profile.full_terminal_use",
         "settings.execution_profile.interact_with_running_commands",
+        "settings.execution_profile.long_context_pricing_warning.learn_more",
         "settings.execution_profile.mcp_allowlist",
         "settings.execution_profile.mcp_denylist",
         "settings.execution_profile.model.disable_reason.admin_disabled",
@@ -1990,6 +2090,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.platform.api_keys.empty.title",
         "settings.platform.api_keys.error.create_failed",
         "settings.platform.api_keys.error.delete_failed",
+        "settings.platform.api_keys.error.load_agents_failed",
+        "settings.platform.api_keys.error.no_agent_selected",
         "settings.platform.api_keys.error.no_current_team",
         "settings.platform.api_keys.expiration.label",
         "settings.platform.api_keys.expiration.never",
@@ -2006,8 +2108,10 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.platform.api_keys.modal_title.save",
         "settings.platform.api_keys.name",
         "settings.platform.api_keys.never",
+        "settings.platform.api_keys.no_search_results",
         "settings.platform.api_keys.secret_copied",
         "settings.platform.api_keys.secret_once",
+        "settings.platform.api_keys.search_placeholder",
         "settings.platform.api_keys.title",
         "settings.platform.api_keys.type",
         "settings.platform.api_keys.type.personal",
@@ -2080,6 +2184,13 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.title",
         "settings.transfer_ownership.description",
         "settings.transfer_ownership.transfer",
+        "settings.warpify.ssh_warpification.label",
+        "tooltip.secret_redaction.not_included",
+        "tooltip.secret_redaction.pattern.default",
+        "tooltip.secret_redaction.pattern.enterprise",
+        "tooltip.secret_redaction.pattern.user",
+        "tooltip.secret_redaction.will_not_include",
+        "tooltip.secrets_not_sent_to_server",
         "settings.teams.action.cancel_invite",
         "settings.teams.action.contact_admin",
         "settings.teams.action.create",
@@ -2217,6 +2328,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.appearance.app_icon.option.starburst",
         "settings.appearance.app_icon.option.sticker",
         "settings.appearance.app_icon.option.warp_1",
+        "settings.appearance.command_palette.match_agent_font",
+        "settings.appearance.command_palette.match_notebook_font_size",
         "settings.appearance.window.custom_size.label",
         "settings.appearance.window.custom_size.columns",
         "settings.appearance.window.custom_size.rows",
@@ -2390,10 +2503,19 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "tab.menu.close_tabs_below",
         "tab.menu.close_tabs_to_right",
         "tab.menu.copy_link",
+        "tab.menu.group.close_all_tabs",
+        "tab.menu.group.close_tabs_above",
+        "tab.menu.group.move_down",
+        "tab.menu.group.move_up",
+        "tab.menu.group.new_tab_in_group",
+        "tab.menu.group.ungroup_tabs",
         "tab.menu.move_down",
         "tab.menu.move_left",
         "tab.menu.move_right",
+        "tab.menu.move_to_group",
         "tab.menu.move_up",
+        "tab.menu.new_group_with_tab",
+        "tab.menu.remove_from_group",
         "tab.menu.rename_tab",
         "tab.menu.reset_tab_name",
         "tab.menu.save_as_new_config",
@@ -2465,14 +2587,26 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "prompt.editor.title",
         "prompt.editor.warp_prompt_section",
         "search.navigation.current_session",
+        "notebook.a11y.label",
+        "search.env_var_collection.a11y.label",
+        "search.notebook.a11y.label",
         "search.notebook_embedding.not_visible",
         "welcome.binding.add_repository",
+        "welcome.binding.add_repository_with_binding",
         "welcome.binding.terminal_session",
+        "welcome.binding.terminal_session_with_binding",
         "welcome.title.new_tab",
         "workflow.title.untitled",
         "workspace.vertical_tabs.badge.unsaved",
         "workspace.vertical_tabs.empty.no_search_results",
         "workspace.vertical_tabs.empty.no_tabs_open",
+        "workspace.vertical_tabs.group.new",
+        "workspace.vertical_tabs.group.tab_count.plural",
+        "workspace.vertical_tabs.group.tab_count.singular",
+        "common.rename",
+        "workspace.binding.rename_current_pane",
+        "workspace.binding.set_a11y_concise_announcements",
+        "workspace.binding.set_a11y_verbose_announcements",
         "workspace.vertical_tabs.more",
         "workspace.vertical_tabs.new_session",
         "workspace.vertical_tabs.pane_kind.code",
@@ -2551,7 +2685,9 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "workspace.welcome.ai_assistant.body",
         "workspace.conversation.default_title",
         "workspace.pane.untitled",
+        "terminal.warpify.never_warpify_host",
         "workspace.tab.settings",
+        "workflow.env_vars.selector.none",
         "workspace.worktree.config_name",
         "workspace.worktree.new",
         "workspace.worktree.new_with_branch",
@@ -2641,6 +2777,20 @@ fn bundled_catalogs_only_use_intentional_empty_values() {
         empty_translation_keys(&zh_cn),
         ALLOWED_EMPTY_TRANSLATION_KEYS
     );
+}
+
+#[test]
+fn app_localization_key_literals_are_catalog_backed() {
+    let app_src = workspace_root().join("app/src");
+    let mut keys = BTreeSet::new();
+    collect_app_localization_key_literals(&app_src, &mut keys);
+
+    assert!(
+        !keys.is_empty(),
+        "expected app localization key literals to be discovered"
+    );
+    let keys = keys.into_iter().collect::<Vec<_>>();
+    assert_bundled_keys_exist(&keys);
 }
 
 #[test]
@@ -2822,12 +2972,1121 @@ fn ai_settings_high_risk_wrappers_do_not_use_direct_english_literals() {
     );
 }
 
+#[test]
+fn static_slash_command_descriptions_have_catalog_keys() {
+    let command_names = static_slash_command_names_from_source();
+    assert!(!command_names.is_empty(), "expected static slash commands");
+
+    let keys = command_names
+        .iter()
+        .map(|name| slash_command_localization_key(name, "description"))
+        .collect::<Vec<_>>();
+
+    assert_bundled_keys_exist(&keys);
+}
+
+#[test]
+fn plugin_instruction_keys_exist_in_catalogs() {
+    let keys = plugin_instruction_keys_from_source();
+    assert!(!keys.is_empty(), "expected plugin instruction keys");
+
+    assert_bundled_keys_exist(&keys);
+}
+
+#[test]
+fn static_prompt_suggestion_keys_exist_in_catalogs() {
+    let keys = static_prompt_suggestion_keys_from_source();
+    assert!(!keys.is_empty(), "expected static prompt suggestion keys");
+
+    assert_bundled_keys_exist(&keys);
+}
+
+#[test]
+fn zero_state_prompt_suggestion_keys_exist_in_catalogs() {
+    let keys = zero_state_prompt_suggestion_keys_from_source();
+    assert!(
+        !keys.is_empty(),
+        "expected zero-state prompt suggestion keys"
+    );
+
+    assert_bundled_keys_exist(&keys);
+}
+
+#[test]
+fn selected_search_accessibility_and_web_home_keys_exist_in_catalogs() {
+    let required_keys = [
+        "search.a11y.help.confirm",
+        "search.a11y.help.confirm_with_binding",
+        "search.a11y.item_with_binding",
+        "search.a11y.type.ai_query",
+        "search.a11y.type.block",
+        "search.a11y.type.code_symbol",
+        "search.a11y.type.command",
+        "search.a11y.type.conversation",
+        "search.a11y.type.history_item",
+        "search.a11y.type.project",
+        "search.a11y.type.repo",
+        "search.a11y.type.rule",
+        "search.a11y.type.secret",
+        "search.a11y.type.skill",
+        "search.a11y.type.warp_ai",
+        "search.a11y.type.workflow",
+        "search.a11y.type.workflow_with_description",
+        "workspace.home.content",
+        "workspace.home.title",
+        "agent.plan_and_todo.tooltip.unaware_of_plan_edits",
+        "agent.plan_and_todo.tooltip.view_plan",
+        "agent.plan_and_todo.tooltip.view_todo_list",
+        "agent.suggested_workflow.tooltip.prompt",
+        "agent.usage.credit.plural",
+        "agent.usage.credit.singular",
+        "input_suggestions.time.day_many",
+        "input_suggestions.time.day_one",
+        "input_suggestions.time.hour_many",
+        "input_suggestions.time.hour_one",
+        "input_suggestions.time.just_now",
+        "input_suggestions.time.minute",
+        "input_suggestions.time.month_many",
+        "input_suggestions.time.month_one",
+        "input_suggestions.time.week_many",
+        "input_suggestions.time.week_one",
+        "input_suggestions.time.year_many",
+        "input_suggestions.time.year_one",
+    ];
+
+    assert_bundled_keys_exist(&required_keys);
+}
+
+#[test]
+fn binding_search_accessibility_label_does_not_embed_selected_state() {
+    let catalogs = [
+        ("en-US", bundled_en_us_map(), "Selected"),
+        ("zh-CN", bundled_zh_cn_map(), "已选择"),
+    ];
+
+    for (locale, catalog, selected_prefix) in catalogs {
+        let item_with_binding = catalog
+            .get("search.a11y.item_with_binding")
+            .and_then(|value| value.as_str())
+            .unwrap_or_else(|| panic!("{locale}: missing search.a11y.item_with_binding"));
+
+        assert!(
+            !item_with_binding.contains(selected_prefix),
+            "{locale}: search.a11y.item_with_binding must leave selected state to search.a11y.selected_item"
+        );
+    }
+}
+
+#[test]
+fn current_i18n_regression_targets_are_catalog_backed() {
+    let required_keys = [
+        "agent.error.context_window_exceeded",
+        "agent.error.llm_unavailable",
+        "agent.error.request_incomplete",
+        "agent.error.response_stream_internal",
+        "agent.error.response_stream_other",
+        "agent.input_footer.platform_plugin_install_no_effect",
+        "agent.input_footer.platform_plugin_update_no_effect",
+        "agent.input_footer.plugin_auto_install_unsupported",
+        "agent.input_footer.plugin_auto_update_unsupported",
+        "agent.input_footer.plugin_command_failed",
+        "agent.input_footer.plugin_command_run_failed",
+        "agent.input_footer.plugin_update_no_effect",
+        "agent.input_footer.toolbar_item.attach_file",
+        "agent.input_footer.toolbar_item.autodetection",
+        "agent.input_footer.toolbar_item.context_chip",
+        "agent.input_footer.toolbar_item.context_usage",
+        "agent.input_footer.toolbar_item.fast_forward",
+        "agent.input_footer.toolbar_item.file_explorer",
+        "agent.input_footer.toolbar_item.handoff_to_cloud",
+        "agent.input_footer.toolbar_item.model_selector",
+        "agent.input_footer.toolbar_item.rich_input",
+        "agent.input_footer.toolbar_item.settings",
+        "agent.input_footer.toolbar_item.voice_input",
+        "agent_management.agent_type_selector.cloud.description",
+        "agent_management.agent_type_selector.cloud.title",
+        "agent_management.agent_type_selector.local.description",
+        "agent_management.agent_type_selector.local.title",
+        "agent.orchestration.error.no_targets",
+        "agent.orchestration.error.source_conversation_not_found",
+        "agent.orchestration.run_agents.accept",
+        "agent.orchestration.run_agents.reject",
+        "agent.ask_user_question.other",
+        "agent.ask_user_question.select_all_suffix",
+        "agent.ask_user_question.speedbump.allow_questions",
+        "agent.ask_user_question.summary.answer_prefix",
+        "agent.ask_user_question.summary.question_prefix",
+        "agent.ask_user_question.summary.skipped",
+        "agent.search_codebase.cancelled",
+        "agent.search_codebase.cancelled_in_repo",
+        "agent.search_codebase.error.codebase_unavailable",
+        "agent.search_codebase.error.current_directory_unavailable",
+        "agent.search_codebase.error.indexing",
+        "agent.search_codebase.error.missing_files",
+        "agent.search_codebase.error.missing_git_repo",
+        "agent.search_codebase.error.remote_host_not_connected",
+        "agent.search_codebase.error.remote_indexing",
+        "agent.search_codebase.error.remote_no_repo",
+        "agent.search_codebase.error.remote_not_enabled",
+        "agent.search_codebase.error.remote_not_indexed",
+        "agent.search_codebase.error.remote_read_failed",
+        "agent.search_codebase.error.remote_read_unknown",
+        "agent.search_codebase.error.remote_server_not_connected",
+        "agent.search_codebase.error.remote_unavailable_for_path",
+        "agent.search_codebase.error.remote_unexpected_unavailable",
+        "agent.search_codebase.error.remote_unavailable",
+        "agent.search_codebase.error.search_failed",
+        "agent.search_codebase.searched_codebase",
+        "agent.search_codebase.searched_codebase_in_repo",
+        "agent.search_codebase.searching",
+        "agent.search_codebase.searching_in_repo",
+        "agent.search_results.results_label",
+        "agent.search_results.urls_label",
+        "agent.web_fetch.failed_url",
+        "agent.view_block.deleted",
+        "agent.view_block.deleted_conversation",
+        "agent_sdk.environment.error.fetch_images",
+        "ai_document.title.default",
+        "code.remote_disconnected.banner",
+        "code.toast.save_failed_remote_disconnected",
+        "conversation_details.tooltip.cancel_task",
+        "conversation_details.tooltip.copy_link_to_run",
+        "conversation_details.tooltip.fork_conversation",
+        "conversation_details.tooltip.open_conversation",
+        "conversation_details.tooltip.view_details",
+        "editor.ai_context_menu.search_files_tooltip",
+        "remote.codebase_search.host_disconnected",
+        "remote.codebase_search.missing_root_hash",
+        "remote.codebase_search.unavailable",
+        "remote.host.unknown",
+        "settings.ai.custom_endpoint.usage_fallback",
+        "settings.ai.aws_bedrock.credentials.status.disabled.detail",
+        "settings.ai.aws_bedrock.credentials.status.disabled.title",
+        "settings.ai.aws_bedrock.credentials.status.failed.title",
+        "settings.ai.aws_bedrock.credentials.status.loaded.title",
+        "settings.ai.aws_bedrock.credentials.status.missing.detail",
+        "settings.ai.aws_bedrock.credentials.status.missing.title",
+        "settings.ai.aws_bedrock.credentials.status.refreshing.detail",
+        "settings.ai.aws_bedrock.credentials.status.refreshing.title",
+        "settings.billing.addon_credits.auto_reload.managed.title",
+        "settings.environment.create.toast.failed",
+        "settings.mcp.install.no_server_selected",
+        "settings.mcp.toast.authenticated_server",
+        "settings.theme_creator.error.process_image",
+        "settings.theme_creator.error.process_image_with_error",
+        "tab_config.new_worktree.branch_name",
+        "terminal.rewind.a11y.current",
+        "terminal.rewind.current",
+        "terminal.ssh_error.start_extension_failed",
+        "terminal.warpify.success.auto_warpify_instructions",
+        "terminal.warpify.success.learn_more",
+        "terminal.warpify.success.remote_subshell_description",
+        "terminal.warpify.success.title",
+        "workspace.codex_modal.initial_prompt",
+    ];
+
+    assert_bundled_keys_exist(&required_keys);
+
+    let cases = [
+        (
+            "app/src/settings_view/mcp_servers/installation_modal.rs",
+            &["No MCP server selected"][..],
+        ),
+        (
+            "app/src/settings_view/billing_and_usage_page_v2.rs",
+            &[
+                "const MANAGED_AUTO_RELOAD_HEADER",
+                "\"Auto-reload is enabled\"",
+            ][..],
+        ),
+        ("app/src/util/path.rs", &["\"Remote host\""][..]),
+        (
+            "app/src/ai/ai_document_view.rs",
+            &["\"Planning document\""][..],
+        ),
+        (
+            "app/src/ai/document/ai_document_model.rs",
+            &["\"Planning document\""][..],
+        ),
+        ("app/src/ai/llms.rs", &["\"Custom endpoint\""][..]),
+        (
+            "app/src/ai/blocklist/controller.rs",
+            &[
+                "Request did not successfully complete",
+                "Response stream finished unexpectedly (with finish reason `Other`).",
+                "Input exceeded context window limit.",
+                "The LLM is currently unavailable.",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/action_model/execute/search_codebase.rs",
+            &[
+                "The current directory isn't within a git repository",
+                "The current git repository is still being indexed",
+                "The search failed. Try another way",
+                "Remote codebase search is unavailable.",
+            ][..],
+        ),
+        (
+            "app/src/ai/get_relevant_files/remote_search/native.rs",
+            &[
+                "Remote codebase search is not enabled.",
+                "Remote codebase search is unavailable because the remote server is not connected.",
+                "Remote codebase search is unavailable because the remote host is not connected.",
+                "The current remote directory is not in a known codebase.",
+                "The remote codebase at {} is not indexed yet.",
+                "The remote codebase at {} is still being indexed. Try again later.",
+                "Failed to read remote search result files: {failed}",
+                "\"unknown error\"",
+                "Remote codebase search is unavailable for {}: {message}",
+                "Remote codebase search was unexpectedly unavailable.",
+            ][..],
+        ),
+        (
+            "app/src/ai/get_relevant_files/remote_search/wasm.rs",
+            &["Remote codebase search is not available in this environment."][..],
+        ),
+        (
+            "app/src/remote_server/codebase_index_model.rs",
+            &[
+                "The remote host is currently disconnected.",
+                "The remote codebase index is missing its root hash.",
+                "Remote codebase search is not available.",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/orchestration_events.rs",
+            &["Source conversation not found", "No target agents provided"][..],
+        ),
+        (
+            "app/src/terminal/view.rs",
+            &["\"Failed to start SSH extension\""][..],
+        ),
+        (
+            "app/src/workspace/view.rs",
+            &["\"Hello, Agent Mode x Codex!\""][..],
+        ),
+        (
+            "app/src/terminal/input/rewind/search_item.rs",
+            &[
+                "query_text: \"Current\"",
+                "\"Current state (no rewind)\"",
+                "Text::new_inline(\"Current\"",
+            ][..],
+        ),
+        (
+            "app/src/tab_configs/session_config.rs",
+            &["New worktree branch name"][..],
+        ),
+        (
+            "app/src/terminal/cli_agent_sessions/plugin_manager/mod.rs",
+            &[
+                "Auto-install is not supported for this agent",
+                "Auto-update is not supported for this agent",
+                "format!(\"'{}' failed",
+                "format!(\"Failed to run",
+            ][..],
+        ),
+        (
+            "app/src/terminal/cli_agent_sessions/plugin_manager/claude.rs",
+            &[
+                "Plugin update did not take effect",
+                "Platform plugin installation did not take effect",
+                "Platform plugin update did not take effect",
+            ][..],
+        ),
+        (
+            "app/src/terminal/cli_agent_sessions/plugin_manager/gemini.rs",
+            &["Plugin update did not take effect"][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/ask_user_question_view.rs",
+            &[
+                "\"Other...\"",
+                "\" (select all that apply)\"",
+                "\"Allow the agent to ask questions:\"",
+                "format!(\"Q: {}\"",
+                "format!(\"A: {}\"",
+                "\"Skipped\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/search_codebase.rs",
+            &[
+                "format!(\"Searching for",
+                "format!(\"Searching codebase",
+                "format!(\"Search for",
+                "format!(\"Searched codebase",
+                "\"results\"",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/web_search.rs",
+            &["\"URLs\""][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/web_fetch.rs",
+            &["\"URLs\"", "\"\u{2717} {display_text}\""][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/create_environment_modal.rs",
+            &["Failed to create environment"][..],
+        ),
+        (
+            "app/src/code/local_code_editor.rs",
+            &["Save and auto-reload are unavailable while the remote session is disconnected"][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/environment.rs",
+            &["Failed to fetch images"][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/run_agents_card_view.rs",
+            &["\"Accept\"", "\"Reject\""][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/agent_view_block.rs",
+            &["\"Deleted conversation\"", "\"Deleted\""][..],
+        ),
+        (
+            "app/src/terminal/warpify/success_block.rs",
+            &[
+                "Run the following to automatically Warpify in the future:",
+                "In remote subshells, Warp runs commands in the background",
+                "\"Session Warpified\"",
+                "\"Learn more\".into()",
+            ][..],
+        ),
+        (
+            "app/src/themes/theme_creator_body.rs",
+            &["Failed to process selected image"][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "current i18n regression targets must use catalog copy: {violations:#?}"
+    );
+}
+
+#[test]
+fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_literals() {
+    let cases = [
+        (
+            "app/src/workspaces/team.rs",
+            &[
+                "Your team cannot be deleted with an active subscription.",
+                "Your team cannot be deleted with unused add-on credits.",
+                "Your team cannot be deleted with other team members.",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/suggested_agent_mode_workflow_modal.rs",
+            &["const SUGGESTED_PROMPT_MODAL_HEADER", "Some(\"Prompt\""][..],
+        ),
+        (
+            "app/src/ai_assistant/panel.rs",
+            &[
+                "Write a script to connect to an AWS EC2 instance.",
+                "How do I undo the most recent commits in git?",
+                "How do I find all files containing specific text?",
+            ][..],
+        ),
+        (
+            "app/src/ai_assistant/transcript.rs",
+            &[
+                "How do I fix this?",
+                "Show examples.",
+                "What should I do next?",
+            ][..],
+        ),
+        (
+            "app/src/terminal/local_tty/terminal_manager.rs",
+            &[
+                "const ACL_UPDATE_FAILURE_RESPONSE",
+                "Failed to update permissions for shared session",
+            ][..],
+        ),
+        (
+            "app/src/terminal/shared_session/viewer/terminal_manager.rs",
+            &[
+                "\"Something went wrong. Please try again.\".to_owned()",
+                "\"Failed to update permissions for shared session\".to_owned()",
+            ][..],
+        ),
+        (
+            "app/src/search/command_palette/files/search_item.rs",
+            &[
+                "Directory: {}",
+                "File: {}",
+                "Press Enter to navigate to this directory",
+                "Press Enter to open this file",
+            ][..],
+        ),
+        (
+            "app/src/env_vars/view/env_var_collection.rs",
+            &["\"Untitled\""][..],
+        ),
+        (
+            "app/src/workspace/view/vertical_tabs.rs",
+            &[
+                "\"New Group\".to_string()",
+                "\"1 tab\".to_string()",
+                "format!(\"{member_count} tabs\")",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/agent_view_block.rs",
+            &["Couldn't navigate to conversation."][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/orchestration_conversation_links.rs",
+            &[
+                "\"Parent conversation\".to_string()",
+                "\"Back to parent conversation\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/orchestration_pill_bar.rs",
+            &[
+                "\"Focus pane\"",
+                "\"Open in new pane\"",
+                "\"Open in new tab\"",
+                "\"View in Oz\"",
+                "\"Stop agent\"",
+                "\"Delete agent\"",
+                "\"Kill agent\"",
+                "unwrap_or(\"Agent\")",
+                "\"Orchestrator\".to_string()",
+                "name.push_str(\"Untitled\")",
+            ][..],
+        ),
+        (
+            "app/src/drive/export.rs",
+            &["\"Untitled\".to_string()", "name.push_str(\"Untitled\")"][..],
+        ),
+        (
+            "app/src/cloud_object/mod.rs",
+            &[
+                "\"Personal\".to_string()",
+                "\"Team\".to_string()",
+                "\"Shared with me\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/block/view_impl/orchestration.rs",
+            &["unwrap_or(\"Agent\")"][..],
+        ),
+        (
+            "app/src/ai/blocklist/block/view_impl.rs",
+            &["Manage AI Autonomy permissions"][..],
+        ),
+        (
+            "app/src/ai/blocklist/code_block.rs",
+            &[
+                "\"Add as Context\"",
+                "\"Copy\"",
+                "\"Open in Warp\"",
+                "\"Run in terminal\"",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/host_picker.rs",
+            &[
+                "const CUSTOM_HOST_LABEL:",
+                "const DEFAULT_BADGE:",
+                "const EDITOR_PLACEHOLDER:",
+                "\"Custom host",
+                "\"Default\"",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/orchestration_controls.rs",
+            &[
+                "OpenCode is not supported on Cloud",
+                "Disabled by your administrator",
+                "Install Claude Code to use this local harness",
+                "We recommend selecting an environment for cloud agents",
+                "We recommend creating an environment for cloud agents",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/usage/rollup.rs",
+            &["\"Orchestrator\".to_string()", "\"Agent\".to_string()"][..],
+        ),
+        (
+            "app/src/ai/blocklist/usage/conversation_usage_view.rs",
+            &[
+                "\"USAGE SUMMARY\"",
+                "\"Credits spent (last response)\"",
+                "\"Credits spent (total)\"",
+                "\"Credits spent\"",
+                "\"Tool calls\"",
+                "\"Models\"",
+                "format!(\"Models ({})\"",
+                "which model is used for full terminal use",
+                "\"Context window used\"",
+                "\"TOOL CALL SUMMARY\"",
+                "\"Files changed\"",
+                "\"Diffs applied\"",
+                "\"Commands executed\"",
+                "\"LAST RESPONSE TIME\"",
+                "\"Time to first token\"",
+                "\"{:.1} seconds\"",
+                "\"Total agent response time\"",
+                "\"Total time (including tool calls)\"",
+                "\"Hide details\"",
+                "\"View details\"",
+                "format!(\"Show {hidden_count} more\")",
+            ][..],
+        ),
+        (
+            "app/src/ai/conversation_details_panel.rs",
+            &["title: \"Cloud agent run\""][..],
+        ),
+        (
+            "app/src/ai/blocklist/view_util.rs",
+            &[
+                "format!(\"{whole} credit\")",
+                "format!(\"{whole} credits\")",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/suggestion_chip_view.rs",
+            &["format!(\"Suggested prompt:"][..],
+        ),
+        (
+            "app/src/ai/blocklist/prompt/plan_and_todo_list.rs",
+            &[
+                "\"Agent is unaware of recent plan edits\".to_string()",
+                "\"View plan\".to_string()",
+                "\"View todo list\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/suggested_rule_modal.rs",
+            &["\"Untitled\".to_string()"][..],
+        ),
+        (
+            "app/src/ai/artifacts/buttons.rs",
+            &[
+                "make_screenshot_button(\"Screenshots\"",
+                "\"Open plan\"",
+                "\"Copy branch name\"",
+                "\"Open pull request\"",
+                "\"View screenshots\"",
+                "\"Download file\"",
+            ][..],
+        ),
+        (
+            "app/src/workspace/bonus_grant_notification_model.rs",
+            &["\"account\"", "\"team\"", "Reload Credits have been added"][..],
+        ),
+        (
+            "app/src/resource_center/section_views/changelog_section.rs",
+            &[
+                "render_basic_changelog_header(&title",
+                "render_special_changelog_header(&title",
+            ][..],
+        ),
+        (
+            "app/src/external_secrets/mod.rs",
+            &[
+                "CLI is not installed",
+                "View {} CLI installation documentation",
+                "Integrate 1Password app with CLI",
+                "didn't return secrets",
+                "Platform not supported",
+            ][..],
+        ),
+        (
+            "app/src/drive/items/env_var_collection.rs",
+            &["\"Untitled\".to_string()"][..],
+        ),
+        (
+            "app/src/drive/items/notebook.rs",
+            &["\"Untitled\".to_string()"][..],
+        ),
+        (
+            "app/src/drive/items/item.rs",
+            &["\"Untitled\".to_string()"][..],
+        ),
+        (
+            "app/src/search/command_search/env_var_collections/env_var_collection_search_item.rs",
+            &["\"Untitled\".to_owned()"][..],
+        ),
+        (
+            "app/src/search/command_palette/warp_drive/env_var_collection_search_item.rs",
+            &["\"Untitled\".to_owned()", "\"Environment Variables: {}\""][..],
+        ),
+        (
+            "app/src/search/command_palette/warp_drive/notebook_search_item.rs",
+            &["\"Untitled\".to_string()"][..],
+        ),
+        ("app/src/terminal/view.rs", &["\"Untitled\".to_owned()"][..]),
+        (
+            "app/src/search/ai_context_menu/notebooks/search_item.rs",
+            &["\"Untitled\".to_string()", "format!(\"Notebook: {}"][..],
+        ),
+        (
+            "app/src/search/ai_context_menu/files/search_item.rs",
+            &["format!(\"Directory: {}", "format!(\"File: {}"][..],
+        ),
+        (
+            "app/src/search/command_search/notebooks/notebook_search_item.rs",
+            &["format!(\"Notebook: {}"][..],
+        ),
+        (
+            "app/src/search/notebook_embedding/notebooks/notebook_search_item.rs",
+            &["format!(\"Notebook: {}"][..],
+        ),
+        (
+            "app/src/notebooks/notebook.rs",
+            &["title.push_str(\"Untitled\")", "format!(\"{} notebook\""][..],
+        ),
+        (
+            "app/src/notebooks/file/mod.rs",
+            &["\"Untitled\".to_string()", "format!(\"{} notebook\""][..],
+        ),
+        (
+            "app/src/notebooks/editor/block_insertion_menu.rs",
+            &["\"Untitled\".to_string()"][..],
+        ),
+        (
+            "app/src/settings_view/platform_page.rs",
+            &[
+                "\"Search API keys\"",
+                "\"Save your key\"",
+                "\"No API keys match your search\"",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/platform/create_api_key_modal.rs",
+            &[
+                "\"Please select an agent.\"",
+                "\"Unable to create a team API key because there is no current team.\"",
+                "\"Failed to create API key. Please try again.\"",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/main_page.rs",
+            &[
+                "\"Not yet loaded\"",
+                "\"Refreshing",
+                "format!(\"Loaded (refreshes in",
+                "format!(\"Failed: {message}\")",
+                "Using injected token (WARP_IAP_TOKEN)",
+                "\"Staging IAP credentials\"",
+                "\"Refresh\".into()",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/warp_drive_page.rs",
+            &["SettingActionPairDescriptions::new(\"Enable Warp Drive\""][..],
+        ),
+        (
+            "app/src/settings_view/warpify_page.rs",
+            &["\"SSH Warpification\""][..],
+        ),
+        (
+            "app/src/server/iap.rs",
+            &["IAP credential refresh failed: {message}"][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/agent_input_footer/mod.rs",
+            &["context remaining", "No plugin manager available"][..],
+        ),
+        (
+            "app/src/terminal/cli_agent_sessions/plugin_manager/mod.rs",
+            &[
+                "Auto-install not supported for this agent",
+                "Auto-update not supported for this agent",
+                "format!(\"'{}' failed",
+                "format!(\"failed to run",
+            ][..],
+        ),
+        (
+            "app/src/terminal/cli_agent_sessions/plugin_manager/claude.rs",
+            &[
+                "Plugin update did not take effect",
+                "Platform plugin installation did not take effect",
+                "Platform plugin update did not take effect",
+            ][..],
+        ),
+        (
+            "app/src/terminal/cli_agent_sessions/plugin_manager/gemini.rs",
+            &["Plugin update did not take effect"][..],
+        ),
+        (
+            "app/src/tab_configs/session_config.rs",
+            &["New worktree branch name"][..],
+        ),
+        (
+            "app/src/input_suggestions.rs",
+            &[
+                "format_approx_duration_from_now",
+                "human_readable_approx_duration",
+            ][..],
+        ),
+        (
+            "app/src/ai_assistant/mod.rs",
+            &["ASK_AI_ASSISTANT_TEXT", "\"Ask Warp AI\""][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/requested_command.rs",
+            &["Manage command execution setting"][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/requested_action.rs",
+            &[
+                "const REQUESTED_ACTION_CANCEL_LABEL: &str = \"Cancel\"",
+                "const REQUESTED_ACTION_RUN_LABEL: &str = \"Run\"",
+            ][..],
+        ),
+        (
+            "app/src/env_vars/env_var_collection_block.rs",
+            &[
+                "const ENV_VAR_COLLECTION_CANCEL_LABEL: &str = \"Cancel\"",
+                "const ENV_VAR_COLLECTION_ACCEPT_LABEL: &str = \"Run\"",
+                "OK if I run this command and read the output?",
+            ][..],
+        ),
+        (
+            "app/src/cloud_object/mod.rs",
+            &[
+                "format!(\"Edited",
+                "format!(\"{name} edited",
+                "format!(\"Last edited by",
+                "\"1 day until permanent deletion\".to_string()",
+                "format!(\"{days_left} days until permanent deletion\")",
+            ][..],
+        ),
+        (
+            "app/src/terminal/view/init_project/mod.rs",
+            &[
+                "{} installed and enabled successfully.",
+                "Failed to install {}: {e}",
+                "Installing {} in background...",
+            ][..],
+        ),
+        (
+            "app/src/ai/persisted_workspace.rs",
+            &[
+                "{} installed and enabled successfully.",
+                "Failed to install {}: {}",
+                "Failed to start LSP server",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/appearance_page.rs",
+            &[
+                "\"agent font matching terminal font\"",
+                "\"notebook font size matching terminal font size\"",
+                "\"custom padding in alt-screen\"",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/ai_page.rs",
+            &[
+                "\"e.g. ~/code-repos/repo\"",
+                "\"e.g. ls .*\"",
+                "\"e.g. rm .*\"",
+                "\"command (supports regex)\"",
+                "set_placeholder_text(\"aws login\"",
+            ][..],
+        ),
+        (
+            "app/src/terminal/input/models/data_source.rs",
+            &[
+                "AUTO_BEDROCK_TOOLTIP",
+                "Inference may use Bedrock",
+                "Inference via Bedrock",
+                "Inference via API key",
+            ][..],
+        ),
+        (
+            "app/src/session_management.rs",
+            &[
+                "Last run command",
+                "Last AI interaction",
+                "Currently running",
+            ][..],
+        ),
+        (
+            "app/src/terminal/shared_session/mod.rs",
+            &["Sharing link copied"][..],
+        ),
+        (
+            "app/src/terminal/view/init_environment/mode_selector.rs",
+            &[
+                "\"Quick setup\"",
+                "\"Use the agent\"",
+                "Select the GitHub repositories you'd like to work with",
+                "Choose a locally set up project",
+            ][..],
+        ),
+        (
+            "app/src/terminal/view/ambient_agent/auth_secret_selector.rs",
+            &[
+                "format!(\"API key '{name}' deleted.\")",
+                "format!(\"Failed to delete API key '{name}': {error}\")",
+                "format!(\"Delete API key {}\"",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/ambient.rs",
+            &[
+                "\"Artifacts:\".to_string()",
+                "format!(\"  PR:",
+                "format!(\"    Branch:",
+                "format!(\"    Link:",
+                "unwrap_or(\"Untitled Plan\")",
+                "unwrap_or(\"No description\")",
+                "format!(\"  Screenshot:",
+                "format!(\"  File:",
+                "format!(\"    Path:",
+                "format!(\"    Description:",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/shortcuts/mod.rs",
+            &[
+                "\"input shell command\"",
+                "\"for slash commands\"",
+                "\"for file paths and attaching other context\"",
+                "\"open code review\"",
+                "\"toggle conversation list\"",
+                "\"search and continue conversations\"",
+                "\"start a new conversation\"",
+                "\"toggle auto-accept\"",
+                "\"pause agent\"",
+                "\"go back to terminal\"",
+            ][..],
+        ),
+        (
+            "app/src/terminal/warpify/render.rs",
+            &["Never Warpify this host"][..],
+        ),
+        (
+            "app/src/terminal/input/rewind/search_item.rs",
+            &[
+                "query_text: \"Current\"",
+                "\"Current state (no rewind)\"",
+                "format!(\"Rewind to: {} (+{} -{})\"",
+                "format!(\"Rewind to: {} (no code changes)\"",
+            ][..],
+        ),
+        (
+            "app/src/terminal/view/ssh_file_upload.rs",
+            &[
+                "\"Uploading\"",
+                "\"Uploaded\"",
+                "\"Failed to upload\"",
+                "\" to \"",
+            ][..],
+        ),
+        (
+            "app/src/workflows/workflow_view/env_var_selector.rs",
+            &["\"None\""][..],
+        ),
+        (
+            "app/src/settings_view/handoff_environment_creation_modal.rs",
+            &[
+                "\"Not logged in\".to_string()",
+                "\"Create environment\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/pane_group/pane/code_diff_pane.rs",
+            &["set_title(\"Requested Edit\""][..],
+        ),
+        (
+            "app/src/workflows/info_box.rs",
+            &[
+                "\"Edit prompt\"",
+                "\"Edit workflow\"",
+                "\"Save as workflow\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/terminal/input/slash_commands/cloud_mode_v2_view.rs",
+            &[
+                "Self::Commands => \"Commands\"",
+                "Self::Skills => \"Skills\"",
+                "Self::Prompts => \"Prompts\"",
+                "format!(\"Show {hidden_count} more\")",
+            ][..],
+        ),
+        (
+            "app/src/search/search_results_menu/view.rs",
+            &["return Some(\"Prompts\")"][..],
+        ),
+        (
+            "app/src/workspace/home.rs",
+            &[
+                "Welcome to Warp on Web",
+                "Use Warp on Web to:",
+                "Join Shared Sessions",
+                "Manage your Warp Settings",
+            ][..],
+        ),
+        (
+            "app/src/search/welcome_palette/view.rs",
+            &[
+                "format!(\"Add repository {keystroke}\")",
+                "\"Add repository\".to_string()",
+                "format!(\"Terminal session {keystroke}\")",
+                "\"Terminal session\".to_string()",
+            ][..],
+        ),
+        ("app/src/view_components/find.rs", &["\"Scanning...\""][..]),
+        (
+            "app/src/terminal/view/ambient_agent/block/harness_session_header.rs",
+            &["\"Agent\".to_owned()", "format!(\"Running {}...\""][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "selected accessibility and fallback surfaces must use catalog copy: {violations:#?}"
+    );
+}
+
+#[test]
+fn terminal_input_search_items_have_localized_accessibility_labels() {
+    let cases: [(&str, &[&str]); 7] = [
+        (
+            "app/src/terminal/input/skills/data_source.rs",
+            &["terminal.input.skills.a11y.label"],
+        ),
+        (
+            "app/src/terminal/input/prompts/data_source.rs",
+            &["terminal.input.prompts.a11y.label"],
+        ),
+        (
+            "app/src/terminal/input/plans/search_item.rs",
+            &["terminal.input.plans.a11y.label"],
+        ),
+        (
+            "app/src/terminal/input/repos/search_item.rs",
+            &["terminal.input.repos.a11y.indexed_repository"],
+        ),
+        (
+            "app/src/terminal/input/conversations/search_item.rs",
+            &["terminal.input.conversations.a11y.label"],
+        ),
+        (
+            "app/src/terminal/input/user_query/search_item.rs",
+            &["terminal.input.user_query.a11y.label"],
+        ),
+        (
+            "app/src/terminal/input/inline_history/search_item.rs",
+            &[
+                "terminal.inline_history.a11y.conversation",
+                "terminal.inline_history.a11y.command",
+                "terminal.inline_history.a11y.ai_prompt",
+            ],
+        ),
+    ];
+
+    let mut violations = Vec::new();
+    for (relative_path, keys) in cases {
+        let path = workspace_root().join(relative_path);
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        if !content.contains("fn accessibility_label_for_app(&self, app: &AppContext) -> String") {
+            violations.push(format!(
+                "{relative_path}: missing accessibility_label_for_app"
+            ));
+        }
+        for key in keys {
+            if !content.contains(key) {
+                violations.push(format!("{relative_path}: missing key {key}"));
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "terminal input search item accessibility labels must use localized app copy: {violations:#?}"
+    );
+}
+
+#[test]
+fn suggestion_prompts_are_catalog_backed() {
+    let required_keys = [
+        "coding_entrypoints.create_project.suggestion.minesweeper.prompt",
+        "coding_entrypoints.create_project.suggestion.node_quotes.prompt",
+        "coding_entrypoints.create_project.suggestion.csv_to_json.prompt",
+        "coding_entrypoints.create_project.suggestion.resume_page.prompt",
+        "coding_entrypoints.create_project.suggestion.game_of_life.prompt",
+        "terminal.onboarding.agentic_suggestions.python_snake.prompt",
+        "terminal.onboarding.agentic_suggestions.git_history.prompt",
+        "terminal.onboarding.agentic_suggestions.matrix_theme.prompt",
+        "terminal.onboarding.agentic_suggestions.other.prompt",
+    ];
+    assert_bundled_keys_exist(&required_keys);
+
+    let cases = [
+        (
+            "app/src/coding_entrypoints/create_project_view.rs",
+            &[
+                "Build a Minesweeper clone in React",
+                "Code a Node.js server that returns random quotes from a JSON file",
+                "Write a CSV to JSON converter CLI",
+                "Create a starter template",
+                "Make a Conway's Game of Life simulation",
+            ][..],
+        ),
+        (
+            "app/src/terminal/view/block_onboarding/onboarding_agentic_suggestions_block.rs",
+            &[
+                "Make a snake game for playing in the terminal using python.",
+                "Explore my git history in",
+                "First check if {matrix_save_directory} exists",
+                "What can you help with me on?",
+            ][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "suggestion prompts must use catalog copy: {violations:#?}"
+    );
+}
+
 fn bundled_en_us_map() -> CatalogMap {
     serde_json::from_str(BUNDLED_EN_US).unwrap()
 }
 
 fn bundled_zh_cn_map() -> CatalogMap {
     serde_json::from_str(BUNDLED_ZH_CN).unwrap()
+}
+
+fn assert_bundled_keys_exist<S: AsRef<str>>(keys: &[S]) {
+    let en_us = bundled_en_us_map();
+    let zh_cn = bundled_zh_cn_map();
+
+    let missing = keys
+        .iter()
+        .flat_map(|key| {
+            let key = key.as_ref();
+            [
+                en_us.get(key).is_none().then(|| format!("en-US:{key}")),
+                zh_cn.get(key).is_none().then(|| format!("zh-CN:{key}")),
+            ]
+            .into_iter()
+            .flatten()
+        })
+        .collect::<Vec<_>>();
+
+    assert!(missing.is_empty(), "missing bundled keys: {missing:#?}");
 }
 
 fn assert_language_option_labels(catalog: &Catalog, expected: [(AppLanguage, &str); 3]) {
@@ -2856,6 +4115,205 @@ fn onboarding_copy_keys_from_source() -> BTreeSet<String> {
         .filter(|literal| literal.starts_with("onboarding."))
         .map(str::to_owned)
         .collect()
+}
+
+fn static_slash_command_names_from_source() -> Vec<String> {
+    let path =
+        workspace_root().join("app/src/search/slash_command_menu/static_commands/commands.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    content
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim_start();
+            trimmed
+                .strip_prefix("name:")
+                .map(str::trim_start)
+                .and_then(|rest| string_literals(rest).into_iter().next())
+        })
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn slash_command_localization_key(command_name: &str, suffix: &str) -> String {
+    let key_name = command_name.trim_start_matches('/').replace('-', "_");
+    format!("terminal.slash.command.{key_name}.{suffix}")
+}
+
+fn plugin_instruction_keys_from_source() -> Vec<String> {
+    let dir = workspace_root().join("app/src/terminal/cli_agent_sessions/plugin_manager");
+    let entries =
+        fs::read_dir(&dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+    let mut keys = BTreeSet::new();
+
+    for entry in entries {
+        let entry = entry.expect("failed to read plugin manager directory entry");
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        keys.extend(
+            content
+                .lines()
+                .flat_map(string_literals)
+                .filter(|literal| literal.starts_with("terminal.plugin_instructions."))
+                .map(str::to_owned),
+        );
+    }
+
+    keys.into_iter().collect()
+}
+
+fn static_prompt_suggestion_keys_from_source() -> Vec<String> {
+    let path = workspace_root()
+        .join("app/src/ai/blocklist/passive_suggestions/static_prompt_suggestions.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    content
+        .lines()
+        .flat_map(string_literals)
+        .filter(|literal| literal.starts_with("terminal.passive_suggestion.static."))
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn zero_state_prompt_suggestion_keys_from_source() -> Vec<String> {
+    let path = workspace_root().join("app/src/terminal/view/inline_banner/prompt_suggestions.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    content
+        .lines()
+        .flat_map(string_literals)
+        .filter(|literal| literal.starts_with("terminal.prompt_suggestion.zero_state."))
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn collect_app_localization_key_literals(dir: &Path, keys: &mut BTreeSet<String>) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+
+    for entry in entries {
+        let entry = entry.expect("failed to read app source directory entry");
+        let path = entry.path();
+        if path.is_dir() {
+            collect_app_localization_key_literals(&path, keys);
+            continue;
+        }
+
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| {
+                name.ends_with("_tests.rs") || name == "localization_tests.rs" || name == "test.rs"
+            })
+        {
+            continue;
+        }
+
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        collect_localization_key_literals_from_source(&content, keys);
+    }
+}
+
+fn collect_localization_key_literals_from_source(content: &str, keys: &mut BTreeSet<String>) {
+    for line in content.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("//") || !line_may_reference_localization_key(line) {
+            continue;
+        }
+
+        keys.extend(
+            string_literals(line)
+                .into_iter()
+                .filter(|literal| looks_like_catalog_key(literal))
+                .map(str::to_owned),
+        );
+    }
+}
+
+fn line_may_reference_localization_key(line: &str) -> bool {
+    line.contains("text_for_app")
+        || line.contains("text_for_locale")
+        || line.contains("language_option_label(")
+        || line.contains("ai_settings_text(")
+        || line.contains("workspace_text(")
+        || line.contains("workspace_text_with_args(")
+        || line.contains("billing_text(")
+        || line.contains("code_review_text(")
+        || line.contains("rule_text(")
+        || line.contains("code_text(")
+        || line.contains("input_binding_description(")
+        || line.contains("binding_description(")
+        || line.contains("localized_binding_description(")
+        || line.contains("translation_key(")
+        || line.contains("display_label_key(")
+        || line.contains("description_key(")
+        || line.contains("title_key(")
+        || line.contains("subtitle_key(")
+        || line.contains("setup_status_text_key(")
+        || line.contains("accessibility_label_key(")
+        || line.contains("placeholder_key")
+        || line.contains("_key:")
+        || line.contains("_key =")
+        || line.contains("_key =>")
+}
+
+fn looks_like_catalog_key(literal: &str) -> bool {
+    if !literal.contains('.') || literal.contains(' ') || literal.contains('/') {
+        return false;
+    }
+    let mut parts = literal.split('.');
+    let Some(first) = parts.next() else {
+        return false;
+    };
+    is_catalog_key_part(first) && parts.all(is_catalog_key_part)
+}
+
+fn is_catalog_key_part(part: &str) -> bool {
+    !part.is_empty()
+        && part
+            .chars()
+            .all(|ch| ch == '_' || ch == '-' || ch.is_ascii_lowercase() || ch.is_ascii_digit())
+}
+
+fn selected_snippet_violations(cases: &[(&str, &[&str])]) -> Vec<String> {
+    let mut violations = Vec::new();
+
+    for (relative_path, snippets) in cases {
+        let path = workspace_root().join(relative_path);
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        for (line_index, line) in content.lines().enumerate() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("//") {
+                continue;
+            }
+            for snippet in *snippets {
+                if line.contains(snippet) {
+                    violations.push(format!("{relative_path}:{}: {snippet}", line_index + 1));
+                }
+            }
+        }
+    }
+
+    violations
 }
 
 fn placeholders(value: &str) -> BTreeSet<&str> {
@@ -3012,7 +4470,6 @@ fn direct_ui_english_literal<'a>(line: &'a str, patterns: &[&str]) -> Option<&'a
 
     if line.contains("localization::")
         || line.contains("text_for_app")
-        || line.contains("_text(")
         || line.contains("ai_settings_text(")
         || line.contains("workspace_text(")
         || line.contains("billing_text(")

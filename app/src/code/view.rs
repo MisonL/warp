@@ -1,7 +1,5 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use warpui::keymap::BindingDescription;
 
 use lsp::LspManagerModel;
 use pathfinder_color::ColorU;
@@ -23,7 +21,7 @@ use warpui::elements::{
     SavePosition, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{Properties, Style, Weight};
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::text::point::Point;
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonVariant;
@@ -74,7 +72,7 @@ use crate::util::path::{display_name_with_host, display_path_with_host};
 use crate::view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView};
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::{ActiveSession, TabBarDropTargetData, ToastStack, WorkspaceAction};
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut CodeView, &mut ViewContext<CodeView>) + Send + Sync + 'static>;
@@ -955,9 +953,11 @@ impl CodeView {
 
     fn display_remote_disconnected_save_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast =
-                DismissibleToast::error(String::from("Cannot save — remote session disconnected."))
-                    .with_object_id("failed_to_save_file_remote_disconnected".to_string());
+            let toast = DismissibleToast::error(code_text(
+                ctx,
+                "code.toast.save_failed_remote_disconnected",
+            ))
+            .with_object_id("failed_to_save_file_remote_disconnected".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }

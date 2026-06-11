@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_color::ColorU;
 use warpui::elements::{
     Align, ConstrainedBox, Container, CrossAxisAlignment, Flex, HighlightedHyperlink,
@@ -12,6 +11,7 @@ use warpui::{AppContext, Element};
 
 use super::{render_block_banner, BLOCK_BANNER_DESCRIPTION_MAX_HEIGHT};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::ssh::warpify::warpify_description;
 use crate::terminal::view::{RememberForWarpification, TerminalAction};
 use crate::themes::theme::Fill;

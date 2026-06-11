@@ -18,6 +18,7 @@ use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
 use crate::appearance::Appearance;
 use crate::code::editor::view::CodeEditorView;
 use crate::code::editor_management::CodeSource;
+use crate::localization;
 use crate::search::files::icon::icon_from_file_path;
 use crate::search::ItemHighlightState;
 use crate::ui_components::blended_colors;
@@ -25,6 +26,10 @@ use crate::ui_components::buttons::{icon_button, icon_button_with_color};
 use crate::ui_components::icons::Icon;
 
 const CODE_BLOCK_CORNER_RADIUS: f32 = 8.0;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[derive(Default, Clone)]
 pub struct CodeSnippetButtonHandles {
@@ -189,6 +194,7 @@ fn render_linked_code_block_internal(
     insert_text: Option<String>,
     mouse_handles: Option<CodeSnippetButtonHandles>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Flex {
     let theme = appearance.theme();
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
@@ -217,7 +223,7 @@ fn render_linked_code_block_internal(
             let insert_button = render_button(
                 appearance,
                 Icon::AtSign,
-                "Add as Context",
+                &text(app, "agent.code_block.add_as_context"),
                 mouse_handles.insert_button,
                 insert_text,
                 on_insert,
@@ -236,7 +242,7 @@ fn render_linked_code_block_internal(
             let copy_button = render_button(
                 appearance,
                 Icon::Copy,
-                "Copy",
+                &text(app, "agent.code_block.copy"),
                 mouse_handles.copy_button,
                 code_clone.clone(),
                 on_copy,
@@ -255,7 +261,7 @@ fn render_linked_code_block_internal(
             let open_button = render_button(
                 appearance,
                 Icon::LinkExternal,
-                "Open in Warp",
+                &text(app, "agent.code_block.open_in_warp"),
                 mouse_handles.open_button,
                 code_clone.clone(),
                 on_open,
@@ -305,6 +311,7 @@ fn render_plain_code_block_internal(
     on_copy: Option<HandleCode>,
     mouse_handles: Option<CodeSnippetButtonHandles>,
     appearance: &Appearance,
+    app: &AppContext,
     without_extra_padding_between_code_and_footer: bool,
 ) -> Flex {
     let theme = appearance.theme();
@@ -324,7 +331,7 @@ fn render_plain_code_block_internal(
             let copy_button = render_button(
                 appearance,
                 Icon::Copy,
-                "Copy",
+                &text(app, "agent.code_block.copy"),
                 mouse_handles.copy_button,
                 code_clone.clone(),
                 on_copy,
@@ -339,7 +346,7 @@ fn render_plain_code_block_internal(
             let insert_button = render_button(
                 appearance,
                 Icon::TerminalInput,
-                "Run in terminal",
+                &text(app, "agent.code_block.run_in_terminal"),
                 mouse_handles.insert_button,
                 code_clone.clone(),
                 on_execute,
@@ -455,6 +462,7 @@ fn render_code_block_internal(
                 formatted_insert_text,
                 mouse_handles,
                 appearance,
+                app,
             )
         }
         _ => render_plain_code_block_internal(
@@ -465,6 +473,7 @@ fn render_code_block_internal(
             on_copy,
             mouse_handles,
             appearance,
+            app,
             without_extra_padding_between_code_and_footer,
         ),
     };

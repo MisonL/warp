@@ -9,7 +9,8 @@ use warpui::keymap::{FixedBinding, Keystroke};
 use warpui::prelude::*;
 use warpui::{AppContext, BlurContext, Element, Entity, SingletonEntity, View, ViewContext};
 
-use crate::{appearance::Appearance, localization};
+use crate::appearance::Appearance;
+use crate::localization;
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;

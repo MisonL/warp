@@ -1,4 +1,3 @@
-use crate::localization;
 use std::path::PathBuf;
 
 use pathfinder_geometry::vector::vec2f;
@@ -14,6 +13,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 use crate::view_components::action_button::{
     ActionButton, DangerPrimaryTheme, KeystrokeSource, NakedTheme,

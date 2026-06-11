@@ -1605,16 +1605,6 @@ impl FileTreeView {
         FileTreeEntry::new_for_directory(Arc::new(path.clone()))
     }
 
-    fn show_exceeded_file_limit_toast(ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast =
-                DismissibleToast::error(file_tree_text(ctx, "code.file_tree.error.too_many_files"))
-                    .with_object_id("file_tree_exceeded_file_limit".to_string());
-            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-        });
-    }
-
     /// Rebuilds the flattened items list for a single root directory only,
     /// leaving all other roots untouched. Use this when only one root's
     /// backing data has changed (e.g. a metadata update) to avoid

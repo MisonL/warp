@@ -1,33 +1,8 @@
-use crate::settings::active_theme_kind;
-use crate::settings::app_icon::AppIcon;
-use crate::settings::app_icon::AppIconSettings;
-use crate::settings::respect_system_theme;
-use crate::settings::AIFontName;
-use crate::settings::AppEditorSettings;
-use crate::settings::AppLanguage;
-use crate::settings::AppLanguageSetting;
-use crate::settings::CursorBlink;
-use crate::settings::CursorBlinkEnabled;
-use crate::settings::EnforceMinimumContrast;
-use crate::settings::FocusPaneOnHover;
-use crate::settings::FontSettings;
-use crate::settings::FontSettingsChangedEvent;
-use crate::settings::InputBoxType;
-use crate::settings::InputModeSettings;
-use crate::settings::InputModeState;
-use crate::settings::LanguageSettings;
-use crate::settings::MonospaceFontName;
-use crate::settings::PaneSettings;
-use crate::settings::ShouldDimInactivePanes;
-use crate::settings::ThemeSettings;
-use crate::settings::UseSystemTheme;
-use crate::settings::DEFAULT_MONOSPACE_FONT_NAME;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
-use warpui::keymap::BindingDescription;
 
 use ::settings::{Setting, SettingSection, ToggleableSetting};
 use enum_iterator::all;
@@ -40,7 +15,7 @@ use warpui::elements::{
     DEFAULT_UI_LINE_HEIGHT_RATIO,
 };
 use warpui::fonts::{FamilyId, FontInfo, Weight};
-use warpui::keymap::{ContextPredicate, FixedBinding};
+use warpui::keymap::{BindingDescription, ContextPredicate, FixedBinding};
 use warpui::platform::{Cursor, FilePickerConfiguration, GraphicsBackend, SystemTheme};
 use warpui::rendering::ThinStrokes;
 use warpui::ui_components::button::ButtonVariant;
@@ -78,14 +53,17 @@ use crate::editor::{
 };
 use crate::features::FeatureFlag;
 use crate::gpu_state::{GPUState, GPUStateEvent};
-use crate::localization;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::server::telemetry::{InputUXChangeOrigin, TelemetryEvent};
-use crate::settings::CursorDisplayType;
-use crate::settings::GPUSettings;
-use crate::settings::InputSettings;
-use crate::settings::InputSettingsChangedEvent;
-use crate::settings::UseThinStrokes;
+use crate::settings::app_icon::{AppIcon, AppIconSettings};
+use crate::settings::{
+    active_theme_kind, respect_system_theme, AIFontName, AppEditorSettings, AppLanguage,
+    AppLanguageSetting, CursorBlink, CursorBlinkEnabled, CursorDisplayType, EnforceMinimumContrast,
+    FocusPaneOnHover, FontSettings, FontSettingsChangedEvent, GPUSettings, InputBoxType,
+    InputModeSettings, InputModeState, InputSettings, InputSettingsChangedEvent, LanguageSettings,
+    MonospaceFontName, PaneSettings, ShouldDimInactivePanes, ThemeSettings, UseSystemTheme,
+    UseThinStrokes, DEFAULT_MONOSPACE_FONT_NAME,
+};
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::ligature_settings::{LigatureRenderingEnabled, LigatureSettings};
@@ -118,7 +96,7 @@ use crate::workspace::tab_settings::{
     WorkspaceDecorationVisibility,
 };
 use crate::workspace::WorkspaceAction;
-use crate::{report_error, report_if_error, send_telemetry_from_ctx, themes};
+use crate::{localization, report_error, report_if_error, send_telemetry_from_ctx, themes};
 
 const FONT_SIZE_INPUT_BOX_WIDTH: f32 = 80.;
 const NOTEBOOK_FONT_SIZE_INPUT_BOX_WIDTH: f32 = 50.;
@@ -294,8 +272,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         context.to_owned(),
     )
     .with_group(bindings::BindingGroup::Settings.as_str())]);
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "open new windows with custom size",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.appearance.window.custom_size.label",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleOpenWindowsAtCustomSize,
         )),
@@ -303,8 +282,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::OPEN_WINDOWS_AT_CUSTOM_SIZE_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "window blur acrylic texture",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.appearance.window.blur_texture.label",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleBlurTexture,
         )),
@@ -312,8 +292,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::WINDOW_BLUR_TEXTURE_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "tools panel visibility across tabs",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.appearance.window.tools_panel_visibility_across_tabs.label",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleLeftPanelVisibility,
         )),
@@ -321,8 +302,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::LEFT_PANEL_VISIBILITY_ACROSS_TABS_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "agent font matching terminal font",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.appearance.command_palette.match_agent_font",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleMatchAIToTerminalFontFamily,
         )),
@@ -330,8 +312,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::MATCH_AI_FONT_TO_TERMINAL_FONT_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "notebook font size matching terminal font size",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.appearance.command_palette.match_notebook_font_size",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleMatchNotebookToMonospaceFontSize,
         )),
@@ -479,8 +462,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             context,
             flags::SHOW_VERTICAL_TAB_PANEL_IN_RESTORED_WINDOWS_FLAG,
         ));
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "latest user prompt as conversation title in tab names",
+        toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+            app,
+            "settings.appearance.tabs.latest_prompt_title.label",
             builder(SettingsAction::AppearancePageToggle(
                 AppearancePageAction::ToggleUseLatestUserPromptAsConversationTitleInTabNames,
             )),
@@ -501,8 +485,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ));
     }
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "preserve active tab color for new tabs",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.appearance.tabs.preserve_active_color.label",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::TogglePreserveActiveTabColor,
         )),
@@ -510,8 +495,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::PRESERVE_ACTIVE_TAB_COLOR_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "custom padding in alt-screen",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.appearance.full_screen_apps.custom_padding.label",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleAltScreenPadding,
         )),
@@ -3536,7 +3522,6 @@ impl SettingsWidget for WindowOpacityWidget {
             return Flex::column()
                 .with_child(
                     Container::new(render_body_item_label::<AppearancePageAction>(
-                        app,
                         format!(
                             "{}:",
                             localization::text_for_app(
@@ -4276,7 +4261,6 @@ impl SettingsWidget for AIFontWidget {
         let mut ai_font_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
         let mut ai_font = Flex::column();
         ai_font.add_child(render_body_item_label::<AppearancePageAction>(
-            app,
             localization::text_for_app(app, "settings.appearance.text.agent_font.label"),
             None,
             None,
@@ -4449,7 +4433,6 @@ impl SettingsWidget for TerminalFontWidget {
         // Terminal Font
         let mut terminal_font = Flex::column();
         terminal_font.add_child(render_body_item_label::<AppearancePageAction>(
-            app,
             localization::text_for_app(app, "settings.appearance.text.terminal_font.label"),
             None,
             None,
@@ -5251,8 +5234,7 @@ impl SettingsWidget for UseLatestUserPromptAsConversationTitleInTabNamesWidget {
     ) -> Box<dyn Element> {
         let tab_settings = TabSettings::as_ref(app);
 
-        render_body_item::<AppearancePageAction>(
-            localization::text_for_app(
+        render_body_item::<AppearancePageAction>(localization::text_for_app(
                 app,
                 "settings.appearance.tabs.latest_prompt_title.label",
             ),
@@ -5304,7 +5286,6 @@ impl SettingsWidget for EditToolbarWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let label = render_body_item_label::<AppearancePageAction>(
-            app,
             localization::text_for_app(app, "settings.appearance.tabs.header_toolbar_layout.label"),
             None,
             None,

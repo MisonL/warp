@@ -1,6 +1,7 @@
 use warpui::elements::{ChildView, Element, Empty};
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
 
+use crate::localization;
 use crate::settings_view::handoff_environment_creation_modal::{
     HandoffEnvironmentCreationModal, HandoffEnvironmentCreationModalEvent,
 };
@@ -36,7 +37,11 @@ impl CreateEnvironmentModal {
             HandoffEnvironmentCreationModalEvent::CreationFailed { error_message } => {
                 me.visible = false;
                 me.show_error_toast(
-                    format!("Failed to create environment: {error_message}"),
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "settings.environment.create.toast.failed",
+                        &[("message", error_message)],
+                    ),
                     ctx,
                 );
                 ctx.notify();

@@ -35,6 +35,7 @@ pub struct NotebookSearchItem {
     /// Whether or not this notebook is accessible to all users that have access to the object
     /// being embedded into.
     pub is_accessible: bool,
+    pub accessibility_label_template: String,
 }
 
 impl SearchItem for NotebookSearchItem {
@@ -175,7 +176,8 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.cloud_notebook.model().title)
+        self.accessibility_label_template
+            .replace("{title}", &self.cloud_notebook.model().title)
     }
 }
 

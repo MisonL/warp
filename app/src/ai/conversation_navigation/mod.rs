@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
@@ -8,6 +7,7 @@ use warpui::{AppContext, EntityId, SingletonEntity, WindowId};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
+use crate::localization;
 use crate::terminal::view::blocklist_filter;
 use crate::undo_close::UndoCloseStack;
 use crate::workspace::{PaneViewLocator, WorkspaceRegistry};

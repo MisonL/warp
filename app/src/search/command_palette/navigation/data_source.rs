@@ -4,7 +4,9 @@ use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::navigation::search::{
     FuzzySessionSearcher, MatchedSession, SessionMatchResult, SessionSearcher,
 };
-use crate::search::command_palette::navigation::search_item::SearchItem;
+use crate::search::command_palette::navigation::search_item::{
+    NavigationSearchItemAccessibilityCopy, SearchItem,
+};
 use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::SyncDataSource;
@@ -80,8 +82,9 @@ impl DataSource {
         };
 
         let active_session_id = self.searcher.active_session_id(app);
+        let accessibility_copy = NavigationSearchItemAccessibilityCopy::new(app);
 
-        Some(SearchItem::new(matched_session, active_session_id).into())
+        Some(SearchItem::new(matched_session, active_session_id, accessibility_copy).into())
     }
 }
 

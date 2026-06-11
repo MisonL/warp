@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::future::Future;
@@ -11,6 +10,7 @@ use warp_managed_secrets::{GcpCredentials, GcpFederationConfig};
 
 use super::{CloudProvider, CloudProviderSetupError, Result};
 use crate::ai::cloud_environments::GcpProviderConfig;
+use crate::localization;
 
 /// Token lifetime for GCP executable-sourced credentials. The GCP client
 /// libraries handle refreshing automatically, so we keep this short.

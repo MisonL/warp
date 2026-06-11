@@ -1,5 +1,4 @@
 //! Link-opening behavior for notebooks.
-use crate::localization;
 use std::borrow::Cow;
 use std::fmt;
 use std::future::{self, Future};
@@ -15,6 +14,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, Win
 
 use super::file::is_markdown_file;
 use crate::drive::OpenWarpDriveObjectArgs;
+use crate::localization;
 use crate::terminal::model::session::Session;
 use crate::uri::parse_url_paths::{get_item_data_from_warp_link, WarpWebLink};
 #[cfg(feature = "local_fs")]

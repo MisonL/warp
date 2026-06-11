@@ -14,7 +14,6 @@
 //!
 //! Split out from `claude_code.rs` so the `AIClient` transcript-fetch impl can deserialize
 //! envelopes without pulling in the rest of the harness runner.
-use crate::localization;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -28,6 +27,7 @@ use warp_localization::{replace_placeholders, LocaleId};
 
 use super::json_utils::entries_to_jsonl;
 use crate::ai::agent::conversation::AIConversationId;
+use crate::localization;
 
 fn text(key: &str) -> String {
     localization::text_for_locale(LocaleId::EnUs, key)

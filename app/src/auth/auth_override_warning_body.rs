@@ -1,4 +1,3 @@
-use crate::localization;
 use warp_core::ui::builder::UiBuilder;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::darken;
@@ -17,6 +16,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::modal::MODAL_CORNER_RADIUS;
 use crate::util::color::lighten;
 

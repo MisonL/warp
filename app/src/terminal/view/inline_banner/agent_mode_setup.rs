@@ -1,9 +1,7 @@
-use crate::localization;
 use std::path::PathBuf;
-use warpui::AppContext;
 
 use warpui::elements::{MouseStateHandle, Text};
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::{
     render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
@@ -11,6 +9,7 @@ use super::{
     InlineBannerTextButtonVariant,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::view::inline_banner::InlineBannerIcon;
 use crate::terminal::view::{InlineBannerId, TerminalAction};
 

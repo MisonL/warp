@@ -1,4 +1,3 @@
-use crate::localization;
 use warpui::elements::{Container, Flex, MainAxisSize, MouseStateHandle, ParentElement};
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
@@ -7,6 +6,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use super::style::{self, MODAL_PADDING};
 use crate::appearance::Appearance;
+use crate::localization;
 
 pub struct DeniedBody {
     button_mouse_state: MouseStateHandle,

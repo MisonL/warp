@@ -28,6 +28,9 @@ impl SyncDataSource for EnvVarCollectionDataSource {
     ) -> Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper> {
         let query_str = query.text.as_str();
         let env_var_collections = CloudModel::as_ref(app).get_all_active_env_var_collections();
+        let untitled_fallback = crate::localization::text_for_app(app, "env_vars.title.untitled");
+        let accessibility_label_template =
+            crate::localization::text_for_app(app, "search.env_var_collection.a11y.label");
 
         Ok(env_var_collections
             .flat_map(
@@ -41,6 +44,8 @@ impl SyncDataSource for EnvVarCollectionDataSource {
                         EnvVarCollectionSearchItem {
                             env_var_collection: env_var_collection.clone(),
                             fuzzy_matched_env_var_collection: match_result,
+                            untitled_fallback: untitled_fallback.clone(),
+                            accessibility_label_template: accessibility_label_template.clone(),
                         }
                         .into()
                     })

@@ -1287,11 +1287,10 @@ impl AgentInputFooter {
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Could not automatically install plugin. \
-                     Please click the chip again for manual installation steps."
-                        .to_owned(),
-                ),
+                DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.plugin_auto_install_failed_manual",
+                )),
                 window_id,
                 ctx,
             );
@@ -1382,10 +1381,11 @@ impl AgentInputFooter {
                     plugin_manager_for_with_shell(agent, shell_path, shell_type, path_env_var)
                 else {
                     return Err((
-                        PluginInstallError {
-                            message: "No plugin manager available".to_owned(),
-                            log: String::new(),
-                        },
+                        PluginInstallError::localized(
+                            "agent.input_footer.plugin_manager_unavailable",
+                            vec![],
+                            String::new(),
+                        ),
                         None,
                     ));
                 };
@@ -1434,8 +1434,9 @@ impl AgentInputFooter {
                                 "Failed plugin operation for {agent:?}: {err}\n{log}",
                                 log = err.log,
                             );
+                            let error_message = err.localized_message(ctx);
                             let mut toast =
-                                DismissibleToast::error(format!("{error_label}: {err}"));
+                                DismissibleToast::error(format!("{error_label}: {error_message}"));
                             if let Some(log_path) = log_path {
                                 toast = toast.with_link(
                                     ToastLink::new(localization::text_for_app(
@@ -2144,7 +2145,11 @@ impl AgentInputFooter {
             let usage = conversation.context_window_usage();
             let icon = icon_for_context_window_usage(usage);
             let remaining_pct = ((1.0 - usage) * 100.0).round() as i32;
-            let tooltip = format!("{remaining_pct}% context remaining");
+            let tooltip = localization::text_for_app_with_args(
+                ctx,
+                "agent.input_footer.context_remaining",
+                &[("percent", &remaining_pct.to_string())],
+            );
 
             self.context_window_button.update(ctx, |button, ctx| {
                 button.set_icon(Some(icon), ctx);

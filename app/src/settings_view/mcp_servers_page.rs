@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 
 use uuid::Uuid;
@@ -16,6 +15,7 @@ use crate::ai::mcp::{
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::Space;
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::settings_view::mcp_servers::edit_page::{

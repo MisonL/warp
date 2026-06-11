@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend as _;
@@ -26,7 +25,7 @@ use crate::terminal::TerminalView;
 use crate::util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction};
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ToastStack, Workspace, WorkspaceAction};
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

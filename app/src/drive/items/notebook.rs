@@ -55,10 +55,10 @@ impl WarpDriveItem for WarpDriveNotebook {
         Some(DriveIndexAction::OpenObject(self.id))
     }
 
-    fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>> {
         let title_text = self.notebook.model().title.clone();
         let title_to_render = if title_text.is_empty() {
-            "Untitled".to_string()
+            crate::localization::text_for_app(app, "notebook.placeholder.untitled")
         } else {
             title_text
         };

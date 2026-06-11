@@ -1,16 +1,3 @@
-use crate::appearance::Appearance;
-use crate::external_secrets::ExternalSecret;
-use crate::localization;
-use crate::search::external_secrets::external_secret_data_source::ExternalSecretDataSource;
-use crate::search::external_secrets::searcher::ExternalSecretSearchItemAction;
-use crate::search::external_secrets::searcher::ExternalSecretSearchMixer;
-use crate::search::result_renderer::QueryResultRenderer;
-use crate::search::result_renderer::QueryResultRendererStyles;
-use crate::search::search_bar::SearchBar;
-use crate::search::search_bar::SearchBarEvent;
-use crate::search::search_bar::SearchBarPlaceholder;
-use crate::search::search_bar::SearchBarState;
-use crate::search::search_bar::SearchResultOrdering;
 use std::collections::HashSet;
 use std::ops::Range;
 
@@ -26,6 +13,18 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle, WeakViewHandle,
+};
+
+use crate::appearance::Appearance;
+use crate::external_secrets::ExternalSecret;
+use crate::localization;
+use crate::search::external_secrets::external_secret_data_source::ExternalSecretDataSource;
+use crate::search::external_secrets::searcher::{
+    ExternalSecretSearchItemAction, ExternalSecretSearchMixer,
+};
+use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
+use crate::search::search_bar::{
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
 };
 
 lazy_static! {

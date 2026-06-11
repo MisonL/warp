@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{Align, Container, CrossAxisAlignment, Dismiss, Flex, ParentElement, Stack};
@@ -10,6 +9,7 @@ use warpui::ui_components::components::{BorderStyle, Coords, UiComponent, UiComp
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::buttons;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 

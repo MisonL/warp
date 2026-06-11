@@ -11,6 +11,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::ai::blocklist::AIQueryHistoryOutputStatus;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::ai_queries::fuzzy_match::FuzzyMatchAIQueryResults;
 use crate::search::command_search::searcher::CommandSearchItemAction;
 use crate::search::item::SearchItem;
@@ -179,5 +180,13 @@ impl SearchItem for AIQuerySearchResultItem {
 
     fn accessibility_label(&self) -> String {
         format!("AI query: {}", self.query_text)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.ai_query",
+            &[("query", &self.query_text)],
+        )
     }
 }

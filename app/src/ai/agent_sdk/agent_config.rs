@@ -1,6 +1,5 @@
 //! Commands to interact with available agents via the public API.
 
-use crate::localization;
 use warp_cli::agent::ListAgentSkillsArgs;
 use warp_graphql::queries::get_oauth_connect_tx_status::OauthConnectTxStatus;
 use warp_graphql::queries::user_repo_auth_status::UserRepoAuthStatusEnum;
@@ -9,6 +8,7 @@ use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::oauth_flow::poll_oauth_until_terminal;
 use crate::ai::cloud_environments::GithubRepo;
+use crate::localization;
 use crate::server::server_api::ai::AgentSkillItem;
 use crate::server::server_api::ServerApiProvider;
 

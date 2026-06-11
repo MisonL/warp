@@ -1,15 +1,3 @@
-use crate::{
-    code::{
-        buffer_location::LocalOrRemotePath as BufferFileLocation,
-        editor::model::HoverableLink,
-        footer::{CodeFooterView, CodeFooterViewEvent},
-        global_buffer_model::{BufferState, GlobalBufferModel},
-        SaveOutcome, ShowFindReferencesCardProvider,
-    },
-    localization,
-    settings::AISettings,
-    terminal::TerminalView,
-};
 /// This module contains a model that can be used for loading and saving text files
 /// and displaying them in a code editor.
 /// It also handles applying an optional diff to the file content that will be applied
@@ -71,10 +59,17 @@ use warpui::{
 };
 
 use crate::ai::persisted_workspace::{PersistedWorkspace, PersistedWorkspaceEvent};
+use crate::code::buffer_location::LocalOrRemotePath as BufferFileLocation;
+use crate::code::editor::model::HoverableLink;
 use crate::code::editor::EditorReviewComment;
-use crate::code::global_buffer_model::GlobalBufferModelEvent;
+use crate::code::footer::{CodeFooterView, CodeFooterViewEvent};
+use crate::code::global_buffer_model::{BufferState, GlobalBufferModel, GlobalBufferModelEvent};
+use crate::code::{SaveOutcome, ShowFindReferencesCardProvider};
 use crate::code_review::comments::CommentId;
+use crate::localization;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
+use crate::settings::AISettings;
+use crate::terminal::TerminalView;
 use crate::workspace::WorkspaceAction;
 
 const DROP_SHADOW_COLOR: ColorU = ColorU {
@@ -2159,7 +2154,7 @@ impl View for LocalCodeEditorView {
         let base: Box<dyn Element> =
             if self.base_content_version.is_some() && self.is_remote_disconnected(app) {
                 let appearance = Appearance::as_ref(app);
-                let banner = render_remote_disconnected_banner(appearance);
+                let banner = render_remote_disconnected_banner(appearance, app);
                 let mut col = Flex::column().with_child(banner);
 
                 let editor_view = ChildView::new(&self.editor).finish();
@@ -2466,7 +2461,10 @@ pub fn render_unsaved_changes_banner(
 
 /// Renders a banner indicating that the remote SSH session is disconnected
 /// and save / auto-reload are unavailable.
-pub fn render_remote_disconnected_banner(appearance: &Appearance) -> Box<dyn Element> {
+pub fn render_remote_disconnected_banner(
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let row = Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_main_axis_size(MainAxisSize::Max)
@@ -2488,7 +2486,7 @@ pub fn render_remote_disconnected_banner(appearance: &Appearance) -> Box<dyn Ele
             Shrinkable::new(
                 1.,
                 Text::new(
-                    "Remote host disconnected. You will not be able to see updates and save changes.",
+                    text(app, "code.remote_disconnected.banner"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )

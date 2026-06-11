@@ -1,4 +1,3 @@
-use crate::localization;
 use std::time::Duration;
 
 use warp_core::ui::appearance::Appearance;
@@ -14,6 +13,7 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
+use crate::localization;
 use crate::modal::Modal;
 use crate::ui_components::blended_colors;
 

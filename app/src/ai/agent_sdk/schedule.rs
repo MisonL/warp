@@ -1,4 +1,3 @@
-use crate::localization;
 use chrono::{DateTime, Utc};
 use comfy_table::Cell;
 use futures::future;
@@ -21,6 +20,7 @@ use crate::ai::ambient_agents::scheduled::{
 };
 use crate::ai::ambient_agents::AgentConfigSnapshot;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
+use crate::localization;
 use crate::server::ids::{ServerId, SyncId};
 use crate::util::time_format::format_approx_duration_from_now_utc;
 
@@ -324,13 +324,13 @@ impl TableFormat for ScheduleInfo {
             "agent_sdk.common.value.no"
         };
         vec![
-            Cell::new(&self.id),
+            Cell::new(super::common::format_sync_id_for_app(&self.id, app)),
             Cell::new(&self.name),
             Cell::new(&self.cron_schedule),
             Cell::new(text(app, paused_key)),
             Cell::new(self.last_ran_display_for_app(app)),
             Cell::new(self.next_run_display()),
-            Cell::new(&self.scope),
+            Cell::new(super::common::format_owner_scope_for_app(&self.scope, app)),
         ]
     }
 }
@@ -761,9 +761,7 @@ fn list(ctx: &mut AppContext, output_format: OutputFormat) -> anyhow::Result<()>
             let futures = schedules.into_iter().map(|schedule| {
                 let config = schedule.model().string_model.clone();
                 let sync_id = schedule.sync_id();
-                let scope = super::common::format_owner_for_app(&schedule.permissions().owner, ctx);
-                let unsynced_text =
-                    crate::localization::text_for_app(ctx, "agent_sdk.common.value.unsynced");
+                let scope = super::common::owner_scope(&schedule.permissions().owner).to_string();
 
                 // TODO(ben): Consider a bulk lookup API for scheduled agent history.
                 let history_future = manager.fetch_schedule_history(sync_id, ctx);
@@ -780,7 +778,7 @@ fn list(ctx: &mut AppContext, output_format: OutputFormat) -> anyhow::Result<()>
 
                     let id = match sync_id {
                         SyncId::ServerId(server_id) => server_id.to_string(),
-                        SyncId::ClientId(_) => unsynced_text,
+                        SyncId::ClientId(_) => super::common::UNSYNCED_ID.to_string(),
                     };
 
                     ScheduleInfo::new(id, scope, config, history.as_ref())
@@ -827,11 +825,9 @@ fn get(
 
             let id = match &schedule_id {
                 SyncId::ServerId(server_id) => server_id.to_string(),
-                SyncId::ClientId(_) => {
-                    crate::localization::text_for_app(ctx, "agent_sdk.common.value.unsynced")
-                }
+                SyncId::ClientId(_) => super::common::UNSYNCED_ID.to_string(),
             };
-            let scope = super::common::format_owner_for_app(&schedule.permissions().owner, ctx);
+            let scope = super::common::owner_scope(&schedule.permissions().owner).to_string();
             let config = schedule.model().string_model.clone();
 
             // Don't hold references into the CloudObject store across an async spawn.

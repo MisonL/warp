@@ -52,8 +52,8 @@ fn returns_none_when_orchestrator_has_no_descendants() {
         // means no rollup applies.
         set_credits(&mut app, &history, orchestrator_id, 10.0);
 
-        history.read(&app, |history, _| {
-            assert!(compute_orchestration_rollup(orchestrator_id, history).is_none());
+        history.read(&app, |history, ctx| {
+            assert!(compute_orchestration_rollup(orchestrator_id, history, ctx).is_none());
         });
     });
 }
@@ -79,8 +79,8 @@ fn sums_orchestrator_and_loaded_descendants() {
         set_credits(&mut app, &history, orchestrator_id, 3.0);
         set_credits(&mut app, &history, child_id, 30.0);
 
-        history.read(&app, |history, _| {
-            let rollup = compute_orchestration_rollup(orchestrator_id, history)
+        history.read(&app, |history, ctx| {
+            let rollup = compute_orchestration_rollup(orchestrator_id, history, ctx)
                 .expect("rollup should be Some");
             assert_eq!(rollup.total_credits, 33.0);
             assert_eq!(rollup.per_agent.len(), 2);
@@ -133,8 +133,8 @@ fn excludes_zero_credit_descendants_from_breakdown() {
         set_credits(&mut app, &history, alpha_id, 12.0);
         set_credits(&mut app, &history, beta_id, 5.0);
 
-        history.read(&app, |history, _| {
-            let rollup = compute_orchestration_rollup(orchestrator_id, history)
+        history.read(&app, |history, ctx| {
+            let rollup = compute_orchestration_rollup(orchestrator_id, history, ctx)
                 .expect("rollup should be Some");
             assert_eq!(rollup.total_credits, 19.0);
             assert_eq!(rollup.per_agent.len(), 3);
@@ -171,8 +171,8 @@ fn rolls_up_grandchildren_transitively() {
         set_credits(&mut app, &history, child_id, 4.0);
         set_credits(&mut app, &history, grandchild_id, 9.0);
 
-        history.read(&app, |history, _| {
-            let rollup = compute_orchestration_rollup(orchestrator_id, history)
+        history.read(&app, |history, ctx| {
+            let rollup = compute_orchestration_rollup(orchestrator_id, history, ctx)
                 .expect("rollup should be Some");
             assert_eq!(rollup.total_credits, 14.0);
             let ordered_ids: Vec<_> = rollup
@@ -209,8 +209,8 @@ fn returns_six_contributors_for_show_n_more_caller() {
             set_credits(&mut app, &history, id, (10 + i) as f32);
         }
 
-        history.read(&app, |history, _| {
-            let rollup = compute_orchestration_rollup(orchestrator_id, history)
+        history.read(&app, |history, ctx| {
+            let rollup = compute_orchestration_rollup(orchestrator_id, history, ctx)
                 .expect("rollup should be Some");
             assert_eq!(rollup.per_agent.len(), 6);
         });
@@ -237,8 +237,8 @@ fn returns_none_when_only_orchestrator_has_zero_credits_with_loaded_children() {
             terminal_view_id,
         );
 
-        history.read(&app, |history, _| {
-            assert!(compute_orchestration_rollup(orchestrator_id, history).is_none());
+        history.read(&app, |history, ctx| {
+            assert!(compute_orchestration_rollup(orchestrator_id, history, ctx).is_none());
         });
     });
 }
@@ -272,8 +272,8 @@ fn ties_break_by_spawn_order_earlier_first() {
         set_credits(&mut app, &history, first_id, 7.0);
         set_credits(&mut app, &history, second_id, 7.0);
 
-        history.read(&app, |history, _| {
-            let rollup = compute_orchestration_rollup(orchestrator_id, history)
+        history.read(&app, |history, ctx| {
+            let rollup = compute_orchestration_rollup(orchestrator_id, history, ctx)
                 .expect("rollup should be Some");
             assert_eq!(rollup.per_agent.len(), 2);
             assert_eq!(rollup.per_agent[0].conversation_id, first_id);
@@ -310,8 +310,8 @@ fn unloaded_descendant_id_is_silently_skipped() {
             history.set_parent_for_conversation(unloaded_id, orchestrator_id);
         });
 
-        history.read(&app, |history, _| {
-            let rollup = compute_orchestration_rollup(orchestrator_id, history)
+        history.read(&app, |history, ctx| {
+            let rollup = compute_orchestration_rollup(orchestrator_id, history, ctx)
                 .expect("rollup should be Some");
             assert_eq!(rollup.total_credits, 4.0);
             assert_eq!(rollup.per_agent.len(), 1);

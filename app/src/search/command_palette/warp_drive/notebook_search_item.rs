@@ -1,4 +1,5 @@
 use ordered_float::OrderedFloat;
+use warp_localization::replace_placeholders;
 use warpui::elements::{Container, Flex, Highlight, ParentElement, Text};
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
@@ -23,6 +24,18 @@ use crate::ui_components::icons::Icon;
 pub struct NotebookSearchItem {
     pub cloud_notebook: CloudNotebook,
     pub match_result: FuzzyMatchNotebookResult,
+    pub untitled_fallback: String,
+    pub accessibility_label_template: String,
+}
+
+impl NotebookSearchItem {
+    fn title(&self) -> String {
+        if self.cloud_notebook.model().title.is_empty() {
+            self.untitled_fallback.clone()
+        } else {
+            self.cloud_notebook.model().title.clone()
+        }
+    }
 }
 
 impl SearchItem for NotebookSearchItem {
@@ -61,13 +74,8 @@ impl SearchItem for NotebookSearchItem {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let title = if self.cloud_notebook.model().title.is_empty() {
-            "Untitled".to_string()
-        } else {
-            self.cloud_notebook.model().title.clone()
-        };
         let mut name_text = Text::new_inline(
-            title,
+            self.title(),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -142,6 +150,10 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.cloud_notebook.model().title)
+        replace_placeholders(
+            &self.accessibility_label_template,
+            &[("title", &self.title())],
+        )
+        .expect("notebook accessibility label template must use title")
     }
 }

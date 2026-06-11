@@ -18,6 +18,7 @@ use crate::BlocklistAIHistoryModel;
 #[test]
 fn child_conversation_card_data_for_success_result_returns_conversation_id_and_title() {
     App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -51,7 +52,8 @@ fn child_conversation_card_data_for_success_result_returns_conversation_id_and_t
 
 #[test]
 fn start_agent_copy_uses_local_labels_for_local_children() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let execution_mode = StartAgentExecutionMode::local_harness("claude-code".to_string());
 
         app.read(|ctx| {
@@ -77,7 +79,8 @@ fn start_agent_copy_uses_local_labels_for_local_children() {
 
 #[test]
 fn start_agent_copy_uses_remote_labels_for_remote_children() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let execution_mode = StartAgentExecutionMode::Remote {
             environment_id: "env-123".to_string(),
             skill_references: vec![],
@@ -113,6 +116,7 @@ fn start_agent_copy_uses_remote_labels_for_remote_children() {
 #[test]
 fn child_conversation_card_data_for_success_result_without_available_title_uses_placeholder() {
     App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -202,6 +206,7 @@ fn agent_display_name_from_id_returns_child_agent_name() {
 #[test]
 fn agent_display_name_from_id_returns_orchestrator_label() {
     App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -222,7 +227,8 @@ fn agent_display_name_from_id_returns_orchestrator_label() {
 
 #[test]
 fn agent_display_name_from_id_returns_unknown_fallback() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let actual =
             app.read(|ctx| agent_display_name_from_id("missing-agent-id", Some("other-id"), ctx));
@@ -416,7 +422,8 @@ fn participant_for_restored_child_run_id_resolves_to_agent_name() {
 
 #[test]
 fn transcript_metadata_uses_transcript_copy_without_technical_labels() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let recipients = vec![OrchestrationParticipant {
             display_name: "Agent 1".to_string(),
             avatar: OrchestrationAvatar::agent("Agent 1".to_string()),
@@ -438,7 +445,8 @@ fn transcript_metadata_uses_transcript_copy_without_technical_labels() {
 
 #[test]
 fn transcript_metadata_omits_orchestrator_recipients() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let recipients = app.read(|ctx| vec![OrchestrationParticipant::orchestrator(ctx)]);
 
         app.read(|ctx| {
@@ -453,7 +461,8 @@ fn transcript_metadata_omits_orchestrator_recipients() {
 
 #[test]
 fn transcript_metadata_preserves_non_orchestrator_recipients() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_history_persistence_for_tests(&mut app);
         let recipients = app.read(|ctx| {
             vec![
                 OrchestrationParticipant::orchestrator(ctx),

@@ -1,15 +1,11 @@
-use crate::{
-    appearance::Appearance,
-    code_review::{
-        code_review_view::{
-            code_review_text, get_discard_button_disabled_tooltip, CodeReviewAction, LoadedState,
-        },
-        diff_state::DiffStateModel,
-    },
-    menu::Menu,
-    ui_components::icons::Icon,
-    view_components::action_button::ActionButton,
+use crate::appearance::Appearance;
+use crate::code_review::code_review_view::{
+    code_review_text, get_discard_button_disabled_tooltip, CodeReviewAction, LoadedState,
 };
+use crate::code_review::diff_state::DiffStateModel;
+use crate::menu::Menu;
+use crate::ui_components::icons::Icon;
+use crate::view_components::action_button::ActionButton;
 mod header_revamp;
 
 use pathfinder_geometry::vector::vec2f;
@@ -26,9 +22,9 @@ use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlign
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, ModelHandle, ViewHandle};
 
-use crate::code_review::code_review_view::CodeReviewHeaderFields;
-use crate::code_review::code_review_view::CodeReviewView;
-use crate::code_review::code_review_view::CONTENT_TOP_MARGIN;
+use crate::code_review::code_review_view::{
+    CodeReviewHeaderFields, CodeReviewView, CONTENT_TOP_MARGIN,
+};
 
 // This is a best effort guess of the size of all of the elements in the header to know when we should start to wrap to the second row
 const HEADER_WRAP_BREAKPOINT: f32 = 450.;

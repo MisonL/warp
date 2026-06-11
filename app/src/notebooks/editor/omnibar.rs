@@ -1,7 +1,6 @@
 //! Implementation for the omnibar - a floating menu for editor interactions
 //! like formatting and changing block types.
 
-use crate::localization;
 use itertools::Itertools;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
@@ -28,6 +27,7 @@ use super::model::{NotebooksEditorModel, RichTextEditorModelEvent};
 use super::view::EditorViewAction;
 use super::BlockType;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::menu::MenuVariant;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;

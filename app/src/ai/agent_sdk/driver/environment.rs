@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -6,8 +5,6 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use warp_localization::replace_placeholders;
-use warp_localization::LocaleId;
 
 use ai::index::full_source_code_embedding::manager::{
     CodebaseIndexManager, CodebaseIndexManagerEvent,
@@ -19,6 +16,7 @@ use warp_cli::agent::Harness;
 use warp_completer::completer::CommandExitStatus;
 use warp_core::command::ExitCode;
 use warp_core::{safe_info, safe_warn};
+use warp_localization::{replace_placeholders, LocaleId};
 use warpui::r#async::FutureExt;
 use warpui::{ModelContext, ModelSpawner, SingletonEntity};
 
@@ -26,6 +24,7 @@ use super::terminal::TerminalDriver;
 use super::AgentDriverError;
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
 use crate::ai::cloud_environments::{AmbientAgentEnvironment, GithubRepo};
+use crate::localization;
 use crate::terminal::model::session::command_executor::shell_escape_single_quotes;
 use crate::terminal::shell::ShellType;
 

@@ -1,10 +1,6 @@
 //! Renders the AI output portion of the AI block.
 //!
 //! This includes text, code snippets, suggested commands, and interactive inline action UX.
-use crate::ai::blocklist::block::view_impl::common::{
-    blocked_action_message_for_grep_or_file_glob, blocked_action_message_for_reading_files,
-    blocked_action_message_for_searching_codebase, MaybeShimmeringText,
-};
 use std::cell::OnceCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -71,6 +67,10 @@ use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
+use crate::ai::blocklist::block::view_impl::common::{
+    blocked_action_message_for_grep_or_file_glob, blocked_action_message_for_reading_files,
+    blocked_action_message_for_searching_codebase, MaybeShimmeringText,
+};
 use crate::ai::blocklist::block::{
     AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons, AutonomySettingSpeedbump,
     CollapsibleElementState, CollapsibleExpansionState, EmbeddedCodeEditorView, FinishReason,
@@ -3440,7 +3440,7 @@ fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
     // conversations with no descendants, so callers that aren't
     // orchestrators pay only the cost of one descendant-index probe.
     let rollup =
-        compute_orchestration_rollup(conversation.id(), BlocklistAIHistoryModel::as_ref(app));
+        compute_orchestration_rollup(conversation.id(), BlocklistAIHistoryModel::as_ref(app), app);
 
     // If this conversation has no usage metadata (e.g. a forked conversation from
     // mid-way through a prior conversation where the server did not send
@@ -3468,7 +3468,7 @@ fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
     };
 
     let total_credits_spent = headline_credits;
-    let mut credit_usage_text = format_credits(total_credits_spent);
+    let mut credit_usage_text = format_credits(app, total_credits_spent);
     if let Some(credits_spent_for_last_block) = conversation.credits_spent_for_last_block() {
         // Only show the credits spent for the last block if it is different from the total credits spent
         // and we spent a non-zero amount of credits for the last block.

@@ -10,6 +10,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType, ObjectType};
+use crate::localization;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::{safe_truncate, styles};
 use crate::search::item::SearchItem;
@@ -227,5 +228,13 @@ impl SearchItem for RuleSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Rule: {}", self.rule_content)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.rule",
+            &[("content", &self.rule_content)],
+        )
     }
 }

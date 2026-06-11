@@ -1,10 +1,10 @@
-use crate::localization;
 use std::path::PathBuf;
 
 use warpui::elements::ChildView;
 use warpui::ui_components::components::UiComponentStyles;
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
+use crate::localization;
 use crate::tab_configs::PickerStyle;
 use crate::util::git::{
     detect_current_branch, get_all_branches, get_all_branches_with_known_main,

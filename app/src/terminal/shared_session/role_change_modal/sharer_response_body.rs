@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 
 use session_sharing_protocol::common::{ParticipantId, Role, RoleRequestId};
@@ -15,6 +14,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use super::{BODY_PADDING, HEADER_FONT_SIZE, MODAL_PADDING, TEXT_FONT_SIZE};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::shared_session::render_util::{
     non_hoverable_participant_avatar, ParticipantAvatarParams,
 };

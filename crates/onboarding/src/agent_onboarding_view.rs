@@ -10,8 +10,8 @@ use warpui_core::windowing::state::{ApplicationStage, StateEvent};
 use warpui_core::windowing::WindowManager;
 
 use crate::model::{
-    OnboardingAuthState, OnboardingStateEvent, OnboardingStateModel, OnboardingStep,
-    SelectedSettings,
+    OnboardingAuthState, OnboardingStateEvent, OnboardingStateModel, OnboardingStateModelOptions,
+    OnboardingStep, SelectedSettings,
 };
 use crate::slides::{
     AgentSlide, AgentSlideEvent, CustomizeUISlide, FreeUserNoAiSlide, IntentionSlide, IntroSlide,
@@ -128,12 +128,14 @@ impl AgentOnboardingView {
             OnboardingStateModel::new(
                 models,
                 default_model_id,
-                workspace_enforces_autonomy,
-                agent_modality_enabled,
-                free_user_no_ai_experiment,
-                agent_price_cents,
-                auth_state,
-                copy,
+                OnboardingStateModelOptions {
+                    workspace_enforces_autonomy,
+                    agent_modality_enabled,
+                    free_user_no_ai_experiment,
+                    agent_price_cents,
+                    auth_state,
+                    copy,
+                },
             )
         });
         ctx.subscribe_to_model(&onboarding_state, |me, _model, event, ctx| {

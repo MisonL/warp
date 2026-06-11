@@ -1,13 +1,3 @@
-use super::{
-    cli_controller::{CLISubagentController, CLISubagentEvent, UserTakeOverReason},
-    model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus},
-    view_impl::common::{
-        default_warping_message, render_switch_control_to_user_button, render_warping_indicator,
-        render_warping_indicator_base, waiting_for_user_input_message, AutoExecuteButtonProps,
-        ButtonProps, ForceRefreshButtonProps, MaybeShimmeringText, WarpingIndicatorProps,
-        WarpingProps,
-    },
-};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -31,6 +21,13 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
+use super::cli_controller::{CLISubagentController, CLISubagentEvent, UserTakeOverReason};
+use super::model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus};
+use super::view_impl::common::{
+    default_warping_message, render_switch_control_to_user_button, render_warping_indicator,
+    render_warping_indicator_base, waiting_for_user_input_message, AutoExecuteButtonProps,
+    ButtonProps, ForceRefreshButtonProps, MaybeShimmeringText, WarpingIndicatorProps, WarpingProps,
+};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
     icons, AIAgentExchangeId, AIAgentOutput, AIAgentOutputMessageType, CancellationReason,

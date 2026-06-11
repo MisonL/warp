@@ -1,4 +1,3 @@
-use crate::localization;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -39,7 +38,6 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions,
 };
-use crate::send_telemetry_from_ctx;
 use crate::server::block::{Block as ServerBlock, DisplaySetting};
 use crate::server::server_api::block::BlockClient;
 use crate::server::telemetry::TelemetryEvent;
@@ -59,6 +57,7 @@ use crate::util::bindings::CustomAction;
 use crate::view_components::ToastFlavor;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
 const PADDING: f32 = 30.;
 const INNER_MARGIN: f32 = 20.;

@@ -1,11 +1,10 @@
-use crate::localization;
 use std::collections::{HashMap, HashSet};
-use warpui::keymap::BindingDescription;
 
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::{AppContext, Entity, EntityId, SingletonEntity, WindowId};
 
 use super::WorkspaceAction;
+use crate::localization;
 use crate::util::bindings::{BindingGroup, CustomAction};
 
 pub fn init(app: &mut AppContext) {

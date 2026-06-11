@@ -1,6 +1,5 @@
 #![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
 
-use crate::localization;
 use warpui::elements::{
     Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, DropShadow, Flex,
     ParentElement, Radius, Text,
@@ -16,6 +15,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 
 const GOTO_LINE_WIDTH: f32 = 300.;
 const GOTO_LINE_LABEL_FONT_SIZE: f32 = 12.;

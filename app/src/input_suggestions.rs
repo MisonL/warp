@@ -1,11 +1,10 @@
-use crate::localization;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::{cmp, vec};
 
 use async_channel::Sender;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Duration, Local};
 use fuzzy_match::match_indices;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
@@ -33,15 +32,85 @@ use warpui::{
 
 use crate::ai::blocklist::{render_ai_agent_mode_icon, AIQueryHistory, AIQueryHistoryOutputStatus};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::history::LinkedWorkflowData;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::rich_history::{render_ai_query_rich_history, render_rich_history};
 use crate::terminal::HistoryEntry;
 use crate::ui_components::icons::Icon as UIComponentsIcon;
-use crate::util::time_format::format_approx_duration_from_now;
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
+}
+
+fn localized_approx_duration_from_now(app: &AppContext, datetime: DateTime<Local>) -> String {
+    let duration = Local::now().signed_duration_since(datetime);
+    let count = |value: i64| value.to_string();
+
+    if duration >= Duration::days(365) {
+        let value = duration.num_days() / 365;
+        let key = if value == 1 {
+            "input_suggestions.time.year_one"
+        } else {
+            "input_suggestions.time.year_many"
+        };
+        return text_with_args(app, key, &[("count", &count(value))]);
+    }
+
+    if duration >= Duration::days(30) {
+        let value = duration.num_days() / 30;
+        let key = if value == 1 {
+            "input_suggestions.time.month_one"
+        } else {
+            "input_suggestions.time.month_many"
+        };
+        return text_with_args(app, key, &[("count", &count(value))]);
+    }
+
+    if duration >= Duration::weeks(1) {
+        let value = duration.num_weeks();
+        let key = if value == 1 {
+            "input_suggestions.time.week_one"
+        } else {
+            "input_suggestions.time.week_many"
+        };
+        return text_with_args(app, key, &[("count", &count(value))]);
+    }
+
+    if duration >= Duration::days(1) {
+        let value = duration.num_days();
+        let key = if value == 1 {
+            "input_suggestions.time.day_one"
+        } else {
+            "input_suggestions.time.day_many"
+        };
+        return text_with_args(app, key, &[("count", &count(value))]);
+    }
+
+    if duration >= Duration::hours(1) {
+        let value = duration.num_hours();
+        let key = if value == 1 {
+            "input_suggestions.time.hour_one"
+        } else {
+            "input_suggestions.time.hour_many"
+        };
+        return text_with_args(app, key, &[("count", &count(value))]);
+    }
+
+    if duration >= Duration::minutes(1) {
+        let value = duration.num_minutes();
+        return text_with_args(
+            app,
+            "input_suggestions.time.minute",
+            &[("count", &count(value))],
+        );
+    }
+
+    text(app, "input_suggestions.time.just_now")
 }
 
 /// This enum allows the parent view to indicate which type of details panel is shown.
@@ -544,13 +613,15 @@ impl InputSuggestions {
             .and_then(|details| match details {
                 DetailContent::RichHistory(entry) => entry.start_ts.map(|ts| {
                     text(app, "input_suggestions.a11y.last_ran")
-                        .replace("{time}", &format_approx_duration_from_now(ts))
+                        .replace("{time}", &localized_approx_duration_from_now(app, ts))
                 }),
                 DetailContent::Description(desc) => Some(desc.clone()),
-                DetailContent::AIQueryHistory(entry) => Some(
-                    text(app, "input_suggestions.a11y.last_ran")
-                        .replace("{time}", &format_approx_duration_from_now(entry.start_time)),
-                ),
+                DetailContent::AIQueryHistory(entry) => {
+                    Some(text(app, "input_suggestions.a11y.last_ran").replace(
+                        "{time}",
+                        &localized_approx_duration_from_now(app, entry.start_time),
+                    ))
+                }
             })
     }
 

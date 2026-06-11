@@ -1,4 +1,3 @@
-use crate::localization;
 use warp_core::send_telemetry_from_ctx;
 use warpui::elements::{ChildView, Flex, ParentElement as _};
 use warpui::{
@@ -6,7 +5,7 @@ use warpui::{
 };
 
 use crate::coding_entrypoints::glowing_editor::{GlowingEditor, GlowingEditorEvent};
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 pub struct CloneRepoView {
     editor: ViewHandle<GlowingEditor>,

@@ -10,6 +10,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::cloud_object::ObjectType;
+use crate::localization;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::{safe_truncate, styles};
 use crate::search::item::SearchItem;
@@ -182,6 +183,25 @@ impl SearchItem for WorkflowSearchItem {
             format!("Workflow: {} - {}", self.workflow_name, description)
         } else {
             format!("Workflow: {}", self.workflow_name)
+        }
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        if let Some(description) = &self.workflow_description {
+            localization::text_for_app_with_args(
+                app,
+                "search.a11y.type.workflow_with_description",
+                &[
+                    ("name", &self.workflow_name),
+                    ("description", description.as_str()),
+                ],
+            )
+        } else {
+            localization::text_for_app_with_args(
+                app,
+                "search.a11y.type.workflow",
+                &[("name", &self.workflow_name)],
+            )
         }
     }
 

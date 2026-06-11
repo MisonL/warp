@@ -32,6 +32,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization::LocalizationUpdater;
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::search_bar::SearchBar;
 use crate::server::ids::ApiKeyUid;
@@ -171,11 +172,28 @@ impl PlatformPageView {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Search API keys", ctx);
+            editor.set_placeholder_text(
+                platform_text(ctx, "settings.platform.api_keys.search_placeholder"),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&api_key_search_editor, |me, _, event, ctx| {
             me.handle_search_editor_event(event, ctx);
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), {
+            let api_key_search_editor = api_key_search_editor.clone();
+            move |me, _, _, ctx| {
+                api_key_search_editor.update(ctx, |editor, ctx| {
+                    editor.set_placeholder_text(
+                        platform_text(ctx, "settings.platform.api_keys.search_placeholder"),
+                        ctx,
+                    );
+                });
+                if me.create_api_key_modal_state.is_open() {
+                    me.update_create_api_key_modal_title(ctx);
+                }
+            }
         });
 
         let api_key_search_bar =
@@ -277,8 +295,13 @@ impl PlatformPageView {
                 self.hide_create_api_key_modal(ctx);
             }
             CreateApiKeyModalEvent::Created { api_key } => {
-                self.create_api_key_modal_state
-                    .set_title(Some("Save your key".to_string()), ctx);
+                self.create_api_key_modal_state.set_title(
+                    Some(platform_text(
+                        ctx,
+                        "settings.platform.api_keys.modal_title.save",
+                    )),
+                    ctx,
+                );
                 let ui_key = APIKeyProperties::from(api_key);
                 self.ensure_expire_button_for_key(ctx, ui_key.uid.clone());
                 self.api_keys.push(ui_key);
@@ -349,6 +372,16 @@ impl PlatformPageView {
             }
         });
         self.expire_buttons.insert(uid, handle);
+    }
+
+    fn update_create_api_key_modal_title(&mut self, ctx: &mut ViewContext<Self>) {
+        let title_key = if self.create_api_key_modal_state.is_succeeded(ctx) {
+            "settings.platform.api_keys.modal_title.save"
+        } else {
+            "settings.platform.api_keys.modal_title.new"
+        };
+        self.create_api_key_modal_state
+            .set_title(Some(platform_text(ctx, title_key)), ctx);
     }
 }
 
@@ -606,7 +639,7 @@ impl PlatformPageWidget {
                 .collect();
 
             if filtered_api_keys.is_empty() {
-                col.add_child(self.render_no_search_results(appearance));
+                col.add_child(self.render_no_search_results(appearance, app));
             } else {
                 col.add_child(self.render_api_keys_header(appearance, view, app));
                 col.add_child(self.render_api_keys_rows(appearance, view, &filtered_api_keys, app));
@@ -953,10 +986,14 @@ impl PlatformPageWidget {
         .finish()
     }
 
-    fn render_no_search_results(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_no_search_results(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Container::new(
             Text::new(
-                "No API keys match your search",
+                platform_text(app, "settings.platform.api_keys.no_search_results"),
                 appearance.ui_font_family(),
                 CONTENT_FONT_SIZE,
             )

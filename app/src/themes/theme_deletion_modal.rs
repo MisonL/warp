@@ -1,4 +1,3 @@
-use crate::localization;
 use std::default::Default;
 
 use warpui::fonts::Weight;
@@ -7,6 +6,7 @@ use warpui::presenter::ChildView;
 use warpui::ui_components::components::{Coords, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
+use crate::localization;
 use crate::modal::Modal;
 use crate::themes::theme::ThemeKind;
 use crate::themes::theme_deletion_body::{ThemeDeletionBody, ThemeDeletionBodyEvent};

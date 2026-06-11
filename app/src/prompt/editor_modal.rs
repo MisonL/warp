@@ -489,19 +489,21 @@ impl EditorModal {
             .finish()
     }
 
-    fn render_unused_chips(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_unused_chips(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         self.chip_configurator.render_unused_chips_bank(
             EditorModalAction::UseWarpPrompt,
             EditorModalAction::Chip,
             appearance,
+            app,
         )
     }
 
-    fn render_used_chips(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_used_chips(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         self.chip_configurator.render_used_drop_zone(
             EditorModalAction::UseWarpPrompt,
             EditorModalAction::Chip,
             appearance,
+            app,
         )
     }
 
@@ -664,12 +666,12 @@ impl EditorModal {
     ) -> Box<dyn Element> {
         let body = Flex::column()
             .with_child(
-                Container::new(self.render_unused_chips(appearance))
+                Container::new(self.render_unused_chips(appearance, app))
                     .with_margin_top(10.)
                     .finish(),
             )
             .with_child(
-                Container::new(self.render_used_chips(appearance))
+                Container::new(self.render_used_chips(appearance, app))
                     .with_margin_top(10.)
                     .finish(),
             )

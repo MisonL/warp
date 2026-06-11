@@ -1,15 +1,3 @@
-use crate::localization;
-use crate::{
-    auth::AuthStateProvider,
-    changelog_model::ChangelogModel,
-    channel::ChannelState,
-    features::FeatureFlag,
-    resource_center::skip_tips_and_write_to_user_defaults,
-    send_telemetry_from_ctx,
-    server::telemetry::TelemetryEvent,
-    settings::{LanguageSettings, Settings},
-    themes::theme::{Blend, Fill as FillTheme},
-};
 use pathfinder_geometry::vector::vec2f;
 use warpui::elements::{
     Align, ClippedScrollStateHandle, ClippedScrollable, Container, CornerRadius, Element, Empty,
@@ -36,7 +24,16 @@ use super::{
     FeatureSectionData, FeatureSectionView, Section, TipsCompleted,
 };
 use crate::appearance::Appearance;
+use crate::auth::AuthStateProvider;
+use crate::changelog_model::ChangelogModel;
+use crate::channel::ChannelState;
+use crate::features::FeatureFlag;
+use crate::resource_center::skip_tips_and_write_to_user_defaults;
+use crate::server::telemetry::TelemetryEvent;
+use crate::settings::{LanguageSettings, Settings};
+use crate::themes::theme::{Blend, Fill as FillTheme};
 use crate::workspace::WorkspaceAction;
+use crate::{localization, send_telemetry_from_ctx};
 
 const SEND_SVG_PATH: &str = "bundled/svg/send.svg";
 

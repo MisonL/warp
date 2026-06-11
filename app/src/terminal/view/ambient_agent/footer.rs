@@ -5,8 +5,7 @@ use warpui::elements::{
     ParentElement, Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::AppContext;
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use crate::localization;
 use crate::ui_components::blended_colors;

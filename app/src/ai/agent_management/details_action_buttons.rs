@@ -2,11 +2,14 @@
 
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warpui::elements::{ChildView, CrossAxisAlignment, Empty, Flex, ParentElement};
-use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::{AgentConversationEntryId, AgentRunDisplayStatus};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
 use crate::view_components::copyable_text_field::COPY_FEEDBACK_DURATION;
@@ -112,18 +115,13 @@ pub struct ConversationActionButtonsRow {
 impl ConversationActionButtonsRow {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let open_button = ctx.add_typed_action_view(|_| {
-            Self::make_action_button(
-                Icon::LinkExternal,
-                "Open conversation",
-                None,
-                AgentDetailsAction::Open,
-            )
+            Self::make_action_button(Icon::LinkExternal, None, None, AgentDetailsAction::Open)
         });
 
         let cancel_task_button = ctx.add_typed_action_view(|_| {
             Self::make_action_button(
                 Icon::StopFilled,
-                "Cancel task",
+                None,
                 Some(AnsiColorIdentifier::Red),
                 AgentDetailsAction::CancelTask,
             )
@@ -132,38 +130,77 @@ impl ConversationActionButtonsRow {
         let fork_conversation_button = ctx.add_typed_action_view(|_| {
             Self::make_action_button(
                 Icon::ArrowSplit,
-                "Fork conversation",
+                None,
                 None,
                 AgentDetailsAction::ForkConversation,
             )
         });
 
         let view_details_button = ctx.add_typed_action_view(|_| {
-            Self::make_action_button(
-                Icon::Info,
-                "View details",
-                None,
-                AgentDetailsAction::ViewDetails,
-            )
+            Self::make_action_button(Icon::Info, None, None, AgentDetailsAction::ViewDetails)
         });
 
         let copy_link_button = ctx.add_typed_action_view(|_| {
-            Self::make_action_button(
-                Icon::Link,
-                "Copy link to run",
-                None,
-                AgentDetailsAction::CopyLink,
-            )
+            Self::make_action_button(Icon::Link, None, None, AgentDetailsAction::CopyLink)
         });
 
-        Self {
+        let mut row = Self {
             config: ActionButtonsConfig::default(),
             open_button,
             cancel_task_button,
             fork_conversation_button,
             view_details_button,
             copy_link_button,
-        }
+        };
+        row.update_button_tooltips(ctx);
+        ctx.subscribe_to_model(
+            &localization::LocalizationUpdater::handle(ctx),
+            |me, _, _, ctx| {
+                me.update_button_tooltips(ctx);
+                ctx.notify();
+            },
+        );
+        row
+    }
+
+    fn tooltip(ctx: &AppContext, action: AgentDetailsAction) -> String {
+        let key = match action {
+            AgentDetailsAction::Open => "conversation_details.tooltip.open_conversation",
+            AgentDetailsAction::CancelTask => "conversation_details.tooltip.cancel_task",
+            AgentDetailsAction::ForkConversation => {
+                "conversation_details.tooltip.fork_conversation"
+            }
+            AgentDetailsAction::ViewDetails => "conversation_details.tooltip.view_details",
+            AgentDetailsAction::CopyLink => "conversation_details.tooltip.copy_link_to_run",
+        };
+        localization::text_for_app(ctx, key)
+    }
+
+    fn update_button_tooltips(&mut self, ctx: &mut ViewContext<Self>) {
+        self.open_button.update(ctx, |button, ctx| {
+            button.set_tooltip(Some(Self::tooltip(ctx, AgentDetailsAction::Open)), ctx);
+        });
+        self.cancel_task_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(Self::tooltip(ctx, AgentDetailsAction::CancelTask)),
+                ctx,
+            );
+        });
+        self.fork_conversation_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(Self::tooltip(ctx, AgentDetailsAction::ForkConversation)),
+                ctx,
+            );
+        });
+        self.view_details_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(Self::tooltip(ctx, AgentDetailsAction::ViewDetails)),
+                ctx,
+            );
+        });
+        self.copy_link_button.update(ctx, |button, ctx| {
+            button.set_tooltip(Some(Self::tooltip(ctx, AgentDetailsAction::CopyLink)), ctx);
+        });
     }
 
     /// Set the config and rerender.
@@ -179,17 +216,19 @@ impl ConversationActionButtonsRow {
 
     fn make_action_button(
         icon: Icon,
-        tooltip: &str,
+        tooltip: Option<String>,
         icon_color: Option<AnsiColorIdentifier>,
         action: AgentDetailsAction,
     ) -> ActionButton {
         let mut button = ActionButton::new("", SecondaryTheme)
             .with_icon(icon)
             .with_size(ButtonSize::Small)
-            .with_tooltip(tooltip)
             .on_click(move |ctx| {
                 ctx.dispatch_typed_action(action.clone());
             });
+        if let Some(tooltip) = tooltip {
+            button = button.with_tooltip(tooltip);
+        }
         if let Some(color) = icon_color {
             button = button.with_icon_ansi_color(color);
         }

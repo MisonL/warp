@@ -26,8 +26,7 @@ use crate::callout::model::{
     OnboardingCalloutState, OnboardingQuery, UniversalInputCalloutState,
 };
 use crate::components::onboarding_callout::{self, Button, StepStatus};
-use crate::OnboardingCopy;
-use crate::OnboardingIntention;
+use crate::{OnboardingCopy, OnboardingIntention};
 
 /// Options for rendering a callout.
 struct CalloutOptions {

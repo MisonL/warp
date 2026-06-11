@@ -575,6 +575,7 @@ impl ConversationDetailsData {
     pub(crate) fn from_task_id(
         task_id: AmbientAgentTaskId,
         fetch_error: Option<TaskFetchError>,
+        app: &AppContext,
     ) -> Self {
         ConversationDetailsData {
             mode: PanelMode::Task {
@@ -585,7 +586,7 @@ impl ConversationDetailsData {
                 environment_id: None,
                 conversation_id: None,
             },
-            title: "Cloud agent run".to_string(),
+            title: conversation_details_text(app, "conversation_details.title.cloud_agent_run"),
             creator: None,
             executor: None,
             created_at: None,

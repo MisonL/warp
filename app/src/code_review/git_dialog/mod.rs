@@ -9,23 +9,6 @@
 //! + confirm async, extend `GitDialogMode`, add the per-mode action and
 //! outcome variant, and wire up dispatch.
 
-use crate::{
-    code::editor::{add_color, remove_color},
-    code_review::code_review_view::code_review_text,
-    code_review::telemetry_event::{CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind},
-    settings::AISettings,
-    ui_components::{
-        dialog::{dialog_styles, Dialog},
-        icons::Icon,
-    },
-    util::git::{Commit, FileChangeEntry},
-    view_components::{
-        action_button::{ActionButton, ButtonSize, NakedTheme, SecondaryTheme},
-        DismissibleToast,
-    },
-    workspace::ToastStack,
-    workspaces::user_workspaces::UserWorkspaces,
-};
 use std::path::PathBuf;
 
 use pathfinder_geometry::vector::vec2f;
@@ -46,8 +29,21 @@ use warpui::{
     ViewHandle,
 };
 
+use crate::code::editor::{add_color, remove_color};
+use crate::code_review::code_review_view::code_review_text;
+use crate::code_review::telemetry_event::{
+    CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
+};
+use crate::settings::AISettings;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_shell::LocalShellState;
+use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::ui_components::icons::Icon;
+use crate::util::git::{Commit, FileChangeEntry};
+use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, SecondaryTheme};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
+use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub(crate) mod commit;
 pub(crate) mod pr;

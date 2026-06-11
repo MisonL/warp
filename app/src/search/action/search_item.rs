@@ -15,6 +15,7 @@ use crate::appearance::Appearance;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::DriveObjectType;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::{
     colors, render_search_item_icon, render_search_item_icon_placeholder,
@@ -148,12 +149,31 @@ impl SearchItem for MatchedBinding {
         let trigger = self.binding.trigger.as_ref();
 
         format!(
-            "Selected {}, {}.",
+            "{}, {}.",
             &self
                 .binding
                 .description
                 .in_context(DescriptionContext::Default),
             trigger.map(Keystroke::normalized).unwrap_or_default()
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let description = self
+            .binding
+            .description
+            .in_context(DescriptionContext::Default);
+        let binding = self
+            .binding
+            .trigger
+            .as_ref()
+            .map(Keystroke::normalized)
+            .unwrap_or_default();
+
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.item_with_binding",
+            &[("description", description), ("binding", &binding)],
         )
     }
 
@@ -168,6 +188,20 @@ impl SearchItem for MatchedBinding {
                 )
             })
             .into()
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(self.binding.trigger.as_ref().map_or_else(
+            || localization::text_for_app(app, "search.a11y.help.confirm"),
+            |trigger| {
+                let binding = trigger.normalized();
+                localization::text_for_app_with_args(
+                    app,
+                    "search.a11y.help.confirm_with_binding",
+                    &[("binding", &binding)],
+                )
+            },
+        ))
     }
 }
 

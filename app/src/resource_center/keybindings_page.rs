@@ -1,12 +1,3 @@
-use crate::appearance::Appearance;
-use crate::command_palette::PRIORITIZED_KEYBINDINGS;
-use crate::localization;
-use crate::search_bar::SearchBar;
-use crate::settings::LanguageSettings;
-use crate::settings_view::keybindings::KeybindingChangedEvent;
-use crate::settings_view::keybindings::KeybindingChangedNotifier;
-use crate::util::bindings::filter_bindings_including_keystroke;
-use crate::workspace::WorkspaceAction;
 use enum_iterator::{all, Sequence};
 use itertools::{Either, Itertools};
 use warpui::elements::{
@@ -31,13 +22,18 @@ use super::utils::{
     get_additional_keybindings, BLOCKS_KEYBINDINGS, FUNDAMENTALS_KEYBINDINGS,
     INPUT_EDITOR_KEYBINDINGS, TERMINAL_KEYBINDINGS,
 };
+use crate::appearance::Appearance;
+use crate::command_palette::PRIORITIZED_KEYBINDINGS;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::settings_view;
-use crate::util::bindings::CommandBinding;
+use crate::search_bar::SearchBar;
+use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
+use crate::util::bindings::{filter_bindings_including_keystroke, CommandBinding};
 use crate::workspace::tab_settings::TabSettings;
+use crate::workspace::WorkspaceAction;
+use crate::{localization, settings_view};
 
 const KEYBINDINGS_PAGE_SHORTCUT: &str = "workspace:toggle_keybindings_page";
 const TOGGLE_THIS_PANEL_KEY: &str = "resource_center.keybindings.toggle_this_panel";
@@ -138,19 +134,21 @@ impl KeybindingsView {
         let tab_settings_handle = TabSettings::handle(ctx);
         ctx.observe(&tab_settings_handle, Self::rebuild_bindings);
 
-        let language_settings_handle = LanguageSettings::handle(ctx);
-        ctx.observe(&language_settings_handle, |me, _, ctx| {
-            me.search_editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(
-                    localization::text_for_app(
+        ctx.subscribe_to_model(
+            &localization::LocalizationUpdater::handle(ctx),
+            |me, _, _, ctx| {
+                me.search_editor.update(ctx, |editor, ctx| {
+                    editor.set_placeholder_text(
+                        localization::text_for_app(
+                            ctx,
+                            settings_view::keybindings::SEARCH_PLACEHOLDER_KEY,
+                        ),
                         ctx,
-                        settings_view::keybindings::SEARCH_PLACEHOLDER_KEY,
-                    ),
-                    ctx,
-                );
-            });
-            me.rebuild_bindings(TabSettings::handle(ctx), ctx);
-        });
+                    );
+                });
+                me.rebuild_bindings(TabSettings::handle(ctx), ctx);
+            },
+        );
 
         Self {
             bindings: bindings.clone(),

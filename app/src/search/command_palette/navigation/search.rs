@@ -6,7 +6,9 @@ use warpui::{AppContext, ModelHandle};
 
 use crate::pane_group::PaneId;
 use crate::search::command_palette::navigation::render::CommandRenderInfo;
-use crate::search::command_palette::navigation::search_item::SearchItem;
+use crate::search::command_palette::navigation::search_item::{
+    NavigationSearchItemAccessibilityCopy, SearchItem,
+};
 use crate::search::command_palette::navigation::DataSource;
 use crate::search::data_source::QueryResult;
 use crate::search::SyncDataSource;
@@ -224,13 +226,21 @@ impl SessionSearcher for FuzzySessionSearcher {
             SessionSource::None => None,
             SessionSource::Set { active_pane_id, .. } => Some(*active_pane_id),
         };
+        let accessibility_copy = NavigationSearchItemAccessibilityCopy::new(app);
 
         // Sort sessions by last focus timestamp so sessions that were focused first are shown first.
         let all_sessions =
             SessionNavigationData::all_sessions(app).sorted_by_key(|x| x.last_focus_ts());
 
         Ok(filter_sessions(all_sessions.as_slice(), search_term, app)
-            .map(|matched_session| SearchItem::new(matched_session, active_session_id).into())
+            .map(|matched_session| {
+                SearchItem::new(
+                    matched_session,
+                    active_session_id,
+                    accessibility_copy.clone(),
+                )
+                .into()
+            })
             .collect())
     }
 
@@ -257,7 +267,9 @@ mod full_text_searcher {
         searchable_session_string_and_ranges, MatchedSession, SearcherAction,
         SessionHighlightIndices, SessionMatchResult, SessionSearcher,
     };
-    use crate::search::command_palette::navigation::search_item::SearchItem;
+    use crate::search::command_palette::navigation::search_item::{
+        NavigationSearchItemAccessibilityCopy, SearchItem,
+    };
     use crate::search::data_source::QueryResult;
     use crate::search::searcher::{DEFAULT_MEMORY_BUDGET, SCORE_CONVERSION_FACTOR};
     use crate::session_management::{SessionNavigationData, SessionSource};
@@ -305,6 +317,7 @@ mod full_text_searcher {
                 SessionSource::None => None,
                 SessionSource::Set { active_pane_id, .. } => Some(*active_pane_id),
             };
+            let accessibility_copy = NavigationSearchItemAccessibilityCopy::new(app);
 
             if search_term.is_empty() {
                 return Ok(sessions
@@ -315,7 +328,12 @@ mod full_text_searcher {
                             session,
                             match_result: SessionMatchResult::no_match(),
                         };
-                        SearchItem::new(matched_session, active_session_id).into()
+                        SearchItem::new(
+                            matched_session,
+                            active_session_id,
+                            accessibility_copy.clone(),
+                        )
+                        .into()
                     })
                     .collect());
             }
@@ -340,7 +358,14 @@ mod full_text_searcher {
                         session,
                         match_result,
                     };
-                    Some(SearchItem::new(matched_session, active_session_id).into())
+                    Some(
+                        SearchItem::new(
+                            matched_session,
+                            active_session_id,
+                            accessibility_copy.clone(),
+                        )
+                        .into(),
+                    )
                 })
                 .collect())
         }

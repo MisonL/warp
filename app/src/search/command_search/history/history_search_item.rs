@@ -11,6 +11,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::command_search::searcher::{AcceptedHistoryItem, CommandSearchItemAction};
 use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
@@ -157,6 +158,14 @@ impl SearchItem for HistorySearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("History item: {}", self.entry.command)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.history_item",
+            &[("command", &self.entry.command)],
+        )
     }
 }
 

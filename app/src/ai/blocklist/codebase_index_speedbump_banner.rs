@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use warpui::AppContext;
 
 use warpui::elements::{
     Align, ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisSize, MouseStateHandle,
@@ -8,7 +7,7 @@ use warpui::elements::{
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use crate::appearance::Appearance;
 use crate::localization;

@@ -1,8 +1,3 @@
-use crate::localization;
-use crate::{
-    localization::LocalizationUpdater,
-    settings::{AISettings, AISettingsChangedEvent},
-};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -51,10 +46,12 @@ use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
+use crate::localization::LocalizationUpdater;
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::pane_group::Direction;
 use crate::search_bar::SearchBar;
 use crate::server::telemetry::{MCPTemplateInstallationSource, TelemetryEvent};
+use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::settings_view::mcp_servers::server_card::{
     ServerCardEvent, ServerCardOptions, ServerCardStatus, ServerCardView, TitleChip,
 };
@@ -71,7 +68,7 @@ use crate::view_components::DismissibleToast;
 use crate::workflows::local_workflows::tail_command_for_shell;
 use crate::workspace::Workspace;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::ToastStack;
+use crate::{localization, ToastStack};
 
 #[derive(Debug, Clone)]
 pub enum MCPServersListPageViewEvent {
@@ -1127,7 +1124,6 @@ impl MCPServersListPageView {
         let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
 
         let label = render_body_item_label::<MCPServersListPageViewAction>(
-            app,
             localization::text_for_app(app, "settings.mcp.list.file_based.auto_spawn_label"),
             None,
             None,

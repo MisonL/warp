@@ -1,4 +1,3 @@
-use crate::localization;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -6,6 +5,7 @@ use async_broadcast::InactiveReceiver;
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
 
+use crate::localization;
 use crate::settings::{DebugSettings, DebugSettingsChangedEvent};
 use crate::view_components::{DismissibleToast, ToastLink};
 use crate::workspace::{ToastStack, WorkspaceAction};

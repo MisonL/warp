@@ -1,4 +1,3 @@
-use crate::localization;
 use std::rc::Rc;
 
 use strum::IntoEnumIterator;
@@ -25,6 +24,7 @@ use crate::editor::{
     EditorOptions, EditorView, Event, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::server::ids::{ClientId, SyncId};
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;

@@ -1,4 +1,3 @@
-use crate::code_review::code_review_view::code_review_text;
 use std::borrow::Cow;
 
 use indexmap::IndexMap;
@@ -41,7 +40,7 @@ use crate::appearance::Appearance;
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorView};
-use crate::code_review::code_review_view::CodeReviewView;
+use crate::code_review::code_review_view::{code_review_text, CodeReviewView};
 use crate::code_review::comment_rendering::CommentViewCard;
 use crate::code_review::comments::{
     AttachedReviewComment, AttachedReviewCommentTarget, CommentId, CommentOrigin,

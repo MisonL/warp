@@ -1,4 +1,3 @@
-use crate::localization;
 use std::marker::PhantomData;
 use std::ops::Range;
 
@@ -15,6 +14,7 @@ use warpui::{
 
 use super::styles::{ESTIMATED_RESULT_HEIGHT, MAX_DISPLAYED_RESULT_COUNT};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::mixer::SearchMixer;
 use crate::search::search_bar::{
     CreateQueryResultRendererFn, SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering,
@@ -289,12 +289,12 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
 
         let mut column = Flex::column();
 
-        if let Some(title) = active_filter.and_then(renderable_title_name) {
+        if let Some(title_key) = active_filter.and_then(renderable_title_key) {
             column.add_child(
                 Container::new(
                     appearance
                         .ui_builder()
-                        .span(title)
+                        .span(localization::text_for_app(app, title_key))
                         .with_style(UiComponentStyles {
                             font_color: Some(
                                 appearance
@@ -340,9 +340,9 @@ impl<T: Action + Clone> View for SearchResultsMenuView<T> {
     }
 }
 
-fn renderable_title_name(query_filter: QueryFilter) -> Option<&'static str> {
+fn renderable_title_key(query_filter: QueryFilter) -> Option<&'static str> {
     if matches!(query_filter, QueryFilter::AgentModeWorkflows) {
-        return Some("Prompts");
+        return Some("search.results.title.agent_mode_workflows");
     }
 
     None

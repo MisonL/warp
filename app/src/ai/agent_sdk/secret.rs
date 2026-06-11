@@ -1,7 +1,5 @@
-use crate::localization;
 use std::fs;
 use std::io::{self, IsTerminal as _, Read};
-use warp_localization::LocaleId;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -18,6 +16,7 @@ use warp_cli::GlobalOptions;
 use warp_core::features::FeatureFlag;
 use warp_graphql::managed_secrets::{ManagedSecret, ManagedSecretType};
 use warp_graphql::object::SpaceType;
+use warp_localization::LocaleId;
 use warp_managed_secrets::client::SecretOwner;
 use warp_managed_secrets::{ManagedSecretManager, ManagedSecretValue};
 use warpui::platform::TerminationMode;
@@ -26,6 +25,7 @@ use warpui::{AppContext, SingletonEntity as _};
 use super::output::{self, TableFormat};
 use crate::auth::UserUid;
 use crate::cloud_object::Owner;
+use crate::localization;
 use crate::server::ids::ServerId;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 
@@ -98,8 +98,21 @@ impl TableFormat for SecretInfo {
     fn row_for_app(&self, app: &AppContext) -> Vec<Cell> {
         vec![
             Cell::new(&self.name),
-            Cell::new(&self.scope),
+            Cell::new(super::common::format_owner_scope_for_app(&self.scope, app)),
             Cell::new(format_secret_type_for_app(&self.secret_type, app)),
+            Cell::new(format_approx_duration_from_now_utc(self.created_at)),
+            Cell::new(format_approx_duration_from_now_utc(self.updated_at)),
+        ]
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
+        vec![
+            Cell::new(&self.name),
+            Cell::new(super::common::format_owner_scope_for_locale(
+                &self.scope,
+                locale,
+            )),
+            Cell::new(format_secret_type(&self.secret_type)),
             Cell::new(format_approx_duration_from_now_utc(self.created_at)),
             Cell::new(format_approx_duration_from_now_utc(self.updated_at)),
         ]
@@ -591,7 +604,7 @@ fn list_secrets(
 
                     SecretInfo {
                         name: secret.name,
-                        scope: super::common::format_owner_for_app(&owner, ctx),
+                        scope: super::common::owner_scope(&owner).to_string(),
                         secret_type: secret.type_,
                         created_at: secret.created_at.utc(),
                         updated_at: secret.updated_at.utc(),
@@ -978,3 +991,7 @@ fn format_secret_type_for_app(type_: &ManagedSecretType, app: &AppContext) -> St
     };
     text(app, key)
 }
+
+#[cfg(test)]
+#[path = "secret_tests.rs"]
+mod tests;

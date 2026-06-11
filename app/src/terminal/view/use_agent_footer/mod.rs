@@ -4,7 +4,6 @@
 //! offering users the option to bring in the agent. For CLI agent commands (e.g., Claude Code,
 //! Gemini CLI, Codex), it displays a specialized footer with additional functionality.
 
-use crate::localization;
 use base64::Engine;
 use warpui::clipboard::{ClipboardContent, ImageData};
 
@@ -12,6 +11,7 @@ use crate::ai::agent::ImageContext;
 use crate::ai::blocklist::agent_view::agent_input_footer::{
     AgentInputFooter, AgentInputFooterEvent,
 };
+use crate::localization;
 use crate::terminal::cli_agent_sessions::{CLIAgentInputEntrypoint, CLIAgentSessionsModel};
 use crate::terminal::shared_session::{
     SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,

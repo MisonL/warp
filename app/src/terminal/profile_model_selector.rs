@@ -41,6 +41,7 @@ use crate::ai::execution_profiles::model_menu_items::{
 use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId,
 };
+use crate::ai::execution_profiles::AIExecutionProfileAppExt;
 use crate::ai::harness_availability::{
     HarnessAvailabilityEvent, HarnessAvailabilityModel, HarnessModelInfo,
 };
@@ -49,7 +50,6 @@ use crate::ai::llms::{
     LLMPreferencesEvent, LLMSpec,
 };
 use crate::appearance::Appearance;
-use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::context_chips::display_chip::{udi_font_size, udi_icon_size};
 use crate::context_chips::spacing;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
@@ -690,7 +690,7 @@ impl ProfileModelSelector {
             let profile_name = {
                 let active_profile =
                     profiles_model.active_profile(Some(self.terminal_view_id), ctx);
-                active_profile.data().display_name()
+                active_profile.data().display_name_for_app(ctx)
             };
 
             self.profile_button.update(ctx, |button, ctx| {
@@ -855,7 +855,7 @@ impl ProfileModelSelector {
                 let profile = profile_info.data();
                 let is_active = *active_profile.id() == profile_id;
 
-                let mut fields = MenuItemFields::new(profile.display_name());
+                let mut fields = MenuItemFields::new(profile.display_name_for_app(ctx));
                 if is_active {
                     fields = fields.with_icon(Icon::Check);
                 } else {
@@ -1593,7 +1593,7 @@ impl ProfileModelSelector {
         let max_label_width = calculate_max_profile_name_width(appearance);
         let profile_text = ConstrainedBox::new(
             Text::new_inline(
-                active_profile.data().display_name(),
+                active_profile.data().display_name_for_app(app),
                 appearance.ui_font_family(),
                 scaled_font_size,
             )

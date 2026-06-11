@@ -7,6 +7,7 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 use crate::ai::request_usage_model::{
     AIRequestUsageModel, AIRequestUsageModelEvent, BonusGrant, BonusGrantScope,
 };
+use crate::localization;
 use crate::terminal::general_settings::GeneralSettings;
 
 pub struct BonusGrantNotificationModel {
@@ -76,7 +77,7 @@ impl BonusGrantNotificationModel {
             let message = if let Some(user_facing_message) = &grant.user_facing_message {
                 user_facing_message.clone()
             } else {
-                Self::format_generic_grant_message(grant)
+                Self::format_generic_grant_message(grant, ctx)
             };
 
             let grant_key = Self::create_grant_key(grant);
@@ -104,14 +105,19 @@ impl BonusGrantNotificationModel {
         }
     }
 
-    fn format_generic_grant_message(grant: &BonusGrant) -> String {
-        let scope_text = match grant.scope {
-            BonusGrantScope::User => "account",
-            BonusGrantScope::Workspace(_) => "team",
+    fn format_generic_grant_message(grant: &BonusGrant, ctx: &ModelContext<Self>) -> String {
+        let scope_key = match grant.scope {
+            BonusGrantScope::User => "workspace.bonus_grant.scope.account",
+            BonusGrantScope::Workspace(_) => "workspace.bonus_grant.scope.team",
         };
-        format!(
-            "{} Reload Credits have been added to your {}.",
-            grant.request_credits_granted, scope_text
+
+        localization::text_for_app_with_args(
+            ctx,
+            "workspace.bonus_grant.generic_message",
+            &[
+                ("count", &grant.request_credits_granted.to_string()),
+                ("scope", &localization::text_for_app(ctx, scope_key)),
+            ],
         )
     }
 

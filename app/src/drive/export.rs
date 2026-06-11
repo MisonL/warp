@@ -315,7 +315,7 @@ impl ExportManager {
         };
 
         let name = if name.is_empty() {
-            "Untitled".to_string()
+            text(ctx, "drive.placeholder.untitled")
         } else {
             safe_filename(&name)
         };
@@ -450,7 +450,7 @@ impl ExportId {
             .map(|object| {
                 let mut name = object.display_name();
                 if name.is_empty() {
-                    name.push_str("Untitled")
+                    name.push_str(&text(ctx, "drive.placeholder.untitled"))
                 }
                 name
             })

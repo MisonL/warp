@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_color::ColorU;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
@@ -22,7 +21,7 @@ use crate::server::ids::{ClientId, SyncId};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ActionButtonTheme, SecondaryTheme};
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 const MAX_CHIP_WIDTH: f32 = 316.;
 
@@ -162,7 +161,11 @@ impl Suggestion {
                 } else {
                     workflow.prompt.clone()
                 };
-                format!("Suggested prompt:\n{prompt}")
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.suggested_workflow.tooltip.prompt",
+                    &[("prompt", &prompt)],
+                )
             }
         }
     }

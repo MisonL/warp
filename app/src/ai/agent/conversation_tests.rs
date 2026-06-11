@@ -229,7 +229,7 @@ fn restored_conversation_with_empty_task_list_creates_in_progress_optimistic_roo
 }
 
 #[test]
-fn update_cost_and_usage_resolves_custom_endpoint_alias_for_footer_usage() {
+fn update_cost_and_usage_preserves_custom_endpoint_config_key_for_footer_usage() {
     App::test((), |mut app| async move {
         initialize_custom_endpoint_usage_test_app(&mut app);
         ApiKeyManager::handle(&app).update(&mut app, |manager, ctx| {
@@ -263,8 +263,8 @@ fn update_cost_and_usage_resolves_custom_endpoint_alias_for_footer_usage() {
         let usage = conversation
             .token_usage()
             .iter()
-            .find(|usage| usage.model_id == "Friendly alias")
-            .expect("custom endpoint alias should resolve into footer usage");
+            .find(|usage| usage.model_id == "config-key")
+            .expect("custom endpoint config key should be retained in footer usage");
         assert_eq!(usage.custom_endpoint_tokens, 6);
         assert_eq!(usage.byok_tokens, 0);
         assert_eq!(
@@ -277,11 +277,9 @@ fn update_cost_and_usage_resolves_custom_endpoint_alias_for_footer_usage() {
 }
 
 #[test]
-fn update_cost_and_usage_uses_fallback_label_for_unknown_custom_endpoint() {
+fn update_cost_and_usage_preserves_unknown_custom_endpoint_config_key() {
     App::test((), |mut app| async move {
         initialize_custom_endpoint_usage_test_app(&mut app);
-        app.add_singleton_model(LLMPreferences::new);
-
         let mut conversation = AIConversation::new(false, false);
         app.read(|ctx| {
             conversation
@@ -298,8 +296,8 @@ fn update_cost_and_usage_uses_fallback_label_for_unknown_custom_endpoint() {
         let usage = conversation
             .token_usage()
             .iter()
-            .find(|usage| usage.model_id == "Custom endpoint")
-            .expect("unknown custom endpoint usage should use the fallback label");
+            .find(|usage| usage.model_id == "missing-config-key")
+            .expect("unknown custom endpoint usage should retain the config key");
         assert_eq!(usage.custom_endpoint_tokens, 9);
         assert_eq!(usage.byok_tokens, 0);
         assert_eq!(
@@ -359,15 +357,14 @@ fn footer_model_token_usage_keeps_custom_endpoint_usage_distinct_from_same_label
             )]),
         };
 
-        let model_usage =
-            app.read(|ctx| footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx)));
+        let model_usage = footer_model_token_usage(&usage_metadata);
         let byok_usage = model_usage
             .iter()
             .find(|usage| usage.model_id == "Resolved custom" && usage.byok_tokens == 4)
             .expect("existing model usage should be present");
         let custom_usage = model_usage
             .iter()
-            .find(|usage| usage.model_id == "Resolved custom" && usage.custom_endpoint_tokens == 6)
+            .find(|usage| usage.model_id == "config-key" && usage.custom_endpoint_tokens == 6)
             .expect("custom endpoint usage should remain distinct");
 
         assert_eq!(model_usage.len(), 2);
@@ -389,11 +386,9 @@ fn footer_model_token_usage_keeps_custom_endpoint_usage_distinct_from_same_label
 
 #[allow(deprecated)]
 #[test]
-fn footer_model_token_usage_preserves_unresolved_custom_endpoint_usage_with_fallback_label() {
+fn footer_model_token_usage_preserves_unresolved_custom_endpoint_config_key() {
     App::test((), |mut app| async move {
         initialize_custom_endpoint_usage_test_app(&mut app);
-        app.add_singleton_model(LLMPreferences::new);
-
         let category = "primary_agent".to_string();
         let usage_metadata = api::response_event::stream_finished::ConversationUsageMetadata {
             context_window_usage: 0.0,
@@ -415,12 +410,11 @@ fn footer_model_token_usage_preserves_unresolved_custom_endpoint_usage_with_fall
             )]),
         };
 
-        let model_usage =
-            app.read(|ctx| footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx)));
+        let model_usage = footer_model_token_usage(&usage_metadata);
         let custom_usage = model_usage
             .iter()
-            .find(|usage| usage.model_id == "Custom endpoint")
-            .expect("fallback custom endpoint usage should be present");
+            .find(|usage| usage.model_id == "missing-config-key")
+            .expect("unresolved custom endpoint usage should retain the config key");
 
         assert_eq!(model_usage.len(), 1);
         assert_eq!(custom_usage.custom_endpoint_tokens, 9);

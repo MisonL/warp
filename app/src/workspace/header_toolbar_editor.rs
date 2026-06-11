@@ -1,4 +1,3 @@
-use crate::localization;
 use settings::Setting as _;
 use warpui::keymap::FixedBinding;
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
@@ -12,7 +11,7 @@ use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_settings::{
     HeaderToolbarChipSelection, TabSettings, TabSettingsChangedEvent,
 };
-use crate::{report_if_error, Appearance};
+use crate::{localization, report_if_error, Appearance};
 
 const MODAL_TITLE_KEY: &str = "workspace.header_toolbar.editor.title";
 const AVAILABLE_ITEMS_KEY: &str = "workspace.header_toolbar.editor.available_items";

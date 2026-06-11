@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -58,7 +57,7 @@ use crate::view_components::action_button::{
 };
 use crate::view_components::compactible_action_button::CompactibleActionButton;
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
-use crate::Appearance;
+use crate::{localization, Appearance};
 
 const ASK_USER_QUESTION_ACTIVE: &str = "AskUserQuestionActive";
 
@@ -68,6 +67,28 @@ pub(crate) const ASK_USER_QUESTION_OPTION_BUTTON_VERTICAL_SPACING: f32 = 4.;
 pub(crate) const ASK_USER_QUESTION_TEXT_TOP_PADDING: f32 = 16.;
 pub(crate) const ASK_USER_QUESTION_TEXT_BOTTOM_PADDING: f32 = 8.;
 pub(crate) const ASK_USER_QUESTION_OPTIONS_BOTTOM_PADDING: f32 = 16.;
+
+fn text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
+}
+
+fn ask_user_question_permission_label(
+    permission: &AskUserQuestionPermission,
+    app: &AppContext,
+) -> String {
+    let key = match permission {
+        AskUserQuestionPermission::Never => "settings.execution_profile.permission.never_ask",
+        AskUserQuestionPermission::AskExceptInAutoApprove | AskUserQuestionPermission::Unknown => {
+            "settings.execution_profile.permission.ask_unless_auto_approve"
+        }
+        AskUserQuestionPermission::AlwaysAsk => "settings.execution_profile.permission.always_ask",
+    };
+    text(app, key)
+}
 
 // Assumes single-line labels; wrapped text will be taller but the container
 // caps at ASK_USER_QUESTION_MAX_CONTAINER_HEIGHT and scrolls on overflow.
@@ -871,7 +892,10 @@ impl AskUserQuestionView {
                 permissions
                     .into_iter()
                     .map(|p| {
-                        DropdownItem::new(p.label(), AskUserQuestionViewAction::SetPermission(p))
+                        DropdownItem::new(
+                            ask_user_question_permission_label(&p, ctx),
+                            AskUserQuestionViewAction::SetPermission(p),
+                        )
                     })
                     .collect(),
                 ctx,
@@ -895,7 +919,8 @@ impl AskUserQuestionView {
             .data()
             .ask_user_question;
         dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_selected_by_name(permission.label(), ctx);
+            dropdown
+                .set_selected_by_name(ask_user_question_permission_label(&permission, ctx), ctx);
         });
     }
 
@@ -963,7 +988,7 @@ impl AskUserQuestionView {
         } else {
             None
         };
-        let buttons = Self::build_question_buttons(current, text_input.as_ref());
+        let buttons = Self::build_question_buttons(current, text_input.as_ref(), ctx);
         AskUserQuestionInteractiveViews {
             buttons: ctx.add_typed_action_view(|ctx| {
                 NumberShortcutButtons::new_with_config(
@@ -983,6 +1008,7 @@ impl AskUserQuestionView {
     fn build_question_buttons(
         current: Option<AskUserQuestionCurrent<'_>>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        ctx: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let Some(current) = current else {
             return Vec::new();
@@ -998,6 +1024,7 @@ impl AskUserQuestionView {
                 *supports_other,
                 current.draft,
                 other_text_input,
+                ctx,
             ),
         }
     }
@@ -1007,6 +1034,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        ctx: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let mut buttons = options
             .iter()
@@ -1033,6 +1061,7 @@ impl AskUserQuestionView {
             supports_other,
             draft,
             other_text_input,
+            ctx,
         ) {
             buttons.push(other_button);
         }
@@ -1045,6 +1074,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        ctx: &AppContext,
     ) -> Option<NumberShortcutButtonBuilder> {
         if !supports_other {
             return None;
@@ -1069,7 +1099,7 @@ impl AskUserQuestionView {
             number,
             accepted_text
                 .clone()
-                .unwrap_or_else(|| "Other...".to_string()),
+                .unwrap_or_else(|| text(ctx, "agent.ask_user_question.other")),
             accepted_text.is_some(),
             false,
             true,
@@ -1269,7 +1299,7 @@ impl AskUserQuestionView {
         let current = self.session.current()?;
         let mut question_text = current.question.question.clone();
         if current.question.is_multiselect() {
-            question_text.push_str(" (select all that apply)");
+            question_text.push_str(&text(app, "agent.ask_user_question.select_all_suffix"));
         }
         let has_nav_footer = self.session.has_multiple_questions();
         let container_height = ask_user_question_container_height(
@@ -1444,6 +1474,7 @@ impl AskUserQuestionView {
             answers,
             appearance,
             has_speedbump_footer,
+            app,
         ));
         if let Some(footer) = speedbump_footer {
             wrapper.add_child(footer);
@@ -1463,7 +1494,7 @@ impl AskUserQuestionView {
         let theme = appearance.theme();
         let dropdown = self.speedbump_dropdown.as_ref()?;
         let row = render_autonomy_dropdown_setting_speedbump_footer(
-            "Allow the agent to ask questions:",
+            text(app, "agent.ask_user_question.speedbump.allow_questions"),
             dropdown,
             settings_link_handle,
             app,
@@ -1763,10 +1794,13 @@ fn ask_user_question_completion_state(
     } else {
         let label = if answered_count == total {
             if total == 1 {
-                localization::text_for_app(app, "agent.ask_user_question.status.answered_one")
+                text(app, "agent.ask_user_question.status.answered_one")
             } else {
-                localization::text_for_app(app, "agent.ask_user_question.status.answered_all")
-                    .replace("{total}", &total.to_string())
+                text_with_args(
+                    app,
+                    "agent.ask_user_question.status.answered_all",
+                    &[("total", &total.to_string())],
+                )
             }
         } else {
             let key = if total == 1 {
@@ -1774,9 +1808,14 @@ fn ask_user_question_completion_state(
             } else {
                 "agent.ask_user_question.status.answered_count_plural"
             };
-            localization::text_for_app(app, key)
-                .replace("{answered_count}", &answered_count.to_string())
-                .replace("{total}", &total.to_string())
+            text_with_args(
+                app,
+                key,
+                &[
+                    ("answered_count", &answered_count.to_string()),
+                    ("total", &total.to_string()),
+                ],
+            )
         };
         AskUserQuestionCompletionState {
             label,
@@ -1790,6 +1829,7 @@ fn render_answers(
     answers: Option<&[AskUserQuestionAnswerItem]>,
     appearance: &Appearance,
     flatten_bottom: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let font_size = appearance.monospace_font_size();
@@ -1799,14 +1839,20 @@ fn render_answers(
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     for (index, question) in questions.iter().enumerate() {
         let answer = answers.and_then(|answers| answers.get(index));
-        let question_text = format!("Q: {}", question.question);
+        let question_text = format!(
+            "{} {}",
+            text(app, "agent.ask_user_question.summary.question_prefix"),
+            question.question
+        );
         let question_label =
             render_text_with_markdown_support(&question_text, font_size, text_color, appearance);
+        let answer_display = answer
+            .map(AskUserQuestionAnswerItem::display_text)
+            .unwrap_or_else(|| text(app, "agent.ask_user_question.summary.skipped"));
         let answer_text = format!(
-            "A: {}",
-            answer
-                .map(AskUserQuestionAnswerItem::display_text)
-                .unwrap_or_else(|| "Skipped".to_string())
+            "{} {}",
+            text(app, "agent.ask_user_question.summary.answer_prefix"),
+            answer_display
         );
         let answer_label =
             render_text_with_markdown_support(&answer_text, font_size, muted_color, appearance);

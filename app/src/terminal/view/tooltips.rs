@@ -1,6 +1,5 @@
 //! Grid tooltips for the terminal view
 
-use super::{terminal_text, TerminalAction, TerminalView};
 use pathfinder_geometry::vector::vec2f;
 use warpui::elements::{
     ChildAnchor, Dismiss, MouseStateHandle, OffsetPositioning, PositionedElementAnchor,
@@ -8,6 +7,7 @@ use warpui::elements::{
 };
 use warpui::{AppContext, Element, EventContext};
 
+use super::{terminal_text, TerminalAction, TerminalView};
 use crate::appearance::Appearance;
 use crate::terminal::links::directly_open_link_keybinding_string;
 use crate::terminal::model::{ObfuscateSecrets, Secret};

@@ -1,14 +1,12 @@
 use warpui::integration::{AssertionCallback, TestStep};
-use warpui::{async_assert, SingletonEntity};
-use warpui::{App, WindowId};
+use warpui::{async_assert, App, SingletonEntity, WindowId};
 
-use crate::app_menus;
 use crate::integration_testing::step::new_step_with_default_assertions;
 use crate::integration_testing::view_getters::workspace_view;
 use crate::launch_configs::save_modal::LaunchConfigSaveModal;
-use crate::localization;
 use crate::view_components::{DismissibleToast, DismissibleToastStack};
 use crate::workspace::{ToastStack, WorkspaceAction};
+use crate::{app_menus, localization};
 
 pub fn show_localized_launch_config_dialog() -> TestStep {
     new_step_with_default_assertions("Show localized launch config dialog")

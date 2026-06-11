@@ -201,9 +201,10 @@ impl ConversationSearcher for FuzzyConversationSearcher {
         let conversations = self.searchable_conversations(app);
         Ok(filter_conversations(conversations.as_slice(), search_term)
             .map(|matched_conversation| {
-                ConversationSearchItem::new(ConversationAction::Resume(Box::new(
-                    matched_conversation,
-                )))
+                ConversationSearchItem::new(
+                    ConversationAction::Resume(Box::new(matched_conversation)),
+                    app,
+                )
                 .into()
             })
             .collect())

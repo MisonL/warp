@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
@@ -19,6 +18,7 @@ use super::modal_body::{ImportModalBody, ImportModalBodyAction, ImportModalBodyE
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObject, Owner};
+use crate::localization;
 use crate::server::ids::SyncId;
 use crate::server::sync_queue::SyncQueue;
 use crate::themes::theme::WarpTheme;

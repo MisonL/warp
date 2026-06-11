@@ -1,4 +1,3 @@
-use crate::localization;
 use markdown_parser::markdown_parser::RUNNABLE_BLOCK_MARKDOWN_LANG;
 use markdown_parser::CodeBlockText;
 use pathfinder_color::ColorU;
@@ -30,10 +29,10 @@ use super::utils::{
 };
 use super::AI_ASSISTANT_SVG_PATH;
 use crate::appearance::Appearance;
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{SaveAsWorkflowModalSource, TelemetryEvent, WarpAIActionType};
 use crate::ui_components::blended_colors;
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
 const TRANSCRIPT_POSITION_ID: &str = "ai_assistant::transcript";
 
@@ -52,9 +51,6 @@ const COPY_BUTTON_SIZE: f32 = 14.;
 const TERMINAL_INPUT_BUTTON_SIZE: f32 = 20.;
 const SAVE_AS_WORKFLOW_BUTTON_SIZE: f32 = 20.;
 
-const HOW_DO_I_FIX_PROMPT: &str = "How do I fix this?";
-const SHOW_EXAMPLES_PROMPT: &str = "Show examples.";
-const WHAT_TO_DO_NEXT_PROMPT: &str = "What should I do next?";
 lazy_static::lazy_static! {
     static ref SCROLL_BUFFER_OFFSET_PX: Pixels = (10.).into_pixels();
 }
@@ -760,6 +756,9 @@ impl Transcript {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
+        let what_next_prompt_key = "ai_assistant.followup_prompt.what_next";
+        let show_examples_prompt_key = "ai_assistant.followup_prompt.show_examples";
+        let how_fix_prompt_key = "ai_assistant.followup_prompt.how_fix";
         Wrap::row()
             .with_run_spacing(10.)
             .with_main_axis_alignment(MainAxisAlignment::Center)
@@ -768,8 +767,9 @@ impl Transcript {
                 self.mouse_state_handles.what_to_do_next_button.clone(),
                 None,
                 Some(8.),
-                localization::text_for_app(app, "ai_assistant.followup_prompt.what_next"),
-                WHAT_TO_DO_NEXT_PROMPT,
+                what_next_prompt_key,
+                localization::text_for_app(app, what_next_prompt_key),
+                localization::text_for_app(app, what_next_prompt_key),
             ))
             .with_child(
                 Container::new(render_prepared_response_button(
@@ -777,8 +777,9 @@ impl Transcript {
                     self.mouse_state_handles.show_examples_button.clone(),
                     None,
                     Some(8.),
-                    localization::text_for_app(app, "ai_assistant.followup_prompt.show_examples"),
-                    SHOW_EXAMPLES_PROMPT,
+                    show_examples_prompt_key,
+                    localization::text_for_app(app, show_examples_prompt_key),
+                    localization::text_for_app(app, show_examples_prompt_key),
                 ))
                 .with_margin_left(10.)
                 .with_margin_right(10.)
@@ -789,8 +790,9 @@ impl Transcript {
                 self.mouse_state_handles.how_do_i_fix_button.clone(),
                 None,
                 Some(8.),
-                localization::text_for_app(app, "ai_assistant.followup_prompt.how_fix"),
-                HOW_DO_I_FIX_PROMPT,
+                how_fix_prompt_key,
+                localization::text_for_app(app, how_fix_prompt_key),
+                localization::text_for_app(app, how_fix_prompt_key),
             ))
             .finish()
     }

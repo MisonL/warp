@@ -1,5 +1,8 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashMap, fmt};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LocaleId {

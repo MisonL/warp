@@ -12,6 +12,10 @@ pub(crate) mod orchestration_event_streamer;
 pub(crate) mod orchestration_events;
 pub(crate) mod orchestration_topology;
 mod passive_suggestions;
+#[cfg(feature = "integration_tests")]
+pub(crate) use passive_suggestions::{
+    apply_static_prompt_captures_for_integration_test, static_suggested_query_for_integration_test,
+};
 pub(crate) mod queued_query;
 pub(super) use controller::RequestInput;
 pub mod history_model;
@@ -77,7 +81,7 @@ pub(crate) use queued_query::{
 pub use suggestion_chip_view::*;
 pub use view_util::error_color;
 pub(crate) use view_util::{
-    ai_brand_color, ai_indicator_height, format_credits,
+    ai_brand_color, ai_indicator_height, format_credits, format_credits_for_locale,
     get_ai_block_overflow_menu_element_position_id, get_attached_blocks_chip_element_position_id,
     render_ai_agent_mode_icon, render_ai_follow_up_icon, CLAUDE_ORANGE,
 };

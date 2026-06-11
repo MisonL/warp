@@ -408,4 +408,12 @@ impl SearchItem for SkillSearchItem {
     fn accessibility_label(&self) -> String {
         format!("Skill: {}", self.skill_name)
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.skills.a11y.label",
+            &[("name", &self.skill_name)],
+        )
+    }
 }

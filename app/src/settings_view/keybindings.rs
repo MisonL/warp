@@ -1141,14 +1141,14 @@ impl SettingsWidget for KeybindingsWidget {
         {
             Some(LocalOnlyIconState::Visible {
                 mouse_state: self.local_only_icon_mouse_state.clone(),
-                custom_tooltip: Some(text(app, "settings.keybindings.not_synced_tooltip")),
+                tooltip: text(app, "settings.keybindings.not_synced_tooltip"),
             })
         } else {
             None
         };
 
         let title = text(app, "settings.keybindings.title");
-        let subheader = render_sub_header(app, appearance, title, local_only_icon_state);
+        let subheader = render_sub_header(appearance, title, local_only_icon_state);
         let description = self.render_description(view.bindings.as_ref(), app, appearance);
 
         Flex::column()

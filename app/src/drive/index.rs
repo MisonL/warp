@@ -1,4 +1,3 @@
-use crate::localization;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -96,7 +95,7 @@ use crate::workspace::active_terminal_in_window;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::WorkspaceUid;
-use crate::{report_if_error, send_telemetry_from_ctx, ObjectActions};
+use crate::{localization, report_if_error, send_telemetry_from_ctx, ObjectActions};
 
 const WARP_DRIVE_TITLE_KEY: &str = "drive.title";
 
@@ -1923,6 +1922,7 @@ impl DriveIndex {
             false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
+            tr(app, "drive.placeholder.untitled"),
         )?;
 
         Some(row.build().finish())
@@ -1960,6 +1960,7 @@ impl DriveIndex {
             false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
+            tr(app, "drive.placeholder.untitled"),
         )?;
 
         Some(row.build().finish())
@@ -2733,6 +2734,7 @@ impl DriveIndex {
             SyncQueue::as_ref(app).is_dequeueing(),
             tools_panel_menu_direction(app),
             appearance,
+            tr(app, "drive.placeholder.untitled"),
         )?;
         let mut total_rows_for_item = 1;
 

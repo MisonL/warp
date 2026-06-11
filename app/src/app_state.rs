@@ -43,6 +43,7 @@ pub struct PersistedAgentManagementFilters {
 #[derive(Clone, Debug, PartialEq)]
 pub struct WindowSnapshot {
     pub tabs: Vec<TabSnapshot>,
+    pub tab_groups: Vec<TabGroupSnapshot>,
     pub active_tab_index: usize,
     pub bounds: Option<RectF>,
     pub fullscreen_state: FullscreenState,
@@ -61,11 +62,19 @@ pub struct WindowSnapshot {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TabSnapshot {
     pub custom_title: Option<String>,
+    pub group_id: Option<uuid::Uuid>,
     pub root: PaneNodeSnapshot,
     pub default_directory_color: Option<AnsiColorIdentifier>,
     pub selected_color: SelectedTabColor,
     pub left_panel: Option<LeftPanelSnapshot>,
     pub right_panel: Option<RightPanelSnapshot>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TabGroupSnapshot {
+    pub id: uuid::Uuid,
+    pub name: Option<String>,
+    pub collapsed: bool,
 }
 
 impl TabSnapshot {

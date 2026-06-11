@@ -1,5 +1,3 @@
-use crate::localization;
-use crate::localization::LocalizationUpdater;
 use std::collections::HashSet;
 
 use itertools::{Either, Itertools};
@@ -22,6 +20,8 @@ use crate::editor::{
     PlainTextEditorViewAction as EditorAction, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions,
 };
+use crate::localization;
+use crate::localization::LocalizationUpdater;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::SearchMixer;
 use crate::search::result_renderer::{QueryResultIndex, QueryResultRenderer};
@@ -746,13 +746,13 @@ impl<T: Action + Clone> SearchBar<T> {
         }
 
         if let Some(selected_result) = self.state.as_ref(ctx).selected_result() {
-            let item = selected_result.accessibility_label();
+            let item = selected_result.accessibility_label_for_app(ctx);
             let a11y_content_text = localization::text_for_app_with_args(
                 ctx,
                 "search.a11y.selected_item",
                 &[("item", item.as_str())],
             );
-            let a11y_content = match selected_result.accessibility_help_message() {
+            let a11y_content = match selected_result.accessibility_help_message_for_app(ctx) {
                 None => AccessibilityContent::new_without_help(
                     a11y_content_text,
                     WarpA11yRole::MenuItemRole,

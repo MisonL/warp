@@ -21,7 +21,7 @@ use crate::settings::PrivacySettings;
 use crate::terminal::model::session::{IsLegacySSHSession, SessionInfo};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettings};
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 /// Per-SSH-init state machine. Encoding the state as an enum makes invalid
 /// transitions unrepresentable and ensures the `SessionInfo` stash cannot be
@@ -261,7 +261,10 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         match result {
             Ok(true) => {
                 let socket_path = transport.socket_path().clone();
-                let connection_label = connection_label_for_session_info(&session_info);
+                let connection_label = connection_label_for_session_info(
+                    &session_info,
+                    &localization::text_for_app(ctx, "remote.host.unknown"),
+                );
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
@@ -494,7 +497,10 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         match result {
             Ok(()) => {
                 let socket_path = transport.socket_path().clone();
-                let connection_label = connection_label_for_session_info(&session_info);
+                let connection_label = connection_label_for_session_info(
+                    &session_info,
+                    &localization::text_for_app(ctx, "remote.host.unknown"),
+                );
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
@@ -554,35 +560,48 @@ impl<T: EventLoopSender> RemoteServerController<T> {
     }
 }
 
-fn connection_label_for_session_info(session_info: &SessionInfo) -> String {
+fn connection_label_for_session_info(
+    session_info: &SessionInfo,
+    fallback_host_label: &str,
+) -> String {
     let ssh_host = session_info
         .subshell_info
         .as_ref()
         .and_then(|info| info.ssh_connection_info.as_ref())
         .and_then(|ssh| ssh.host.as_deref());
 
-    connection_label_from_session_hosts(&session_info.user, &session_info.hostname, ssh_host)
+    connection_label_from_session_hosts(
+        &session_info.user,
+        &session_info.hostname,
+        ssh_host,
+        fallback_host_label,
+    )
 }
 
 fn connection_label_from_session_hosts(
     user: &str,
     hostname: &str,
     ssh_host: Option<&str>,
+    fallback_host_label: &str,
 ) -> String {
     let host = ssh_host
         .filter(|host| !host.is_empty())
         .map(connection_label_from_ssh_host)
         .or_else(|| (!hostname.is_empty()).then(|| hostname.to_string()));
 
-    connection_label_from_user_and_host(user, host.as_deref())
+    connection_label_from_user_and_host(user, host.as_deref(), fallback_host_label)
 }
 
-fn connection_label_from_user_and_host(user: &str, host: Option<&str>) -> String {
+fn connection_label_from_user_and_host(
+    user: &str,
+    host: Option<&str>,
+    fallback_host_label: &str,
+) -> String {
     match (user.is_empty(), host.filter(|host| !host.is_empty())) {
         (false, Some(host)) => format!("{user}@{host}"),
         (false, None) => user.to_string(),
         (true, Some(host)) => host.to_string(),
-        (true, None) => "Remote host".to_string(),
+        (true, None) => fallback_host_label.to_string(),
     }
 }
 

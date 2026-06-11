@@ -41,7 +41,11 @@ impl WarpDriveItem for WarpDriveSpace {
         None
     }
 
-    fn preview(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(
+        &self,
+        _appearance: &Appearance,
+        _app: &warpui::AppContext,
+    ) -> Option<Box<dyn Element>> {
         None
     }
 

@@ -41,21 +41,16 @@ use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpEscapeKey,
     PropagateAndNoOpNavigationKeys, PropagateHorizontalNavigationKeys, TextOptions,
 };
-use crate::localization;
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::input::suggestions_mode_model::InputSuggestionsModeModel;
 use crate::ui_components::icons::Icon as TerminalIcon;
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
+use crate::{localization, send_telemetry_from_ctx};
 
 const MAX_PROMPT_LINES: f32 = 5.;
 /// Max characters shown in a row's single-line preview before truncation.
 const PROMPT_PREVIEW_MAX_CHARS: usize = 500;
-const INITIAL_CLOUD_MODE_PROMPT_TOOLTIP: &str = "The first cloud-mode prompt cannot be changed.";
-const SEND_NOW_DURING_CLOUD_SETUP_TOOLTIP: &str =
-    "Prompts cannot be sent until environment setup is complete.";
-const SEND_NOW_TO_FULL_TERMINAL_USE_AGENT_TOOLTIP: &str = "Send to full terminal use agent";
 
 /// Returns the position-cache id used to look up a row's bounding rect during a drag.
 /// Indexed by the row's current visual index so swaps maintain stable lookups.
@@ -72,10 +67,12 @@ fn build_row_state(
     let is_initial_cloud_mode_prompt = origin == QueuedQueryOrigin::InitialCloudMode;
     // The send-now tooltip is owned by `update_send_now_availability`, which swaps in a
     // "wait for the cloud agent" message while send-now is disabled; "Send now" is the default.
+    let send_now_tooltip =
+        localization::text_for_app(ctx, "terminal.queued_prompts.tooltip.send_now");
     let send_now_button = ctx.add_typed_action_view(move |_| {
         ActionButton::new("", NakedTheme)
             .with_icon(TerminalIcon::ArrowUp)
-            .with_tooltip("Send now")
+            .with_tooltip(send_now_tooltip.clone())
             .with_size(ButtonSize::XSmall)
             .with_disabled_theme(NakedTheme)
             .on_click(move |ctx| {
@@ -84,7 +81,10 @@ fn build_row_state(
     });
     let edit_button = ctx.add_typed_action_view(move |ctx| {
         let tooltip = if is_initial_cloud_mode_prompt {
-            INITIAL_CLOUD_MODE_PROMPT_TOOLTIP.to_owned()
+            localization::text_for_app(
+                ctx,
+                "terminal.queued_prompts.tooltip.initial_cloud_mode_prompt",
+            )
         } else {
             localization::text_for_app(ctx, "terminal.queued_prompts.tooltip.edit")
         };
@@ -100,7 +100,10 @@ fn build_row_state(
     });
     let delete_button = ctx.add_typed_action_view(move |ctx| {
         let tooltip = if is_initial_cloud_mode_prompt {
-            INITIAL_CLOUD_MODE_PROMPT_TOOLTIP.to_owned()
+            localization::text_for_app(
+                ctx,
+                "terminal.queued_prompts.tooltip.initial_cloud_mode_prompt",
+            )
         } else {
             localization::text_for_app(ctx, "terminal.queued_prompts.tooltip.delete")
         };
@@ -308,15 +311,21 @@ impl QueuedPromptsPanelView {
             let disabled =
                 *origin == QueuedQueryOrigin::InitialCloudMode || cloud_setup_in_progress;
             let tooltip = if disabled {
-                SEND_NOW_DURING_CLOUD_SETUP_TOOLTIP
+                localization::text_for_app(
+                    ctx,
+                    "terminal.queued_prompts.tooltip.send_now_cloud_setup",
+                )
             } else if lrc_subagent_in_progress {
-                SEND_NOW_TO_FULL_TERMINAL_USE_AGENT_TOOLTIP
+                localization::text_for_app(
+                    ctx,
+                    "terminal.queued_prompts.tooltip.send_now_full_terminal_use_agent",
+                )
             } else {
-                "Send now"
+                localization::text_for_app(ctx, "terminal.queued_prompts.tooltip.send_now")
             };
             send_now_button.update(ctx, |button, ctx| {
                 button.set_disabled(disabled, ctx);
-                button.set_tooltip(Some(tooltip), ctx);
+                button.set_tooltip(Some(&tooltip), ctx);
             });
         }
     }
@@ -1002,11 +1011,12 @@ fn render_row(props: RenderRowProps<'_>, app: &AppContext) -> Box<dyn Element> {
                 .finish();
                 let mut stack = Stack::new().with_child(icon);
                 if drag_state.is_hovered() {
+                    let tooltip = localization::text_for_app(
+                        app,
+                        "terminal.queued_prompts.tooltip.initial_cloud_mode_prompt",
+                    );
                     stack.add_positioned_overlay_child(
-                        ui_builder
-                            .tool_tip(INITIAL_CLOUD_MODE_PROMPT_TOOLTIP.to_owned())
-                            .build()
-                            .finish(),
+                        ui_builder.tool_tip(tooltip).build().finish(),
                         OffsetPositioning::offset_from_parent(
                             vec2f(0., -4.),
                             ParentOffsetBounds::WindowByPosition,

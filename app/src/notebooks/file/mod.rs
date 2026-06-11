@@ -1,4 +1,3 @@
-use crate::localization;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -61,10 +60,14 @@ use crate::util::openable_file_type::FileTarget;
 use crate::view_components::{MarkdownToggleEvent, MarkdownToggleView};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ActiveSession;
-use crate::{cmd_or_ctrl_shift, safe_warn, send_telemetry_from_ctx};
+use crate::{cmd_or_ctrl_shift, localization, safe_warn, send_telemetry_from_ctx};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
 }
 
 /// Display mode for markdown files shown via the header segmented control.
@@ -312,14 +315,14 @@ impl FileNotebookView {
         self.code_source = source;
     }
 
-    pub fn title(&self) -> String {
+    pub fn title(&self, app: &AppContext) -> String {
         // Prefer the location name that's been resolved against a Session, but if that's not
         // available yet, fall back to the raw file path.
         self.location
             .as_ref()
             .map(|location| location.name.clone())
             .or_else(|| self.file_state.display_name())
-            .unwrap_or_else(|| "Untitled".to_string())
+            .unwrap_or_else(|| text(app, "notebook.placeholder.untitled"))
     }
 
     pub fn focus(&self, ctx: &mut ViewContext<Self>) {
@@ -357,7 +360,7 @@ impl FileNotebookView {
     /// Set the notebook's location context.
     fn set_context(&mut self, path: &Path, session: Arc<Session>, ctx: &mut ViewContext<Self>) {
         self.location = Some(FileLocation::new(path, session.home_dir()));
-        let title = self.title();
+        let title = self.title(ctx);
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.set_title(title, ctx);
         });
@@ -812,9 +815,10 @@ impl FileNotebookView {
         &self,
         appearance: &Appearance,
         font_settings: &FontSettings,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let title = Text::new_inline(
-            self.title(),
+            self.title(app),
             appearance.ui_font_family(),
             styles::title_font_size(font_settings),
         )
@@ -959,7 +963,7 @@ impl FileNotebookView {
         #[cfg(not(target_family = "wasm"))]
         if matches!(self.file_state, FileState::Loaded(_)) && self.is_remote_disconnected(app) {
             let banner =
-                crate::code::local_code_editor::render_remote_disconnected_banner(appearance);
+                crate::code::local_code_editor::render_remote_disconnected_banner(appearance, app);
             let mut col = Flex::column();
             col.add_child(banner);
             col.add_child(Shrinkable::new(1., styles::wrap_body(body)).finish());
@@ -979,9 +983,10 @@ impl View for FileNotebookView {
         "FileNotebookView"
     }
 
-    fn accessibility_contents(&self, _ctx: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
+        let title = self.title(ctx);
         Some(AccessibilityContent::new_without_help(
-            format!("{} notebook", self.title()),
+            text_with_args(ctx, "notebook.a11y.label", &[("title", &title)]),
             WarpA11yRole::TextRole,
         ))
     }
@@ -991,7 +996,7 @@ impl View for FileNotebookView {
         let font_settings = FontSettings::as_ref(app);
 
         let column = Flex::column().with_children([
-            self.render_title(appearance, font_settings),
+            self.render_title(appearance, font_settings, app),
             Shrinkable::new(1., self.render_body(appearance, app)).finish(),
         ]);
 

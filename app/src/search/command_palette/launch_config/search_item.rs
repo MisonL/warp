@@ -6,6 +6,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::launch_configs::launch_config::LaunchConfig;
+use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
 use crate::search::result_renderer::ItemHighlightState;
@@ -16,14 +17,45 @@ use crate::ui_components::icons::Icon;
 pub struct SearchItem {
     match_result: FuzzyMatchResult,
     launch_config: Arc<LaunchConfig>,
+    accessibility_copy: LaunchConfigSearchItemAccessibilityCopy,
 }
 
 impl SearchItem {
-    pub fn new(launch_config: Arc<LaunchConfig>, match_result: FuzzyMatchResult) -> Self {
+    pub fn new(
+        launch_config: Arc<LaunchConfig>,
+        match_result: FuzzyMatchResult,
+        accessibility_copy: LaunchConfigSearchItemAccessibilityCopy,
+    ) -> Self {
         Self {
             match_result,
             launch_config,
+            accessibility_copy,
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LaunchConfigSearchItemAccessibilityCopy {
+    selected_template: String,
+    help: String,
+}
+
+impl LaunchConfigSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            selected_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.selected",
+            ),
+            help: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.open_launch_config",
+            ),
+        }
+    }
+
+    fn selected_label(&self, name: &str) -> String {
+        self.selected_template.replace("{name}", name)
     }
 }
 
@@ -71,10 +103,11 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Selected {}.", self.launch_config.name)
+        self.accessibility_copy
+            .selected_label(&self.launch_config.name)
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some("Press enter to use this launch configuration.".into())
+        Some(self.accessibility_copy.help.clone())
     }
 }

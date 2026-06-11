@@ -1,4 +1,3 @@
-use crate::localization;
 use futures::future;
 use warp_cli::integration::{CreateIntegrationArgs, IntegrationCommand, UpdateIntegrationArgs};
 use warp_cli::provider::ProviderType;
@@ -12,6 +11,7 @@ use warpui::{AppContext, ModelContext, SingletonEntity};
 use super::common::{EnvironmentChoice, ResolveConfigurationError};
 use super::integration_output;
 use super::oauth_flow::poll_oauth_until_terminal;
+use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 
 pub fn run(

@@ -23,7 +23,9 @@ use crate::ai::blocklist::usage::rollup::{
 };
 use crate::ai::blocklist::view_util::format_credits;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
+use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::persistence::model::{
     token_usage_category_display_name, ModelTokenUsage, FULL_TERMINAL_USE_CATEGORY,
     PRIMARY_AGENT_CATEGORY,
@@ -212,13 +214,13 @@ impl ConversationUsageView {
         }
         let parent_id = self.parent_conversation_id?;
         let history = BlocklistAIHistoryModel::as_ref(app);
-        compute_orchestration_rollup(parent_id, history)
+        compute_orchestration_rollup(parent_id, history, app)
     }
 
     /// Helper to collect models grouped by category.
-    /// Returns a HashMap mapping category name to list of (model_id, shows_key_icon) tuples.
+    /// Returns a HashMap mapping category name to list of (display label, shows_key_icon) tuples.
     /// Handles category-based fields plus legacy token-total fallbacks.
-    fn collect_models_by_category(&self) -> HashMap<String, Vec<(String, bool)>> {
+    fn collect_models_by_category(&self, app: &AppContext) -> HashMap<String, Vec<(String, bool)>> {
         let mut entries_by_category: HashMap<String, Vec<(String, bool)>> = HashMap::new();
 
         // Collect from category-based fields
@@ -241,10 +243,12 @@ impl ConversationUsageView {
             }
             for (category, &tokens) in &model.custom_endpoint_token_usage_by_category {
                 if tokens > 0 {
+                    let label = LLMPreferences::as_ref(app)
+                        .custom_endpoint_usage_display_label(&model.model_id, app);
                     entries_by_category
                         .entry(category.clone())
                         .or_default()
-                        .push((model.model_id.clone(), true));
+                        .push((label, true));
                 }
             }
         }
@@ -265,10 +269,12 @@ impl ConversationUsageView {
                         .push((model.model_id.clone(), true));
                 }
                 if model.custom_endpoint_tokens > 0 {
+                    let label = LLMPreferences::as_ref(app)
+                        .custom_endpoint_usage_display_label(&model.model_id, app);
                     entries_by_category
                         .entry(PRIMARY_AGENT_CATEGORY.to_string())
                         .or_default()
-                        .push((model.model_id.clone(), true));
+                        .push((label, true));
                 }
             }
         }
@@ -289,7 +295,7 @@ impl ConversationUsageView {
 
         // Usage summary
         labels.push(render_section_header(
-            "USAGE SUMMARY".to_string(),
+            usage_text(app, "agent.usage.section.usage_summary"),
             appearance,
         ));
         values.push(render_section_header("".to_string(), appearance));
@@ -307,25 +313,33 @@ impl ConversationUsageView {
         {
             let last_block_credits = self.usage_info.credits_spent_for_last_block.unwrap();
             labels.push(render_label_text(
-                "Credits spent (last response)",
+                &usage_text(app, "agent.usage.credits_spent.last_response"),
                 appearance,
             ));
             values.push(render_value_text(
-                format_credits(last_block_credits),
+                format_credits(app, last_block_credits),
                 appearance,
             ));
 
-            labels.push(render_label_text("Credits spent (total)", appearance));
+            labels.push(render_label_text(
+                &usage_text(app, "agent.usage.credits_spent.total"),
+                appearance,
+            ));
             values.push(self.render_total_credits_value_row(
                 total_credits_value,
                 rollup.as_ref(),
+                app,
                 appearance,
             ));
         } else {
-            labels.push(render_label_text("Credits spent", appearance));
+            labels.push(render_label_text(
+                &usage_text(app, "agent.usage.credits_spent"),
+                appearance,
+            ));
             values.push(self.render_total_credits_value_row(
                 total_credits_value,
                 rollup.as_ref(),
+                app,
                 appearance,
             ));
         }
@@ -336,15 +350,23 @@ impl ConversationUsageView {
         // of the card. The rows are pushed into the same two-column
         // label/value layout as the rest of the usage summary; the
         // existing flex spacing handles indentation.
-        self.append_per_agent_rows(&mut labels, &mut values, rollup.as_ref(), appearance);
+        self.append_per_agent_rows(&mut labels, &mut values, rollup.as_ref(), app, appearance);
 
-        labels.push(render_label_text("Tool calls", appearance));
+        labels.push(render_label_text(
+            &usage_text(app, "agent.usage.tool_calls"),
+            appearance,
+        ));
         values.push(render_value_text(
-            format_value_text(self.usage_info.tool_calls, "call"),
+            format_count_text(
+                app,
+                self.usage_info.tool_calls,
+                "agent.usage.count.call.singular",
+                "agent.usage.count.call.plural",
+            ),
             appearance,
         ));
 
-        let entries_by_category = self.collect_models_by_category();
+        let entries_by_category = self.collect_models_by_category(app);
         let mut categories: Vec<_> = entries_by_category.keys().cloned().collect();
         categories.sort_by(|a, b| match (a.as_str(), b.as_str()) {
             (PRIMARY_AGENT_CATEGORY, _) => Ordering::Less,
@@ -360,9 +382,13 @@ impl ConversationUsageView {
 
             let label_text = if category == PRIMARY_AGENT_CATEGORY && entries_by_category.len() == 1
             {
-                "Models".to_string()
+                usage_text(app, "agent.usage.models")
             } else {
-                format!("Models ({})", token_usage_category_display_name(&category))
+                usage_text_with_args(
+                    app,
+                    "agent.usage.models_with_category",
+                    &[("category", &token_usage_category_label(app, &category))],
+                )
             };
 
             // For FULL_TERMINAL_USE_CATEGORY, add an info icon with tooltip
@@ -373,7 +399,7 @@ impl ConversationUsageView {
                     .ui_builder()
                     .info_button_with_tooltip(
                         font_size * 0.85,
-                        "You can change which model is used for full terminal use in the AI settings page",
+                        usage_text(app, "agent.usage.full_terminal_use_tooltip"),
                         self.full_terminal_use_tooltip_mouse_state.clone(),
                     )
                     .finish();
@@ -436,7 +462,10 @@ impl ConversationUsageView {
             );
         }
 
-        labels.push(render_label_text("Context window used", appearance));
+        labels.push(render_label_text(
+            &usage_text(app, "agent.usage.context_window_used"),
+            appearance,
+        ));
         let context_usage_str =
             format!("{}%", (self.usage_info.context_window_usage * 100.).round());
         let context_window_element = Flex::row()
@@ -474,18 +503,29 @@ impl ConversationUsageView {
 
         // Tool call summary
         labels.push(render_section_header(
-            "TOOL CALL SUMMARY".to_string(),
+            usage_text(app, "agent.usage.section.tool_call_summary"),
             appearance,
         ));
         values.push(render_section_header("".to_string(), appearance));
 
-        labels.push(render_label_text("Files changed", appearance));
+        labels.push(render_label_text(
+            &usage_text(app, "agent.usage.files_changed"),
+            appearance,
+        ));
         values.push(render_value_text(
-            format_value_text(self.usage_info.files_changed, "file"),
+            format_count_text(
+                app,
+                self.usage_info.files_changed,
+                "agent.usage.count.file.singular",
+                "agent.usage.count.file.plural",
+            ),
             appearance,
         ));
 
-        labels.push(render_label_text("Diffs applied", appearance));
+        labels.push(render_label_text(
+            &usage_text(app, "agent.usage.diffs_applied"),
+            appearance,
+        ));
         let diffs_element = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
@@ -522,9 +562,17 @@ impl ConversationUsageView {
             .finish();
         values.push(diffs_element);
 
-        labels.push(render_label_text("Commands executed", appearance));
+        labels.push(render_label_text(
+            &usage_text(app, "agent.usage.commands_executed"),
+            appearance,
+        ));
         values.push(render_value_text(
-            format_value_text(self.usage_info.commands_executed, "command"),
+            format_count_text(
+                app,
+                self.usage_info.commands_executed,
+                "agent.usage.count.command.singular",
+                "agent.usage.count.command.plural",
+            ),
             appearance,
         ));
 
@@ -549,25 +597,28 @@ impl ConversationUsageView {
 
                     // Section header
                     labels.push(render_section_header(
-                        "LAST RESPONSE TIME".to_string(),
+                        usage_text(app, "agent.usage.section.last_response_time"),
                         appearance,
                     ));
                     values.push(render_section_header("".to_string(), appearance));
 
-                    labels.push(render_label_text("Time to first token", appearance));
+                    labels.push(render_label_text(
+                        &usage_text(app, "agent.usage.time_to_first_token"),
+                        appearance,
+                    ));
                     values.push(render_value_text(
-                        format!(
-                            "{:.1} seconds",
-                            timing.time_to_first_token_ms as f64 / 1000.0
-                        ),
+                        format_seconds_text(app, timing.time_to_first_token_ms as f64 / 1000.0),
                         appearance,
                     ));
 
-                    labels.push(render_label_text("Total agent response time", appearance));
+                    labels.push(render_label_text(
+                        &usage_text(app, "agent.usage.total_agent_response_time"),
+                        appearance,
+                    ));
                     values.push(render_value_text(
-                        format!(
-                            "{:.1} seconds",
-                            timing.total_agent_response_time_ms as f64 / 1000.0
+                        format_seconds_text(
+                            app,
+                            timing.total_agent_response_time_ms as f64 / 1000.0,
                         ),
                         appearance,
                     ));
@@ -575,11 +626,11 @@ impl ConversationUsageView {
                     if let Some(wall_ms) = timing.wall_to_wall_response_time_ms {
                         if wall_ms != 0 {
                             labels.push(render_label_text(
-                                "Total time (including tool calls)",
+                                &usage_text(app, "agent.usage.total_time_including_tool_calls"),
                                 appearance,
                             ));
                             values.push(render_value_text(
-                                format!("{:.1} seconds", wall_ms as f64 / 1000.0),
+                                format_seconds_text(app, wall_ms as f64 / 1000.0),
                                 appearance,
                             ));
                         }
@@ -610,6 +661,7 @@ impl ConversationUsageView {
         labels: &mut Vec<Box<dyn Element>>,
         values: &mut Vec<Box<dyn Element>>,
         rollup: Option<&OrchestrationCreditRollup>,
+        app: &AppContext,
         appearance: &Appearance,
     ) {
         let Some(rollup) = rollup else {
@@ -626,7 +678,7 @@ impl ConversationUsageView {
                 total_entries
             };
         for entry in rollup.per_agent.iter().take(shown_entries) {
-            let (label_el, value_el) = self.render_per_agent_row(entry, appearance);
+            let (label_el, value_el) = self.render_per_agent_row(entry, app, appearance);
             labels.push(label_el);
             values.push(value_el);
         }
@@ -637,7 +689,7 @@ impl ConversationUsageView {
             // height so the right column stays in lock-step with the
             // left and the subsequent "Tool calls" / value row pair
             // doesn't slip out of alignment.
-            labels.push(self.render_show_more_link(hidden_count, appearance));
+            labels.push(self.render_show_more_link(hidden_count, app, appearance));
             values.push(render_value_text_placeholder(appearance));
         }
     }
@@ -649,14 +701,15 @@ impl ConversationUsageView {
         &self,
         total_credits: f32,
         rollup: Option<&OrchestrationCreditRollup>,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let value_text = render_value_text(format_credits(total_credits), appearance);
+        let value_text = render_value_text(format_credits(app, total_credits), appearance);
         if rollup.is_none() {
             return value_text;
         }
 
-        let toggle = self.render_details_toggle(appearance);
+        let toggle = self.render_details_toggle(app, appearance);
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min)
@@ -676,15 +729,21 @@ impl ConversationUsageView {
     /// also flip the color or weight on hover because `Text` doesn't
     /// expose an underline knob and changing color in this two-token
     /// theme system tends to push the link into the accent space.
-    fn render_details_toggle(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_details_toggle(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         let font_size = appearance.ui_font_size() + 2.;
         let link_color = theme.ansi_fg_blue();
         let icon_size = font_size;
         let (label, icon) = if self.details_expanded {
-            ("Hide details", Icon::ChevronUp)
+            (
+                usage_text(app, "agent.usage.toggle.hide_details"),
+                Icon::ChevronUp,
+            )
         } else {
-            ("View details", Icon::ChevronDown)
+            (
+                usage_text(app, "agent.usage.toggle.view_details"),
+                Icon::ChevronDown,
+            )
         };
         Hoverable::new(
             self.details_toggle_mouse_state.clone(),
@@ -735,6 +794,7 @@ impl ConversationUsageView {
     fn render_per_agent_row(
         &self,
         entry: &PerAgentCreditEntry,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> (Box<dyn Element>, Box<dyn Element>) {
         let theme = appearance.theme();
@@ -769,7 +829,7 @@ impl ConversationUsageView {
             .with_child(name_element)
             .finish();
         let value = Text::new(
-            format_credits(entry.credits_spent),
+            format_credits(app, entry.credits_spent),
             appearance.ui_font_family(),
             font_size,
         )
@@ -787,12 +847,17 @@ impl ConversationUsageView {
     fn render_show_more_link(
         &self,
         hidden_count: usize,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let font_size = appearance.ui_font_size() + 2.;
         let link_color = theme.ansi_fg_blue();
-        let label = format!("Show {hidden_count} more");
+        let label = usage_text_with_args(
+            app,
+            "agent.usage.show_more",
+            &[("count", &hidden_count.to_string())],
+        );
         Hoverable::new(self.show_more_mouse_state.clone(), move |_hover_state| {
             Text::new(label.clone(), appearance.ui_font_family(), font_size)
                 .with_color(link_color)
@@ -904,10 +969,34 @@ fn render_section_header(header_label: String, appearance: &Appearance) -> Box<d
     .finish()
 }
 
-/// Format a value and a label into one usage string,
-/// making the label plural if the value is not 1.
-fn format_value_text(value: i32, label: &str) -> String {
-    format!("{} {}{}", value, label, if value == 1 { "" } else { "s" })
+fn usage_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn usage_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
+}
+
+fn format_count_text(app: &AppContext, value: i32, singular_key: &str, plural_key: &str) -> String {
+    let count = value.to_string();
+    if value == 1 {
+        usage_text_with_args(app, singular_key, &[("count", &count)])
+    } else {
+        usage_text_with_args(app, plural_key, &[("count", &count)])
+    }
+}
+
+fn format_seconds_text(app: &AppContext, seconds: f64) -> String {
+    let seconds = format!("{seconds:.1}");
+    usage_text_with_args(app, "agent.usage.seconds", &[("count", &seconds)])
+}
+
+fn token_usage_category_label(app: &AppContext, category: &str) -> String {
+    match category {
+        FULL_TERMINAL_USE_CATEGORY => usage_text(app, "agent.usage.category.full_terminal_use"),
+        PRIMARY_AGENT_CATEGORY => usage_text(app, "agent.usage.category.primary_agent"),
+        _ => token_usage_category_display_name(category),
+    }
 }
 
 /// Helper to build a text element with consistent styling for labels.

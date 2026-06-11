@@ -1,4 +1,3 @@
-use crate::localization;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -33,7 +32,7 @@ use crate::server::server_api::referral::{ReferralInfo, ReferralsClient};
 use crate::server::telemetry::TelemetryEvent;
 use crate::ui_components::blended_colors;
 use crate::view_components::ToastFlavor;
-use crate::{safe_info, send_telemetry_from_ctx};
+use crate::{localization, safe_info, send_telemetry_from_ctx};
 
 const HEADER_FONT_SIZE: f32 = 18.;
 const HEADER_MARGIN_BOTTOM: f32 = 32.;

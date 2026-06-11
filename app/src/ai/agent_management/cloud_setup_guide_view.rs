@@ -26,11 +26,10 @@ use crate::ai::blocklist::code_block::{
 };
 use crate::appearance::Appearance;
 use crate::completer::SessionAgnosticContext;
-use crate::localization;
-use crate::send_telemetry_from_ctx;
 use crate::view_components::action_button::{ActionButton, SecondaryTheme};
 use crate::workflows::workflow::{Argument, ArgumentType, Workflow};
 use crate::workflows::WorkflowType;
+use crate::{localization, send_telemetry_from_ctx};
 
 const DOCS_URL: &str = "https://docs.warp.dev/agent-platform/cloud-agents/overview";
 const ENV_DOCS_URL: &str =

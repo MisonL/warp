@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::mem;
@@ -67,6 +66,7 @@ use crate::ai_assistant::AI_ASSISTANT_SVG_PATH;
 use crate::appearance::Appearance;
 use crate::drive::settings::WarpDriveSettings;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::pane_group::SplitPaneState;
 use crate::settings::{
     AISettings, DebugSettings, EnforceMinimumContrast, PrivacySettings, TerminalSpacing,

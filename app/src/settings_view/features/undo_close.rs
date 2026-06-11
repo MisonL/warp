@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -15,11 +14,11 @@ use warpui::{
 
 use crate::appearance::Appearance;
 use crate::editor::{self, EditorView, SingleLineEditorOptions, TextOptions};
-use crate::report_if_error;
 use crate::settings_view::features_page::render_group;
 use crate::settings_view::settings_page::{render_body_item, LocalOnlyIconState, ToggleState};
 use crate::undo_close::settings::UndoCloseEnabled;
 use crate::undo_close::UndoCloseSettings;
+use crate::{localization, report_if_error};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

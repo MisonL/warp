@@ -1,4 +1,3 @@
-use crate::localization;
 use chrono::{DateTime, Datelike, Local, Utc};
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
@@ -18,6 +17,7 @@ use warpui::{
 
 use crate::ai::AIRequestUsageModel;
 use crate::auth::{AuthManager, AuthStateProvider};
+use crate::localization;
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::settings_view::admin_actions::AdminActions;
 use crate::settings_view::billing_and_usage::billing_cycle_usage_common::{
@@ -292,6 +292,7 @@ impl BillingCycleUsageSectionView {
                 &visibility,
                 &self.row_mouse_states,
                 appearance,
+                app,
             ))
             .with_margin_top(16.)
             .finish(),

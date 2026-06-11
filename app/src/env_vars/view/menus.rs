@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_geometry::vector::Vector2F;
 use warp_core::context_flag::ContextFlag;
 use warpui::keymap::Trigger;
@@ -18,7 +17,7 @@ use crate::ui_components::icons::Icon;
 use crate::util::bindings::{
     keybinding_name_to_display_string, trigger_to_keystroke, CustomAction,
 };
-use crate::{AppContext, CloudModel, FeatureFlag};
+use crate::{localization, AppContext, CloudModel, FeatureFlag};
 
 const PANE_MENU_WIDTH: f32 = 200.;
 

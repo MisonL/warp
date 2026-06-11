@@ -16,7 +16,6 @@
 //!
 //! Dismissing the block (on click of either option, or when the session is
 //! deregistered) is the parent's responsibility.
-use crate::localization;
 use settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
@@ -40,7 +39,7 @@ use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettings};
 use crate::ui_components::blended_colors;
-use crate::{send_telemetry_from_ctx, Appearance};
+use crate::{localization, send_telemetry_from_ctx, Appearance};
 
 const PROMPT_BORDER_RADIUS: f32 = 8.;
 

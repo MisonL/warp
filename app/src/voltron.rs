@@ -13,7 +13,6 @@
 //!
 //!
 
-use crate::localization;
 use std::path::PathBuf;
 
 use enclose::enclose;
@@ -40,6 +39,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PlainTextEditorViewAction, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions,
 };
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::input::MenuPositioning;
 use crate::terminal::resizable_data::{ModalType, ResizableData, DEFAULT_VOLTRON_WIDTH};

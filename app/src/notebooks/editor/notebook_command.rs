@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::mem;
 use std::ops::Range;
@@ -70,7 +69,7 @@ use crate::view_components::Dropdown;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::WorkflowType;
 use crate::workspace::WorkspaceAction;
-use crate::ASSETS;
+use crate::{localization, ASSETS};
 
 fn notebook_text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

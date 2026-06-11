@@ -1,4 +1,3 @@
-use crate::localization;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
@@ -15,6 +14,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::pane_group::PaneId;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 use crate::workspace::TabMovement;

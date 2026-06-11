@@ -140,6 +140,11 @@ impl SearchItem for WarpAISearchItem {
     fn accessibility_label(&self) -> String {
         format!("Warp AI: {}", self.item_body_text_fallback())
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let body = localization::text_for_app(app, self.item_body_text_key());
+        localization::text_for_app_with_args(app, "search.a11y.type.warp_ai", &[("body", &body)])
+    }
 }
 
 /// The Warp AI data source provides two different types of results:

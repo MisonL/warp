@@ -3,6 +3,7 @@ use warpui::elements::Container;
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::pane_group::PaneId;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::navigation::render::render_navigation_session;
@@ -10,7 +11,7 @@ use crate::search::command_palette::navigation::search::MatchedSession;
 use crate::search::command_palette::render_util::render_search_item_icon;
 use crate::search::item::IconLocation;
 use crate::search::result_renderer::ItemHighlightState;
-use crate::session_management::SessionNavigationData;
+use crate::session_management::{CommandContext, SessionNavigationData};
 use crate::ui_components::icons::Icon;
 
 /// Search item to render a session within the command palette.
@@ -19,6 +20,7 @@ pub struct SearchItem {
     /// The current active session. `None` if there is no active session or we were
     /// unable to determine which session is currently active.
     active_session: Option<PaneId>,
+    accessibility_copy: NavigationSearchItemAccessibilityCopy,
 }
 
 impl SearchItem {
@@ -26,10 +28,86 @@ impl SearchItem {
         &self.matched_session.session
     }
 
-    pub fn new(matched_session: MatchedSession, active_session: Option<PaneId>) -> Self {
+    pub fn new(
+        matched_session: MatchedSession,
+        active_session: Option<PaneId>,
+        accessibility_copy: NavigationSearchItemAccessibilityCopy,
+    ) -> Self {
         Self {
             matched_session,
             active_session,
+            accessibility_copy,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct NavigationSearchItemAccessibilityCopy {
+    selected_with_context_template: String,
+    last_run_command_template: String,
+    last_ai_interaction_template: String,
+    running_command_template: String,
+    running_ai_interaction_template: String,
+    help: String,
+}
+
+impl NavigationSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            selected_with_context_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.selected_with_context",
+            ),
+            last_run_command_template: localization::text_for_app(
+                app,
+                "search.navigation.a11y.last_run_command",
+            ),
+            last_ai_interaction_template: localization::text_for_app(
+                app,
+                "search.navigation.a11y.last_ai_interaction",
+            ),
+            running_command_template: localization::text_for_app(
+                app,
+                "search.navigation.a11y.running_command",
+            ),
+            running_ai_interaction_template: localization::text_for_app(
+                app,
+                "search.navigation.a11y.running_ai_interaction",
+            ),
+            help: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.navigate_session",
+            ),
+        }
+    }
+
+    fn selected_label(&self, name: &str, context: &str) -> String {
+        self.selected_with_context_template
+            .replace("{name}", name)
+            .replace("{context}", context)
+    }
+
+    fn command_context_description(&self, command_context: &CommandContext) -> Option<String> {
+        match command_context {
+            CommandContext::None => None,
+            CommandContext::LastRunCommand {
+                last_run_command, ..
+            } => Some(
+                self.last_run_command_template
+                    .replace("{command}", last_run_command),
+            ),
+            CommandContext::LastRunAIBlock { prompt } => Some(
+                self.last_ai_interaction_template
+                    .replace("{prompt}", prompt),
+            ),
+            CommandContext::RunningCommand { running_command } => Some(
+                self.running_command_template
+                    .replace("{command}", running_command),
+            ),
+            CommandContext::RunningAIBlock { prompt } => Some(
+                self.running_ai_interaction_template
+                    .replace("{prompt}", prompt),
+            ),
         }
     }
 }
@@ -102,17 +180,19 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!(
-            "Selected {}. {}.",
+        let command_context = self.navigation_data().command_context();
+        let command_context_description = self
+            .accessibility_copy
+            .command_context_description(&command_context)
+            .unwrap_or_default();
+
+        self.accessibility_copy.selected_label(
             self.navigation_data().prompt(),
-            self.navigation_data()
-                .command_context()
-                .a11y_description()
-                .unwrap_or_default()
+            &command_context_description,
         )
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some("Press enter to navigate to this session.".into())
+        Some(self.accessibility_copy.help.clone())
     }
 }

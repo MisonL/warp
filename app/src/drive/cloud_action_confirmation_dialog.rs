@@ -1,4 +1,3 @@
-use crate::localization;
 use warpui::elements::{Container, CornerRadius, Dismiss, MouseStateHandle, Radius};
 use warpui::fonts::Weight;
 use warpui::platform::Cursor;
@@ -7,6 +6,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 

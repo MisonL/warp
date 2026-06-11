@@ -21,7 +21,7 @@ use crate::server::telemetry::{
     RemoteCodebaseAutoIndexTrigger, RemoteCodebaseIndexStatusTelemetrySource,
 };
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 #[derive(Clone, Debug)]
 pub struct RemoteCodebaseSearchContext {
@@ -225,15 +225,17 @@ impl RemoteCodebaseIndexModel {
         &self,
         session_context: &SessionContext,
         explicit_repo_path: Option<&str>,
+        app: &warpui::AppContext,
     ) -> RemoteCodebaseSearchAvailability {
         let Some(host_id) = session_context.host_id() else {
             return RemoteCodebaseSearchAvailability::NoConnectedHost;
         };
 
-        self.availability_for_remote(
+        self.availability_for_remote_with_app(
             host_id,
             session_context.current_working_directory().as_deref(),
             explicit_repo_path,
+            app,
         )
     }
 
@@ -242,9 +244,14 @@ impl RemoteCodebaseIndexModel {
         session_context: &SessionContext,
         explicit_repo_path: Option<&str>,
     ) -> Option<String> {
-        self.active_repo_availability(session_context, explicit_repo_path)
-            .repo_path()
-            .map(ToOwned::to_owned)
+        let host_id = session_context.host_id()?;
+        self.availability_for_remote(
+            host_id,
+            session_context.current_working_directory().as_deref(),
+            explicit_repo_path,
+        )
+        .repo_path()
+        .map(ToOwned::to_owned)
     }
 
     pub fn request_active_repo_index(
@@ -426,7 +433,7 @@ impl RemoteCodebaseIndexModel {
                 }
             }
             RemoteServerManagerEvent::HostDisconnected { host_id } => {
-                if self.mark_host_unavailable(host_id) {
+                if self.mark_host_unavailable_for_app(host_id, ctx) {
                     ctx.emit(RemoteCodebaseIndexModelEvent::SettingsEntriesChanged);
                 }
             }
@@ -708,7 +715,25 @@ impl RemoteCodebaseIndexModel {
         true
     }
 
-    fn mark_host_unavailable(&mut self, host_id: &HostId) -> bool {
+    fn mark_host_unavailable_for_app(
+        &mut self,
+        host_id: &HostId,
+        app: &warpui::AppContext,
+    ) -> bool {
+        self.mark_host_unavailable_with_message(
+            host_id,
+            Some(localization::text_for_app(
+                app,
+                "remote.codebase_search.host_disconnected",
+            )),
+        )
+    }
+
+    fn mark_host_unavailable_with_message(
+        &mut self,
+        host_id: &HostId,
+        failure_message: Option<String>,
+    ) -> bool {
         let host_label = self.host_label_for_host(host_id);
         self.active_repos_by_host.remove(host_id);
         self.active_git_repos_by_session
@@ -717,15 +742,13 @@ impl RemoteCodebaseIndexModel {
 
         let mut updated = false;
         for (key, status) in &mut self.statuses {
-            if key.host == host_label {
-                let failure_message = "The remote host is currently disconnected.".to_string();
-                if status.state != RemoteCodebaseIndexState::Unavailable
-                    || status.failure_message.as_ref() != Some(&failure_message)
-                {
-                    status.state = RemoteCodebaseIndexState::Unavailable;
-                    status.failure_message = Some(failure_message);
-                    updated = true;
-                }
+            if key.host == host_label
+                && (status.state != RemoteCodebaseIndexState::Unavailable
+                    || status.failure_message != failure_message)
+            {
+                status.state = RemoteCodebaseIndexState::Unavailable;
+                status.failure_message = failure_message.clone();
+                updated = true;
             }
         }
         updated
@@ -747,6 +770,25 @@ impl RemoteCodebaseIndexModel {
             return RemoteCodebaseSearchAvailability::NotIndexed { remote_path };
         };
         search_availability_for_status(status, remote_path)
+    }
+
+    fn availability_for_remote_with_app(
+        &self,
+        host_id: &HostId,
+        current_working_directory: Option<&str>,
+        explicit_repo_path: Option<&str>,
+        app: &warpui::AppContext,
+    ) -> RemoteCodebaseSearchAvailability {
+        let remote_path =
+            self.resolve_remote_repo_path(host_id, current_working_directory, explicit_repo_path);
+
+        let Some(remote_path) = remote_path else {
+            return RemoteCodebaseSearchAvailability::NoActiveRepo;
+        };
+        let Some(status) = self.status_for_repo(&remote_path) else {
+            return RemoteCodebaseSearchAvailability::NotIndexed { remote_path };
+        };
+        search_availability_for_status_with_app(status, remote_path, app)
     }
 
     fn resolve_remote_repo_path(
@@ -906,6 +948,33 @@ fn search_availability_for_status(
     status: &RemoteCodebaseIndexStatus,
     remote_path: RemotePath,
 ) -> RemoteCodebaseSearchAvailability {
+    search_availability_for_status_with_messages(
+        status,
+        remote_path,
+        "Missing codebase index root hash.".to_string(),
+        "Remote codebase search is unavailable.".to_string(),
+    )
+}
+
+fn search_availability_for_status_with_app(
+    status: &RemoteCodebaseIndexStatus,
+    remote_path: RemotePath,
+    app: &warpui::AppContext,
+) -> RemoteCodebaseSearchAvailability {
+    search_availability_for_status_with_messages(
+        status,
+        remote_path,
+        localization::text_for_app(app, "remote.codebase_search.missing_root_hash"),
+        localization::text_for_app(app, "remote.codebase_search.unavailable"),
+    )
+}
+
+fn search_availability_for_status_with_messages(
+    status: &RemoteCodebaseIndexStatus,
+    remote_path: RemotePath,
+    missing_root_hash_message: String,
+    unavailable_message: String,
+) -> RemoteCodebaseSearchAvailability {
     match status.state {
         RemoteCodebaseIndexState::Ready | RemoteCodebaseIndexState::Stale => {
             let Some(root_hash) = status
@@ -915,7 +984,7 @@ fn search_availability_for_status(
             else {
                 return RemoteCodebaseSearchAvailability::Unavailable {
                     remote_path,
-                    message: "The remote codebase index is missing its root hash.".to_string(),
+                    message: missing_root_hash_message,
                 };
             };
             RemoteCodebaseSearchAvailability::Ready(RemoteCodebaseSearchContext {
@@ -935,7 +1004,7 @@ fn search_availability_for_status(
             message: status
                 .failure_message
                 .clone()
-                .unwrap_or_else(|| "Remote codebase search is not available.".to_string()),
+                .unwrap_or(unavailable_message),
         },
     }
 }

@@ -1,17 +1,15 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
+use parking_lot::RwLock;
+use settings::{Setting as _, SettingsManager};
+use warp_localization::LocaleId;
+use warpui::elements::Empty;
+use warpui::platform::WindowStyle;
+use warpui::{App, AppContext, Element, Entity, SingletonEntity as _, TypedActionView, View};
+
 use super::environment_locale_candidates_from;
 use crate::settings::{init_and_register_user_preferences, AppLanguage, LanguageSettings};
-use parking_lot::RwLock;
-use settings::Setting as _;
-use settings::SettingsManager;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
-use warp_localization::LocaleId;
-use warpui::SingletonEntity as _;
-use warpui::{
-    elements::Empty, platform::WindowStyle, App, AppContext, Element, Entity, TypedActionView, View,
-};
 
 fn register_language_settings(ctx: &mut AppContext, language: AppLanguage) {
     init_and_register_user_preferences(ctx);

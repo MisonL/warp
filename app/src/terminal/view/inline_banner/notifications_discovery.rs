@@ -1,15 +1,14 @@
-use crate::localization;
 use serde::Serialize;
 use warpui::elements::MouseStateHandle;
 use warpui::notification::RequestPermissionsOutcome;
-use warpui::AppContext;
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::{
     render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
     InlineBannerContent, InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonVariant,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::session_settings::NotificationsMode;
 use crate::terminal::view::{InlineBannerId, NotificationsTrigger, TerminalAction};
 

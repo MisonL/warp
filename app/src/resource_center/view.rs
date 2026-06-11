@@ -1,4 +1,3 @@
-use crate::localization;
 use vec1::{vec1, Vec1};
 use warp_core::features::FeatureFlag;
 use warp_core::ui::builder::AnimatedButtonOptions;
@@ -25,6 +24,7 @@ use super::section_views::{
 use super::{KeybindingsView, ResourceCenterMainEvent, ResourceCenterMainView, TipsCompleted};
 use crate::appearance::Appearance;
 use crate::changelog_model::ChangelogModel;
+use crate::localization;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons;
 use crate::ui_components::window_focus_dimming::WindowFocusDimming;

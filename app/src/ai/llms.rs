@@ -14,9 +14,9 @@ use super::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::AuthStateProvider;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
-use crate::report_error;
 use crate::server::server_api::ServerApiProvider;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
+use crate::{localization, report_error};
 
 /// Checks if a user's' API key is being used for the given provider.
 /// Returns `true` if BYO API key is enabled and a key exists for the provider.
@@ -46,7 +46,6 @@ pub fn should_show_bedrock_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bo
 /// Note: this key used to store a single [`AvailableLLMs`]
 /// but was migrated to store a full [`ModelsByFeature`].
 pub const MODELS_BY_FEATURE_CACHE_KEY: &str = "AvailableLLMs";
-const CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL: &str = "Custom endpoint";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LLMUsageMetadata {
@@ -64,16 +63,23 @@ pub enum DisableReason {
 }
 
 impl DisableReason {
-    /// Returns a user-facing tooltip explaining why the model is disabled.
-    pub fn tooltip_text(&self) -> &'static str {
+    pub fn tooltip_key(&self) -> &'static str {
         match self {
-            DisableReason::AdminDisabled => "This model has been disabled by your team admin.",
-            DisableReason::OutOfRequests => "Please upgrade your plan to make more requests.",
-            DisableReason::ProviderOutage => {
-                "This model is temporarily unavailable due to a provider outage."
+            DisableReason::AdminDisabled => {
+                "settings.execution_profile.model.disable_reason.admin_disabled"
             }
-            DisableReason::RequiresUpgrade => "Please upgrade your plan to access this model.",
-            DisableReason::Unavailable => "This model is unavailable.",
+            DisableReason::OutOfRequests => {
+                "settings.execution_profile.model.disable_reason.out_of_requests"
+            }
+            DisableReason::ProviderOutage => {
+                "settings.execution_profile.model.disable_reason.provider_outage"
+            }
+            DisableReason::RequiresUpgrade => {
+                "settings.execution_profile.model.disable_reason.requires_upgrade"
+            }
+            DisableReason::Unavailable => {
+                "settings.execution_profile.model.disable_reason.unavailable"
+            }
         }
     }
 
@@ -822,12 +828,18 @@ impl LLMPreferences {
 
     /// Footer label for custom endpoint usage keyed by the request config_key.
     /// The synthetic custom LLMInfo already owns alias-or-name display semantics.
-    pub fn custom_endpoint_usage_display_label(&self, config_key: &str) -> String {
+    pub fn custom_endpoint_usage_display_label(
+        &self,
+        config_key: &str,
+        app: &AppContext,
+    ) -> String {
         let config_key = LLMId::from(config_key);
         self.custom_llm_info_for_id(&config_key)
             .map(|info| info.display_name.as_str())
             .map(str::to_string)
-            .unwrap_or_else(|| CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL.to_string())
+            .unwrap_or_else(|| {
+                localization::text_for_app(app, "settings.ai.custom_endpoint.usage_fallback")
+            })
     }
 
     fn custom_llm_info_for_id_if_enabled(&self, id: &LLMId, app: &AppContext) -> Option<&LLMInfo> {

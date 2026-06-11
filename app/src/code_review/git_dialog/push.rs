@@ -5,22 +5,7 @@
 //! existing branch and publishing a new one (setting upstream). On confirm,
 //! spawns `run_push`.
 
-use crate::{
-    code::editor::{add_color, remove_color},
-    code_review::{
-        code_review_view::code_review_text,
-        git_dialog::{
-            interactive_path_future, render_branch_section, render_chevron_icon, render_file_list,
-            show_toast, user_facing_git_error, GitDialog, GitDialogAction, GitDialogEvent,
-            GitDialogMode,
-        },
-        telemetry_event::{CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind},
-    },
-    ui_components::icons::Icon,
-    util::git::{Commit, FileChangeEntry},
-};
 use std::collections::HashMap;
-use warpui::AppContext;
 
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
@@ -30,7 +15,19 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, Radius, ScrollbarWidth, Text,
 };
 use warpui::platform::Cursor;
-use warpui::ViewContext;
+use warpui::{AppContext, ViewContext};
+
+use crate::code::editor::{add_color, remove_color};
+use crate::code_review::code_review_view::code_review_text;
+use crate::code_review::git_dialog::{
+    interactive_path_future, render_branch_section, render_chevron_icon, render_file_list,
+    show_toast, user_facing_git_error, GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode,
+};
+use crate::code_review::telemetry_event::{
+    CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
+};
+use crate::ui_components::icons::Icon;
+use crate::util::git::{Commit, FileChangeEntry};
 
 /// Push-specific sub-actions, dispatched wrapped in `GitDialogAction::Push`.
 #[derive(Clone, Debug, PartialEq)]

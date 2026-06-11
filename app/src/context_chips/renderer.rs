@@ -10,8 +10,7 @@ use warpui::elements::{
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
-use warpui::AppContext;
-use warpui::{Action, Element};
+use warpui::{Action, AppContext, Element};
 
 use super::context_chip::ContextChip;
 use super::display_chip::{chip_container, udi_font_size};

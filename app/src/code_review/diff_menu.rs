@@ -1,6 +1,5 @@
 //! Overlay menu for the code review diff selector: pinned search input and
 //! a filtered list of label-only rows with a left check slot.
-use crate::localization;
 use std::cmp;
 
 use fuzzy_match::{match_indices_case_insensitive, FuzzyMatchResult};
@@ -27,6 +26,7 @@ use crate::code_review::diff_state::DiffMode;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
 };
+use crate::localization;
 use crate::ui_components::icons::Icon;
 
 const MENU_WIDTH: f32 = 280.;

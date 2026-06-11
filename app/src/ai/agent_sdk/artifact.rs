@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use warp_localization::{replace_placeholders, LocaleId};
 
 use anyhow::{Context, Result};
 use serde::Serialize;
@@ -9,6 +8,7 @@ use warp_cli::artifact::{
     ArtifactCommand, DownloadArtifactArgs, GetArtifactArgs, UploadArtifactArgs,
 };
 use warp_cli::GlobalOptions;
+use warp_localization::{replace_placeholders, LocaleId};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 

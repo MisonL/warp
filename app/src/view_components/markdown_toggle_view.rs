@@ -1,4 +1,3 @@
-use crate::localization;
 use warpui::elements::{CornerRadius, Fill as UiFill, Radius};
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::UiComponentStyles;
@@ -10,6 +9,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::notebooks::file::MarkdownDisplayMode;
 
 #[derive(Debug, Clone)]

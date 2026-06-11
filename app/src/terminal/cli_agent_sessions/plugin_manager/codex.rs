@@ -125,20 +125,13 @@ impl CliAgentPluginManager for CodexPluginManager {
             .unwrap_or(true);
         if still_outdated {
             log.push_str("Post-update version check: plugin is still outdated\n");
-            return Err(PluginInstallError {
-                message: "Plugin update did not take effect".to_owned(),
+            return Err(PluginInstallError::localized(
+                "agent.input_footer.plugin_update_no_effect",
+                vec![],
                 log,
-            });
+            ));
         }
         Ok(())
-    }
-
-    fn install_success_message(&self) -> &'static str {
-        "Warp plugin installed. Please restart Codex to activate."
-    }
-
-    fn update_success_message(&self) -> &'static str {
-        "Warp plugin updated. Please restart Codex to activate."
     }
 
     fn install_instructions(&self) -> &'static PluginInstructions {
@@ -179,22 +172,27 @@ impl CliAgentPluginManager for CodexPluginManager {
 
 static PLUGIN_INSTALL_INSTRUCTIONS: LazyLock<PluginInstructions> =
     LazyLock::new(|| PluginInstructions {
+        title_key: "",
         title: "Install Warp Plugin for Codex",
+        subtitle_key: "",
         subtitle: "Run the following commands, then restart Codex.",
         steps: &[
             PluginInstructionStep {
+                description_key: "",
                 description: "Add the Warp plugin marketplace repository",
                 command: "codex plugin marketplace add warpdotdev/codex-warp",
                 executable: true,
                 link: None,
             },
             PluginInstructionStep {
+                description_key: "",
                 description: "Install the Warp plugin",
                 command: "codex plugin add warp@codex-warp",
                 executable: true,
                 link: None,
             },
         ],
+        post_install_note_keys: &[],
         post_install_notes: &["Restart Codex to activate the plugin."],
     });
 
@@ -237,22 +235,27 @@ static EMPTY_INSTRUCTIONS: LazyLock<PluginInstructions> = LazyLock::new(|| Plugi
 
 static PLUGIN_UPDATE_INSTRUCTIONS: LazyLock<PluginInstructions> =
     LazyLock::new(|| PluginInstructions {
+        title_key: "",
         title: "Update Warp Plugin for Codex",
+        subtitle_key: "",
         subtitle: "Run the following commands, then restart Codex.",
         steps: &[
             PluginInstructionStep {
+                description_key: "",
                 description: "Upgrade the marketplace",
                 command: "codex plugin marketplace upgrade codex-warp",
                 executable: true,
                 link: None,
             },
             PluginInstructionStep {
+                description_key: "",
                 description: "Reinstall the Warp plugin",
                 command: "codex plugin add warp@codex-warp",
                 executable: true,
                 link: None,
             },
         ],
+        post_install_note_keys: &[],
         post_install_notes: &["Restart Codex to activate the update."],
     });
 

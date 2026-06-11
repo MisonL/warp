@@ -1,6 +1,4 @@
-use crate::localization;
 use std::collections::HashSet;
-use warp_localization::LocaleId;
 
 use comfy_table::Cell;
 use cynic::QueryBuilder;
@@ -16,6 +14,7 @@ use warp_graphql::queries::list_warp_dev_images::{
     ListWarpDevImages, ListWarpDevImagesResult, ListWarpDevImagesVariables,
 };
 use warp_graphql::queries::user_repo_auth_status::UserRepoAuthStatusEnum;
+use warp_localization::LocaleId;
 use warpui::r#async::FutureExt;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
@@ -36,7 +35,7 @@ use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::workspaces::user_profiles::UserProfiles;
-use crate::CloudObjectTypeAndId;
+use crate::{localization, CloudObjectTypeAndId};
 
 const WARP_DEV_ENVIRONMENTS_REPO: &str = "https://github.com/warpdotdev/warp-dev-environments";
 
@@ -246,27 +245,20 @@ impl EnvironmentCommandRunner {
                                 .profile_for_uid(UserUid::new(uid))
                                 .map(|profile| profile.email.clone())
                         })
-                        .unwrap_or_else(|| {
-                            crate::localization::text_for_app(ctx, "agent_sdk.common.value.unknown")
-                        });
+                        .unwrap_or_else(|| super::common::UNKNOWN_VALUE.to_string());
 
                     let last_edited_utc = environment.metadata().revision.as_ref().map(|r| r.utc());
 
                     let last_edited = last_edited_utc
                         .map(format_approx_duration_from_now_utc)
-                        .unwrap_or_else(|| {
-                            crate::localization::text_for_app(ctx, "agent_sdk.common.value.unknown")
-                        });
+                        .unwrap_or_else(|| super::common::UNKNOWN_VALUE.to_string());
 
                     let scope_display =
-                        super::common::format_owner_for_app(&environment.permissions().owner, ctx);
+                        super::common::owner_scope(&environment.permissions().owner);
 
                     let id = match environment.sync_id() {
                         SyncId::ServerId(server_id) => server_id.to_string(),
-                        SyncId::ClientId(_) => crate::localization::text_for_app(
-                            ctx,
-                            "agent_sdk.common.value.unsynced",
-                        ),
+                        SyncId::ClientId(_) => super::common::UNSYNCED_ID.to_string(),
                     };
 
                     EnvironmentInfo {
@@ -1440,9 +1432,15 @@ impl TableFormat for EnvironmentInfo {
             Cell::new(self.base_image.to_string()),
             Cell::new(github_repos_display),
             Cell::new(setup_commands_display),
-            Cell::new(&self.creator_email),
-            Cell::new(&self.last_edited),
-            Cell::new(&self.scope),
+            Cell::new(super::common::format_unknown_for_app(
+                &self.creator_email,
+                app,
+            )),
+            Cell::new(super::common::format_unknown_for_app(
+                &self.last_edited,
+                app,
+            )),
+            Cell::new(super::common::format_owner_scope_for_app(&self.scope, app)),
         ]
     }
 }

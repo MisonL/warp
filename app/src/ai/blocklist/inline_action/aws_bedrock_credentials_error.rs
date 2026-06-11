@@ -1,4 +1,3 @@
-use crate::localization;
 use settings::Setting as _;
 use warp_core::ui::Icon;
 use warpui::elements::{
@@ -17,7 +16,7 @@ use crate::ai::blocklist::view_util::error_color;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
-use crate::{report_if_error, Appearance};
+use crate::{localization, report_if_error, Appearance};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

@@ -7,6 +7,7 @@ use crate::appearance::Appearance;
 use crate::cloud_object::CloudObject;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
+use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
 use crate::search::command_palette::styles::SEARCH_ITEM_TEXT_PADDING;
@@ -150,5 +151,13 @@ impl SearchItem for WorkflowSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Workflow: {}", self.cloud_workflow.model().data.name())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.workflow",
+            &[("name", self.cloud_workflow.model().data.name())],
+        )
     }
 }

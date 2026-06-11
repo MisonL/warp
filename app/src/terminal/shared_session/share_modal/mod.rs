@@ -1,4 +1,3 @@
-use crate::localization;
 use std::default::Default;
 use std::sync::Arc;
 
@@ -13,6 +12,7 @@ use warpui::{
     ViewHandle,
 };
 
+use crate::localization;
 use crate::modal::{Modal, ModalEvent};
 use crate::pane_group::TerminalPaneId;
 use crate::terminal::TerminalModel;

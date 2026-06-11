@@ -1,6 +1,5 @@
 //! This module contains the code for the ignore button shown inline next to autosuggestions.
 
-use crate::localization;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
@@ -13,6 +12,7 @@ use warpui::{Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use super::EditorElement;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 

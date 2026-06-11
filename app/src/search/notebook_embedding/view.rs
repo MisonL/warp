@@ -1,15 +1,3 @@
-use crate::appearance::Appearance;
-use crate::cloud_object::Space;
-use crate::localization;
-use crate::search::notebook_embedding::notebooks::CloudNotebooksDataSource;
-use crate::search::notebook_embedding::workflows::CloudWorkflowsDataSource;
-use crate::search::result_renderer::QueryResultRenderer;
-use crate::search::result_renderer::QueryResultRendererStyles;
-use crate::search::search_bar::SearchBar;
-use crate::search::search_bar::SearchBarEvent;
-use crate::search::search_bar::SearchBarPlaceholder;
-use crate::search::search_bar::SearchBarState;
-use crate::search::search_bar::SearchResultOrdering;
 use std::collections::HashSet;
 use std::ops::Range;
 
@@ -28,6 +16,15 @@ use warpui::{
 };
 
 use super::searcher::{EmbeddingSearchItemAction, EmbeddingSearchMixer};
+use crate::appearance::Appearance;
+use crate::cloud_object::Space;
+use crate::localization;
+use crate::search::notebook_embedding::notebooks::CloudNotebooksDataSource;
+use crate::search::notebook_embedding::workflows::CloudWorkflowsDataSource;
+use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
+use crate::search::search_bar::{
+    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
+};
 
 lazy_static! {
     static ref QUERY_RESULT_RENDERER_STYLES: QueryResultRendererStyles =

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -25,6 +24,7 @@ use warpui::{
     SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
+use crate::localization;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::ui_components::icons::Icon;

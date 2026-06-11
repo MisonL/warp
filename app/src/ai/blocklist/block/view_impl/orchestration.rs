@@ -38,9 +38,10 @@ use crate::ai::blocklist::inline_action::requested_action::{
 };
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::view::TerminalAction;
+use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
-use crate::{localization, ui_components::blended_colors};
 
 const ORCHESTRATION_COLLAPSED_MAX_HEIGHT: f32 = 200.;
 
@@ -132,7 +133,10 @@ fn participant_for_conversation(
         return OrchestrationParticipant::orchestrator(app);
     }
 
-    let display_name = conversation.agent_name().unwrap_or("Agent").to_string();
+    let display_name = conversation
+        .agent_name()
+        .map(str::to_string)
+        .unwrap_or_else(|| orchestration_text(app, "agent.child_agent.name"));
     OrchestrationParticipant {
         display_name: display_name.clone(),
         avatar: OrchestrationAvatar::agent(display_name),
@@ -887,7 +891,10 @@ fn child_conversation_card_data_for_result(
             let conversation_id = conversation_id_for_agent_id(agent_id, app)?;
             let conversation =
                 BlocklistAIHistoryModel::as_ref(app).conversation(&conversation_id)?;
-            let agent_name = conversation.agent_name().unwrap_or("Agent").to_string();
+            let agent_name = conversation
+                .agent_name()
+                .map(str::to_string)
+                .unwrap_or_else(|| orchestration_text(app, "agent.child_agent.name"));
             let status = conversation.status().clone();
             let title = available_conversation_title_for_id(conversation_id, app)?;
             Some(ChildConversationCardData {

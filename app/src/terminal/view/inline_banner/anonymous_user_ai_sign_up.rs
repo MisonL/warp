@@ -1,18 +1,17 @@
-use crate::localization;
 use warpui::elements::{
     Container, CornerRadius, CrossAxisAlignment, Flex, Icon, MainAxisAlignment, MainAxisSize,
     MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
 };
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::AppContext;
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::{
     INLINE_BANNER_BUTTON_HOVER_OPACITY, INLINE_BANNER_BUTTON_PADDING,
     INLINE_BANNER_MARGIN_BETWEEN_BUTTONS, INLINE_BANNER_RIGHT_MARGIN,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::view::{InlineBannerId, TerminalAction};
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon as UiIcon;

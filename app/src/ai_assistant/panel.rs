@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,14 +30,13 @@ use super::transcript::{Transcript, TranscriptEvent};
 use super::utils::{render_prepared_response_button, render_request_limit_info, TranscriptPart};
 use super::{
     AskAIType, AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AI_ASSISTANT_SVG_PATH,
-    ASK_AI_ASSISTANT_TEXT, PROMPT_CHARACTER_LIMIT,
+    PROMPT_CHARACTER_LIMIT,
 };
 use crate::appearance::Appearance;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
 };
 use crate::input_suggestions::{Event as InputSuggestionsEvent, InputSuggestions};
-use crate::send_telemetry_from_ctx;
 use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::ServerApi;
 use crate::server::telemetry::{TelemetryEvent, WarpAIActionType};
@@ -48,6 +46,7 @@ use crate::ui_components::buttons::icon_button;
 use crate::util::bindings::{cmd_or_ctrl_shift, CustomAction};
 use crate::workspace::{ActiveSession, TAB_BAR_HEIGHT};
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
 const INFO_ICON_SVG_PATH: &str = "bundled/svg/info.svg";
 pub const HEXAGON_ALERT_SVG_PATH: &str = "bundled/svg/alert-hexagon.svg";
@@ -68,10 +67,6 @@ const LOGO_SIZE: f32 = 20.;
 const BODY_FONT_SIZE: f32 = 13.;
 const TITLE_FONT_SIZE: f32 = 16.;
 const ZERO_STATE_HELP_TEXT_FONT_SIZE: f32 = 12.;
-
-const SCRIPT_ZERO_STATE_PROMPT: &str = "Write a script to connect to an AWS EC2 instance.";
-const GIT_ZERO_STATE_PROMPT: &str = "How do I undo the most recent commits in git?";
-const FILES_ZERO_STATE_PROMPT: &str = "How do I find all files containing specific text?";
 
 const ASK_AI_BLOCK_INPUT_LIMIT: usize = 100;
 
@@ -126,7 +121,10 @@ pub enum AIAssistantAction {
     ClosePanel,
     ResetContext,
     CopyTranscript,
-    PreparedPrompt(&'static str),
+    PreparedPrompt {
+        prompt_key: &'static str,
+        prompt: String,
+    },
     ClickedUrl(HyperlinkUrl),
     CopyAnswerToClipboard(Arc<String>),
     FocusTerminalInput,
@@ -915,23 +913,31 @@ impl AIAssistantPanelView {
             )
             .with_child(
                 Container::new(
-                    Text::new_inline(ASK_AI_ASSISTANT_TEXT, appearance.ui_font_family(), 14.)
-                        .with_color(sub_text_color)
-                        .finish(),
+                    Text::new_inline(
+                        text(app, "terminal.menu.ask_warp_ai"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(sub_text_color)
+                    .finish(),
                 )
                 .with_margin_top(8.)
                 .finish(),
             );
 
         if self.num_remaining_reqs(app) > 0 {
+            let git_prompt_key = "ai_assistant.zero_state.prompt.git";
+            let files_prompt_key = "ai_assistant.zero_state.prompt.files";
+            let script_prompt_key = "ai_assistant.zero_state.prompt.script";
             column.add_children([
                 Container::new(render_prepared_response_button(
                     appearance,
                     self.mouse_state_handles.git_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    text(app, "ai_assistant.zero_state.prompt.git"),
-                    GIT_ZERO_STATE_PROMPT,
+                    git_prompt_key,
+                    text(app, git_prompt_key),
+                    text(app, git_prompt_key),
                 ))
                 .with_margin_top(20.)
                 .with_margin_bottom(10.)
@@ -941,8 +947,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.files_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    text(app, "ai_assistant.zero_state.prompt.files"),
-                    FILES_ZERO_STATE_PROMPT,
+                    files_prompt_key,
+                    text(app, files_prompt_key),
+                    text(app, files_prompt_key),
                 ))
                 .with_margin_bottom(10.)
                 .finish(),
@@ -951,8 +958,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.script_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    text(app, "ai_assistant.zero_state.prompt.script"),
-                    SCRIPT_ZERO_STATE_PROMPT,
+                    script_prompt_key,
+                    text(app, script_prompt_key),
+                    text(app, script_prompt_key),
                 ))
                 .finish(),
             ]);
@@ -1058,9 +1066,12 @@ impl TypedActionView for AIAssistantPanelView {
             ClosePanel => {
                 ctx.emit(AIAssistantPanelEvent::ClosePanel);
             }
-            PreparedPrompt(prompt) => {
-                self.issue_request(prompt.to_string(), ctx);
-                send_telemetry_from_ctx!(TelemetryEvent::UsedWarpAIPreparedPrompt { prompt }, ctx);
+            PreparedPrompt { prompt_key, prompt } => {
+                self.issue_request(prompt.clone(), ctx);
+                send_telemetry_from_ctx!(
+                    TelemetryEvent::UsedWarpAIPreparedPrompt { prompt: prompt_key },
+                    ctx
+                );
             }
             ClickedUrl(url) => {
                 ctx.open_url(&url.url);

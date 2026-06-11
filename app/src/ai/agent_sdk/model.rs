@@ -1,16 +1,16 @@
-use crate::localization;
 use std::collections::BTreeSet;
-use warp_localization::LocaleId;
 
 use comfy_table::Cell;
 use serde::Serialize;
 use warp_cli::model::ModelCommand;
 use warp_cli::GlobalOptions;
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
 use crate::ai::llms::LLMPreferences;
+use crate::localization;
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)

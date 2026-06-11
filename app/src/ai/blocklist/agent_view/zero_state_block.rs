@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::path::Path;
@@ -35,6 +34,7 @@ use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHi
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::appearance::Appearance;
 use crate::changelog_model::{self, ChangelogModel};
+use crate::localization;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::event::BlockType;
 use crate::terminal::input::message_bar::common::render_standard_message;

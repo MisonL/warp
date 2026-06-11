@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -71,7 +70,7 @@ use crate::workspace::ToastStack;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::AdminEnablementSetting;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 const MAIN_SECTION_MARGIN: f32 = 12.;
 const SUB_SECTION_MARGIN: f32 = 8.;
@@ -934,8 +933,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 ) {
     if FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-            vec![ToggleSettingActionPair::new(
-                "codebase index",
+            vec![ToggleSettingActionPair::new_localized(
+                app,
+                "settings.code.codebase_indexing.label",
                 builder(SettingsAction::Code(
                     CodeSettingsPageAction::ToggleCodebaseContext,
                 )),
@@ -946,8 +946,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         );
 
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-            vec![ToggleSettingActionPair::new(
-                "auto-indexing",
+            vec![ToggleSettingActionPair::new_localized(
+                app,
+                "settings.code.auto_index.label",
                 builder(SettingsAction::Code(
                     CodeSettingsPageAction::ToggleAutoIndexing,
                 )),
@@ -961,40 +962,45 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     if FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![
-                ToggleSettingActionPair::new(
-                    "auto open code review panel",
+                ToggleSettingActionPair::new_localized(
+                    app,
+                    "settings.code.editor.auto_open_code_review_panel.label",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane,
                     )),
                     context,
                     flags::AUTO_OPEN_CODE_REVIEW_PANE_FLAG,
                 ),
-                ToggleSettingActionPair::new(
-                    "code review button",
+                ToggleSettingActionPair::new_localized(
+                    app,
+                    "settings.code.editor.show_code_review_button.label",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleCodeReviewPanel,
                     )),
                     context,
                     flags::SHOW_CODE_REVIEW_BUTTON_FLAG,
                 ),
-                ToggleSettingActionPair::new(
-                    "diff stats on code review button",
+                ToggleSettingActionPair::new_localized(
+                    app,
+                    "settings.code.editor.show_diff_stats.label",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleShowCodeReviewDiffStats,
                     )),
                     context,
                     flags::SHOW_CODE_REVIEW_DIFF_STATS_FLAG,
                 ),
-                ToggleSettingActionPair::new(
-                    "project explorer",
+                ToggleSettingActionPair::new_localized(
+                    app,
+                    "settings.code.editor.project_explorer.label",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleProjectExplorer,
                     )),
                     context,
                     flags::SHOW_PROJECT_EXPLORER,
                 ),
-                ToggleSettingActionPair::new(
-                    "global file search",
+                ToggleSettingActionPair::new_localized(
+                    app,
+                    "settings.code.editor.global_file_search.label",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleGlobalSearch,
                     )),

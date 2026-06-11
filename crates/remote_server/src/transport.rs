@@ -158,6 +158,10 @@ pub struct Connection {
     /// `event_rx` so the failure sender on the client doesn't keep the
     /// lifecycle event channel alive.
     pub failure_rx: async_channel::Receiver<crate::client::RequestFailedEvent>,
+    /// Receiver for host-scoped write failures reported by the writer task.
+    /// Separate from `event_rx` so the writer task does not keep the lifecycle
+    /// event channel alive after reader-side disconnect.
+    pub host_write_failure_rx: async_channel::Receiver<crate::client::HostScopedWriteFailedEvent>,
     /// Receiver for host-scoped responses whose `request_id` was not in
     /// this client's `pending_requests`. The manager drains this to match
     /// against its `pending_host_requests`.

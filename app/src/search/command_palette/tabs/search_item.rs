@@ -4,6 +4,7 @@ use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
 use crate::search::item::{IconLocation, SearchItem as SearchItemTrait};
@@ -16,11 +17,49 @@ use crate::ui_components::icons::Icon;
 pub struct SearchItem {
     tab: TabNavigationData,
     mru_rank: usize,
+    accessibility_copy: TabSearchItemAccessibilityCopy,
 }
 
 impl SearchItem {
-    pub fn new(tab: TabNavigationData, mru_rank: usize) -> Self {
-        Self { tab, mru_rank }
+    pub fn new(
+        tab: TabNavigationData,
+        mru_rank: usize,
+        accessibility_copy: TabSearchItemAccessibilityCopy,
+    ) -> Self {
+        Self {
+            tab,
+            mru_rank,
+            accessibility_copy,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct TabSearchItemAccessibilityCopy {
+    selected_tab_template: String,
+    help_template: String,
+}
+
+impl TabSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            selected_tab_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.selected_tab",
+            ),
+            help_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.navigate_tab",
+            ),
+        }
+    }
+
+    fn selected_label(&self, title: &str) -> String {
+        self.selected_tab_template.replace("{title}", title)
+    }
+
+    fn help_message(&self, title: &str) -> String {
+        self.help_template.replace("{title}", title)
     }
 }
 
@@ -99,13 +138,10 @@ impl SearchItemTrait for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Selected tab: {}.", self.tab.title)
+        self.accessibility_copy.selected_label(&self.tab.title)
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some(format!(
-            "Press enter to navigate to tab: {}.",
-            self.tab.title
-        ))
+        Some(self.accessibility_copy.help_message(&self.tab.title))
     }
 }

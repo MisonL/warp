@@ -1,4 +1,3 @@
-use crate::localization;
 use regex::Regex;
 use warp_editor::editor::NavigationKey;
 use warpui::elements::{
@@ -16,6 +15,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 
 const LABEL_FONT_SIZE: f32 = 12.;

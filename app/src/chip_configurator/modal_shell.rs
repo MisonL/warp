@@ -209,6 +209,7 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
         config.activate_action,
         config.chip_action_wrapper,
         appearance,
+        app,
     );
 
     let left_section = Flex::column()
@@ -221,6 +222,7 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
                 config.activate_action,
                 config.chip_action_wrapper,
                 appearance,
+                app,
             ))
             .with_margin_top(8.)
             .finish(),
@@ -237,6 +239,7 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
                 config.activate_action,
                 config.chip_action_wrapper,
                 appearance,
+                app,
             ))
             .with_margin_top(8.)
             .finish(),

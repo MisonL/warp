@@ -1,4 +1,3 @@
-use crate::localization;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,9 +56,7 @@ use crate::view_components::ToastFlavor;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::{CustomerType, Workspace, WorkspaceUid};
-use crate::{send_telemetry_from_ctx, WorkspaceAction};
-
-const MANAGED_AUTO_RELOAD_HEADER: &str = "Auto-reload is enabled";
+use crate::{localization, send_telemetry_from_ctx, WorkspaceAction};
 
 const HEADER_FONT_SIZE: f32 = 16.;
 
@@ -1397,14 +1394,17 @@ impl BillingAndUsagePageV2View {
     fn render_addon_credits_non_admin_auto_reload_card(
         &self,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
         description_text: String,
         warning_text: Option<String>,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let bg = theme.background();
         let auto_reload_header = Text::new_inline(
-            MANAGED_AUTO_RELOAD_HEADER,
+            localization::text_for_app(
+                app,
+                "settings.billing.addon_credits.auto_reload.managed.title",
+            ),
             appearance.ui_font_family(),
             HEADER_FONT_SIZE,
         )

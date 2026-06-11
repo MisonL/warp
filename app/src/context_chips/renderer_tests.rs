@@ -1,6 +1,5 @@
 use pathfinder_color::ColorU;
-use settings::Setting as _;
-use settings::SettingsManager;
+use settings::{Setting as _, SettingsManager};
 use warpui::fonts::Properties;
 use warpui::{App, AppContext};
 

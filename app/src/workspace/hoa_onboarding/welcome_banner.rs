@@ -8,8 +8,7 @@ use warpui::elements::{
     ParentElement, ParentOffsetBounds, Radius, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::AppContext;
-use warpui::{Element, ViewHandle};
+use warpui::{AppContext, Element, ViewHandle};
 
 use crate::appearance::Appearance;
 use crate::localization;

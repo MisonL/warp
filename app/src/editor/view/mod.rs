@@ -8222,6 +8222,7 @@ impl EditorView {
         &self,
         icon_size: f32,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let Some(ai_context_menu_state) = &self.ai_context_menu_state else {
             return None;
@@ -8241,19 +8242,21 @@ impl EditorView {
             padding: Some(Coords::uniform(icon_size / 10.)),
             ..Default::default()
         });
-        let button =
-            button
-                .with_tooltip_position(ButtonTooltipPosition::Above)
-                .with_tooltip(self.render_menu_button_tooltip(
-                    "Search files and directories".to_string(),
-                    appearance,
-                ))
-                .build()
-                .with_cursor(Cursor::PointingHand)
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(EditorAction::SetAIContextMenuOpen(true));
-                })
-                .finish();
+        let button = button
+            .with_tooltip_position(ButtonTooltipPosition::Above)
+            .with_tooltip(self.render_menu_button_tooltip(
+                crate::localization::text_for_app(
+                    app,
+                    "editor.ai_context_menu.search_files_tooltip",
+                ),
+                appearance,
+            ))
+            .build()
+            .with_cursor(Cursor::PointingHand)
+            .on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(EditorAction::SetAIContextMenuOpen(true));
+            })
+            .finish();
 
         Some(button)
     }
@@ -8380,7 +8383,8 @@ impl EditorView {
         let mut controls = Flex::row().with_main_axis_size(MainAxisSize::Min);
 
         if should_show_at_context_menu {
-            let at_context_menu_button = self.render_at_context_menu_button(icon_size, appearance);
+            let at_context_menu_button =
+                self.render_at_context_menu_button(icon_size, appearance, ctx);
             if let Some(at_context_menu_button) = at_context_menu_button {
                 controls.add_child(
                     Container::new(at_context_menu_button)

@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -11,6 +10,7 @@ use super::tab_config::{
 };
 use crate::app_state::{BranchSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot};
 use crate::launch_configs::launch_config::SplitDirection;
+use crate::localization;
 use crate::terminal::cli_agent::CLIAgent;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::icons::Icon;
@@ -114,6 +114,22 @@ pub fn build_tab_config(
     enable_worktree: bool,
     autogenerate_worktree_branch_name: bool,
 ) -> TabConfig {
+    build_tab_config_with_worktree_branch_description(
+        session_type,
+        directory,
+        enable_worktree,
+        autogenerate_worktree_branch_name,
+        None,
+    )
+}
+
+pub fn build_tab_config_with_worktree_branch_description(
+    session_type: &SessionType,
+    directory: &Path,
+    enable_worktree: bool,
+    autogenerate_worktree_branch_name: bool,
+    worktree_branch_description: Option<&str>,
+) -> TabConfig {
     let mut commands: Vec<String> = Vec::new();
     let mut params = HashMap::new();
     let mut title = None;
@@ -138,7 +154,7 @@ pub fn build_tab_config(
             params.insert(
                 WORKTREE_BRANCH_PARAM.to_string(),
                 TabConfigParam {
-                    description: Some("New worktree branch name".to_string()),
+                    description: worktree_branch_description.map(str::to_string),
                     default: Some(WORKTREE_BRANCH_DEFAULT.to_string()),
                     param_type: TabConfigParamType::Text,
                 },

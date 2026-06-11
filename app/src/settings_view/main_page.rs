@@ -1,4 +1,3 @@
-use crate::localization;
 use std::sync::{Arc, Mutex};
 
 use ::settings::{Setting, ToggleableSetting};
@@ -46,7 +45,7 @@ use crate::workspace::WorkspaceAction;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::CustomerType;
-use crate::{report_if_error, send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, report_if_error, send_telemetry_from_ctx, TelemetryEvent};
 
 const PHOTO_SIZE: f32 = 40.;
 const REGULAR_TEXT_FONT_SIZE: f32 = 12.;
@@ -1160,26 +1159,47 @@ impl SettingsWidget for IapCredentialsWidget {
         let disabled: ColorU = appearance.theme().disabled_ui_text_color().into();
         let active: ColorU = appearance.theme().active_ui_text_color().into();
         let (status_text, status_color): (String, ColorU) = match &state {
-            IapCredentialsState::Missing => ("Not yet loaded".to_string(), disabled),
-            IapCredentialsState::Refreshing { .. } => ("Refreshing…".to_string(), active),
+            IapCredentialsState::Missing => (
+                localization::text_for_app(app, "settings.account.iap.status.not_loaded"),
+                disabled,
+            ),
+            IapCredentialsState::Refreshing { .. } => (
+                localization::text_for_app(app, "settings.account.iap.status.refreshing"),
+                active,
+            ),
             IapCredentialsState::Loaded(cached) => {
                 let remaining = cached
                     .expires_at
                     .saturating_duration_since(instant::Instant::now());
-                let mins = remaining.as_secs() / 60;
-                (format!("Loaded (refreshes in ~{mins}m)"), active)
+                let minutes = (remaining.as_secs() / 60).to_string();
+                (
+                    localization::text_for_app_with_args(
+                        app,
+                        "settings.account.iap.status.loaded",
+                        &[("minutes", &minutes)],
+                    ),
+                    active,
+                )
             }
-            IapCredentialsState::Failed { message, .. } => (format!("Failed: {message}"), ansi_red),
-            IapCredentialsState::EnvInjected { .. } => {
-                ("Using injected token (WARP_IAP_TOKEN)".to_string(), active)
-            }
+            IapCredentialsState::Failed { message, .. } => (
+                localization::text_for_app_with_args(
+                    app,
+                    "settings.account.iap.status.failed",
+                    &[("message", message)],
+                ),
+                ansi_red,
+            ),
+            IapCredentialsState::EnvInjected { .. } => (
+                localization::text_for_app(app, "settings.account.iap.status.using_injected_token"),
+                active,
+            ),
         };
 
         let is_refreshing = matches!(state, IapCredentialsState::Refreshing { .. });
 
         let label = Align::new(
             Text::new_inline(
-                "Staging IAP credentials".to_string(),
+                localization::text_for_app(app, "settings.account.iap.label"),
                 appearance.ui_font_family(),
                 REGULAR_TEXT_FONT_SIZE,
             )
@@ -1211,9 +1231,9 @@ impl SettingsWidget for IapCredentialsWidget {
                 self.refresh_button_mouse_state.clone(),
             )
             .with_text_label(if is_refreshing {
-                "Refreshing…".into()
+                localization::text_for_app(app, "settings.account.iap.action.refreshing")
             } else {
-                "Refresh".into()
+                localization::text_for_app(app, "settings.account.iap.action.refresh")
             })
             .with_style(UiComponentStyles {
                 font_size: Some(12.),

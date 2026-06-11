@@ -8,12 +8,10 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::{
-    appearance::Appearance,
-    localization,
-    ui_components::dialog::{dialog_styles, Dialog},
-    view_components::action_button::{ActionButton, DangerPrimaryTheme, NakedTheme},
-};
+use crate::appearance::Appearance;
+use crate::localization;
+use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::view_components::action_button::{ActionButton, DangerPrimaryTheme, NakedTheme};
 
 const DIALOG_WIDTH: f32 = 450.;
 

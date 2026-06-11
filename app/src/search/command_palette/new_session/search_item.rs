@@ -6,6 +6,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use super::new_session_option::NewSessionOption;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
 use crate::search::result_renderer::ItemHighlightState;
@@ -15,14 +16,45 @@ use crate::ui_components::icons::Icon;
 pub struct SearchItem {
     match_result: FuzzyMatchResult,
     option: Arc<NewSessionOption>,
+    accessibility_copy: NewSessionSearchItemAccessibilityCopy,
 }
 
 impl SearchItem {
-    pub fn new(option: Arc<NewSessionOption>, match_result: FuzzyMatchResult) -> Self {
+    pub fn new(
+        option: Arc<NewSessionOption>,
+        match_result: FuzzyMatchResult,
+        accessibility_copy: NewSessionSearchItemAccessibilityCopy,
+    ) -> Self {
         Self {
             match_result,
             option,
+            accessibility_copy,
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct NewSessionSearchItemAccessibilityCopy {
+    selected_template: String,
+    help: String,
+}
+
+impl NewSessionSearchItemAccessibilityCopy {
+    pub fn new(app: &AppContext) -> Self {
+        Self {
+            selected_template: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.selected",
+            ),
+            help: localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.launch_session",
+            ),
+        }
+    }
+
+    fn selected_label(&self, name: &str) -> String {
+        self.selected_template.replace("{name}", name)
     }
 }
 
@@ -74,10 +106,11 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Selected {}.", self.option.description())
+        self.accessibility_copy
+            .selected_label(self.option.description())
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some("Press enter to launch this session.".into())
+        Some(self.accessibility_copy.help.clone())
     }
 }

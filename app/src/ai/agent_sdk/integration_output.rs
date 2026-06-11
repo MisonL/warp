@@ -1,4 +1,3 @@
-use crate::localization;
 use chrono::{DateTime, Utc};
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, Table};
@@ -13,6 +12,7 @@ use warp_localization::LocaleId;
 use warpui::AppContext;
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
+use crate::localization;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 
 const MAX_LINE_WIDTH: usize = 90;

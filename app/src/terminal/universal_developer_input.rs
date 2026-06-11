@@ -1,4 +1,3 @@
-use crate::localization;
 use std::borrow::Cow;
 use std::boxed::Box;
 use std::cell::RefCell;
@@ -65,7 +64,7 @@ use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, TooltipAlignment,
 };
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 pub enum AtContextMenuDisabledReason {
     #[cfg(target_family = "wasm")]

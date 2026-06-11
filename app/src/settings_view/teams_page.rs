@@ -3584,7 +3584,7 @@ impl TeamsWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let description = self.render_sub_text(
-            delete_disabled_reason.user_facing_message().into(),
+            teams_text(app, delete_disabled_reason.user_facing_message_key()),
             appearance,
             None,
         );
@@ -4194,7 +4194,6 @@ impl TeamsWidget {
 
         // Title, subtitle, and description
         page.add_child(render_sub_header(
-            app,
             appearance,
             teams_text(app, "settings.teams.title"),
             None,

@@ -1,8 +1,6 @@
-use crate::localization;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use warpui::AppContext;
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -14,17 +12,17 @@ use warp_completer::parsers::simple::all_parsed_commands;
 use warp_completer::signatures::CommandRegistry;
 use warp_util::path::EscapeChar;
 use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
-use warpui::{SingletonEntity, ViewContext};
+use warpui::{AppContext, SingletonEntity, ViewContext};
 
 use super::{Event, InlineBannerItem, InlineBannerType, TerminalView};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
-use crate::report_if_error;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::session::Session;
 use crate::terminal::view::inline_banner::{OpenInWarpBannerAction, OpenInWarpBannerState};
 use crate::util::openable_file_type::{is_file_openable_in_warp, OpenableFileType};
+use crate::{localization, report_if_error};
 
 #[cfg(test)]
 #[path = "open_in_warp_tests.rs"]

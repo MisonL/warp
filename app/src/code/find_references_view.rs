@@ -3,7 +3,6 @@
 //! This module provides a hover card that shows all references to a symbol
 //! as a flat list with file info, line numbers, and syntax-highlighted code snippets.
 
-use crate::localization;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -33,6 +32,7 @@ use warpui::{
 use super::editor::view::{CodeEditorRenderOptions, CodeEditorView};
 use super::global_buffer_model::GlobalBufferModel;
 use crate::editor::InteractionState;
+use crate::localization;
 use crate::search::result_renderer::ItemHighlightState;
 
 /// Maximum height for the find references card.

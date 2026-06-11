@@ -18,6 +18,7 @@ use super::{render, subshell_bootstrap_success_block_bytes, WarpificationSource}
 use crate::ai::agent::ProgrammingLanguage;
 use crate::ai::blocklist::code_block::{render_runnable_code_snippet, CodeSnippetButtonHandles};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::model::terminal_model::SubshellInitializationInfo;
 use crate::terminal::shell::{Shell, ShellType};
 use crate::ui_components::blended_colors;
@@ -110,21 +111,27 @@ impl WarpifySuccessBlock {
                 })
             })
         };
-        let auto_warpify_snippet = auto_warpify_snippet.map(|(output_grid, can_write_to_rc)| {
-            AutoWarpifySnippet {
+        let auto_warpify_snippet =
+            auto_warpify_snippet.map(|(output_grid, can_write_to_rc)| AutoWarpifySnippet {
                 description: (if !output_grid.is_empty() {
-                    "Run the following to automatically Warpify in the future:"
+                    localization::text_for_app(
+                        ctx,
+                        "terminal.warpify.success.auto_warpify_instructions",
+                    )
                 } else {
-                    "In remote subshells, Warp runs commands in the background to power completions, syntax highlighting, and other features."
-                }).into(),
+                    localization::text_for_app(
+                        ctx,
+                        "terminal.warpify.success.remote_subshell_description",
+                    )
+                })
+                .into(),
                 output_grid: output_grid.into(),
                 selection_handle: Default::default(),
                 selected_text: Default::default(),
                 code_snippet_handles: Default::default(),
                 shell_type: shell.shell_type(),
                 can_write_to_rc,
-            }
-        });
+            });
 
         Self {
             source,
@@ -151,9 +158,14 @@ impl WarpifySuccessBlock {
             .finish()
     }
 
-    pub fn render_title_ui(&self, theme: &WarpTheme, appearance: &Appearance) -> Box<dyn Element> {
+    pub fn render_title_ui(
+        &self,
+        theme: &WarpTheme,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let header_contents = render::build_header_row(
-            "Session Warpified",
+            localization::text_for_app(app, "terminal.warpify.success.title"),
             Icon::new(UiIcon::Warp.into(), theme.active_ui_detail()),
             theme,
             appearance,
@@ -162,7 +174,10 @@ impl WarpifySuccessBlock {
         .finish();
         let header_contents = Container::new(
             Flex::row()
-                .with_children([header_contents, self.render_learn_more_link(appearance)])
+                .with_children([
+                    header_contents,
+                    self.render_learn_more_link(appearance, app),
+                ])
                 .finish(),
         )
         .finish();
@@ -180,7 +195,11 @@ impl WarpifySuccessBlock {
         .finish()
     }
 
-    fn render_learn_more_link(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_learn_more_link(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let url = match self.source {
             WarpificationSource::Ssh => SSH_DOCS_URL,
             WarpificationSource::Subshell => SUBSHELL_DOCS_URL,
@@ -191,7 +210,7 @@ impl WarpifySuccessBlock {
         appearance
             .ui_builder()
             .link(
-                "Learn more".into(),
+                localization::text_for_app(app, "terminal.warpify.success.learn_more"),
                 None,
                 Some(Box::new({
                     move |ctx| {
@@ -323,7 +342,7 @@ impl View for WarpifySuccessBlock {
         let mut content = Flex::column();
 
         content.add_children([
-            self.render_title_ui(theme, appearance),
+            self.render_title_ui(theme, appearance, app),
             self.render_spawning_command(theme, appearance),
         ]);
 

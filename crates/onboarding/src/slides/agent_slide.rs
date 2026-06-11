@@ -36,6 +36,11 @@ use crate::visuals::agent_visual;
 /// high-contrast "inverted" fill (foreground color)
 struct UpgradeButtonTheme;
 
+struct ModelRowLabels {
+    recommended: String,
+    premium: String,
+}
+
 impl button::Theme for UpgradeButtonTheme {
     fn background(
         &self,
@@ -609,8 +614,10 @@ impl AgentSlide {
         let highlighted_id = self.highlighted_model_id.clone();
         let selected_id = state.agent_settings().selected_model_id.clone();
         let models = sorted_models(state.models());
-        let recommended_label = state.copy().text_owned("onboarding.agent.recommended");
-        let premium_label = state.copy().text_owned("onboarding.agent.premium");
+        let labels = ModelRowLabels {
+            recommended: state.copy().text_owned("onboarding.agent.recommended"),
+            premium: state.copy().text_owned("onboarding.agent.premium"),
+        };
 
         let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
@@ -629,8 +636,7 @@ impl AgentSlide {
                 is_highlighted,
                 mouse_state,
                 ROW_HEIGHT,
-                recommended_label.clone(),
-                premium_label.clone(),
+                &labels,
             );
             // Wrap each row in `SavePosition` so the scrollable can scroll
             // the keyboard-highlighted row into view (see
@@ -696,8 +702,7 @@ impl AgentSlide {
         is_highlighted: bool,
         mouse_state: MouseStateHandle,
         height: f32,
-        recommended_label: String,
-        premium_label: String,
+        labels: &ModelRowLabels,
     ) -> Box<dyn Element> {
         const ROW_RADIUS: f32 = 6.;
 
@@ -764,9 +769,9 @@ impl AgentSlide {
             };
 
             let trailing: Box<dyn Element> = if is_default {
-                make_pill(recommended_label.clone())
+                make_pill(labels.recommended.clone())
             } else if requires_upgrade {
-                make_pill(premium_label.clone())
+                make_pill(labels.premium.clone())
             } else {
                 Empty::new().finish()
             };

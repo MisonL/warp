@@ -1,20 +1,3 @@
-use crate::{
-    appearance::Appearance,
-    cloud_object::{model::persistence::CloudModel, CloudObject},
-    completer::SessionAgnosticContext,
-    localization,
-    notebooks::{
-        styles::block_footer_action_button,
-        telemetry::{ActionEntrypoint, BlockInfo},
-    },
-    server::ids::{HashableId, ToServerId},
-    settings::FontSettings,
-    terminal::input::decorations::{parse_current_commands_and_tokens, ParsedTokensSnapshot},
-    themes::theme::AnsiColorIdentifier,
-    ui_components::icons::Icon,
-    util::bindings::CustomAction,
-    workflows::{CloudWorkflow, WorkflowId},
-};
 use std::borrow::Cow;
 use std::mem;
 use std::ops::Range;
@@ -44,6 +27,22 @@ use super::notebook_command::{
 };
 use super::view::EditorViewAction;
 use super::{rich_text_styles, NotebookWorkflow};
+use crate::appearance::Appearance;
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::CloudObject;
+use crate::completer::SessionAgnosticContext;
+use crate::localization;
+use crate::notebooks::styles::block_footer_action_button;
+use crate::notebooks::telemetry::{ActionEntrypoint, BlockInfo};
+use crate::server::ids::{HashableId, ToServerId};
+use crate::settings::FontSettings;
+use crate::terminal::input::decorations::{
+    parse_current_commands_and_tokens, ParsedTokensSnapshot,
+};
+use crate::themes::theme::AnsiColorIdentifier;
+use crate::ui_components::icons::Icon;
+use crate::util::bindings::CustomAction;
+use crate::workflows::{CloudWorkflow, WorkflowId};
 
 #[derive(Default)]
 struct MouseStateHandles {

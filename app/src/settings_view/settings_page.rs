@@ -1,4 +1,3 @@
-use crate::localization;
 use core::fmt::{self, Display};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -45,6 +44,7 @@ use super::warp_drive_page::WarpDriveSettingsPageView;
 use super::warpify_page::WarpifyPageView;
 use super::SettingsSection;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::settings::CloudPreferencesSettings;
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
@@ -238,7 +238,6 @@ pub fn render_customer_type_badge(appearance: &Appearance, text: String) -> Box<
 
 /// Adds padding to the sub header
 pub fn render_sub_header(
-    _app: &AppContext,
     appearance: &Appearance,
     text_name: impl Into<Cow<'static, str>>,
     local_only_icon_state: Option<LocalOnlyIconState>,
@@ -256,17 +255,13 @@ pub fn render_sub_header(
         );
     if let Some(LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     }) = local_only_icon_state
     {
         sub_header.add_child(
-            Container::new(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
-            .with_padding_top(3.)
-            .finish(),
+            Container::new(render_local_only_icon(appearance, mouse_state, tooltip))
+                .with_padding_top(3.)
+                .finish(),
         );
     }
     sub_header.finish()
@@ -317,7 +312,6 @@ pub fn render_sub_header_with_description(
 
 #[cfg_attr(target_family = "wasm", allow(unused))]
 pub fn render_sub_sub_header(
-    _app: &AppContext,
     appearance: &Appearance,
     text_name: impl Into<Cow<'static, str>>,
     local_only_icon_state: Option<LocalOnlyIconState>,
@@ -338,13 +332,13 @@ pub fn render_sub_sub_header(
     );
     if let Some(LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     }) = local_only_icon_state
     {
         sub_sub_header.add_child(render_local_only_icon(
             appearance,
             mouse_state.clone(),
-            custom_tooltip,
+            tooltip,
         ));
     }
     sub_sub_header.finish()
@@ -497,7 +491,7 @@ pub enum LocalOnlyIconState {
     Hidden,
     Visible {
         mouse_state: MouseStateHandle,
-        custom_tooltip: Option<String>,
+        tooltip: String,
     },
 }
 
@@ -537,7 +531,7 @@ impl LocalOnlyIconState {
                     .clone();
                 Self::Visible {
                     mouse_state,
-                    custom_tooltip: None,
+                    tooltip: localization::text_for_app(app, "settings.local_only.tooltip"),
                 }
             }
             _ => Self::Hidden,
@@ -603,22 +597,17 @@ pub fn render_info_icon<T: Clone + Action>(
 pub fn render_local_only_icon(
     appearance: &Appearance,
     mouse_state: MouseStateHandle,
-    custom_tooltip: Option<String>,
+    tooltip: String,
 ) -> Box<dyn Element> {
     let info_button = appearance
         .ui_builder()
-        .local_only_icon_with_tooltip(
-            13.,
-            custom_tooltip.unwrap_or("This setting is not synced to your other devices".to_owned()),
-            mouse_state.clone(),
-        )
+        .local_only_icon_with_tooltip(13., tooltip, mouse_state.clone())
         .finish();
 
     Container::new(info_button).with_margin_left(4.).finish()
 }
 
 pub fn render_body_item_label<T: Clone + Action>(
-    _app: &AppContext,
     label_text: String,
     label_color_override: Option<Fill>,
     additional_info: Option<AdditionalInfo<T>>,
@@ -726,14 +715,10 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
             .with_child(render_info_icon(appearance, additional_info));
         if let LocalOnlyIconState::Visible {
             mouse_state,
-            custom_tooltip,
+            tooltip,
         } = local_only_icon_state
         {
-            row.add_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ));
+            row.add_child(render_local_only_icon(appearance, mouse_state, tooltip));
         }
         if let Some(child) = secondary_text_child {
             row.add_child(child);
@@ -741,17 +726,13 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
         row.finish()
     } else if let LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     } = local_only_icon_state
     {
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(label)
-            .with_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
+            .with_child(render_local_only_icon(appearance, mouse_state, tooltip))
             .finish()
     } else {
         label
@@ -859,7 +840,6 @@ pub fn build_toggle_element(
 }
 
 pub fn render_dropdown_item_label(
-    _app: &AppContext,
     label_text: String,
     secondary_text: Option<String>,
     local_only_icon_state: LocalOnlyIconState,
@@ -920,17 +900,13 @@ fn render_dropdown_item_label_internal(
 
     if let LocalOnlyIconState::Visible {
         mouse_state,
-        custom_tooltip,
+        tooltip,
     } = local_only_icon_state
     {
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(Shrinkable::new(1.0, label).finish())
-            .with_child(render_local_only_icon(
-                appearance,
-                mouse_state,
-                custom_tooltip,
-            ))
+            .with_child(render_local_only_icon(appearance, mouse_state, tooltip))
             .finish()
     } else {
         label
@@ -1782,12 +1758,7 @@ impl<V: warpui::View> PageType<V> {
                                 subtitle,
                             ));
                         } else {
-                            page.add_child(render_sub_header(
-                                app,
-                                appearance,
-                                category_title,
-                                None,
-                            ));
+                            page.add_child(render_sub_header(appearance, category_title, None));
                         }
                     }
                     for widget in &category.widgets {

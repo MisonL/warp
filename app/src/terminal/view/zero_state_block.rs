@@ -1,4 +1,3 @@
-use crate::localization;
 use settings::Setting;
 use warp_core::report_if_error;
 use warp_core::ui::Icon;
@@ -33,7 +32,7 @@ use crate::ui_components::blended_colors;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::tab_settings::{TabSettings, TabSettingsChangedEvent};
 use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
-use crate::WorkspaceAction;
+use crate::{localization, WorkspaceAction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalViewZeroStateAction {

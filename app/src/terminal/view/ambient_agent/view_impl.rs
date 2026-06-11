@@ -974,7 +974,7 @@ impl TerminalView {
                         .as_ref(ctx)
                         .task_fetch_error(&task_id)
                         .cloned();
-                    ConversationDetailsData::from_task_id(task_id, fetch_error)
+                    ConversationDetailsData::from_task_id(task_id, fetch_error, ctx)
                 });
             self.conversation_details_panel.update(ctx, |panel, ctx| {
                 panel.set_conversation_details(data, ctx);
