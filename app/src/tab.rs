@@ -1,4 +1,3 @@
-use crate::localization;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -53,13 +52,13 @@ use crate::workspace::tab_settings::{
 use crate::workspace::{
     PaneViewLocator, TabBarDropTargetData, TabBarLocation, TabContextMenuAnchor, WorkspaceAction,
 };
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 pub const TAB_BAR_BORDER_HEIGHT: f32 = 1.0;
 const TAB_INDICATOR_HEIGHT: f32 = 14.0;
 
-/// Label for the tab right-click menu's "Move to group" submenu parent.
-pub const MOVE_TO_GROUP_LABEL: &str = "Move to group";
+/// SavePosition id for the tab right-click menu's "Move to group" submenu parent.
+pub const MOVE_TO_GROUP_POSITION_ID: &str = "tab_menu:move_to_group";
 
 /// True when the user has opted into vertical tabs and the feature flag is on.
 /// Exposed so binding-description overrides in `workspace/mod.rs` and context-
@@ -597,14 +596,18 @@ impl TabData {
                     ctx,
                     "tab.menu.move_to_group",
                 ))
+                .with_save_position_id(MOVE_TO_GROUP_POSITION_ID)
                 .into_item(),
             );
         }
         if self.group_id.is_some() {
             menu_items.push(
-                MenuItemFields::new("Remove from group")
-                    .with_on_select_action(WorkspaceAction::RemoveTabFromGroup(index))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "tab.menu.remove_from_group",
+                ))
+                .with_on_select_action(WorkspaceAction::RemoveTabFromGroup(index))
+                .into_item(),
             );
         }
         menu_items

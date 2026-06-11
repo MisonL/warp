@@ -43,6 +43,7 @@ pub struct Window {
     pub agent_management_filters: Option<String>,
     pub left_panel_open: Option<bool>,
     pub vertical_tabs_panel_open: Option<bool>,
+    pub tab_groups: Option<String>,
 }
 
 #[derive(Identifiable, Insertable, Queryable)]
@@ -340,6 +341,7 @@ pub struct NewWindow {
     pub agent_management_filters: Option<String>,
     pub left_panel_open: Option<bool>,
     pub vertical_tabs_panel_open: Option<bool>,
+    pub tab_groups: Option<String>,
 }
 
 #[derive(Identifiable, Queryable, Associations)]
@@ -349,6 +351,7 @@ pub struct Tab {
     pub window_id: i32,
     pub custom_title: Option<String>,
     pub color: Option<String>,
+    pub group_id: Option<String>,
 }
 
 #[derive(Insertable)]
@@ -357,6 +360,7 @@ pub struct NewTab {
     pub window_id: i32,
     pub custom_title: Option<String>,
     pub color: Option<String>,
+    pub group_id: Option<String>,
 }
 
 /// The panes data model includes pane_nodes, pane_leaves and pane_branches.
@@ -1098,9 +1102,8 @@ pub fn token_usage_category_display_name(category: &str) -> String {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ModelTokenUsage {
     /// Identifier used for both display and replay. For warp/byok rows this is the
-    /// server-known model id; for custom endpoint rows this is the resolved alias
-    /// (or fallback label) — the upstream `config_key` is translated into this
-    /// label once at ingestion time and is not retained separately.
+    /// server-known model id; for custom endpoint rows this is the stable upstream
+    /// `config_key`. Custom endpoint display labels are resolved at render time.
     pub model_id: String,
     /// Alias for backward compat: old persisted data used `total_tokens` for warp usage.
     #[serde(default, alias = "total_tokens")]

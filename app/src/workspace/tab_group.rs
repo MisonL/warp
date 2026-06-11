@@ -3,6 +3,8 @@
 use uuid::Uuid;
 use warpui::elements::DraggableState;
 
+use crate::app_state::TabGroupSnapshot;
+
 /// Stable identity for a tab group.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct TabGroupId(pub Uuid);
@@ -37,6 +39,23 @@ impl TabGroup {
             name: None,
             collapsed: false,
             draggable_state: Default::default(),
+        }
+    }
+
+    pub fn from_snapshot(snapshot: TabGroupSnapshot) -> Self {
+        Self {
+            id: TabGroupId(snapshot.id),
+            name: snapshot.name,
+            collapsed: snapshot.collapsed,
+            draggable_state: Default::default(),
+        }
+    }
+
+    pub fn snapshot(&self) -> TabGroupSnapshot {
+        TabGroupSnapshot {
+            id: self.id.0,
+            name: self.name.clone(),
+            collapsed: self.collapsed,
         }
     }
 }

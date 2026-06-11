@@ -339,7 +339,7 @@ use crate::settings_view::{flags, SettingsSection, SettingsView, SettingsViewEve
 use crate::shell_indicator::ShellIndicatorType;
 use crate::tab::{
     tab_position_id, uses_vertical_tabs, NewSessionMenuItem, PaneNameMenuTarget, SelectedTabColor,
-    TabBarState, TabComponent, TabData, TabTelemetryAction, MOVE_TO_GROUP_LABEL,
+    TabBarState, TabComponent, TabData, TabTelemetryAction, MOVE_TO_GROUP_POSITION_ID,
     TAB_BAR_BORDER_HEIGHT,
 };
 use crate::tab_configs::action_sidecar::SidecarItemKind;
@@ -2172,12 +2172,16 @@ impl Workspace {
                 self.close_session_config_modal(ctx);
                 let has_worktree = selection.enable_worktree;
                 let has_params = {
-                    use crate::tab_configs::session_config::build_tab_config;
-                    let config = build_tab_config(
+                    use crate::tab_configs::session_config::build_tab_config_with_worktree_branch_description;
+                    let config = build_tab_config_with_worktree_branch_description(
                         &selection.session_type,
                         &selection.directory,
                         selection.enable_worktree,
                         selection.autogenerate_worktree_branch_name,
+                        Some(&localization::text_for_app(
+                            ctx,
+                            "tab_config.new_worktree.branch_name",
+                        )),
                     );
                     !config.params.is_empty()
                 };
@@ -2240,14 +2244,20 @@ impl Workspace {
         selection: &crate::tab_configs::session_config::SessionConfigSelection,
         ctx: &mut ViewContext<Self>,
     ) {
-        use crate::tab_configs::session_config::{build_tab_config, write_tab_config};
+        use crate::tab_configs::session_config::{
+            build_tab_config_with_worktree_branch_description, write_tab_config,
+        };
 
         // Build a TabConfig.
-        let config = build_tab_config(
+        let config = build_tab_config_with_worktree_branch_description(
             &selection.session_type,
             &selection.directory,
             selection.enable_worktree,
             selection.autogenerate_worktree_branch_name,
+            Some(&localization::text_for_app(
+                ctx,
+                "tab_config.new_worktree.branch_name",
+            )),
         );
 
         let old_pane_group_id = self.active_tab_pane_group().id();
@@ -3742,6 +3752,18 @@ impl Workspace {
             } => {
                 let active_tab_index = window_snapshot.active_tab_index;
                 let restored_left_panel_open = window_snapshot.left_panel_open;
+                let restore_tab_groups = FeatureFlag::GroupedTabs.is_enabled();
+
+                if restore_tab_groups {
+                    window_snapshot
+                        .tab_groups
+                        .iter()
+                        .cloned()
+                        .map(TabGroup::from_snapshot)
+                        .for_each(|group| {
+                            self.tab_groups.insert(group.id, group);
+                        });
+                }
 
                 window_snapshot
                     .tabs
@@ -3758,6 +3780,9 @@ impl Workspace {
                         self.tabs[tab_index].default_directory_color =
                             saved_tab.default_directory_color;
                         self.tabs[tab_index].selected_color = saved_tab.selected_color;
+                        if restore_tab_groups {
+                            self.tabs[tab_index].group_id = saved_tab.group_id.map(TabGroupId);
+                        }
 
                         let pane_group = self.tabs[tab_index].pane_group.clone();
 
@@ -6867,13 +6892,12 @@ impl Workspace {
         let Some(group) = self.tab_groups.get(&group_id) else {
             return;
         };
-        // Seed the editor with the existing name, or the "New Group" default
+        // Seed the editor with the existing name, or the localized default
         // label when the group is unnamed. `insert_selected_text` selects the
         // seeded text so the user can type to replace it instantly.
-        let seed_text = group
-            .name
-            .clone()
-            .unwrap_or_else(|| "New Group".to_string());
+        let seed_text = group.name.clone().unwrap_or_else(|| {
+            localization::text_for_app(ctx, "workspace.vertical_tabs.group.new")
+        });
 
         self.current_workspace_state
             .set_tab_group_being_renamed(group_id);
@@ -7350,7 +7374,7 @@ impl Workspace {
             return;
         }
 
-        let menu_items = self.tab_group_menu_items(group_id);
+        let menu_items = self.tab_group_menu_items(group_id, ctx);
         ctx.update_view(&self.tab_right_click_menu, |context_menu, view_ctx| {
             context_menu.set_items(menu_items, view_ctx);
         });
@@ -8071,7 +8095,7 @@ impl Workspace {
         self.add_tab_with_pane_layout(
             panes_layout,
             Arc::new(HashMap::new()),
-            Some("Settings".to_owned()),
+            Some(workspace_text(ctx, "workspace.tab.settings")),
             ctx,
         );
     }
@@ -9398,7 +9422,11 @@ impl Workspace {
     }
 
     /// Builds the tab group more-options menu items, grouped into sections.
-    fn tab_group_menu_items(&self, group_id: TabGroupId) -> Vec<MenuItem<WorkspaceAction>> {
+    fn tab_group_menu_items(
+        &self,
+        group_id: TabGroupId,
+        app: &AppContext,
+    ) -> Vec<MenuItem<WorkspaceAction>> {
         let Some((first, last)) = group_member_index_range(&self.tabs, group_id) else {
             return vec![];
         };
@@ -9410,44 +9438,59 @@ impl Workspace {
             let mut items = vec![];
             if has_tabs_above {
                 items.push(
-                    MenuItemFields::new("Move group up")
+                    MenuItemFields::new(localization::text_for_app(app, "tab.menu.group.move_up"))
                         .with_on_select_action(WorkspaceAction::MoveTabGroupUp(group_id))
                         .into_item(),
                 );
             }
             if has_tabs_below {
                 items.push(
-                    MenuItemFields::new("Move group down")
-                        .with_on_select_action(WorkspaceAction::MoveTabGroupDown(group_id))
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        app,
+                        "tab.menu.group.move_down",
+                    ))
+                    .with_on_select_action(WorkspaceAction::MoveTabGroupDown(group_id))
+                    .into_item(),
                 );
             }
             items
         };
 
         let close_section = {
-            let mut items = vec![MenuItemFields::new("Close all tabs in group")
-                .with_on_select_action(WorkspaceAction::CloseTabGroup(group_id))
-                .into_item()];
+            let mut items = vec![MenuItemFields::new(localization::text_for_app(
+                app,
+                "tab.menu.group.close_all_tabs",
+            ))
+            .with_on_select_action(WorkspaceAction::CloseTabGroup(group_id))
+            .into_item()];
             if has_tabs_outside {
                 items.push(
-                    MenuItemFields::new("Close other tabs")
-                        .with_on_select_action(WorkspaceAction::CloseTabsOutsideGroup(group_id))
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        app,
+                        "tab.menu.close_other_tabs",
+                    ))
+                    .with_on_select_action(WorkspaceAction::CloseTabsOutsideGroup(group_id))
+                    .into_item(),
                 );
             }
             if has_tabs_above {
                 items.push(
-                    MenuItemFields::new("Close tabs above")
-                        .with_on_select_action(WorkspaceAction::CloseTabsAboveGroup(group_id))
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        app,
+                        "tab.menu.group.close_tabs_above",
+                    ))
+                    .with_on_select_action(WorkspaceAction::CloseTabsAboveGroup(group_id))
+                    .into_item(),
                 );
             }
             if has_tabs_below {
                 items.push(
-                    MenuItemFields::new("Close tabs below")
-                        .with_on_select_action(WorkspaceAction::CloseTabsBelowGroup(group_id))
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        app,
+                        "tab.menu.close_tabs_below",
+                    ))
+                    .with_on_select_action(WorkspaceAction::CloseTabsBelowGroup(group_id))
+                    .into_item(),
                 );
             }
             items
@@ -9456,17 +9499,25 @@ impl Workspace {
         let mut menu_items = vec![];
         for section_items in [
             vec![
-                MenuItemFields::new("Ungroup tabs")
-                    .with_on_select_action(WorkspaceAction::UngroupTabs(group_id))
-                    .into_item(),
-                MenuItemFields::new("New tab in group")
-                    .with_on_select_action(WorkspaceAction::NewTabInGroup(group_id))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    app,
+                    "tab.menu.group.ungroup_tabs",
+                ))
+                .with_on_select_action(WorkspaceAction::UngroupTabs(group_id))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    app,
+                    "tab.menu.group.new_tab_in_group",
+                ))
+                .with_on_select_action(WorkspaceAction::NewTabInGroup(group_id))
+                .into_item(),
             ],
             move_section,
-            vec![MenuItemFields::new("Rename")
-                .with_on_select_action(WorkspaceAction::RenameTabGroup(group_id))
-                .into_item()],
+            vec![
+                MenuItemFields::new(localization::text_for_app(app, "common.rename"))
+                    .with_on_select_action(WorkspaceAction::RenameTabGroup(group_id))
+                    .into_item(),
+            ],
             close_section,
         ] {
             if section_items.is_empty() {
@@ -9485,6 +9536,7 @@ impl Workspace {
     fn build_move_to_group_sidecar_items(
         &self,
         tab_index: usize,
+        app: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
         let Some(tab) = self.tabs.get(tab_index) else {
             return vec![];
@@ -9511,7 +9563,9 @@ impl Workspace {
                     .tab_groups
                     .get(&group_id)
                     .and_then(|g| g.name.clone())
-                    .unwrap_or_else(|| "Untitled group".to_string());
+                    .unwrap_or_else(|| {
+                        localization::text_for_app(app, "workspace.vertical_tabs.group.untitled")
+                    });
                 MenuItemFields::new(label)
                     .with_on_select_action(WorkspaceAction::MoveTabToGroup {
                         tab_index,
@@ -9528,29 +9582,29 @@ impl Workspace {
             return;
         };
         // No hovered index = cursor left the menu (possibly onto the sidecar);
-        // no label = hovered a non-label row (e.g. separator).
+        // no position id = hovered a non-label row (e.g. separator).
         let hovered = self.tab_right_click_menu.read(ctx, |menu, _| {
             let idx = menu.hovered_index()?;
-            let label = match menu.items().get(idx)? {
-                MenuItem::Item(fields) => Some(fields.label().to_string()),
+            let save_position_id = match menu.items().get(idx)? {
+                MenuItem::Item(fields) => Some(fields.save_position_id().to_string()),
                 _ => None,
             };
-            Some((idx, label))
+            Some((idx, save_position_id))
         });
 
-        let Some((hovered_index, hovered_label)) = hovered else {
+        let Some((hovered_index, hovered_save_position_id)) = hovered else {
             return;
         };
 
-        let Some(label) = hovered_label else {
+        let Some(save_position_id) = hovered_save_position_id else {
             if self.show_move_to_group_sidecar {
                 self.hide_move_to_group_sidecar(ctx);
             }
             return;
         };
 
-        if label == MOVE_TO_GROUP_LABEL {
-            let items = self.build_move_to_group_sidecar_items(tab_index);
+        if save_position_id == MOVE_TO_GROUP_POSITION_ID {
+            let items = self.build_move_to_group_sidecar_items(tab_index, ctx);
             if items.is_empty() {
                 self.hide_move_to_group_sidecar(ctx);
                 return;
@@ -10343,11 +10397,15 @@ impl Workspace {
             warp_util::worktree_names::generate_worktree_branch_name(&branch_refs)
         };
 
-        let toml_content = crate::tab_configs::build_worktree_config_toml(
+        let toml_content = crate::tab_configs::build_worktree_config_toml_with_branch_description(
             &config_name,
             repo,
             base_branch,
             worktree_branch_name,
+            Some(&localization::text_for_app(
+                ctx,
+                "tab_config.new_worktree.branch_name",
+            )),
         );
 
         let dir = tab_configs_dir();
@@ -11016,6 +11074,11 @@ impl Workspace {
                 TabSnapshot {
                     root,
                     custom_title: pane_group.custom_title(app),
+                    group_id: self
+                        .tabs
+                        .get(tab_index)
+                        .and_then(|tab| tab.group_id)
+                        .map(|group_id| group_id.0),
                     default_directory_color: self
                         .tabs
                         .get(tab_index)
@@ -11042,6 +11105,17 @@ impl Workspace {
                     })
                 )
             })
+            .collect();
+
+        let tab_groups = self
+            .tab_groups
+            .iter()
+            .filter(|(group_id, _)| {
+                self.tabs.iter().enumerate().any(|(tab_index, tab)| {
+                    Some(tab_index) != transferred_tab_index && tab.group_id == Some(**group_id)
+                })
+            })
+            .map(|(_, group)| group.snapshot())
             .collect();
 
         let resizable_data = ResizableData::handle(app);
@@ -11097,6 +11171,7 @@ impl Workspace {
 
         WindowSnapshot {
             tabs,
+            tab_groups,
             active_tab_index,
             bounds: window_bounds,
             fullscreen_state: window_fullscreen_state,
@@ -12202,7 +12277,7 @@ impl Workspace {
         self.add_tab_with_pane_layout(
             Default::default(),
             Arc::new(HashMap::new()),
-            Some("Install Update".to_owned()),
+            Some(workspace_text(ctx, "workspace.tab.install_update")),
             ctx,
         );
 
@@ -12843,7 +12918,7 @@ impl Workspace {
                 log::error!("Failed to load Oz conversation {conversation_id} for forking.");
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     let toast = DismissibleToast::error(
-                        "Failed to load conversation for forking.".to_owned(),
+                        workspace_text(ctx, "workspace.toast.failed_to_load_conversation_for_forking"),
                     );
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -14463,7 +14538,7 @@ impl Workspace {
             AuthSecretFtuxViewEvent::Failed { .. } => {}
         });
 
-        let title = "New API key".to_string();
+        let title = workspace_text(ctx, "settings.platform.api_keys.modal_title.new");
         let modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(Some(title), body, ctx).with_modal_style(UiComponentStyles {
                 width: Some(520.),
@@ -15431,8 +15506,9 @@ impl Workspace {
 
                 if !object_found {
                     self.toast_stack.update(ctx, |toast_stack, ctx| {
-                        let toast = DismissibleToast::error(String::from(
-                            "Resource not found or access denied",
+                        let toast = DismissibleToast::error(workspace_text(
+                            ctx,
+                            "workspace.toast.resource_not_found_or_access_denied",
                         ));
                         toast_stack.add_ephemeral_toast(toast, ctx);
                     });
@@ -18337,7 +18413,8 @@ impl Workspace {
                 });
 
                 // Enter agent view and submit the initial prompt
-                let initial_prompt = "Hello, Agent Mode x Codex!".to_string();
+                let initial_prompt =
+                    localization::text_for_app(ctx, "workspace.codex_modal.initial_prompt");
                 terminal_view.update(ctx, |terminal_view, ctx| {
                     terminal_view.enter_agent_view_for_new_conversation(
                         Some(initial_prompt),
@@ -18848,7 +18925,11 @@ impl Workspace {
         ctx.notify();
     }
 
-    fn render_ai_assistant_warm_welcome(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_ai_assistant_warm_welcome(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let background_color = theme.surface_2();
         let border_color = theme.surface_3();
@@ -18906,7 +18987,7 @@ impl Workspace {
         let body = appearance
             .ui_builder()
             .wrappable_text(
-                "Ask Warp AI to explain errors, suggest commands or write scripts.".to_owned(),
+                workspace_text(app, "workspace.welcome.ai_assistant.body"),
                 true,
             )
             .with_style(UiComponentStyles {
@@ -22326,7 +22407,7 @@ impl Workspace {
                 ..Default::default()
             })),
             Arc::new(HashMap::new()),
-            Some("Introducing Oz".to_string()),
+            Some(workspace_text(ctx, "workspace.tab.introducing_oz")),
             ctx,
         );
         self.oz_launch_modal.tab_pane_group_id = self
@@ -25174,7 +25255,7 @@ impl View for Workspace {
                     .finish();
 
                     let render_left = self.should_render_sidecar_left(
-                        MOVE_TO_GROUP_LABEL,
+                        MOVE_TO_GROUP_POSITION_ID,
                         MOVE_TO_GROUP_SIDECAR_WIDTH,
                         app,
                     );
@@ -25195,7 +25276,7 @@ impl View for Workspace {
                     stack.add_positioned_overlay_child(
                         sidecar_element,
                         OffsetPositioning::offset_from_save_position_element(
-                            MOVE_TO_GROUP_LABEL,
+                            MOVE_TO_GROUP_POSITION_ID,
                             offset,
                             PositionedElementOffsetBounds::WindowByPosition,
                             parent_anchor,
@@ -25886,7 +25967,7 @@ impl View for Workspace {
             && tab_bar_mode.has_tab_bar()
         {
             stack.add_positioned_child(
-                self.render_ai_assistant_warm_welcome(appearance),
+                self.render_ai_assistant_warm_welcome(appearance, app),
                 OffsetPositioning::offset_from_save_position_element(
                     AI_ASSISTANT_BUTTON_ID,
                     vec2f(0., 10.),

@@ -39,6 +39,7 @@ use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::ai::skills::SkillManager;
 use crate::ai::AIRequestUsageModel;
+use crate::app_state::{TabGroupSnapshot, WindowSnapshot};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::context_chips::prompt::Prompt;
@@ -272,6 +273,57 @@ fn restored_workspace(
         )
     });
     workspace
+}
+
+fn restored_workspace_snapshot_with_tab_group() -> WindowSnapshot {
+    let group_id =
+        uuid::Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("valid uuid");
+    let tab = crate::app_state::TabSnapshot {
+        custom_title: None,
+        group_id: Some(group_id),
+        root: PaneNodeSnapshot::Leaf(LeafSnapshot {
+            is_focused: true,
+            custom_vertical_tabs_title: None,
+            contents: LeafContents::Terminal(TerminalPaneSnapshot {
+                uuid: vec![1],
+                cwd: None,
+                shell_launch_data: None,
+                is_active: true,
+                is_read_only: false,
+                input_config: None,
+                llm_model_override: None,
+                active_profile_id: None,
+                conversation_ids_to_restore: vec![],
+                active_conversation_id: None,
+            }),
+        }),
+        default_directory_color: None,
+        selected_color: SelectedTabColor::Unset,
+        left_panel: None,
+        right_panel: None,
+    };
+
+    WindowSnapshot {
+        tabs: vec![tab],
+        tab_groups: vec![TabGroupSnapshot {
+            id: group_id,
+            name: Some("Deploy".to_string()),
+            collapsed: true,
+        }],
+        active_tab_index: 0,
+        bounds: None,
+        fullscreen_state: Default::default(),
+        quake_mode: false,
+        universal_search_width: None,
+        warp_ai_width: None,
+        voltron_width: None,
+        warp_drive_index_width: None,
+        left_panel_open: false,
+        vertical_tabs_panel_open: true,
+        left_panel_width: None,
+        right_panel_width: None,
+        agent_management_filters: None,
+    }
 }
 
 fn transferred_tab_workspace(
@@ -3212,6 +3264,41 @@ fn test_tab_mru_order() {
             workspace.handle_action(&WorkspaceAction::ActivateTab(0), ctx);
 
             assert_eq!(workspace.tab_mru_order(), &[id_a, id_c, id_b]);
+        });
+    });
+}
+
+#[test]
+fn test_restored_tab_groups_are_discarded_when_grouped_tabs_disabled() {
+    let _grouped_tabs_guard = FeatureFlag::GroupedTabs.override_enabled(false);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = restored_workspace(&mut app, restored_workspace_snapshot_with_tab_group());
+        workspace.read(&app, |workspace, _| {
+            assert!(workspace.tab_groups.is_empty());
+            assert_eq!(workspace.tabs.len(), 1);
+            assert_eq!(workspace.tabs[0].group_id, None);
+        });
+    });
+}
+
+#[test]
+fn test_restored_tab_groups_are_kept_when_grouped_tabs_enabled() {
+    let _grouped_tabs_guard = FeatureFlag::GroupedTabs.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let snapshot = restored_workspace_snapshot_with_tab_group();
+        let group_id = TabGroupId(snapshot.tab_groups[0].id);
+        let workspace = restored_workspace(&mut app, snapshot);
+        workspace.read(&app, |workspace, _| {
+            assert_eq!(workspace.tab_groups.len(), 1);
+            assert!(workspace.tab_groups.contains_key(&group_id));
+            assert_eq!(workspace.tabs.len(), 1);
+            assert_eq!(workspace.tabs[0].group_id, Some(group_id));
         });
     });
 }

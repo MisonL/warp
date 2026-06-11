@@ -17,7 +17,7 @@ use super::{
 };
 use crate::app_state::{
     AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot,
-    TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
+    TabGroupSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
 use crate::cloud_object::{CloudObjectPermissions, Owner};
 use crate::code::editor_management::CodeSource;
@@ -257,6 +257,7 @@ fn test_terminal_window_snapshot(vertical_tabs_panel_open: bool) -> WindowSnapsh
     WindowSnapshot {
         tabs: vec![TabSnapshot {
             custom_title: None,
+            group_id: None,
             root: PaneNodeSnapshot::Leaf(LeafSnapshot {
                 is_focused: true,
                 custom_vertical_tabs_title: None,
@@ -281,6 +282,7 @@ fn test_terminal_window_snapshot(vertical_tabs_panel_open: bool) -> WindowSnapsh
             left_panel: None,
             right_panel: None,
         }],
+        tab_groups: vec![],
         active_tab_index: 0,
         bounds: None,
         fullscreen_state: Default::default(),
@@ -340,6 +342,7 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
         windows: vec![WindowSnapshot {
             tabs: vec![TabSnapshot {
                 custom_title: None,
+                group_id: None,
                 root: PaneNodeSnapshot::Leaf(LeafSnapshot {
                     is_focused: true,
                     custom_vertical_tabs_title: Some("Production API".to_string()),
@@ -364,6 +367,7 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
                 left_panel: None,
                 right_panel: None,
             }],
+            tab_groups: vec![],
             active_tab_index: 0,
             bounds: None,
             fullscreen_state: Default::default(),
@@ -403,6 +407,102 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
 }
 
 #[test]
+fn test_sqlite_round_trips_tab_groups() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("warp.sqlite");
+    let mut conn = setup_database(&database_path).expect("database should initialize");
+
+    let group_id = uuid::Uuid::new_v4();
+    let mut window = test_terminal_window_snapshot(false);
+    window.tab_groups = vec![TabGroupSnapshot {
+        id: group_id,
+        name: Some("Deploy".to_string()),
+        collapsed: true,
+    }];
+    window.tabs[0].group_id = Some(group_id);
+
+    let mut ungrouped_tab = test_terminal_window_snapshot(true)
+        .tabs
+        .pop()
+        .expect("test window should contain a tab");
+    ungrouped_tab.group_id = None;
+    ungrouped_tab.custom_title = Some("Ungrouped".to_string());
+    window.tabs.push(ungrouped_tab);
+
+    let app_state = AppState {
+        windows: vec![window],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: Default::default(),
+    };
+
+    save_app_state(&mut conn, &app_state).expect("app state should save");
+
+    let restored = read_sqlite_data(&mut conn, None)
+        .expect("app state should load")
+        .app_state;
+    let restored_window = &restored.windows[0];
+
+    assert_eq!(restored_window.tab_groups, app_state.windows[0].tab_groups);
+    assert_eq!(restored_window.tabs[0].group_id, Some(group_id));
+    assert_eq!(restored_window.tabs[1].group_id, None);
+}
+
+#[test]
+fn test_sqlite_ignores_malformed_tab_group_blobs_on_read() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("warp.sqlite");
+    let mut conn = setup_database(&database_path).expect("database should initialize");
+
+    let app_state = AppState {
+        windows: vec![test_terminal_window_snapshot(false)],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: Default::default(),
+    };
+    save_app_state(&mut conn, &app_state).expect("app state should save");
+
+    conn.batch_execute("UPDATE windows SET tab_groups = '{not json'")
+        .expect("corrupting update should succeed");
+
+    let restored = read_sqlite_data(&mut conn, None)
+        .expect("app state should load")
+        .app_state;
+    let restored_window = &restored.windows[0];
+
+    assert_eq!(restored.windows.len(), 1);
+    assert_eq!(restored_window.tabs.len(), 1);
+    assert!(restored_window.tab_groups.is_empty());
+}
+
+#[test]
+fn test_sqlite_ignores_malformed_tab_group_ids_on_read() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("warp.sqlite");
+    let mut conn = setup_database(&database_path).expect("database should initialize");
+
+    let app_state = AppState {
+        windows: vec![test_terminal_window_snapshot(false)],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+        running_mcp_servers: Default::default(),
+    };
+    save_app_state(&mut conn, &app_state).expect("app state should save");
+
+    conn.batch_execute("UPDATE tabs SET group_id = 'not-a-uuid'")
+        .expect("corrupting update should succeed");
+
+    let restored = read_sqlite_data(&mut conn, None)
+        .expect("app state should load")
+        .app_state;
+    let restored_window = &restored.windows[0];
+
+    assert_eq!(restored.windows.len(), 1);
+    assert_eq!(restored_window.tabs.len(), 1);
+    assert_eq!(restored_window.tabs[0].group_id, None);
+}
+
+#[test]
 fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
     let tempdir = tempfile::tempdir().expect("tempdir should be created");
     let database_path = tempdir.path().join("warp.sqlite");
@@ -412,6 +512,7 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
         windows: vec![WindowSnapshot {
             tabs: vec![TabSnapshot {
                 custom_title: None,
+                group_id: None,
                 root: PaneNodeSnapshot::Leaf(LeafSnapshot {
                     is_focused: true,
                     custom_vertical_tabs_title: None,
@@ -438,6 +539,7 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
                 left_panel: None,
                 right_panel: None,
             }],
+            tab_groups: vec![],
             active_tab_index: 0,
             bounds: None,
             fullscreen_state: Default::default(),
