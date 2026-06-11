@@ -2076,9 +2076,9 @@ pub fn test_open_and_close_resource_center() -> Builder {
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
         .with_step(
-            new_step_with_default_assertions("Click the resource center button to show the menu")
-                .with_hover_over_saved_position("resource_center_button")
-                .with_click_on_saved_position("resource_center_button")
+            new_step_with_default_assertions("Open resource center")
+                .with_click_on_saved_position("workspace:user_avatar_button")
+                .with_click_on_saved_position("resource_center_keyboard_shortcuts_menu_item")
                 .add_assertion(|app, window_id| {
                     let views = app.views_of_type(window_id).expect("No workspace found");
                     let workspace: &ViewHandle<Workspace> =
@@ -2092,9 +2092,8 @@ pub fn test_open_and_close_resource_center() -> Builder {
                 }),
         )
         .with_step(
-            new_step_with_default_assertions("Click the resource center button to hide the menu")
-                .with_hover_over_saved_position("resource_center_button")
-                .with_click_on_saved_position("resource_center_button")
+            new_step_with_default_assertions("Click resource center close button")
+                .with_click_on_saved_position("resource_center_close_button")
                 .add_assertion(|app, window_id| {
                     let views = app.views_of_type(window_id).expect("No workspace found");
                     let workspace: &ViewHandle<Workspace> =

@@ -562,6 +562,10 @@ const AI_ASSISTANT_BUTTON_ID: &str = "workspace_view:ai_assistant_button";
 
 const ASK_AI_ASSISTANT_KEYBINDING_NAME: &str = "workspace:toggle_ai_assistant";
 const TOGGLE_RESOURCE_CENTER_KEYBINDING_NAME: &str = "workspace:toggle_resource_center";
+const RESOURCE_CENTER_BUTTON_POSITION_ID: &str = "resource_center_button";
+const RESOURCE_CENTER_WHATS_NEW_MENU_ITEM_POSITION_ID: &str = "resource_center_whats_new_menu_item";
+const RESOURCE_CENTER_KEYBOARD_SHORTCUTS_MENU_ITEM_POSITION_ID: &str =
+    "resource_center_keyboard_shortcuts_menu_item";
 
 /// Shared position ID for the new-session sidecar overlay. Used for both the
 /// `SavePosition` wrapper and the safe-zone rect lookup.
@@ -9244,12 +9248,14 @@ impl Workspace {
         items.extend([
             MenuItemFields::new(workspace_text(app, "workspace.menu.whats_new"))
                 .with_on_select_action(WorkspaceAction::ViewLatestChangelog)
+                .with_save_position_id(RESOURCE_CENTER_WHATS_NEW_MENU_ITEM_POSITION_ID)
                 .into_item(),
             MenuItemFields::new(workspace_text(app, "workspace.menu.settings"))
                 .with_on_select_action(WorkspaceAction::ShowSettings)
                 .into_item(),
             MenuItemFields::new(workspace_text(app, "workspace.menu.keyboard_shortcuts"))
                 .with_on_select_action(WorkspaceAction::ToggleKeybindingsPage)
+                .with_save_position_id(RESOURCE_CENTER_KEYBOARD_SHORTCUTS_MENU_ITEM_POSITION_ID)
                 .into_item(),
             MenuItem::Separator,
             MenuItemFields::new(workspace_text(app, "workspace.menu.documentation"))
@@ -20444,7 +20450,11 @@ impl Workspace {
             button = stack.finish();
         }
 
-        Align::new(button).finish()
+        SavePosition::new(
+            Align::new(button).finish(),
+            RESOURCE_CENTER_BUTTON_POSITION_ID,
+        )
+        .finish()
     }
 
     fn render_settings_button(
