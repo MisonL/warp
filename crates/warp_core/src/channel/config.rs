@@ -40,6 +40,17 @@ pub struct IapConfig {
 pub struct WarpServerConfig {
     /// The root URL for the standard server pool.
     pub server_root_url: Cow<'static, str>,
+    /// The server root URL protected by IAP. When this is unset for an IAP-enabled
+    /// channel, [`ChannelState`](crate::channel::ChannelState) captures the initial
+    /// [`server_root_url`](Self::server_root_url) before runtime URL overrides are applied.
+    #[serde(default)]
+    pub iap_protected_server_root_url: Option<Cow<'static, str>>,
+    /// The RTC HTTP root URL protected by IAP. When this is unset for an IAP-enabled
+    /// channel, [`ChannelState`](crate::channel::ChannelState) captures the initial
+    /// [`rtc_server_url`](Self::rtc_server_url) as an HTTP origin before runtime URL
+    /// overrides are applied.
+    #[serde(default)]
+    pub iap_protected_rtc_http_url: Option<Cow<'static, str>>,
     /// The URL for the RTC server, which serves real-time updates for Warp Drive objects.
     pub rtc_server_url: Cow<'static, str>,
     /// The URL for the session sharing server, or [`None`] if session sharing is not
@@ -57,6 +68,8 @@ impl WarpServerConfig {
     pub fn production() -> Self {
         Self {
             server_root_url: "https://app.warp.dev".into(),
+            iap_protected_server_root_url: None,
+            iap_protected_rtc_http_url: None,
             rtc_server_url: "wss://rtc.app.warp.dev/graphql/v2".into(),
             session_sharing_server_url: Some("wss://sessions.app.warp.dev".into()),
             firebase_auth_api_key: "AIzaSyBdy3O3S9hrdayLJxJ7mriBR4qgUaUygAs".into(),

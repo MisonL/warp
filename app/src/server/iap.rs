@@ -11,6 +11,7 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 #[cfg(not(target_family = "wasm"))]
 use websocket::connect_error_http_response;
 
+use crate::localization;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_shell::LocalShellState;
 use crate::view_components::DismissibleToast;
@@ -348,7 +349,11 @@ impl IapManager {
             return;
         };
         let toast: DismissibleToast<WorkspaceAction> =
-            DismissibleToast::error(format!("IAP credential refresh failed: {message}"));
+            DismissibleToast::error(localization::text_for_app_with_args(
+                ctx,
+                "settings.account.iap.toast.credential_refresh_failed",
+                &[("message", message)],
+            ));
         ToastStack::handle(ctx).update(ctx, |stack, ctx| {
             stack.add_ephemeral_toast(toast, window_id, ctx);
         });
