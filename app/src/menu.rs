@@ -1501,7 +1501,7 @@ pub enum MenuItem<A: Action + Clone = ()> {
     Header {
         fields: MenuItemFields<A>,
         clickable: bool,
-        right_side_fields: Option<MenuItemFields<A>>,
+        right_side_fields: Option<Box<MenuItemFields<A>>>,
     },
 }
 
@@ -1657,7 +1657,7 @@ impl<A: Action + Clone> MenuItem<A> {
                 right_side_fields,
             } => {
                 let mut fields = fields.clone();
-                let mut right_side_fields = right_side_fields.clone();
+                let mut right_side_fields = right_side_fields.as_deref().cloned();
                 if !*clickable {
                     fields = fields.with_no_interaction_on_hover();
                     right_side_fields =
