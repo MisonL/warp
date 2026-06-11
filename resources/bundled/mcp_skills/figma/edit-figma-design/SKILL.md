@@ -1,216 +1,216 @@
 ---
 name: edit-figma-design
-description: 使用 Figma MCP authoring tools，直接根据书面产品或 UI 描述创建或更新 Figma 设计。当用户希望从文本在 Figma 中设计 mockup、wireframe、screen、component、flow 或 concept，或希望根据文字反馈迭代现有 Figma 文件时使用。尽管名称如此，此 skill 可以从新的空白文件开始，也可以编辑现有文件。不要用于将运行中页面转换为 Figma 的 capture-based workflow；此类任务使用 `figma-generate-design`，代码实现请求使用 `implement-design`。需要连接 Figma MCP server。
+description: Create or update Figma designs directly from a written product or UI description using the Figma MCP authoring tools. Use when the user wants a mockup, wireframe, screen, component, flow, or concept designed in Figma from text, or wants to iterate on an existing Figma file from textual feedback. Despite the name, this skill can start from a new blank file or edit an existing one. Do not use for capture-based workflows that turn a running page into Figma; use `figma-generate-design` for those, and use `implement-design` for code implementation requests. Requires Figma MCP server connection.
 metadata:
   mcp-server: figma
 ---
 
-# 编辑 Figma 设计
+# Edit Figma Design
 
-## 概览
+## Overview
 
-此 skill 直接根据自然语言描述创建或更新 Figma 设计。它结合 Figma library search 与直接 file authoring，并且只在需要让设计更理解产品或代码库时使用 Warp 更广泛的 agent 能力。
+This skill creates or updates Figma designs directly from a natural-language description. It combines Figma library search with direct file authoring, and uses Warp's broader agent capabilities only when they are needed to make the design more product-aware or codebase-aware.
 
-## 何时使用此 skill
+## When to use this skill
 
-当用户希望你执行以下任务时，使用此 skill：
+Use this skill when the user wants you to:
 
-- 根据书面描述在 Figma 中设计新的 screen、flow、component 或 mockup
-- 根据文字反馈优化或扩展现有 Figma 文件
-- 直接在 Figma 中创建初版 wireframe 或更高保真度的设计
-- 让 Figma 设计对齐现有 design system 或产品词汇
+- design a new screen, flow, component, or mockup in Figma from a written description
+- refine or extend an existing Figma file from text feedback
+- create a first-pass wireframe or higher-fidelity design directly in Figma
+- align a Figma design to an existing design system or product vocabulary
 
-以下情况不要使用此 skill：
+Do not use this skill when:
 
-- 用户希望从设计生成生产代码，应使用 `implement-design`
-- 用户希望将运行中的页面或 app 捕获到 Figma，应使用 `figma-generate-design`
-- 用户只是希望检查或拉取现有 Figma context，应使用 `pull-figma-content`
+- the user wants production code from a design — use `implement-design`
+- the user wants to capture a running page or app into Figma — use `figma-generate-design`
+- the user only wants to inspect or pull existing Figma context — use `pull-figma-content`
 
-## 前置条件
+## Prerequisites
 
-- Figma MCP server 必须已连接且可访问。
-  - 确认 `search_design_system`、`create_new_file` 和 `use_figma` 可用。
-- 收集继续执行所需的最少信息：
-  - 要设计什么
-  - 使用现有 Figma 文件，还是创建新文件
-  - 结果是否应对齐现有 design system 或代码库
-- 只有在用户尚未提供足够启动细节时才提出澄清问题。问题应简短，并尽量合并到一条消息中。
+- Figma MCP server must be connected and accessible.
+  - Verify that `search_design_system`, `create_new_file`, and `use_figma` are available.
+- Gather the minimum information needed to proceed:
+  - what should be designed
+  - whether to use an existing Figma file or create a new one
+  - whether the result should align to an existing design system or codebase
+- Ask clarifying questions only when the user has not already given enough detail to start. Keep them short and batch them into one message when possible.
 
-## 必需工作流
+## Required Workflow
 
-**按顺序执行这些步骤。不要跳过步骤。**
+**Follow these steps in order. Do not skip steps.**
 
-### 步骤 1：确认这是 Figma authoring 请求
+### Step 1: Confirm this is a Figma-authoring request
 
-如果用户实际是在请求实现，停止并查阅 `implement-design`。
+If the user is actually asking for implementation, stop and consult `implement-design`.
 
-如果用户想要 screenshot-to-Figma 或网页捕获流程，停止并查阅 `figma-generate-design`。那个 skill 用于 capture-based workflow；此 skill 用于 text-to-design authoring。
+If the user wants a screenshot-to-Figma or webpage capture flow, stop and consult `figma-generate-design`. That skill is for capture-based workflows; this skill is for text-to-design authoring.
 
-### 步骤 2：先确定目标文件
+### Step 2: Resolve the destination file first
 
-`search_design_system` 和 `use_figma` 都需要 `fileKey`，因此在搜索或编辑之前先确定目标。
+Both `search_design_system` and `use_figma` need a `fileKey`, so determine the destination before searching or editing.
 
-**如果用户提供了现有 Figma URL 或 file key：**
+**If the user provided an existing Figma URL or file key:**
 
-- 提取并使用该 `fileKey`。
-- 回复时复用用户提供的 URL。
+- Extract and use that `fileKey`.
+- Reuse the provided URL when you respond.
 
-**如果用户想要新文件：**
+**If the user wants a new file:**
 
-1. 根据请求确定清晰的文件名。
-2. 如果用户已经提供 `planKey`，使用它。
-3. 否则调用 Figma MCP 的 `whoami` tool，检查已认证的 Figma 用户和可用 plan。这不是 shell 的 `whoami` 命令。
-4. 如果只有一个 plan，使用它的 `key`。
-5. 如果有多个 plan，询问用户要使用哪个团队或组织。
-6. 调用 `create_new_file(editorType="design", fileName=..., planKey=...)`。
-7. 保存返回的 `fileKey` 和 URL。第一个可用草稿就绪后再分享 URL。
+1. Decide on a clear file name from the request.
+2. If the user already provided a `planKey`, use it.
+3. Otherwise call the Figma MCP `whoami` tool to inspect the authenticated Figma user and available plans. This is not the shell `whoami` command.
+4. If there is exactly one plan, use its `key`.
+5. If there are multiple plans, ask the user which team or organization to use.
+6. Call `create_new_file(editorType="design", fileName=..., planKey=...)`.
+7. Save the returned `fileKey` and URL. Share the URL once the first usable draft is ready.
 
-### 步骤 3：只在需要时收集合适上下文
+### Step 3: Gather the right context, but only when it is needed
 
-判断实际需要多少非 Figma 上下文。
+Decide how much non-Figma context is actually necessary.
 
-当用户想要探索性 concept、wireframe 或 mockup，且没有要求对齐代码库时，**只留在 Figma MCP 内部**。
+**Stay inside Figma MCP only** when the user wants an exploratory concept, wireframe, or mockup and does not ask for codebase alignment.
 
-当用户希望设计匹配现有产品或 design system 时，**有选择地使用 Warp agent context**：
+**Use Warp agent context selectively** when the user wants the design to match an existing product or design system:
 
-- 如果存在 `AGENTS.md` 和/或 `WARP.md`，读取其中的项目规则
-- 使用语义化代码库搜索、grep 和文件读取，查找相关 component、产品词汇、layout pattern 和 design-token 来源
-- 只有当 prompt 直接依赖其他 MCP source 或 web search 时才使用它们，例如另一系统中的产品需求或明确的灵感请求
-- 不要把编辑代码、运行 REPL 命令或使用 computer use 作为此 skill 正常工作流的一部分
+- read project rules from `AGENTS.md` and/or `WARP.md` if they exist
+- use semantic codebase search, grep, and file reads to find relevant components, product vocabulary, layout patterns, and design-token sources
+- use other MCP sources or web search only when the prompt directly depends on them, such as product requirements in another system or explicit inspiration requests
+- do not edit code, run REPL commands, or use computer use as part of this skill's normal workflow
 
-### 步骤 4：authoring 前先搜索 design system
+### Step 4: Search the design system before authoring
 
-在创建新 component 或 style 之前，使用已确定的 `fileKey` 调用 `search_design_system`。
+Call `search_design_system` with the resolved `fileKey` before creating new components or styles.
 
-优先搜索最可复用的 asset：
+Search for the most reusable assets first:
 
-- component 和 component set
-- variable 和 token-like value
-- color、typography、spacing 或 effect 的 style
+- components and component sets
+- variables and token-like values
+- styles for color, typography, spacing, or effects
 
-从用户的领域术语以及从项目规则或代码库搜索中发现的名称开始。
+Start with the user's domain terms and any names discovered from project rules or codebase search.
 
-如有需要，使用返回的 library key 缩窄后续搜索，而不是立即扩大搜索范围。
+If needed, narrow follow-up searches with returned library keys rather than immediately broadening the search.
 
-优先复用和 import 匹配项，而不是从头重新创建。
+Prefer reusing and importing matches over recreating them from scratch.
 
-### 步骤 5：安全准备 `use_figma`
+### Step 5: Prepare `use_figma` safely
 
-第一次调用 `use_figma` 之前，规划编辑顺序，并遵守该工具要求的 Plugin API 约束。
+Before the first `use_figma` call, plan the edit sequence and follow the tool's required Plugin API constraints.
 
-保持 authoring plan 增量化：
+Keep the authoring plan incremental:
 
-1. 创建 page 和 frame 结构
-2. 建立 layout 和主要 section
-3. 复用或 import design-system asset
-4. 应用 variable、style 和 typography
-5. 添加内容并打磨
-6. 基于文件当前内容做定向修订
+1. create page and frame structure
+2. establish layout and major sections
+3. reuse or import design-system assets
+4. apply variables, styles, and typography
+5. add content and polish
+6. make targeted revisions based on what the file now contains
 
-### 步骤 6：用小步 `use_figma` 编辑设计
+### Step 6: Edit the design in small `use_figma` steps
 
-使用多个小型 `use_figma` 调用，而不是一个巨大的脚本。
+Use multiple small `use_figma` calls instead of one giant script.
 
-良好的步骤边界：
+Good step boundaries:
 
-- 创建 page 和顶层 frame
-- 布局 header、sidebar、hero 或 content region
-- import 或放置一组可复用 component
-- 绑定 color、text style 或 spacing variable
-- 更新某个具体 section 的文案、state 或 alignment
+- create a page and top-level frames
+- lay out a header, sidebar, hero, or content region
+- import or place one family of reusable components
+- bind colors, text styles, or spacing variables
+- update copy, states, or alignment for a specific section
 
-每一步之后检查结果，只有在上一步成功后才继续。
+After each step, inspect the result and only continue once the previous step succeeded.
 
-创建任何类似 component 的内容时，优先使用步骤 4 中发现并 import 的 library asset。
+When creating anything component-like, prefer imported library assets discovered in Step 4.
 
-### 步骤 7：交付设计和后续选项
+### Step 7: Hand back the design and next options
 
-第一个可用草稿就绪后：
+When the first usable draft is ready:
 
-- 如果有 Figma URL，返回它
-- 从高层概述创建或更新的内容
-- 询问用户是否希望在 Figma 中继续修订
+- return the Figma URL if you have it
+- summarize what you created or updated at a high level
+- ask whether the user wants revisions in Figma
 
-如果用户要求用代码实现已批准的设计，停止使用此 skill 并查阅 `implement-design`。
+If the user asks to implement the approved design in code, stop using this skill and consult `implement-design`.
 
-## Warp-agent 指引
+## Warp-agent guidance
 
-使用 Warp 更广泛的能力来减少手动追问，而不是增加不必要的工作。
+Use Warp's broader capabilities to reduce manual prompting, not to add unnecessary work.
 
-**此 skill 中适合使用 Warp agent 能力的场景：**
+**Good uses of Warp agent capabilities in this skill:**
 
-- 在 repo 中查找现有 component 名称或 design token
-- 读取约束 layout、命名或品牌的项目规则
-- 当用户明确依赖其他已连接系统时，从中拉取产品需求
+- finding existing component names or design tokens in the repo
+- reading project rules that constrain layout, naming, or branding
+- pulling product requirements from other connected systems when the user explicitly relies on them
 
-**此 skill 中通常不必要的操作：**
+**Usually unnecessary for this skill:**
 
-- shell 命令或 REPL 访问
-- 代码编辑
+- shell commands or REPL access
+- code edits
 - computer-use validation
-- 没有具体用户请求的广泛 web research
+- broad web research without a specific user request
 
-## 示例
+## Examples
 
-### 示例 1：根据产品描述创建新文件
+### Example 1: New file from a product description
 
-用户说："为我们的桌面 app 在 Figma 中设计一个 billing overview screen。使用现有 design system，并创建一个新文件。"
+User says: "Design a billing overview screen in Figma for our desktop app. Use our existing design system and create a new file."
 
-**操作：**
+**Actions:**
 
-1. 确认这是 Figma authoring，而不是代码实现。
-2. 如有需要，调用 `whoami` 来确定目标，然后调用 `create_new_file`。
-3. 只有在需要理解 billing 术语和现有 component 时，读取 `AGENTS.md` 或 `WARP.md`，或搜索代码库。
-4. 使用 billing 相关 query 调用 `search_design_system`。
-5. 用小步 `use_figma` 构建 screen。
-6. 返回新的 Figma 文件 URL，并询问是否需要修订。
+1. Confirm this is Figma authoring, not code implementation.
+2. Resolve the destination by calling `whoami` if needed, then `create_new_file`.
+3. Read `AGENTS.md` or `WARP.md`, or search the codebase only if needed to understand billing terminology and existing components.
+4. Call `search_design_system` with billing-related queries.
+5. Build the screen in small `use_figma` steps.
+6. Return the new Figma file URL and offer to revise.
 
-### 示例 2：更新现有 Figma 文件
+### Example 2: Update an existing Figma file
 
-用户说："向这个 Figma 文件添加 onboarding checklist：https://figma.com/design/FILEKEY/Product?node-id=1-2"
+User says: "Add an onboarding checklist to this Figma file: https://figma.com/design/FILEKEY/Product?node-id=1-2"
 
-**操作：**
+**Actions:**
 
-1. 从现有 URL 中提取 `fileKey`。
-2. 创建任何新内容前，在 design system 中搜索 checklist、card、badge 和 progress asset。
-3. 使用增量 `use_figma` 调用添加新 section。
-4. 返回同一个 Figma URL，并概述变更。
+1. Extract the `fileKey` from the existing URL.
+2. Search the design system for checklist, card, badge, and progress assets before creating anything new.
+3. Use incremental `use_figma` calls to add the new section.
+4. Return the same Figma URL and summarize the change.
 
-### 示例 3：纯探索性 concept
+### Example 3: Pure exploratory concept
 
-用户说："在 Figma 中创建一个初版移动端 workout planner mockup。暂时不需要匹配我的代码库。"
+User says: "Create a first-pass mobile workout planner mockup in Figma. It doesn't need to match my codebase yet."
 
-**操作：**
+**Actions:**
 
-1. 如有需要，创建新文件。
-2. 跳过代码库搜索和项目规则检查。
-3. 仅为复用相关 Figma library asset 而使用 `search_design_system`。
-4. 用小步 `use_figma` 直接在 Figma 中构建 concept。
-5. 分享文件链接，并询问下一步要优化什么。
+1. Create a new file if needed.
+2. Skip codebase search and project-rule inspection.
+3. Use `search_design_system` only to reuse any relevant Figma library assets.
+4. Build the concept directly in Figma with small `use_figma` steps.
+5. Share the file link and ask what to refine next.
 
-## 常见问题与响应
+## Common issues and responses
 
-### 问题：用户没有说明使用现有文件还是新文件
+### Issue: The user hasn't said whether to use an existing file or a new one
 
-提出一个直接问题来确定目标。在获得 `fileKey` 前，不要启动 `search_design_system` 或 `use_figma`。
+Ask one direct question that resolves the destination. Do not start `search_design_system` or `use_figma` until you have a `fileKey`.
 
-### 问题：`create_new_file` 有多个可用 Figma plan
+### Issue: Multiple Figma plans are available for `create_new_file`
 
-询问用户要使用哪个团队或组织。不要猜测。
+Ask the user which team or organization to use. Do not guess.
 
-### 问题：用户希望设计匹配现有产品约定，但请求很模糊
+### Issue: The user wants the design to match existing product conventions, but the request is vague
 
-先读取项目规则。然后使用定向代码库搜索，只收集与请求界面相关的 component 和约定。
+Read the project's rules first. Then use targeted codebase search to gather only the components and conventions relevant to the requested surface.
 
-### 问题：用户同时要求 Figma design 和实现
+### Issue: The user asks for both a Figma design and implementation
 
-只有当用户请求主要是 Figma authoring 时，才先创建或更新 Figma 设计。如果请求主要是实现，则改为查阅 `implement-design`。设计获批后，可以在单独步骤中继续实现。
+Create or update the Figma design first only if the user's request is primarily about authoring in Figma. If the request is primarily about implementation, consult `implement-design` instead. After the design is approved, implementation can follow in a separate step.
 
-### 问题：`use_figma` 失败或脚本变大
+### Issue: `use_figma` fails or the script is getting large
 
-将任务拆成更小的 `use_figma` 调用。优先处理结构，其次是样式，最后是定向修订。
+Break the task into smaller `use_figma` calls. Prefer structure first, then styling, then targeted revisions.
 
-## 其他资源
+## Additional resources
 
 - [Figma MCP Server Documentation](https://developers.figma.com/docs/figma-mcp-server/)
 - [Figma MCP Server Tools and Prompts](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts/)

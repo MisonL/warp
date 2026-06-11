@@ -1,26 +1,26 @@
-> 属于 [figma-generate-library skill](../SKILL.md) 的一部分。
+> Part of the [figma-generate-library skill](../SKILL.md).
 
-# Discovery Phase 参考
+# Discovery Phase Reference
 
-本文档覆盖 design system 构建 Phase 0 所需的全部内容：分析 codebase 中的 token、检查 Figma file 中的既有约定、搜索 subscribed library、制定计划，并在开始任何写入操作前解决冲突。
+This document covers everything needed for Phase 0 of a design system build: analyzing the codebase for tokens, inspecting the Figma file for existing conventions, searching subscribed libraries, building the plan, and resolving conflicts before any write operations begin.
 
 ---
 
-## 1. Codebase 分析：查找 Token 来源
+## 1. Codebase Analysis — Finding Token Sources
 
-### 搜索优先级
+### Search Priority Order
 
-按以下顺序查找 token 来源。一旦找到权威来源就停止；多种格式可以共存：
+Look for token sources in this order. Stop as soon as you find a definitive source; multiple formats can coexist:
 
-1. Design token file：`*.tokens.json`、`tokens/*.json`、`src/tokens/**`
-2. CSS variable file：`variables.css`、`tokens.css`、`theme.css`、`global.css`
-3. Tailwind config：`tailwind.config.js`、`tailwind.config.ts`
-4. CSS-in-JS theme object：`theme.ts`、`createTheme`、`ThemeProvider`
-5. 平台特定来源：iOS Asset catalog（`.xcassets`）、Android `themes.xml`、`colors.xml`
+1. Design token files: `*.tokens.json`, `tokens/*.json`, `src/tokens/**`
+2. CSS variable files: `variables.css`, `tokens.css`, `theme.css`, `global.css`
+3. Tailwind config: `tailwind.config.js`, `tailwind.config.ts`
+4. CSS-in-JS theme objects: `theme.ts`, `createTheme`, `ThemeProvider`
+5. Platform-specific: iOS Asset catalogs (`.xcassets`), Android `themes.xml`, `colors.xml`
 
-### CSS Custom Properties（Web 中最常见）
+### CSS Custom Properties (Most Common for Web)
 
-**要搜索的内容：**
+**What to search for:**
 
 ```
 :root { ... }
@@ -28,11 +28,11 @@
 --color-*, --spacing-*, --radius-*, --shadow-*, --font-*
 ```
 
-**模式：** `/--[\w-]+:\s*[^;]+/g`
+**Pattern:** `/--[\w-]+:\s*[^;]+/g`
 
-**常见文件位置：** `src/styles/tokens.css`、`src/styles/variables.css`、`src/theme/*.css`
+**Common file locations:** `src/styles/tokens.css`, `src/styles/variables.css`, `src/theme/*.css`
 
-**抽取与命名转换：**
+**Extraction and naming translation:**
 
 | CSS Property | Figma Variable Name | Figma Type | WEB Code Syntax |
 |---|---|---|---|
@@ -42,13 +42,13 @@
 | `--radius-md: 8px` | `radius/md` | FLOAT | `var(--radius-md)` |
 | `--font-body: "Inter"` | `typography/body/font-family` | STRING | `var(--font-body)` |
 
-**命名规则：** 在 category 边界处把连字符替换为斜杠。最终 path segment 内的连字符保留：`--color-bg-primary` -> `color/bg/primary`，但 `--color-bg-primary-hover` -> `color/bg/primary-hover`。
+**Naming rule:** Replace hyphens with slashes at category boundaries. Keep hyphens within the final path segment: `--color-bg-primary` → `color/bg/primary`, but `--color-bg-primary-hover` → `color/bg/primary-hover`.
 
-**始终保存原始 CSS variable name** 作为 code syntax value。不要从 Figma variable name 推导它。如果 codebase 使用 `--sds-color-background-brand-default`，就在 `setVariableCodeSyntax('WEB', '--sds-color-background-brand-default')` 中精确使用该字符串。
+**Always store the original CSS variable name** as the code syntax value — never derive it from the Figma variable name. If the codebase uses `--sds-color-background-brand-default`, use exactly that string in `setVariableCodeSyntax('WEB', '--sds-color-background-brand-default')`.
 
-### Tailwind 配置
+### Tailwind Configuration
 
-**在 `tailwind.config.js` 或 `tailwind.config.ts` 中查找的内容：**
+**What to look for in `tailwind.config.js` or `tailwind.config.ts`:**
 
 ```javascript
 // theme.extend.colors → Figma color variables
@@ -64,11 +64,11 @@
 // → radius/sm = 4, radius/md = 8, radius/lg = 16
 ```
 
-Tailwind utility class name（`bg-blue-500`、`p-4`）不是 token。应从 config object 中抽取 value，而不是从 class name 中抽取。
+Tailwind utility class names (`bg-blue-500`, `p-4`) are not tokens — extract values from the config object, not the class names.
 
-### Design Token Community Group（DTCG）格式
+### Design Token Community Group (DTCG) Format
 
-**模式：** `*.tokens.json` 或 `tokens/*.json`。查找 source file，不要使用 Style Dictionary 或 Tokens Studio 的生成产物。
+**Pattern:** `*.tokens.json` or `tokens/*.json`. Find source files, not generated outputs from Style Dictionary or Tokens Studio.
 
 ```json
 {
@@ -84,11 +84,11 @@ Tailwind utility class name（`bg-blue-500`、`p-4`）不是 token。应从 conf
 }
 ```
 
-Nested key 映射为 slash-separated Figma name：`color.bg.primary` -> `color/bg/primary`。
+Nested keys map to slash-separated Figma names: `color.bg.primary` → `color/bg/primary`.
 
-### CSS-in-JS / Theme Object
+### CSS-in-JS / Theme Objects
 
-**要搜索的内容：** `createTheme`、`ThemeProvider`、`theme = {}`、styled-components、Emotion、Stitches、vanilla-extract
+**What to search for:** `createTheme`, `ThemeProvider`, `theme = {}`, styled-components, Emotion, Stitches, vanilla-extract
 
 ```typescript
 // theme.colors.bg.primary → Figma variable: color/bg/primary
@@ -96,7 +96,7 @@ Nested key 映射为 slash-separated Figma name：`color.bg.primary` -> `color/b
 // Multiple theme objects (lightTheme, darkTheme) → modes in the same collection
 ```
 
-### iOS Token 来源
+### iOS Token Sources
 
 ```swift
 // Asset catalog colors in .xcassets/Colors.xcassets
@@ -104,7 +104,7 @@ Nested key 映射为 slash-separated Figma name：`color.bg.primary` -> `color/b
 // Look for traitCollection.userInterfaceStyle for dark mode detection
 ```
 
-### Android Token 来源
+### Android Token Sources
 
 ```kotlin
 // res/values/colors.xml  <color name="primary">#3366FF</color>
@@ -113,21 +113,21 @@ Nested key 映射为 slash-separated Figma name：`color.bg.primary` -> `color/b
 // val Primary = Color(0xFF3366FF)
 ```
 
-### 检测 Dark Mode
+### Detecting Dark Mode
 
-| Platform | 信号 |
+| Platform | Signal |
 |---|---|
 | Web (CSS) | `@media (prefers-color-scheme: dark)`, `.dark { }`, `[data-theme="dark"]` |
-| Web (Tailwind) | config 中的 `darkMode: 'class'` 或 `darkMode: 'media'` |
-| Web (JS) | 与 `lightTheme` 并存的独立 `darkTheme` object |
-| iOS | 带 `traitCollection.userInterfaceStyle` 的 `Color(uiColor:)`，或 dual-appearance asset catalog |
-| Android | 包含 `Theme.*.Night` 的 `themes.xml`、Compose 中的 `isSystemInDarkTheme()`、`values-night/` folder |
+| Web (Tailwind) | `darkMode: 'class'` or `darkMode: 'media'` in config |
+| Web (JS) | Separate `darkTheme` object alongside `lightTheme` |
+| iOS | `Color(uiColor:)` with `traitCollection.userInterfaceStyle`, dual-appearance asset catalog |
+| Android | `themes.xml` with `Theme.*.Night`, `isSystemInDarkTheme()` in Compose, `values-night/` folder |
 
-**Figma 映射：** 如果存在 dark mode，则 semantic color collection 至少有 2 个 mode（Light/Dark）。Primitive collection 保持 single-mode。
+**Figma mapping:** If dark mode exists → minimum 2 modes (Light/Dark) in the semantic color collection. Primitive collections stay single-mode.
 
-### Shadow/Elevation 抽取
+### Shadow/Elevation Extraction
 
-Shadow 不能成为 Figma variable。它们会成为 **Effect Style**。
+Shadows cannot be Figma variables — they become **Effect Styles**.
 
 ```css
 /* Look for: box-shadow, --shadow-* */
@@ -136,32 +136,32 @@ Shadow 不能成为 Figma variable。它们会成为 **Effect Style**。
 --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.10);
 ```
 
-CSS `0 4px 6px -1px rgba(0,0,0,0.1)` -> Figma：
+CSS `0 4px 6px -1px rgba(0,0,0,0.1)` → Figma:
 ```
 { type: "DROP_SHADOW", offset: {x:0, y:4}, radius: 6, spread: -1, color: {r:0, g:0, b:0, a:0.1} }
 ```
 
-### Typography 抽取
+### Typography Extraction
 
-| Code token | 映射到 |
+| Code token | Maps to |
 |---|---|
-| `font-size: 16px` | FLOAT variable（scope `FONT_SIZE`）或 Text Style `fontSize` |
+| `font-size: 16px` | FLOAT variable (scope `FONT_SIZE`) or Text Style `fontSize` |
 | `line-height: 1.5` | Text Style `lineHeight: {value: 24, unit: "PIXELS"}` |
 | `font-weight: 600` | Text Style `fontName: {family: "Inter", style: "Semi Bold"}` |
 | `letter-spacing: -0.02em` | Text Style `letterSpacing: {value: -2, unit: "PERCENT"}` |
-| `font-family: "Inter"` | STRING variable（scope `FONT_FAMILY`）或 Text Style `fontName.family` |
+| `font-family: "Inter"` | STRING variable (scope `FONT_FAMILY`) or Text Style `fontName.family` |
 
-Composite text style（所有 property 打包）映射为 Figma Text Style。单独 property 映射为带适当 scope 的 Figma variable。
+Composite text styles (all properties bundled) → Figma Text Styles. Individual properties → Figma variables with appropriate scopes.
 
-### Component 抽取
+### Component Extraction
 
-对每个 component，抽取：
+For each component, extract:
 
-1. **Name** -> Figma component set name
-2. **Union-type props** -> VARIANT property
-3. **String content props** -> TEXT property
-4. **Boolean props** -> BOOLEAN property（与 interaction state 组合时，也对应 VARIANT State）
-5. **Child/slot props** -> INSTANCE_SWAP property
+1. **Name** → Figma component set name
+2. **Union-type props** → VARIANT properties
+3. **String content props** → TEXT properties
+4. **Boolean props** → BOOLEAN properties (and VARIANT State when combined with interaction states)
+5. **Child/slot props** → INSTANCE_SWAP properties
 
 ```typescript
 // React example:
@@ -177,11 +177,11 @@ interface ButtonProps {
 
 ---
 
-## 2. Figma File 检查
+## 2. Figma File Inspection
 
-每次 build 开始时运行这些 `use_figma` 片段。它们全部是 read-only，可在任何用户 checkpoint 前安全运行。
+Run these `use_figma` snippets at the start of every build. All are read-only and safe to run before any user checkpoint.
 
-### 列出所有 Page
+### List All Pages
 
 ```javascript
 const pages = figma.root.children.map((p, i) => ({
@@ -193,9 +193,9 @@ const pages = figma.root.children.map((p, i) => ({
 return { pages };
 ```
 
-解读：记录 page name 的命名约定（是 PascalCase 还是 sentence case？），统计 separator page（`---`），识别现有 component page 与 foundation page。
+Interpret: note page names for naming convention (are they PascalCase? sentence case?), count separator pages (`---`), identify existing component pages vs foundations pages.
 
-### 列出带 Mode 的 Variable Collection
+### List Variable Collections With Modes
 
 ```javascript
 const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -209,9 +209,9 @@ const result = collections.map(c => ({
 return { collections: result };
 ```
 
-解读：识别现有 primitive/semantic 分层，记录 mode name（是使用 "Light/Dark" 还是 "SDS Light/SDS Dark"？），统计 variable 以理解范围。
+Interpret: identify existing primitive/semantic split, note mode names (do they use "Light/Dark" or "SDS Light/SDS Dark"?), count variables to understand scope.
 
-### 列出 Collection 中的 Variable（包含 name、type、scope 和 sample value）
+### List Variables in a Collection (with names, types, scopes, and sample values)
 
 ```javascript
 const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -235,9 +235,9 @@ const result = vars.map(v => ({
 return { collection: coll.name, variableCount: result.length, variables: result };
 ```
 
-解读：检查 variable 是否使用 `ALL_SCOPES`（不佳），检查命名约定（是否为 slash-separated hierarchy），检查是否设置 code syntax，并识别 alias chain。
+Interpret: check if variables use `ALL_SCOPES` (bad), check naming convention (slash-separated hierarchy?), check if code syntax is set, identify alias chains.
 
-### 列出带 Property 的 Component Set
+### List Component Sets with Properties
 
 ```javascript
 await figma.setCurrentPageAsync(figma.currentPage); // ensures page context
@@ -256,9 +256,9 @@ const result = componentSets.map(cs => ({
 return { componentSets: result, count: result.length };
 ```
 
-注意：要搜索所有 page，请遍历 `figma.root.children`，并对每个 page 调用 `setCurrentPageAsync`。
+Note: to search ALL pages, iterate `figma.root.children` and `setCurrentPageAsync` for each.
 
-### 列出所有 Style
+### List All Styles
 
 ```javascript
 const [textStyles, effectStyles, paintStyles] = await Promise.all([
@@ -275,7 +275,7 @@ return {
 };
 ```
 
-### 检查现有 Component 的命名约定
+### Check Naming Conventions on an Existing Component
 
 ```javascript
 // Replace with the node ID of an existing component to analyze
@@ -304,19 +304,19 @@ return {
 
 ---
 
-## 3. 使用 search_design_system
+## 3. Using search_design_system
 
-### 搜索内容
+### What It Searches
 
-`search_design_system` 会针对给定文件，在 **subscribed design library** 中并行运行三类搜索：
+`search_design_system` runs three parallel searches against **subscribed design libraries** for the given file:
 
-1. **Components**：已发布的 library component，通过 recommendation engine 按 name/description 搜索（按相关性排序，不是精确匹配）
-2. **Variables**：subscribed library 中的 design token（颜色、spacing 等）
-3. **Styles**：paint style、text style 和 effect style
+1. **Components** — published library components, searched by name/description via a recommendation engine (relevance-ranked, not exact match)
+2. **Variables** — design tokens (colors, spacing, etc.) across subscribed libraries
+3. **Styles** — paint styles, text styles, and effect styles
 
-只会搜索该文件已订阅的 library。如果结果为空，该文件可能没有订阅任何 design system library。
+Only libraries the file has subscribed to are searched. If results are empty, the file may not be subscribed to any design system libraries.
 
-### 输入
+### Input
 
 ```
 search_design_system({
@@ -328,7 +328,7 @@ search_design_system({
 })
 ```
 
-### 返回内容
+### What It Returns
 
 ```json
 {
@@ -361,41 +361,41 @@ search_design_system({
 }
 ```
 
-### 如何解读结果
+### How to Interpret Results
 
-**Components：** `componentKey` 可在 `use_figma` 中用于导入 component：
+**Components:** The `componentKey` can be used in `use_figma` to import the component:
 ```javascript
 const component = await figma.importComponentByKeyAsync("abc123def");
 // or for component sets:
 const componentSet = await figma.importComponentSetByKeyAsync("abc123def");
 ```
 
-**Variables：** `variableSetKey` 是 collection key。`key` 是 variable key。使用这些信息理解当前命名约定，以及有哪些 token 可作为 alias 来源。
+**Variables:** The `variableSetKey` is the collection key. The `key` is the variable key. Use these to understand what naming conventions are in use, and what tokens are available to alias from.
 
-**Styles：** `key` 可配合 `figma.importStyleByKeyAsync(key)` 导入到当前文件。
+**Styles:** The `key` is usable with `figma.importStyleByKeyAsync(key)` to import into the current file.
 
-### 何时搜索
+### When to Search
 
-- **Phase 0, step 0c**：在规划任何内容前广泛搜索（`query: "button"`、`query: "color"`、`query: "spacing"`）。这会建立 reuse baseline。
-- **每次创建 component 前立即执行**：在编写任何 `use_figma` 创建代码前，搜索具体 component name。
+- **Phase 0, step 0c**: Search broadly (`query: "button"`, `query: "color"`, `query: "spacing"`) before planning anything. This establishes the reuse baseline.
+- **Immediately before each component creation**: Search for the specific component name before writing any `use_figma` creation code.
 
-**复用决策：**
+**Reuse decision:**
 
-| 条件 | 决策 |
+| Condition | Decision |
 |---|---|
-| 找到 variant API 匹配且 token model 相同的 component | 导入并复用 |
-| 找到 component，但 variant property 错误或存在 hardcoded value | 重建 |
-| 找到视觉匹配但 API 不兼容的 component | Wrap：作为 instance 嵌套进新的 wrapper component |
+| Found component with matching variant API, same token model | Import and reuse |
+| Found component but wrong variant properties or hardcoded values | Rebuild |
+| Found component that matches visually but API is incompatible | Wrap: nest as instance inside a new wrapper component |
 
 ---
 
-## 4. 制定计划
+## 4. Building the Plan
 
-完成 codebase 分析和 Figma 检查后，生成 mapping table 并展示给用户。
+After codebase analysis and Figma inspection, produce a mapping table and present it to the user.
 
-### Token -> Variable 映射表
+### Token → Variable Mapping Table
 
-对代码中找到的每个 token，记录：
+For each token found in code, record:
 
 | Code Token | CSS Name | Raw Value | Figma Collection | Figma Variable Name | Figma Type | Mode(s) |
 |---|---|---|---|---|---|---|
@@ -403,27 +403,27 @@ const componentSet = await figma.importComponentSetByKeyAsync("abc123def");
 | `theme.colors.bg.primary` | `--color-bg-primary` | (light: blue/50, dark: gray/900) | Color | `color/bg/primary` | COLOR | Light, Dark |
 | `theme.spacing.sm` | `--spacing-sm` | `8px` | Spacing | `spacing/sm` | FLOAT | Value |
 | `theme.radii.md` | `--radius-md` | `8px` | Spacing | `radius/md` | FLOAT | Value |
-| `theme.shadows.md` | `--shadow-md` | `0 4px 6px rgba(0,0,0,0.1)` | N/A | N/A | Effect Style | N/A |
+| `theme.shadows.md` | `--shadow-md` | `0 4px 6px rgba(0,0,0,0.1)` | — | — | Effect Style | — |
 
-### Component -> Component Set 映射表
+### Component → Component Set Mapping Table
 
-| Code Component | Props -> Variant Axes | Variant Count | Figma Page | Reuse? |
+| Code Component | Props → Variant Axes | Variant Count | Figma Page | Reuse? |
 |---|---|---|---|---|
-| `Button` | size (sm/md/lg) x variant (primary/secondary) x state (default/hover/disabled) | 18 | Buttons | Search first |
-| `Avatar` | size (sm/md/lg) x type (image/initials/icon) | 9 | Avatars | Search first |
+| `Button` | size (sm/md/lg) × variant (primary/secondary) × state (default/hover/disabled) | 18 | Buttons | Search first |
+| `Avatar` | size (sm/md/lg) × type (image/initials/icon) | 9 | Avatars | Search first |
 
-### Gap 识别
+### Gap Identification
 
-对比代码中发现的内容和 Figma 中已有的内容：
+Compare what was found in code vs what already exists in Figma:
 
-- **New：** 存在于代码中但不存在于 Figma 中的 token 或 component -> 创建
-- **Existing：** Figma 中已有且名称匹配的 token 或 component -> 验证 scope/code-syntax，然后跳过或更新
-- **Conflict：** 同名但 value 不同 -> 升级给用户决策（见第 5 节）
-- **Figma-only：** 存在于 Figma 中但不存在于代码中 -> 标记给用户，通常跳过
+- **New:** tokens or components that exist in code but not in Figma → create
+- **Existing:** tokens or components already in Figma with matching names → verify scope/code-syntax, skip or update
+- **Conflict:** same name, different value → escalate to user (see section 5)
+- **Figma-only:** exists in Figma but not in code → flag for user, likely skip
 
-### 面向用户的 Checkpoint Message 模板
+### User-Facing Checkpoint Message Template
 
-继续前展示此消息。没有用户明确批准时，绝不开始 Phase 1。
+Present this message before proceeding. Never begin Phase 1 without explicit user approval.
 
 ```
 Here's what I found and what I plan to build:
@@ -460,35 +460,35 @@ Shall I proceed?
 
 ---
 
-## 5. 冲突解决：Code 与 Figma 不一致时
+## 5. Conflict Resolution — When Code and Figma Disagree
 
-当同一个 token/component 同时存在于 code 和 Figma 中，但 value、name 或结构不同，**始终询问用户**。不要静默选择其中一个。
+When the same token/component exists in both code and Figma but with different values, names, or structures, **always ask the user**. Never silently pick one.
 
-### 决策框架
+### Decision Framework
 
-| 场景 | 询问用户 |
+| Scenario | Ask the user |
 |---|---|
-| CSS name 相同但 hex value 不同（例如 code 中 `--color-accent` 是 `#3366FF`，Figma 中是 `#5B7FFF`） | "Code 显示 `#3366FF`，但 Figma 当前的 `color/accent/default` 是 `#5B7FFF`。哪个是正确的？" |
-| Component name 相同但 variant axes 不同（code 有 `size: sm/md/lg`，Figma 有 `Size: Small/Large`） | "Code 使用 3 个 size（sm/md/lg），但 Figma 有 2 个（Small/Large）。应添加 Medium，还是重命名以匹配 code？" |
-| Code 有 semantic token，但没有 primitive layer；Figma 已有完整分层 system | "Codebase 使用扁平的单层 token model。Figma file 使用 primitive/semantic 分层。应匹配 Figma architecture 还是 code architecture？" |
-| Figma variable 存在但使用 `ALL_SCOPES`（按最佳实践不正确） | "我发现 `color/bg/primary` 已存在，但它使用 ALL_SCOPES。我建议改为 `FRAME_FILL, SHAPE_FILL`。可以更新 scope 吗？" |
-| Code 使用 camelCase（`backgroundColor`），Figma 使用 slash-separated（`color/bg/default`） | "Codebase 使用 camelCase 命名。Figma file 使用 slash-separated hierarchy。对于新 variable，是否应使用 slash-separated（Figma standard），并通过 code syntax 映射？" |
+| Same CSS name, different hex value (e.g., `--color-accent` is `#3366FF` in code but `#5B7FFF` in Figma) | "Code says `#3366FF`, Figma currently has `#5B7FFF` for `color/accent/default`. Which is correct?" |
+| Same component name, different variant axes (code has `size: sm/md/lg`, Figma has `Size: Small/Large`) | "Code uses 3 sizes (sm/md/lg) but Figma has 2 (Small/Large). Should I add Medium, or rename to match code?" |
+| Code has a semantic token with no primitive layer; Figma already has a fully-layered system | "The codebase uses a flat single-layer token model. The Figma file uses a primitive/semantic split. Should I match the Figma architecture or the code architecture?" |
+| Figma variable exists but has `ALL_SCOPES` (incorrect per best practice) | "I found `color/bg/primary` already exists but it uses ALL_SCOPES. I recommend changing it to `FRAME_FILL, SHAPE_FILL`. May I update the scope?" |
+| Code uses camelCase (`backgroundColor`), Figma uses slash-separated (`color/bg/default`) | "The codebase uses camelCase naming. The Figma file uses slash-separated hierarchy. For new variables, should I use slash-separated (Figma standard) and map via code syntax?" |
 
-### Code 优先
+### Code Wins
 
-以下情况默认以 code 作为事实来源：
-- Hex value（code 是线上生产值）
-- Token naming（CSS variable name 会成为 code syntax）
-- Mode value（light/dark 拆分来自 code）
+Default to code as the source of truth for:
+- Hex values (code is the live production value)
+- Token naming (the CSS variable names become code syntax)
+- Mode values (light/dark split comes from code)
 
-### Figma 优先
+### Figma Wins
 
-以下情况默认以 Figma 作为事实来源：
-- Collection architecture（如果已有结构良好的 system，则扩展它，而不是替换它）
-- Variable naming hierarchy（如果 designer 已经在使用具有特定名称的 system）
-- Page structure（匹配现有 page 组织模式）
+Default to Figma as the source of truth for:
+- Collection architecture (if a well-structured system already exists, extend it rather than replace it)
+- Variable naming hierarchy (if designers are already using the system with specific names)
+- Page structure (match the existing page organization pattern)
 
-### 两者都不明显正确：协商
+### Neither: Negotiate
 
-当两者都不明显正确时，提出解决方案并询问：
-> "我建议采用 [option]。这样可以同时保留 code token name 和 Figma naming convention。这样可以吗？"
+When neither is clearly correct, propose a resolution and ask:
+> "I'd suggest [option]. This way both the code token name and the Figma naming convention are preserved. Does that work?"

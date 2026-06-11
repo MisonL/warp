@@ -1,115 +1,115 @@
 ---
 name: figma-code-connect-components
-description: 使用 Code Connect mapping tools 将 Figma design component 连接到代码 component。当用户说 "code connect"、"connect this component to code"、"map this component"、"link component to code"、"create code connect mapping"，或希望在 Figma design 与代码实现之间建立映射时使用。对于通过 `use_figma` 写入 canvas 的任务，请使用 `figma-use`。
+description: Connects Figma design components to code components using Code Connect mapping tools. Use when user says "code connect", "connect this component to code", "map this component", "link component to code", "create code connect mapping", or wants to establish mappings between Figma designs and code implementations. For canvas writes via `use_figma`, use `figma-use`.
 disable-model-invocation: false
 ---
 
 # Code Connect Components
 
-## 概览
+## Overview
 
-此 skill 帮助你使用 Figma 的 Code Connect 功能，将 Figma design component 连接到对应的代码实现。它会分析 Figma design 结构，搜索代码库中的匹配 component，并建立保持设计与代码一致性的映射。
+This skill helps you connect Figma design components to their corresponding code implementations using Figma's Code Connect feature. It analyzes the Figma design structure, searches your codebase for matching components, and establishes mappings that maintain design-code consistency.
 
-## Skill 边界
+## Skill Boundaries
 
-- 将此 skill 用于 `get_code_connect_suggestions` + `send_code_connect_mappings` 工作流。
-- 如果任务需要用 Plugin API scripts 写入 Figma canvas，切换到 [figma-use](../figma-use/SKILL.md)。
-- 如果任务是根据代码或描述在 Figma 中构建或更新整页 screen，切换到 [figma-generate-design](../figma-generate-design/SKILL.md)。
-- 如果任务是根据 Figma 实现产品代码，切换到 [figma-implement-design](../figma-implement-design/SKILL.md)。
+- Use this skill for `get_code_connect_suggestions` + `send_code_connect_mappings` workflows.
+- If the task requires writing to the Figma canvas with Plugin API scripts, switch to [figma-use](../figma-use/SKILL.md).
+- If the task is building or updating a full-page screen in Figma from code or a description, switch to [figma-generate-design](../figma-generate-design/SKILL.md).
+- If the task is implementing product code from Figma, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
 
-## 前置条件
+## Prerequisites
 
-- Figma MCP server 必须已连接且可访问
-- 用户必须提供带 node ID 的 Figma URL：`https://figma.com/design/:fileKey/:fileName?node-id=1-2`
-  - **重要：** Figma URL 必须包含 `node-id` 参数。缺少它会导致 Code Connect mapping 失败。
-- **或者** 使用 `figma-desktop` MCP 时：用户可以直接在 Figma desktop app 中选择 node（无需 URL）
-- **重要：** Figma component 必须已发布到 team library。Code Connect 只适用于已发布的 component 或 component set。
-- **重要：** Code Connect 仅在 Organization 和 Enterprise plan 上可用。
-- 需要访问项目代码库来扫描 component
+- Figma MCP server must be connected and accessible
+- User must provide a Figma URL with node ID: `https://figma.com/design/:fileKey/:fileName?node-id=1-2`
+  - **IMPORTANT:** The Figma URL must include the `node-id` parameter. Code Connect mapping will fail without it.
+- **OR** when using `figma-desktop` MCP: User can select a node directly in the Figma desktop app (no URL required)
+- **IMPORTANT:** The Figma component must be published to a team library. Code Connect only works with published components or component sets.
+- **IMPORTANT:** Code Connect is only available on Organization and Enterprise plans.
+- Access to the project codebase for component scanning
 
-## 必需工作流
+## Required Workflow
 
-**按顺序执行这些步骤。不要跳过步骤。**
+**Follow these steps in order. Do not skip steps.**
 
-### 步骤 1：获取 Code Connect 建议
+### Step 1: Get Code Connect Suggestions
 
-调用 `get_code_connect_suggestions`，一次性识别所有未映射的 component。此工具会自动：
+Call `get_code_connect_suggestions` to identify all unmapped components in a single operation. This tool automatically:
 
-- 从 Figma scenegraph 获取 component 信息
-- 识别选区中的已发布 component
-- 检查现有 Code Connect mapping，并过滤已经连接的 component
-- 为每个未映射 component 返回 component 名称、属性和缩略图
+- Fetches component info from the Figma scenegraph
+- Identifies published components in the selection
+- Checks existing Code Connect mappings and filters out already-connected components
+- Returns component names, properties, and thumbnail images for each unmapped component
 
-#### 选项 A：使用 `figma-desktop` MCP（未提供 URL）
+#### Option A: Using `figma-desktop` MCP (no URL provided)
 
-如果 `figma-desktop` MCP server 已连接，并且用户没有提供 Figma URL，立即调用 `get_code_connect_suggestions`。不需要解析 URL，desktop MCP server 会自动使用当前打开 Figma file 中选中的 node。
+If the `figma-desktop` MCP server is connected and the user has NOT provided a Figma URL, immediately call `get_code_connect_suggestions`. No URL parsing is needed — the desktop MCP server automatically uses the currently selected node from the open Figma file.
 
-**注意：** 用户必须打开 Figma desktop app，并且已选择一个 node。`fileKey` 不会作为参数传入，server 会使用当前打开的文件。
+**Note:** The user must have the Figma desktop app open with a node selected. `fileKey` is not passed as a parameter — the server uses the currently open file.
 
-#### 选项 B：提供了 Figma URL
+#### Option B: When a Figma URL is provided
 
-解析 URL 以提取 `fileKey` 和 `nodeId`，然后调用 `get_code_connect_suggestions`。
+Parse the URL to extract `fileKey` and `nodeId`, then call `get_code_connect_suggestions`.
 
-**重要：** 从 Figma URL 提取 node ID 时，要转换格式：
+**IMPORTANT:** When extracting the node ID from a Figma URL, convert the format:
 
-- URL format 使用连字符：`node-id=1-2`
-- 工具期望冒号：`nodeId=1:2`
+- URL format uses hyphens: `node-id=1-2`
+- Tool expects colons: `nodeId=1:2`
 
-**解析 Figma URL：**
+**Parse the Figma URL:**
 
-- URL format：`https://figma.com/design/:fileKey/:fileName?node-id=1-2`
-- 提取 file key：`:fileKey`（`/design/` 后面的 segment）
-- 从 URL 提取 node ID：`1-2`，然后转换为工具使用的 `1:2`
+- URL format: `https://figma.com/design/:fileKey/:fileName?node-id=1-2`
+- Extract file key: `:fileKey` (segment after `/design/`)
+- Extract node ID: `1-2` from URL, then convert to `1:2` for the tool
 
 ```
 get_code_connect_suggestions(fileKey=":fileKey", nodeId="1:2")
 ```
 
-**处理响应：**
+**Handle the response:**
 
-- 如果工具返回 **"No published components found in this selection"**，告知用户并停止。component 可能需要先发布到 team library。
-- 如果工具返回 **"All component instances in this selection are already connected to code via Code Connect"**，告知用户所有内容都已映射。
-- 否则，响应会包含未映射 component 列表，每一项包含：
+- If the tool returns **"No published components found in this selection"** → inform the user and stop. The components may need to be published to a team library first.
+- If the tool returns **"All component instances in this selection are already connected to code via Code Connect"** → inform the user that everything is already mapped.
+- Otherwise, the response contains a list of unmapped components, each with:
   - Component name
   - Node ID
-  - Component properties（包含 prop name 和 value 的 JSON）
-  - Component 的缩略图（用于视觉检查）
+  - Component properties (JSON with prop names and values)
+  - A thumbnail image of the component (for visual inspection)
 
-### 步骤 2：扫描代码库以查找匹配 component
+### Step 2: Scan Codebase for Matching Components
 
-针对 `get_code_connect_suggestions` 返回的每个未映射 component，在代码库中搜索匹配的代码 component。
+For each unmapped component returned by `get_code_connect_suggestions`, search the codebase for a matching code component.
 
-**查找内容：**
+**What to look for:**
 
-- 与 Figma component 名称匹配或相似的 component 名称
-- 与 Figma hierarchy 对齐的 component 结构
-- 对应 Figma property 的 props（variant、text、style）
-- 典型 component 目录中的文件（`src/components/`、`components/`、`ui/` 等）
+- Component names that match or are similar to the Figma component name
+- Component structure that aligns with the Figma hierarchy
+- Props that correspond to Figma properties (variants, text, styles)
+- Files in typical component directories (`src/components/`, `components/`, `ui/`, etc.)
 
-**搜索策略：**
+**Search strategy:**
 
-1. 搜索名称匹配的 component 文件
-2. 读取候选文件，检查结构和 props
-3. 将代码 component 的 props 与步骤 1 返回的 Figma component properties 对比
-4. 检测编程语言（TypeScript、JavaScript）和 framework（React、Vue 等）
-5. 根据结构相似度识别最佳匹配，并权衡：
-   - Prop 名称及其与 Figma property 的对应关系
-   - 与 Figma defaults 匹配的默认值
-   - CSS class 或 style object
-   - 能阐明意图的描述性注释
-6. 如果多个候选同样合适，选择 prop-interface 最接近的一个，并在工具调用前用 1-2 句注释记录理由
+1. Search for component files with matching names
+2. Read candidate files to check structure and props
+3. Compare the code component's props with the Figma component properties returned in Step 1
+4. Detect the programming language (TypeScript, JavaScript) and framework (React, Vue, etc.)
+5. Identify the best match based on structural similarity, weighing:
+   - Prop names and their correspondence to Figma properties
+   - Default values that match Figma defaults
+   - CSS classes or style objects
+   - Descriptive comments that clarify intent
+6. If multiple candidates are equally good, pick the one with the closest prop-interface match and document your reasoning in a 1-2 sentence comment before your tool call
 
-**示例搜索模式：**
+**Example search patterns:**
 
-- 如果 Figma component 是 "PrimaryButton"，搜索 `Button.tsx`、`PrimaryButton.tsx`、`Button.jsx`
-- 检查常见 component 路径：`src/components/`、`app/components/`、`lib/ui/`
-- 查找 `variant`、`size`、`color` 等与 Figma variant 匹配的 variant props
+- If Figma component is "PrimaryButton", search for `Button.tsx`, `PrimaryButton.tsx`, `Button.jsx`
+- Check common component paths: `src/components/`, `app/components/`, `lib/ui/`
+- Look for variant props like `variant`, `size`, `color` that match Figma variants
 
-### 步骤 3：向用户展示匹配项
+### Step 3: Present Matches to User
 
-展示发现结果，并让用户选择要创建哪些 mapping。用户可以接受全部、部分或不接受建议的 mapping。
+Present your findings and let the user choose which mappings to create. The user can accept all, some, or none of the suggested mappings.
 
-**按此格式展示匹配项：**
+**Present matches in this format:**
 
 ```
 The following components match the design:
@@ -119,19 +119,19 @@ The following components match the design:
 Would you like to connect these components? You can accept all, select specific ones, or skip.
 ```
 
-**如果某个 component 没有精确匹配：**
+**If no exact match is found for a component:**
 
-- 展示最接近的 2 个候选
-- 说明差异
-- 请用户确认使用哪个 component，或提供正确路径
+- Show the 2 closest candidates
+- Explain the differences
+- Ask the user to confirm which component to use or provide the correct path
 
-**如果用户拒绝所有 mapping**，告知用户并停止。无需继续调用工具。
+**If the user declines all mappings**, inform them and stop. No further tool calls are needed.
 
-### 步骤 4：创建 Code Connect Mappings
+### Step 4: Create Code Connect Mappings
 
-用户确认选择后，只用已接受的 mapping 调用 `send_code_connect_mappings`。此工具会在一次调用中批量创建所有 mapping。
+Once the user confirms their selections, call `send_code_connect_mappings` with only the accepted mappings. This tool handles batch creation of all mappings in a single call.
 
-**示例：**
+**Example:**
 
 ```
 send_code_connect_mappings(
@@ -144,24 +144,24 @@ send_code_connect_mappings(
 )
 ```
 
-**每个 mapping 的关键参数：**
+**Key parameters for each mapping:**
 
-- `nodeId`：Figma node ID（冒号格式：`1:2`）
-- `componentName`：要连接的 component 名称（例如 "Button"、"Card"）
-- `source`：代码 component 文件路径（相对于 project root）
-- `label`：此 Code Connect mapping 的 framework 或 language label。有效值包括：
+- `nodeId`: The Figma node ID (with colon format: `1:2`)
+- `componentName`: Name of the component to connect (e.g., "Button", "Card")
+- `source`: Path to the code component file (relative to project root)
+- `label`: The framework or language label for this Code Connect mapping. Valid values include:
   - Web: 'React', 'Web Components', 'Vue', 'Svelte', 'Storybook', 'Javascript'
   - iOS: 'Swift UIKit', 'Objective-C UIKit', 'SwiftUI'
   - Android: 'Compose', 'Java', 'Kotlin', 'Android XML Layout'
   - Cross-platform: 'Flutter'
   - Docs: 'Markdown'
 
-**调用之后：**
+**After the call:**
 
-- 成功时：工具会确认 mapping 已创建
-- 出错时：工具会报告具体哪个 mapping 失败以及原因（例如 "Component is already mapped to code"、"Published component not found"、"Insufficient permissions"）
+- On success: the tool confirms the mappings were created
+- On error: the tool reports which specific mappings failed and why (e.g., "Component is already mapped to code", "Published component not found", "Insufficient permissions")
 
-**处理后提供摘要**：
+**Provide a summary** after processing:
 
 ```
 Code Connect Summary:
@@ -173,20 +173,20 @@ Code Connect Summary:
   - CustomWidget (1:10) - No matching component found in codebase
 ```
 
-## 示例
+## Examples
 
-### 示例 1：连接 Button Component
+### Example 1: Connecting a Button Component
 
-用户说："将这个 Figma button 连接到我的代码：https://figma.com/design/kL9xQn2VwM8pYrTb4ZcHjF/DesignSystem?node-id=42-15"
+User says: "Connect this Figma button to my code: https://figma.com/design/kL9xQn2VwM8pYrTb4ZcHjF/DesignSystem?node-id=42-15"
 
-**操作：**
+**Actions:**
 
-1. 解析 URL：fileKey=`kL9xQn2VwM8pYrTb4ZcHjF`，nodeId=`42-15`，转换为 `42:15`
-2. 运行 `get_code_connect_suggestions(fileKey="kL9xQn2VwM8pYrTb4ZcHjF", nodeId="42:15")`
-3. 响应显示：Button component（未映射），包含 `variant`（primary/secondary）和 `size`（sm/md/lg）属性，以及缩略图
-4. 在代码库中搜索 Button component：找到 `src/components/Button.tsx`
-5. 读取 `Button.tsx`，确认它有 `variant` 和 `size` props
-6. 向用户展示：
+1. Parse URL: fileKey=`kL9xQn2VwM8pYrTb4ZcHjF`, nodeId=`42-15` → convert to `42:15`
+2. Run `get_code_connect_suggestions(fileKey="kL9xQn2VwM8pYrTb4ZcHjF", nodeId="42:15")`
+3. Response shows: Button component (unmapped) with `variant` (primary/secondary) and `size` (sm/md/lg) properties, plus a thumbnail image
+4. Search codebase for Button components: Find `src/components/Button.tsx`
+5. Read `Button.tsx` and confirm it has `variant` and `size` props
+6. Present to user:
    ```
    I found a match:
    - [Button](src/components/Button.tsx): Button at nodeId [42:15](https://figma.com/design/kL9xQn2VwM8pYrTb4ZcHjF/DesignSystem?node-id=42-15)
@@ -194,26 +194,26 @@ Code Connect Summary:
    Would you like to connect this component?
    ```
 
-7. 用户确认："Yes"
-8. 检测到它是 TypeScript React component
-9. 运行 `send_code_connect_mappings(fileKey="kL9xQn2VwM8pYrTb4ZcHjF", nodeId="42:15", mappings=[{ nodeId: "42:15", componentName: "Button", source: "src/components/Button.tsx", label: "React" }])`
+7. User confirms: "Yes"
+8. Detect that it's a TypeScript React component
+9. Run `send_code_connect_mappings(fileKey="kL9xQn2VwM8pYrTb4ZcHjF", nodeId="42:15", mappings=[{ nodeId: "42:15", componentName: "Button", source: "src/components/Button.tsx", label: "React" }])`
 
-**结果：** Figma button component 现在已连接到代码中的 Button component。
+**Result:** Figma button component is now connected to the code Button component.
 
-### 示例 2：多个 component，部分选择
+### Example 2: Multiple Components with Partial Selection
 
-用户说："连接这个 frame 中的 component：https://figma.com/design/pR8mNv5KqXzGwY2JtCfL4D/Components?node-id=10-50"
+User says: "Connect components in this frame: https://figma.com/design/pR8mNv5KqXzGwY2JtCfL4D/Components?node-id=10-50"
 
-**操作：**
+**Actions:**
 
-1. 解析 URL：fileKey=`pR8mNv5KqXzGwY2JtCfL4D`，nodeId=`10-50`，转换为 `10:50`
-2. 运行 `get_code_connect_suggestions(fileKey="pR8mNv5KqXzGwY2JtCfL4D", nodeId="10:50")`
-3. 响应显示 3 个未映射 component：ProductCard、Badge 和 CustomWidget
-4. 搜索代码库：
-   - ProductCard：找到 `src/components/ProductCard.tsx`（props 匹配）
-   - Badge：找到 `src/components/Badge.tsx`（props 匹配）
-   - CustomWidget：未找到匹配 component
-5. 向用户展示：
+1. Parse URL: fileKey=`pR8mNv5KqXzGwY2JtCfL4D`, nodeId=`10-50` → convert to `10:50`
+2. Run `get_code_connect_suggestions(fileKey="pR8mNv5KqXzGwY2JtCfL4D", nodeId="10:50")`
+3. Response shows 3 unmapped components: ProductCard, Badge, and CustomWidget
+4. Search codebase:
+   - ProductCard: Found `src/components/ProductCard.tsx` (props match)
+   - Badge: Found `src/components/Badge.tsx` (props match)
+   - CustomWidget: No matching component found
+5. Present to user:
    ```
    The following components match the design:
    - [ProductCard](src/components/ProductCard.tsx): ProductCard at nodeId [10:51](https://figma.com/design/pR8mNv5KqXzGwY2JtCfL4D/Components?node-id=10-51)
@@ -224,127 +224,127 @@ Code Connect Summary:
    Would you like to connect these components? You can accept all, select specific ones, or skip.
    ```
 
-6. 用户："Just connect ProductCard, skip Badge for now"
-7. 运行 `send_code_connect_mappings(fileKey="pR8mNv5KqXzGwY2JtCfL4D", nodeId="10:50", mappings=[{ nodeId: "10:51", componentName: "ProductCard", source: "src/components/ProductCard.tsx", label: "React" }])`
+6. User: "Just connect ProductCard, skip Badge for now"
+7. Run `send_code_connect_mappings(fileKey="pR8mNv5KqXzGwY2JtCfL4D", nodeId="10:50", mappings=[{ nodeId: "10:51", componentName: "ProductCard", source: "src/components/ProductCard.tsx", label: "React" }])`
 
-**结果：** 只按用户选择连接 ProductCard。
+**Result:** Only ProductCard is connected, per the user's selection.
 
-### 示例 3：需要创建 component
+### Example 3: Component Needs Creation
 
-用户说："连接这个 icon：https://figma.com/design/8yJDMeWDyBz71EnMOSuUiw/Icons?node-id=5-20"
+User says: "Connect this icon: https://figma.com/design/8yJDMeWDyBz71EnMOSuUiw/Icons?node-id=5-20"
 
-**操作：**
+**Actions:**
 
-1. 解析 URL：fileKey=`8yJDMeWDyBz71EnMOSuUiw`，nodeId=`5-20`，转换为 `5:20`
-2. 运行 `get_code_connect_suggestions(fileKey="8yJDMeWDyBz71EnMOSuUiw", nodeId="5:20")`
-3. 响应显示：CheckIcon component（未映射），包含 color 和 size 属性
-4. 在代码库中搜索 CheckIcon：未找到匹配项
-5. 搜索通用 Icon component：找到 `src/icons/` 目录，里面有其他 icon
-6. 向用户报告："I couldn't find a CheckIcon component, but I found an icons directory at src/icons/. Would you like to:
+1. Parse URL: fileKey=`8yJDMeWDyBz71EnMOSuUiw`, nodeId=`5-20` → convert to `5:20`
+2. Run `get_code_connect_suggestions(fileKey="8yJDMeWDyBz71EnMOSuUiw", nodeId="5:20")`
+3. Response shows: CheckIcon component (unmapped) with color and size properties
+4. Search codebase for CheckIcon: No matches found
+5. Search for generic Icon components: Find `src/icons/` directory with other icons
+6. Report to user: "I couldn't find a CheckIcon component, but I found an icons directory at src/icons/. Would you like to:
    - Create a new CheckIcon.tsx component first, then connect it
    - Connect to a different existing icon
    - Provide the path to the CheckIcon if it exists elsewhere"
-7. 用户提供路径："src/icons/CheckIcon.tsx"
-8. 从文件中检测 language 和 framework
-9. 运行 `send_code_connect_mappings(fileKey="8yJDMeWDyBz71EnMOSuUiw", nodeId="5:20", mappings=[{ nodeId: "5:20", componentName: "CheckIcon", source: "src/icons/CheckIcon.tsx", label: "React" }])`
+7. User provides path: "src/icons/CheckIcon.tsx"
+8. Detect language and framework from the file
+9. Run `send_code_connect_mappings(fileKey="8yJDMeWDyBz71EnMOSuUiw", nodeId="5:20", mappings=[{ nodeId: "5:20", componentName: "CheckIcon", source: "src/icons/CheckIcon.tsx", label: "React" }])`
 
-**结果：** CheckIcon component 已成功连接到 Figma design。
+**Result:** CheckIcon component is successfully connected to the Figma design.
 
-## 最佳实践
+## Best Practices
 
-### 主动发现 Component
+### Proactive Component Discovery
 
-不要只是向用户索要文件路径，而应主动搜索代码库来查找匹配 component。这会提供更好的体验，并发现潜在 mapping 机会。
+Don't just ask the user for the file path — actively search their codebase to find matching components. This provides a better experience and catches potential mapping opportunities.
 
-### 准确匹配结构
+### Accurate Structure Matching
 
-将 Figma component 与代码 component 对比时，不要只看名称。检查：
+When comparing Figma components to code components, look beyond just names. Check that:
 
-- Props 是否对齐（variant 类型、size 选项等）
-- Component hierarchy 是否匹配（嵌套元素）
-- Component 是否服务于同一目的
+- Props align (variant types, size options, etc.)
+- Component hierarchy matches (nested elements)
+- The component serves the same purpose
 
-### 清晰沟通
+### Clear Communication
 
-提出创建 mapping 时，清楚说明：
+When offering to create a mapping, clearly explain:
 
-- 发现了什么
-- 为什么它是好匹配
-- mapping 会做什么
-- props 将如何连接
+- What you found
+- Why it's a good match
+- What the mapping will do
+- How props will be connected
 
-### 处理歧义
+### Handle Ambiguity
 
-如果多个 component 都可能匹配，展示选项而不是猜测。让用户最终决定连接哪个 component。
+If multiple components could match, present options rather than guessing. Let the user make the final decision about which component to connect.
 
-### 优雅降级
+### Graceful Degradation
 
-如果找不到精确匹配，提供有帮助的后续步骤：
+If you can't find an exact match, provide helpful next steps:
 
-- 展示接近的候选
-- 建议创建 component
-- 询问用户指引
+- Show close candidates
+- Suggest component creation
+- Ask for user guidance
 
-## 常见问题与解决方案
+## Common Issues and Solutions
 
-### 问题："No published components found in this selection"
+### Issue: "No published components found in this selection"
 
-**原因：** Figma component 尚未发布到 team library。Code Connect 只适用于已发布的 component。
-**解决方案：** 用户需要在 Figma 中将 component 发布到 team library：
+**Cause:** The Figma component is not published to a team library. Code Connect only works with published components.
+**Solution:** The user needs to publish the component to a team library in Figma:
 
-1. 在 Figma 中选择 component 或 component set
-2. 右键选择 "Publish to library"，或使用 Team Library publish modal
-3. 发布 component
-4. 发布后，使用同一个 node ID 重试 Code Connect mapping
+1. In Figma, select the component or component set
+2. Right-click and choose "Publish to library" or use the Team Library publish modal
+3. Publish the component
+4. Once published, retry the Code Connect mapping with the same node ID
 
-### 问题："Code Connect is only available on Organization and Enterprise plans"
+### Issue: "Code Connect is only available on Organization and Enterprise plans"
 
-**原因：** 用户的 Figma plan 不包含 Code Connect access。
-**解决方案：** 用户需要升级到 Organization 或 Enterprise plan，或联系管理员。
+**Cause:** The user's Figma plan does not include Code Connect access.
+**Solution:** The user needs to upgrade to an Organization or Enterprise plan, or contact their administrator.
 
-### 问题：代码库中未找到匹配 component
+### Issue: No matching component found in codebase
 
-**原因：** 代码库搜索没有找到名称或结构匹配的 component。
-**解决方案：** 询问用户该 component 是否以其他名称存在，或位于其他位置。他们可能需要先创建 component，或该 component 可能位于非预期目录中。
+**Cause:** The codebase search did not find a component with a matching name or structure.
+**Solution:** Ask the user if the component exists under a different name or in a different location. They may need to create the component first, or it might be located in an unexpected directory.
 
-### 问题："Published component not found" (CODE_CONNECT_ASSET_NOT_FOUND)
+### Issue: "Published component not found" (CODE_CONNECT_ASSET_NOT_FOUND)
 
-**原因：** source file path 不正确、该位置不存在 component，或 componentName 与实际 export 不匹配。
-**解决方案：** 验证 source path 正确且相对于 project root。检查 component 是否按指定的精确 componentName 从文件中正确 export。
+**Cause:** The source file path is incorrect, the component doesn't exist at that location, or the componentName doesn't match the actual export.
+**Solution:** Verify the source path is correct and relative to the project root. Check that the component is properly exported from the file with the exact componentName specified.
 
-### 问题："Component is already mapped to code" (CODE_CONNECT_MAPPING_ALREADY_EXISTS)
+### Issue: "Component is already mapped to code" (CODE_CONNECT_MAPPING_ALREADY_EXISTS)
 
-**原因：** 此 component 已经存在 Code Connect mapping。
-**解决方案：** 此 component 已连接。如果用户想更新 mapping，可能需要先在 Figma 中删除现有 mapping。
+**Cause:** A Code Connect mapping already exists for this component.
+**Solution:** The component is already connected. If the user wants to update the mapping, they may need to remove the existing one first in Figma.
 
-### 问题："Insufficient permissions to create mapping" (CODE_CONNECT_INSUFFICIENT_PERMISSIONS)
+### Issue: "Insufficient permissions to create mapping" (CODE_CONNECT_INSUFFICIENT_PERMISSIONS)
 
-**原因：** 用户没有 Figma file 或 library 的编辑权限。
-**解决方案：** 用户需要有包含该 component 的文件的编辑权限。联系文件所有者或 team admin。
+**Cause:** The user does not have edit permissions on the Figma file or library.
+**Solution:** The user needs edit access to the file containing the component. Contact the file owner or team admin.
 
-### 问题：Code Connect mapping 因 URL 错误失败
+### Issue: Code Connect mapping fails with URL errors
 
-**原因：** Figma URL format 不正确，或缺少 `node-id` 参数。
-**解决方案：** 验证 URL 符合所需格式：`https://figma.com/design/:fileKey/:fileName?node-id=1-2`。`node-id` 参数是必需的。调用工具时也要确保将 `1-2` 转换为 `1:2`。
+**Cause:** The Figma URL format is incorrect or missing the `node-id` parameter.
+**Solution:** Verify the URL follows the required format: `https://figma.com/design/:fileKey/:fileName?node-id=1-2`. The `node-id` parameter is required. Also ensure you convert `1-2` to `1:2` when calling tools.
 
-### 问题：找到多个相似 component
+### Issue: Multiple similar components found
 
-**原因：** 代码库包含多个可能匹配 Figma component 的 component。
-**解决方案：** 向用户展示所有候选及其文件路径，并让他们选择要连接哪一个。不同 component 可能用于不同上下文（例如 `Button.tsx` 和 `LinkButton.tsx`）。
+**Cause:** The codebase contains multiple components that could match the Figma component.
+**Solution:** Present all candidates to the user with their file paths and let them choose which one to connect. Different components might be used in different contexts (e.g., `Button.tsx` vs `LinkButton.tsx`).
 
-## 理解 Code Connect
+## Understanding Code Connect
 
-Code Connect 会在设计与代码之间建立双向链接：
+Code Connect establishes a bidirectional link between design and code:
 
-**对设计师：** 查看哪个代码 component 实现了某个 Figma component
-**对开发者：** 从 Figma design 直接导航到实现它们的代码
-**对团队：** 维护 component mapping 的单一事实来源
+**For designers:** See which code component implements a Figma component
+**For developers:** Navigate from Figma designs directly to the code that implements them
+**For teams:** Maintain a single source of truth for component mappings
 
-你创建的 mapping 会让这些连接明确且可发现，从而帮助设计与代码保持同步。
+The mapping you create helps keep design and code in sync by making these connections explicit and discoverable.
 
-## 其他资源
+## Additional Resources
 
-关于 Code Connect 的更多信息：
+For more information about Code Connect:
 
 - [Code Connect Documentation](https://help.figma.com/hc/en-us/articles/23920389749655-Code-Connect)
 - [Figma MCP Server Tools and Prompts](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts/)

@@ -1,55 +1,55 @@
-> 属于 [figma-generate-library skill](../SKILL.md) 的一部分。
+> Part of the [figma-generate-library skill](../SKILL.md).
 
 # Code Connect Setup Reference
 
-此 reference 覆盖 figma-generate-library agent 可用的全部 Code Connect tooling：`add_code_connect_map` tool、用于验证的 `get_code_connect_map`、用于批量应用的 `send_code_connect_mappings`、variable code syntax、framework label，以及何时按 component 映射、何时在最终 pass 中映射的决策。
+This reference covers all Code Connect tooling available to the figma-generate-library agent: the `add_code_connect_map` tool, `get_code_connect_map` for verification, `send_code_connect_mappings` for bulk application, variable code syntax, framework labels, and the decision of when to map per-component vs. in a final pass.
 
 ---
 
-## 1. Code Connect 做什么
+## 1. What Code Connect Does
 
-Code Connect 会将 Figma component node 链接到其代码实现，从而：
+Code Connect links a Figma component node to its code implementation so that:
 
-- **Dev Mode** 在开发者检查 component 时显示真实代码片段（来自你的代码库），而不是 auto-generated approximation。
-- **MCP `get_design_context`** 与 design token 一起返回 `componentName`、`source` 和 rendered snippet，从而支持准确的 AI-assisted code generation。
-- **`search_design_system`** 可以在返回 Figma component metadata 的同时返回 code reference。
+- **Dev Mode** shows a real code snippet (from your codebase) instead of an auto-generated approximation when a developer inspects a component.
+- **MCP `get_design_context`** returns `componentName`, `source`, and a rendered snippet alongside design tokens, enabling accurate AI-assisted code generation.
+- **`search_design_system`** can return code references alongside Figma component metadata.
 
 ---
 
-## 2. 三个 MCP Tool
+## 2. The Three MCP Tools
 
-### 2a. add_code_connect_map - 单个 mapping
+### 2a. add_code_connect_map — single mapping
 
-将一个 Figma node 映射到一个代码 component。
+Maps one Figma node to one code component.
 
-**参数：**
+**Parameters:**
 
-| 参数 | 类型 | 是否必需 | 说明 |
+| Parameter | Type | Required | Notes |
 |-----------|------|----------|-------|
-| `nodeId` | string | 是（remote）/ 可选（desktop） | Format `123:456`。必须是已发布的 component 或 component set。 |
-| `fileKey` | string | 是（remote） | Figma file key。 |
-| `source` | string | 是 | 代码库中的路径（例如 `src/components/Button.tsx`）或 URL。 |
-| `componentName` | string | 是 | 代码 component 名称（例如 `Button`）。 |
-| `label` | enum | 是 | Framework label，合法值见第 4 节。 |
-| `template` | string | 可选 | 可执行 JS template code。提供此项会创建 **figmadoc**（template）mapping，而不是简单的 **component_browser** mapping。需要 `pixie_mcp_enable_writing_code_connect_templates` feature flag。 |
-| `templateDataJson` | string | 可选 | 包含可选字段的 JSON string：`isParserless`、`imports`、`nestable`、`props`。 |
+| `nodeId` | string | Yes (remote) / Optional (desktop) | Format `123:456`. Must be a published component or component set. |
+| `fileKey` | string | Yes (remote) | The Figma file key. |
+| `source` | string | Yes | Path in the codebase (e.g. `src/components/Button.tsx`) or a URL. |
+| `componentName` | string | Yes | The code component name (e.g. `Button`). |
+| `label` | enum | Yes | Framework label — see Section 4 for valid values. |
+| `template` | string | Optional | Executable JS template code. Providing this creates a **figmadoc** (template) mapping instead of a simple **component_browser** mapping. Requires the `pixie_mcp_enable_writing_code_connect_templates` feature flag. |
+| `templateDataJson` | string | Optional | JSON string with optional fields: `isParserless`, `imports`, `nestable`, `props`. |
 
-**两层 mapping：**
+**Two mapping tiers:**
 
-1. **Simple mapping（component_browser）：** 只提供 `source`、`componentName` 和 `label`。将 Figma component 关联到 code path + name。Dev Mode 会根据 Figma prop name 生成基础 JSX snippet。这是默认方式，应优先使用。
+1. **Simple mapping (component_browser):** Only `source`, `componentName`, and `label` provided. Associates the Figma component with a code path + name. Dev Mode generates a basic JSX snippet from Figma prop names. This is the default — use it first.
 
-2. **Template mapping（figmadoc）：** 额外提供 `template`。template 在 sandboxed QuickJS environment 中执行，并根据实际 instance property value 动态渲染 snippet。只有当用户需要精确的 prop-level Code Connect 时才使用。
+2. **Template mapping (figmadoc):** `template` is also provided. The template is executed in a sandboxed QuickJS environment and dynamically renders the snippet based on the actual instance's property values. Use this when precise prop-level Code Connect is required by the user.
 
-**常见错误码：**
+**Common error codes:**
 
-| Error | 含义 | 修复 |
+| Error | Meaning | Fix |
 |-------|---------|-----|
-| `CODE_CONNECT_MAPPING_ALREADY_EXISTS` | Component 已经映射 | 先在 Figma UI 中断开现有 mapping |
-| `CODE_CONNECT_ASSET_NOT_FOUND` | 找不到已发布 component | 确保 component 已发布到 library |
-| `CODE_CONNECT_INSUFFICIENT_PERMISSIONS` | 没有 edit access | 请求该 file 的 edit permission |
-| `CODE_CONNECT_NO_LIBRARY_FOUND` | File 未发布为 library | 先将 file 发布为 Figma library |
+| `CODE_CONNECT_MAPPING_ALREADY_EXISTS` | Component is already mapped | Disconnect existing mapping in Figma UI first |
+| `CODE_CONNECT_ASSET_NOT_FOUND` | Published component not found | Ensure the component is published to the library |
+| `CODE_CONNECT_INSUFFICIENT_PERMISSIONS` | No edit access | Request edit permission on the file |
+| `CODE_CONNECT_NO_LIBRARY_FOUND` | File is not published as a library | Publish the file as a Figma library first |
 
-**用法示例：**
+**Usage example:**
 
 ```
 Tool: add_code_connect_map
@@ -64,21 +64,21 @@ Args: {
 
 ---
 
-### 2b. get_code_connect_map - 验证
+### 2b. get_code_connect_map — verification
 
-获取某个 node 当前的 Code Connect mapping。在 `add_code_connect_map` 后立即使用它确认 mapping 已保存；在 `send_code_connect_mappings` 前也可用来审计现有状态。
+Retrieves the current Code Connect mapping for a node. Use this immediately after `add_code_connect_map` to confirm the mapping was saved, and before `send_code_connect_mappings` to audit existing state.
 
-**参数：**
+**Parameters:**
 
-| 参数 | 类型 | 是否必需 | 说明 |
+| Parameter | Type | Required | Notes |
 |-----------|------|----------|-------|
-| `nodeId` | string | 可选 | 要检查的 node。省略时获取 file 中所有 mapping。 |
-| `fileKey` | string | 是（remote） | Figma file key。 |
-| `codeConnectLabel` | string | 可选 | 将结果过滤到指定 framework label。 |
+| `nodeId` | string | Optional | The node to check. Omit to get all mappings in the file. |
+| `fileKey` | string | Yes (remote) | The Figma file key. |
+| `codeConnectLabel` | string | Optional | Filter results to a specific framework label. |
 
-**返回：** `nodeId -> { componentName, source, label, snippet, snippetImports }` 的 map。
+**Returns:** A map of `nodeId -> { componentName, source, label, snippet, snippetImports }`.
 
-**验证方式：**
+**How to verify:**
 
 ```
 1. Call add_code_connect_map with the node.
@@ -89,36 +89,36 @@ Args: {
 
 ---
 
-### 2c. send_code_connect_mappings - 批量应用
+### 2c. send_code_connect_mappings — bulk application
 
-一次调用应用多个 Code Connect mapping。在 `get_code_connect_suggestions` 返回一批未映射 component 后使用，或在 Phase 4 结束时做 final-pass bulk mapping。
+Applies multiple Code Connect mappings in one call. Use after `get_code_connect_suggestions` returns a batch of unmapped components, or when doing a final-pass bulk mapping at the end of Phase 4.
 
-**参数：**
+**Parameters:**
 
-| 参数 | 类型 | 是否必需 | 说明 |
+| Parameter | Type | Required | Notes |
 |-----------|------|----------|-------|
-| `nodeId` | string | 可选 | mappings array 为空时用于 design fallback 的 context node。 |
-| `fileKey` | string | 是（remote） | Figma file key。 |
-| `mappings` | array | 是 | Mapping object array。 |
+| `nodeId` | string | Optional | Context node for design fallback if mappings array is empty. |
+| `fileKey` | string | Yes (remote) | The Figma file key. |
+| `mappings` | array | Yes | Array of mapping objects. |
 
-**每个 mapping object：**
+**Each mapping object:**
 
-| 字段 | 类型 | 是否必需 | 说明 |
+| Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| `nodeId` | string | 是 | Figma node identifier。 |
-| `componentName` | string | 是 | Code component name。 |
-| `source` | string | 是 | 代码库中的路径。 |
-| `label` | enum | 是 | Framework label。 |
-| `template` | string | 可选 | 用于 figmadoc mapping 的 JS template code。 |
-| `templateDataJson` | string | 可选 | JSON template metadata。 |
+| `nodeId` | string | Yes | The Figma node identifier. |
+| `componentName` | string | Yes | Code component name. |
+| `source` | string | Yes | Path in the codebase. |
+| `label` | enum | Yes | Framework label. |
+| `template` | string | Optional | JS template code for figmadoc mapping. |
+| `templateDataJson` | string | Optional | JSON template metadata. |
 
-**行为：**
+**Behavior:**
 
-- 所有 mapping 都会通过 POST 并行发送到 backend 处理。
-- 如果某个 mapping 失败，会按 mapping 报告错误，其余 mapping 仍会成功。
-- 如果完全成功，会对这些 node 调用 `get_design_context` 并返回 fresh design context。
+- All mappings are processed in parallel via POSTs to the backend.
+- If any mapping fails, errors are reported per mapping — the rest succeed.
+- On full success, `get_design_context` is called for the nodes and fresh design context is returned.
 
-**批量工作流：**
+**Bulk workflow:**
 
 ```
 1. Collect all {nodeId, componentName, source, label} pairs.
@@ -129,11 +129,11 @@ Args: {
 
 ---
 
-## 3. Variable Code Syntax（Token Round-Tripping）
+## 3. Variable Code Syntax (Token Round-Tripping)
 
-在 variable 上设置 code syntax，会在 Figma token 与代码库 token system 之间建立双向链接。这样 Dev Mode 可以在 design value 旁边显示 `var(--color-bg-primary)`，而不是 raw hex。
+Setting code syntax on variables creates the bidirectional link between Figma tokens and the codebase token system. This is what enables Dev Mode to show `var(--color-bg-primary)` next to a design value instead of a raw hex.
 
-**三个 platform：**
+**The three platforms:**
 
 ```javascript
 // In use_figma:
@@ -142,20 +142,20 @@ variable.setVariableCodeSyntax('ANDROID', 'Theme.colorBgPrimary');
 variable.setVariableCodeSyntax('iOS', 'Color.bgPrimary');
 ```
 
-- `WEB` - 用于 CSS custom property、design token JSON 和任何 web framework。
-- `ANDROID` - 用于 Jetpack Compose theme reference 和 Android resource name。
-- `iOS` - 用于 SwiftUI Color extension 和 UIKit color method。
+- `WEB` — used for CSS custom properties, design token JSON, and any web framework.
+- `ANDROID` — used for Jetpack Compose theme references and Android resource names.
+- `iOS` — used for SwiftUI Color extensions and UIKit color methods.
 
-**推导规则（按优先级）：**
+**Derivation rules (in priority order):**
 
-1. **最佳：** 使用代码库中的精确 token name。搜索代码库中的 CSS custom property（`--`）、Swift color extension 或 Kotlin theme reference，并使用这些精确字符串。
-2. **可接受：** 从 Figma variable name 以一致转换方式推导：将 `/` 和空格替换为 `-`，加上 `var(--` 前缀和 `)` 后缀。
-   - 示例：`color/bg/primary` -> `var(--color-bg-primary)`
-3. **避免：** 猜测或发明代码库中不存在的名称。
+1. **Best:** Use the exact token name from the codebase. Search the codebase for CSS custom properties (`--`), Swift color extensions, or Kotlin theme references and use those exact strings.
+2. **Good:** Derive from the Figma variable name with a consistent transformation: replace `/` and spaces with `-`, prefix with `var(--` and suffix with `)`.
+   - Example: `color/bg/primary` → `var(--color-bg-primary)`
+3. **Avoid:** Guessing or inventing names that don't exist in the codebase.
 
-**一致性规则：** 转换必须统一。如果对一个 variable 使用 `var(--color-bg-primary)`，同一 collection 中的所有 variable 都应使用相同的 `var(--{path-with-hyphens})` pattern。
+**Consistency rule:** The transformation must be uniform. If you use `var(--color-bg-primary)` for one variable, use the same `var(--{path-with-hyphens})` pattern for all variables in that collection.
 
-**WEB syntax 批量示例：**
+**WEB syntax bulk example:**
 
 ```javascript
 // In use_figma — set WEB code syntax on all variables in a collection
@@ -176,9 +176,9 @@ for (const coll of collections) {
 
 ## 4. Framework Labels
 
-以下 label 对所有 Code Connect MCP operation 都有效。使用与代码库 framework 匹配的 label。
+The following labels are valid for all Code Connect MCP operations. Use the label that matches your codebase framework.
 
-| Label | 适用场景 |
+| Label | Use for |
 |-------|---------|
 | `React` | React / JSX / TSX components |
 | `Web Components` | Native Web Components, Lit, FAST |
@@ -197,64 +197,64 @@ for (const coll of collections) {
 | `Flutter` | Flutter / Dart widgets |
 | `Markdown` | Documentation or MDX components |
 
-**HTML note：** `HTML` label 由 Code Connect CLI 的 HTML parser 使用（用于 Angular、Vue 以及没有 framework-specific parser 的 Web Components），但 MCP tools 直接使用 `Web Components` 或 `Vue`。选择前先检查代码库 framework。
+**HTML note:** The label `HTML` is used by the Code Connect CLI's HTML parser (for Angular, Vue, and Web Components without a framework-specific parser), but the MCP tools use `Web Components` or `Vue` directly. Check the codebase framework before selecting.
 
 ---
 
-## 5. Per-Component 与 Final-Pass 策略
+## 5. Per-Component vs. Final-Pass Strategy
 
-### Per-component（新构建时首选）
+### Per-component (preferred for new builds)
 
-创建 component 后立即映射 Code Connect，此时上下文最新鲜（SKILL.md workflow 的 Phase 3，step 3h）：
+Map Code Connect immediately after creating a component, while the context is fresh (Phase 3, step 3h in the SKILL.md workflow):
 
-**优点：**
-- node ID 已从创建 script 中获得。
-- 你清楚知道此 Figma component 对应哪个代码 component，因为刚刚按它设计。
-- 错误会提前暴露，不会拖到构建 dependent component 之后。
+**Advantages:**
+- The node ID is already in hand from the creation script.
+- You know exactly which code component this Figma component corresponds to (you just designed it to match).
+- Errors surface early, before building dependent components.
 
-**何时使用：** 任何创建了与现有代码 component 有清晰 1:1 匹配的 Figma component 时。
+**When to use:** Any time you create a Figma component that has a clear 1:1 match with an existing code component.
 
-### Final pass（Phase 4 的 bulk mapping）
+### Final pass (for bulk mapping at Phase 4)
 
-收集所有未映射 component，并在一次 `send_code_connect_mappings` 调用中映射：
+Collect all unmapped components and map them in one `send_code_connect_mappings` call:
 
-**优点：**
-- 一次 bulk call，而不是 N 次单独调用。
-- 可以用 `get_code_connect_suggestions` 自动发现未映射 component。
-- 更适合导入你没有控制创建过程的现有 Figma file。
+**Advantages:**
+- One bulk call instead of N individual calls.
+- Can use `get_code_connect_suggestions` to discover unmapped components automatically.
+- Better for importing existing Figma files where you didn't control creation.
 
-**何时使用：** 为现有 file 补做 Code Connect，或代码库 mapping 需要调研且更适合在所有 component 创建完后统一处理时。
+**When to use:** Retrofitting Code Connect onto an existing file, or when the codebase mapping requires research that is better done after all components are created.
 
-### Hybrid（大型系统推荐）
+### Hybrid (recommended for large systems)
 
-- 在 Phase 3 中按 **per-component** 映射 atoms（Button、Input、Badge、Avatar）。
-- 所有 atoms 映射后，在 Phase 4 中用 **final pass** 映射 molecules 和 organisms，因为 molecule snippet 会引用 atom Code Connect ID。
+- Map atoms (Button, Input, Badge, Avatar) **per-component** during Phase 3.
+- Map molecules and organisms in a **final pass** during Phase 4 after all atoms are mapped, since molecule snippets reference atom Code Connect IDs.
 
 ---
 
-## 6. 在 Dev Mode 中验证
+## 6. Verification in Dev Mode
 
-映射后：
+After mapping:
 
-1. 在 browser 或 desktop app 中打开 Figma file。
-2. 切换到 Dev Mode（toolbar 中的 `</>` icon）。
-3. 选择 component instance（不是 main component，而是放在 page 上的 instance）。
-4. 在 Inspect panel 中，code snippet 应显示 Code Connect output，而不是 auto-generated code。
-5. 如果 snippet 缺失或显示 `[auto-generated]`，通过 MCP 运行 `get_code_connect_map` 确认 mapping 存在，然后检查 component 是否已发布。
+1. Open the Figma file in the browser or desktop app.
+2. Switch to Dev Mode (the `</>` icon in the toolbar).
+3. Select a component instance (not the main component — an instance placed on a page).
+4. In the Inspect panel, the code snippet should show the Code Connect output instead of auto-generated code.
+5. If the snippet is missing or shows `[auto-generated]`, run `get_code_connect_map` via MCP to confirm the mapping exists, then check that the component is published.
 
-**通过 MCP（agent workflow 中更快）：**
+**Via MCP (faster during agent workflows):**
 
 ```
 get_code_connect_map(nodeId: "<the component set node ID>", fileKey: "<file key>")
 ```
 
-响应应包含 `componentName`、`source`、`label` 和非空 `snippet`。
+The response should include `componentName`, `source`, `label`, and a non-empty `snippet`.
 
 ---
 
-## 7. 重要约束
+## 7. Important Constraints
 
-- **仅限已发布 component：** `add_code_connect_map` 要求 component 已发布到 library。如果 file 尚未发布，mapping 会以 `CODE_CONNECT_NO_LIBRARY_FOUND` 失败。
-- **每个 node 的每个 label 只有一个 mapping：** 一个 node 可以有多个 mapping（每个 framework label 一个），但同一 label 只能有一个。向同一 node 添加第二个 React mapping 会返回 `CODE_CONNECT_MAPPING_ALREADY_EXISTS`。
-- **Template mapping 受 gate 控制：** `template` 参数需要 `pixie_mcp_enable_writing_code_connect_templates` feature flag。除非用户明确要求 template-level Code Connect，否则使用 simple mapping。
-- **从简单开始，再升级：** 始终从 simple mapping（`source` + `componentName` + `label`）开始。只有当用户需要精确的 prop-level snippet rendering 时，才添加 `template`。
+- **Published components only:** `add_code_connect_map` requires the component to be published to a library. If the file is not yet published, the mapping will fail with `CODE_CONNECT_NO_LIBRARY_FOUND`.
+- **One mapping per label per node:** A node can have multiple mappings (one per framework label), but only one per label. Attempting to add a second React mapping to the same node returns `CODE_CONNECT_MAPPING_ALREADY_EXISTS`.
+- **Template mappings are gated:** The `template` parameter requires the `pixie_mcp_enable_writing_code_connect_templates` feature flag. Use simple mappings unless the user explicitly requests template-level Code Connect.
+- **Start simple, escalate:** Always begin with simple mappings (`source` + `componentName` + `label`). Add `template` only if the user needs precise prop-level snippet rendering.

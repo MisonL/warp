@@ -1,22 +1,22 @@
-> 属于 [figma-generate-library skill](../SKILL.md) 的一部分。
+> Part of the [figma-generate-library skill](../SKILL.md).
 
-# 命名约定参考
+# Naming Conventions Reference
 
-本参考记录 figma-generate-library 工作流中使用的所有命名约定。按顺序覆盖所有命名决策：variables、components、pages、variants、styles、separators、status indicators。最后一节说明何时匹配既有文件约定，何时使用这里的默认值。
+This reference documents every naming convention used in the figma-generate-library workflow. Cover all naming decisions in order: variables, components, pages, variants, styles, separators, status indicators. The last section explains when to match an existing file's conventions vs. using the defaults here.
 
 ---
 
-## 1. Variable 命名
+## 1. Variable Naming
 
-### Slash 层级（通用模式）
+### Slash hierarchy (the universal pattern)
 
-所有 Figma variables 都使用 slash 分隔路径。slash 会在 Variables 面板中创建可视化分组，并直接映射到代码中的 token 层级。
+All Figma variables use slash-separated paths. The slash creates visual grouping in the Variables panel and maps directly to the token hierarchy in code.
 
 ```
 {category}/{subcategory}/{role}
 ```
 
-来自 Simple DS 和 Material 3 的真实示例：
+Real examples from Simple DS and Material 3:
 
 ```
 color/bg/primary
@@ -46,7 +46,7 @@ typography/heading/font-weight
 
 ### Primitives collection
 
-Primitive variables 保存原始值，并且**不**暴露给使用者（scope = `[]`）。它们使用扁平的 `{family}/{step}` 格式，与 Simple DS 的 color scale 约定一致：
+Primitive variables hold raw values and are **not** exposed to consumers (scope = `[]`). They use a flat `{family}/{step}` format matching the color scale convention from Simple DS:
 
 ```
 blue/50
@@ -62,11 +62,11 @@ red/500
 green/500
 ```
 
-Step 数字遵循目标 codebase 的约定。如果 codebase 使用 `100-900`，就使用该范围。如果使用 `50-950`，就使用该范围。如果没有 codebase 约定，则使用 `100-900`，步长为 100。
+Step numbers follow the convention of the target codebase. If the codebase uses `100–900`, use that. If it uses `50–950`, use that. If there is no codebase convention, use `100–900` in increments of 100.
 
 ### Semantic collection
 
-Semantic variables 以 primitives 作为 alias。它们使用基于角色的 `{category}/{role}` 或 `{category}/{subcategory}/{role}` 模式：
+Semantic variables alias primitives. They use the role-based `{category}/{role}` or `{category}/{subcategory}/{role}` pattern:
 
 ```
 color/bg/primary         → alias: primitives/white (light), primitives/gray/900 (dark)
@@ -76,28 +76,28 @@ color/text/secondary     → alias: primitives/gray/600 (light), primitives/gray
 color/border/default     → alias: primitives/gray/200 (light), primitives/gray/700 (dark)
 ```
 
-**规则**：Semantic variables 绝不能保存原始 hex 值，它们必须始终 alias 到 primitive。如果需要新的 color value，先创建 primitive，再创建 semantic alias。
+**Rule:** Semantic variables must never hold raw hex values — they always alias a primitive. If you need a new color value, create the primitive first, then create the semantic alias.
 
-### 大小写
+### Casing
 
-**默认**：使用带 forward slashes 的 **lowercase**：`color/bg/primary`、`spacing/2xl`。
+**Default:** Use **lowercase** with forward slashes: `color/bg/primary`, `spacing/2xl`.
 
-**何时偏离：**
-- 如果既有文件使用 PascalCase（例如 Material 3 使用 `Schemes/Primary`），就匹配它。
-- 如果设计团队为了 Variables 面板中的可读性而偏好 PascalCase，也可以接受，前提是 code syntax 单独定义，并使用符合平台的大小写。
-- Mode names 可以使用空格和 mixed case（例如 `SDS Light`、`Mode 1 -> Light`），这些是标签，不是标识符。
+**When to deviate:**
+- If the existing file uses PascalCase (e.g., Material 3 uses `Schemes/Primary`) — match it.
+- If the design team prefers PascalCase for readability in the Variables panel — acceptable as long as the code syntax is separately defined and uses the platform-correct case.
+- Mode names can use spaces and mixed case (e.g., `SDS Light`, `Mode 1 → Light`) — these are labels, not identifiers.
 
-**绝不要**：在 variable names 中使用 camelCase（把 `colorBgPrimary` 作为 Figma name 是错误的，它只属于 Android code syntax）。绝不要在 path segment 内使用空格：`color/bg primary` 是错误的；`color/bg/primary` 是正确的。
+**Never:** camelCase inside variable names (`colorBgPrimary` as a Figma name is wrong — that belongs in Android code syntax only). Never use spaces inside a path segment: `color/bg primary` is wrong; `color/bg/primary` is correct.
 
-**关键区别**：大小写规则适用于 *Figma variable names*。无论 Figma name 使用什么大小写，code syntax names 都遵循*平台约定*，完整说明见第 9 节。
+**Key distinction:** The casing rule applies to *Figma variable names*. Code syntax names follow *platform conventions* regardless of the Figma name case — see §9 for the full picture.
 
 ---
 
-## 2. Component 命名
+## 2. Component Naming
 
-### 主 components：PascalCase，无前缀
+### Main components: PascalCase, no prefix
 
-面向 library consumers 发布的 components 使用普通 PascalCase 名称：
+Published components intended for library consumers use plain PascalCase names:
 
 ```
 Button
@@ -112,11 +112,11 @@ Tooltip
 Banner
 ```
 
-不要给 public components 使用 namespace 前缀（例如不要命名为 `DS/Button` 或 `sds-Button`）。component names 中的 slash 会在 Assets 面板中创建嵌套分组，这适用于 sub-components，但不适用于顶层 public components。
+Do not use a namespace prefix for public components (e.g., do not name them `DS/Button` or `sds-Button`). Slashes in component names create nested grouping in the Assets panel, which is correct for sub-components but not for top-level public components.
 
-### Sub-components：underscore 前缀 + slash namespace
+### Sub-components: underscore prefix + slash namespace
 
-不面向 library consumers 的内部 sub-components 使用 `_` 前缀。这会默认将它们从 Assets 面板中隐藏，并向其他设计师表明它们不应被直接使用。
+Internal sub-components that are NOT meant for library consumers use the `_` prefix. This hides them from the Assets panel by default and signals to other designers that they should not be used directly.
 
 ```
 _Button/Slot           (internal icon slot for Button)
@@ -126,14 +126,14 @@ _Parts/Avatar.Status   (UI3 pattern: _Parts/{ParentName}.{SubPart})
 _Slider/Handle         (UI3 pattern: _{ParentName}/{SubPart})
 ```
 
-模式规则：
-- 所有内部 sub-components 都使用 `_` 前缀，没有例外。
-- 使用 slash namespacing 将 sub-components 分组到其 parent 下面：`_Button/IconSlot`。
-- 对于多个 parents 共享的 sub-components，使用 `_Parts/{ComponentName}.{SubPart}`。
+Pattern rules:
+- Use `_` prefix for ALL internal sub-components — no exceptions.
+- Use slash namespacing to group sub-components under their parent: `_Button/IconSlot`.
+- For sub-components shared by multiple parents, use `_Parts/{ComponentName}.{SubPart}`.
 
 ### Private documentation components
 
-仅用于内部文档（不用于生产）的 components 使用 `.` 前缀：
+Components used only for internal documentation (not for production use) use the `.` prefix:
 
 ```
 .ExampleCard
@@ -141,17 +141,17 @@ _Slider/Handle         (UI3 pattern: _{ParentName}/{SubPart})
 .DemoFrame
 ```
 
-这会向 consumers 隐藏它们，同时让它们仍可在 canvas 上访问。
+This hides them from consumers while keeping them accessible on the canvas.
 
 ---
 
-## 3. Page 命名
+## 3. Page Naming
 
-五个参考设计系统使用三种不同的命名模式。选择一种模式，并在文件中的所有 pages 上保持一致。
+Five reference design systems use three distinct naming patterns. Choose one pattern and apply it consistently across all pages in the file.
 
-### 模式 1：普通名称（Simple DS、Material 3、Polaris）
+### Pattern 1: Plain names (Simple DS, Material 3, Polaris)
 
-最常见的模式。干净、可读、无装饰。
+The most common pattern. Clean, readable, no decoration.
 
 ```
 Cover
@@ -171,21 +171,21 @@ Utilities
 Component Playground
 ```
 
-从零开始时，或目标文件已使用这种风格时，使用此模式。
+Use this pattern when starting from scratch or when the target file already uses this style.
 
-### 模式 2：Emoji 前缀 + status（UI3 Library）
+### Pattern 2: Emoji prefix + status (UI3 Library)
 
-表达力最强的模式。page name 编码 asset type、design status 和 code readiness。
+The most expressive pattern. The page name encodes asset type, design status, and code readiness.
 
-结构：`[Asset Type Emoji] [Optional FPL Label] [Status Circle] Component Name [Code Status Bracket]`
+Anatomy: `[Asset Type Emoji] [Optional FPL Label] [Status Circle] Component Name [Code Status Bracket]`
 
-| 片段 | 取值 |
+| Segment | Values |
 |---------|--------|
-| Asset type | Component pages 使用 C-flag emoji；pattern pages 使用 P-flag emoji |
-| Design status | Green circle = Ready，Yellow circle = WIP，Red circle = Do not use |
-| Code status | (none) = Ready in code，`[beta]` = Beta，`[future]` = Not yet built |
+| Asset type | Component pages use the C-flag emoji; pattern pages use the P-flag emoji |
+| Design status | Green circle = Ready, Yellow circle = WIP, Red circle = Do not use |
+| Code status | (none) = Ready in code, `[beta]` = Beta, `[future]` = Not yet built |
 
-示例：
+Examples:
 ```
 Overview
 Status Key
@@ -205,11 +205,11 @@ PATTERNS
 [Headstone] Deprecated
 ```
 
-仅在构建需要生命周期跟踪的大型多团队设计系统时，或目标文件已使用此模式时，才使用该模式。
+Use this pattern only when building a large, multi-team design system where lifecycle tracking is needed, or when the target file already uses it.
 
-### 模式 3：Emoji 前缀（Shop Minis）
+### Pattern 3: Emoji prefix (Shop Minis)
 
-这是 UI3 模式的轻量版本，不包含 status circles。
+A lighter version of the UI3 pattern without status circles.
 
 ```
 📔 Cover
@@ -225,23 +225,23 @@ Input
 Card
 ```
 
-当目标文件已使用 emoji 前缀但不需要生命周期跟踪时，使用此模式。
+Use this pattern when the target file already uses emoji prefixes but does not need lifecycle tracking.
 
-### 通用规则（所有模式）
+### Universal rules (all patterns)
 
-- **Cover** 始终放在第一位。
-- **Separator pages** 放在每个逻辑 section 的前后。
-- **Foundation/token pages** 始终放在 component pages 之前。
-- **Utility and internal pages** 始终放在最后。
-- 选择一种约定，不要在同一文件中混用模式。
+- **Cover** is always first.
+- **Separator pages** come before and after each logical section.
+- **Foundation/token pages** always come before component pages.
+- **Utility and internal pages** always come last.
+- Pick one convention and do not mix patterns within a file.
 
 ---
 
-## 4. Variant 命名
+## 4. Variant Naming
 
-### Property=Value 格式
+### Property=Value format
 
-所有 component variant properties 及其 values 在 Figma component set 中都使用 `Property=Value` 格式：
+All component variant properties and their values use `Property=Value` format in the Figma component set:
 
 ```
 Size=Small, Style=Primary, State=Default
@@ -249,20 +249,20 @@ Size=Medium, Style=Secondary, State=Hover
 Size=Large, Style=Ghost, State=Disabled
 ```
 
-实际 property names 尽可能匹配 code prop names：
+Actual property names match code prop names where possible:
 
-| Figma Property | Code Prop 对应项 |
+| Figma Property | Code Prop Equivalent |
 |---------------|---------------------|
 | `Size` | `size` |
 | `Style` / `Variant` | `variant` |
-| `State` | 通常在 CSS 中由 `:hover`、`:focus`、`:disabled` 控制，但某些系统中使用 `state` |
+| `State` | Typically controlled by `:hover`, `:focus`, `:disabled` in CSS, but `state` in some systems |
 | `Type` | `type` |
 | `Disabled` | `disabled` (boolean) |
 | `Icon` | `icon` (boolean or instance swap) |
 
-### Property value 大小写
+### Property value casing
 
-Property values 在 Figma 中使用 **Title Case**（便于在 Variants 面板中阅读），并映射到代码中的 lowercase：
+Property values use **Title Case** in Figma (to be readable in the Variants panel), mapping to lowercase in code:
 
 | Figma value | Code value |
 |-------------|-----------|
@@ -271,17 +271,17 @@ Property values 在 Figma 中使用 **Title Case**（便于在 Variants 面板�
 | `Large` | `"large"` / `"lg"` |
 | `Primary` | `"primary"` |
 | `Disabled` | `disabled` (boolean prop) |
-| `Default` | *（通常表示 absent/unset 情况）* |
+| `Default` | *(typically the absent/unset case)* |
 
 ### Boolean properties
 
-Figma 中的 boolean component properties 使用 `true` / `false` 作为 values（Figma 原生 boolean），而不是 `Yes` / `No` 或 `On` / `Off`。
+Boolean component properties in Figma use `true` / `false` as values (Figma's native boolean), not `Yes` / `No` or `On` / `Off`.
 
 ---
 
-## 5. Style 命名（Text 和 Effect Styles）
+## 5. Style Naming (Text and Effect Styles)
 
-### Text styles：category/name
+### Text styles: category/name
 
 ```
 Display/Large
@@ -298,9 +298,9 @@ Label/Small
 Code/Inline
 ```
 
-category 片段映射到 typography role。尽可能使用与 codebase typography scale 相同的 category names。
+The category segment maps to the typographic role. Use the same category names as the codebase's typography scale where possible.
 
-### Effect styles（shadows）：category/name
+### Effect styles (shadows): category/name
 
 ```
 Shadow/None
@@ -316,22 +316,22 @@ Elevation/4
 Elevation/5
 ```
 
-对已命名的 semantic shadows 使用 `Shadow/`。对 Material Design 风格的编号 elevation levels 使用 `Elevation/N`。
+Use `Shadow/` for named semantic shadows. Use `Elevation/N` for Material Design-style numbered elevation levels.
 
 ---
 
 ## 6. Separator Pages
 
-Separator pages 是空 pages，唯一用途是在 Figma page panel 中创建视觉分隔。这里有两种约定：
+Separator pages are empty pages whose sole purpose is to create visual breaks in the Figma page panel. Two conventions:
 
-| 约定 | 示例 | 使用方 |
+| Convention | Example | Used by |
 |------------|---------|---------|
 | Three dashes | `---` | Simple DS, UI3, Polaris, Material 3 |
-| Decorated text | `--- COMPONENTS ---` | Shop Minis |
+| Decorated text | `——— COMPONENTS ———` | Shop Minis |
 
-three-dash 约定（`---`）最常见，也是新文件的默认值。除非目标文件使用 decorated-text 风格，否则使用它。
+The three-dash convention (`---`) is the most common and the default for new files. Use it unless the target file uses the decorated-text style.
 
-**separator 放置位置：**
+**Where to place separators:**
 
 ```
 Cover
@@ -346,81 +346,81 @@ Utilities
 
 ---
 
-## 7. Status Indicators（UI3 Emoji System）
+## 7. Status Indicators (UI3 Emoji System)
 
-UI3 Library 在 page names 中使用彩色圆形 emoji，以便一眼传达 design readiness。该系统是可选的，但对大型团队很有用。
+The UI3 Library uses colored circle emojis in page names to communicate design readiness at a glance. This system is optional but powerful for large teams.
 
-| Emoji | 含义 | 何时使用 |
+| Emoji | Meaning | When to use |
 |-------|---------|-------------|
-| Green circle | Ready / Approved | Design 已稳定、已审查，可以安全使用 |
-| Yellow circle | WIP / In Progress | Design 正在积极推进，可能变化 |
-| Red circle | Do not use | 尚未 ready，不要引用；可能已 deprecated |
+| Green circle | Ready / Approved | Design is stable, reviewed, and safe to use |
+| Yellow circle | WIP / In Progress | Design is being actively worked on, may change |
+| Red circle | Do not use | Not ready, do not reference; may be deprecated |
 
-Code readiness 通过附加到 component name 的 brackets 表达：
+Code readiness is communicated via brackets appended to the component name:
 
-| Bracket | 含义 |
+| Bracket | Meaning |
 |---------|---------|
-| (none) | Component 已在代码中实现且稳定 |
-| `[beta]` | Component 已在代码中实现，但尚未稳定（距离 ready 约 3 周） |
-| `[future]` | 尚未在代码中实现 |
+| (none) | Component is implemented in code and stable |
+| `[beta]` | Component is in code but not yet stable (~3 weeks from ready) |
+| `[future]` | Not yet implemented in code |
 
-**Documentation status（位于 component pages 内）：**
+**Documentation status (within component pages):**
 
-如果构建 UI3-style system，每个 documentation frame 都会有一个 status banner，并使用以下标签之一：
+If building a UI3-style system, each documentation frame gets a status banner with one of these labels:
 
-- `APPROVED` - 已完整审查
-- `READY FOR REVIEW` - 等待 sign-off
-- `WORK IN PROGRESS` - 正在积极设计
-- `NEEDS UPDATE` - 已过期，需要修订
-- `DO NOT REFERENCE` - 不应使用
+- `APPROVED` — fully vetted
+- `READY FOR REVIEW` — awaiting sign-off
+- `WORK IN PROGRESS` — actively being designed
+- `NEEDS UPDATE` — outdated, requires revision
+- `DO NOT REFERENCE` — should not be used
 
-只有在生命周期跟踪能提供真实价值的大型多团队系统中，才推荐使用该系统。对于较小系统，跳过 emoji status indicators，使用 plain page names。
-
----
-
-## 8. 何时匹配既有约定，何时使用默认值
-
-**命名任何内容前始终先检查。** 在创建任何 pages 或 variables 之前，运行 `get_metadata` 或 `inspectFileStructure` 来发现既有约定。
-
-### 以下情况匹配既有文件：
-
-- 文件已有 pages，并且使用一致的命名模式（emoji 前缀、separator style、大小写）。
-- 文件已有 variable collections，并且有既定命名方案。
-- 文件由设计团队启动，并承载了有意做出的决策。
-- 任何既有 component names 使用特定模式（PascalCase、kebab-case、namespace prefixes）。
-
-### 以下情况使用本文档默认值：
-
-- 从没有既有内容的全新 Figma 文件开始。
-- 既有约定不一致（混用 styles = 没有可匹配的约定）。
-- 用户明确要求创建遵循最佳实践的全新设计系统。
-
-### 当 code 和 Figma 不一致时：
-
-如果 codebase 使用 `button-primary`，但 Figma 中的 component 名为 `Button`，不要重命名 Figma component。改为：
-- 保持 Figma name 为 `Button`（PascalCase，便于人读）。
-- 设置 variable code syntax，使其匹配 codebase 中确切的 CSS token name。
-- 设置 Code Connect source path 指向实际代码文件，并使用确切的 code component name。
-
-**规则**：Figma names 面向设计师；code syntax 和 Code Connect source paths 承载确切的 code identifiers。这两个身份系统并行运行。
+This system is only recommended for large, multi-team systems where lifecycle tracking provides real value. For smaller systems, skip the emoji status indicators and use plain page names.
 
 ---
 
-## 9. Figma Variable Names 与 Code Names：完整图景
+## 8. When to Match Existing vs. Use Defaults
 
-这是最容易被误解的领域之一。Figma names 和 code names **有意遵循不同约定**，因为它们服务不同受众，并存在于不同环境中。
+**Always inspect before naming anything.** Run `get_metadata` or `inspectFileStructure` to discover existing conventions before creating any pages or variables.
 
-### 为什么它们不同
+### Match the existing file when:
+
+- The file already has pages with a consistent naming pattern (emoji prefixes, separator style, casing).
+- The file already has variable collections with an established naming scheme.
+- The file was started by a design team and carries intentional decisions.
+- Any existing component names use a specific pattern (PascalCase, kebab-case, namespace prefixes).
+
+### Use the defaults from this document when:
+
+- Starting a brand-new Figma file with no existing content.
+- The existing conventions are inconsistent (mix of styles = no convention to match).
+- The user explicitly asks for a fresh design system following best practices.
+
+### When code and Figma disagree:
+
+If the codebase uses `button-primary` but Figma has a component named `Button`, do not rename the Figma component. Instead:
+- Keep the Figma name as `Button` (PascalCase, human-readable).
+- Set variable code syntax to match the exact CSS token name from the codebase.
+- Set Code Connect source path to the actual code file and use the exact code component name.
+
+**The rule:** Figma names are for designers; code syntax and Code Connect source paths carry the exact code identifiers. These two identity systems operate in parallel.
+
+---
+
+## 9. Figma Variable Names vs Code Names — The Full Picture
+
+This is one of the most misunderstood areas. Figma names and code names follow **different conventions on purpose** — they serve different audiences and live in different environments.
+
+### Why they differ
 
 | | Figma variable name | Code syntax (WEB) |
 |---|---|---|
-| **受众** | Variables 面板中的 designers | CSS/Swift/Kotlin 中的 developers |
-| **分隔符** | `/`（slash），在 Figma UI 中创建可视化分组 | `-`（hyphen），CSS custom property syntax 要求 |
-| **大小写** | lowercase（或用于展示的 PascalCase，见下文） | CSS 使用 kebab-case；JS/Android 使用 camelCase |
-| **深度** | 2-4 层 | CSS 扁平；JS 使用 dot-notation |
-| **Namespace** | 隐式（按 collection） | 显式前缀（`--p-`、`--md-`、`--cds-`） |
+| **Audience** | Designers in the Variables panel | Developers in CSS/Swift/Kotlin |
+| **Separator** | `/` (slash) — creates visual grouping in Figma UI | `-` (hyphen) — required by CSS custom property syntax |
+| **Case** | lowercase (or PascalCase for display — see below) | kebab-case for CSS; camelCase for JS/Android |
+| **Depth** | 2–4 levels | Flat for CSS; dot-notation for JS |
+| **Namespace** | Implicit (by collection) | Explicit prefix (`--p-`, `--md-`, `--cds-`) |
 
-### 转换方式
+### The transformation
 
 ```
 Figma variable name              Code syntax (WEB)
@@ -455,7 +455,7 @@ radius/md                 →      Radius.md
 Pattern: first segment becomes class name, remainder becomes property (camelCase)
 ```
 
-### 来自 5 个参考文件的真实示例
+### Real-world examples from the 5 reference files
 
 | File | Figma variable name | WEB code syntax | ANDROID code syntax |
 |------|--------------------|-----------------|--------------------|
@@ -463,25 +463,25 @@ Pattern: first segment becomes class name, remainder becomes property (camelCase
 | Simple DS | `spacing/sm` | `var(--spacing-sm)` | `spacingSm` |
 | Material 3 | `Schemes/Primary` | `var(--md-sys-color-primary)` | `colorPrimary` |
 | Material 3 | `Corner/Extra-small` | `var(--md-sys-shape-corner-extra-small)` | `shapeCornerExtraSmall` |
-| Polaris | `color/bg/surface` | `var(--p-color-bg-surface)` | none |
+| Polaris | `color/bg/surface` | `var(--p-color-bg-surface)` | — |
 
-**来自 Material 3 的关键观察**：Figma name `Schemes/Primary` 使用带空格的 PascalCase，但 WEB code syntax 是 `var(--md-sys-color-primary)`，完全是带 vendor prefix `md-sys-` 的 kebab-case。Figma name 和 code syntax 几乎没有相似之处。这是有意设计的，并且在成熟设计系统中很常见。
+**Key observation from Material 3:** The Figma name `Schemes/Primary` uses PascalCase with a space, but the WEB code syntax is `var(--md-sys-color-primary)` — entirely kebab-case with a vendor prefix `md-sys-`. The Figma name and the code syntax bear almost no resemblance. This is intentional and common in mature design systems.
 
-### Figma 中的大小写：lowercase 是默认值，PascalCase 可用于展示
+### Casing in Figma: lowercase is default, PascalCase is valid for display
 
-使用 lowercase 是默认指导，而不是普遍规则。真实文件中的证据：
+The guideline to use lowercase is a default, not a universal rule. Evidence from real files:
 
 | File | Figma case | Code output case | Why |
 |------|-----------|------------------|-----|
-| Simple DS | `color/bg/primary` (lowercase) | `var(--color-bg-primary)` | 直接映射，简单 |
-| Material 3 | `Schemes/Primary` (PascalCase) | `var(--md-sys-color-primary)` | PascalCase 在 Variables 面板中更易读；code name 独立定义 |
-| Polaris | `color/bg/surface` (lowercase) | `var(--p-color-bg-surface)` | 带 vendor prefix 的直接映射 |
+| Simple DS | `color/bg/primary` (lowercase) | `var(--color-bg-primary)` | Direct mapping — simple |
+| Material 3 | `Schemes/Primary` (PascalCase) | `var(--md-sys-color-primary)` | PascalCase reads better in Variables panel; code name is independently defined |
+| Polaris | `color/bg/surface` (lowercase) | `var(--p-color-bg-surface)` | Direct mapping with vendor prefix |
 
-**规则**：当 Figma name 会直接映射到 CSS name 时，使用 lowercase。当设计系统拥有与技术 code names 不同、便于人读的 variable names 时，使用 PascalCase（或匹配既有文件）。
+**Rule:** Use lowercase when the Figma name will map directly to the CSS name. Use PascalCase (or match existing file) when the design system has human-readable variable names that are distinct from the technical code names.
 
-### 当 codebase 不使用 CSS custom properties 时
+### When the codebase doesn't use CSS custom properties
 
-某些 JavaScript-first 系统（Chakra、Ant Design、MUI）根本不使用 CSS `var(--...)`。它们的 tokens 位于 JS theme objects 中：
+Some JavaScript-first systems (Chakra, Ant Design, MUI) don't use CSS `var(--...)` at all. Their tokens live in JS theme objects:
 
 ```
 Chakra:    colors.gray[500]         →  JS: theme.colors.gray[500]
@@ -489,7 +489,7 @@ Ant:       colorPrimary             →  JS: token.colorPrimary
 MUI:       palette.primary.main     →  JS: theme.palette.primary.main
 ```
 
-在这些情况下，将 WEB code syntax 设置为 JS property path，而不是 CSS variable：
+In these cases, set WEB code syntax to the JS property path rather than a CSS variable:
 ```javascript
 // For a JS-object-based system like Chakra:
 v.setVariableCodeSyntax('WEB', 'colors.gray.500');
@@ -498,22 +498,22 @@ v.setVariableCodeSyntax('WEB', 'colors.gray.500');
 v.setVariableCodeSyntax('WEB', 'colorPrimary');
 ```
 
-### 层级深度：匹配 codebase
+### Hierarchy depth: match the codebase
 
-slash 层级数量应镜像 codebase 的嵌套深度：
+The number of slash levels should mirror the codebase's nesting depth:
 
 | Codebase pattern | Figma depth | Example |
 |-----------------|------------|---------|
-| `--primary` (flat) | 1-2 levels | `color/primary` |
+| `--primary` (flat) | 1–2 levels | `color/primary` |
 | `--color-bg-surface` (3-part) | 3 levels | `color/bg/surface` |
 | `--md-sys-color-primary` (vendor + 3-part) | 3 levels (vendor prefix goes in code syntax only) | `color/primary` |
-| `theme.palette.primary.main` (4-part) | 3-4 levels | `color/palette/primary/main` |
+| `theme.palette.primary.main` (4-part) | 3–4 levels | `color/palette/primary/main` |
 
-**重要**：Vendor prefixes（`--p-`、`--md-sys-`、`--cds-`）属于 **code syntax**，不属于 Figma variable name。Figma name `color/bg/surface` + code syntax `var(--p-color-bg-surface)` 才是正确模式。
+**Important:** Vendor prefixes (`--p-`, `--md-sys-`, `--cds-`) belong in the **code syntax**, not the Figma variable name. The Figma name `color/bg/surface` + code syntax `var(--p-color-bg-surface)` is the correct pattern.
 
-### Discovery 阶段的动作
+### Action at discovery time
 
-在 Phase 0 discovery 期间，显式捕获映射两侧：
+During Phase 0 discovery, capture both sides of the mapping explicitly:
 
 ```
 For each token found in the codebase:
@@ -524,4 +524,4 @@ For each token found in the codebase:
   iOS syntax:     Color.backgroundBrandDefault    (dot-notation)
 ```
 
-将此映射存入状态账本。在 Phase 1 调用 `setVariableCodeSyntax` 时使用它。如果已有原始 CSS variable name，绝不要从 Figma name 推导 code syntax，始终使用原始名称。
+Store this mapping in the state ledger. Use it when calling `setVariableCodeSyntax` in Phase 1. Never derive the code syntax from the Figma name if you have the original CSS variable name — always use the original.
