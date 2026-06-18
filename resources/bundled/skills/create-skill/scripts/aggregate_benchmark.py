@@ -16,22 +16,22 @@ The script supports two directory layouts:
 
     Workspace layout (from skill-creator iterations):
     <benchmark_dir>/
-    └── eval-N/
-        ├── with_skill/
-        │   ├── run-1/grading.json
-        │   └── run-2/grading.json
-        └── without_skill/
-            ├── run-1/grading.json
-            └── run-2/grading.json
+    +-- eval-N/
+        +-- with_skill/
+        |   +-- run-1/grading.json
+        |   +-- run-2/grading.json
+        +-- without_skill/
+            +-- run-1/grading.json
+            +-- run-2/grading.json
 
     Legacy layout (with runs/ subdirectory):
     <benchmark_dir>/
-    └── runs/
-        └── eval-N/
-            ├── with_skill/
-            │   └── run-1/grading.json
-            └── without_skill/
-                └── run-1/grading.json
+    +-- runs/
+        +-- eval-N/
+            +-- with_skill/
+            |   +-- run-1/grading.json
+            +-- without_skill/
+                +-- run-1/grading.json
 """
 
 import argparse
@@ -40,6 +40,11 @@ import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    from scripts.i18n import configure_argparse, text as localized_text
+except ModuleNotFoundError:
+    from i18n import configure_argparse, text as localized_text
 
 
 def calculate_stats(values: list[float]) -> dict:
@@ -78,7 +83,12 @@ def load_run_results(benchmark_dir: Path) -> dict:
     elif list(benchmark_dir.glob("eval-*")):
         search_dir = benchmark_dir
     else:
-        print(f"No eval directories found in {benchmark_dir} or {benchmark_dir / 'runs'}")
+        print(
+            localized_text(
+                f"No eval directories found in {benchmark_dir} or {benchmark_dir / 'runs'}",
+                f"未在 {benchmark_dir} 或 {benchmark_dir / 'runs'} 中找到评估目录",
+            )
+        )
         return {}
 
     results: dict[str, list] = {}
@@ -113,14 +123,14 @@ def load_run_results(benchmark_dir: Path) -> dict:
                 grading_file = run_dir / "grading.json"
 
                 if not grading_file.exists():
-                    print(f"Warning: grading.json not found in {run_dir}")
+                    print(localized_text(f"Warning: grading.json not found in {run_dir}", f"警告：未在 {run_dir} 中找到 grading.json"))
                     continue
 
                 try:
                     with open(grading_file) as f:
                         grading = json.load(f)
                 except json.JSONDecodeError as e:
-                    print(f"Warning: Invalid JSON in {grading_file}: {e}")
+                    print(localized_text(f"Warning: Invalid JSON in {grading_file}: {e}", f"警告：{grading_file} 中的 JSON 无效：{e}"))
                     continue
 
                 # Extract metrics
@@ -133,7 +143,7 @@ def load_run_results(benchmark_dir: Path) -> dict:
                     "total": grading.get("summary", {}).get("total", 0),
                 }
 
-                # Extract timing — check grading.json first, then sibling timing.json
+                # Extract timing: check grading.json first, then sibling timing.json.
                 timing = grading.get("timing", {})
                 result["time_seconds"] = timing.get("total_duration_seconds", 0.0)
                 timing_file = run_dir / "timing.json"
@@ -153,11 +163,16 @@ def load_run_results(benchmark_dir: Path) -> dict:
                     result["tokens"] = metrics.get("output_chars", 0)
                 result["errors"] = metrics.get("errors_encountered", 0)
 
-                # Extract expectations — viewer requires fields: text, passed, evidence
+                # Extract expectations; viewer requires fields: text, passed, evidence.
                 raw_expectations = grading.get("expectations", [])
                 for exp in raw_expectations:
                     if "text" not in exp or "passed" not in exp:
-                        print(f"Warning: expectation in {grading_file} missing required fields (text, passed, evidence): {exp}")
+                        print(
+                            localized_text(
+                                f"Warning: expectation in {grading_file} missing required fields (text, passed, evidence): {exp}",
+                                f"警告：{grading_file} 中的 expectation 缺少必要字段（text、passed、evidence）：{exp}",
+                            )
+                        )
                 result["expectations"] = raw_expectations
 
                 # Extract notes from user_notes_summary
@@ -291,15 +306,18 @@ def generate_markdown(benchmark: dict) -> str:
     label_b = config_b.replace("_", " ").title()
 
     lines = [
-        f"# Skill Benchmark: {metadata['skill_name']}",
+        f"# {localized_text('Skill Benchmark', 'Skill 基准测试')}: {metadata['skill_name']}",
         "",
-        f"**Model**: {metadata['executor_model']}",
-        f"**Date**: {metadata['timestamp']}",
-        f"**Evals**: {', '.join(map(str, metadata['evals_run']))} ({metadata['runs_per_configuration']} runs each per configuration)",
+        f"**{localized_text('Model', '模型')}**: {metadata['executor_model']}",
+        f"**{localized_text('Date', '日期')}**: {metadata['timestamp']}",
+        localized_text(
+            f"**Evals**: {', '.join(map(str, metadata['evals_run']))} ({metadata['runs_per_configuration']} runs each per configuration)",
+            f"**评估**: {', '.join(map(str, metadata['evals_run']))}（每个配置 {metadata['runs_per_configuration']} 次运行）",
+        ),
         "",
-        "## Summary",
+        f"## {localized_text('Summary', '摘要')}",
         "",
-        f"| Metric | {label_a} | {label_b} | Delta |",
+        f"| {localized_text('Metric', '指标')} | {label_a} | {label_b} | {localized_text('Delta', '差异')} |",
         "|--------|------------|---------------|-------|",
     ]
 
@@ -310,23 +328,23 @@ def generate_markdown(benchmark: dict) -> str:
     # Format pass rate
     a_pr = a_summary.get("pass_rate", {})
     b_pr = b_summary.get("pass_rate", {})
-    lines.append(f"| Pass Rate | {a_pr.get('mean', 0)*100:.0f}% ± {a_pr.get('stddev', 0)*100:.0f}% | {b_pr.get('mean', 0)*100:.0f}% ± {b_pr.get('stddev', 0)*100:.0f}% | {delta.get('pass_rate', '—')} |")
+    lines.append(f"| {localized_text('Pass Rate', '通过率')} | {a_pr.get('mean', 0)*100:.0f}% +/- {a_pr.get('stddev', 0)*100:.0f}% | {b_pr.get('mean', 0)*100:.0f}% +/- {b_pr.get('stddev', 0)*100:.0f}% | {delta.get('pass_rate', '-')} |")
 
     # Format time
     a_time = a_summary.get("time_seconds", {})
     b_time = b_summary.get("time_seconds", {})
-    lines.append(f"| Time | {a_time.get('mean', 0):.1f}s ± {a_time.get('stddev', 0):.1f}s | {b_time.get('mean', 0):.1f}s ± {b_time.get('stddev', 0):.1f}s | {delta.get('time_seconds', '—')}s |")
+    lines.append(f"| {localized_text('Time', '耗时')} | {a_time.get('mean', 0):.1f}s +/- {a_time.get('stddev', 0):.1f}s | {b_time.get('mean', 0):.1f}s +/- {b_time.get('stddev', 0):.1f}s | {delta.get('time_seconds', '-')}s |")
 
     # Format tokens
     a_tokens = a_summary.get("tokens", {})
     b_tokens = b_summary.get("tokens", {})
-    lines.append(f"| Tokens | {a_tokens.get('mean', 0):.0f} ± {a_tokens.get('stddev', 0):.0f} | {b_tokens.get('mean', 0):.0f} ± {b_tokens.get('stddev', 0):.0f} | {delta.get('tokens', '—')} |")
+    lines.append(f"| {localized_text('Tokens', 'Token')} | {a_tokens.get('mean', 0):.0f} +/- {a_tokens.get('stddev', 0):.0f} | {b_tokens.get('mean', 0):.0f} +/- {b_tokens.get('stddev', 0):.0f} | {delta.get('tokens', '-')} |")
 
     # Notes section
     if benchmark.get("notes"):
         lines.extend([
             "",
-            "## Notes",
+            f"## {localized_text('Notes', '备注')}",
             ""
         ])
         for note in benchmark["notes"]:
@@ -336,34 +354,41 @@ def generate_markdown(benchmark: dict) -> str:
 
 
 def main():
+    configure_argparse(argparse)
     parser = argparse.ArgumentParser(
-        description="Aggregate benchmark run results into summary statistics"
+        description=localized_text(
+            "Aggregate benchmark run results into summary statistics",
+            "将基准测试运行结果聚合为摘要统计",
+        )
     )
     parser.add_argument(
         "benchmark_dir",
         type=Path,
-        help="Path to the benchmark directory"
+        help=localized_text("Path to the benchmark directory", "基准测试目录路径")
     )
     parser.add_argument(
         "--skill-name",
         default="",
-        help="Name of the skill being benchmarked"
+        help=localized_text("Name of the skill being benchmarked", "正在基准测试的 skill 名称")
     )
     parser.add_argument(
         "--skill-path",
         default="",
-        help="Path to the skill being benchmarked"
+        help=localized_text("Path to the skill being benchmarked", "正在基准测试的 skill 路径")
     )
     parser.add_argument(
         "--output", "-o",
         type=Path,
-        help="Output path for benchmark.json (default: <benchmark_dir>/benchmark.json)"
+        help=localized_text(
+            "Output path for benchmark.json (default: <benchmark_dir>/benchmark.json)",
+            "benchmark.json 输出路径（默认：<benchmark_dir>/benchmark.json）",
+        )
     )
 
     args = parser.parse_args()
 
     if not args.benchmark_dir.exists():
-        print(f"Directory not found: {args.benchmark_dir}")
+        print(localized_text(f"Directory not found: {args.benchmark_dir}", f"未找到目录：{args.benchmark_dir}"))
         sys.exit(1)
 
     # Generate benchmark
@@ -376,25 +401,25 @@ def main():
     # Write benchmark.json
     with open(output_json, "w") as f:
         json.dump(benchmark, f, indent=2)
-    print(f"Generated: {output_json}")
+    print(localized_text(f"Generated: {output_json}", f"已生成：{output_json}"))
 
     # Write benchmark.md
     markdown = generate_markdown(benchmark)
     with open(output_md, "w") as f:
         f.write(markdown)
-    print(f"Generated: {output_md}")
+    print(localized_text(f"Generated: {output_md}", f"已生成：{output_md}"))
 
     # Print summary
     run_summary = benchmark["run_summary"]
     configs = [k for k in run_summary if k != "delta"]
     delta = run_summary.get("delta", {})
 
-    print(f"\nSummary:")
+    print(localized_text("\nSummary:", "\n摘要："))
     for config in configs:
         pr = run_summary[config]["pass_rate"]["mean"]
         label = config.replace("_", " ").title()
-        print(f"  {label}: {pr*100:.1f}% pass rate")
-    print(f"  Delta:         {delta.get('pass_rate', '—')}")
+        print(localized_text(f"  {label}: {pr*100:.1f}% pass rate", f"  {label}: {pr*100:.1f}% 通过率"))
+    print(localized_text(f"  Delta:         {delta.get('pass_rate', '-')}", f"  差异：          {delta.get('pass_rate', '-')}"))
 
 
 if __name__ == "__main__":

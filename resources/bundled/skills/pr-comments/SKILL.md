@@ -1,6 +1,7 @@
 ---
 name: pr-comments
 description: "Fetch and display GitHub PR review comments for the current branch."
+description_zh_CN: "获取并展示当前分支对应 GitHub PR 的审查评论。"
 ---
 
 # Fetch PR Comments

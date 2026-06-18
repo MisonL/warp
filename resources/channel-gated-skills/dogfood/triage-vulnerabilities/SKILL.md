@@ -1,6 +1,7 @@
 ---
 name: triage-vulnerabilities
 description: Triage and remediate security vulnerabilities across Warp infrastructure. Checks Dependabot alerts (GitHub), GCP Artifact Registry container scanning, and Docker Scout for public images. Use when the user asks to check for vulnerabilities, triage CVEs, fix dependency issues, update base images, or remediate security alerts.
+description_zh_CN: 排查并修复 Warp 基础设施中的安全漏洞。检查 GitHub Dependabot 警报、GCP Artifact Registry 容器扫描和 Docker Scout 公共镜像；适用于检查漏洞、分诊 CVE、修复依赖、更新基础镜像或处理安全告警。
 ---
 
 # triage-vulnerabilities

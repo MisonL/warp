@@ -4,6 +4,7 @@ description: >
   Guides testing Warp UI features and changes using the computer use tool.
   Use this skill only when the computer_use tool is available to the agent.
   Covers launching Warp and verifying UI behavior.
+description_zh_CN: 使用 computer use 工具测试 Warp UI 功能和变更。仅当 agent 可使用 computer_use 工具时使用，覆盖启动 Warp 并验证 UI 行为。
 user-invocable: false
 ---
 

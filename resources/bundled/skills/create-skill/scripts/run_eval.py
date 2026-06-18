@@ -16,6 +16,7 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
+from scripts.i18n import configure_argparse, text as localized_text
 from scripts.utils import parse_skill_md
 
 
@@ -221,7 +222,7 @@ def run_eval(
             try:
                 query_triggers[query].append(future.result())
             except Exception as e:
-                print(f"Warning: query failed: {e}", file=sys.stderr)
+                print(localized_text(f"Warning: query failed: {e}", f"警告：查询失败：{e}"), file=sys.stderr)
                 query_triggers[query].append(False)
 
     for query, triggers in query_triggers.items():
@@ -257,23 +258,36 @@ def run_eval(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run trigger evaluation for a skill description")
-    parser.add_argument("--eval-set", required=True, help="Path to eval set JSON file")
-    parser.add_argument("--skill-path", required=True, help="Path to skill directory")
-    parser.add_argument("--description", default=None, help="Override description to test")
-    parser.add_argument("--num-workers", type=int, default=10, help="Number of parallel workers")
-    parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
-    parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
-    parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
-    parser.add_argument("--model", default=None, help="Model to use for claude -p (default: user's configured model)")
-    parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
+    configure_argparse(argparse)
+    parser = argparse.ArgumentParser(
+        description=localized_text(
+            "Run trigger evaluation for a skill description",
+            "运行 skill 描述触发评估",
+        )
+    )
+    parser.add_argument("--eval-set", required=True, help=localized_text("Path to eval set JSON file", "评估集 JSON 文件路径"))
+    parser.add_argument("--skill-path", required=True, help=localized_text("Path to skill directory", "skill 目录路径"))
+    parser.add_argument("--description", default=None, help=localized_text("Override description to test", "覆盖要测试的描述"))
+    parser.add_argument("--num-workers", type=int, default=10, help=localized_text("Number of parallel workers", "并行 worker 数量"))
+    parser.add_argument("--timeout", type=int, default=30, help=localized_text("Timeout per query in seconds", "每个查询的超时时间，单位为秒"))
+    parser.add_argument("--runs-per-query", type=int, default=3, help=localized_text("Number of runs per query", "每个查询运行次数"))
+    parser.add_argument("--trigger-threshold", type=float, default=0.5, help=localized_text("Trigger rate threshold", "触发率阈值"))
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=localized_text(
+            "Model to use for claude -p (default: user's configured model)",
+            "claude -p 使用的模型（默认使用用户已配置模型）",
+        ),
+    )
+    parser.add_argument("--verbose", action="store_true", help=localized_text("Print progress to stderr", "将进度输出到 stderr"))
     args = parser.parse_args()
 
     eval_set = json.loads(Path(args.eval_set).read_text())
     skill_path = Path(args.skill_path)
 
     if not (skill_path / "SKILL.md").exists():
-        print(f"Error: No SKILL.md found at {skill_path}", file=sys.stderr)
+        print(localized_text(f"Error: No SKILL.md found at {skill_path}", f"错误：未在 {skill_path} 找到 SKILL.md"), file=sys.stderr)
         sys.exit(1)
 
     name, original_description, content = parse_skill_md(skill_path)
@@ -281,7 +295,7 @@ def main():
     project_root = find_project_root()
 
     if args.verbose:
-        print(f"Evaluating: {description}", file=sys.stderr)
+        print(localized_text(f"Evaluating: {description}", f"正在评估：{description}"), file=sys.stderr)
 
     output = run_eval(
         eval_set=eval_set,
@@ -297,11 +311,23 @@ def main():
 
     if args.verbose:
         summary = output["summary"]
-        print(f"Results: {summary['passed']}/{summary['total']} passed", file=sys.stderr)
+        print(
+            localized_text(
+                f"Results: {summary['passed']}/{summary['total']} passed",
+                f"结果：{summary['passed']}/{summary['total']} 通过",
+            ),
+            file=sys.stderr,
+        )
         for r in output["results"]:
             status = "PASS" if r["pass"] else "FAIL"
             rate_str = f"{r['triggers']}/{r['runs']}"
-            print(f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}", file=sys.stderr)
+            print(
+                localized_text(
+                    f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}",
+                    f"  [{status}] 触发率={rate_str} 预期={r['should_trigger']}：{r['query'][:70]}",
+                ),
+                file=sys.stderr,
+            )
 
     print(json.dumps(output, indent=2))
 

@@ -1,6 +1,7 @@
 ---
 name: tab-configs
 description: Reference the Warp tab config schema, validation rules, and examples. Use when creating or updating Warp tab config TOML files or when another tab-config skill needs the canonical schema details.
+description_zh_CN: 查阅 Warp 标签页配置 schema、校验规则和示例。适用于创建或更新 Warp 标签页配置 TOML 文件，或其他标签页配置技能需要权威 schema 细节时。
 ---
 
 # tab-configs

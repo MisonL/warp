@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from scripts.i18n import text as localized_text
+
 
 
 def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
@@ -10,7 +12,12 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
     lines = content.split("\n")
 
     if lines[0].strip() != "---":
-        raise ValueError("SKILL.md missing frontmatter (no opening ---)")
+        raise ValueError(
+            localized_text(
+                "SKILL.md missing frontmatter (no opening ---)",
+                "SKILL.md 缺少 frontmatter（没有起始 ---）",
+            )
+        )
 
     end_idx = None
     for i, line in enumerate(lines[1:], start=1):
@@ -19,7 +26,12 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
             break
 
     if end_idx is None:
-        raise ValueError("SKILL.md missing frontmatter (no closing ---)")
+        raise ValueError(
+            localized_text(
+                "SKILL.md missing frontmatter (no closing ---)",
+                "SKILL.md 缺少 frontmatter（没有结束 ---）",
+            )
+        )
 
     name = ""
     description = ""

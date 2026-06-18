@@ -1,6 +1,7 @@
 ---
 name: update-tab-config
 description: Update existing Warp tab config TOML files from natural-language edit requests. Use when the user wants to modify a tab config that already exists or when editing a tab config file already open in Warp.
+description_zh_CN: 根据自然语言编辑请求更新已有的 Warp 标签页配置 TOML 文件。适用于用户想修改现有标签页配置，或正在编辑已打开的标签页配置文件时。
 ---
 
 # update-tab-config

@@ -15,6 +15,7 @@ No dependencies beyond the Python stdlib are required.
 import argparse
 import base64
 import json
+import locale
 import mimetypes
 import os
 import re
@@ -47,6 +48,40 @@ MIME_OVERRIDES = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
+
+
+def current_language() -> str:
+    locale_value = (
+        os.environ.get("WARP_LOCALE")
+        or os.environ.get("LANGUAGE")
+        or os.environ.get("LC_ALL")
+        or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG")
+        or locale.getlocale()[0]
+        or ""
+    )
+    return "zh" if locale_value.lower().replace("_", "-").startswith("zh") else "en"
+
+
+def localized_text(en: str, zh: str) -> str:
+    return zh if current_language() == "zh" else en
+
+
+def configure_argparse() -> None:
+    if current_language() != "zh":
+        return
+
+    translations = {
+        "usage: ": "用法：",
+        "positional arguments": "位置参数",
+        "options": "选项",
+        "optional arguments": "选项",
+        "show this help message and exit": "显示此帮助消息并退出",
+        "the following arguments are required: %s": "缺少必要参数：%s",
+        "unrecognized arguments: %s": "无法识别的参数：%s",
+        "invalid choice: %(value)r (choose from %(choices)s)": "无效选项：%(value)r（可选：%(choices)s）",
+    }
+    argparse._ = lambda message: translations.get(message, message)
 
 
 def get_mime_type(path: Path) -> str:
@@ -114,7 +149,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
                     break
 
     if not prompt:
-        prompt = "(No prompt found)"
+        prompt = localized_text("(No prompt found)", "（未找到 prompt）")
 
     run_id = str(run_dir.relative_to(root)).replace("/", "-").replace("\\", "-")
 
@@ -155,7 +190,7 @@ def embed_file(path: Path) -> dict:
         try:
             content = path.read_text(errors="replace")
         except OSError:
-            content = "(Error reading file)"
+            content = localized_text("(Error reading file)", "（读取文件出错）")
         return {
             "name": path.name,
             "type": "text",
@@ -166,7 +201,7 @@ def embed_file(path: Path) -> dict:
             raw = path.read_bytes()
             b64 = base64.b64encode(raw).decode("ascii")
         except OSError:
-            return {"name": path.name, "type": "error", "content": "(Error reading file)"}
+            return {"name": path.name, "type": "error", "content": localized_text("(Error reading file)", "（读取文件出错）")}
         return {
             "name": path.name,
             "type": "image",
@@ -178,7 +213,7 @@ def embed_file(path: Path) -> dict:
             raw = path.read_bytes()
             b64 = base64.b64encode(raw).decode("ascii")
         except OSError:
-            return {"name": path.name, "type": "error", "content": "(Error reading file)"}
+            return {"name": path.name, "type": "error", "content": localized_text("(Error reading file)", "（读取文件出错）")}
         return {
             "name": path.name,
             "type": "pdf",
@@ -189,19 +224,19 @@ def embed_file(path: Path) -> dict:
             raw = path.read_bytes()
             b64 = base64.b64encode(raw).decode("ascii")
         except OSError:
-            return {"name": path.name, "type": "error", "content": "(Error reading file)"}
+            return {"name": path.name, "type": "error", "content": localized_text("(Error reading file)", "（读取文件出错）")}
         return {
             "name": path.name,
             "type": "xlsx",
             "data_b64": b64,
         }
     else:
-        # Binary / unknown — base64 download link
+        # Binary or unknown file type; use a base64 download link.
         try:
             raw = path.read_bytes()
             b64 = base64.b64encode(raw).decode("ascii")
         except OSError:
-            return {"name": path.name, "type": "error", "content": "(Error reading file)"}
+            return {"name": path.name, "type": "error", "content": localized_text("(Error reading file)", "（读取文件出错）")}
         return {
             "name": path.name,
             "type": "binary",
@@ -268,6 +303,7 @@ def generate_html(
                 previous_outputs[run_id] = data["outputs"]
 
     embedded = {
+        "language": current_language(),
         "skill_name": skill_name,
         "runs": runs,
         "previous_feedback": previous_feedback,
@@ -303,7 +339,7 @@ def _kill_port(port: int) -> None:
     except subprocess.TimeoutExpired:
         pass
     except FileNotFoundError:
-        print("Note: lsof not found, cannot check if port is in use", file=sys.stderr)
+        print(localized_text("Note: lsof not found, cannot check if port is in use", "注意：未找到 lsof，无法检查端口是否被占用"), file=sys.stderr)
 
 class ReviewHandler(BaseHTTPRequestHandler):
     """Serves the review HTML and handles feedback saves.
@@ -365,7 +401,12 @@ class ReviewHandler(BaseHTTPRequestHandler):
             try:
                 data = json.loads(body)
                 if not isinstance(data, dict) or "reviews" not in data:
-                    raise ValueError("Expected JSON object with 'reviews' key")
+                    raise ValueError(
+                        localized_text(
+                            "Expected JSON object with 'reviews' key",
+                            "应为包含 'reviews' 键的 JSON 对象",
+                        )
+                    )
                 self.feedback_path.write_text(json.dumps(data, indent=2) + "\n")
                 resp = b'{"ok":true}'
                 self.send_response(200)
@@ -385,32 +426,36 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate and serve eval review")
-    parser.add_argument("workspace", type=Path, help="Path to workspace directory")
-    parser.add_argument("--port", "-p", type=int, default=3117, help="Server port (default: 3117)")
-    parser.add_argument("--skill-name", "-n", type=str, default=None, help="Skill name for header")
+    configure_argparse()
+    parser = argparse.ArgumentParser(description=localized_text("Generate and serve eval review", "生成并启动评估复核页面"))
+    parser.add_argument("workspace", type=Path, help=localized_text("Path to workspace directory", "workspace 目录路径"))
+    parser.add_argument("--port", "-p", type=int, default=3117, help=localized_text("Server port (default: 3117)", "服务端口（默认：3117）"))
+    parser.add_argument("--skill-name", "-n", type=str, default=None, help=localized_text("Skill name for header", "页眉显示的 skill 名称"))
     parser.add_argument(
         "--previous-workspace", type=Path, default=None,
-        help="Path to previous iteration's workspace (shows old outputs and feedback as context)",
+        help=localized_text(
+            "Path to previous iteration's workspace (shows old outputs and feedback as context)",
+            "上一轮 workspace 路径（将旧输出和反馈作为上下文展示）",
+        ),
     )
     parser.add_argument(
         "--benchmark", type=Path, default=None,
-        help="Path to benchmark.json to show in the Benchmark tab",
+        help=localized_text("Path to benchmark.json to show in the Benchmark tab", "要在基准测试标签页展示的 benchmark.json 路径"),
     )
     parser.add_argument(
         "--static", "-s", type=Path, default=None,
-        help="Write standalone HTML to this path instead of starting a server",
+        help=localized_text("Write standalone HTML to this path instead of starting a server", "将独立 HTML 写入此路径，而不是启动服务"),
     )
     args = parser.parse_args()
 
     workspace = args.workspace.resolve()
     if not workspace.is_dir():
-        print(f"Error: {workspace} is not a directory", file=sys.stderr)
+        print(localized_text(f"Error: {workspace} is not a directory", f"错误：{workspace} 不是目录"), file=sys.stderr)
         sys.exit(1)
 
     runs = find_runs(workspace)
     if not runs:
-        print(f"No runs found in {workspace}", file=sys.stderr)
+        print(localized_text(f"No runs found in {workspace}", f"未在 {workspace} 中找到运行记录"), file=sys.stderr)
         sys.exit(1)
 
     skill_name = args.skill_name or workspace.name.replace("-workspace", "")
@@ -432,7 +477,7 @@ def main() -> None:
         html = generate_html(runs, skill_name, previous, benchmark)
         args.static.parent.mkdir(parents=True, exist_ok=True)
         args.static.write_text(html)
-        print(f"\n  Static viewer written to: {args.static}\n")
+        print(localized_text(f"\n  Static viewer written to: {args.static}\n", f"\n  静态查看器已写入：{args.static}\n"))
         sys.exit(0)
 
     # Kill any existing process on the target port
@@ -442,28 +487,28 @@ def main() -> None:
     try:
         server = HTTPServer(("127.0.0.1", port), handler)
     except OSError:
-        # Port still in use after kill attempt — find a free one
+        # Port still in use after kill attempt; find a free one.
         server = HTTPServer(("127.0.0.1", 0), handler)
         port = server.server_address[1]
 
     url = f"http://localhost:{port}"
-    print(f"\n  Eval Viewer")
-    print(f"  ─────────────────────────────────")
+    print(localized_text("\n  Eval Viewer", "\n  评估查看器"))
+    print(f"  ---------------------------------")
     print(f"  URL:       {url}")
-    print(f"  Workspace: {workspace}")
-    print(f"  Feedback:  {feedback_path}")
+    print(localized_text(f"  Workspace: {workspace}", f"  工作区：    {workspace}"))
+    print(localized_text(f"  Feedback:  {feedback_path}", f"  反馈：      {feedback_path}"))
     if previous:
-        print(f"  Previous:  {args.previous_workspace} ({len(previous)} runs)")
+        print(localized_text(f"  Previous:  {args.previous_workspace} ({len(previous)} runs)", f"  上一轮：    {args.previous_workspace}（{len(previous)} 条运行记录）"))
     if benchmark_path:
-        print(f"  Benchmark: {benchmark_path}")
-    print(f"\n  Press Ctrl+C to stop.\n")
+        print(localized_text(f"  Benchmark: {benchmark_path}", f"  基准测试：  {benchmark_path}"))
+    print(localized_text("\n  Press Ctrl+C to stop.\n", "\n  按 Ctrl+C 停止。\n"))
 
     webbrowser.open(url)
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopped.")
+        print(localized_text("\nStopped.", "\n已停止。"))
         server.server_close()
 
 
