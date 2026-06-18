@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 chrono.workspace = true
-clap = { workspace = true, features = ["derive", "env"] }
+clap = { workspace = true, features = ["derive", "env", "string"] }
 cfg-if = { workspace = true }
 humantime.workspace = true
 jaq-all.workspace = true
@@ -17,7 +17,7 @@ serde_json.workspace = true
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true }
 warp_core = { path = "../warp_core" }
-color-print = "0.3"
+warp_localization.workspace = true
 warp_util = { path = "../warp_util" }
 clap_complete = "4.5.58"
 anyhow.workspace = true
