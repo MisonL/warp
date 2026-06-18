@@ -6,11 +6,15 @@ Type=Application
 
 Name=WarpOss
 GenericName=TerminalEmulator
+GenericName[zh_CN]=终端模拟器
+Comment=The open-source, cloud-backed terminal for individuals and teams
+Comment[zh_CN]=面向个人和团队的开源云端支持终端
 
 Exec=warp-terminal-oss %U
 StartupWMClass=dev.warp.WarpOss
 
 Keywords=shell;prompt;command;commandline;cmd;
+Keywords[zh_CN]=shell;提示符;命令;命令行;cmd;终端;
 
 Icon=dev.warp.WarpOss
 

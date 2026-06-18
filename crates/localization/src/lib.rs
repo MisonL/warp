@@ -214,6 +214,43 @@ impl CatalogBundle {
     }
 }
 
+pub fn settings_schema_translation_key<S: AsRef<str>>(path: &[S], field: &str) -> String {
+    let mut segments = Vec::with_capacity(path.len() + 2);
+    segments.push("settings".to_string());
+    segments.push("schema".to_string());
+    segments.extend(
+        path.iter().map(|segment| {
+            settings_schema_path_segment_to_translation_key_segment(segment.as_ref())
+        }),
+    );
+    segments.push(field.to_string());
+    segments.join(".")
+}
+
+fn settings_schema_path_segment_to_translation_key_segment(segment: &str) -> String {
+    if segment == "$defs" {
+        return "defs".to_string();
+    }
+
+    let mut key = String::new();
+    let mut previous_was_lowercase_or_digit = false;
+
+    for ch in segment.chars() {
+        if ch.is_ascii_uppercase() {
+            if previous_was_lowercase_or_digit {
+                key.push('_');
+            }
+            key.push(ch.to_ascii_lowercase());
+            previous_was_lowercase_or_digit = false;
+        } else {
+            key.push(ch);
+            previous_was_lowercase_or_digit = ch.is_ascii_lowercase() || ch.is_ascii_digit();
+        }
+    }
+
+    key
+}
+
 fn normalize_locale(locale: &str) -> Option<String> {
     let trimmed = locale.trim();
     if trimmed.is_empty() {

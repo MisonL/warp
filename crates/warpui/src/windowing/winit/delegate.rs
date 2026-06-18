@@ -341,14 +341,15 @@ impl platform::Delegate for AppDelegate {
                     // native-dialog doesn't support file-or-directory or multi-directory pickers,
                     // so if folders are allowed, it can only show a directory picker.
                     let result = if file_picker_config.allows_folder() {
-                        native_dialog::FileDialog::new()
-                            .set_title("Choose directory...")
+                        let file_dialog = native_dialog::FileDialog::new()
+                            .set_title(file_picker_config.title_or_default());
+                        file_dialog
                             .show_open_single_dir()
                             .map(|opt| opt.into_iter().collect())
                             .map_err(|e| FilePickerError::DialogFailed(e.to_string()))
                     } else {
-                        let mut file_dialog =
-                            native_dialog::FileDialog::new().set_title("Choose file...");
+                        let mut file_dialog = native_dialog::FileDialog::new()
+                            .set_title(file_picker_config.title_or_default());
                         if !allowed_extensions.is_empty() {
                             file_dialog = file_dialog.add_filter(
                                 file_type_names.as_str(),
@@ -413,7 +414,7 @@ impl platform::Delegate for AppDelegate {
                 .name("Save File Picker".to_string())
                 .spawn(move || {
                     let mut file_dialog =
-                        native_dialog::FileDialog::new().set_title("Save file as...");
+                        native_dialog::FileDialog::new().set_title(config.title_or_default());
 
                     if let Some(default_filename) = config.default_filename.as_ref() {
                         file_dialog = file_dialog.set_filename(default_filename);

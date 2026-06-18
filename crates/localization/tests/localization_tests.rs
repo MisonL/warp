@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 use settings_value::SettingsValue as _;
 use warp_localization::{
-    replace_placeholders, AppLanguage, Catalog, CatalogBundle, CatalogError, LocaleId,
-    TemplateError, TranslationSource,
+    replace_placeholders, settings_schema_translation_key, AppLanguage, Catalog, CatalogBundle,
+    CatalogError, LocaleId, TemplateError, TranslationSource,
 };
 
 const EN_US: &str = r#"{
@@ -20,6 +20,39 @@ const ZH_CN: &str = r#"{
 
 const BUNDLED_EN_US: &str = include_str!("../../../app/assets/bundled/locales/en-US.json");
 const BUNDLED_ZH_CN: &str = include_str!("../../../app/assets/bundled/locales/zh-CN.json");
+const DEV_DESKTOP_ENTRY: &str = include_str!("../../../app/channels/dev/dev.warp.WarpDev.desktop");
+const LOCAL_DESKTOP_ENTRY: &str =
+    include_str!("../../../app/channels/local/dev.warp.WarpLocal.desktop");
+const OSS_DESKTOP_ENTRY: &str = include_str!("../../../app/channels/oss/dev.warp.WarpOss.desktop");
+const PREVIEW_DESKTOP_ENTRY: &str =
+    include_str!("../../../app/channels/preview/dev.warp.WarpPreview.desktop");
+const STABLE_DESKTOP_ENTRY: &str =
+    include_str!("../../../app/channels/stable/dev.warp.Warp.desktop");
+const LOCAL_BIN_SOURCE: &str = include_str!("../../../app/src/bin/local.rs");
+const OSS_BIN_SOURCE: &str = include_str!("../../../app/src/bin/oss.rs");
+const CLI_INFO_PLIST: &str = include_str!("../../../app/assets/resources/mac/CLI-Info.plist");
+const LAUNCH_CONFIG_SAVE_MODAL_SOURCE: &str =
+    include_str!("../../../app/src/launch_configs/save_modal.rs");
+const USER_CONFIG_NATIVE_SOURCE: &str = include_str!("../../../app/src/user_config/native.rs");
+const WORKSPACE_VIEW_SOURCE: &str = include_str!("../../../app/src/workspace/view.rs");
+const AI_SETTINGS_PAGE_SOURCE: &str = include_str!("../../../app/src/settings_view/ai_page.rs");
+const AGENT_SDK_AMBIENT_SOURCE: &str = include_str!("../../../app/src/ai/agent_sdk/ambient.rs");
+const WORKSPACE_CLI_INSTALL_SOURCE: &str =
+    include_str!("../../../app/src/workspace/cli_install.rs");
+const LOCAL_AGENT_TASK_SYNC_MODEL_SOURCE: &str =
+    include_str!("../../../app/src/ai/blocklist/local_agent_task_sync_model.rs");
+const DEFAULT_WORKTREE_TAB_CONFIG: &str =
+    include_str!("../../../app/resources/tab_configs/default_worktree.toml");
+const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
+    include_str!("../../../app/resources/tab_configs/default_worktree.zh-CN.toml");
+const NEW_TAB_CONFIG_TEMPLATE: &str =
+    include_str!("../../../app/resources/tab_configs/new_tab_config_template.toml");
+const NEW_TAB_CONFIG_TEMPLATE_ZH_CN: &str =
+    include_str!("../../../app/resources/tab_configs/new_tab_config_template.zh-CN.toml");
+const CREATE_SKILL_EVAL_REVIEW_HTML: &str =
+    include_str!("../../../resources/bundled/skills/create-skill/assets/eval_review.html");
+const CREATE_SKILL_EVAL_VIEWER_HTML: &str =
+    include_str!("../../../resources/bundled/skills/create-skill/eval-viewer/viewer.html");
 const ALLOWED_EMPTY_TRANSLATION_KEYS: &[&str] = &["auth.empty"];
 
 const UI_LITERAL_PATTERNS: &[&str] = &[
@@ -201,6 +234,104 @@ fn bundled_language_option_labels_match_current_locale() {
             (AppLanguage::English, "英语"),
             (AppLanguage::SimplifiedChinese, "简体中文"),
         ],
+    );
+}
+
+#[test]
+fn linux_desktop_entries_include_zh_cn_metadata() {
+    let entries = [
+        ("dev", DEV_DESKTOP_ENTRY),
+        ("local", LOCAL_DESKTOP_ENTRY),
+        ("oss", OSS_DESKTOP_ENTRY),
+        ("preview", PREVIEW_DESKTOP_ENTRY),
+        ("stable", STABLE_DESKTOP_ENTRY),
+    ];
+
+    for (name, content) in entries {
+        assert!(
+            content.contains("\nGenericName[zh_CN]="),
+            "{name} desktop entry should localize GenericName"
+        );
+        assert!(
+            content.contains("\nComment="),
+            "{name} desktop entry should include a default Comment"
+        );
+        assert!(
+            content.contains("\nComment[zh_CN]="),
+            "{name} desktop entry should localize Comment"
+        );
+        assert!(
+            content.contains("\nKeywords[zh_CN]="),
+            "{name} desktop entry should localize Keywords"
+        );
+    }
+}
+
+#[test]
+fn mac_plist_development_regions_use_language_codes() {
+    let entries = [
+        ("local binary plist", LOCAL_BIN_SOURCE),
+        ("oss binary plist", OSS_BIN_SOURCE),
+        ("cli helper plist", CLI_INFO_PLIST),
+    ];
+
+    for (name, content) in entries {
+        assert!(
+            content.contains("<key>CFBundleDevelopmentRegion</key>"),
+            "{name} should declare CFBundleDevelopmentRegion"
+        );
+        assert!(
+            content.contains("<string>en</string>"),
+            "{name} should use the BCP 47 language code for English"
+        );
+        assert!(
+            !content.contains("<string>English</string>"),
+            "{name} should not spell out the development region"
+        );
+    }
+}
+
+#[test]
+fn launch_config_save_error_classification_does_not_match_english_text() {
+    assert!(
+        LAUNCH_CONFIG_SAVE_MODAL_SOURCE.contains("SaveNewLaunchConfigError::FileAlreadyExists"),
+        "launch config save modal should classify duplicate files by error type"
+    );
+    assert!(
+        !LAUNCH_CONFIG_SAVE_MODAL_SOURCE.contains("File already exists"),
+        "launch config save modal should not branch on English error text"
+    );
+    assert!(
+        !USER_CONFIG_NATIVE_SOURCE.contains("\"File name is empty\""),
+        "launch config save errors should not expose English UI text from user_config"
+    );
+    assert!(
+        !USER_CONFIG_NATIVE_SOURCE.contains("\"File already exists\""),
+        "launch config save errors should not expose English UI text from user_config"
+    );
+}
+
+#[test]
+fn oz_cli_toast_errors_are_localized_before_rendering() {
+    assert!(
+        WORKSPACE_VIEW_SOURCE.contains("localized_cli_install_error"),
+        "workspace view should localize Oz CLI error details before rendering toast text"
+    );
+    assert!(
+        !WORKSPACE_VIEW_SOURCE.contains("&error.to_string()"),
+        "workspace view should not pass raw English error strings into Oz CLI toast text"
+    );
+    assert!(
+        !WORKSPACE_CLI_INSTALL_SOURCE.contains("Installation cancelled by user."),
+        "Oz CLI installation cancellation should be classified, not exposed as English UI text"
+    );
+    assert!(
+        !WORKSPACE_CLI_INSTALL_SOURCE.contains("Uninstallation cancelled by user."),
+        "Oz CLI uninstallation cancellation should be classified, not exposed as English UI text"
+    );
+    assert!(
+        !WORKSPACE_CLI_INSTALL_SOURCE.contains("Oz command is not currently installed."),
+        "Oz CLI not-installed state should be classified, not exposed as English UI text"
     );
 }
 
@@ -2744,6 +2875,103 @@ fn bundled_catalogs_have_matching_placeholders() {
 }
 
 #[test]
+fn bundled_settings_schema_default_text_mappings_have_zh_cn_translations() {
+    let en_us = bundled_en_us_map();
+    let zh_cn = bundled_zh_cn_map();
+
+    let schema_default_mapping_keys = en_us
+        .keys()
+        .filter(|key| {
+            key.starts_with("settings.schema.defs.")
+                || key.starts_with("settings.schema.properties.")
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        !schema_default_mapping_keys.is_empty(),
+        "expected settings schema default-text mapping keys"
+    );
+
+    let failures = schema_default_mapping_keys
+        .iter()
+        .filter_map(|key| {
+            let default_text = en_us.get(*key)?.as_str()?;
+            let zh_text = zh_cn.get(*key)?.as_str()?;
+            let localized_texts = en_us
+                .iter()
+                .filter_map(|(candidate_key, value)| {
+                    (value.as_str() == Some(default_text))
+                        .then(|| zh_cn.get(candidate_key)?.as_str())
+                        .flatten()
+                        .filter(|text| *text != default_text)
+                })
+                .collect::<BTreeSet<_>>();
+
+            if zh_text == default_text {
+                return Some(format!("{key}: zh-CN text matches en-US default"));
+            }
+
+            (localized_texts.len() != 1).then(|| {
+                format!(
+                    "{key}: en-US default text must map to exactly one zh-CN text, got {localized_texts:?}"
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        failures.is_empty(),
+        "settings schema default-text localization failures: {failures:#?}"
+    );
+}
+
+#[test]
+fn settings_schema_translation_keys_match_json_schema_paths() {
+    let cases = [
+        (
+            &["$defs", "AccessibilityVerbosity"][..],
+            "description",
+            "settings.schema.defs.accessibility_verbosity.description",
+        ),
+        (
+            &["$defs", "AgentModeCodingPermissionsType"][..],
+            "description",
+            "settings.schema.defs.agent_mode_coding_permissions_type.description",
+        ),
+        (
+            &["$defs", "CLIAgentToolbarChipSelection"][..],
+            "description",
+            "settings.schema.defs.cliagent_toolbar_chip_selection.description",
+        ),
+        (
+            &["$defs", "InputMode", "oneOf", "0"][..],
+            "description",
+            "settings.schema.defs.input_mode.one_of.0.description",
+        ),
+        (
+            &["$defs", "CustomTheme", "properties", "path"][..],
+            "description",
+            "settings.schema.defs.custom_theme.properties.path.description",
+        ),
+    ];
+    let en_us = bundled_en_us_map();
+    let zh_cn = bundled_zh_cn_map();
+
+    for (path, field, expected_key) in cases {
+        let actual_key = settings_schema_translation_key(path, field);
+        assert_eq!(actual_key, expected_key);
+        assert!(
+            en_us.contains_key(&actual_key),
+            "missing en-US catalog key {actual_key}"
+        );
+        assert!(
+            zh_cn.contains_key(&actual_key),
+            "missing zh-CN catalog key {actual_key}"
+        );
+    }
+}
+
+#[test]
 fn bundled_catalogs_include_onboarding_copy_keys() {
     let en_us = bundled_en_us_map();
     let zh_cn = bundled_zh_cn_map();
@@ -2802,6 +3030,170 @@ fn app_ui_calls_do_not_use_direct_english_literals() {
     assert!(
         violations.is_empty(),
         "direct user-visible English literals in UI calls: {violations:#?}"
+    );
+}
+
+#[test]
+fn bundled_skill_entrypoints_can_be_localized_by_metadata() {
+    let path = workspace_root().join("app/src/ai/skills/skill_manager.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    assert!(
+        content.contains("read_bundled_skills_for_locale"),
+        "bundled skills should be loaded through a locale-aware reader"
+    );
+    assert!(
+        content.contains("description_zh_CN"),
+        "bundled skills should support localized description metadata"
+    );
+    assert!(
+        content.contains("localized_bundled_skill_description"),
+        "bundled skills should apply localized metadata while keeping original skill content"
+    );
+}
+
+#[test]
+fn bundled_and_channel_gated_skill_entrypoints_include_zh_cn_descriptions() {
+    let roots = [
+        workspace_root().join("resources/bundled/skills"),
+        workspace_root()
+            .join("resources")
+            .join("bundled")
+            .join("mcp_skills")
+            .join("figma"),
+        workspace_root()
+            .join("resources")
+            .join("channel-gated-skills"),
+    ];
+    let mut violations = Vec::new();
+
+    for root in roots {
+        collect_skill_entrypoint_description_violations(&root, &mut violations);
+    }
+
+    assert!(
+        violations.is_empty(),
+        "skill entrypoints missing description_zh_CN: {violations:#?}"
+    );
+}
+
+#[test]
+fn bundled_and_channel_gated_skills_include_zh_cn_content() {
+    let roots = [
+        workspace_root().join("resources/bundled/skills"),
+        workspace_root()
+            .join("resources")
+            .join("bundled")
+            .join("mcp_skills"),
+        workspace_root()
+            .join("resources")
+            .join("channel-gated-skills"),
+    ];
+    let mut violations = Vec::new();
+
+    for root in roots {
+        collect_missing_localized_skill_content(&root, &mut violations);
+    }
+
+    assert!(
+        violations.is_empty(),
+        "skill entrypoints missing SKILL.zh-CN.md: {violations:#?}"
+    );
+}
+
+#[test]
+fn bundled_create_skill_html_sets_runtime_document_language() {
+    for (name, content) in [
+        ("eval review", CREATE_SKILL_EVAL_REVIEW_HTML),
+        ("eval viewer", CREATE_SKILL_EVAL_VIEWER_HTML),
+    ] {
+        assert!(
+            content.contains("document.documentElement.lang"),
+            "{name} should set the html lang attribute from the active language"
+        );
+        assert!(
+            content.contains("zh-CN"),
+            "{name} should use zh-CN for Simplified Chinese content"
+        );
+    }
+
+    assert!(
+        !CREATE_SKILL_EVAL_REVIEW_HTML
+            .contains("document.title = `${t(\"title\")} - __SKILL_NAME_PLACEHOLDER__`;"),
+        "eval review template should not insert raw skill names into JavaScript"
+    );
+    assert!(
+        CREATE_SKILL_EVAL_REVIEW_HTML
+            .contains("document.getElementById(\"skill-name\").textContent"),
+        "eval review title should read the skill name from DOM text"
+    );
+}
+
+#[test]
+fn bundled_tab_config_templates_keep_locale_specific_comments_separate() {
+    for (name, content) in [
+        ("default worktree tab config", DEFAULT_WORKTREE_TAB_CONFIG),
+        ("new tab config template", NEW_TAB_CONFIG_TEMPLATE),
+    ] {
+        assert!(
+            !content.contains('你'),
+            "{name} base template should keep English comments for default-locale users"
+        );
+        assert!(
+            !content.contains("name_zh_CN"),
+            "{name} base template should not include zh-CN-only display metadata"
+        );
+    }
+
+    for (name, content) in [
+        (
+            "default worktree zh-CN tab config",
+            DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN,
+        ),
+        (
+            "new zh-CN tab config template",
+            NEW_TAB_CONFIG_TEMPLATE_ZH_CN,
+        ),
+    ] {
+        assert!(
+            content.contains('你'),
+            "{name} should include Chinese user-facing comments"
+        );
+        assert!(
+            content.contains("name_zh_CN"),
+            "{name} should keep localized display name metadata"
+        );
+    }
+}
+
+#[test]
+fn local_agent_task_sync_persists_canonical_status_messages() {
+    assert!(
+        LOCAL_AGENT_TASK_SYNC_MODEL_SOURCE.contains("map_conversation_status_to_canonical_english"),
+        "task sync should persist canonical English status messages"
+    );
+    assert!(
+        !LOCAL_AGENT_TASK_SYNC_MODEL_SOURCE.contains("map_conversation_status_for_locale"),
+        "task sync should not expose locale-parametrized status mapping for shared task rows"
+    );
+}
+
+#[test]
+fn ambient_agent_sdk_localizes_canonical_task_status_messages() {
+    assert!(
+        AGENT_SDK_AMBIENT_SOURCE.contains("localized_task_status_message_for_locale"),
+        "ambient agent SDK output should localize canonical task status messages before rendering"
+    );
+    assert!(
+        AGENT_SDK_AMBIENT_SOURCE
+            .contains("ambient_task_status_message(locale, &status_msg.message)"),
+        "ambient agent SDK output should pass task status messages through its localization helper"
+    );
+    assert!(
+        !AGENT_SDK_AMBIENT_SOURCE
+            .contains("&status_msg.message,\n                    MAX_LINE_WIDTH"),
+        "ambient agent SDK output should not render canonical task status messages directly"
     );
 }
 
@@ -2952,6 +3344,137 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn current_i18n_multiline_ui_calls_do_not_use_direct_english_literals() {
+    let cases = [
+        (
+            "app/src/view_components/feature_popup.rs",
+            &["Text::new("][..],
+        ),
+        (
+            "app/src/ai/execution_profiles/mod.rs",
+            &["FormattedTextFragment::plain_text("][..],
+        ),
+        (
+            "app/src/terminal/input/slash_commands/search_item.rs",
+            &["Text::new("][..],
+        ),
+        (
+            "app/src/terminal/ssh/install_tmux.rs",
+            &[
+                "requested_script::render_requested_script(",
+                "render::build_header_row(",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/requested_command.rs",
+            &["render_autonomy_checkbox_setting_speedbump_footer("][..],
+        ),
+        (
+            "app/src/ai/blocklist/block/view_impl/common.rs",
+            &["render_visual_card("][..],
+        ),
+        (
+            "app/src/settings/import/view.rs",
+            &["Text::new_inline("][..],
+        ),
+        (
+            "app/src/settings_view/execution_profile_view.rs",
+            &["render_run_agents_permission_line_with_icon("][..],
+        ),
+        ("app/src/drive/items/item.rs", &["Span::new("][..]),
+    ];
+
+    let mut violations = Vec::new();
+    for (relative_path, patterns) in cases {
+        let path = workspace_root().join(relative_path);
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        collect_direct_literal_after_patterns(relative_path, &content, patterns, &mut violations);
+    }
+
+    assert!(
+        violations.is_empty(),
+        "current multiline UI calls must use catalog copy: {violations:#?}"
+    );
+}
+
+#[test]
+fn current_ui_display_helpers_do_not_bypass_localization() {
+    let cases = [
+        (
+            "app/src/terminal/rich_history.rs",
+            &["entry.output_status.display_text(),"][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/orchestration_pill_bar.rs",
+            &["status.to_string()"][..],
+        ),
+        (
+            "app/src/settings/import/view.rs",
+            &["setting.setting_type.get_name()"][..],
+        ),
+        (
+            "app/src/settings_view/features_page.rs",
+            &["val.dropdown_item_label()"][..],
+        ),
+        (
+            "app/src/settings_view/execution_profile_view.rs",
+            &[
+                "\"Run agents:\"",
+                "RunAgentsPermission::NeverAllow | RunAgentsPermission::Unknown => \"Never\"",
+                "RunAgentsPermission::AlwaysAllow => \"Always allow\"",
+                "RunAgentsPermission::AlwaysAsk => \"Always ask\"",
+            ][..],
+        ),
+        (
+            "app/src/drive/items/ai_fact_collection.rs",
+            &["Some(\"Rules\".to_string())"][..],
+        ),
+        (
+            "app/src/drive/items/mcp_server_collection.rs",
+            &["Some(\"MCP Servers\".to_string())"][..],
+        ),
+        (
+            "app/src/ai/agent_management/agent_management_model.rs",
+            &[
+                "\"Agent task\".to_owned()",
+                "\"Notification from Codex\"",
+                "\"Task completed.\"",
+                "\"Task was cancelled.\"",
+                "format!(\"{} completed\", agent.display_name())",
+            ][..],
+        ),
+        (
+            "app/src/code_review/comment_rendering.rs",
+            &["\"Review Comment\".to_string()"][..],
+        ),
+        (
+            "app/src/ai/agent/comment.rs",
+            &["\"Review Comment\".to_string()", "\"Invalid File Name\""][..],
+        ),
+        (
+            "app/src/code_review/comment_list_view.rs",
+            &["\"CLI agent\""][..],
+        ),
+        (
+            "app/src/workspace/view/vertical_tabs.rs",
+            &["Text::new_inline(status.to_string(),"][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/ask_user_question_view.rs",
+            &["AskUserQuestionAnswerItem::display_text"][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "UI display helpers must localize before rendering: {violations:#?}"
+    );
+}
+
+#[test]
 fn ai_settings_high_risk_wrappers_do_not_use_direct_english_literals() {
     let relative_path = "app/src/settings_view/ai_page.rs";
     let path = workspace_root().join(relative_path);
@@ -2973,6 +3496,30 @@ fn ai_settings_high_risk_wrappers_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn ai_settings_mode_command_bindings_use_dynamic_localized_descriptions() {
+    assert!(
+        AI_SETTINGS_PAGE_SOURCE.contains("fn localized_binding_description"),
+        "AI settings should construct catalog-backed dynamic binding descriptions"
+    );
+    assert!(
+        AI_SETTINGS_PAGE_SOURCE.contains(".with_dynamic_override("),
+        "AI settings binding descriptions should refresh after runtime language changes"
+    );
+    assert!(
+        AI_SETTINGS_PAGE_SOURCE
+            .matches("localized_binding_description(\n                        mode.command_palette_description(),\n                        mode.command_palette_description_key(),")
+            .count()
+            >= 3,
+        "AI settings mode command bindings should use dynamic localized descriptions"
+    );
+    assert!(
+        !AI_SETTINGS_PAGE_SOURCE
+            .contains("text_for_app(app, mode.command_palette_description_key())"),
+        "AI settings mode command bindings should not capture localized labels at registration time"
+    );
+}
+
+#[test]
 fn static_slash_command_descriptions_have_catalog_keys() {
     let command_names = static_slash_command_names_from_source();
     assert!(!command_names.is_empty(), "expected static slash commands");
@@ -2986,11 +3533,86 @@ fn static_slash_command_descriptions_have_catalog_keys() {
 }
 
 #[test]
+fn static_slash_command_argument_hint_keys_exist_in_catalogs() {
+    let keys = static_slash_command_hint_keys_from_source();
+    assert!(!keys.is_empty(), "expected static slash command hint keys");
+
+    assert_bundled_keys_exist(&keys);
+}
+
+#[test]
+fn static_slash_command_english_hint_fallbacks_have_catalog_keys() {
+    let relative_path = "app/src/search/slash_command_menu/static_commands/commands.rs";
+    let path = workspace_root().join(relative_path);
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    let mut violations = Vec::new();
+    let mut cursor = 0;
+
+    while let Some(found_at) = content[cursor..].find(".with_hint_text(\"") {
+        let invocation_start = cursor + found_at;
+        let scan_end = (invocation_start + 192).min(content.len());
+        if !content[invocation_start..scan_end].contains(".with_hint_text_key(") {
+            violations.push(format!(
+                "{}:{}: with_hint_text literal has no catalog key",
+                relative_path,
+                line_number_for_offset(&content, invocation_start)
+            ));
+        }
+        cursor = invocation_start + ".with_hint_text(\"".len();
+    }
+
+    assert!(
+        violations.is_empty(),
+        "static slash command hint literals must pair with with_hint_text_key: {violations:#?}"
+    );
+}
+
+#[test]
+fn binding_description_new_does_not_use_direct_english_literals() {
+    let app_src = workspace_root().join("app/src");
+    let mut violations = Vec::new();
+    collect_direct_first_argument_literal_violations_in_dir(
+        &app_src,
+        "BindingDescription::new(",
+        &mut violations,
+    );
+
+    assert!(
+        violations.is_empty(),
+        "BindingDescription::new must use a fallback variable plus dynamic catalog override: {violations:#?}"
+    );
+}
+
+#[test]
+fn editable_binding_descriptions_do_not_use_direct_english_literals() {
+    let app_src = workspace_root().join("app/src");
+    let mut violations = Vec::new();
+    collect_binding_description_literal_violations_in_dir(
+        &app_src,
+        "EditableBinding::new(",
+        1,
+        &mut violations,
+    );
+
+    assert!(
+        violations.is_empty(),
+        "EditableBinding descriptions must use catalog-backed BindingDescription values: {violations:#?}"
+    );
+}
+
+#[test]
 fn plugin_instruction_keys_exist_in_catalogs() {
     let keys = plugin_instruction_keys_from_source();
     assert!(!keys.is_empty(), "expected plugin instruction keys");
 
     assert_bundled_keys_exist(&keys);
+
+    let violations = plugin_instruction_key_violations_from_source();
+    assert!(
+        violations.is_empty(),
+        "plugin instruction fallbacks must have catalog keys: {violations:#?}"
+    );
 }
 
 #[test]
@@ -3103,14 +3725,26 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         "agent.input_footer.toolbar_item.rich_input",
         "agent.input_footer.toolbar_item.settings",
         "agent.input_footer.toolbar_item.voice_input",
+        "agent.history.output_status.cancelled",
+        "agent.history.output_status.completed",
+        "agent.history.output_status.failed",
+        "agent.history.output_status.pending",
         "agent_management.agent_type_selector.cloud.description",
         "agent_management.agent_type_selector.cloud.title",
         "agent_management.agent_type_selector.local.description",
         "agent_management.agent_type_selector.local.title",
+        "agent_management.notifications.cli_completed_title",
+        "agent_management.notifications.cli_needs_attention_title",
+        "agent_management.notifications.codex_message",
+        "agent_management.notifications.something_went_wrong",
+        "agent_management.notifications.task_cancelled",
+        "agent_management.notifications.task_completed",
+        "agent_management.notifications.waiting_for_input",
         "agent.orchestration.error.no_targets",
         "agent.orchestration.error.source_conversation_not_found",
         "agent.orchestration.run_agents.accept",
         "agent.orchestration.run_agents.reject",
+        "agent.output.mermaid_diagram",
         "agent.ask_user_question.other",
         "agent.ask_user_question.select_all_suffix",
         "agent.ask_user_question.speedbump.allow_questions",
@@ -3142,19 +3776,51 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         "agent.search_codebase.searching_in_repo",
         "agent.search_results.results_label",
         "agent.search_results.urls_label",
+        "agent.cli.search_action.current_directory",
+        "agent.cli.search_action.file_glob.multiple",
+        "agent.cli.search_action.file_glob.single",
+        "agent.cli.search_action.grep.multiple",
+        "agent.cli.search_action.grep.single",
+        "agent.task_status.aws_bedrock_credentials_expired_or_invalid",
+        "agent.task_status.blocked",
+        "agent.task_status.cancelled",
+        "agent.task_status.context_window_exceeded",
+        "agent.task_status.error",
+        "agent.task_status.internal_error",
+        "agent.task_status.invalid_api_key",
+        "agent.task_status.quota_limit",
+        "agent.task_status.server_overloaded",
         "agent.web_fetch.failed_url",
         "agent.view_block.deleted",
         "agent.view_block.deleted_conversation",
+        "agent.zero_state.free_cloud_agent_credits",
         "agent_sdk.environment.error.fetch_images",
         "ai_document.title.default",
         "code.remote_disconnected.banner",
         "code.toast.save_failed_remote_disconnected",
+        "code_review.comment.invalid_file_name",
+        "code_review.comment.review_comment",
+        "code_review.comments.cli_agent",
         "conversation_details.tooltip.cancel_task",
         "conversation_details.tooltip.copy_link_to_run",
         "conversation_details.tooltip.fork_conversation",
         "conversation_details.tooltip.open_conversation",
         "conversation_details.tooltip.view_details",
+        "drive.collection.mcp_servers",
+        "drive.collection.rules",
         "editor.ai_context_menu.search_files_tooltip",
+        "editor.toast.image_limit.per_conversation",
+        "editor.toast.image_limit.per_query",
+        "editor.toast.image_limit.plural",
+        "editor.toast.image_limit.single",
+        "editor.toast.image_processing_failed.plural",
+        "editor.toast.image_processing_failed.single",
+        "editor.toast.image_processing_failed.single_only",
+        "editor.toast.image_too_large.plural",
+        "editor.toast.image_too_large.single",
+        "editor.toast.image_too_large.single_only",
+        "feature_popup.badge.new",
+        "notebook.editor.a11y.selected_workflow",
         "remote.codebase_search.host_disconnected",
         "remote.codebase_search.missing_root_hash",
         "remote.codebase_search.unavailable",
@@ -3163,6 +3829,8 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         "settings.ai.aws_bedrock.credentials.status.disabled.detail",
         "settings.ai.aws_bedrock.credentials.status.disabled.title",
         "settings.ai.aws_bedrock.credentials.status.failed.title",
+        "settings.ai.aws_bedrock.credentials.status.loaded.detail",
+        "settings.ai.aws_bedrock.credentials.status.loaded.detail_with_expiration",
         "settings.ai.aws_bedrock.credentials.status.loaded.title",
         "settings.ai.aws_bedrock.credentials.status.missing.detail",
         "settings.ai.aws_bedrock.credentials.status.missing.title",
@@ -3170,18 +3838,58 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         "settings.ai.aws_bedrock.credentials.status.refreshing.title",
         "settings.billing.addon_credits.auto_reload.managed.title",
         "settings.environment.create.toast.failed",
+        "settings.execution_profile.long_context_pricing_warning.message",
+        "settings.execution_profile.run_agents",
+        "settings.features.code_editor_line_numbers.absolute",
+        "settings.features.code_editor_line_numbers.relative",
+        "settings.import.setting.copy_on_select",
+        "settings.import.setting.cursor_blinking",
+        "settings.import.setting.default_shell",
+        "settings.import.setting.font",
+        "settings.import.setting.hotkey_mode",
+        "settings.import.setting.mouse_scroll_reporting",
+        "settings.import.setting.opacity",
+        "settings.import.setting.option_as_meta",
+        "settings.import.setting.theme",
+        "settings.import.setting.window_size",
+        "settings.import.setting.working_directory",
         "settings.mcp.install.no_server_selected",
+        "settings.mcp.oauth.headless_authentication_required",
         "settings.mcp.toast.authenticated_server",
         "settings.theme_creator.error.process_image",
         "settings.theme_creator.error.process_image_with_error",
         "tab_config.new_worktree.branch_name",
         "terminal.rewind.a11y.current",
         "terminal.rewind.current",
+        "terminal.slash.command.or_separator",
+        "terminal.ssh.install_tmux.run_script_header",
+        "terminal.ssh.install_tmux.title",
         "terminal.ssh_error.start_extension_failed",
+        "terminal.shared_session.error.access_removed",
+        "terminal.shared_session.error.command_execution_failed",
+        "terminal.shared_session.error.command_in_progress",
+        "terminal.shared_session.error.control_action_failed",
+        "terminal.shared_session.error.guests_already_added",
+        "terminal.shared_session.error.guests_not_warp_users",
+        "terminal.shared_session.error.initialize_internal",
+        "terminal.shared_session.error.insufficient_permissions_request_edit",
+        "terminal.shared_session.error.invalid_conversation",
+        "terminal.shared_session.error.login_required",
+        "terminal.shared_session.error.quota_exceeded",
+        "terminal.shared_session.error.scrollback_too_large",
+        "terminal.shared_session.error.session_ended",
+        "terminal.shared_session.error.session_ended_internal",
+        "terminal.shared_session.error.session_ended_sharer_inactive",
+        "terminal.shared_session.error.session_terminated_internal",
+        "terminal.shared_session.error.size_limit_exceeded",
+        "terminal.shared_session.error.write_failed",
+        "terminal.shared_session.toast.reconnect_failed",
+        "terminal.shared_session.toast.share_again_failed",
         "terminal.warpify.success.auto_warpify_instructions",
         "terminal.warpify.success.learn_more",
         "terminal.warpify.success.remote_subshell_description",
         "terminal.warpify.success.title",
+        "workspace.handoff.auto_cloud_prompt",
         "workspace.codex_modal.initial_prompt",
     ];
 
@@ -3337,6 +4045,10 @@ fn current_i18n_regression_targets_are_catalog_backed() {
             &["Save and auto-reload are unavailable while the remote session is disconnected"][..],
         ),
         (
+            "crates/mcp/src/oauth.rs",
+            &["MCP server requires OAuth authentication. Please authenticate this server"][..],
+        ),
+        (
             "app/src/ai/agent_sdk/environment.rs",
             &["Failed to fetch images"][..],
         ),
@@ -3361,6 +4073,47 @@ fn current_i18n_regression_targets_are_catalog_backed() {
             "app/src/themes/theme_creator_body.rs",
             &["Failed to process selected image"][..],
         ),
+        (
+            "app/src/ai/blocklist/agent_view/zero_state_block.rs",
+            &["free cloud agent credits"][..],
+        ),
+        (
+            "app/src/editor/view/mod.rs",
+            &[
+                "limit is {MAX_IMAGE_COUNT_FOR_QUERY} per query",
+                "limit is {MAX_IMAGES_PER_CONVERSATION} per conversation",
+                "Image cannot be attached - file is too large.",
+                "Image cannot be attached - error processing.",
+                "images weren't attached - error processing.",
+            ][..],
+        ),
+        (
+            "app/src/notebooks/editor/model.rs",
+            &["Selected workflow: {command}"][..],
+        ),
+        (
+            "app/src/ai/blocklist/block/cli.rs",
+            &[
+                "\"the current directory\"",
+                "Grep for `{}`",
+                "Grep for the following patterns",
+                "Search for files that match",
+                "Find files that match the following patterns",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/local_agent_task_sync_model.rs",
+            &[
+                "Agent encountered an error",
+                "Cancelled by user",
+                "The agent got stuck waiting for user confirmation",
+                "Your team has run out of credits",
+                "Warp is temporarily overloaded",
+                "Context window exceeded: {msg}",
+                "Invalid API key for {provider}",
+                "AWS Bedrock credentials expired or invalid",
+            ][..],
+        ),
     ];
 
     let violations = selected_snippet_violations(&cases);
@@ -3368,6 +4121,335 @@ fn current_i18n_regression_targets_are_catalog_backed() {
     assert!(
         violations.is_empty(),
         "current i18n regression targets must use catalog copy: {violations:#?}"
+    );
+}
+
+#[test]
+fn shared_session_agent_notifications_and_aws_status_use_catalog_copy() {
+    let required_keys = [
+        "agent_management.notifications.cli_needs_attention_title",
+        "agent_management.notifications.something_went_wrong",
+        "agent_management.notifications.waiting_for_input",
+        "settings.ai.aws_bedrock.credentials.status.loaded.detail",
+        "settings.ai.aws_bedrock.credentials.status.loaded.detail_with_expiration",
+        "terminal.shared_session.error.access_removed",
+        "terminal.shared_session.error.command_execution_failed",
+        "terminal.shared_session.error.command_in_progress",
+        "terminal.shared_session.error.control_action_failed",
+        "terminal.shared_session.error.guests_already_added",
+        "terminal.shared_session.error.guests_not_warp_users",
+        "terminal.shared_session.error.initialize_internal",
+        "terminal.shared_session.error.insufficient_permissions_request_edit",
+        "terminal.shared_session.error.invalid_conversation",
+        "terminal.shared_session.error.login_required",
+        "terminal.shared_session.error.quota_exceeded",
+        "terminal.shared_session.error.scrollback_too_large",
+        "terminal.shared_session.error.session_ended",
+        "terminal.shared_session.error.session_ended_internal",
+        "terminal.shared_session.error.session_ended_sharer_inactive",
+        "terminal.shared_session.error.session_terminated_internal",
+        "terminal.shared_session.error.size_limit_exceeded",
+        "terminal.shared_session.error.write_failed",
+        "terminal.shared_session.toast.reconnect_failed",
+        "terminal.shared_session.toast.share_again_failed",
+    ];
+
+    assert_bundled_keys_exist(&required_keys);
+
+    let cases = [
+        (
+            "app/src/ai/agent_management/agent_management_model.rs",
+            &[
+                "needs attention",
+                "\"Waiting for input.\"",
+                "\"Something went wrong.\"",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/ai_page.rs",
+            &[
+                "state.user_facing_components()",
+                "Loaded at {}, expires {}",
+                "Loaded at {}",
+            ][..],
+        ),
+        (
+            "app/src/terminal/local_tty/terminal_manager.rs",
+            &["Something went wrong. Please try sharing again."][..],
+        ),
+        (
+            "app/src/terminal/shared_session/sharer/network.rs",
+            &[
+                "Session sharing usage exceeded for the day",
+                "Session limit (",
+                "Session ended due to an internal error",
+                "An internal error occurred",
+                "Scrollback exceeds limit",
+                "You must be logged in to share sessions",
+                "One or more emails were not associated with Warp accounts",
+                "One or more emails have already been added",
+            ][..],
+        ),
+        (
+            "app/src/terminal/shared_session/viewer/network.rs",
+            &[
+                "Please ask sharer",
+                "Sharing ended due to sharer inactivity",
+                "\"Session ended.\"",
+                "Your access to the session was removed",
+                "Insufficient permissions. Please request edit access.",
+                "Failed to execute command. Please try again.",
+                "Failed to make edit. Please try again.",
+                "Invalid conversation. Please try again.",
+                "A long running command is currently in progress",
+                "Failed to perform action. Please try again.",
+            ][..],
+        ),
+        (
+            "app/src/terminal/shared_session/viewer/terminal_manager.rs",
+            &[
+                "Failed to reconnect. Please try again later.",
+                "One or more of the emails are not Warp users.",
+                "One or more of the guests has already been added.",
+            ][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "shared-session, notification, and AWS status copy must use catalogs: {violations:#?}"
+    );
+}
+
+#[test]
+fn agent_sdk_driver_text_output_uses_catalog_copy() {
+    let required_keys = [
+        "agent_sdk.common.error.check_warp_logs",
+        "agent_sdk.common.saved_prompt_summary",
+        "agent_sdk.driver.output.addressed_comments",
+        "agent_sdk.driver.output.audio_content",
+        "agent_sdk.driver.output.cancelled",
+        "agent_sdk.driver.output.call_mcp_tool_failed",
+        "agent_sdk.driver.output.codebase",
+        "agent_sdk.driver.output.codebase_search_results",
+        "agent_sdk.driver.output.command_completed",
+        "agent_sdk.driver.output.command_denylisted",
+        "agent_sdk.driver.output.command_finished",
+        "agent_sdk.driver.output.command_still_running",
+        "agent_sdk.driver.output.command_still_running_named",
+        "agent_sdk.driver.output.command_write_failed",
+        "agent_sdk.driver.output.completed_todos",
+        "agent_sdk.driver.output.computer_use_action",
+        "agent_sdk.driver.output.conversation_started",
+        "agent_sdk.driver.output.created_plan",
+        "agent_sdk.driver.output.created_pr",
+        "agent_sdk.driver.output.current_directory",
+        "agent_sdk.driver.output.editing_files",
+        "agent_sdk.driver.output.fetch_conversation_error",
+        "agent_sdk.driver.output.fetched_conversation",
+        "agent_sdk.driver.output.fetched_web_pages",
+        "agent_sdk.driver.output.fetching_conversation",
+        "agent_sdk.driver.output.fetching_web_pages",
+        "agent_sdk.driver.output.file_artifact_uploaded",
+        "agent_sdk.driver.output.file_edits_failed",
+        "agent_sdk.driver.output.files_updated_deleted",
+        "agent_sdk.driver.output.find_failed",
+        "agent_sdk.driver.output.finding_files",
+        "agent_sdk.driver.output.grep_failed",
+        "agent_sdk.driver.output.grepping_for_in",
+        "agent_sdk.driver.output.image_content",
+        "agent_sdk.driver.output.mcp_tool_call",
+        "agent_sdk.driver.output.open_in_oz",
+        "agent_sdk.driver.output.read_files_failed",
+        "agent_sdk.driver.output.read_mcp_resource_failed",
+        "agent_sdk.driver.output.reading",
+        "agent_sdk.driver.output.reading_mcp_resource_name",
+        "agent_sdk.driver.output.reading_mcp_resource_uri",
+        "agent_sdk.driver.output.reading_skill",
+        "agent_sdk.driver.output.received_agent_events",
+        "agent_sdk.driver.output.received_messages",
+        "agent_sdk.driver.output.requesting_computer_use",
+        "agent_sdk.driver.output.run_id",
+        "agent_sdk.driver.output.running_command",
+        "agent_sdk.driver.output.search_codebase_failed",
+        "agent_sdk.driver.output.searched_web_for",
+        "agent_sdk.driver.output.searching_codebase",
+        "agent_sdk.driver.output.searching_web",
+        "agent_sdk.driver.output.searching_web_for",
+        "agent_sdk.driver.output.sending_message_to",
+        "agent_sdk.driver.output.sharing_session_at",
+        "agent_sdk.driver.output.screenshot_captured",
+        "agent_sdk.driver.output.skill_read",
+        "agent_sdk.driver.output.skill_read_error",
+        "agent_sdk.driver.output.skill_read_successfully",
+        "agent_sdk.driver.output.starting_agent",
+        "agent_sdk.driver.output.updated_todo_list",
+        "agent_sdk.driver.output.upload_artifact_failed",
+        "agent_sdk.driver.output.uploaded_artifact",
+        "agent_sdk.driver.output.uploaded_artifact_from",
+        "agent_sdk.driver.output.uploading_artifact",
+        "agent_sdk.driver.output.use_computer_error",
+        "agent_sdk.driver.output.web_fetch_failed",
+        "agent_sdk.driver.output.web_search_failed_for",
+        "agent_sdk.driver.output.write_bytes_to_command",
+        "agent_sdk.driver.error.repository_index_failed",
+        "agent_sdk.driver.error.repository_index_pending",
+        "agent_sdk.driver.error.repository_not_found",
+        "agent_sdk.driver.snapshot.error.no_upload_target",
+        "agent_sdk.driver.snapshot.error.read_file",
+    ];
+
+    assert_bundled_keys_exist(&required_keys);
+
+    let path = workspace_root().join("app/src/ai/agent_sdk/driver/output.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    let text_module = content
+        .split("pub mod json {")
+        .next()
+        .expect("driver output should contain text module before json module");
+    let snippets = [
+        "Command was not allowed to run",
+        "Failed to write to command",
+        "Updated TODO list:",
+        "Searching web",
+        "Created PR:",
+        "Screenshot captured",
+        "New conversation started",
+        "Open in Oz",
+        "Sharing session at",
+        "Created plan",
+        "For more information, check Warp logs",
+        "Saved prompt (",
+    ];
+    let mut violations = snippets
+        .into_iter()
+        .filter(|snippet| text_module.contains(snippet))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+
+    let cases = [
+        (
+            "app/src/ai/agent_sdk/driver.rs",
+            &[
+                "Repository indexing is still pending",
+                "Repository indexing failed",
+                "Repository not found",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/driver/snapshot.rs",
+            &["Failed to read file", "no upload target returned by server"][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/driver/output.rs",
+            &[
+                "Command was not allowed to run due to presence on denylist",
+                "Failed to write to command.",
+            ][..],
+        ),
+    ];
+    violations.extend(selected_snippet_violations(&cases));
+
+    assert!(
+        violations.is_empty(),
+        "agent SDK driver text output must use catalog copy: {violations:#?}"
+    );
+}
+
+#[test]
+fn warp_cli_help_copy_uses_catalog_keys() {
+    let required_keys = [
+        "cli.error.try_help",
+        "cli.error.invalid_jq_filter",
+        "cli.error.mcp_config_read_failed",
+        "cli.error.mcp_spec_utf8",
+        "cli.error.share_recipient_utf8",
+        "cli.error.share_subject_invalid",
+        "cli.error.unrecognized_subcommand",
+        "cli.help.after_help",
+        "cli.help.command.oz.agent.about",
+        "cli.help.command.oz.agent.create.about",
+        "cli.help.command.oz.agent.delete.about",
+        "cli.help.command.oz.agent.get.about",
+        "cli.help.command.oz.agent.list.about",
+        "cli.help.command.oz.agent.profile.about",
+        "cli.help.command.oz.agent.run.about",
+        "cli.help.command.oz.agent.run-cloud.about",
+        "cli.help.command.oz.agent.skills.about",
+        "cli.help.command.oz.agent.update.about",
+        "cli.help.command.oz.api-key.about",
+        "cli.help.command.oz.artifact.about",
+        "cli.help.command.oz.about",
+        "cli.help.command.oz.arg.debug.help",
+        "cli.help.command.oz.arg.output_format.help",
+        "cli.help.command.oz.environment.about",
+        "cli.help.command.oz.federate.about",
+        "cli.help.command.oz.integration.about",
+        "cli.help.command.oz.login.about",
+        "cli.help.command.oz.logout.about",
+        "cli.help.command.oz.mcp.about",
+        "cli.help.command.oz.model.about",
+        "cli.help.command.oz.provider.about",
+        "cli.help.command.oz.run.about",
+        "cli.help.command.oz.schedule.about",
+        "cli.help.command.oz.schedule.create.about",
+        "cli.help.command.oz.schedule.delete.about",
+        "cli.help.command.oz.schedule.get.about",
+        "cli.help.command.oz.schedule.list.about",
+        "cli.help.command.oz.schedule.pause.about",
+        "cli.help.command.oz.schedule.unpause.about",
+        "cli.help.command.oz.schedule.update.about",
+        "cli.help.command.oz.secret.about",
+        "cli.help.command.oz.whoami.about",
+        "cli.help.heading.options",
+        "cli.help.heading.subcommands",
+        "cli.help.template",
+        "cli.help.value.mcp_spec.json",
+        "cli.help.value.mcp_spec.path",
+        "cli.help.value.share.public_edit",
+        "cli.help.value.share.public_view",
+        "cli.help.value.share.team_edit",
+        "cli.help.value.share.team_view",
+        "cli.help.value.share.user_edit",
+        "cli.help.value.share.user_view",
+    ];
+
+    assert_bundled_keys_exist(&required_keys);
+
+    let cases = [
+        (
+            "crates/warp_cli/src/json_filter.rs",
+            &["invalid jq filter"][..],
+        ),
+        (
+            "crates/warp_cli/src/mcp.rs",
+            &[
+                "Invalid UTF-8 in MCP spec",
+                "Failed to read MCP config file",
+                "Path to a JSON file containing MCP config",
+                "Inline JSON MCP server configuration",
+            ][..],
+        ),
+        (
+            "crates/warp_cli/src/share.rs",
+            &[
+                "Invalid share recipient",
+                "Share with your team",
+                "Share with anyone who has the link",
+                "Share with <user@email.com>",
+                "Cannot share with",
+            ][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "warp CLI help and parser copy must use catalog keys: {violations:#?}"
     );
 }
 
@@ -4138,6 +5220,23 @@ fn static_slash_command_names_from_source() -> Vec<String> {
         .collect()
 }
 
+fn static_slash_command_hint_keys_from_source() -> Vec<String> {
+    let path =
+        workspace_root().join("app/src/search/slash_command_menu/static_commands/commands.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    content
+        .lines()
+        .filter(|line| line.contains(".with_hint_text_key("))
+        .flat_map(string_literals)
+        .filter(|literal| literal.starts_with("terminal.slash.command."))
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 fn slash_command_localization_key(command_name: &str, suffix: &str) -> String {
     let key_name = command_name.trim_start_matches('/').replace('-', "_");
     format!("terminal.slash.command.{key_name}.{suffix}")
@@ -4168,6 +5267,247 @@ fn plugin_instruction_keys_from_source() -> Vec<String> {
     }
 
     keys.into_iter().collect()
+}
+
+fn plugin_instruction_key_violations_from_source() -> Vec<String> {
+    let dir = workspace_root().join("app/src/terminal/cli_agent_sessions/plugin_manager");
+    let entries =
+        fs::read_dir(&dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+    let mut violations = Vec::new();
+
+    for entry in entries {
+        let entry = entry.expect("failed to read plugin manager directory entry");
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.ends_with("_tests.rs"))
+        {
+            continue;
+        }
+
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        let relative_path = path
+            .strip_prefix(workspace_root())
+            .unwrap_or(path.as_path())
+            .display()
+            .to_string();
+        collect_plugin_instruction_key_violations(&relative_path, &content, &mut violations);
+    }
+
+    violations
+}
+
+fn collect_plugin_instruction_key_violations(
+    relative_path: &str,
+    content: &str,
+    violations: &mut Vec<String>,
+) {
+    let mut cursor = 0;
+
+    while let Some(found_at) = content[cursor..].find("PluginInstructions {") {
+        let block_start = cursor + found_at;
+        let Some(open_brace_offset) = content[block_start..].find('{') else {
+            break;
+        };
+        let open_brace = block_start + open_brace_offset;
+        let Some(close_brace) = matching_brace_end(content, open_brace) else {
+            break;
+        };
+        let block = &content[block_start..=close_brace];
+
+        for (key_field, fallback_field) in [("title_key", "title"), ("subtitle_key", "subtitle")] {
+            let fallback = field_string_literal(block, fallback_field).unwrap_or("");
+            let key = field_string_literal(block, key_field).unwrap_or("");
+            if looks_like_english_ui_text(fallback) && key.is_empty() {
+                violations.push(format!(
+                    "{}:{}: {fallback_field} fallback {fallback:?} has no catalog key",
+                    relative_path,
+                    line_number_for_offset(content, block_start)
+                ));
+            }
+        }
+
+        let note_keys = field_string_array(block, "post_install_note_keys");
+        let notes = field_string_array(block, "post_install_notes");
+        for (note_index, note) in notes.iter().enumerate() {
+            if looks_like_english_ui_text(note)
+                && note_keys
+                    .get(note_index)
+                    .is_none_or(|key| key.as_str().is_empty())
+            {
+                violations.push(format!(
+                    "{}:{}: post_install_notes[{note_index}] fallback {note:?} has no catalog key",
+                    relative_path,
+                    line_number_for_offset(content, block_start)
+                ));
+            }
+        }
+
+        for step_block in struct_blocks(block, "PluginInstructionStep") {
+            let description = field_string_literal(step_block, "description").unwrap_or("");
+            let key = field_string_literal(step_block, "description_key").unwrap_or("");
+            if looks_like_english_ui_text(description) && key.is_empty() {
+                violations.push(format!(
+                    "{}:{}: step description fallback {description:?} has no catalog key",
+                    relative_path,
+                    line_number_for_offset(content, block_start)
+                ));
+            }
+        }
+
+        cursor = close_brace + 1;
+    }
+}
+
+fn struct_blocks<'a>(content: &'a str, struct_name: &str) -> Vec<&'a str> {
+    let mut blocks = Vec::new();
+    let mut cursor = 0;
+    let pattern = format!("{struct_name} {{");
+
+    while let Some(found_at) = content[cursor..].find(&pattern) {
+        let block_start = cursor + found_at;
+        let Some(open_brace_offset) = content[block_start..].find('{') else {
+            break;
+        };
+        let open_brace = block_start + open_brace_offset;
+        let Some(close_brace) = matching_brace_end(content, open_brace) else {
+            break;
+        };
+        blocks.push(&content[block_start..=close_brace]);
+        cursor = close_brace + 1;
+    }
+
+    blocks
+}
+
+fn field_string_literal<'a>(content: &'a str, field: &str) -> Option<&'a str> {
+    let field_start = field_start(content, field)?;
+    first_string_literal_with_offset(&content[field_start..]).map(|(literal, _)| literal)
+}
+
+fn field_string_array(content: &str, field: &str) -> Vec<String> {
+    let Some(field_start) = field_start(content, field) else {
+        return vec![];
+    };
+    let Some(array_start_offset) = content[field_start..].find('[') else {
+        return vec![];
+    };
+    let array_start = field_start + array_start_offset;
+    let Some(array_end) = matching_bracket_end(content, array_start) else {
+        return vec![];
+    };
+
+    string_literals(&content[array_start..=array_end])
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+fn field_start(content: &str, field: &str) -> Option<usize> {
+    let pattern = format!("{field}:");
+    let mut cursor = 0;
+    while let Some(found_at) = content[cursor..].find(&pattern) {
+        let start = cursor + found_at;
+        let has_field_boundary = start == 0
+            || content.as_bytes()[start - 1].is_ascii_whitespace()
+            || matches!(content.as_bytes()[start - 1], b'{' | b',' | b'\n');
+        if has_field_boundary {
+            return Some(start);
+        }
+        cursor = start + pattern.len();
+    }
+    None
+}
+
+fn matching_brace_end(content: &str, open_brace: usize) -> Option<usize> {
+    matching_delimiter_end(content, open_brace, b'{', b'}')
+}
+
+fn matching_bracket_end(content: &str, open_bracket: usize) -> Option<usize> {
+    matching_delimiter_end(content, open_bracket, b'[', b']')
+}
+
+fn matching_paren_end(content: &str, open_paren: usize) -> Option<usize> {
+    matching_delimiter_end(content, open_paren, b'(', b')')
+}
+
+fn matching_delimiter_end(
+    content: &str,
+    open_index: usize,
+    open_delimiter: u8,
+    close_delimiter: u8,
+) -> Option<usize> {
+    let bytes = content.as_bytes();
+    if bytes.get(open_index) != Some(&open_delimiter) {
+        return None;
+    }
+
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut index = open_index;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'"' && !is_escaped_quote(bytes, index) {
+            in_string = !in_string;
+        } else if !in_string {
+            if byte == open_delimiter {
+                depth += 1;
+            } else if byte == close_delimiter {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+        }
+        index += 1;
+    }
+
+    None
+}
+
+fn top_level_arguments(input: &str) -> Vec<&str> {
+    let bytes = input.as_bytes();
+    let mut arguments = Vec::new();
+    let mut argument_start = 0usize;
+    let mut brace_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut in_string = false;
+    let mut index = 0usize;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'"' && !is_escaped_quote(bytes, index) {
+            in_string = !in_string;
+        } else if !in_string {
+            match byte {
+                b'{' => brace_depth += 1,
+                b'}' => brace_depth = brace_depth.saturating_sub(1),
+                b'[' => bracket_depth += 1,
+                b']' => bracket_depth = bracket_depth.saturating_sub(1),
+                b'(' => paren_depth += 1,
+                b')' => paren_depth = paren_depth.saturating_sub(1),
+                b',' if brace_depth == 0 && bracket_depth == 0 && paren_depth == 0 => {
+                    arguments.push(input[argument_start..index].trim());
+                    argument_start = index + 1;
+                }
+                _ => {}
+            }
+        }
+        index += 1;
+    }
+
+    if argument_start < input.len() {
+        arguments.push(input[argument_start..].trim());
+    }
+
+    arguments
 }
 
 fn static_prompt_suggestion_keys_from_source() -> Vec<String> {
@@ -4265,6 +5605,7 @@ fn line_may_reference_localization_key(line: &str) -> bool {
         || line.contains("translation_key(")
         || line.contains("display_label_key(")
         || line.contains("description_key(")
+        || line.contains("with_hint_text_key(")
         || line.contains("title_key(")
         || line.contains("subtitle_key(")
         || line.contains("setup_status_text_key(")
@@ -4361,6 +5702,65 @@ fn collect_direct_ui_literal_violations(dir: &Path, violations: &mut Vec<String>
     collect_direct_ui_literal_violations_with_patterns(dir, UI_LITERAL_PATTERNS, violations);
 }
 
+fn collect_skill_entrypoint_description_violations(dir: &Path, violations: &mut Vec<String>) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+
+    for entry in entries {
+        let entry = entry.expect("failed to read bundled skill directory entry");
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let skill_path = path.join("SKILL.md");
+        if skill_path.exists() {
+            let content = fs::read_to_string(&skill_path)
+                .unwrap_or_else(|err| panic!("failed to read {}: {err}", skill_path.display()));
+            if !content.contains("\ndescription_zh_CN:") {
+                violations.push(
+                    skill_path
+                        .strip_prefix(workspace_root())
+                        .unwrap_or(skill_path.as_path())
+                        .display()
+                        .to_string(),
+                );
+            }
+        } else {
+            collect_skill_entrypoint_description_violations(&path, violations);
+        }
+    }
+}
+
+fn collect_missing_localized_skill_content(dir: &Path, violations: &mut Vec<String>) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+
+    for entry in entries {
+        let entry = entry.expect("failed to read bundled skill directory entry");
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let skill_path = path.join("SKILL.md");
+        if skill_path.exists() {
+            let localized_path = path.join("SKILL.zh-CN.md");
+            if !localized_path.exists() {
+                violations.push(
+                    localized_path
+                        .strip_prefix(workspace_root())
+                        .unwrap_or(localized_path.as_path())
+                        .display()
+                        .to_string(),
+                );
+            }
+        } else {
+            collect_missing_localized_skill_content(&path, violations);
+        }
+    }
+}
+
 fn collect_direct_ui_literal_violations_with_patterns(
     dir: &Path,
     patterns: &[&str],
@@ -4427,6 +5827,136 @@ fn collect_direct_first_argument_literal_violations(
             }
         }
         cursor = arg_start;
+    }
+}
+
+fn collect_direct_first_argument_literal_violations_in_dir(
+    dir: &Path,
+    pattern: &str,
+    violations: &mut Vec<String>,
+) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+
+    for entry in entries {
+        let entry = entry.expect("failed to read source directory entry");
+        let path = entry.path();
+        if path.is_dir() {
+            collect_direct_first_argument_literal_violations_in_dir(&path, pattern, violations);
+            continue;
+        }
+
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| {
+                name.ends_with("_tests.rs") || name == "localization_tests.rs" || name == "test.rs"
+            })
+        {
+            continue;
+        }
+
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        let relative_path = path
+            .strip_prefix(workspace_root())
+            .unwrap_or(path.as_path())
+            .display()
+            .to_string();
+        collect_direct_first_argument_literal_violations(
+            &relative_path,
+            &content,
+            pattern,
+            violations,
+        );
+    }
+}
+
+fn collect_binding_description_literal_violations_in_dir(
+    dir: &Path,
+    pattern: &str,
+    description_argument_index: usize,
+    violations: &mut Vec<String>,
+) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+
+    for entry in entries {
+        let entry = entry.expect("failed to read source directory entry");
+        let path = entry.path();
+        if path.is_dir() {
+            collect_binding_description_literal_violations_in_dir(
+                &path,
+                pattern,
+                description_argument_index,
+                violations,
+            );
+            continue;
+        }
+
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| {
+                name.ends_with("_tests.rs") || name == "localization_tests.rs" || name == "test.rs"
+            })
+        {
+            continue;
+        }
+
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        let relative_path = path
+            .strip_prefix(workspace_root())
+            .unwrap_or(path.as_path())
+            .display()
+            .to_string();
+        collect_binding_description_literal_violations(
+            &relative_path,
+            &content,
+            pattern,
+            description_argument_index,
+            violations,
+        );
+    }
+}
+
+fn collect_binding_description_literal_violations(
+    relative_path: &str,
+    content: &str,
+    pattern: &str,
+    description_argument_index: usize,
+    violations: &mut Vec<String>,
+) {
+    let mut cursor = 0;
+    while let Some(found_at) = content[cursor..].find(pattern) {
+        let invocation_start = cursor + found_at;
+        let open_paren = invocation_start + pattern.len() - 1;
+        let Some(close_paren) = matching_paren_end(content, open_paren) else {
+            break;
+        };
+        let arguments = top_level_arguments(&content[open_paren + 1..close_paren]);
+        if let Some(argument) = arguments.get(description_argument_index) {
+            let argument = argument.trim_start();
+            if let Some(literal) = argument_string_literal(argument) {
+                if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
+                    && looks_like_english_ui_text(literal)
+                {
+                    violations.push(format!(
+                        "{}:{}: {literal:?}",
+                        relative_path,
+                        line_number_for_offset(content, invocation_start)
+                    ));
+                }
+            }
+        }
+        cursor = close_paren + 1;
     }
 }
 
@@ -4539,6 +6069,12 @@ fn string_literals(line: &str) -> Vec<&str> {
 }
 
 fn first_argument_string_literal(input: &str) -> Option<&str> {
+    let trimmed = input.trim_start();
+    let trimmed = trimmed.strip_prefix('&').unwrap_or(trimmed).trim_start();
+    argument_string_literal(trimmed)
+}
+
+fn argument_string_literal(input: &str) -> Option<&str> {
     let trimmed = input.trim_start();
     let trimmed = trimmed.strip_prefix('&').unwrap_or(trimmed).trim_start();
     if !trimmed.starts_with('"') {

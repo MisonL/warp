@@ -9,6 +9,7 @@ use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 
 use crate::agent::OutputFormat;
+use crate::localization::{localized_clap_command, text, text_with_args};
 
 #[cfg(windows)]
 mod process_handle;
@@ -29,6 +30,7 @@ pub mod federate;
 pub mod harness_support;
 pub mod integration;
 pub mod json_filter;
+mod localization;
 pub mod mcp;
 pub mod model;
 pub mod provider;
@@ -187,8 +189,7 @@ impl Args {
                 if !FeatureFlag::CloudEnvironments.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "environment" {
-                        eprintln!("error: unrecognized subcommand 'environment'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("environment");
                         std::process::exit(2);
                     }
                 }
@@ -196,8 +197,7 @@ impl Args {
                 if !FeatureFlag::ProviderCommand.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "provider" {
-                        eprintln!("error: unrecognized subcommand 'provider'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("provider");
                         std::process::exit(2);
                     }
                 }
@@ -205,8 +205,7 @@ impl Args {
                 if !FeatureFlag::IntegrationCommand.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "integration" {
-                        eprintln!("error: unrecognized subcommand 'integration'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("integration");
                         std::process::exit(2);
                     }
                 }
@@ -214,8 +213,7 @@ impl Args {
                 if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "schedule" {
-                        eprintln!("error: unrecognized subcommand 'schedule'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("schedule");
                         std::process::exit(2);
                     }
                 }
@@ -223,8 +221,7 @@ impl Args {
                 if !FeatureFlag::WarpManagedSecrets.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "secret" {
-                        eprintln!("error: unrecognized subcommand 'secret'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("secret");
                         std::process::exit(2);
                     }
                 }
@@ -232,8 +229,7 @@ impl Args {
                 if !FeatureFlag::OzIdentityFederation.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "federate" {
-                        eprintln!("error: unrecognized subcommand 'federate'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("federate");
                         std::process::exit(2);
                     }
                 }
@@ -241,8 +237,7 @@ impl Args {
                 if !FeatureFlag::ArtifactCommand.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "artifact" {
-                        eprintln!("error: unrecognized subcommand 'artifact'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("artifact");
                         std::process::exit(2);
                     }
                 }
@@ -250,8 +245,7 @@ impl Args {
                 if !FeatureFlag::APIKeyManagement.is_enabled() {
                     let args: Vec<String> = env::args().collect();
                     if args.len() > 1 && args[1] == "api-key" {
-                        eprintln!("error: unrecognized subcommand 'api-key'\n");
-                        eprintln!("For more information, try '--help'");
+                        print_disabled_subcommand_error("api-key");
                         std::process::exit(2);
                     }
                 }
@@ -276,6 +270,7 @@ impl Args {
     /// IMPORTANT: use this instead of [`CommandFactory::command`], since we customize the command at runtime.
     pub fn clap_command() -> clap::Command {
         let mut command = <Args as CommandFactory>::command();
+        command = localized_clap_command(command);
 
         // Hide the environment subcommands and --environment flags from help text
         if !FeatureFlag::CloudEnvironments.is_enabled() {
@@ -368,17 +363,9 @@ impl Args {
         // Substitute the actual binary name into help output. Ideally clap would do this for us.
         let bin_name =
             binary_name().unwrap_or_else(|| ChannelState::channel().cli_command_name().to_string());
-        command = command.after_help(color_print::cformat!(
-            r#"<bold><underline>Examples:</underline></bold>
-
-  <dim>$</dim> <bold>{bin_name} agent run --prompt "Build anything"</bold>
-
-  <dim>$</dim> <bold>{bin_name} mcp list</bold>
-
-<bold><underline>Learn more:</underline></bold>
-* Use <bold>{bin_name} help</bold> to learn more about each command
-* Read the documentation at https://docs.warp.dev/reference/cli
-"#
+        command = command.after_help(text_with_args(
+            "cli.help.after_help",
+            &[("bin_name", &bin_name)],
         ));
 
         command
@@ -430,6 +417,18 @@ impl Args {
     pub fn session_sharing_server_url(&self) -> Option<&str> {
         self.session_sharing_server_url.as_deref()
     }
+}
+
+fn print_disabled_subcommand_error(subcommand: &str) {
+    eprintln!(
+        "{}",
+        text_with_args(
+            "cli.error.unrecognized_subcommand",
+            &[("subcommand", subcommand)]
+        )
+    );
+    eprintln!();
+    eprintln!("{}", text("cli.error.try_help"));
 }
 
 /// Warp may spawn several worker processes - mostly servers that support the main application.

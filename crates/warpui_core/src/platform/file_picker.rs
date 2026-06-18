@@ -2,6 +2,10 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+const DEFAULT_OPEN_DIRECTORY_PICKER_TITLE: &str = "Choose directory...";
+const DEFAULT_OPEN_FILE_PICKER_TITLE: &str = "Choose file...";
+const DEFAULT_SAVE_FILE_PICKER_TITLE: &str = "Save file as...";
+
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum FilePickerError {
     #[error("Failed to spawn file picker thread: {0}")]
@@ -64,6 +68,7 @@ pub struct FilePickerConfiguration {
     allows_folder: bool,
     file_types: Vec<FileType>,
     can_multi_select: bool,
+    title: Option<String>,
 }
 
 impl FilePickerConfiguration {
@@ -73,6 +78,7 @@ impl FilePickerConfiguration {
             allows_folder: false,
             file_types: Default::default(),
             can_multi_select: false,
+            title: None,
         }
     }
 
@@ -100,6 +106,11 @@ impl FilePickerConfiguration {
         self
     }
 
+    pub fn with_title(mut self, title: String) -> Self {
+        self.title = Some(title);
+        self
+    }
+
     pub fn allows_files(&self) -> bool {
         self.allows_files
     }
@@ -117,6 +128,19 @@ impl FilePickerConfiguration {
     pub fn file_types(&self) -> &Vec<FileType> {
         &self.file_types
     }
+
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    pub fn title_or_default(&self) -> &str {
+        let default_title = if self.allows_folder {
+            DEFAULT_OPEN_DIRECTORY_PICKER_TITLE
+        } else {
+            DEFAULT_OPEN_FILE_PICKER_TITLE
+        };
+        self.title.as_deref().unwrap_or(default_title)
+    }
 }
 
 impl Default for FilePickerConfiguration {
@@ -131,6 +155,8 @@ pub struct SaveFilePickerConfiguration {
     pub default_filename: Option<String>,
     /// Open the picker into this directory location to start.
     pub default_directory: Option<PathBuf>,
+    /// Optional dialog title.
+    pub title: Option<String>,
 }
 
 impl SaveFilePickerConfiguration {
@@ -146,6 +172,17 @@ impl SaveFilePickerConfiguration {
     pub fn with_default_directory(mut self, directory: PathBuf) -> Self {
         self.default_directory = Some(directory);
         self
+    }
+
+    pub fn with_title(mut self, title: String) -> Self {
+        self.title = Some(title);
+        self
+    }
+
+    pub fn title_or_default(&self) -> &str {
+        self.title
+            .as_deref()
+            .unwrap_or(DEFAULT_SAVE_FILE_PICKER_TITLE)
     }
 }
 
