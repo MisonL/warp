@@ -44,7 +44,7 @@ use crate::terminal::model_events::{AnsiHandlerEvent, ModelEvent, ModelEventDisp
 use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
 use crate::terminal::view::TerminalAction;
 use crate::terminal::{self, prompt, TerminalModel};
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const CLOUD_AGENT_DOCS_URL: &str = "https://docs.warp.dev/agent-platform/cloud-agents/overview";
 const OZ_UPDATES_SECTION_HEADER: &str = "What's new in Oz";
@@ -951,7 +951,7 @@ fn render_recent_conversations_section(
                         .with_margin_right(8.)
                         .finish(),
                         Text::new_inline(
-                            format_approx_duration_from_now_utc(last_updated.to_utc()),
+                            localized_approx_duration_from_now_utc(app, last_updated.to_utc()),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size() - 1.,
                         )
@@ -1228,7 +1228,11 @@ pub fn render_ambient_credits_banner(credits: i32, app: &AppContext) -> Box<dyn 
     // Use ANSI terminal colors for the pill styling.
     let text_color = theme.terminal_colors().normal.blue;
 
-    let credits_text = format!("{credits} free cloud agent credits");
+    let credits_text = localization::text_for_app_with_args(
+        app,
+        "agent.zero_state.free_cloud_agent_credits",
+        &[("credits", &credits.to_string())],
+    );
     let text = Text::new(credits_text, font_family, font_size)
         .with_color(text_color.into())
         .with_style(Properties::default().weight(Weight::Semibold))

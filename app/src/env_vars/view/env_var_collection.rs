@@ -8,7 +8,7 @@ use warpui::elements::{
     ParentElement, ParentOffsetBounds, PositioningAxis, SavePosition, ScrollbarWidth, Shrinkable,
     Stack, XAxisAnchor, YAxisAnchor,
 };
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::platform::Cursor;
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::UiComponent;
@@ -95,11 +95,15 @@ pub(super) const ERROR_ALERT_MARGIN_TOP: f32 = 8.;
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(
         "Close Env Var Collection",
-        "Close",
+        binding_description("Close", "common.close"),
         EnvVarCollectionAction::Close,
     )
     .with_custom_action(CustomAction::CloseCurrentSession)
     .with_context_predicate(id!(EnvVarCollectionView::ui_name()))]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
 }
 
 #[derive(PartialEq, Clone, Copy)]

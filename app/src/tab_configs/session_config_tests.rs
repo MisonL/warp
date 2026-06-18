@@ -49,6 +49,7 @@ fn terminal_no_worktree() {
     );
 
     assert_eq!(config.name, "New tab: project");
+    assert_eq!(config.name_zh_cn.as_deref(), Some("新标签页: project"));
     assert!(config.title.is_none());
     assert_eq!(config.panes.len(), 1);
     assert_eq!(
@@ -417,6 +418,7 @@ fn snapshot_single_terminal_pane() {
     let config = tab_config_from_pane_snapshot(&snapshot, None, None);
 
     assert_eq!(config.name, "My Tab Config");
+    assert_eq!(config.name_zh_cn.as_deref(), Some("我的标签页配置"));
     assert!(config.title.is_none());
     assert!(config.color.is_none());
     assert_eq!(config.panes.len(), 1);

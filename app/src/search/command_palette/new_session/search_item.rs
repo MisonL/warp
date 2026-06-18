@@ -53,6 +53,7 @@ impl crate::search::item::SearchItem for SearchItem {
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         self.option.render(
+            app,
             appearance,
             highlight_state,
             self.match_result.matched_indices.clone(),

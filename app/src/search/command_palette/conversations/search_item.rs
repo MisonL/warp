@@ -26,7 +26,7 @@ use crate::search::item::IconLocation;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::search::SearchItem;
 use crate::ui_components::buttons::icon_button;
-use crate::util::time_format::format_approx_duration_from_now;
+use crate::util::time_format::localized_approx_duration_from_now;
 
 /// Information about which action to take once the conversation item is accepted.
 #[derive(Debug)]
@@ -184,7 +184,7 @@ impl ConversationSearchItem {
         // In all cases, we show the conversation's working directory last.
         left_container = left_container.with_child(working_directory_element.finish());
 
-        let last_updated = format_approx_duration_from_now(conversation.last_updated());
+        let last_updated = localized_approx_duration_from_now(app, conversation.last_updated());
         let last_updated_element = Container::new(
             Text::new_inline(
                 last_updated,

@@ -312,7 +312,7 @@ impl CommentViewCard {
             ctx,
         );
         let diff_content = Self::diff_content_for_comment(&source, always_use_static_diff, ctx);
-        let title = Self::compute_title(&source, repo_path);
+        let title = Self::compute_title(&source, repo_path, ctx);
         let last_updated_duration = Local::now() - source.last_update_time;
         Self {
             comment_editor,
@@ -369,7 +369,7 @@ impl CommentViewCard {
             });
         });
         self.source = new_source;
-        self.title = Self::compute_title(&self.source, repo_path);
+        self.title = Self::compute_title(&self.source, repo_path, ctx);
     }
 
     /// Renders the comment card. When collapsed, only the header and trailing
@@ -461,6 +461,7 @@ impl CommentViewCard {
     fn compute_title(
         source: &AttachedReviewComment,
         repo_path: Option<&LocalOrRemotePath>,
+        app: &AppContext,
     ) -> String {
         let file_path = source.target.absolute_file_path().map(|p| {
             repo_path
@@ -472,10 +473,9 @@ impl CommentViewCard {
         match (file_path, line_number) {
             (Some(path), Some(line)) => format!("{path}:{line}"),
             (Some(path), None) => path,
-            _ => source
-                .head()
-                .map(|head| head.title())
-                .unwrap_or_else(|| "Review Comment".to_string()),
+            _ => source.head().map(|head| head.title()).unwrap_or_else(|| {
+                localization::text_for_app(app, "code_review.comment.review_comment")
+            }),
         }
     }
 }

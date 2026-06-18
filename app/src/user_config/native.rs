@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
 
-use anyhow::{anyhow, Result};
+use anyhow::Error;
 use itertools::Itertools;
 use repo_metadata::RepositoryUpdate;
 use warpui::{ModelContext, ModelHandle, SingletonEntity};
@@ -24,6 +24,38 @@ use crate::warp_managed_paths_watcher::{
     WarpManagedPathsWatcherEvent,
 };
 use crate::workflows::workflow::Workflow;
+
+#[derive(Debug)]
+pub enum SaveNewLaunchConfigError {
+    EmptyFileName,
+    FileAlreadyExists,
+    Other(Error),
+}
+
+impl std::fmt::Display for SaveNewLaunchConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyFileName => write!(f, "empty launch config file name"),
+            Self::FileAlreadyExists => write!(f, "launch config file already exists"),
+            Self::Other(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for SaveNewLaunchConfigError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Other(error) => Some(error.root_cause()),
+            Self::EmptyFileName | Self::FileAlreadyExists => None,
+        }
+    }
+}
+
+impl From<Error> for SaveNewLaunchConfigError {
+    fn from(error: Error) -> Self {
+        Self::Other(error)
+    }
+}
 
 impl super::WarpConfig {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
@@ -140,7 +172,7 @@ impl super::WarpConfig {
     pub fn save_new_launch_config(
         file_name: String,
         launch_config: LaunchConfig,
-    ) -> Result<String> {
+    ) -> std::result::Result<String, SaveNewLaunchConfigError> {
         let file_name = if is_config_file(&file_name) {
             file_name.trim().into()
         } else {
@@ -148,18 +180,20 @@ impl super::WarpConfig {
         };
 
         if !has_name(file_name.trim()) {
-            return Err(anyhow!("File name is empty"));
+            return Err(SaveNewLaunchConfigError::EmptyFileName);
         };
 
         let path = crate::user_config::launch_configs_dir().join(&file_name);
         if path.exists() {
-            return Err(anyhow!("File already exists"));
+            return Err(SaveNewLaunchConfigError::FileAlreadyExists);
         };
 
-        let file = crate::util::file::create_file(path)?;
+        let file = crate::util::file::create_file(path).map_err(Error::from)?;
         let mut writer = io::BufWriter::new(file);
-        writer.write_all(LAUNCH_CONFIG_COMMENT.as_bytes())?;
-        serde_yaml::to_writer(writer, &launch_config)?;
+        writer
+            .write_all(LAUNCH_CONFIG_COMMENT.as_bytes())
+            .map_err(Error::from)?;
+        serde_yaml::to_writer(writer, &launch_config).map_err(Error::from)?;
         Ok(file_name)
     }
 }

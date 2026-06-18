@@ -18,7 +18,8 @@ use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewCon
 
 use crate::ai::agent_management::notifications::item_rendering::{
     create_notification_artifact_buttons_view, handle_notification_artifact_buttons_event,
-    render_notification_item_content, NotificationRenderContext, OnExpandClick,
+    render_notification_item_content, NotificationItemContentArgs, NotificationRenderContext,
+    OnExpandClick,
 };
 use crate::ai::agent_management::notifications::{NotificationId, NotificationItem};
 use crate::ai::agent_management::{AgentManagementEvent, AgentNotificationsModel};
@@ -372,15 +373,16 @@ fn render_toast(
     });
     let keybinding_hint = keystroke.map(|ks| render_keybinding_hint(ks, appearance));
 
-    let content = render_notification_item_content(
+    let content = render_notification_item_content(NotificationItemContentArgs {
         item,
         artifact_buttons,
-        NotificationRenderContext::Toast,
+        context: NotificationRenderContext::Toast,
         message_expanded,
-        on_expand,
-        keybinding_hint,
+        on_expand_click: on_expand,
+        extra_content: keybinding_hint,
         appearance,
-    );
+        app,
+    });
 
     let inner_column = Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)

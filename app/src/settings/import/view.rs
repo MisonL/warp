@@ -62,6 +62,23 @@ const NEW_SESSION_SETTINGS: [SettingType; 3] = [
     SettingType::WorkingDirectory,
 ];
 
+fn setting_type_name(setting_type: &SettingType, app: &warpui::AppContext) -> String {
+    let key = match setting_type {
+        SettingType::Theme => "settings.import.setting.theme",
+        SettingType::OptionAsMeta => "settings.import.setting.option_as_meta",
+        SettingType::MouseAndScrollReporting => "settings.import.setting.mouse_scroll_reporting",
+        SettingType::Font => "settings.import.setting.font",
+        SettingType::DefaultShell => "settings.import.setting.default_shell",
+        SettingType::WorkingDirectory => "settings.import.setting.working_directory",
+        SettingType::HotkeyMode => "settings.import.setting.hotkey_mode",
+        SettingType::WindowSize => "settings.import.setting.window_size",
+        SettingType::CopyOnSelect => "settings.import.setting.copy_on_select",
+        SettingType::Opacity => "settings.import.setting.opacity",
+        SettingType::CursorBlinking => "settings.import.setting.cursor_blinking",
+    };
+    localization::text_for_app(app, key)
+}
+
 #[derive(Debug)]
 pub enum SettingsImportAction {
     ImportButtonClicked,
@@ -307,9 +324,13 @@ impl SettingsImportView {
         let font_family = appearance.monospace_font_family();
         let font_color = blended_colors::text_sub(theme, theme.background());
         let description = Container::new(
-            Text::new_inline(setting.setting_type.get_name(), font_family, FONT_SIZE)
-                .with_color(font_color)
-                .finish(),
+            Text::new_inline(
+                setting_type_name(&setting.setting_type, app),
+                font_family,
+                FONT_SIZE,
+            )
+            .with_color(font_color)
+            .finish(),
         )
         .with_margin_left(CHECKBOX_SPACING);
         let setting_type = setting.setting_type.to_owned();

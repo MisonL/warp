@@ -10,6 +10,7 @@ use std::thread::JoinHandle;
 
 use anyhow::Context as _;
 use async_broadcast::InactiveReceiver;
+use byte_unit::UnitType;
 use parking_lot::{FairMutex, Mutex};
 use pathfinder_geometry::vector::Vector2F;
 use session_sharing_protocol::common::{
@@ -23,7 +24,7 @@ use session_sharing_protocol::common::{
 };
 use session_sharing_protocol::sharer::{
     AddGuestsResponse, FailedToInitializeSessionReason, Lifetime, LinkAccessLevelUpdateResponse,
-    QuotaType, RemoveGuestResponse, SessionEndedReason, SessionSourceType,
+    QuotaType, RemoveGuestResponse, SessionEndedReason, SessionSourceType, SessionTerminatedReason,
     TeamAccessLevelUpdateResponse, UpdatePendingUserRoleResponse,
 };
 use settings::Setting as _;
@@ -90,8 +91,8 @@ use crate::terminal::shared_session::shared_handlers::{
     build_selected_conversation_update, RemoteUpdateGuard,
 };
 use crate::terminal::shared_session::sharer::network::{
-    failed_to_add_guests_user_error, failed_to_initialize_session_user_error,
-    session_terminated_reason_string, Network, NetworkEvent,
+    failed_to_add_guests_error_key, failed_to_initialize_session_error_key,
+    session_terminated_reason_key, Network, NetworkEvent,
 };
 use crate::terminal::shared_session::{
     IsSharedSessionCreator, SharedSessionActionSource, SharedSessionScrollbackType,
@@ -1662,7 +1663,10 @@ impl TerminalManager {
                 });
 
                 terminal_view.update(ctx, |view, ctx| {
-                    let reason_string = failed_to_initialize_session_user_error(reason);
+                    let reason_string = crate::localization::text_for_app(
+                        ctx,
+                        failed_to_initialize_session_error_key(reason),
+                    );
 
                     if matches!(
                         reason,
@@ -1694,7 +1698,21 @@ impl TerminalManager {
 
                 let max_session_size = network.as_ref(ctx).max_session_size();
                 terminal_view.update(ctx, |view, ctx| {
-                    let reason_string = session_terminated_reason_string(reason, max_session_size);
+                    let reason_key = session_terminated_reason_key(reason);
+                    let reason_string = if matches!(
+                        reason,
+                        SessionTerminatedReason::ExceededSizeLimit
+                    ) {
+                        let max_bytes =
+                            max_session_size.get_appropriate_unit(UnitType::Decimal);
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            reason_key,
+                            &[("max_bytes", &max_bytes.to_string())],
+                        )
+                    } else {
+                        crate::localization::text_for_app(ctx, reason_key)
+                    };
                     view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -1725,7 +1743,10 @@ impl TerminalManager {
 
                 terminal_view.update(ctx, |view, ctx| {
                     view.show_persistent_toast(
-                        "Something went wrong. Please try sharing again.".to_string(),
+                        crate::localization::text_for_app(
+                            ctx,
+                            "terminal.shared_session.toast.share_again_failed",
+                        ),
                         ToastFlavor::Error,
                         ctx,
                     );
@@ -2139,7 +2160,10 @@ impl TerminalManager {
             NetworkEvent::AddGuestsResponse { response } => {
                 if let AddGuestsResponse::Error(reason) = response {
                     terminal_view.update(ctx, |view, ctx| {
-                        let reason_string = failed_to_add_guests_user_error(reason);
+                        let reason_string = crate::localization::text_for_app(
+                            ctx,
+                            failed_to_add_guests_error_key(reason),
+                        );
                         view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                     });
                 }

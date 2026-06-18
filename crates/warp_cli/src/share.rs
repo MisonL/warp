@@ -6,6 +6,8 @@ use clap::builder::{EnumValueParser, PossibleValue};
 use clap::error::ErrorKind;
 use clap::{Arg, Args, Command, ValueEnum};
 
+use crate::localization::{text, text_with_args};
+
 /// Arguments for sharing a session or other object.
 #[derive(Debug, Clone, Args)]
 pub struct ShareArgs {
@@ -63,9 +65,12 @@ impl clap::builder::TypedValueParser for ShareRequestParser {
         arg: Option<&Arg>,
         value: &OsStr,
     ) -> Result<Self::Value, clap::Error> {
-        let value_str = value
-            .to_str()
-            .ok_or_else(|| clap::Error::raw(ErrorKind::InvalidUtf8, "Invalid share recipient"))?;
+        let value_str = value.to_str().ok_or_else(|| {
+            clap::Error::raw(
+                ErrorKind::InvalidUtf8,
+                text("cli.error.share_recipient_utf8"),
+            )
+        })?;
 
         // If there's a `:`, treat the first part as the subject and the second as the access level. Otherwise, default to `view` access.
         let (subject_str, level_str) = match value_str.split_once(':') {
@@ -89,19 +94,18 @@ impl clap::builder::TypedValueParser for ShareRequestParser {
         Some(Box::new(
             [
                 PossibleValue::new("team:view")
-                    .help("Share with your team, view-only")
+                    .help(text("cli.help.value.share.team_view"))
                     .alias("team"),
-                PossibleValue::new("team:edit").help("Share with your team, with edit access"),
+                PossibleValue::new("team:edit").help(text("cli.help.value.share.team_edit")),
                 PossibleValue::new("public:view")
-                    .help("Share with anyone who has the link, view-only")
+                    .help(text("cli.help.value.share.public_view"))
                     .alias("public"),
-                PossibleValue::new("public:edit")
-                    .help("Share with anyone who has the link, with edit access"),
+                PossibleValue::new("public:edit").help(text("cli.help.value.share.public_edit")),
                 PossibleValue::new("<user@email.com>:view")
-                    .help("Share with <user@email.com>, view-only")
+                    .help(text("cli.help.value.share.user_view"))
                     .alias("<user@email.com>"),
                 PossibleValue::new("<user@email.com>:edit")
-                    .help("Share with <user@email.com>, with edit access"),
+                    .help(text("cli.help.value.share.user_edit")),
             ]
             .into_iter(),
         ))
@@ -147,9 +151,7 @@ impl FromStr for ShareSubject {
             }),
             other => Err(clap::Error::raw(
                 ErrorKind::InvalidValue,
-                format!(
-                    "Cannot share with '{other}'. Expected 'team', 'public', or an email address"
-                ),
+                text_with_args("cli.error.share_subject_invalid", &[("subject", other)]),
             )),
         }
     }

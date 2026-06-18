@@ -1,11 +1,12 @@
 pub mod settings;
 mod stack;
 
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::AppContext;
 
 pub use self::settings::UndoCloseSettings;
 pub use self::stack::{UndoCloseStack, UndoCloseStackEvent};
+use crate::localization;
 use crate::util::bindings::CustomAction;
 use crate::workspace::WorkspaceAction;
 
@@ -13,10 +14,18 @@ use crate::workspace::WorkspaceAction;
 pub fn init(ctx: &mut AppContext) {
     ctx.register_editable_bindings([EditableBinding::new(
         "app:reopen_closed_session",
-        "Reopen closed session",
+        binding_description(
+            "Reopen closed session",
+            "workspace.binding.reopen_closed_session",
+        ),
         // Trigger ReopenClosedSession on the active workspace when
         // the action is taken from the command palette.
         WorkspaceAction::ReopenClosedSession,
     )
     .with_custom_action(CustomAction::ReopenClosedSession)]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }

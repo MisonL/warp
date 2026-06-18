@@ -13,7 +13,7 @@ use warpui::elements::{
 };
 pub use warpui::elements::{ParentElement as _, Stack};
 pub use warpui::geometry::vector::vec2f;
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::UiComponent;
 pub use warpui::AppContext;
@@ -108,7 +108,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "find:find_next_occurrence",
-            "Find the next occurrence of your search query",
+            binding_description(
+                "Find the next occurrence of your search query",
+                "code.find.binding.next_occurrence",
+            ),
             FindAction::CmdG,
         )
         .with_context_predicate(id!("CodeEditorFind"))
@@ -118,13 +121,20 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("f3"),
         EditableBinding::new(
             "find:find_prev_occurrence",
-            "Find the previous occurrence of your search query",
+            binding_description(
+                "Find the previous occurrence of your search query",
+                "code.find.binding.previous_occurrence",
+            ),
             FindAction::CmdShiftG,
         )
         .with_context_predicate(id!("CodeEditorFind"))
         .with_mac_key_binding("cmd-shift-G")
         .with_linux_or_windows_key_binding("shift-f3"),
     ])
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
 }
 
 impl CodeEditorFind {

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "local_fs")]
 use toml::Value;
+use warpui::AppContext;
 
 /// Describes a tab config file that failed to parse.
 ///
@@ -81,6 +82,9 @@ pub struct TabConfigParam {
     /// Human-readable description shown in the param-fill UI.
     #[serde(default)]
     pub description: Option<String>,
+    /// Simplified Chinese description shown when the app locale is zh-CN.
+    #[serde(default, rename = "description_zh_CN")]
+    pub description_zh_cn: Option<String>,
     /// Default value used when the user provides no input.
     #[serde(default)]
     pub default: Option<String>,
@@ -144,6 +148,9 @@ pub struct TabConfigPaneNode {
 pub struct TabConfig {
     /// Display name shown in the + menu.
     pub name: String,
+    /// Simplified Chinese display name shown when the app locale is zh-CN.
+    #[serde(default, rename = "name_zh_CN")]
+    pub name_zh_cn: Option<String>,
     /// Optional tab title template. Supports `{{ }}` template variables.
     #[serde(default)]
     pub title: Option<String>,
@@ -164,6 +171,15 @@ pub struct TabConfig {
 }
 
 impl TabConfig {
+    pub(crate) fn localized_name(&self, app: &AppContext) -> String {
+        match crate::localization::current_locale(app) {
+            warp_localization::LocaleId::ZhCn => self.name_zh_cn.as_ref(),
+            warp_localization::LocaleId::EnUs => None,
+        }
+        .unwrap_or(&self.name)
+        .clone()
+    }
+
     /// Returns param values using defaults where available, and empty strings for
     /// params with no default.  This is the fallback used when no param-fill UI is shown.
     pub fn default_param_values(&self) -> HashMap<String, String> {

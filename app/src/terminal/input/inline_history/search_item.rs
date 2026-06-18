@@ -18,7 +18,7 @@ use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::history::LinkedWorkflowData;
 use crate::terminal::input::inline_history::data_source::AcceptHistoryItem;
 use crate::terminal::input::inline_menu::styles as inline_styles;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 #[derive(Debug, Clone)]
 pub struct InlineHistoryItem {
@@ -217,7 +217,7 @@ impl SearchItem for InlineHistoryItem {
             .with_child(Shrinkable::new(1., text.finish()).finish());
 
         let timestamp = Text::new_inline(
-            format_approx_duration_from_now_utc(self.timestamp.to_utc()),
+            localized_approx_duration_from_now_utc(app, self.timestamp.to_utc()),
             appearance.ui_font_family(),
             font_size,
         )

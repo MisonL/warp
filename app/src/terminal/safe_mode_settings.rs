@@ -60,6 +60,17 @@ impl SecretDisplayMode {
         }
     }
 
+    pub fn display_name_for_app(self, app: &AppContext) -> String {
+        let key = match self {
+            SecretDisplayMode::Asterisks => "settings.privacy.secret_display_mode.asterisks",
+            SecretDisplayMode::Strikethrough => {
+                "settings.privacy.secret_display_mode.strikethrough"
+            }
+            SecretDisplayMode::AlwaysShow => "settings.privacy.secret_display_mode.always_show",
+        };
+        crate::localization::text_for_app(app, key)
+    }
+
     /// Get all available modes for dropdown
     pub fn all_modes() -> [SecretDisplayMode; 3] {
         [

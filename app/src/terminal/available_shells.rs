@@ -9,8 +9,8 @@ use std::sync::Arc;
 #[cfg(feature = "local_tty")]
 use settings::Setting as _;
 #[cfg(feature = "local_tty")]
-use warpui::{AppContext, ModelContext};
-use warpui::{Entity, SingletonEntity};
+use warpui::ModelContext;
+use warpui::{AppContext, Entity, SingletonEntity};
 
 use super::session_settings::{NewSessionShell, StartupShell};
 use super::shell::ShellType;
@@ -127,6 +127,24 @@ impl AvailableShell {
         }
     }
 
+    pub fn short_name_for_app(&self, app: &AppContext) -> Cow<'_, str> {
+        match self.state.as_ref() {
+            Config::SystemDefault => Cow::from(crate::localization::text_for_app(
+                app,
+                "settings.features.default_shell.option.default",
+            )),
+            Config::Custom(_) => Cow::from(crate::localization::text_for_app(
+                app,
+                "settings.features.default_shell.option.custom",
+            )),
+            Config::DockerSandbox { .. } => Cow::from(crate::localization::text_for_app(
+                app,
+                "settings.features.default_session_mode.option.docker_sandbox",
+            )),
+            _ => self.short_name(),
+        }
+    }
+
     pub fn details(&self) -> Cow<'_, str> {
         match self.state.as_ref() {
             Config::SystemDefault => Cow::from("System default shell"),
@@ -141,6 +159,31 @@ impl AvailableShell {
                 executable_path, ..
             }) => Cow::from(format!("Custom: {}", executable_path.display())),
             Config::DockerSandbox { .. } => Cow::from("Docker Sandbox"),
+        }
+    }
+
+    pub fn details_for_app(&self, app: &AppContext) -> Cow<'_, str> {
+        match self.state.as_ref() {
+            Config::SystemDefault => Cow::from(crate::localization::text_for_app(
+                app,
+                "terminal.available_shells.system_default_shell",
+            )),
+            Config::Wsl { .. } => Cow::from(crate::localization::text_for_app(
+                app,
+                "terminal.available_shells.wsl",
+            )),
+            Config::Custom(LocalConfig {
+                executable_path, ..
+            }) => Cow::from(crate::localization::text_for_app_with_args(
+                app,
+                "terminal.available_shells.custom_with_path",
+                &[("path", &executable_path.display().to_string())],
+            )),
+            Config::DockerSandbox { .. } => Cow::from(crate::localization::text_for_app(
+                app,
+                "settings.features.default_session_mode.option.docker_sandbox",
+            )),
+            _ => self.details(),
         }
     }
 
@@ -184,6 +227,41 @@ impl AvailableShell {
                 executable_path, ..
             }) => format!("{} ({})", self.short_name(), executable_path.display()),
             Config::DockerSandbox { .. } => "Docker Sandbox".to_string(),
+        }
+    }
+
+    fn long_name_for_app(&self, app: &AppContext) -> String {
+        match &self.state.as_ref() {
+            Config::SystemDefault => crate::localization::text_for_app(
+                app,
+                "settings.features.default_shell.option.default",
+            ),
+            Config::KnownLocal(LocalConfig {
+                executable_path, ..
+            }) => format!(
+                "{} ({})",
+                self.short_name_for_app(app),
+                executable_path.display()
+            ),
+            Config::Wsl { distro } => distro.to_string(),
+            Config::Custom(LocalConfig { command, .. }) => {
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "terminal.available_shells.custom_with_command",
+                    &[("command", command)],
+                )
+            }
+            Config::MSYS2(LocalConfig {
+                executable_path, ..
+            }) => format!(
+                "{} ({})",
+                self.short_name_for_app(app),
+                executable_path.display()
+            ),
+            Config::DockerSandbox { .. } => crate::localization::text_for_app(
+                app,
+                "settings.features.default_session_mode.option.docker_sandbox",
+            ),
         }
     }
 
@@ -512,6 +590,22 @@ impl AvailableShells {
             Cow::from(shell.long_name())
         } else {
             shell.short_name()
+        }
+    }
+
+    pub fn display_name_for_shell_for_app(
+        &self,
+        shell: &AvailableShell,
+        app: &AppContext,
+    ) -> String {
+        if self
+            .shell_counts
+            .get::<str>(shell.short_name().as_ref())
+            .is_some_and(|count| *count > 1)
+        {
+            shell.long_name_for_app(app)
+        } else {
+            shell.short_name_for_app(app).into_owned()
         }
     }
 

@@ -6321,9 +6321,11 @@ fn render_detail_badge(
 fn render_detail_status_pill(
     status: &ConversationStatus,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let (icon, color) = status.status_icon_and_color(theme, StatusColorStyle::Standard);
+    let label = localized_conversation_status_label(status, app);
     Container::new(
         Flex::row()
             .with_main_axis_size(MainAxisSize::Min)
@@ -6336,7 +6338,7 @@ fn render_detail_status_pill(
                     .finish(),
             )
             .with_child(
-                Text::new_inline(status.to_string(), appearance.ui_font_family(), 10.)
+                Text::new_inline(label, appearance.ui_font_family(), 10.)
                     .with_color(WarpThemeFill::Solid(color).into())
                     .finish(),
             )
@@ -6346,6 +6348,17 @@ fn render_detail_status_pill(
     .with_background(ThemeFill::Solid(coloru_with_opacity(color, 10)))
     .with_corner_radius(CornerRadius::with_all(Radius::Pixels(2.)))
     .finish()
+}
+
+fn localized_conversation_status_label(status: &ConversationStatus, app: &AppContext) -> String {
+    let key = match status {
+        ConversationStatus::InProgress => "conversation_details.status.in_progress",
+        ConversationStatus::Success => "conversation_details.status.done",
+        ConversationStatus::Error => "conversation_details.status.error",
+        ConversationStatus::Cancelled => "conversation_details.status.cancelled",
+        ConversationStatus::Blocked { .. } => "conversation_details.status.blocked",
+    };
+    localization::text_for_app(app, key)
 }
 
 fn render_detail_wrapping_text(
@@ -6467,7 +6480,7 @@ fn render_terminal_detail_section(
         .with_spacing(DETAIL_SIDECAR_SECTION_GAP);
 
     if let Some(status) = status.as_ref() {
-        section.add_child(render_detail_status_pill(status, appearance));
+        section.add_child(render_detail_status_pill(status, appearance, app));
     }
     if let Some(working_directory) = working_directory.filter(|wd| !wd.trim().is_empty()) {
         section.add_child(render_detail_wrapping_text(

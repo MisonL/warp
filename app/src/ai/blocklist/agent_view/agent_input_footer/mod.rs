@@ -322,7 +322,7 @@ impl AgentInputFooter {
             let tooltip = AISettings::as_ref(ctx)
                 .voice_input_toggle_key
                 .value()
-                .tooltip_message();
+                .localized_tooltip_message(ctx);
             mic_button.update(ctx, |button, ctx| {
                 button.set_tooltip(Some(tooltip), ctx);
             });
@@ -332,7 +332,7 @@ impl AgentInputFooter {
                     let tooltip = AISettings::as_ref(ctx)
                         .voice_input_toggle_key
                         .value()
-                        .tooltip_message();
+                        .localized_tooltip_message(ctx);
                     me.mic_button.update(ctx, |button, ctx| {
                         button.set_tooltip(Some(tooltip), ctx);
                     });

@@ -53,6 +53,11 @@ pub trait GenericMenuItem: Debug + 'static {
     /// Display name for the menu item
     fn name(&self) -> String;
 
+    /// Localized display name for rendering. Filtering and action matching still use `name`.
+    fn display_name(&self, _app: &AppContext) -> String {
+        self.name()
+    }
+
     /// Icon to display for the menu item (None for no icon)
     fn icon(&self, _app: &AppContext) -> Option<Icon>;
 
@@ -955,6 +960,7 @@ impl DisplayChipMenu {
 
         let item_horizontal_padding = self.menu_item_horizontal_padding();
         let item_vertical_padding = self.menu_item_vertical_padding();
+        let footer_display_name = footer_option.action_item.display_name(app);
 
         let is_footer_selected = self.is_footer_selected();
         ConstrainedBox::new(
@@ -1017,7 +1023,7 @@ impl DisplayChipMenu {
                 // Add the text element
                 updated_text.add_child(
                     Text::new_inline(
-                        footer_option.action_item.name(),
+                        footer_display_name.clone(),
                         appearance.ui_font_family(),
                         font_size,
                     )
@@ -1106,6 +1112,10 @@ impl DisplayChipMenu {
         let selected_index = self.selected_index;
         let filtered_items_length = self.filtered_items.len();
         let filtered_items = self.filtered_items.clone();
+        let display_names = filtered_items
+            .iter()
+            .map(|filtered_item| filtered_item.item.display_name(ctx))
+            .collect::<Vec<_>>();
         let is_footer_hovered = self.is_footer_selected();
         let menu_width = self.menu_width();
         let item_horizontal_padding = self.menu_item_horizontal_padding();
@@ -1123,7 +1133,7 @@ impl DisplayChipMenu {
                     .map(|index| {
                         let filtered_item = &filtered_items[index];
                         let item = &filtered_item.item;
-                        let display_text_str = item.name();
+                        let display_text_str = display_names[index].clone();
 
                         let is_selected = index == selected_index && !is_footer_hovered;
 

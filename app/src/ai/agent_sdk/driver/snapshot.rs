@@ -1071,7 +1071,9 @@ async fn upload_prepared_snapshot_files(
         }
         None => (
             false,
-            Some(String::from("no upload target returned by server")),
+            Some(default_text(
+                "agent_sdk.driver.snapshot.error.no_upload_target",
+            )),
         ),
     };
 
@@ -1198,7 +1200,10 @@ async fn gather_file(
             });
         }
         Err(e) => {
-            let err_str = format!("Failed to read file '{file_path}': {e:#}");
+            let err_str = default_text_with_args(
+                "agent_sdk.driver.snapshot.error.read_file",
+                &[("path", file_path), ("error", &format!("{e:#}"))],
+            );
             log::warn!("{err_str}");
             files.push(FileManifestEntry {
                 path: file_path.to_string(),
@@ -1229,7 +1234,9 @@ async fn upload_entry(
         return EntryResult {
             label: file.filename.clone(),
             status: EntryStatus::Skipped,
-            error: Some("no upload target returned by server".to_string()),
+            error: Some(default_text(
+                "agent_sdk.driver.snapshot.error.no_upload_target",
+            )),
         };
     };
 

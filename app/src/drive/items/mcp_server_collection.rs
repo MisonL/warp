@@ -26,7 +26,10 @@ impl WarpDriveMCPServerCollection {
 
 impl WarpDriveItem for WarpDriveMCPServerCollection {
     fn display_name(&self) -> Option<String> {
-        Some("MCP Servers".to_string())
+        Some(crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "drive.collection.mcp_servers",
+        ))
     }
 
     fn metadata(&self) -> Option<&CloudObjectMetadata> {

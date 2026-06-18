@@ -184,9 +184,15 @@ impl View for CloudModeSetupTextBlock {
                             .setup_command_state()
                             .is_running(self.group_id)
                         {
-                            "Running setup commands..."
+                            crate::localization::text_for_app(
+                                app,
+                                "ambient_agent.setup_commands.running",
+                            )
                         } else {
-                            "Ran setup commands"
+                            crate::localization::text_for_app(
+                                app,
+                                "ambient_agent.setup_commands.ran",
+                            )
                         },
                         appearance.ai_font_family(),
                         appearance.monospace_font_size(),

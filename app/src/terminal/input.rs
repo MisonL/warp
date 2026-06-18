@@ -6744,11 +6744,14 @@ impl Input {
         // Loop through all static commands and set placeholders for those with hint text
         self.editor.update(ctx, |editor, ctx| {
             for command in COMMAND_REGISTRY.all_commands() {
-                if let Some(hint_text) = command
-                    .argument
-                    .as_ref()
-                    .and_then(|argument| argument.hint_text)
-                {
+                if let Some(argument) = command.argument.as_ref() {
+                    let Some(hint_text) = argument
+                        .hint_text_key
+                        .map(|key| localization::text_for_app(ctx, key))
+                        .or_else(|| argument.hint_text.map(str::to_owned))
+                    else {
+                        continue;
+                    };
                     editor.set_placeholder_text_with_prefix(
                         format!("{} ", command.name),
                         hint_text,

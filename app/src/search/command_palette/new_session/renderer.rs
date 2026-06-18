@@ -1,6 +1,6 @@
 use warpui::elements::{Container, Flex, Highlight, ParentElement, Text};
 use warpui::fonts::{Properties, Weight};
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::new_session_option::NewSessionOption;
 use crate::appearance::Appearance;
@@ -10,6 +10,7 @@ use crate::search::result_renderer::ItemHighlightState;
 impl NewSessionOption {
     pub(super) fn render(
         &self,
+        app: &AppContext,
         appearance: &Appearance,
         highlight_state: ItemHighlightState,
         highlight_indices: Vec<usize>,
@@ -29,7 +30,7 @@ impl NewSessionOption {
         .finish();
 
         let details = Text::new_inline(
-            self.details().to_string(),
+            self.details_for_app(app).to_string(),
             appearance.monospace_font_family(),
             appearance.monospace_font_size() - 2.,
         )

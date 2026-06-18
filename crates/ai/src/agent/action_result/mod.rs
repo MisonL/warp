@@ -1415,6 +1415,10 @@ impl AskUserQuestionAnswerItem {
     }
 
     pub fn display_text(&self) -> String {
+        self.display_text_with_labels("Other", "Skipped")
+    }
+
+    pub fn display_text_with_labels(&self, other_label: &str, skipped_label: &str) -> String {
         match self {
             Self::Answered {
                 selected_options,
@@ -1423,11 +1427,11 @@ impl AskUserQuestionAnswerItem {
             } => {
                 let mut parts = selected_options.clone();
                 if !other_text.is_empty() {
-                    parts.push(format!("Other: {other_text}"));
+                    parts.push(format!("{other_label}: {other_text}"));
                 }
                 parts.join(", ")
             }
-            Self::Skipped { .. } => "Skipped".to_string(),
+            Self::Skipped { .. } => skipped_label.to_string(),
         }
     }
 }

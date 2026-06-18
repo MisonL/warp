@@ -14,7 +14,7 @@ use warpui::elements::{
     Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
@@ -443,7 +443,10 @@ impl RightPanelView {
 
         app.register_editable_bindings([EditableBinding::new(
             "workspace:toggle_maximize_code_review_panel",
-            "Toggle Maximize Code Review Panel",
+            binding_description(
+                "Toggle Maximize Code Review Panel",
+                "workspace.binding.toggle_maximize_code_review_panel",
+            ),
             RightPanelAction::ToggleMaximize,
         )
         .with_enabled(|| cfg!(feature = "local_fs"))
@@ -1784,6 +1787,11 @@ impl RightPanelView {
             }
         }
     }
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(right_panel_text(app, key)))
 }
 
 impl Entity for RightPanelView {

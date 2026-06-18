@@ -12,7 +12,7 @@ use warpui::elements::{
     ChildAnchor, ChildView, Container, Fill, HighlightedHyperlink, MouseStateHandle,
     OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
 };
-use warpui::keymap::FixedBinding;
+use warpui::keymap::{BindingDescription, FixedBinding};
 use warpui::ui_components::components::{Coords, UiComponentStyles};
 use warpui::{
     AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
@@ -26,6 +26,7 @@ use super::login_failure_notification::{self, LoginFailureReason};
 use super::UserUid;
 use crate::appearance::Appearance;
 use crate::auth::auth_view_body::AuthViewBody;
+use crate::localization;
 use crate::modal::Modal;
 use crate::root_view::unthemed_window_border;
 use crate::server::server_api::auth::UserAuthenticationError;
@@ -39,7 +40,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Paste,
             AuthViewAction::PasteAuthUrl,
-            "Paste",
+            binding_description("Paste", "terminal.binding.paste"),
             id!(AuthView::ui_name()),
         ),
         FixedBinding::standard(
@@ -60,6 +61,11 @@ pub fn init(app: &mut AppContext) {
         AuthViewAction::PasteAuthUrl,
         id!(AuthView::ui_name()),
     )]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }
 
 #[derive(Clone, Debug)]

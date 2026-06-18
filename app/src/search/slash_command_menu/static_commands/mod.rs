@@ -49,6 +49,7 @@ bitflags! {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Argument {
     pub hint_text: Option<&'static str>,
+    pub hint_text_key: Option<&'static str>,
     pub is_optional: bool,
     /// If `true`, selecting the slash command from the menu (or via keybinding) will execute the
     /// slash command with no arguments.
@@ -78,6 +79,11 @@ impl Argument {
 
     pub(super) fn with_hint_text(mut self, text: &'static str) -> Self {
         self.hint_text = Some(text);
+        self
+    }
+
+    pub(super) fn with_hint_text_key(mut self, key: &'static str) -> Self {
+        self.hint_text_key = Some(key);
         self
     }
 

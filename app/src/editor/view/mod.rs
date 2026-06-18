@@ -260,7 +260,7 @@ pub fn init(ctx: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::WindowsPaste,
             EditorAction::Paste,
-            "Paste",
+            binding_description("Paste", "terminal.binding.paste"),
             id!("EditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::new(
@@ -5001,19 +5001,35 @@ impl EditorView {
                             .max(num_excess_images_by_conversation_limit);
 
                         if num_excess_images > 0 {
-                            let limit_reason = if num_excess_images
-                                == num_excess_images_by_query_limit
-                            {
-                                format!("limit is {MAX_IMAGE_COUNT_FOR_QUERY} per query")
-                            } else {
-                                format!("limit is {MAX_IMAGES_PER_CONVERSATION} per conversation")
-                            };
+                            let limit_reason =
+                                if num_excess_images == num_excess_images_by_query_limit {
+                                    crate::localization::text_for_app_with_args(
+                                        ctx,
+                                        "editor.toast.image_limit.per_query",
+                                        &[("limit", &MAX_IMAGE_COUNT_FOR_QUERY.to_string())],
+                                    )
+                                } else {
+                                    crate::localization::text_for_app_with_args(
+                                        ctx,
+                                        "editor.toast.image_limit.per_conversation",
+                                        &[("limit", &MAX_IMAGES_PER_CONVERSATION.to_string())],
+                                    )
+                                };
 
                             let message = if num_excess_images == 1 {
-                                format!("1 image wasn't attached - {limit_reason}.")
+                                crate::localization::text_for_app_with_args(
+                                    ctx,
+                                    "editor.toast.image_limit.single",
+                                    &[("limit_reason", &limit_reason)],
+                                )
                             } else {
-                                format!(
-                                    "{num_excess_images} images weren't attached - {limit_reason}."
+                                crate::localization::text_for_app_with_args(
+                                    ctx,
+                                    "editor.toast.image_limit.plural",
+                                    &[
+                                        ("count", &num_excess_images.to_string()),
+                                        ("limit_reason", &limit_reason),
+                                    ],
                                 )
                             };
 
@@ -5269,12 +5285,20 @@ impl EditorView {
 
                 if num_oversized_images > 0 {
                     let message = if num_oversized_images == 1 && num_images_user_attached == 1 {
-                        "Image cannot be attached - file is too large.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_too_large.single_only",
+                        )
                     } else if num_oversized_images == 1 {
-                        "1 image wasn't attached — file is too large.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_too_large.single",
+                        )
                     } else {
-                        format!(
-                            "{num_oversized_images} images weren't attached — files are too large."
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            "editor.toast.image_too_large.plural",
+                            &[("count", &num_oversized_images.to_string())],
                         )
                     };
 
@@ -5289,12 +5313,20 @@ impl EditorView {
 
                 if num_unprocessed_images > 0 {
                     let message = if num_unprocessed_images == 1 && num_images_user_attached == 1 {
-                        "Image cannot be attached - error processing.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_processing_failed.single_only",
+                        )
                     } else if num_unprocessed_images == 1 {
-                        "1 image wasn't attached - error processing.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_processing_failed.single",
+                        )
                     } else {
-                        format!(
-                            "{num_unprocessed_images} images weren't attached - error processing."
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            "editor.toast.image_processing_failed.plural",
+                            &[("count", &num_unprocessed_images.to_string())],
                         )
                     };
 
@@ -8407,8 +8439,13 @@ impl TypedActionView for EditorView {
             | EditorAction::Delete
             | EditorAction::Backspace => ActionAccessibilityContent::Empty,
             EditorAction::Paste => {
+                let clipboard_text = self.clipboard_content(ctx);
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    format!("Pasting: {}", self.clipboard_content(ctx)),
+                    crate::localization::text_for_app_with_args(
+                        ctx,
+                        "editor.a11y.pasting",
+                        &[("content", &clipboard_text)],
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }

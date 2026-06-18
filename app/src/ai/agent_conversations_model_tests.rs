@@ -821,7 +821,7 @@ fn test_get_entries_includes_task_only_entry() {
             assert_eq!(entry.identity.ambient_agent_task_id, Some(task.task_id));
             assert_eq!(entry.identity.local_conversation_id, None);
             assert_eq!(entry.provenance, AgentConversationProvenance::AmbientRun);
-            assert_eq!(entry.display.run_time.as_deref(), Some("2.00 min"));
+            assert_eq!(entry.display.run_time, Some(Duration::minutes(2)));
             assert!(entry.backing.has_ambient_run);
             assert!(!entry.backing.has_loaded_conversation);
         });

@@ -895,6 +895,10 @@ impl TemplatableMCPServerManager {
                 persisted_credentials,
                 is_headless,
                 is_file_based,
+                headless_authentication_required_message: crate::localization::text_for_app(
+                    ctx,
+                    "settings.mcp.oauth.headless_authentication_required",
+                ),
                 persist_credentials: Box::new(move |installation_uuid, credentials| {
                     let spawner = persist_spawner.clone();
                     Box::pin(async move {

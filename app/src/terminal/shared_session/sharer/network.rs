@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_channel::Receiver;
-use byte_unit::{Byte, UnitType};
+use byte_unit::Byte;
 use futures_util::stream::AbortHandle;
 use futures_util::{SinkExt, StreamExt};
 use instant::Instant;
@@ -1695,8 +1695,6 @@ impl Network {
     }
 }
 
-const NO_QUOTA_REMAINING_MESSAGE: &str =
-    "Session sharing usage exceeded for the day. Please try again later.";
 fn session_terminated_reason_diagnostic_label(reason: &SessionTerminatedReason) -> &'static str {
     match reason {
         SessionTerminatedReason::NoUserQuotaRemaining {} => "no_user_quota_remaining",
@@ -1705,55 +1703,55 @@ fn session_terminated_reason_diagnostic_label(reason: &SessionTerminatedReason) 
     }
 }
 
-/// Converts [`SessionTerminatedReason`] to a user-facing string.
-pub fn session_terminated_reason_string(
-    reason: &SessionTerminatedReason,
-    max_session_size: Byte,
-) -> String {
+/// Converts [`SessionTerminatedReason`] to a user-facing catalog key.
+pub fn session_terminated_reason_key(reason: &SessionTerminatedReason) -> &'static str {
     match reason {
         SessionTerminatedReason::NoUserQuotaRemaining {} => {
             // TODO: we should pass down the next refresh time to tell the user.
-            NO_QUOTA_REMAINING_MESSAGE.to_string()
+            "terminal.shared_session.error.quota_exceeded"
         }
         SessionTerminatedReason::ExceededSizeLimit => {
-            let max_bytes = max_session_size.get_appropriate_unit(UnitType::Decimal);
-            format!("Session limit ({max_bytes}) exceeded. Please reshare to continue.")
+            "terminal.shared_session.error.size_limit_exceeded"
         }
         SessionTerminatedReason::InternalServerError { .. } => {
-            "Session ended due to an internal error. Please try sharing again.".to_string()
+            "terminal.shared_session.error.session_terminated_internal"
         }
     }
 }
 
-/// Converts [`FailedToInitializeSessionReason`] to a user-facing error message.
-pub fn failed_to_initialize_session_user_error(reason: &FailedToInitializeSessionReason) -> String {
+/// Converts [`FailedToInitializeSessionReason`] to a user-facing catalog key.
+pub fn failed_to_initialize_session_error_key(
+    reason: &FailedToInitializeSessionReason,
+) -> &'static str {
     match reason {
         FailedToInitializeSessionReason::InternalServerError { .. } => {
-            "An internal error occurred. Please try sharing again."
+            "terminal.shared_session.error.initialize_internal"
         }
         FailedToInitializeSessionReason::ScrollbackTooLarge {} => {
-            "Scrollback exceeds limit. Try sharing again without scrollback."
+            "terminal.shared_session.error.scrollback_too_large"
         }
         FailedToInitializeSessionReason::NoUserQuotaRemaining { .. } => {
             // TODO: we should pass down the next refresh time to tell the user.
-            NO_QUOTA_REMAINING_MESSAGE
+            "terminal.shared_session.error.quota_exceeded"
         }
-        FailedToInitializeSessionReason::UserNotFound => "You must be logged in to share sessions.",
+        FailedToInitializeSessionReason::UserNotFound => {
+            "terminal.shared_session.error.login_required"
+        }
     }
-    .to_string()
 }
 
-pub fn failed_to_add_guests_user_error(reason: &FailedToAddGuestsReason) -> String {
+pub fn failed_to_add_guests_error_key(reason: &FailedToAddGuestsReason) -> &'static str {
     match reason {
-        FailedToAddGuestsReason::Invalid => "Something went wrong. Please try again.",
+        FailedToAddGuestsReason::Invalid => {
+            "terminal.shared_session.toast.permission_update_failed"
+        }
         FailedToAddGuestsReason::NotWarpUsers => {
-            "One or more emails were not associated with Warp accounts."
+            "terminal.shared_session.error.guests_not_warp_users"
         }
         FailedToAddGuestsReason::GuestAlreadyAdded => {
-            "One or more emails have already been added to the session."
+            "terminal.shared_session.error.guests_already_added"
         }
     }
-    .to_string()
 }
 
 pub enum NetworkEvent {

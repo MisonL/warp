@@ -57,7 +57,7 @@ pub(crate) fn render_action_sidecar(
     // Title
     let title = match item {
         SidecarItemKind::BuiltIn { name, .. } => name.clone(),
-        SidecarItemKind::UserTabConfig { config } => config.name.clone(),
+        SidecarItemKind::UserTabConfig { config } => config.localized_name(app),
     };
     column.add_child(
         Container::new(
@@ -191,7 +191,7 @@ pub(crate) fn render_action_sidecar(
                 .finish(),
             );
 
-            let remove_name = config.name.clone();
+            let remove_name = config.localized_name(app);
             let remove_path = config_path.clone();
             let red_color = theme.ansi_fg_red();
             let remove_style = UiComponentStyles {

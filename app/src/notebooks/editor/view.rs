@@ -3131,8 +3131,13 @@ impl TypedActionView for RichTextEditorView {
                 ))
             }
             EditorViewAction::Paste | EditorViewAction::MiddleClickPaste => {
+                let clipboard_text = ctx.clipboard().read().plain_text;
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    format!("Pasting: {}", ctx.clipboard().read().plain_text),
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "editor.a11y.pasting",
+                        &[("content", &clipboard_text)],
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }

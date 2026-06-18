@@ -273,7 +273,10 @@ impl LaunchConfigSaveModal {
                 }
                 Err(e) => {
                     log::warn!("Failed to save current session as template. error: {e}");
-                    if e.to_string().contains("File already exists") {
+                    if matches!(
+                        e,
+                        crate::user_config::SaveNewLaunchConfigError::FileAlreadyExists
+                    ) {
                         self.failed_save(FailureType::FileAlreadyExists, ctx);
                     } else {
                         self.failed_save(FailureType::Other, ctx);

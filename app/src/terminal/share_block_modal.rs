@@ -18,7 +18,7 @@ use warpui::elements::{
 };
 use warpui::event::{DispatchedEvent, ModifiersState};
 use warpui::fonts::{FamilyId, Properties, Style, Weight};
-use warpui::keymap::FixedBinding;
+use warpui::keymap::{BindingDescription, FixedBinding};
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -161,7 +161,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Copy,
             ShareBlockModalAction::CopyLink,
-            "Copy",
+            binding_description("Copy", "terminal.binding.copy"),
             id!(ShareBlockModal::ui_name()),
         ),
         FixedBinding::new(
@@ -170,6 +170,10 @@ pub fn init(app: &mut AppContext) {
             id!(ShareBlockModal::ui_name()),
         ),
     ]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
 }
 
 #[derive(PartialEq, Eq)]

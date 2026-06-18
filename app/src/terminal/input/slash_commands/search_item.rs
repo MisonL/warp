@@ -95,7 +95,10 @@ impl SearchItem for InlineItem {
                 .with_child(name_text.finish())
                 .with_child(
                     Text::new(
-                        " or ",
+                        crate::localization::text_for_app(
+                            app,
+                            "terminal.slash.command.or_separator",
+                        ),
                         appearance.ui_font_family(),
                         inline_styles::font_size(appearance),
                     )
@@ -176,6 +179,14 @@ impl SearchItem for InlineItem {
 
     fn accessibility_label(&self) -> String {
         format!("{:?}", self.action)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "terminal.slash.command.a11y.label",
+            &[("name", &self.name)],
+        )
     }
 
     fn detail_data(&self) -> Option<SearchItemDetail> {
