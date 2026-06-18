@@ -1,6 +1,7 @@
 ---
 name: change-keybinding
 description: Customize Warp keyboard shortcuts (keybindings, keymappings) by editing the user's keybindings.yaml file. Use when the user asks to remap a key combination, rebind an action, change a shortcut, or remove a default keybinding (e.g. "change ctrl+space to ctrl+s", "rebind the command palette to cmd+p", "remove the default for X").
+description_zh_CN: 通过编辑用户的 keybindings.yaml 文件来自定义 Warp 键盘快捷键。适用于用户想重映射按键组合、重新绑定操作、修改快捷键或移除默认按键绑定时。
 ---
 
 # change-keybinding

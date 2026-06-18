@@ -8,6 +8,7 @@ Prints JSON to stdout matching the insert_code_review_comments tool schema.
 """
 
 import json
+import locale
 import os
 import subprocess
 import sys
@@ -19,8 +20,28 @@ from trim_diff_hunk import trim_diff_hunk, line_in_hunk, last_reachable_line
 # Helpers
 # ---------------------------------------------------------------------------
 
-def run_command(args, error_msg="Command failed"):
+def current_language():
+    locale_value = (
+        os.environ.get("WARP_LOCALE")
+        or os.environ.get("LANGUAGE")
+        or os.environ.get("LC_ALL")
+        or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG")
+        or locale.getlocale()[0]
+        or ""
+    )
+    return "zh" if locale_value.lower().replace("_", "-").startswith("zh") else "en"
+
+
+def localized_text(en, zh):
+    return zh if current_language() == "zh" else en
+
+
+def run_command(args, error_msg=None):
     """Run a command and return stdout. Exits on failure."""
+    if error_msg is None:
+        error_msg = localized_text("Command failed", "命令执行失败")
+
     result = subprocess.run(
         args,
         capture_output=True,
@@ -42,7 +63,10 @@ def run_gh_api(endpoint):
     """
     text = run_command(
         ["gh", "api", endpoint, "--paginate"],
-        error_msg=f"gh api {endpoint} failed",
+        error_msg=localized_text(
+            f"gh api {endpoint} failed",
+            f"gh api {endpoint} 失败",
+        ),
     ).strip()
     if not text:
         return []
@@ -60,7 +84,13 @@ def run_gh_api(endpoint):
             items.extend(obj if isinstance(obj, list) else [obj])
             pos = end
     except json.JSONDecodeError as exc:
-        print(f"Failed to parse API response: {exc}", file=sys.stderr)
+        print(
+            localized_text(
+                f"Failed to parse API response: {exc}",
+                f"解析 API 响应失败：{exc}",
+            ),
+            file=sys.stderr,
+        )
         sys.exit(1)
     return items
 
@@ -138,7 +168,7 @@ def _resolve_comment_line(comment, hunk):
 def main():
     repo_root = run_command(
         ["git", "rev-parse", "--show-toplevel"],
-        "Not a git repository",
+        localized_text("Not a git repository", "不是 git 仓库"),
     ).strip()
 
     pr = json.loads(
@@ -147,7 +177,10 @@ def main():
                 "gh", "pr", "view",
                 "--json", "number,headRepository,headRepositoryOwner,baseRefName",
             ],
-            "Failed to get PR info (is there an open PR on this branch?)",
+            localized_text(
+                "Failed to get PR info (is there an open PR on this branch?)",
+                "获取 PR 信息失败（当前分支是否有打开的 PR？）",
+            ),
         )
     )
     number = pr["number"]

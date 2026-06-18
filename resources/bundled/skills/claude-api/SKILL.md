@@ -1,6 +1,7 @@
 ---
 name: claude-api
 description: "Build, debug, and optimize Claude API / Anthropic SDK apps. Apps built with this skill should include prompt caching. Also handles migrating existing Claude API code between Claude model versions (4.5 → 4.6, 4.6 → 4.7, retired-model replacements). TRIGGER when: code imports `anthropic`/`@anthropic-ai/sdk`; user asks for the Claude API, Anthropic SDK, or Managed Agents; user adds/modifies/tunes a Claude feature (caching, thinking, compaction, tool use, batch, files, citations, memory) or model (Opus/Sonnet/Haiku) in a file; questions about prompt caching / cache hit rate in an Anthropic SDK project. SKIP: file imports `openai`/other-provider SDK, filename like `*-openai.py`/`*-generic.py`, provider-neutral code, general programming/ML."
+description_zh_CN: "构建、调试和优化 Claude API / Anthropic SDK 应用。适用于 Claude API、Anthropic SDK、Managed Agents、Claude 功能或模型迁移相关任务；不适用于 OpenAI 或其他 provider 的通用代码。"
 license: Complete terms in LICENSE.txt
 ---
 
