@@ -3,7 +3,7 @@ use super::event::{
 };
 use super::{
     CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
-    CLIAgentSessionStatus, CLIAgentSessionsModel,
+    CLIAgentSessionStatus, CLIAgentSessionsModel, CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION,
 };
 use crate::ai::blocklist::{InputConfig, InputType};
 use crate::terminal::CLIAgent;
@@ -477,6 +477,42 @@ fn non_codex_session_rich_after_rich_notification() {
 
     session.received_rich_notification = true;
     assert!(session.supports_rich_status());
+}
+
+#[test]
+fn question_asked_without_summary_uses_visible_blocked_reason() {
+    let mut session = CLIAgentSession {
+        agent: CLIAgent::Claude,
+        status: CLIAgentSessionStatus::InProgress,
+        session_context: CLIAgentSessionContext::default(),
+        input_state: CLIAgentInputState::Closed,
+        should_auto_toggle_input: false,
+        listener: None,
+        plugin_version: None,
+        remote_host: None,
+        draft_text: None,
+        custom_command_prefix: None,
+        received_rich_notification: false,
+    };
+    let event = CLIAgentEvent {
+        source: CLIAgentEventSource::RichPlugin,
+        v: 1,
+        agent: CLIAgent::Claude,
+        event: CLIAgentEventType::QuestionAsked,
+        session_id: Some("abc".to_owned()),
+        cwd: None,
+        project: None,
+        payload: CLIAgentEventPayload::default(),
+    };
+
+    session.apply_event(&event);
+
+    assert_eq!(
+        session.status,
+        CLIAgentSessionStatus::Blocked {
+            message: Some(CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION.to_owned()),
+        },
+    );
 }
 
 /// Constructs a session with permission-scoped state already populated, as if

@@ -285,6 +285,7 @@ pub struct AgentDriver {
     resolved_env_vars: Arc<HashMap<OsString, OsString>>,
 
     output_format: OutputFormat,
+    locale: LocaleId,
 
     // The associated task ID for this agent run, if any.
     task_id: Option<AmbientAgentTaskId>,
@@ -793,6 +794,7 @@ impl AgentDriver {
             secrets: Arc::new(secrets),
             resolved_env_vars,
             output_format: OutputFormat::default(),
+            locale: localization::current_locale(ctx),
             task_id,
             harness: None,
             idle_on_complete,
@@ -835,6 +837,7 @@ impl AgentDriver {
             secrets: Arc::new(HashMap::new()),
             resolved_env_vars: Arc::new(HashMap::new()),
             output_format: OutputFormat::default(),
+            locale: localization::current_locale(ctx),
             task_id: None,
             harness: None,
             idle_on_complete: None,
@@ -1654,13 +1657,18 @@ impl AgentDriver {
                             };
                             let error = match repo_metadata.as_ref(ctx).repository_state(&id, ctx) {
                                 Some(IndexedRepoState::Indexed(_)) => None,
-                                Some(IndexedRepoState::Pending(_)) => Some(format!(
-                                    "Repository indexing is still pending: {repo_id_path}"
+                                Some(IndexedRepoState::Pending(_)) => Some(text_with_args(
+                                    "agent_sdk.driver.error.repository_index_pending",
+                                    &[("repo", &repo_id_path.to_string())],
                                 )),
-                                Some(IndexedRepoState::Failed(error)) => {
-                                    Some(format!("Repository indexing failed: {error}"))
-                                }
-                                None => Some(format!("Repository not found: {repo_id_path}")),
+                                Some(IndexedRepoState::Failed(error)) => Some(text_with_args(
+                                    "agent_sdk.driver.error.repository_index_failed",
+                                    &[("error", &error.to_string())],
+                                )),
+                                None => Some(text_with_args(
+                                    "agent_sdk.driver.error.repository_not_found",
+                                    &[("repo", &repo_id_path.to_string())],
+                                )),
                             };
                             Some((repo_path, error))
                         })
@@ -2789,7 +2797,7 @@ impl AgentDriver {
                         if let Some(token) = token_opt {
                             report_if_error!(output::with_stdout_buffered(|buf| match me.output_format {
                                 OutputFormat::Json | OutputFormat::Ndjson => output::json::conversation_started(&token, buf),
-                                OutputFormat::Text | OutputFormat::Pretty => output::text::conversation_started(&token, buf),
+                                OutputFormat::Text | OutputFormat::Pretty => output::text::conversation_started_for_locale(&token, buf, me.locale),
                             }).context(text("agent_sdk.driver.error.write_conversation_id")));
                             written_conversation_id = true;
 
@@ -2988,11 +2996,12 @@ impl AgentDriver {
                         )
                     }
                     OutputFormat::Text | OutputFormat::Pretty => {
-                        output::text::plan_artifact_created(
+                        output::text::plan_artifact_created_for_locale(
                             &document_id_str,
                             &notebook_link,
                             &document.title,
                             buf,
+                            me.locale,
                         )
                     }
                 }
@@ -3071,7 +3080,9 @@ impl AgentDriver {
     fn write_input<W: Write>(&self, w: &mut W, input: &AIAgentInput) -> io::Result<()> {
         match self.output_format {
             OutputFormat::Json | OutputFormat::Ndjson => output::json::format_input(input, w),
-            OutputFormat::Text | OutputFormat::Pretty => output::text::format_input(input, w),
+            OutputFormat::Text | OutputFormat::Pretty => {
+                output::text::format_input_for_locale(input, w, self.locale)
+            }
         }
     }
 
@@ -3079,7 +3090,9 @@ impl AgentDriver {
     fn write_output<W: Write>(&self, w: &mut W, output: &AIAgentOutput) -> io::Result<()> {
         match self.output_format {
             OutputFormat::Json | OutputFormat::Ndjson => output::json::format_output(output, w),
-            OutputFormat::Text | OutputFormat::Pretty => output::text::format_output(output, w),
+            OutputFormat::Text | OutputFormat::Pretty => {
+                output::text::format_output_for_locale(output, w, self.locale)
+            }
         }
     }
 
@@ -3199,7 +3212,7 @@ impl AgentDriver {
                 session_id,
                 join_url,
             } => {
-                write_session_joined(join_url, self.output_format);
+                write_session_joined(join_url, self.output_format, self.locale);
 
                 // If running as part of a task, store the session-sharing link.
                 if let Some(task_id) = self.task_id {
@@ -3475,10 +3488,11 @@ impl Entity for AgentDriver {
 impl SingletonEntity for AgentDriver {}
 
 /// Write the run ID to stdout using the appropriate output format.
-pub(super) fn write_run_started(run_id: &str, output_format: OutputFormat) {
+pub(super) fn write_run_started(run_id: &str, output_format: OutputFormat, locale: LocaleId) {
     report_if_error!(output::with_stdout_buffered(|buf| match output_format {
         OutputFormat::Json | OutputFormat::Ndjson => output::json::run_started(run_id, buf),
-        OutputFormat::Text | OutputFormat::Pretty => output::text::run_started(run_id, buf),
+        OutputFormat::Text | OutputFormat::Pretty =>
+            output::text::run_started_for_locale(run_id, buf, locale),
     })
     .context(text("agent_sdk.driver.error.write_run_id")));
 }
@@ -3524,12 +3538,12 @@ fn stamp_parent_agent_id_if_some(
 }
 
 /// Write the session URL to stdout using the appropriate output format
-fn write_session_joined(join_url: &str, output_format: OutputFormat) {
+fn write_session_joined(join_url: &str, output_format: OutputFormat, locale: LocaleId) {
     report_if_error!(output::with_stdout_buffered(|buf| match output_format {
         OutputFormat::Json | OutputFormat::Ndjson =>
             output::json::shared_session_established(join_url, buf),
         OutputFormat::Text | OutputFormat::Pretty => {
-            output::text::shared_session_established(join_url, buf)
+            output::text::shared_session_established_for_locale(join_url, buf, locale)
         }
     })
     .context(text("agent_sdk.driver.error.write_shared_session_event")));

@@ -31,5 +31,14 @@ pub fn default_binding_for_command(name: &'static str) -> DefaultSlashCommandBin
 }
 
 pub fn binding_description(command: &StaticCommand) -> BindingDescription {
-    BindingDescription::new_preserve_case(format!("Slash command: {}", command.name))
+    let name = command.name;
+    BindingDescription::new_preserve_case(format!("Slash command: {name}")).with_dynamic_override(
+        move |app| {
+            Some(crate::localization::text_for_app_with_args(
+                app,
+                "terminal.slash.command.binding_description",
+                &[("name", name)],
+            ))
+        },
+    )
 }

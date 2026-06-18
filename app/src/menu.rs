@@ -33,7 +33,7 @@ use crate::safe_triangle::SafeTriangle;
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::icons;
-use crate::util::time_format::format_approx_duration_from_now_sentence_case;
+use crate::util::time_format::localized_approx_duration_from_now_sentence_case;
 
 pub const CHEVRON_RIGHT_ALIGN_SVG_PATH: &str = "bundled/svg/chevron-right-align.svg";
 
@@ -1159,6 +1159,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
         font_size: f32,
         text_background_color: Fill,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Shrinkable::new(
             1.,
@@ -1168,6 +1169,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 font_size,
                 text_background_color,
                 appearance,
+                app,
             ))
             .right()
             .finish(),
@@ -1182,9 +1184,10 @@ impl<A: Action + Clone> MenuItemFields<A> {
         font_size: f32,
         text_background_color: Fill,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
-        let est_time_ago = format_approx_duration_from_now_sentence_case(*timestamp);
+        let est_time_ago = localized_approx_duration_from_now_sentence_case(app, *timestamp);
         Text::new_inline(est_time_ago, font_family, font_size)
             .with_color(theme.sub_text_color(text_background_color).into())
             .finish()
@@ -1295,6 +1298,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                             font_size - 1.,
                             text_background_color,
                             appearance,
+                            app,
                         ))
                         .with_margin_top(2.)
                         .finish(),
@@ -1322,6 +1326,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                         font_size,
                         text_background_color,
                         appearance,
+                        app,
                     ));
                 }
 

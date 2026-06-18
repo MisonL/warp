@@ -12,7 +12,9 @@ use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::agent::RenderableAIError;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::server::server_api::ai::{AIClient, MockAIClient, TaskStatusUpdate};
-use crate::terminal::cli_agent_sessions::{CLIAgentSessionStatus, CLIAgentSessionsModel};
+use crate::terminal::cli_agent_sessions::{
+    CLIAgentSessionStatus, CLIAgentSessionsModel, CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION,
+};
 
 /// Helper to assert a (state, Option<TaskStatusUpdate>) tuple.
 fn assert_update(
@@ -146,6 +148,18 @@ fn cli_blocked_maps_correctly() {
     assert_eq!(state, AgentTaskState::Blocked);
     let update = update.expect("should have status update");
     assert!(update.message.contains("needs approval"));
+}
+
+#[test]
+fn cli_question_blocked_fallback_maps_to_status_message() {
+    let (state, update) = map_cli_session_status(&CLIAgentSessionStatus::Blocked {
+        message: Some(CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION.into()),
+    });
+    assert_eq!(state, AgentTaskState::Blocked);
+    let update = update.expect("should have status update");
+    assert!(update
+        .message
+        .contains(CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION));
 }
 
 #[test]

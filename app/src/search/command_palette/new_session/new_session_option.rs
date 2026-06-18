@@ -77,7 +77,7 @@ impl NewSessionOption {
 
 impl NewSessionOption {
     pub(super) fn new(id: NewSessionOptionId, config: NewSessionConfig, app: &AppContext) -> Self {
-        let shell_name = config.shell().short_name();
+        let shell_name = config.shell().short_name_for_app(app);
         let description = match &config {
             NewSessionConfig::NewTab(_) => localized_description(
                 app,
@@ -128,6 +128,10 @@ impl NewSessionOption {
     /// Returns the details (a.k.a. the second line in the command palette entry)
     pub fn details(&self) -> Cow<'_, str> {
         self.config.shell().details()
+    }
+
+    pub fn details_for_app(&self, app: &AppContext) -> Cow<'_, str> {
+        self.config.shell().details_for_app(app)
     }
 }
 

@@ -184,6 +184,7 @@ pub struct AuthContext {
     pub is_headless: bool,
     /// Whether this server was auto-discovered from a repo MCP configuration file.
     pub is_file_based: bool,
+    pub headless_authentication_required_message: String,
     pub persist_credentials: PersistCredentialsCallback,
     pub requires_authentication: RequiresAuthenticationCallback,
     pub authenticated: Option<AuthenticatedCallback>,
@@ -213,6 +214,7 @@ pub async fn make_authenticated_client(
         persisted_credentials,
         is_headless,
         is_file_based,
+        headless_authentication_required_message,
         persist_credentials,
         requires_authentication,
         ..
@@ -266,9 +268,7 @@ pub async fn make_authenticated_client(
             );
         }
         return Err(AuthError::AuthorizationFailed(
-            "MCP server requires OAuth authentication. Please authenticate this server in the \
-             Warp desktop app first, then try again."
-                .to_string(),
+            headless_authentication_required_message,
         ));
     }
 

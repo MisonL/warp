@@ -1,6 +1,9 @@
+use warp_cli::agent::OutputFormat;
+use warp_localization::LocaleId;
 use warpui::App;
 
 use super::*;
+use crate::ai::agent_sdk::output::write_list_for_locale;
 use crate::test_util::settings::initialize_settings_for_tests;
 
 fn key(name: &str, scope: &str, created_at: DateTime<Utc>) -> ApiKeyInfo {
@@ -158,4 +161,26 @@ fn api_key_selection_display_includes_uid_for_duplicate_names() {
             assert_ne!(first.to_string(), second.to_string());
         });
     });
+}
+
+#[test]
+fn api_key_list_text_localizes_never_rows() {
+    let created_at = "2026-01-02T03:04:05Z".parse().unwrap();
+    let localized_never =
+        crate::localization::text_for_locale(LocaleId::ZhCn, "agent_sdk.api_key.table.never");
+    let localized_last_used =
+        crate::localization::text_for_locale(LocaleId::ZhCn, "agent_sdk.api_key.table.last_used");
+    let mut output = Vec::new();
+
+    write_list_for_locale(
+        [key_with_uid("uid-1", "deploy-key", "Team", created_at)],
+        OutputFormat::Text,
+        &mut output,
+        LocaleId::ZhCn,
+    )
+    .unwrap();
+
+    let rendered = String::from_utf8(output).unwrap();
+    assert!(rendered.contains(&localized_never));
+    assert!(rendered.contains(&localized_last_used));
 }

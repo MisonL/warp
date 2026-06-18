@@ -23,7 +23,9 @@ use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::{self, TableFormat};
 use crate::server::ids::ApiKeyUid;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::{
+    localized_approx_duration_from_now_utc, localized_approx_duration_from_now_utc_for_locale,
+};
 use crate::{localization, ServerApiProvider};
 
 fn text(app: &AppContext, key: &str) -> String {
@@ -357,33 +359,19 @@ impl fmt::Display for ApiKeySelection {
 
 impl TableFormat for ApiKeyInfo {
     fn header() -> Vec<Cell> {
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
         vec![
+            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.uid")),
+            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.name")),
+            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.key")),
+            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.scope")),
+            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.created")),
+            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.last_used")),
             Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.api_key.table.uid",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.api_key.table.name",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.api_key.table.key",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.api_key.table.scope",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.api_key.table.created",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.api_key.table.last_used",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
+                locale,
                 "agent_sdk.api_key.table.expires_at",
             )),
         ]
@@ -402,21 +390,30 @@ impl TableFormat for ApiKeyInfo {
     }
 
     fn row(&self) -> Vec<Cell> {
+        self.row_for_locale(LocaleId::EnUs)
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
+        let never = || text_for_locale(locale, "agent_sdk.api_key.table.never");
+
         vec![
             Cell::new(&self.uid),
             Cell::new(&self.name),
             Cell::new(format!("wk-**{}", self.key_suffix)),
             Cell::new(&self.scope),
-            Cell::new(format_approx_duration_from_now_utc(self.created_at)),
+            Cell::new(localized_approx_duration_from_now_utc_for_locale(
+                locale,
+                self.created_at,
+            )),
             Cell::new(
                 self.last_used_at
-                    .map(format_approx_duration_from_now_utc)
-                    .unwrap_or_else(|| "Never".to_string()),
+                    .map(|dt| localized_approx_duration_from_now_utc_for_locale(locale, dt))
+                    .unwrap_or_else(never),
             ),
             Cell::new(
                 self.expires_at
                     .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-                    .unwrap_or_else(|| "Never".to_string()),
+                    .unwrap_or_else(never),
             ),
         ]
     }
@@ -429,10 +426,10 @@ impl TableFormat for ApiKeyInfo {
             Cell::new(&self.name),
             Cell::new(format!("wk-**{}", self.key_suffix)),
             Cell::new(&self.scope),
-            Cell::new(format_approx_duration_from_now_utc(self.created_at)),
+            Cell::new(localized_approx_duration_from_now_utc(app, self.created_at)),
             Cell::new(
                 self.last_used_at
-                    .map(format_approx_duration_from_now_utc)
+                    .map(|dt| localized_approx_duration_from_now_utc(app, dt))
                     .unwrap_or_else(never),
             ),
             Cell::new(

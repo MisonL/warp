@@ -33,7 +33,9 @@ use crate::server::cloud_objects::update_manager::{
 };
 use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::{
+    format_approx_duration_from_now_utc, localized_approx_duration_from_now_utc,
+};
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::{localization, CloudObjectTypeAndId};
 
@@ -1146,8 +1148,12 @@ impl EnvironmentCommandRunner {
                 updated_env.github_repos.remove(pos);
             } else {
                 eprintln!(
-                    "Warning: repository {}/{} not found in environment, skipping removal",
-                    repo.owner, repo.repo
+                    "{}",
+                    text_with_args(
+                        ctx,
+                        "agent_sdk.environment.warning.repo_not_found_skip_removal",
+                        &[("owner", &repo.owner), ("repo", &repo.repo)],
+                    )
                 );
             }
         }
@@ -1161,7 +1167,12 @@ impl EnvironmentCommandRunner {
                 updated_env.setup_commands.remove(pos);
             } else {
                 eprintln!(
-                    "Warning: setup command '{cmd}' not found in environment, skipping removal"
+                    "{}",
+                    text_with_args(
+                        ctx,
+                        "agent_sdk.environment.warning.setup_command_not_found_skip_removal",
+                        &[("cmd", cmd)],
+                    )
                 );
             }
         }
@@ -1436,10 +1447,13 @@ impl TableFormat for EnvironmentInfo {
                 &self.creator_email,
                 app,
             )),
-            Cell::new(super::common::format_unknown_for_app(
-                &self.last_edited,
-                app,
-            )),
+            Cell::new(
+                self.last_edited_utc
+                    .map(|last_edited| localized_approx_duration_from_now_utc(app, last_edited))
+                    .unwrap_or_else(|| {
+                        super::common::format_unknown_for_app(&self.last_edited, app)
+                    }),
+            ),
             Cell::new(super::common::format_owner_scope_for_app(&self.scope, app)),
         ]
     }

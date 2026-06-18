@@ -42,6 +42,17 @@ fn text_with_value(app: &AppContext, key: &str, placeholder: &str, value: &str) 
     text(app, key).replace(placeholder, value)
 }
 
+fn localized_param_description<'a>(
+    app: &AppContext,
+    param: &'a TabConfigParam,
+) -> Option<&'a String> {
+    match localization::current_locale(app) {
+        warp_localization::LocaleId::ZhCn => param.description_zh_cn.as_ref(),
+        warp_localization::LocaleId::EnUs => None,
+    }
+    .or(param.description.as_ref())
+}
+
 pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings(vec![
         FixedBinding::new(
@@ -583,7 +594,7 @@ impl View for TabConfigParamsModal {
             form.add_child(label.finish());
 
             // Optional description sub-label.
-            if let Some(description) = &param.description {
+            if let Some(description) = localized_param_description(app, param) {
                 form.add_child(
                     Container::new(
                         Text::new_inline(

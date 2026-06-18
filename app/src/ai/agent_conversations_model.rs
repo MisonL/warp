@@ -32,8 +32,8 @@ use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::ambient_agents::{
-    AgentSource, AmbientAgentLiveSessionState, AmbientAgentTask, AmbientAgentTaskId,
-    AmbientAgentTaskState,
+    localized_task_status_message, AgentSource, AmbientAgentLiveSessionState, AmbientAgentTask,
+    AmbientAgentTaskId, AmbientAgentTaskState,
 };
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{
@@ -44,6 +44,7 @@ use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::CloudObjectLookup as _;
+use crate::localization;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::server::ids::{ServerId, SyncId};
@@ -338,23 +339,23 @@ impl AgentRunDisplayStatus {
         match &task.state {
             AmbientAgentTaskState::Queued
             | AmbientAgentTaskState::Pending
-            | AmbientAgentTaskState::Claimed => Self::from_task_state(task),
+            | AmbientAgentTaskState::Claimed => Self::from_task_state(task, app),
             AmbientAgentTaskState::InProgress => {
                 if task.has_active_execution() {
-                    return Self::from_task_state(task);
+                    return Self::from_task_state(task, app);
                 }
                 let history_model = BlocklistAIHistoryModel::as_ref(app);
                 entry::conversation_id_shadowed_by_task(task, history_model)
                     .and_then(|conversation_id| history_model.conversation(&conversation_id))
                     .map(|conversation| Self::from_conversation_status(conversation.status()))
-                    .unwrap_or_else(|| Self::from_task_state(task))
+                    .unwrap_or_else(|| Self::from_task_state(task, app))
             }
             AmbientAgentTaskState::Succeeded
             | AmbientAgentTaskState::Failed
             | AmbientAgentTaskState::Error
             | AmbientAgentTaskState::Blocked
             | AmbientAgentTaskState::Cancelled
-            | AmbientAgentTaskState::Unknown => Self::from_task_state(task),
+            | AmbientAgentTaskState::Unknown => Self::from_task_state(task, app),
         }
     }
 
@@ -370,7 +371,7 @@ impl AgentRunDisplayStatus {
         }
     }
 
-    fn from_task_state(task: &AmbientAgentTask) -> Self {
+    fn from_task_state(task: &AmbientAgentTask, app: &AppContext) -> Self {
         match &task.state {
             AmbientAgentTaskState::Queued => Self::TaskQueued,
             AmbientAgentTaskState::Pending => Self::TaskPending,
@@ -383,8 +384,10 @@ impl AgentRunDisplayStatus {
                 blocked_action: task
                     .status_message
                     .as_ref()
-                    .map(|m| m.message.clone())
-                    .unwrap_or_else(|| "Task blocked".to_string()),
+                    .map(|m| localized_task_status_message(app, &m.message))
+                    .unwrap_or_else(|| {
+                        localization::text_for_app(app, "agent.task_status.blocked_unknown")
+                    }),
             },
             AmbientAgentTaskState::Cancelled => Self::TaskCancelled,
             AmbientAgentTaskState::Unknown => Self::TaskUnknown,

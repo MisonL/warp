@@ -112,7 +112,7 @@ pub fn init(app: &mut AppContext) {
     lsp::init(app);
 
     app.register_fixed_bindings([FixedBinding::empty(
-        "Dump debug info",
+        binding_description("Dump debug info", "workspace.binding.debug.dump_debug_info"),
         WorkspaceAction::DumpDebugInfo,
         id!("Workspace"),
     )]);
@@ -131,34 +131,52 @@ pub fn init(app: &mut AppContext) {
 
     if ChannelState::enable_debug_features() {
         let crash_description = if cfg!(target_os = "macos") {
-            "Crash the app (for testing sentry-cocoa)"
+            binding_description(
+                "Crash the app (for testing sentry-cocoa)",
+                "workspace.binding.debug.crash_sentry_cocoa",
+            )
         } else {
-            "Crash the app (for testing sentry-native)"
+            binding_description(
+                "Crash the app (for testing sentry-native)",
+                "workspace.binding.debug.crash_sentry_native",
+            )
         };
         app.register_editable_bindings([
             EditableBinding::new("workspace:crash", crash_description, WorkspaceAction::Crash)
                 .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:log_review_comment_send_status_for_active_tab",
-                "[Debug] Log review comment send status for active tab",
+                binding_description(
+                    "[Debug] Log review comment send status for active tab",
+                    "workspace.binding.debug.log_review_comment_send_status",
+                ),
                 WorkspaceAction::LogReviewCommentSendStatusForActiveTab,
             )
             .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:panic",
-                "Trigger a panic (for testing sentry-rust)",
+                binding_description(
+                    "Trigger a panic (for testing sentry-rust)",
+                    "workspace.binding.debug.trigger_panic",
+                ),
                 WorkspaceAction::Panic,
             )
             .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:open_view_tree_debug_view",
-                "Open view tree debugger",
+                binding_description(
+                    "Open view tree debugger",
+                    "workspace.binding.debug.open_view_tree_debugger",
+                ),
                 WorkspaceAction::OpenViewTreeDebugWindow,
             )
             .with_context_predicate(id!("Workspace")),
         ]);
         app.register_fixed_bindings([FixedBinding::empty(
-            "[Debug] View first-time user experience",
+            binding_description(
+                "[Debug] View first-time user experience",
+                "workspace.binding.debug.view_first_time_user_experience",
+            ),
             WorkspaceAction::AddGetStartedTab,
             id!("Workspace"),
         )]);
@@ -168,79 +186,118 @@ pub fn init(app: &mut AppContext) {
             app.register_editable_bindings([
                 EditableBinding::new(
                     "workspace:open_build_plan_migration_modal",
-                    "[Debug] Open Build Plan Migration Modal",
+                    binding_description(
+                        "[Debug] Open Build Plan Migration Modal",
+                        "workspace.binding.debug.open_build_plan_migration_modal",
+                    ),
                     WorkspaceAction::OpenBuildPlanMigrationModal,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:reset_build_plan_migration_modal_state",
-                    "[Debug] Reset Build Plan Migration Modal State",
+                    binding_description(
+                        "[Debug] Reset Build Plan Migration Modal State",
+                        "workspace.binding.debug.reset_build_plan_migration_modal_state",
+                    ),
                     WorkspaceAction::ResetBuildPlanMigrationModalState,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:debug_reset_aws_bedrock_login_banner_dismissed",
-                    "[Debug] Un-dismiss AWS login banner",
+                    binding_description(
+                        "[Debug] Un-dismiss AWS login banner",
+                        "workspace.binding.debug.reset_aws_bedrock_login_banner_dismissed",
+                    ),
                     WorkspaceAction::DebugResetAwsBedrockLoginBannerDismissed,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:open_oz_launch_modal",
-                    "[Debug] Open Oz Launch Modal",
+                    binding_description(
+                        "[Debug] Open Oz Launch Modal",
+                        "workspace.binding.debug.open_oz_launch_modal",
+                    ),
                     WorkspaceAction::OpenOzLaunchModal,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:reset_oz_launch_modal_state",
-                    "[Debug] Reset Oz Launch Modal State",
+                    binding_description(
+                        "[Debug] Reset Oz Launch Modal State",
+                        "workspace.binding.debug.reset_oz_launch_modal_state",
+                    ),
                     WorkspaceAction::ResetOzLaunchModalState,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:open_openwarp_launch_modal",
-                    "[Debug] Open OpenWarp Launch Modal",
+                    binding_description(
+                        "[Debug] Open OpenWarp Launch Modal",
+                        "workspace.binding.debug.open_openwarp_launch_modal",
+                    ),
                     WorkspaceAction::OpenOpenWarpLaunchModal,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:reset_openwarp_launch_modal_state",
-                    "[Debug] Reset OpenWarp Launch Modal State",
+                    binding_description(
+                        "[Debug] Reset OpenWarp Launch Modal State",
+                        "workspace.binding.debug.reset_openwarp_launch_modal_state",
+                    ),
                     WorkspaceAction::ResetOpenWarpLaunchModalState,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:open_orchestration_launch_modal",
-                    "[Debug] Open Orchestration Launch Modal",
+                    binding_description(
+                        "[Debug] Open Orchestration Launch Modal",
+                        "workspace.binding.debug.open_orchestration_launch_modal",
+                    ),
                     WorkspaceAction::OpenOrchestrationLaunchModal,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:reset_orchestration_launch_modal_state",
-                    "[Debug] Reset Orchestration Launch Modal State",
+                    binding_description(
+                        "[Debug] Reset Orchestration Launch Modal State",
+                        "workspace.binding.debug.reset_orchestration_launch_modal_state",
+                    ),
                     WorkspaceAction::ResetOrchestrationLaunchModalState,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:install_opencode_warp_plugin",
-                    "[Debug] Install OpenCode Warp plugin",
+                    binding_description(
+                        "[Debug] Install OpenCode Warp plugin",
+                        "workspace.binding.debug.install_opencode_warp_plugin",
+                    ),
                     WorkspaceAction::InstallOpenCodeWarpPlugin,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:use_local_opencode_warp_plugin",
-                    "[Debug] Use local OpenCode Warp plugin (testing only)",
+                    binding_description(
+                        "[Debug] Use local OpenCode Warp plugin (testing only)",
+                        "workspace.binding.debug.use_local_opencode_warp_plugin",
+                    ),
                     WorkspaceAction::UseLocalOpenCodeWarpPlugin,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:open_session_config_modal",
-                    "[Debug] Open Session Config Modal",
+                    binding_description(
+                        "[Debug] Open Session Config Modal",
+                        "workspace.binding.debug.open_session_config_modal",
+                    ),
                     WorkspaceAction::ShowSessionConfigModal,
                 )
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:show_hoa_onboarding_flow",
-                    "[Debug] Start HOA Onboarding Flow",
+                    binding_description(
+                        "[Debug] Start HOA Onboarding Flow",
+                        "workspace.binding.debug.start_hoa_onboarding_flow",
+                    ),
                     WorkspaceAction::ShowHoaOnboardingFlow,
                 )
                 .with_context_predicate(id!("Workspace")),
@@ -260,7 +317,10 @@ pub fn init(app: &mut AppContext) {
     {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:dump_heap_profile",
-            "Dump heap profile (can only be done once)",
+            binding_description(
+                "Dump heap profile (can only be done once)",
+                "workspace.binding.debug.dump_heap_profile",
+            ),
             WorkspaceAction::DumpHeapProfile,
         )
         .with_context_predicate(id!("Workspace"))]);
@@ -285,7 +345,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::AddWindow,
             WorkspaceAction::AddWindow,
-            "Create New Window",
+            binding_description("Create New Window", "workspace.binding.create_new_window"),
             id!("Workspace"),
         )
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
@@ -843,7 +903,10 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::ToggleGlobalSearch),
         EditableBinding::new(
             "file_tree:toggle_hidden_files",
-            BindingDescription::new("Toggle hidden files in Project Explorer"),
+            binding_description(
+                "Toggle hidden files in Project Explorer",
+                "workspace.binding.toggle_hidden_files_project_explorer",
+            ),
             WorkspaceAction::ToggleHiddenFiles,
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
@@ -943,13 +1006,12 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::CommandPalette),
         EditableBinding::new(
             "workspace:move_tab_left",
-            BindingDescription::new("Move tab left").with_dynamic_override(|ctx| {
-                let key = if uses_vertical_tabs(ctx) {
+            binding_description_with_dynamic_key("Move tab left", |ctx| {
+                if uses_vertical_tabs(ctx) {
                     "workspace.binding.move_tab_up"
                 } else {
                     "workspace.binding.move_tab_left"
-                };
-                Some(localization::text_for_app(ctx, key))
+                }
             }),
             WorkspaceAction::MoveActiveTabLeft,
         )
@@ -963,13 +1025,12 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::MoveTabLeft),
         EditableBinding::new(
             "workspace:move_tab_right",
-            BindingDescription::new("Move tab right").with_dynamic_override(|ctx| {
-                let key = if uses_vertical_tabs(ctx) {
+            binding_description_with_dynamic_key("Move tab right", |ctx| {
+                if uses_vertical_tabs(ctx) {
                     "workspace.binding.move_tab_down"
                 } else {
                     "workspace.binding.move_tab_right"
-                };
-                Some(localization::text_for_app(ctx, key))
+                }
             }),
             WorkspaceAction::MoveActiveTabRight,
         )
@@ -1118,13 +1179,12 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:close_tabs_right_active_tab",
-            BindingDescription::new("Close tabs to the right").with_dynamic_override(|ctx| {
-                let key = if uses_vertical_tabs(ctx) {
+            binding_description_with_dynamic_key("Close tabs to the right", |ctx| {
+                if uses_vertical_tabs(ctx) {
                     "workspace.binding.close_tabs_below"
                 } else {
                     "workspace.binding.close_tabs_to_right"
-                };
-                Some(localization::text_for_app(ctx, key))
+                }
             }),
             WorkspaceAction::CloseTabsRightActiveTab,
         )
@@ -1490,7 +1550,10 @@ pub fn init(app: &mut AppContext) {
     if ChannelState::enable_debug_features() {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:copy_access_token_to_clipboard",
-            "Copy access token to clipboard",
+            binding_description(
+                "Copy access token to clipboard",
+                "workspace.binding.debug.copy_access_token_to_clipboard",
+            ),
             WorkspaceAction::CopyAccessTokenToClipboard,
         )
         .with_context_predicate(id!("Workspace"))]);
@@ -1874,6 +1937,18 @@ impl DropTargetData for VerticalTabsPaneDropTargetData {
 fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
     BindingDescription::new(fallback)
         .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
+}
+
+fn binding_description_with_dynamic_key<F>(
+    fallback: &'static str,
+    key_for_context: F,
+) -> BindingDescription
+where
+    F: Fn(&AppContext) -> &'static str + Send + Sync + 'static,
+{
+    BindingDescription::new(fallback).with_dynamic_override(move |app| {
+        Some(localization::text_for_app(app, key_for_context(app)))
+    })
 }
 
 fn binding_description_with_mac_menu(

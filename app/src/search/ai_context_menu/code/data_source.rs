@@ -235,6 +235,10 @@ impl DataSourceRunError for CodeSearchError {
         "Code search failed".to_string()
     }
 
+    fn user_facing_error_text_key(&self) -> Option<&'static str> {
+        Some("agent.search_codebase.error.search_failed")
+    }
+
     fn telemetry_payload(&self) -> serde_json::Value {
         serde_json::json!({ "error": "model_dropped" })
     }

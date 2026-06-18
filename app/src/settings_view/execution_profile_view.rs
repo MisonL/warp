@@ -375,8 +375,12 @@ impl View for ExecutionProfileView {
                         permissions_column.add_child(with_standard_vertical_margin(
                             render_run_agents_permission_line_with_icon(
                                 Icon::Workflow,
-                                "Run agents:",
+                                localization::text_for_app(
+                                    app,
+                                    "settings.execution_profile.run_agents",
+                                ),
                                 &profile.run_agents,
+                                app,
                                 appearance,
                                 is_any_ai_enabled,
                             ),
@@ -861,14 +865,18 @@ fn render_run_agents_permission_line_with_icon(
     icon: Icon,
     label: impl Into<String>,
     permission: &RunAgentsPermission,
+    app: &AppContext,
     appearance: &Appearance,
     is_ai_enabled: bool,
 ) -> Box<dyn Element> {
-    let permission_text = match permission {
-        RunAgentsPermission::NeverAllow | RunAgentsPermission::Unknown => "Never",
-        RunAgentsPermission::AlwaysAllow => "Always allow",
-        RunAgentsPermission::AlwaysAsk => "Always ask",
+    let key = match permission {
+        RunAgentsPermission::NeverAllow | RunAgentsPermission::Unknown => {
+            "settings.execution_profile.permission.never"
+        }
+        RunAgentsPermission::AlwaysAllow => "settings.execution_profile.permission.always_allow",
+        RunAgentsPermission::AlwaysAsk => "settings.execution_profile.permission.always_ask",
     };
+    let permission_text = localization::text_for_app(app, key);
     render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
 }
 

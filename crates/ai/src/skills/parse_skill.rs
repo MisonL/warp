@@ -132,6 +132,15 @@ pub fn parse_bundled_skill(path: &Path) -> Result<ParsedSkill> {
     parse_local_skill_internal(path, SkillProvider::Warp, SkillScope::Bundled)
 }
 
+pub fn parse_bundled_skill_content_at_path(path: &Path, content: &str) -> Result<ParsedSkill> {
+    parse_skill_content_at_location(
+        LocalOrRemotePath::Local(path.to_path_buf()),
+        content,
+        SkillProvider::Warp,
+        SkillScope::Bundled,
+    )
+}
+
 fn parse_local_skill_internal(
     path: &Path,
     provider: SkillProvider,

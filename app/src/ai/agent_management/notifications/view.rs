@@ -17,7 +17,7 @@ use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewCon
 use crate::ai::agent_management::notifications::item::NotificationFilter;
 use crate::ai::agent_management::notifications::item_rendering::{
     create_notification_artifact_buttons_view, handle_notification_artifact_buttons_event,
-    render_notification_item_content, NotificationRenderContext,
+    render_notification_item_content, NotificationItemContentArgs, NotificationRenderContext,
 };
 use crate::ai::agent_management::notifications::{
     NotificationId, NotificationItem, NotificationItems,
@@ -290,6 +290,7 @@ impl NotificationMailboxView {
             artifact_buttons,
             is_selected,
             Appearance::as_ref(app),
+            app,
         )
     }
 
@@ -629,19 +630,21 @@ impl NotificationMailboxView {
         artifact_buttons: Option<&ViewHandle<ArtifactButtonsRow>>,
         is_selected: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let id = item.id;
         let has_branch = item.branch.is_some();
-        let row = render_notification_item_content(
+        let row = render_notification_item_content(NotificationItemContentArgs {
             item,
             artifact_buttons,
-            NotificationRenderContext::Mailbox,
-            false,
-            Box::new(|_| {}),
-            None,
+            context: NotificationRenderContext::Mailbox,
+            message_expanded: false,
+            on_expand_click: Box::new(|_| {}),
+            extra_content: None,
             appearance,
-        );
+            app,
+        });
 
         EventHandler::new(
             Hoverable::new(mouse_state, move |state| {

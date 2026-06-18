@@ -919,10 +919,14 @@ impl CommentListView {
                 ))
             } else {
                 let cmd = agent.command_prefix();
-                let label = if cmd.is_empty() { "CLI agent" } else { cmd };
+                let label = if cmd.is_empty() {
+                    code_review_text(app, "code_review.comments.cli_agent")
+                } else {
+                    cmd.to_string()
+                };
                 Cow::Owned(
                     code_review_text(app, "code_review.comments.send_to_cli_agent")
-                        .replace("{label}", label),
+                        .replace("{label}", &label),
                 )
             }
         } else if !ai_enabled {

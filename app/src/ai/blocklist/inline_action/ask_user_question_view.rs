@@ -1847,7 +1847,12 @@ fn render_answers(
         let question_label =
             render_text_with_markdown_support(&question_text, font_size, text_color, appearance);
         let answer_display = answer
-            .map(AskUserQuestionAnswerItem::display_text)
+            .map(|answer| {
+                answer.display_text_with_labels(
+                    &text(app, "agent.ask_user_question.summary.other"),
+                    &text(app, "agent.ask_user_question.summary.skipped"),
+                )
+            })
             .unwrap_or_else(|| text(app, "agent.ask_user_question.summary.skipped"));
         let answer_text = format!(
             "{} {}",

@@ -13,7 +13,7 @@ use warpui::elements::{
 };
 use warpui::fonts::Weight;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{View, ViewContext, ViewHandle};
+use warpui::{AppContext, View, ViewContext, ViewHandle};
 
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent_management::notifications::item::NotificationSourceAgent;
@@ -25,7 +25,7 @@ use crate::ai::artifacts::{
 use crate::appearance::Appearance;
 use crate::send_telemetry_from_ctx;
 use crate::ui_components::icon_with_status::{render_icon_with_status, IconWithStatusVariant};
-use crate::util::time_format::format_elapsed_since;
+use crate::util::time_format::localized_elapsed_since;
 use crate::view_components::action_button::ActionButtonTheme;
 use crate::workspace::WorkspaceAction;
 
@@ -84,46 +84,36 @@ impl ActionButtonTheme for NotificationArtifactButtonTheme {
 /// Callback invoked when the user clicks the expand/collapse affordance on a clamped message.
 pub(crate) type OnExpandClick = Box<dyn Fn(&mut warpui::EventContext)>;
 
+pub(crate) struct NotificationItemContentArgs<'a> {
+    pub(crate) item: &'a NotificationItem,
+    pub(crate) artifact_buttons: Option<&'a ViewHandle<ArtifactButtonsRow>>,
+    pub(crate) context: NotificationRenderContext,
+    pub(crate) message_expanded: bool,
+    pub(crate) on_expand_click: OnExpandClick,
+    pub(crate) extra_content: Option<Box<dyn Element>>,
+    pub(crate) appearance: &'a Appearance,
+    pub(crate) app: &'a AppContext,
+}
+
 /// Renders the inner content of a notification item.
 /// Dispatches to the rich layout (with branch row) or simple layout based on `item.branch`.
 pub(crate) fn render_notification_item_content(
-    item: &NotificationItem,
-    artifact_buttons: Option<&ViewHandle<ArtifactButtonsRow>>,
-    context: NotificationRenderContext,
-    message_expanded: bool,
-    on_expand_click: OnExpandClick,
-    extra_content: Option<Box<dyn Element>>,
-    appearance: &Appearance,
+    args: NotificationItemContentArgs<'_>,
 ) -> Box<dyn Element> {
-    let theme = appearance.theme();
+    let theme = args.appearance.theme();
+    let avatar = render_agent_avatar(args.item.agent, args.item.category, theme);
 
-    let text_column = if item.branch.is_some() {
-        render_rich_text_column(
-            item,
-            artifact_buttons,
-            context,
-            message_expanded,
-            on_expand_click,
-            extra_content,
-            appearance,
-        )
+    let text_column = if args.item.branch.is_some() {
+        render_rich_text_column(args)
     } else {
-        render_simple_text_column(
-            item,
-            artifact_buttons,
-            context,
-            message_expanded,
-            on_expand_click,
-            extra_content,
-            appearance,
-        )
+        render_simple_text_column(args)
     };
 
     Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Start)
         .with_main_axis_size(MainAxisSize::Max)
         .with_child(
-            Container::new(render_agent_avatar(item.agent, item.category, theme))
+            Container::new(avatar)
                 .with_margin_right(8.)
                 .with_margin_top(2.)
                 .finish(),
@@ -133,15 +123,17 @@ pub(crate) fn render_notification_item_content(
 }
 
 /// Rich layout: branch row + clamped title + clamped message + artifact buttons.
-fn render_rich_text_column(
-    item: &NotificationItem,
-    artifact_buttons: Option<&ViewHandle<ArtifactButtonsRow>>,
-    context: NotificationRenderContext,
-    message_expanded: bool,
-    on_expand_click: OnExpandClick,
-    extra_content: Option<Box<dyn Element>>,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
+fn render_rich_text_column(args: NotificationItemContentArgs<'_>) -> Box<dyn Element> {
+    let NotificationItemContentArgs {
+        item,
+        artifact_buttons,
+        context,
+        message_expanded,
+        on_expand_click,
+        extra_content,
+        appearance,
+        app,
+    } = args;
     let theme = appearance.theme();
     let branch = item.branch.as_deref().unwrap_or_default();
 
@@ -156,7 +148,7 @@ fn render_rich_text_column(
             // No chevron when content fits.
             Flex::row().finish()
         }
-        NotificationRenderContext::Mailbox => render_timestamp_with_dot(item, appearance),
+        NotificationRenderContext::Mailbox => render_timestamp_with_dot(item, appearance, app),
     };
 
     let branch_row = Flex::row()
@@ -181,15 +173,17 @@ fn render_rich_text_column(
 }
 
 /// Simple layout: title (+ optional chevron) | timestamp row + message + artifact buttons.
-fn render_simple_text_column(
-    item: &NotificationItem,
-    artifact_buttons: Option<&ViewHandle<ArtifactButtonsRow>>,
-    context: NotificationRenderContext,
-    message_expanded: bool,
-    on_expand_click: OnExpandClick,
-    extra_content: Option<Box<dyn Element>>,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
+fn render_simple_text_column(args: NotificationItemContentArgs<'_>) -> Box<dyn Element> {
+    let NotificationItemContentArgs {
+        item,
+        artifact_buttons,
+        context,
+        message_expanded,
+        on_expand_click,
+        extra_content,
+        appearance,
+        app,
+    } = args;
     let theme = appearance.theme();
     let is_truncated = content_is_truncated(&item.title, &item.message);
     let title_text = render_clamped_title(&item.title, message_expanded, appearance);
@@ -200,7 +194,7 @@ fn render_simple_text_column(
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_main_axis_size(MainAxisSize::Max)
             .with_child(Shrinkable::new(1.0, title_text).finish())
-            .with_child(render_timestamp_with_dot(item, appearance))
+            .with_child(render_timestamp_with_dot(item, appearance, app))
             .finish()
     } else if is_truncated || message_expanded {
         let chevron = render_expand_chevron(message_expanded, on_expand_click, theme);
@@ -283,7 +277,11 @@ fn render_branch_label(branch: &str, appearance: &Appearance) -> Box<dyn Element
 }
 
 /// Renders the timestamp text + optional unread dot.
-fn render_timestamp_with_dot(item: &NotificationItem, appearance: &Appearance) -> Box<dyn Element> {
+fn render_timestamp_with_dot(
+    item: &NotificationItem,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
 
     let mut row = Flex::row()
@@ -292,7 +290,7 @@ fn render_timestamp_with_dot(item: &NotificationItem, appearance: &Appearance) -
         .with_child(
             appearance
                 .ui_builder()
-                .wrappable_text(format_elapsed_since(item.created_at), false)
+                .wrappable_text(localized_elapsed_since(app, item.created_at), false)
                 .with_style(UiComponentStyles {
                     font_size: Some(12.),
                     font_color: Some(theme.disabled_text_color(theme.surface_1()).into()),

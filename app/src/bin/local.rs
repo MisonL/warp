@@ -31,7 +31,7 @@ embed_plist::embed_info_plist_bytes!(r#"
     <plist version="1.0">
     <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>English</string>
+    <string>en</string>
     <key>CFBundleDisplayName</key>
     <string>WarpLocal</string>
     <key>CFBundleExecutable</key>

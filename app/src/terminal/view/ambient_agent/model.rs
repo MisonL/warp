@@ -18,8 +18,8 @@ use crate::ai::ambient_agents::spawn::{spawn_task, submit_run_followup, AmbientA
 use crate::ai::ambient_agents::task::{HarnessAuthSecretsConfig, HarnessConfig};
 use crate::ai::ambient_agents::telemetry::CloudAgentTelemetryEvent;
 use crate::ai::ambient_agents::{
-    github_auth_url, AgentSource, AmbientAgentTaskId, OUT_OF_CREDITS_TASK_FAILURE_MESSAGE,
-    SERVER_OVERLOADED_TASK_FAILURE_MESSAGE,
+    github_auth_url, localized_task_status_message, AgentSource, AmbientAgentTaskId,
+    OUT_OF_CREDITS_TASK_FAILURE_MESSAGE, SERVER_OVERLOADED_TASK_FAILURE_MESSAGE,
 };
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::ai::blocklist::handoff::touched_repos::TouchedWorkspace;
@@ -1409,8 +1409,9 @@ impl AmbientAgentViewModel {
                         | AmbientAgentTaskState::Error
                         | AmbientAgentTaskState::Blocked
                         | AmbientAgentTaskState::Unknown => {
-                            let error =
-                                status_message.map(|msg| msg.message).unwrap_or_else(|| {
+                            let error = status_message
+                                .map(|msg| localized_task_status_message(ctx, &msg.message))
+                                .unwrap_or_else(|| {
                                     crate::localization::text_for_app(
                                         ctx,
                                         "terminal.ambient_agent.error.default",

@@ -985,7 +985,7 @@ impl Input {
                     // back to `&` compose mode here; the slash-command flow
                     // does not because it has no compose-draft state to seed.
                     show_error_toast(
-                        "Nothing to hand off — start a conversation first.".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.handoff.no_active"),
                         ctx,
                     );
                 }

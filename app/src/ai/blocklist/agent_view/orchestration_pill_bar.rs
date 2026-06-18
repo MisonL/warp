@@ -1411,9 +1411,10 @@ fn render_hover_card(
     } else {
         conversation.status()
     };
-    let status_badge = ConstrainedBox::new(render_status_badge(badge_status, theme, appearance))
-        .with_max_width(HOVER_CARD_STATUS_BADGE_MAX_WIDTH)
-        .finish();
+    let status_badge =
+        ConstrainedBox::new(render_status_badge(badge_status, theme, appearance, app))
+            .with_max_width(HOVER_CARD_STATUS_BADGE_MAX_WIDTH)
+            .finish();
     // Reserve fixed space for the badge so long names ellipsize instead of
     // pushing it off the card.
     let name_max_width = HOVER_CARD_CONTENT_WIDTH
@@ -1607,6 +1608,7 @@ fn render_status_badge(
     status: &ConversationStatus,
     theme: &WarpTheme,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let (icon, color) = status.status_icon_and_color(theme, StatusColorStyle::Standard);
     let icon_el = ConstrainedBox::new(icon.to_warpui_icon(color.into()).finish())
@@ -1614,7 +1616,7 @@ fn render_status_badge(
         .with_height(12.)
         .finish();
     let label = Text::new(
-        status.to_string(),
+        conversation_status_label(status, app),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 2.,
     )
@@ -1636,6 +1638,17 @@ fn render_status_badge(
         .with_background_color(coloru_with_opacity(color, 10))
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
         .finish()
+}
+
+fn conversation_status_label(status: &ConversationStatus, app: &AppContext) -> String {
+    let key = match status {
+        ConversationStatus::InProgress => "conversation_details.status.in_progress",
+        ConversationStatus::Success => "conversation_details.status.done",
+        ConversationStatus::Error => "conversation_details.status.error",
+        ConversationStatus::Cancelled => "conversation_details.status.cancelled",
+        ConversationStatus::Blocked { .. } => "conversation_details.status.blocked",
+    };
+    crate::localization::text_for_app(app, key)
 }
 
 fn render_avatar_slot(avatar: Box<dyn Element>) -> Box<dyn Element> {

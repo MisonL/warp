@@ -3,14 +3,19 @@ mod file_watchers;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use ai::skills::{parse_bundled_skill, provider_rank, ParsedSkill, SkillProvider, SkillReference};
+use ai::skills::{
+    parse_bundled_skill, parse_bundled_skill_content_at_path, provider_rank, ParsedSkill,
+    SkillProvider, SkillReference,
+};
 pub use file_watchers::{
     extract_skill_parent_directory, read_skills_from_directories, SkillWatcher, SkillWatcherEvent,
 };
+use serde_yaml::Value;
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::icons::Icon;
 use warp_core::{report_error, safe_warn};
+use warp_localization::LocaleId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
@@ -18,6 +23,7 @@ use super::{SkillDescriptor, SkillPathQuery};
 use crate::ai::mcp::{McpIntegration, TemplatableMCPServerManager};
 use crate::ai::skills::skill_utils::unique_skills;
 use crate::keyboard::keybinding_file_path;
+use crate::localization::{current_locale, LocalizationEvent, LocalizationUpdater};
 use crate::settings::user_preferences_toml_file_path;
 
 /// Activation condition for a bundled skill.
@@ -95,11 +101,12 @@ impl SkillManager {
         let skill_watcher = ctx.add_model(|ctx| SkillWatcher::new(ctx, skill_watcher_tx));
 
         if FeatureFlag::BundledSkills.is_enabled() {
-            ctx.spawn(Self::load_bundled_skills(), |me, result, _| {
-                me.bundled_skills = result;
-            });
-            ctx.spawn(Self::load_figma_skills(), |me, figma_skills, _| {
-                me.bundled_skills.extend(figma_skills);
+            Self::load_all_bundled_skills_for_current_locale(ctx);
+
+            ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, event, ctx| {
+                let LocalizationEvent::LocaleChanged = event;
+                me.bundled_skills.clear();
+                Self::load_all_bundled_skills_for_current_locale(ctx);
             });
         }
 
@@ -463,13 +470,31 @@ impl SkillManager {
         }
     }
 
+    fn load_all_bundled_skills_for_current_locale(ctx: &mut ModelContext<Self>) {
+        let locale = current_locale(ctx);
+        ctx.spawn(
+            Self::load_all_bundled_skills(locale),
+            move |me, result, ctx| {
+                if current_locale(ctx) == locale {
+                    me.bundled_skills = result;
+                }
+            },
+        );
+    }
+
+    async fn load_all_bundled_skills(locale: LocaleId) -> HashMap<String, BundledSkill> {
+        let mut skills = Self::load_bundled_skills(locale).await;
+        skills.extend(Self::load_figma_skills(locale).await);
+        skills
+    }
+
     /// Load skill definitions bundled with Warp.
-    async fn load_bundled_skills() -> HashMap<String, BundledSkill> {
+    async fn load_bundled_skills(locale: LocaleId) -> HashMap<String, BundledSkill> {
         let Some(resources_dir) = warp_core::paths::bundled_resources_dir() else {
             return HashMap::new();
         };
         let skills_dir = resources_dir.join("bundled").join("skills");
-        read_bundled_skills(&skills_dir)
+        read_bundled_skills_for_locale(&skills_dir, locale)
             .await
             .into_iter()
             .map(|(id, skill)| {
@@ -486,7 +511,7 @@ impl SkillManager {
     }
 
     /// Load Figma-specific bundled skills from the `figma/` subdirectory.
-    async fn load_figma_skills() -> HashMap<String, BundledSkill> {
+    async fn load_figma_skills(locale: LocaleId) -> HashMap<String, BundledSkill> {
         let Some(resources_dir) = warp_core::paths::bundled_resources_dir() else {
             return HashMap::new();
         };
@@ -494,7 +519,7 @@ impl SkillManager {
             .join("bundled")
             .join("mcp_skills")
             .join("figma");
-        read_bundled_skills(&figma_skills_dir)
+        read_bundled_skills_for_locale(&figma_skills_dir, locale)
             .await
             .into_iter()
             .map(|(id, skill)| {
@@ -538,7 +563,10 @@ impl SkillManager {
 }
 
 /// Read bundled skill definitions from the specified directory.
-async fn read_bundled_skills(skills_dir: &Path) -> HashMap<String, ParsedSkill> {
+async fn read_bundled_skills_for_locale(
+    skills_dir: &Path,
+    locale: LocaleId,
+) -> HashMap<String, ParsedSkill> {
     use futures::TryStreamExt;
 
     let mut skills = HashMap::new();
@@ -565,6 +593,13 @@ async fn read_bundled_skills(skills_dir: &Path) -> HashMap<String, ParsedSkill> 
                 continue;
             }
         };
+        if let Some(description) = localized_bundled_skill_description(&skill.content, locale) {
+            skill.description = description;
+        }
+        if let Some(localized_skill) = localized_bundled_skill(&skill_file_path, locale) {
+            skill.content = localized_skill.content;
+            skill.line_range = localized_skill.line_range;
+        }
 
         // We use the directory name as the skill ID (guaranteed unique within bundled skills).
         let Some(skill_id) = entry_path.file_name().and_then(|s| s.to_str()) else {
@@ -583,6 +618,39 @@ async fn read_bundled_skills(skills_dir: &Path) -> HashMap<String, ParsedSkill> 
     log::info!("Read {} bundled skills", skills.len());
 
     skills
+}
+
+fn localized_bundled_skill_description(content: &str, locale: LocaleId) -> Option<String> {
+    match locale {
+        LocaleId::EnUs => None,
+        LocaleId::ZhCn => extract_front_matter_string(content, "description_zh_CN"),
+    }
+}
+
+fn localized_bundled_skill(path: &Path, locale: LocaleId) -> Option<ParsedSkill> {
+    let localized_path = match locale {
+        LocaleId::EnUs => return None,
+        LocaleId::ZhCn => path.with_file_name("SKILL.zh-CN.md"),
+    };
+    let content = std::fs::read_to_string(&localized_path).ok()?;
+    parse_bundled_skill_content_at_path(path, &content).ok()
+}
+
+fn extract_front_matter_string(content: &str, key: &str) -> Option<String> {
+    let yaml = content.strip_prefix("---\n")?;
+    let yaml = yaml.split_once("\n---\n")?.0;
+    let Value::Mapping(front_matter) = serde_yaml::from_str::<Value>(yaml).ok()? else {
+        return None;
+    };
+
+    let value = front_matter.get(&Value::String(key.to_owned()))?;
+    match value {
+        Value::String(text) => {
+            let text = text.trim();
+            (!text.is_empty()).then(|| text.to_owned())
+        }
+        _ => None,
+    }
 }
 
 /// Builds the context map for bundled skill variable substitution.

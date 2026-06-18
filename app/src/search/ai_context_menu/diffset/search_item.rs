@@ -34,6 +34,38 @@ impl DiffSetSearchItem {
             DiffMode::OtherBranch(branch) => format!("All changes compared to {branch}"),
         }
     }
+
+    fn localized_name(&self, app: &AppContext) -> String {
+        match &self.diff_mode {
+            DiffMode::Head => {
+                crate::localization::text_for_app(app, "search.diffset.name.uncommitted")
+            }
+            DiffMode::MainBranch => {
+                crate::localization::text_for_app(app, "search.diffset.name.main_branch")
+            }
+            DiffMode::OtherBranch(branch) => crate::localization::text_for_app_with_args(
+                app,
+                "search.diffset.name.other_branch",
+                &[("branch", branch)],
+            ),
+        }
+    }
+
+    fn localized_description(&self, app: &AppContext) -> String {
+        match &self.diff_mode {
+            DiffMode::Head => {
+                crate::localization::text_for_app(app, "search.diffset.description.uncommitted")
+            }
+            DiffMode::MainBranch => {
+                crate::localization::text_for_app(app, "search.diffset.description.main_branch")
+            }
+            DiffMode::OtherBranch(branch) => crate::localization::text_for_app_with_args(
+                app,
+                "search.diffset.description.other_branch",
+                &[("branch", branch)],
+            ),
+        }
+    }
 }
 
 impl SearchItem for DiffSetSearchItem {
@@ -68,14 +100,14 @@ impl SearchItem for DiffSetSearchItem {
         let appearance = Appearance::as_ref(app);
 
         let name_text = Text::new(
-            self.name(),
+            self.localized_name(app),
             appearance.ui_font_family(),
             appearance.monospace_font_size() - 1.0,
         )
         .with_color(highlight_state.main_text_fill(appearance).into_solid());
 
         let description_text = Text::new(
-            self.description(),
+            self.localized_description(app),
             appearance.ui_font_family(),
             appearance.monospace_font_size() - 2.0,
         )
@@ -113,6 +145,17 @@ impl SearchItem for DiffSetSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("{} - {}", self.name(), self.description())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.diffset.a11y.label",
+            &[
+                ("name", &self.localized_name(app)),
+                ("description", &self.localized_description(app)),
+            ],
+        )
     }
 }
 

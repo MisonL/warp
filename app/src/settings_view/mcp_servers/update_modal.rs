@@ -24,7 +24,7 @@ use crate::settings_view::mcp_servers::style::{
 };
 use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::blended_colors;
-use crate::util::time_format::format_approx_duration_from_now;
+use crate::util::time_format::localized_approx_duration_from_now;
 use crate::view_components::action_button::{
     ActionButton, KeystrokeSource, NakedTheme, PrimaryTheme,
 };
@@ -288,7 +288,7 @@ impl UpdateModalBody {
                     .timestamp_opt(*new_version_ts, 0)
                     .single()
                     .unwrap_or_else(Local::now);
-                let formatted_time = format_approx_duration_from_now(datetime);
+                let formatted_time = localized_approx_duration_from_now(app, datetime);
                 (
                     localization::text_for_app_with_args(
                         app,

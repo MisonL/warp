@@ -6625,17 +6625,17 @@ impl CodeReviewView {
     fn update_git_operations_ui(&mut self, ctx: &mut ViewContext<Self>) {
         // Disable the button for remote sessions.
         if self.repo_path().is_some_and(LocalOrRemotePath::is_remote) {
-            const REMOTE_TOOLTIP: &str = "Git operations aren't available in remote sessions";
+            let remote_tooltip = code_review_text(ctx, "code_review.git.remote_disabled_tooltip");
             self.git_primary_action_button.update(ctx, |button, ctx| {
-                button.set_label("Commit", ctx);
+                button.set_label(code_review_text(ctx, "code_review.git.commit"), ctx);
                 button.set_icon(Some(Icon::GitCommit), ctx);
                 button.set_disabled(true, ctx);
-                button.set_tooltip(Some(REMOTE_TOOLTIP), ctx);
+                button.set_tooltip(Some(remote_tooltip.clone()), ctx);
                 button.set_adjoined_side(AdjoinedSide::Right, ctx);
             });
             self.git_operations_chevron.update(ctx, |button, ctx| {
                 button.set_disabled(true, ctx);
-                button.set_tooltip(Some(REMOTE_TOOLTIP), ctx);
+                button.set_tooltip(Some(remote_tooltip), ctx);
             });
             ctx.notify();
             return;

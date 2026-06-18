@@ -172,27 +172,29 @@ impl CliAgentPluginManager for CodexPluginManager {
 
 static PLUGIN_INSTALL_INSTRUCTIONS: LazyLock<PluginInstructions> =
     LazyLock::new(|| PluginInstructions {
-        title_key: "",
+        title_key: "terminal.plugin_instructions.codex.plugin_install.title",
         title: "Install Warp Plugin for Codex",
-        subtitle_key: "",
+        subtitle_key: "terminal.plugin_instructions.codex.plugin_install.subtitle",
         subtitle: "Run the following commands, then restart Codex.",
         steps: &[
             PluginInstructionStep {
-                description_key: "",
+                description_key:
+                    "terminal.plugin_instructions.codex.plugin_install.step.add_marketplace",
                 description: "Add the Warp plugin marketplace repository",
                 command: "codex plugin marketplace add warpdotdev/codex-warp",
                 executable: true,
                 link: None,
             },
             PluginInstructionStep {
-                description_key: "",
+                description_key:
+                    "terminal.plugin_instructions.codex.plugin_install.step.install_plugin",
                 description: "Install the Warp plugin",
                 command: "codex plugin add warp@codex-warp",
                 executable: true,
                 link: None,
             },
         ],
-        post_install_note_keys: &[],
+        post_install_note_keys: &["terminal.plugin_instructions.codex.plugin_install.note.restart"],
         post_install_notes: &["Restart Codex to activate the plugin."],
     });
 
@@ -235,27 +237,29 @@ static EMPTY_INSTRUCTIONS: LazyLock<PluginInstructions> = LazyLock::new(|| Plugi
 
 static PLUGIN_UPDATE_INSTRUCTIONS: LazyLock<PluginInstructions> =
     LazyLock::new(|| PluginInstructions {
-        title_key: "",
+        title_key: "terminal.plugin_instructions.codex.plugin_update.title",
         title: "Update Warp Plugin for Codex",
-        subtitle_key: "",
+        subtitle_key: "terminal.plugin_instructions.codex.plugin_update.subtitle",
         subtitle: "Run the following commands, then restart Codex.",
         steps: &[
             PluginInstructionStep {
-                description_key: "",
+                description_key:
+                    "terminal.plugin_instructions.codex.plugin_update.step.upgrade_marketplace",
                 description: "Upgrade the marketplace",
                 command: "codex plugin marketplace upgrade codex-warp",
                 executable: true,
                 link: None,
             },
             PluginInstructionStep {
-                description_key: "",
+                description_key:
+                    "terminal.plugin_instructions.codex.plugin_update.step.reinstall_plugin",
                 description: "Reinstall the Warp plugin",
                 command: "codex plugin add warp@codex-warp",
                 executable: true,
                 link: None,
             },
         ],
-        post_install_note_keys: &[],
+        post_install_note_keys: &["terminal.plugin_instructions.codex.plugin_update.note.restart"],
         post_install_notes: &["Restart Codex to activate the update."],
     });
 

@@ -1087,70 +1087,69 @@ impl From<session_sharing_protocol::viewer::FailedToJoinReason> for FailedToJoin
     }
 }
 
-/// Converts SessionEndedReason to a user-facing string
-pub fn session_ended_reason_string(reason: &SessionEndedReason) -> String {
+/// Converts SessionEndedReason to a user-facing catalog key.
+pub fn session_ended_reason_key(reason: &SessionEndedReason) -> &'static str {
     match reason {
         SessionEndedReason::InternalServerError => {
-            "Something went wrong. Please ask sharer to reshare to continue.".to_owned()
+            "terminal.shared_session.error.session_ended_internal"
         }
         SessionEndedReason::InactivityLimitReached => {
-            "Sharing ended due to sharer inactivity".to_owned()
+            "terminal.shared_session.error.session_ended_sharer_inactive"
         }
-        _ => "Session ended.".to_owned(),
+        _ => "terminal.shared_session.error.session_ended",
     }
 }
 
-pub fn viewer_removed_reason_string(reason: &ViewerRemovedReason) -> String {
+pub fn viewer_removed_reason_key(reason: &ViewerRemovedReason) -> &'static str {
     match reason {
-        ViewerRemovedReason::LostAccess => {
-            "Your access to the session was removed. Please ask sharer to reshare to continue."
-                .to_owned()
-        }
+        ViewerRemovedReason::LostAccess => "terminal.shared_session.error.access_removed",
     }
 }
 
-/// Converts CommandExecutionFailureReason to a user-facing string
-pub fn command_execution_failure_reason_string(reason: &CommandExecutionFailureReason) -> String {
+/// Converts CommandExecutionFailureReason to a user-facing catalog key.
+pub fn command_execution_failure_reason_key(
+    reason: &CommandExecutionFailureReason,
+) -> &'static str {
     match reason {
         CommandExecutionFailureReason::InsufficientPermissions => {
-            "Insufficient permissions. Please request edit access.".to_owned()
+            "terminal.shared_session.error.insufficient_permissions_request_edit"
         }
-        _ => "Failed to execute command. Please try again.".to_owned(),
+        _ => "terminal.shared_session.error.command_execution_failed",
     }
 }
 
-/// Converts WriteToPtyFailureReason to a user-facing string
-pub fn write_to_pty_failure_reason_string(reason: &WriteToPtyFailureReason) -> String {
+/// Converts WriteToPtyFailureReason to a user-facing catalog key.
+pub fn write_to_pty_failure_reason_key(reason: &WriteToPtyFailureReason) -> &'static str {
     match reason {
         WriteToPtyFailureReason::InsufficientPermissions => {
-            "Insufficient permissions. Please request edit access.".to_owned()
+            "terminal.shared_session.error.insufficient_permissions_request_edit"
         }
-        _ => "Failed to make edit. Please try again.".to_owned(),
+        _ => "terminal.shared_session.error.write_failed",
     }
 }
 
-/// Converts AgentPromptFailureReason to a user-facing string
-pub fn agent_prompt_failure_reason_string(reason: &AgentPromptFailureReason) -> String {
+/// Converts AgentPromptFailureReason to a user-facing catalog key.
+pub fn agent_prompt_failure_reason_key(reason: &AgentPromptFailureReason) -> &'static str {
     match reason {
         AgentPromptFailureReason::InsufficientPermissions => {
-            "Insufficient permissions. Please request edit access.".to_owned()
+            "terminal.shared_session.error.insufficient_permissions_request_edit"
         }
         AgentPromptFailureReason::InvalidConversation => {
-            "Invalid conversation. Please try again.".to_owned()
+            "terminal.shared_session.error.invalid_conversation"
         }
         AgentPromptFailureReason::CommandInProgress => {
-            "A long running command is currently in progress. Please wait for it to complete before sending an agent prompt.".to_owned()
+            "terminal.shared_session.error.command_in_progress"
         }
     }
 }
 
-/// Converts ControlActionFailureReason to a user-facing string
-pub fn control_action_failure_reason_string(reason: &ControlActionFailureReason) -> String {
+/// Converts ControlActionFailureReason to a user-facing catalog key.
+pub fn control_action_failure_reason_key(reason: &ControlActionFailureReason) -> &'static str {
     match reason {
         ControlActionFailureReason::InsufficientPermissions => {
-            "Insufficient permissions. Please request edit access.".to_owned()
+            "terminal.shared_session.error.insufficient_permissions_request_edit"
         }
-        _ => "Failed to perform action. Please try again.".to_owned(),
+        _ => "terminal.shared_session.error.control_action_failed",
     }
 }
 

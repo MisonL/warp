@@ -150,7 +150,7 @@ impl StartupShellView {
                 // Iterate over each shell in the model and add it to the dropdown if it's valid.
                 for shell_entry in model.get_available_shells() {
                     items.push(DropdownItem::new(
-                        model.display_name_for_shell(shell_entry),
+                        model.display_name_for_shell_for_app(shell_entry, ctx),
                         NewSessionShellAction::Set(shell_entry.clone()),
                     ));
                     shell_to_index.insert(shell_entry.clone(), items.len() - 1);

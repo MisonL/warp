@@ -4,6 +4,8 @@ use clap::builder::PossibleValue;
 use clap::error::ErrorKind;
 use clap::{Arg, Command, Subcommand};
 
+use crate::localization::{text, text_with_args};
+
 /// MCP-related subcommands.
 #[derive(Debug, Clone, Subcommand)]
 pub enum MCPCommand {
@@ -44,9 +46,9 @@ impl clap::builder::TypedValueParser for MCPSpecParser {
         _arg: Option<&Arg>,
         value: &OsStr,
     ) -> Result<Self::Value, clap::Error> {
-        let s = value
-            .to_str()
-            .ok_or_else(|| clap::Error::raw(ErrorKind::InvalidUtf8, "Invalid UTF-8 in MCP spec"))?;
+        let s = value.to_str().ok_or_else(|| {
+            clap::Error::raw(ErrorKind::InvalidUtf8, text("cli.error.mcp_spec_utf8"))
+        })?;
 
         // Try UUID first
         if let Ok(uuid) = uuid::Uuid::parse_str(s) {
@@ -59,7 +61,13 @@ impl clap::builder::TypedValueParser for MCPSpecParser {
             std::fs::read_to_string(path).map_err(|e| {
                 clap::Error::raw(
                     ErrorKind::Io,
-                    format!("Failed to read MCP config file '{}': {e}", path.display()),
+                    text_with_args(
+                        "cli.error.mcp_config_read_failed",
+                        &[
+                            ("path", &path.display().to_string()),
+                            ("error", &e.to_string()),
+                        ],
+                    ),
                 )
             })?
         } else {
@@ -73,8 +81,8 @@ impl clap::builder::TypedValueParser for MCPSpecParser {
     fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
         Some(Box::new(
             [
-                PossibleValue::new("<path>").help("Path to a JSON file containing MCP config"),
-                PossibleValue::new("<json>").help("Inline JSON MCP server configuration"),
+                PossibleValue::new("<path>").help(text("cli.help.value.mcp_spec.path")),
+                PossibleValue::new("<json>").help(text("cli.help.value.mcp_spec.json")),
             ]
             .into_iter(),
         ))

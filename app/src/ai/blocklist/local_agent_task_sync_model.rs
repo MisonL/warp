@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use session_sharing_protocol::common::SessionId;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
+use warp_localization::LocaleId;
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 
 use super::history_model::{
@@ -179,7 +180,10 @@ impl LocalAgentTaskSyncModel {
     ) {
         let Some((task_id, update)) =
             with_local_conversation(conversation_id, ctx, |conversation| {
-                let (task_state, status_message) = map_conversation_status(conversation);
+                // Task rows are shared across clients; persist canonical
+                // English copy and localize it at render time.
+                let (task_state, status_message) =
+                    map_conversation_status_to_canonical_english(conversation);
                 LocalTaskUpdate {
                     task_state: Some(task_state),
                     server_conversation_token: conversation
@@ -309,9 +313,10 @@ fn with_local_conversation<T>(
     Some((task_id, make_value(conversation)))
 }
 
-/// Maps conversation state to an `AgentTaskState` and optional status message.
+/// Maps conversation state to an `AgentTaskState` and optional canonical
+/// English status message.
 /// For errors, extracts the specific error from the last exchange when available.
-fn map_conversation_status(
+fn map_conversation_status_to_canonical_english(
     conversation: &AIConversation,
 ) -> (AgentTaskState, Option<TaskStatusUpdate>) {
     match conversation.status() {
@@ -337,19 +342,24 @@ fn map_conversation_status(
                 Some(error) => classify_renderable_error(error),
                 None => (
                     AgentTaskState::Error,
-                    Some(TaskStatusUpdate::message("Agent encountered an error")),
+                    Some(status_message(LocaleId::EnUs, "agent.task_status.error")),
                 ),
             }
         }
         ConversationStatus::Cancelled => (
             AgentTaskState::Cancelled,
-            Some(TaskStatusUpdate::message("Cancelled by user")),
+            Some(status_message(
+                LocaleId::EnUs,
+                "agent.task_status.cancelled",
+            )),
         ),
         ConversationStatus::Blocked { blocked_action } => (
             AgentTaskState::Blocked,
-            Some(TaskStatusUpdate::message(format!(
-                "The agent got stuck waiting for user confirmation on the action: {blocked_action}"
-            ))),
+            Some(status_message_with_args(
+                LocaleId::EnUs,
+                "agent.task_status.blocked",
+                &[("action", blocked_action)],
+            )),
         ),
     }
 }
@@ -359,50 +369,70 @@ fn map_conversation_status(
 pub(crate) fn classify_renderable_error(
     error: &RenderableAIError,
 ) -> (AgentTaskState, Option<TaskStatusUpdate>) {
+    classify_renderable_error_for_locale(error, LocaleId::EnUs)
+}
+
+fn classify_renderable_error_for_locale(
+    error: &RenderableAIError,
+    locale: LocaleId,
+) -> (AgentTaskState, Option<TaskStatusUpdate>) {
     match error {
         RenderableAIError::QuotaLimit {
             user_display_message,
-        } => (
-            AgentTaskState::Failed,
-            Some(TaskStatusUpdate::with_error_code(
-                user_display_message.as_deref().unwrap_or(
-                    "Your team has run out of credits. Purchase more credits to continue.",
-                ),
-                PlatformErrorCode::InsufficientCredits,
-            )),
-        ),
+        } => {
+            let message = user_display_message
+                .clone()
+                .unwrap_or_else(|| text_for_locale(locale, "agent.task_status.quota_limit"));
+            (
+                AgentTaskState::Failed,
+                Some(TaskStatusUpdate::with_error_code(
+                    message,
+                    PlatformErrorCode::InsufficientCredits,
+                )),
+            )
+        }
         RenderableAIError::ServerOverloaded => (
             AgentTaskState::Error,
-            Some(TaskStatusUpdate::with_error_code(
-                "Warp is temporarily overloaded. Please try again shortly.",
+            Some(status_message_with_error_code(
+                locale,
+                "agent.task_status.server_overloaded",
+                &[],
                 PlatformErrorCode::ResourceUnavailable,
             )),
         ),
         RenderableAIError::InternalWarpError => (
             AgentTaskState::Error,
-            Some(TaskStatusUpdate::with_error_code(
-                "An internal error occurred during the conversation. Please try again.",
+            Some(status_message_with_error_code(
+                locale,
+                "agent.task_status.internal_error",
+                &[],
                 PlatformErrorCode::InternalError,
             )),
         ),
         RenderableAIError::ContextWindowExceeded(msg) => (
             AgentTaskState::Failed,
-            Some(TaskStatusUpdate::with_error_code(
-                format!("Context window exceeded: {msg}"),
+            Some(status_message_with_error_code(
+                locale,
+                "agent.task_status.context_window_exceeded",
+                &[("message", msg)],
                 PlatformErrorCode::InternalError,
             )),
         ),
         RenderableAIError::InvalidApiKey { provider, .. } => (
             AgentTaskState::Failed,
-            Some(TaskStatusUpdate::with_error_code(
-                format!("Invalid API key for {provider}. Update your API key in settings."),
+            Some(status_message_with_error_code(
+                locale,
+                "agent.task_status.invalid_api_key",
+                &[("provider", provider)],
                 PlatformErrorCode::AuthenticationRequired,
             )),
         ),
         RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { model_name } => (
             AgentTaskState::Failed,
-            Some(TaskStatusUpdate::with_error_code(
-                format!("AWS Bedrock credentials expired or invalid for {model_name}."),
+            Some(status_message_with_error_code(
+                locale,
+                "agent.task_status.aws_bedrock_credentials_expired_or_invalid",
+                &[("model_name", model_name)],
                 PlatformErrorCode::AuthenticationRequired,
             )),
         ),
@@ -414,6 +444,36 @@ pub(crate) fn classify_renderable_error(
             )),
         ),
     }
+}
+
+fn status_message(locale: LocaleId, key: &str) -> TaskStatusUpdate {
+    TaskStatusUpdate::message(text_for_locale(locale, key))
+}
+
+fn status_message_with_args(
+    locale: LocaleId,
+    key: &str,
+    args: &[(&str, &str)],
+) -> TaskStatusUpdate {
+    TaskStatusUpdate::message(crate::localization::text_for_locale_with_args(
+        locale, key, args,
+    ))
+}
+
+fn status_message_with_error_code(
+    locale: LocaleId,
+    key: &str,
+    args: &[(&str, &str)],
+    error_code: PlatformErrorCode,
+) -> TaskStatusUpdate {
+    TaskStatusUpdate::with_error_code(
+        crate::localization::text_for_locale_with_args(locale, key, args),
+        error_code,
+    )
+}
+
+fn text_for_locale(locale: LocaleId, key: &str) -> String {
+    crate::localization::text_for_locale(locale, key)
 }
 
 /// Maps a `CLIAgentSessionStatus` to an `AgentTaskState` and optional status message.

@@ -13,7 +13,9 @@ use warpui::AppContext;
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
 use crate::localization;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::{
+    localized_approx_duration_from_now_utc, localized_approx_duration_from_now_utc_for_locale,
+};
 
 const MAX_LINE_WIDTH: usize = 90;
 
@@ -247,7 +249,7 @@ fn print_integration_card(integration: &SimpleIntegration, ctx: &AppContext) {
     let mut created_updated = String::new();
     if let Some(created) = integration.created_at {
         let dt = created.utc();
-        let formatted = format_approx_duration_from_now_utc(dt);
+        let formatted = localized_approx_duration_from_now_utc(ctx, dt);
         created_updated.push_str(&text_with_args(
             ctx,
             "agent_sdk.integration.field.created_with_value",
@@ -256,7 +258,7 @@ fn print_integration_card(integration: &SimpleIntegration, ctx: &AppContext) {
     }
     if let Some(updated) = integration.updated_at {
         let dt = updated.utc();
-        let formatted = format_approx_duration_from_now_utc(dt);
+        let formatted = localized_approx_duration_from_now_utc(ctx, dt);
         if !created_updated.is_empty() {
             created_updated.push_str(" | ");
         }
@@ -327,10 +329,6 @@ struct IntegrationInfo {
     base_prompt: Option<String>,
     created_at: Option<DateTime<Utc>>,
     updated_at: Option<DateTime<Utc>>,
-    #[serde(skip_serializing)]
-    created_at_formatted: String,
-    #[serde(skip_serializing)]
-    updated_at_formatted: String,
 }
 
 impl IntegrationInfo {
@@ -359,14 +357,6 @@ impl IntegrationInfo {
         let created_at = integration.created_at.map(|t| t.utc());
         let updated_at = integration.updated_at.map(|t| t.utc());
 
-        let created_at_formatted = created_at
-            .map(format_approx_duration_from_now_utc)
-            .unwrap_or_else(|| "Unknown".to_string());
-
-        let updated_at_formatted = updated_at
-            .map(format_approx_duration_from_now_utc)
-            .unwrap_or_else(|| "Unknown".to_string());
-
         Self {
             provider,
             description: integration.description.clone(),
@@ -376,8 +366,6 @@ impl IntegrationInfo {
             base_prompt,
             created_at,
             updated_at,
-            created_at_formatted,
-            updated_at_formatted,
         }
     }
 }
@@ -436,13 +424,13 @@ impl TableFormat for IntegrationInfo {
             .environment_uid
             .clone()
             .unwrap_or_else(|| text(app, "agent_sdk.common.value.none"));
-        let created_at = if self.created_at.is_some() {
-            self.created_at_formatted.clone()
+        let created_at = if let Some(created_at) = self.created_at {
+            localized_approx_duration_from_now_utc(app, created_at)
         } else {
             text(app, "agent_sdk.common.value.unknown")
         };
-        let updated_at = if self.updated_at.is_some() {
-            self.updated_at_formatted.clone()
+        let updated_at = if let Some(updated_at) = self.updated_at {
+            localized_approx_duration_from_now_utc(app, updated_at)
         } else {
             text(app, "agent_sdk.common.value.unknown")
         };
@@ -461,13 +449,13 @@ impl TableFormat for IntegrationInfo {
             .environment_uid
             .clone()
             .unwrap_or_else(|| text_for_locale(locale, "agent_sdk.common.value.none"));
-        let created_at = if self.created_at.is_some() {
-            self.created_at_formatted.clone()
+        let created_at = if let Some(created_at) = self.created_at {
+            localized_approx_duration_from_now_utc_for_locale(locale, created_at)
         } else {
             text_for_locale(locale, "agent_sdk.common.value.unknown")
         };
-        let updated_at = if self.updated_at.is_some() {
-            self.updated_at_formatted.clone()
+        let updated_at = if let Some(updated_at) = self.updated_at {
+            localized_approx_duration_from_now_utc_for_locale(locale, updated_at)
         } else {
             text_for_locale(locale, "agent_sdk.common.value.unknown")
         };

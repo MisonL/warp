@@ -16,6 +16,7 @@ use warpui::{SingletonEntity, View, ViewContext};
 
 use super::AmbientAgentTaskId;
 use crate::ai::artifacts::{deserialize_artifacts, Artifact};
+use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
@@ -532,10 +533,14 @@ pub fn cancel_task_with_toast<V: View>(task_id: AmbientAgentTaskId, ctx: &mut Vi
         async move { ai_client.cancel_ambient_agent_task(&task_id).await },
         move |_view, result, ctx| {
             let message = match result {
-                Ok(()) => "Task cancelled".to_string(),
+                Ok(()) => localization::text_for_app(ctx, "agent.task_status.cancelled"),
                 Err(e) => {
                     log::error!("Failed to cancel task: {e}");
-                    format!("Failed to cancel task: {e}")
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "agent.task_status.cancel_failed",
+                        &[("error", &e.to_string())],
+                    )
                 }
             };
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {

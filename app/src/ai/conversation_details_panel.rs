@@ -21,7 +21,7 @@ use warpui::elements::{
     SelectableArea, SelectionHandle, Shrinkable, Text, Wrap,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::keymap::FixedBinding;
+use warpui::keymap::{BindingDescription, FixedBinding};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
@@ -41,7 +41,9 @@ use crate::ai::agent_management::details_action_buttons::{
 };
 use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, OpenedFrom};
 use crate::ai::ambient_agents::task::TaskPrincipalInfo;
-use crate::ai::ambient_agents::{cancel_task_with_toast, AmbientAgentTaskId};
+use crate::ai::ambient_agents::{
+    cancel_task_with_toast, localized_task_status_message, AmbientAgentTaskId,
+};
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::cloud_environments::{AmbientAgentEnvironment, CloudAmbientAgentEnvironment};
@@ -60,7 +62,9 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
-use crate::util::time_format::{format_approx_duration_from_now, human_readable_precise_duration};
+use crate::util::time_format::{
+    localized_approx_duration_from_now, localized_human_readable_precise_duration,
+};
 #[cfg(not(target_family = "wasm"))]
 use crate::view_components::action_button::PrimaryTheme;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
@@ -414,7 +418,9 @@ impl ConversationDetailsData {
         app: &AppContext,
     ) -> Self {
         let error_message = if task.state.is_failure_like() {
-            task.status_message.as_ref().map(|m| m.message.clone())
+            task.status_message
+                .as_ref()
+                .map(|m| localized_task_status_message(app, &m.message))
         } else {
             None
         };
@@ -476,6 +482,7 @@ impl ConversationDetailsData {
         task: Option<&AmbientAgentTask>,
         open_action: Option<WorkspaceAction>,
         copy_link_url: Option<String>,
+        app: &AppContext,
     ) -> Self {
         let creator = entry
             .display
@@ -500,7 +507,11 @@ impl ConversationDetailsData {
             let error_message = task.and_then(|task| {
                 task.state
                     .is_failure_like()
-                    .then(|| task.status_message.as_ref().map(|m| m.message.clone()))
+                    .then(|| {
+                        task.status_message
+                            .as_ref()
+                            .map(|m| localized_task_status_message(app, &m.message))
+                    })
                     .flatten()
             });
             // Fall back to the entry's denormalized total when the task record isn't
@@ -677,9 +688,14 @@ pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings([FixedBinding::custom(
         CustomAction::Copy,
         ConversationDetailsPanelAction::CopySelectedText,
-        "Copy",
+        binding_description("Copy", "terminal.binding.copy"),
         id!(ConversationDetailsPanel::ui_name()) & !id!("IMEOpen"),
     )]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(conversation_details_text(app, key)))
 }
 
 /// A reusable panel for displaying conversation details and metadata.
@@ -1076,7 +1092,7 @@ impl ConversationDetailsPanel {
         .build()
         .finish();
 
-        let relative_time = format_approx_duration_from_now(created_at);
+        let relative_time = localized_approx_duration_from_now(app, created_at);
         let created_text = Text::new(
             conversation_details_text_with_args(
                 app,
@@ -2120,7 +2136,7 @@ impl View for ConversationDetailsPanel {
         }
 
         if let Some(duration) = self.data.run_time {
-            let formatted = human_readable_precise_duration(duration);
+            let formatted = localized_human_readable_precise_duration(app, duration);
             content.add_child(
                 Container::new(self.render_simple_field(
                     &conversation_details_text(app, "conversation_details.field.run_time"),

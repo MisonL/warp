@@ -807,7 +807,7 @@ impl BlocklistAIActionModel {
                     self.terminal_view_id,
                     conversation_id,
                     ConversationStatus::Blocked {
-                        blocked_action: format!("{blocked_action_user_friendly_str:?}"),
+                        blocked_action: blocked_action_user_friendly_str,
                     },
                     ctx,
                 );

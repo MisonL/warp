@@ -32,7 +32,8 @@ use crate::ai::ambient_agents::spawn::{
 };
 use crate::ai::ambient_agents::task::HarnessConfig;
 use crate::ai::ambient_agents::{
-    AgentConfigSnapshot, AmbientAgentTask, AmbientAgentTaskId, AmbientAgentTaskState,
+    localized_task_status_message_for_locale, AgentConfigSnapshot, AmbientAgentTask,
+    AmbientAgentTaskId, AmbientAgentTaskState,
 };
 use crate::ai::artifacts::Artifact;
 use crate::auth::AuthStateProvider;
@@ -45,7 +46,9 @@ use crate::server::server_api::ai::{
 };
 use crate::server::server_api::ServerApi;
 use crate::terminal::shared_session;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::{
+    format_approx_duration_from_now_utc, localized_approx_duration_from_now_utc_for_locale,
+};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{localization, ServerApiProvider};
 
@@ -947,20 +950,6 @@ impl AmbientAgentRunner {
         }
     }
 
-    /// Get a compact fallback text label for a task state.
-    fn get_state_label(state: &AmbientAgentTaskState) -> &'static str {
-        match state {
-            AmbientAgentTaskState::Queued | AmbientAgentTaskState::Pending => "Queued",
-            AmbientAgentTaskState::Claimed => "Claimed",
-            AmbientAgentTaskState::InProgress => "In progress",
-            AmbientAgentTaskState::Succeeded => "Succeeded",
-            AmbientAgentTaskState::Failed | AmbientAgentTaskState::Error => "Failed",
-            AmbientAgentTaskState::Unknown => "Unknown",
-            AmbientAgentTaskState::Blocked => "Blocked",
-            AmbientAgentTaskState::Cancelled => "Cancelled",
-        }
-    }
-
     fn print_tasks_table_for_app(tasks: &[AmbientAgentTask], app: &AppContext) {
         Self::print_tasks_table_with_app(tasks, Some(app));
     }
@@ -981,9 +970,7 @@ impl AmbientAgentRunner {
         if tasks.is_empty() {
             println!(
                 "{}",
-                locale
-                    .map(|locale| text_for_locale(locale, "agent_sdk.ambient.output.no_runs_found"))
-                    .unwrap_or_else(|| "No runs found.".to_string())
+                Self::ambient_text(locale, "agent_sdk.ambient.output.no_runs_found")
             );
             return;
         }
@@ -991,28 +978,22 @@ impl AmbientAgentRunner {
         if tasks.len() == 1 {
             println!(
                 "\n{}",
-                locale
-                    .map(|locale| text_for_locale(locale, "agent_sdk.ambient.output.agent_run"))
-                    .unwrap_or_else(|| "Agent Run:".to_string())
+                Self::ambient_text(locale, "agent_sdk.ambient.output.agent_run")
             );
         } else {
             println!(
                 "\n{}",
-                locale
-                    .map(|locale| text_for_locale_with_args(
-                        locale,
-                        "agent_sdk.ambient.output.agent_runs",
-                        &[("count", &tasks.len().to_string())]
-                    ))
-                    .unwrap_or_else(|| format!("Agent Runs ({}):", tasks.len()))
+                Self::ambient_text_with_args(
+                    locale,
+                    "agent_sdk.ambient.output.agent_runs",
+                    &[("count", &tasks.len().to_string())],
+                )
             );
         }
 
         let oz_root_url = ChannelState::oz_root_url();
         for task in tasks {
-            let state_label = locale
-                .map(|locale| text_for_locale(locale, Self::get_state_key(&task.state)))
-                .unwrap_or_else(|| Self::get_state_label(&task.state).to_string());
+            let state_label = Self::ambient_text(locale, Self::get_state_key(&task.state));
 
             // Create a single-column table for each run (card-style)
             let mut table = crate::ai::agent_sdk::output::standard_table();
@@ -1026,9 +1007,7 @@ impl AmbientAgentRunner {
 
             // Title (wrapped, single cell)
             if !task.title.is_empty() {
-                let title_label = locale
-                    .map(|locale| text_for_locale(locale, "agent_sdk.ambient.field.title"))
-                    .unwrap_or_else(|| "Title".to_string());
+                let title_label = Self::ambient_text(locale, "agent_sdk.ambient.field.title");
                 let title_cell = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
                     &title_label,
                     &task.title,
@@ -1038,52 +1017,43 @@ impl AmbientAgentRunner {
             }
 
             if let Some(executor) = task.executor_display_name() {
-                table.add_row(vec![locale
-                    .map(|locale| {
-                        text_for_locale_with_args(
-                            locale,
-                            "agent_sdk.ambient.field.executed_as",
-                            &[("executor", &executor)],
-                        )
-                    })
-                    .unwrap_or_else(|| format!("Executed as: {executor}"))]);
+                table.add_row(vec![Self::ambient_text_with_args(
+                    locale,
+                    "agent_sdk.ambient.field.executed_as",
+                    &[("executor", &executor)],
+                )]);
             }
 
             // Agent config snapshot (if available)
             if let Some(config) = task.agent_config_snapshot.as_ref() {
                 let config_str =
                     serde_json::to_string_pretty(config).unwrap_or_else(|_| format!("{config:?}"));
-                table.add_row(vec![locale
-                    .map(|locale| {
-                        text_for_locale_with_args(
-                            locale,
-                            "agent_sdk.ambient.field.config",
-                            &[("config", &config_str)],
-                        )
-                    })
-                    .unwrap_or_else(|| format!("Config:\n{config_str}"))]);
+                table.add_row(vec![Self::ambient_text_with_args(
+                    locale,
+                    "agent_sdk.ambient.field.config",
+                    &[("config", &config_str)],
+                )]);
             }
 
             // Created time
-            let created_formatted = format_approx_duration_from_now_utc(task.created_at);
-            table.add_row(vec![locale
+            let created_formatted = locale
                 .map(|locale| {
-                    text_for_locale_with_args(
-                        locale,
-                        "agent_sdk.ambient.field.created",
-                        &[("created", &created_formatted)],
-                    )
+                    localized_approx_duration_from_now_utc_for_locale(locale, task.created_at)
                 })
-                .unwrap_or_else(|| format!("Created: {}", created_formatted))]);
+                .unwrap_or_else(|| format_approx_duration_from_now_utc(task.created_at));
+            table.add_row(vec![Self::ambient_text_with_args(
+                locale,
+                "agent_sdk.ambient.field.created",
+                &[("created", &created_formatted)],
+            )]);
 
             // Status message (if available) - single multi-line cell
             if let Some(status_msg) = &task.status_message {
-                let status_label = locale
-                    .map(|locale| text_for_locale(locale, "agent_sdk.ambient.field.status"))
-                    .unwrap_or_else(|| "Status".to_string());
+                let status_label = Self::ambient_text(locale, "agent_sdk.ambient.field.status");
+                let status_message = Self::ambient_task_status_message(locale, &status_msg.message);
                 let status_cell = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
                     &status_label,
-                    &status_msg.message,
+                    &status_message,
                     MAX_LINE_WIDTH,
                 );
                 table.add_row(vec![status_cell]);
@@ -1097,17 +1067,11 @@ impl AmbientAgentRunner {
 
             // Session link (if available)
             if let Some(session_join_info) = SessionJoinInfo::from_task(task) {
-                table.add_row(vec![locale
-                    .map(|locale| {
-                        text_for_locale_with_args(
-                            locale,
-                            "agent_sdk.ambient.field.session",
-                            &[("session_link", &session_join_info.session_link)],
-                        )
-                    })
-                    .unwrap_or_else(|| {
-                        format!("Session: {}", session_join_info.session_link)
-                    })]);
+                table.add_row(vec![Self::ambient_text_with_args(
+                    locale,
+                    "agent_sdk.ambient.field.session",
+                    &[("session_link", &session_join_info.session_link)],
+                )]);
             }
 
             println!("{table}");
@@ -1234,6 +1198,12 @@ impl AmbientAgentRunner {
         locale
             .map(|locale| text_for_locale_with_args(locale, key, args))
             .unwrap_or_else(|| text_for_locale_with_args(LocaleId::EnUs, key, args))
+    }
+
+    fn ambient_task_status_message(locale: Option<LocaleId>, message: &str) -> String {
+        locale
+            .map(|locale| localized_task_status_message_for_locale(locale, message))
+            .unwrap_or_else(|| message.to_owned())
     }
 }
 

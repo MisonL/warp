@@ -2,10 +2,58 @@ use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Context};
 use command::blocking::Command;
 use warp_core::channel::ChannelState;
 use warp_util::path::ShellFamily;
+
+#[derive(Debug)]
+pub enum CliInstallError {
+    InstallationCancelled,
+    UninstallationCancelled,
+    NotInstalled,
+    TargetExistsNotSymlink(PathBuf),
+    TargetNotSymlink(PathBuf),
+    Other(anyhow::Error),
+}
+
+impl std::fmt::Display for CliInstallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InstallationCancelled => write!(f, "installation cancelled by user"),
+            Self::UninstallationCancelled => write!(f, "uninstallation cancelled by user"),
+            Self::NotInstalled => write!(f, "Oz command is not currently installed"),
+            Self::TargetExistsNotSymlink(path) => {
+                write!(f, "{} exists but is not a symlink", path.display())
+            }
+            Self::TargetNotSymlink(path) => {
+                write!(f, "{} is not a symlink", path.display())
+            }
+            Self::Other(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for CliInstallError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Other(error) => Some(error.root_cause()),
+            Self::InstallationCancelled
+            | Self::UninstallationCancelled
+            | Self::NotInstalled
+            | Self::TargetExistsNotSymlink(_)
+            | Self::TargetNotSymlink(_) => None,
+        }
+    }
+}
+
+impl From<anyhow::Error> for CliInstallError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::Other(error)
+    }
+}
+
+type CliInstallResult<T> = std::result::Result<T, CliInstallError>;
 
 /// Compute the target path where the symlink should be installed, based on channel
 fn cli_install_target_path() -> PathBuf {
@@ -16,7 +64,7 @@ fn cli_install_target_path() -> PathBuf {
 ///
 /// This function uses macOS's osascript to prompt for administrator privileges
 /// and create a symlink
-fn create_symlink_with_admin(source: &Path, target: &Path) -> Result<()> {
+fn create_symlink_with_admin(source: &Path, target: &Path) -> CliInstallResult<()> {
     let source_str = source
         .to_str()
         .ok_or_else(|| anyhow!("Source path contains invalid UTF-8: {source:?}"))?;
@@ -43,11 +91,9 @@ fn create_symlink_with_admin(source: &Path, target: &Path) -> Result<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr.contains("User canceled") || stderr.contains("cancelled") {
-            return Err(anyhow!("Installation cancelled by user."));
+            return Err(CliInstallError::InstallationCancelled);
         }
-        return Err(anyhow!(
-            "Failed to create symlink with admin privileges: {stderr}"
-        ));
+        return Err(anyhow!("Failed to create symlink with admin privileges: {stderr}").into());
     }
 
     Ok(())
@@ -57,7 +103,7 @@ fn create_symlink_with_admin(source: &Path, target: &Path) -> Result<()> {
 ///
 /// This function uses macOS's osascript to prompt for administrator privileges
 /// and remove a file, used for CLI uninstallation.
-fn remove_file_with_admin(target: &Path) -> Result<()> {
+fn remove_file_with_admin(target: &Path) -> CliInstallResult<()> {
     let target_str = target
         .to_str()
         .ok_or_else(|| anyhow!("Target path contains invalid UTF-8: {target:?}"))?;
@@ -79,11 +125,9 @@ fn remove_file_with_admin(target: &Path) -> Result<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr.contains("User canceled") || stderr.contains("cancelled") {
-            return Err(anyhow!("Uninstallation cancelled by user."));
+            return Err(CliInstallError::UninstallationCancelled);
         }
-        return Err(anyhow!(
-            "Failed to remove file with admin privileges: {stderr}"
-        ));
+        return Err(anyhow!("Failed to remove file with admin privileges: {stderr}").into());
     }
 
     Ok(())
@@ -96,17 +140,14 @@ fn remove_file_with_admin(target: &Path) -> Result<()> {
 /// 2. Attempts to create a symlink without admin privileges first
 /// 3. Falls back to prompting for admin privileges if needed
 /// 4. Handles existing installations and edge cases
-pub fn install_cli() -> Result<()> {
+pub fn install_cli() -> CliInstallResult<()> {
     let cli_path = cli_install_target_path();
     let current_binary =
         std::env::current_exe().context("Failed to get current executable path")?;
 
     // Check if target file exists and handle conflicts
     if cli_path.exists() && !cli_path.is_symlink() {
-        return Err(anyhow!(
-            "Cannot install: {:?} exists but is not a symlink. Please remove it manually first.",
-            cli_path
-        ));
+        return Err(CliInstallError::TargetExistsNotSymlink(cli_path));
     }
 
     // Try to create symlink without admin privileges first
@@ -139,19 +180,16 @@ pub fn install_cli() -> Result<()> {
 /// 1. Verifies that the target is actually a symlink (safety check)
 /// 2. Attempts to remove without admin privileges first
 /// 3. Falls back to prompting for admin privileges if needed
-pub fn uninstall_cli() -> Result<()> {
+pub fn uninstall_cli() -> CliInstallResult<()> {
     let cli_path = cli_install_target_path();
 
     if !cli_path.exists() {
-        return Err(anyhow!("Oz command is not currently installed."));
+        return Err(CliInstallError::NotInstalled);
     }
 
     // Safety check: verify it's actually a symlink before removing
     if !cli_path.is_symlink() {
-        return Err(anyhow!(
-            "Cannot uninstall: {:?} exists but is not a symlink. Please remove it manually.",
-            cli_path
-        ));
+        return Err(CliInstallError::TargetNotSymlink(cli_path));
     }
 
     // Try to remove without admin privileges first

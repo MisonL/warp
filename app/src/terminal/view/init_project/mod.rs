@@ -24,7 +24,7 @@ use warp_core::ui::theme::Fill;
 
 use crate::ai::agent::icons::{in_progress_icon, yellow_stop_icon};
 use crate::ai::blocklist::block::keyboard_navigable_buttons::{
-    simple_navigation_button, KeyboardNavigableButtonBuilder, KeyboardNavigableButtons,
+    KeyboardNavigableButtonBuilder, KeyboardNavigableButtons,
 };
 use crate::ai::blocklist::block::toggleable_items::ToggleableItemsView;
 use crate::ai::blocklist::block::view_impl::WithContentItemSpacing;
@@ -73,6 +73,55 @@ fn localized_navigation_button<A: warpui::Action + Clone + 'static>(
                 });
             }
             button.with_text_label(localization::text_for_app(app, key))
+        },
+        move |ctx: &mut ViewContext<KeyboardNavigableButtons>| {
+            if !disabled {
+                ctx.dispatch_typed_action(&action);
+            }
+        },
+    )
+}
+
+fn localized_navigation_button_with_args<A: warpui::Action + Clone + 'static>(
+    key: &'static str,
+    args: Vec<(&'static str, String)>,
+    mouse_state: MouseStateHandle,
+    action: A,
+    disabled: bool,
+) -> KeyboardNavigableButtonBuilder {
+    KeyboardNavigableButtonBuilder::new(
+        move |is_selected, app| {
+            let appearance = Appearance::as_ref(app);
+            let localized_args = args
+                .iter()
+                .map(|(name, value)| (*name, value.as_str()))
+                .collect::<Vec<_>>();
+            let mut button = appearance
+                .ui_builder()
+                .button(ButtonVariant::Secondary, mouse_state.clone())
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.monospace_font_size()),
+                    ..UiComponentStyles::default()
+                })
+                .with_hovered_styles(UiComponentStyles {
+                    font_size: Some(appearance.monospace_font_size()),
+                    ..UiComponentStyles::default()
+                });
+            if disabled {
+                button = button.disabled();
+            } else if is_selected {
+                button = button.with_style(UiComponentStyles {
+                    border_color: Some(appearance.theme().accent().into()),
+                    border_width: Some(1.0),
+                    background: Some(appearance.theme().surface_2().into()),
+                    ..UiComponentStyles::default()
+                });
+            }
+            button.with_text_label(localization::text_for_app_with_args(
+                app,
+                key,
+                &localized_args,
+            ))
         },
         move |ctx: &mut ViewContext<KeyboardNavigableButtons>| {
             if !disabled {
@@ -413,18 +462,19 @@ impl InitStepBlock {
         repo_path: &Path,
         mouse_states: &LanguageServersMouseStateHandles,
     ) -> Vec<KeyboardNavigableButtonBuilder> {
-        let button_text = if server_info.is_installed {
-            format!("Enable {} support", server_info.server_type.language_name())
+        let button_key = if server_info.is_installed {
+            "terminal.init_project.action.enable_language_support_for"
         } else {
-            format!(
-                "Install and enable {}",
-                server_info.server_type.language_name()
-            )
+            "terminal.init_project.action.install_and_enable_language"
         };
 
         vec![
-            simple_navigation_button(
-                button_text,
+            localized_navigation_button_with_args(
+                button_key,
+                vec![(
+                    "language",
+                    server_info.server_type.language_name().to_owned(),
+                )],
                 mouse_states.setup_button.clone(),
                 InitProjectBlockAction::SetupLanguageServers {
                     server_info: vec![server_info.clone()],
@@ -469,8 +519,9 @@ impl InitStepBlock {
 
         for (i, linkable_file) in LINKABLE_FILES.iter().enumerate() {
             if let Some(path) = linkable_files.iter().find(|p| p.ends_with(linkable_file)) {
-                buttons.push(simple_navigation_button(
-                    format!("Link existing {linkable_file} to my AGENTS.md file"),
+                buttons.push(localized_navigation_button_with_args(
+                    "terminal.init_project.action.link_existing_agents_file",
+                    vec![("file", linkable_file.to_string())],
                     mouse_states.link_buttons[i].clone(),
                     InitProjectBlockAction::LinkFromExisting(path.clone()),
                     false,

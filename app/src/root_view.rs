@@ -25,7 +25,7 @@ use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Border, ChildAnchor, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
 };
-use warpui::keymap::{EditableBinding, FixedBinding};
+use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui::platform::{WindowBounds, WindowStyle};
 use warpui::presenter::ChildView;
 use warpui::rendering::OnGPUDeviceSelected;
@@ -425,19 +425,25 @@ pub fn init(app: &mut AppContext) {
 
     app.register_fixed_bindings([
         FixedBinding::empty(
-            "Hide All Windows",
+            binding_description("Hide All Windows", "root_view.binding.hide_all_windows"),
             RootViewAction::ShowOrHideNonQuakeModeWindows,
             id!("RootView") & id!(flags::ACTIVATION_HOTKEY_FLAG),
         ),
         FixedBinding::empty(
-            "Show Dedicated Hotkey Window",
+            binding_description(
+                "Show Dedicated Hotkey Window",
+                "root_view.binding.show_dedicated_hotkey_window",
+            ),
             RootViewAction::ToggleQuakeModeWindow,
             id!("RootView")
                 & id!(flags::QUAKE_MODE_ENABLED_CONTEXT_FLAG)
                 & !id!(flags::QUAKE_WINDOW_OPEN_FLAG),
         ),
         FixedBinding::empty(
-            "Hide Dedicated Hotkey Window",
+            binding_description(
+                "Hide Dedicated Hotkey Window",
+                "root_view.binding.hide_dedicated_hotkey_window",
+            ),
             RootViewAction::ToggleQuakeModeWindow,
             id!("RootView")
                 & id!(flags::QUAKE_MODE_ENABLED_CONTEXT_FLAG)
@@ -449,7 +455,7 @@ pub fn init(app: &mut AppContext) {
         // Register a binding to toggle fullscreen on Linux and Windows.
         EditableBinding::new(
             "root_view:toggle_fullscreen",
-            "Toggle fullscreen",
+            binding_description("Toggle fullscreen", "root_view.binding.toggle_fullscreen"),
             RootViewAction::ToggleFullscreen,
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
@@ -458,7 +464,10 @@ pub fn init(app: &mut AppContext) {
         // Debug binding for onboarding state
         EditableBinding::new(
             "root_view:enter_onboarding_state",
-            "[Debug] Enter Onboarding State",
+            binding_description(
+                "[Debug] Enter Onboarding State",
+                "root_view.binding.debug.enter_onboarding_state",
+            ),
             RootViewAction::DebugEnterOnboardingState,
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
@@ -3631,4 +3640,8 @@ mod tests;
 
 fn text(app: &AppContext, key: &str) -> String {
     crate::localization::text_for_app(app, key)
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
 }

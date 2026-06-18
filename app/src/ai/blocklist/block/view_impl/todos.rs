@@ -191,15 +191,23 @@ pub(super) fn render_completed_todo_items(
 
         if i == 0 {
             if let Some((index, list_len)) = index_and_len {
-                completed_text += format!(
-                    "Completed {} ({}/{})",
-                    completed_item.title,
-                    index + 1,
-                    list_len
+                completed_text += localization::text_for_app_with_args(
+                    app,
+                    "agent.todos.completed_with_index",
+                    &[
+                        ("title", &completed_item.title),
+                        ("index", &(index + 1).to_string()),
+                        ("count", &list_len.to_string()),
+                    ],
                 )
                 .as_str()
             } else {
-                completed_text += format!("Completed {}", completed_item.title).as_str()
+                completed_text += localization::text_for_app_with_args(
+                    app,
+                    "agent.todos.completed",
+                    &[("title", &completed_item.title)],
+                )
+                .as_str()
             }
         } else if let Some((index, list_len)) = index_and_len {
             completed_text +=

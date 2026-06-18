@@ -37,7 +37,7 @@ use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::search_bar::SearchBar;
 use crate::server::ids::ApiKeyUid;
 use crate::ui_components::icons::Icon;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const MODAL_WIDTH: f32 = 460.;
 const MODAL_HEIGHT: f32 = 320.;
@@ -813,10 +813,10 @@ impl PlatformPageWidget {
         key: &APIKeyProperties,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let created = format_approx_duration_from_now_utc(key.created_at);
+        let created = localized_approx_duration_from_now_utc(app, key.created_at);
         let last_used = key
             .last_used_at
-            .map(format_approx_duration_from_now_utc)
+            .map(|dt| localized_approx_duration_from_now_utc(app, dt))
             .unwrap_or_else(|| platform_text(app, "settings.platform.api_keys.never"));
         let expires_at = key
             .expires_at

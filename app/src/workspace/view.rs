@@ -72,6 +72,7 @@ use warp_core::ui::theme::Fill;
 use warp_core::ui::Icon;
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_editor::editor::NavigationKey;
+use warp_localization::LocaleId;
 use warp_server_client::auth::AuthEvent;
 use warp_util::path::{user_friendly_path, LineAndColumnArg};
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
@@ -630,6 +631,38 @@ fn workspace_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) 
     localization::text_for_app_with_args(app, key, args)
 }
 
+fn disambiguated_tab_config_display_names(
+    tab_configs: &[crate::tab_configs::TabConfig],
+    app: &AppContext,
+) -> Vec<String> {
+    let localized_names = tab_configs
+        .iter()
+        .map(|config| config.localized_name(app))
+        .collect::<Vec<_>>();
+    let mut name_totals: HashMap<String, usize> = HashMap::new();
+    for name in &localized_names {
+        *name_totals.entry(name.clone()).or_default() += 1;
+    }
+
+    let mut name_seen: HashMap<String, usize> = HashMap::new();
+    localized_names
+        .into_iter()
+        .map(|name| {
+            if name_totals.get(&name).copied().unwrap_or(0) <= 1 {
+                return name;
+            }
+
+            let seen = name_seen.entry(name.clone()).or_default();
+            *seen += 1;
+            if *seen == 1 {
+                name
+            } else {
+                format!("{} ({})", name, *seen - 1)
+            }
+        })
+        .collect()
+}
+
 const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
 const NOTEBOOK_SMART_SPLIT_RATIO: f32 = 0.42;
 
@@ -646,10 +679,6 @@ const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
 
 // The max length of the window title (matching conversation title truncation).
 const MAX_WINDOW_TITLE_LENGTH: usize = 80;
-
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-const AUTO_CLOUD_HANDOFF_PROMPT: &str =
-    "Continue this local Warp Agent task in the cloud from the current conversation state.";
 
 /// The default display name used for the user if they have no associated display name.
 pub const DEFAULT_USER_DISPLAY_NAME: &str = "User";
@@ -6403,7 +6432,7 @@ impl Workspace {
                 if FeatureFlag::ShellSelector.is_enabled() {
                     AvailableShells::handle(ctx).read(ctx, |model, _| {
                         for shell in model.get_available_shells() {
-                            let shell_name = model.display_name_for_shell(shell);
+                            let shell_name = model.display_name_for_shell_for_app(shell, ctx);
                             let icon = shell
                                 .get_valid_shell_path_and_type()
                                 .and_then(|shell_launch_data| {
@@ -6470,15 +6499,9 @@ impl Workspace {
         if FeatureFlag::TabConfigs.is_enabled() {
             let tab_configs = WarpConfig::as_ref(ctx).tab_configs().to_vec();
 
-            // Count occurrences of each config name so we can disambiguate
-            // duplicates in the menu (e.g. "My Tab Config", "My Tab Config (1)").
-            let mut name_totals: HashMap<String, usize> = HashMap::new();
-            for config in &tab_configs {
-                *name_totals.entry(config.name.clone()).or_default() += 1;
-            }
-            let mut name_seen: HashMap<String, usize> = HashMap::new();
+            let display_names = disambiguated_tab_config_display_names(&tab_configs, ctx);
 
-            for tab_config in tab_configs {
+            for (tab_config, display_name) in tab_configs.into_iter().zip(display_names) {
                 let is_worktree = tab_config.is_worktree();
                 let icon = if is_worktree {
                     icons::Icon::Dataflow02
@@ -6490,18 +6513,6 @@ impl Workspace {
                         .source_path
                         .as_ref()
                         .is_some_and(|p| p.to_string_lossy() == default_tab_config_path);
-
-                let display_name = if name_totals.get(&tab_config.name).copied().unwrap_or(0) > 1 {
-                    let seen = name_seen.entry(tab_config.name.clone()).or_default();
-                    *seen += 1;
-                    if *seen == 1 {
-                        tab_config.name.clone()
-                    } else {
-                        format!("{} ({})", tab_config.name, *seen - 1)
-                    }
-                } else {
-                    tab_config.name.clone()
-                };
 
                 let mut item = MenuItemFields::new(display_name)
                     .with_on_select_action(WorkspaceAction::SelectTabConfig(tab_config))
@@ -6727,10 +6738,11 @@ impl Workspace {
                 .and_then(|view| view.as_ref(ctx).pwd())
                 .map(PathBuf::from);
 
+            let tab_config_name = tab_config.localized_name(ctx);
             let modal_title = workspace_text_with_args(
                 ctx,
                 "workspace.tab_config.open_title",
-                &[("name", &tab_config.name)],
+                &[("name", &tab_config_name)],
             );
             self.tab_config_params_modal.view.update(ctx, |modal, ctx| {
                 modal.body().update(ctx, |body, ctx| {
@@ -6754,9 +6766,10 @@ impl Workspace {
             return;
         }
         let path = find_unused_tab_config_path(&dir);
-        const TEMPLATE: &str =
-            include_str!("../../resources/tab_configs/new_tab_config_template.toml");
-        if let Err(e) = std::fs::write(&path, TEMPLATE) {
+        let template = crate::user_config::new_tab_config_template_for_locale(
+            crate::localization::current_locale(ctx),
+        );
+        if let Err(e) = std::fs::write(&path, template) {
             log::warn!("Failed to write new tab config template: {e:?}");
             return;
         }
@@ -8566,12 +8579,13 @@ impl Workspace {
                     });
                 }
                 Err(error) => {
+                    let localized_error = Self::localized_cli_install_error(ctx, &error);
                     let error_message = workspace_text_with_args(
                         ctx,
                         "workspace.toast.oz_cli_install_failed",
-                        &[("error", &error.to_string())],
+                        &[("error", &localized_error)],
                     );
-                    log::error!("{error_message}");
+                    log::error!("Failed to install Oz command: {error}");
                     view.toast_stack.update(ctx, |toast_stack, ctx| {
                         let toast = DismissibleToast::error(error_message);
                         toast_stack.add_persistent_toast(toast, ctx);
@@ -8595,12 +8609,13 @@ impl Workspace {
                     });
                 }
                 Err(error) => {
+                    let localized_error = Self::localized_cli_install_error(ctx, &error);
                     let error_message = workspace_text_with_args(
                         ctx,
                         "workspace.toast.oz_cli_uninstall_failed",
-                        &[("error", &error.to_string())],
+                        &[("error", &localized_error)],
                     );
-                    log::error!("{error_message}");
+                    log::error!("Failed to uninstall Oz command: {error}");
                     view.toast_stack.update(ctx, |toast_stack, ctx| {
                         let toast = DismissibleToast::error(error_message);
                         toast_stack.add_persistent_toast(toast, ctx);
@@ -8608,6 +8623,43 @@ impl Workspace {
                 }
             },
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    fn localized_cli_install_error(
+        app: &AppContext,
+        error: &cli_install::CliInstallError,
+    ) -> String {
+        match error {
+            cli_install::CliInstallError::InstallationCancelled => {
+                workspace_text(app, "workspace.toast.oz_cli_error.installation_cancelled")
+            }
+            cli_install::CliInstallError::UninstallationCancelled => {
+                workspace_text(app, "workspace.toast.oz_cli_error.uninstallation_cancelled")
+            }
+            cli_install::CliInstallError::NotInstalled => {
+                workspace_text(app, "workspace.toast.oz_cli_error.not_installed")
+            }
+            cli_install::CliInstallError::TargetExistsNotSymlink(path) => {
+                let path = path.display().to_string();
+                workspace_text_with_args(
+                    app,
+                    "workspace.toast.oz_cli_error.target_exists_not_symlink",
+                    &[("path", &path)],
+                )
+            }
+            cli_install::CliInstallError::TargetNotSymlink(path) => {
+                let path = path.display().to_string();
+                workspace_text_with_args(
+                    app,
+                    "workspace.toast.oz_cli_error.target_not_symlink",
+                    &[("path", &path)],
+                )
+            }
+            cli_install::CliInstallError::Other(_) => {
+                workspace_text(app, "workspace.toast.oz_cli_error.see_logs")
+            }
+        }
     }
 
     fn undo_revert_in_code_review_pane(
@@ -10500,7 +10552,7 @@ impl Workspace {
     #[cfg(feature = "local_fs")]
     fn open_worktree_in_repo(&mut self, repo_path: String, ctx: &mut ViewContext<Self>) {
         log::info!("open_worktree_in_repo requested: repo_path={repo_path:?}");
-        let config_path = ensure_default_worktree_config();
+        let config_path = ensure_default_worktree_config(crate::localization::current_locale(ctx));
         log::info!("Reading default worktree config from {config_path:?}");
         let template_toml = match std::fs::read_to_string(&config_path) {
             Ok(s) => s,
@@ -18566,9 +18618,11 @@ impl Workspace {
             .agent_view_state()
             .active_conversation_id()
         {
+            let fallback_title =
+                workspace_text(ctx, "workspace.conversation.linear_issue_fallback_title");
             BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, _ctx| {
                 if let Some(conversation) = history.conversation_mut(&conversation_id) {
-                    conversation.set_fallback_display_title("Linear Issue".to_string());
+                    conversation.set_fallback_display_title(fallback_title);
                 }
             });
         }
@@ -22863,7 +22917,10 @@ impl TypedActionView for Workspace {
                         conversation_id: *conversation_id,
                     };
                     let launch = Some(PendingCloudLaunch {
-                        prompt: AUTO_CLOUD_HANDOFF_PROMPT.to_owned(),
+                        prompt: localization::text_for_locale(
+                            LocaleId::EnUs,
+                            "workspace.handoff.auto_cloud_prompt",
+                        ),
                         attachments: HandoffLaunchAttachments::default(),
                     });
                     if let Some(source_view) = self.terminal_view(*terminal_view_id, ctx) {

@@ -1922,6 +1922,7 @@ impl DriveIndex {
             false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
+            app,
             tr(app, "drive.placeholder.untitled"),
         )?;
 
@@ -1960,6 +1961,7 @@ impl DriveIndex {
             false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
+            app,
             tr(app, "drive.placeholder.untitled"),
         )?;
 
@@ -2734,6 +2736,7 @@ impl DriveIndex {
             SyncQueue::as_ref(app).is_dequeueing(),
             tools_panel_menu_direction(app),
             appearance,
+            app,
             tr(app, "drive.placeholder.untitled"),
         )?;
         let mut total_rows_for_item = 1;

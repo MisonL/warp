@@ -19,8 +19,8 @@ use super::cloud_conversation_continuation::TombstoneCta;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, ArtifactType};
 use crate::ai::ambient_agents::{
-    conversation_output_status_from_conversation, AmbientAgentTask, AmbientAgentTaskId,
-    AmbientConversationStatus,
+    conversation_output_status_from_conversation, localized_task_status_message_for_locale,
+    AmbientAgentTask, AmbientAgentTaskId, AmbientConversationStatus,
 };
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::ai::blocklist::{format_credits, format_credits_for_locale, BlocklistAIHistoryModel};
@@ -30,7 +30,9 @@ use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::ai::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
-use crate::util::time_format::human_readable_precise_duration;
+use crate::util::time_format::{
+    localized_human_readable_precise_duration, localized_human_readable_precise_duration_for_locale,
+};
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
 use crate::workspace::WorkspaceAction;
 
@@ -99,7 +101,7 @@ impl TombstoneDisplayData {
             let last_exchange = conversation.latest_exchange()?;
             let finish_time = last_exchange.finish_time?;
             let duration = finish_time.signed_duration_since(first_exchange.start_time);
-            Some(human_readable_precise_duration(duration))
+            Some(localized_human_readable_precise_duration(ctx, duration))
         })();
 
         Self {
@@ -116,7 +118,12 @@ impl TombstoneDisplayData {
         }
     }
 
-    fn enrich_from_task(&mut self, task: AmbientAgentTask, locale: LocaleId) {
+    fn enrich_from_task(&mut self, task: AmbientAgentTask, app: &AppContext) {
+        let locale = localization::current_locale(app);
+        self.enrich_from_task_for_locale(task, locale);
+    }
+
+    fn enrich_from_task_for_locale(&mut self, task: AmbientAgentTask, locale: LocaleId) {
         // Use task title if we don't have a conversation title.
         if self.title.is_none() {
             self.title = Some(task.title.clone());
@@ -133,7 +140,10 @@ impl TombstoneDisplayData {
         if task.state.is_failure_like() {
             self.is_error = true;
             if let Some(status_message) = &task.status_message {
-                self.error_message = Some(status_message.message.clone());
+                self.error_message = Some(localized_task_status_message_for_locale(
+                    locale,
+                    &status_message.message,
+                ));
             }
         }
 
@@ -141,7 +151,9 @@ impl TombstoneDisplayData {
         // the full credit cost (inference + compute). This matches what we show in
         // the details panel.
         if let Some(run_time) = task.run_time() {
-            self.run_time = Some(human_readable_precise_duration(run_time));
+            self.run_time = Some(localized_human_readable_precise_duration_for_locale(
+                locale, run_time,
+            ));
         }
         if let Some(credits) = task.credits_used() {
             self.credits = Some(format_credits_for_locale(locale, credits));
@@ -349,8 +361,7 @@ impl ConversationEndedTombstoneView {
                 async move { ai_client.get_ambient_agent_task(&task_id).await },
                 |me, result, ctx| match result {
                     Ok(task) => {
-                        let locale = localization::current_locale(ctx);
-                        me.display_data.enrich_from_task(task, locale);
+                        me.display_data.enrich_from_task(task, ctx);
                         me.artifact_buttons_view.update(ctx, |row, ctx| {
                             row.update_artifacts(&me.display_data.artifacts, ctx);
                         });

@@ -26,7 +26,10 @@ impl WarpDriveAIFactCollection {
 
 impl WarpDriveItem for WarpDriveAIFactCollection {
     fn display_name(&self) -> Option<String> {
-        Some("Rules".to_string())
+        Some(crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "drive.collection.rules",
+        ))
     }
 
     fn metadata(&self) -> Option<&CloudObjectMetadata> {

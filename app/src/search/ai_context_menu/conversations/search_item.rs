@@ -13,7 +13,7 @@ use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::styles;
 use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 use crate::util::truncation::truncate_from_end;
 
 const MAX_TITLE_LENGTH: usize = 45;
@@ -93,7 +93,7 @@ impl SearchItem for ConversationSearchItem {
         }
 
         let timestamp_text = Text::new(
-            format_approx_duration_from_now_utc(self.item.last_updated),
+            localized_approx_duration_from_now_utc(app, self.item.last_updated),
             appearance.ui_font_family(),
             (appearance.monospace_font_size() - 2.0).max(1.0),
         )

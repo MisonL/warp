@@ -17,7 +17,7 @@ use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::inline_menu::styles as inline_styles;
 use crate::terminal::input::plans::AcceptPlan;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const ICON_SIZE: f32 = 14.;
 
@@ -117,7 +117,7 @@ impl SearchItem for PlanSearchItem {
 
         let timestamp_font_size = font_size * 12. / 14.;
         let timestamp = Text::new_inline(
-            format_approx_duration_from_now_utc(self.created_at.to_utc()),
+            localized_approx_duration_from_now_utc(app, self.created_at.to_utc()),
             appearance.ui_font_family(),
             timestamp_font_size,
         )

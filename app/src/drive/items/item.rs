@@ -132,6 +132,7 @@ pub struct WarpDriveRow<'a> {
     is_focused: bool,
     overflow_on_left: bool,
     appearance: &'a Appearance,
+    app: &'a AppContext,
     untitled_fallback: String,
 }
 
@@ -152,6 +153,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        app: &'a AppContext,
         untitled_fallback: String,
     ) -> Option<Self> {
         let warp_drive_item_id = item.warp_drive_id();
@@ -230,6 +232,7 @@ impl<'a> WarpDriveRow<'a> {
             is_focused,
             overflow_on_left: matches!(menu_direction, MenuDirection::Left),
             appearance,
+            app,
             untitled_fallback,
         })
     }
@@ -250,6 +253,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        app: &'a AppContext,
         untitled_fallback: String,
     ) -> Option<Self> {
         let item = object.to_warp_drive_item(appearance)?;
@@ -268,6 +272,7 @@ impl<'a> WarpDriveRow<'a> {
             sync_queue_is_dequeueing,
             menu_direction,
             appearance,
+            app,
             untitled_fallback,
         )
     }
@@ -646,14 +651,19 @@ impl<'a> WarpDriveRow<'a> {
     }
 
     fn render_item_name(&self, style: UiComponentStyles) -> Box<dyn Element> {
-        Span::new(
-            self.item
+        let name = match self.item.warp_drive_id() {
+            WarpDriveItemId::AIFactCollection => {
+                crate::localization::text_for_app(self.app, "drive.collection.rules")
+            }
+            WarpDriveItemId::MCPServerCollection => {
+                crate::localization::text_for_app(self.app, "drive.collection.mcp_servers")
+            }
+            _ => self
+                .item
                 .display_name()
                 .unwrap_or_else(|| self.untitled_fallback.clone()),
-            style,
-        )
-        .build()
-        .finish()
+        };
+        Span::new(name, style).build().finish()
     }
 
     pub fn render_item(&self, style: UiComponentStyles) -> Box<dyn Element> {

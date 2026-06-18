@@ -55,6 +55,7 @@ pub static CREATE_ENVIRONMENT: LazyLock<StaticCommand> = LazyLock::new(|| Static
     argument: Some(
         Argument::optional()
             .with_hint_text("<optional repo paths or GitHub URLs>")
+            .with_hint_text_key("terminal.slash.command.create_environment.hint")
             .with_execute_on_selection(),
     ),
 });
@@ -74,7 +75,11 @@ pub static CREATE_NEW_PROJECT: LazyLock<StaticCommand> = LazyLock::new(|| Static
     icon_path: "bundled/svg/plus.svg",
     availability: Availability::LOCAL | Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
-    argument: Some(Argument::required().with_hint_text("<describe what you want to build>")),
+    argument: Some(
+        Argument::required()
+            .with_hint_text("<describe what you want to build>")
+            .with_hint_text_key("terminal.slash.command.create_new_project.hint"),
+    ),
 });
 
 pub static EDIT_SKILL: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
@@ -124,7 +129,9 @@ pub static EDIT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     availability: Availability::LOCAL,
     auto_enter_ai_mode: false,
     argument: Some(
-        Argument::optional().with_hint_text("<path/to/file[:line[:col]]> or \"@\" to search"),
+        Argument::optional()
+            .with_hint_text("<path/to/file[:line[:col]]> or \"@\" to search")
+            .with_hint_text_key("terminal.slash.command.open_file.hint"),
     ),
 });
 
@@ -134,7 +141,11 @@ pub static RENAME_TAB: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand 
     icon_path: "bundled/svg/pencil-line.svg",
     availability: Availability::ALWAYS,
     auto_enter_ai_mode: false,
-    argument: Some(Argument::required().with_hint_text("<tab name>")),
+    argument: Some(
+        Argument::required()
+            .with_hint_text("<tab name>")
+            .with_hint_text_key("terminal.slash.command.rename_tab.hint"),
+    ),
 });
 
 static SET_TAB_COLOR_HINT: LazyLock<String> = LazyLock::new(|| {
@@ -168,7 +179,11 @@ pub static FORK: LazyLock<StaticCommand> = LazyLock::new(|| {
             | Availability::AI_ENABLED
             | Availability::NOT_CLOUD_AGENT,
         auto_enter_ai_mode: true,
-        argument: Some(Argument::optional().with_hint_text(hint_text)),
+        argument: Some(
+            Argument::optional()
+                .with_hint_text(hint_text)
+                .with_hint_text_key("terminal.slash.command.fork.hint"),
+        ),
     }
 });
 
@@ -184,6 +199,7 @@ pub static MOVE_TO_CLOUD: LazyLock<StaticCommand> = LazyLock::new(|| StaticComma
     argument: Some(
         Argument::optional()
             .with_hint_text("<optional follow-up prompt>")
+            .with_hint_text_key("terminal.slash.command.handoff.hint")
             .with_execute_on_selection(),
     ),
 });
@@ -357,7 +373,11 @@ pub static PLAN: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     icon_path: "bundled/svg/file-06.svg",
     availability: Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
-    argument: Some(Argument::optional().with_hint_text("<describe your task>")),
+    argument: Some(
+        Argument::optional()
+            .with_hint_text("<describe your task>")
+            .with_hint_text_key("terminal.slash.command.plan.hint"),
+    ),
 });
 
 pub const ORCHESTRATE_NAME: &str = "/orchestrate";
@@ -368,7 +388,11 @@ pub static ORCHESTRATE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand
     icon_path: "bundled/svg/oz.svg",
     availability: Availability::LOCAL | Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
-    argument: Some(Argument::optional().with_hint_text("<describe your task>")),
+    argument: Some(
+        Argument::optional()
+            .with_hint_text("<describe your task>")
+            .with_hint_text_key("terminal.slash.command.orchestrate.hint"),
+    ),
 });
 
 /// If `query` starts with the given command `name` followed by a space,
@@ -391,7 +415,9 @@ pub static COMPACT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
         | Availability::NOT_CLOUD_AGENT,
     auto_enter_ai_mode: true,
     argument: Some(
-        Argument::optional().with_hint_text("<optional custom summarization instructions>"),
+        Argument::optional()
+            .with_hint_text("<optional custom summarization instructions>")
+            .with_hint_text_key("terminal.slash.command.compact.hint"),
     ),
 });
 
@@ -405,7 +431,11 @@ pub static COMPACT_AND: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand
         | Availability::AI_ENABLED
         | Availability::NOT_CLOUD_AGENT,
     auto_enter_ai_mode: true,
-    argument: Some(Argument::optional().with_hint_text("<prompt to send after compaction>")),
+    argument: Some(
+        Argument::optional()
+            .with_hint_text("<prompt to send after compaction>")
+            .with_hint_text_key("terminal.slash.command.compact_and.hint"),
+    ),
 });
 
 pub static QUEUE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
@@ -417,7 +447,11 @@ pub static QUEUE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
         | Availability::AI_ENABLED
         | Availability::NOT_CLOUD_AGENT,
     auto_enter_ai_mode: true,
-    argument: Some(Argument::required().with_hint_text("<prompt to send when agent is done>")),
+    argument: Some(
+        Argument::required()
+            .with_hint_text("<prompt to send when agent is done>")
+            .with_hint_text_key("terminal.slash.command.queue.hint"),
+    ),
 });
 
 pub static FORK_AND_COMPACT: LazyLock<StaticCommand> = LazyLock::new(|| {
@@ -432,7 +466,11 @@ pub static FORK_AND_COMPACT: LazyLock<StaticCommand> = LazyLock::new(|| {
             | Availability::AI_ENABLED
             | Availability::NOT_CLOUD_AGENT,
         auto_enter_ai_mode: true,
-        argument: Some(Argument::optional().with_hint_text(hint_text)),
+        argument: Some(
+            Argument::optional()
+                .with_hint_text(hint_text)
+                .with_hint_text_key("terminal.slash.command.fork_and_compact.hint"),
+        ),
     }
 });
 
@@ -458,7 +496,11 @@ pub static CONTINUE_LOCALLY: LazyLock<StaticCommand> = LazyLock::new(|| {
             | Availability::ACTIVE_CONVERSATION
             | Availability::AI_ENABLED,
         auto_enter_ai_mode: true,
-        argument: Some(Argument::optional().with_hint_text(hint_text)),
+        argument: Some(
+            Argument::optional()
+                .with_hint_text(hint_text)
+                .with_hint_text_key("terminal.slash.command.continue_locally.hint"),
+        ),
     }
 });
 
@@ -539,7 +581,11 @@ pub static EXPORT_TO_FILE: LazyLock<StaticCommand> = LazyLock::new(|| StaticComm
         | Availability::AI_ENABLED
         | Availability::NOT_CLOUD_AGENT,
     auto_enter_ai_mode: true,
-    argument: Some(Argument::optional().with_hint_text("<optional filename>")),
+    argument: Some(
+        Argument::optional()
+            .with_hint_text("<optional filename>")
+            .with_hint_text_key("terminal.slash.command.export_to_file.hint"),
+    ),
 });
 
 pub static COMMAND_REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);

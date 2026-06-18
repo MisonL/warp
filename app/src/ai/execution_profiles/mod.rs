@@ -23,9 +23,10 @@ pub(crate) const LONG_CONTEXT_PRICING_WARNING_URL: &str =
     "https://developers.openai.com/api/docs/pricing";
 pub(crate) fn long_context_pricing_warning_title(app: &AppContext) -> FormattedTextInline {
     vec![
-        FormattedTextFragment::plain_text(
-            "OpenAI automatically applies long-context pricing when context exceeds 272,000 tokens. ",
-        ),
+        FormattedTextFragment::plain_text(localization::text_for_app(
+            app,
+            "settings.execution_profile.long_context_pricing_warning.message",
+        )),
         FormattedTextFragment::hyperlink(
             localization::text_for_app(
                 app,

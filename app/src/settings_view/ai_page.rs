@@ -1,4 +1,5 @@
 use ::ai::api_keys::{ApiKeyManager, ApiKeys, AwsCredentialsState};
+use chrono::{DateTime, Local};
 use enum_iterator::all;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
@@ -20,7 +21,7 @@ use warpui::elements::{
     Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::keymap::{ContextPredicate, Keystroke};
+use warpui::keymap::{BindingDescription, ContextPredicate, Keystroke};
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -102,8 +103,22 @@ fn ai_settings_text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
 }
 
+fn localized_binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
+}
+
 fn ai_settings_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
     localization::text_for_app_with_args(app, key, args)
+}
+
+fn format_aws_credentials_status_timestamp(time: std::time::SystemTime) -> String {
+    let datetime: DateTime<Local> = time.into();
+    if datetime.date_naive() == Local::now().date_naive() {
+        datetime.format("%-I:%M %p").to_string()
+    } else {
+        datetime.format("%b %-d at %-I:%M %p").to_string()
+    }
 }
 
 fn action_permission_dropdown_items(
@@ -398,7 +413,10 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                     ThinkingDisplayMode::NeverShow => flags::THINKING_DISPLAY_NEVER_SHOW,
                 };
                 FixedBinding::empty(
-                    crate::localization::text_for_app(app, mode.command_palette_description_key()),
+                    localized_binding_description(
+                        mode.command_palette_description(),
+                        mode.command_palette_description_key(),
+                    ),
                     builder(SettingsAction::AI(
                         AISettingsPageAction::SetThinkingDisplayMode(mode),
                     )),
@@ -427,7 +445,10 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                     }
                 };
                 FixedBinding::empty(
-                    mode.command_palette_description(),
+                    localized_binding_description(
+                        mode.command_palette_description(),
+                        mode.command_palette_description_key(),
+                    ),
                     builder(SettingsAction::AI(
                         AISettingsPageAction::SetOrchestrationMessageDisplayMode(mode),
                     )),
@@ -449,7 +470,10 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                     PromptSubmissionMode::Queue => flags::PROMPT_SUBMISSION_QUEUE,
                 };
                 FixedBinding::empty(
-                    mode.command_palette_description(),
+                    localized_binding_description(
+                        mode.command_palette_description(),
+                        mode.command_palette_description_key(),
+                    ),
                     builder(SettingsAction::AI(
                         AISettingsPageAction::SetPromptSubmissionMode(mode),
                     )),
@@ -841,7 +865,7 @@ impl AISettingsPageView {
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            val.display_name(),
+                            val.localized_display_name(ctx),
                             AISettingsPageAction::SetVoiceInputToggleKey(val),
                         )
                     })
@@ -1308,10 +1332,10 @@ impl AISettingsPageView {
                     let current_value = AISettings::as_ref(ctx)
                         .voice_input_toggle_key
                         .value()
-                        .display_name();
+                        .localized_display_name(ctx);
                     me.voice_input_toggle_key_dropdown
                         .update(ctx, |dropdown, ctx| {
-                            dropdown.set_selected_by_name(current_value, ctx)
+                            dropdown.set_selected_by_name(&current_value, ctx)
                         });
                 }
                 AISettingsChangedEvent::AgentModeCommandExecutionAllowlist { .. } => {
@@ -6569,7 +6593,7 @@ impl OtherAIWidget {
         let items: Vec<DropdownItem<AISettingsPageAction>> = ThinkingDisplayMode::iter()
             .map(|mode| {
                 DropdownItem::new(
-                    mode.display_name(),
+                    localization::text_for_app(ctx, mode.display_name_key()),
                     AISettingsPageAction::SetThinkingDisplayMode(mode),
                 )
             })
@@ -6591,7 +6615,7 @@ impl OtherAIWidget {
         let items: Vec<DropdownItem<AISettingsPageAction>> = PromptSubmissionMode::iter()
             .map(|mode| {
                 DropdownItem::new(
-                    mode.display_name(),
+                    localization::text_for_app(ctx, mode.display_name_key()),
                     AISettingsPageAction::SetPromptSubmissionMode(mode),
                 )
             })
@@ -6614,7 +6638,7 @@ impl OtherAIWidget {
             OrchestrationMessageDisplayMode::iter()
                 .map(|mode| {
                     DropdownItem::new(
-                        mode.display_name(),
+                        localization::text_for_app(ctx, mode.display_name_key()),
                         AISettingsPageAction::SetOrchestrationMessageDisplayMode(mode),
                     )
                 })
@@ -8413,33 +8437,65 @@ impl AwsBedrockWidget {
                 state: &AwsCredentialsState,
                 app: &AppContext,
             ) -> (String, String, Icon) {
-                let (_, default_detail, icon) = state.user_facing_components();
-                let (title_key, detail_key) = match state {
+                let (title_key, detail, icon) = match state {
                     AwsCredentialsState::Missing => (
                         "settings.ai.aws_bedrock.credentials.status.missing.title",
-                        Some("settings.ai.aws_bedrock.credentials.status.missing.detail"),
+                        ai_settings_text(
+                            app,
+                            "settings.ai.aws_bedrock.credentials.status.missing.detail",
+                        ),
+                        Icon::Key,
                     ),
                     AwsCredentialsState::Disabled => (
                         "settings.ai.aws_bedrock.credentials.status.disabled.title",
-                        Some("settings.ai.aws_bedrock.credentials.status.disabled.detail"),
+                        ai_settings_text(
+                            app,
+                            "settings.ai.aws_bedrock.credentials.status.disabled.detail",
+                        ),
+                        Icon::Key,
                     ),
                     AwsCredentialsState::Refreshing => (
                         "settings.ai.aws_bedrock.credentials.status.refreshing.title",
-                        Some("settings.ai.aws_bedrock.credentials.status.refreshing.detail"),
+                        ai_settings_text(
+                            app,
+                            "settings.ai.aws_bedrock.credentials.status.refreshing.detail",
+                        ),
+                        Icon::RefreshCw04,
                     ),
-                    AwsCredentialsState::Loaded { .. } => (
+                    AwsCredentialsState::Loaded {
+                        credentials,
+                        loaded_at,
+                    } => (
                         "settings.ai.aws_bedrock.credentials.status.loaded.title",
-                        None,
+                        match credentials.expires_at() {
+                            Some(expires_at) => {
+                                let loaded_at = format_aws_credentials_status_timestamp(*loaded_at);
+                                let expires_at =
+                                    format_aws_credentials_status_timestamp(expires_at);
+                                ai_settings_text_with_args(
+                                    app,
+                                    "settings.ai.aws_bedrock.credentials.status.loaded.detail_with_expiration",
+                                    &[("loaded_at", &loaded_at), ("expires_at", &expires_at)],
+                                )
+                            }
+                            None => {
+                                let loaded_at = format_aws_credentials_status_timestamp(*loaded_at);
+                                ai_settings_text_with_args(
+                                    app,
+                                    "settings.ai.aws_bedrock.credentials.status.loaded.detail",
+                                    &[("loaded_at", &loaded_at)],
+                                )
+                            }
+                        },
+                        Icon::CheckCircleBroken,
                     ),
-                    AwsCredentialsState::Failed { .. } => (
+                    AwsCredentialsState::Failed { message } => (
                         "settings.ai.aws_bedrock.credentials.status.failed.title",
-                        None,
+                        message.clone(),
+                        Icon::AlertTriangle,
                     ),
                 };
                 let title = ai_settings_text(app, title_key);
-                let detail = detail_key
-                    .map(|key| ai_settings_text(app, key))
-                    .unwrap_or(default_detail);
                 (title, detail, icon)
             }
 

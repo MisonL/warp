@@ -12,7 +12,9 @@ use schemars::SchemaGenerator;
 use serde_json::{Map, Value};
 use settings::schema::SettingSchemaEntry;
 use warp_core::features::{FeatureFlag, DEBUG_FLAGS, DOGFOOD_FLAGS, PREVIEW_FLAGS, RELEASE_FLAGS};
-use warp_localization::{Catalog, CatalogBundle, LocaleId, TranslationSource};
+use warp_localization::{
+    settings_schema_translation_key, Catalog, CatalogBundle, LocaleId, TranslationSource,
+};
 
 const BUNDLED_EN_US: &str = include_str!("../../assets/bundled/locales/en-US.json");
 const BUNDLED_ZH_CN: &str = include_str!("../../assets/bundled/locales/zh-CN.json");
@@ -201,27 +203,63 @@ fn localized_catalog_text_by_default_text(locale: LocaleId) -> HashMap<String, S
         .collect()
 }
 
+fn localized_schema_text_by_path(
+    catalogs: &CatalogBundle,
+    locale: LocaleId,
+    path: &[String],
+    field: &str,
+) -> Option<String> {
+    let key = settings_schema_translation_key(path, field);
+    let lookup = catalogs.lookup(locale, &key);
+    (lookup.source != TranslationSource::Key).then(|| lookup.text.into_owned())
+}
+
 fn localize_schema_descriptions(
     value: &mut Value,
+    catalogs: &CatalogBundle,
+    locale: LocaleId,
     translations_by_default_text: &HashMap<String, String>,
+    path: &mut Vec<String>,
 ) {
     match value {
         Value::Object(map) => {
             for key in ["description", "title"] {
                 if let Some(Value::String(text)) = map.get_mut(key) {
-                    if let Some(localized_text) = translations_by_default_text.get(text.as_str()) {
+                    if let Some(localized_text) =
+                        localized_schema_text_by_path(catalogs, locale, path, key)
+                    {
+                        *text = localized_text;
+                    } else if let Some(localized_text) =
+                        translations_by_default_text.get(text.as_str())
+                    {
                         *text = localized_text.clone();
                     }
                 }
             }
 
-            for val in map.values_mut() {
-                localize_schema_descriptions(val, translations_by_default_text);
+            for (key, val) in map {
+                path.push(key.clone());
+                localize_schema_descriptions(
+                    val,
+                    catalogs,
+                    locale,
+                    translations_by_default_text,
+                    path,
+                );
+                path.pop();
             }
         }
         Value::Array(arr) => {
-            for val in arr {
-                localize_schema_descriptions(val, translations_by_default_text);
+            for (index, val) in arr.iter_mut().enumerate() {
+                path.push(index.to_string());
+                localize_schema_descriptions(
+                    val,
+                    catalogs,
+                    locale,
+                    translations_by_default_text,
+                    path,
+                );
+                path.pop();
             }
         }
         _ => {}
@@ -395,7 +433,13 @@ fn main() {
     // schemars emits from Rust primitive bounds (e.g. u8 → max 255).
     // These leak implementation details rather than semantic constraints.
     let mut root_value = Value::Object(root);
-    localize_schema_descriptions(&mut root_value, &translations_by_default_text);
+    localize_schema_descriptions(
+        &mut root_value,
+        &catalogs,
+        locale,
+        &translations_by_default_text,
+        &mut Vec::new(),
+    );
     strip_numeric_metadata(&mut root_value);
     strip_empty_enum_entries(&mut root_value);
 

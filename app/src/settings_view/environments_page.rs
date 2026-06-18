@@ -62,7 +62,7 @@ use crate::themes::theme::Fill as ThemeFill;
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::icons::Icon;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 use crate::view_components::{
     render_copyable_text_field, CopyButtonPlacement, CopyableTextFieldConfig, DismissibleToast,
     COPY_FEEDBACK_DURATION,
@@ -187,12 +187,16 @@ impl EnvironmentDisplayData {
     /// Format the timestamp text showing last edited and last used times.
     fn format_timestamp_text(&self, app: &AppContext) -> String {
         let last_edited_part = self.last_edited_ts.map(|ts| {
-            text(app, "settings.environment.card.last_edited")
-                .replace("{value}", &format_approx_duration_from_now_utc(ts.utc()))
+            text(app, "settings.environment.card.last_edited").replace(
+                "{value}",
+                &localized_approx_duration_from_now_utc(app, ts.utc()),
+            )
         });
         let last_used_part = match self.last_used_ts {
-            Some(ts) => text(app, "settings.environment.card.last_used")
-                .replace("{value}", &format_approx_duration_from_now_utc(ts.utc())),
+            Some(ts) => text(app, "settings.environment.card.last_used").replace(
+                "{value}",
+                &localized_approx_duration_from_now_utc(app, ts.utc()),
+            ),
             None => text(app, "settings.environment.card.last_used_never"),
         };
         match last_edited_part {

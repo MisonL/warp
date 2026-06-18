@@ -22,7 +22,9 @@ use crate::ai::ambient_agents::AgentConfigSnapshot;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
 use crate::localization;
 use crate::server::ids::{ServerId, SyncId};
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::{
+    localized_approx_duration_from_now_utc, localized_approx_duration_from_now_utc_for_locale,
+};
 
 /// Run a scheduled agent command.
 pub fn run(
@@ -219,28 +221,32 @@ impl ScheduleInfo {
         }
     }
 
-    fn last_ran_display(&self) -> String {
-        let timestamp = self
-            .last_ran
-            .map(format_approx_duration_from_now_utc)
-            .unwrap_or("-".to_string());
-
-        if self.last_spawn_error.is_some() {
-            format!("Error: {timestamp}")
-        } else {
-            timestamp
-        }
-    }
-
     fn last_ran_display_for_app(&self, app: &AppContext) -> String {
         let timestamp = self
             .last_ran
-            .map(format_approx_duration_from_now_utc)
+            .map(|dt| localized_approx_duration_from_now_utc(app, dt))
             .unwrap_or("-".to_string());
 
         if self.last_spawn_error.is_some() {
             text_with_args(
                 app,
+                "agent_sdk.schedule.value.last_ran_with_error",
+                &[("timestamp", &timestamp)],
+            )
+        } else {
+            timestamp
+        }
+    }
+
+    fn last_ran_display_for_locale(&self, locale: LocaleId) -> String {
+        let timestamp = self
+            .last_ran
+            .map(|dt| localized_approx_duration_from_now_utc_for_locale(locale, dt))
+            .unwrap_or("-".to_string());
+
+        if self.last_spawn_error.is_some() {
+            localization::text_for_locale_with_args(
+                locale,
                 "agent_sdk.schedule.value.last_ran_with_error",
                 &[("timestamp", &timestamp)],
             )
@@ -260,35 +266,18 @@ impl ScheduleInfo {
 
 impl TableFormat for ScheduleInfo {
     fn header() -> Vec<Cell> {
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
         vec![
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.schedule.table.id",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.schedule.table.name",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.schedule.table.schedule",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.schedule.table.paused",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.schedule.table.last_ran",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.schedule.table.next_run",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.schedule.table.scope",
-            )),
+            Cell::new(text_for_locale(locale, "agent_sdk.schedule.table.id")),
+            Cell::new(text_for_locale(locale, "agent_sdk.schedule.table.name")),
+            Cell::new(text_for_locale(locale, "agent_sdk.schedule.table.schedule")),
+            Cell::new(text_for_locale(locale, "agent_sdk.schedule.table.paused")),
+            Cell::new(text_for_locale(locale, "agent_sdk.schedule.table.last_ran")),
+            Cell::new(text_for_locale(locale, "agent_sdk.schedule.table.next_run")),
+            Cell::new(text_for_locale(locale, "agent_sdk.schedule.table.scope")),
         ]
     }
 
@@ -305,15 +294,26 @@ impl TableFormat for ScheduleInfo {
     }
 
     fn row(&self) -> Vec<Cell> {
-        let paused_display = if self.paused { "Yes" } else { "No" };
+        self.row_for_locale(LocaleId::EnUs)
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
+        let paused_key = if self.paused {
+            "agent_sdk.common.value.yes"
+        } else {
+            "agent_sdk.common.value.no"
+        };
         vec![
             Cell::new(&self.id),
             Cell::new(&self.name),
             Cell::new(&self.cron_schedule),
-            Cell::new(paused_display),
-            Cell::new(self.last_ran_display()),
+            Cell::new(text_for_locale(locale, paused_key)),
+            Cell::new(self.last_ran_display_for_locale(locale)),
             Cell::new(self.next_run_display()),
-            Cell::new(&self.scope),
+            Cell::new(super::common::format_owner_scope_for_locale(
+                &self.scope,
+                locale,
+            )),
         ]
     }
 
@@ -898,3 +898,7 @@ fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String 
 fn text_for_locale(locale: LocaleId, key: &str) -> String {
     localization::text_for_locale(locale, key)
 }
+
+#[cfg(test)]
+#[path = "schedule_tests.rs"]
+mod tests;

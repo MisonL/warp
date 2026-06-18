@@ -1982,32 +1982,43 @@ fn render_search_action_input(
             ref path,
         } => {
             let display_path = if path == "." {
-                "the current directory"
+                text(app, "agent.cli.search_action.current_directory")
             } else {
-                path.as_str()
+                path.to_string()
             };
 
             if queries.len() == 1 {
-                format!("Grep for `{}` in {}", queries[0], display_path)
+                text_with_args(
+                    app,
+                    "agent.cli.search_action.grep.single",
+                    &[("query", &queries[0]), ("path", &display_path)],
+                )
             } else {
                 let patterns_list = queries
                     .iter()
                     .map(|q| format!(" - `{q}`"))
                     .collect::<Vec<_>>()
                     .join("\n");
-                format!("Grep for the following patterns in {display_path}:\n{patterns_list}")
+                text_with_args(
+                    app,
+                    "agent.cli.search_action.grep.multiple",
+                    &[("path", &display_path), ("patterns", &patterns_list)],
+                )
             }
         }
         AIAgentActionType::FileGlobV2 {
             ref patterns,
             ref search_dir,
         } => {
-            let display_path = search_dir.as_deref().unwrap_or("the current directory");
+            let display_path = search_dir
+                .clone()
+                .unwrap_or_else(|| text(app, "agent.cli.search_action.current_directory"));
 
             if patterns.len() == 1 {
-                format!(
-                    "Search for files that match `{}` in {}",
-                    patterns[0], display_path
+                text_with_args(
+                    app,
+                    "agent.cli.search_action.file_glob.single",
+                    &[("pattern", &patterns[0]), ("path", &display_path)],
                 )
             } else {
                 let patterns_list = patterns
@@ -2015,8 +2026,10 @@ fn render_search_action_input(
                     .map(|p| format!(" - `{p}`"))
                     .collect::<Vec<_>>()
                     .join("\n");
-                format!(
-                    "Find files that match the following patterns in {display_path}:\n{patterns_list}"
+                text_with_args(
+                    app,
+                    "agent.cli.search_action.file_glob.multiple",
+                    &[("path", &display_path), ("patterns", &patterns_list)],
                 )
             }
         }
@@ -2132,4 +2145,8 @@ fn render_blocked_action(props: BlockedActionProps<'_>, app: &AppContext) -> Box
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
 }

@@ -16,7 +16,7 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, Radius, Shrinkable, Stack,
 };
 use warpui::fonts::Weight;
-use warpui::keymap::{FixedBinding, Keystroke};
+use warpui::keymap::{BindingDescription, FixedBinding, Keystroke};
 use warpui::text_layout::TextAlignment;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
@@ -55,7 +55,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Paste,
             PasteAuthTokenModalAction::PasteIntoEditor,
-            "Paste",
+            binding_description("Paste", "terminal.binding.paste"),
             id!(PasteAuthTokenModalView::ui_name()),
         ),
         FixedBinding::standard(
@@ -71,6 +71,11 @@ pub fn init(app: &mut AppContext) {
         PasteAuthTokenModalAction::PasteIntoEditor,
         id!(PasteAuthTokenModalView::ui_name()),
     )]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }
 
 #[derive(Clone, Copy, Debug)]

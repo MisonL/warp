@@ -13,7 +13,7 @@ use warpui::elements::{
     Resizable, ResizableStateHandle, SavePosition, Shrinkable, Stack, Text,
 };
 use warpui::fonts::Properties;
-use warpui::keymap::{EditableBinding, FixedBinding};
+use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui::platform::Cursor;
 use warpui::presenter::ChildView;
 use warpui::r#async::Timer;
@@ -137,33 +137,40 @@ pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings([FixedBinding::custom(
         CustomAction::CloseCurrentSession,
         AIAssistantAction::ClosePanel,
-        "Close Warp AI",
+        binding_description("Close Warp AI", "ai_assistant.binding.close_warp_ai"),
         id!("AIAssistantPanel"),
     )]);
 
     app.register_editable_bindings([
         EditableBinding::new(
             "ai_assistant_panel:focus_terminal_input",
-            "Focus Terminal Input From Warp AI",
+            binding_description(
+                "Focus Terminal Input From Warp AI",
+                "ai_assistant.binding.focus_terminal_input",
+            ),
             AIAssistantAction::FocusTerminalInput,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding(cmd_or_ctrl_shift("l")),
         EditableBinding::new(
             "ai_assistant_panel:reset_context",
-            "Restart Warp AI",
+            binding_description("Restart Warp AI", "ai_assistant.binding.restart_warp_ai"),
             AIAssistantAction::ResetContext,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding("ctrl-l"),
         EditableBinding::new(
             "ai_assistant_panel:reset_context",
-            "Restart Warp AI",
+            binding_description("Restart Warp AI", "ai_assistant.binding.restart_warp_ai"),
             AIAssistantAction::ResetContext,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding(cmd_or_ctrl_shift("k")),
     ]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
 }
 
 fn text(app: &AppContext, key: &str) -> String {

@@ -75,7 +75,9 @@ use crate::settings::ai::AISettings;
 use crate::ui_components::agent_icon::agent_conversation_entry_icon_variant;
 use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::icon_with_status::render_icon_with_status;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::{
+    localized_approx_duration_from_now_utc, localized_human_readable_precise_duration,
+};
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, NakedTheme, PrimaryTheme, SecondaryTheme,
 };
@@ -1410,6 +1412,7 @@ impl AgentManagementView {
             task.as_ref(),
             open_action,
             copy_link_url,
+            ctx,
         );
 
         self.details_panel.update(ctx, |p, ctx| {
@@ -1812,7 +1815,7 @@ impl AgentManagementView {
             theme,
             internal_colors::fg_overlay_1(theme),
         );
-        let time_str = format_approx_duration_from_now_utc(entry.display.last_updated);
+        let time_str = localized_approx_duration_from_now_utc(app, entry.display.last_updated);
         let time_text = Text::new_inline(time_str, font_family, font_size)
             .with_color(theme.nonactive_ui_text_color().into());
         let creator_name = entry
@@ -1908,6 +1911,7 @@ impl AgentManagementView {
         }
 
         if let Some(run_time) = &entry.display.run_time {
+            let run_time = localized_human_readable_precise_duration(app, *run_time);
             metadata_parts.push(format!(
                 "{}: {run_time}",
                 text(app, "agent_management.metadata.run_time")

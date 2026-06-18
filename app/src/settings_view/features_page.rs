@@ -644,8 +644,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "preserve input focus on block selection",
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        app,
+        "settings.features.preserve_input_focus_on_block_selection.label",
         builder(SettingsAction::FeaturesPageToggle(
             FeaturesPageAction::TogglePreserveInputFocusOnBlockSelection,
         )),
@@ -918,6 +919,14 @@ fn feature_text(app: &AppContext, key: &str) -> String {
 
 fn feature_text_with_value(app: &AppContext, key: &str, value: &str) -> String {
     feature_text(app, key).replace("{value}", value)
+}
+
+fn code_editor_line_number_mode_label(app: &AppContext, mode: CodeEditorLineNumberMode) -> String {
+    let key = match mode {
+        CodeEditorLineNumberMode::Absolute => "settings.features.code_editor_line_numbers.absolute",
+        CodeEditorLineNumberMode::Relative => "settings.features.code_editor_line_numbers.relative",
+    };
+    feature_text(app, key)
 }
 
 fn tab_behavior_dropdown_label(app: &AppContext, behavior: TabBehavior) -> String {
@@ -3142,7 +3151,7 @@ impl FeaturesPageView {
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            val.dropdown_item_label(),
+                            code_editor_line_number_mode_label(ctx, val),
                             FeaturesPageAction::SetCodeEditorLineNumberMode(val),
                         )
                     })
@@ -6702,7 +6711,10 @@ impl SettingsWidget for PreserveInputFocusOnBlockSelectionWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Preserve input focus on block selection".into(),
+            feature_text(
+                app,
+                "settings.features.preserve_input_focus_on_block_selection.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 PreserveInputFocusOnBlockSelection::storage_key(),
@@ -7956,7 +7968,7 @@ impl SettingsWidget for AsyncFindWidget {
         let label_with_chip = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(label)
-            .with_child(render_beta_chip(appearance))
+            .with_child(render_beta_chip(app, appearance))
             .finish();
 
         let switch = ui_builder

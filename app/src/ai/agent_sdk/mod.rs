@@ -285,6 +285,7 @@ fn run_agent(
             }
 
             let server_api = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
+            let locale = crate::localization::current_locale(ctx);
 
             // Start the agent driver runner, which will handle the rest of the setup steps
             // (managing both sync and async steps) as well as triggering the driver.
@@ -297,6 +298,7 @@ fn run_agent(
                         args,
                         server_api,
                         global_options.output_format,
+                        locale,
                     ),
                     |_, result, _ctx| {
                         if let Err(e) = result {
@@ -614,6 +616,7 @@ impl AgentDriverRunner {
         args: RunAgentArgs,
         server_api: Arc<dyn AIClient>,
         output_format: OutputFormat,
+        locale: LocaleId,
     ) -> Result<(), AgentDriverError> {
         // Extract the task ID as early as possible for best-effort setup observability.
         // Local CLI-created runs may not have a task yet, so those setup events explicitly no-op.
@@ -753,7 +756,7 @@ impl AgentDriverRunner {
             }
 
             if let Some(task_id) = driver_options.task_id {
-                driver::write_run_started(&task_id.to_string(), output_format);
+                driver::write_run_started(&task_id.to_string(), output_format, locale);
             }
 
             // Pull conversation information, if we have it
@@ -976,7 +979,9 @@ impl AgentDriverRunner {
             // Extract the prompt text that we'll pass up to the server when we create the task.
             let prompt_for_task_creation = match &prompt {
                 Some(Prompt::PlainText(text)) => text.clone(),
-                Some(Prompt::SavedPrompt(id)) => format!("Saved prompt ({id})"),
+                Some(Prompt::SavedPrompt(id)) => {
+                    default_text_with_args("agent_sdk.common.saved_prompt_summary", &[("id", id)])
+                }
                 None => skill
                     .as_ref()
                     .map(|s| format!("/{}", s.skill_identifier))
@@ -1582,10 +1587,15 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
     #[cfg(not(target_family = "wasm"))]
     {
         if let Ok(path) = log_file_path() {
+            let path = path.display().to_string();
             let _ = write!(
                 message,
-                "\n\nFor more information, check Warp logs at {}",
-                path.display()
+                "\n\n{}",
+                text_with_args(
+                    ctx,
+                    "agent_sdk.common.error.check_warp_logs",
+                    &[("path", &path)]
+                )
             );
         }
     }

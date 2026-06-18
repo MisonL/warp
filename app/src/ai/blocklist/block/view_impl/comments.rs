@@ -118,8 +118,12 @@ fn changes_chip(
         .sub_text_color(appearance.theme().background())
         .into_solid();
 
+    let fallback_title =
+        crate::localization::text_for_app(app, "code_review.comment.review_comment");
+    let invalid_file_name =
+        crate::localization::text_for_app(app, "code_review.comment.invalid_file_name");
     let comment_title = Text::new(
-        review_comment.title(),
+        review_comment.title_with_fallbacks(&fallback_title, &invalid_file_name),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 2.,
     )

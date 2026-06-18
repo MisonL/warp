@@ -20,7 +20,7 @@ use crate::terminal::rich_history::{
     render_row_with_icon_and_paragraph, DETAILS_PARAGRAPH_SPACING,
 };
 use crate::ui_components::icons::Icon as UiIcon;
-use crate::util::time_format::format_approx_duration_from_now;
+use crate::util::time_format::localized_approx_duration_from_now;
 
 /// Stores data needed to display an AI query search result item in Command Search.
 #[derive(Clone, Debug)]
@@ -106,7 +106,7 @@ impl SearchItem for AIQuerySearchResultItem {
             .with_child(
                 appearance
                     .ui_builder()
-                    .span(format_approx_duration_from_now(self.start_time))
+                    .span(localized_approx_duration_from_now(app, self.start_time))
                     .with_style(UiComponentStyles {
                         margin: Some(Coords::uniform(0.).left(8.)),
                         font_color: Some(highlight_state.main_text_fill(appearance).into_solid()),
@@ -133,7 +133,7 @@ impl SearchItem for AIQuerySearchResultItem {
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(render_row_with_icon_and_paragraph(
                 self.output_status.icon().into(),
-                self.output_status.display_text(),
+                self.output_status.display_text(ctx),
                 appearance,
             ));
 
@@ -152,9 +152,13 @@ impl SearchItem for AIQuerySearchResultItem {
         details_column.add_child(
             Container::new(
                 ui_builder
-                    .paragraph(format!(
-                        "Ran {}",
-                        format_approx_duration_from_now(self.start_time)
+                    .paragraph(localization::text_for_app_with_args(
+                        ctx,
+                        "terminal.rich_history.ran",
+                        &[(
+                            "time",
+                            &localized_approx_duration_from_now(ctx, self.start_time),
+                        )],
                     ))
                     .build()
                     .finish(),

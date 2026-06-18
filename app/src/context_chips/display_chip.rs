@@ -508,6 +508,14 @@ impl GenericMenuItem for CreateGitBranch {
         format!("Create new branch \"{}\"", self.0)
     }
 
+    fn display_name(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "context_chips.git_branch.create_new_branch",
+            &[("branch", &self.0)],
+        )
+    }
+
     fn icon(&self, _app: &AppContext) -> Option<Icon> {
         Some(Icon::Plus)
     }

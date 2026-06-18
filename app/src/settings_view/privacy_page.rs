@@ -171,7 +171,7 @@ impl PrivacyPageView {
                     .iter()
                     .map(|mode| {
                         DropdownItem::new(
-                            mode.display_name(),
+                            mode.display_name_for_app(ctx),
                             PrivacyPageAction::SetSecretDisplayMode(*mode),
                         )
                     })

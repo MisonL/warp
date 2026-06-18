@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ai::agent::action_result::RequestCommandOutputResult;
 use futures::channel::oneshot;
 use repo_metadata::{DirectoryWatcher, RepoMetadataEvent, RepoMetadataModel, RepositoryIdentifier};
 use tempfile::TempDir;
@@ -15,6 +16,7 @@ use warp_cli::{
     SESSION_SHARING_SERVER_URL_OVERRIDE_ENV, WS_SERVER_URL_OVERRIDE_ENV,
 };
 use warp_core::channel::ChannelState;
+use warp_localization::LocaleId;
 use warp_managed_secrets::ManagedSecretValue;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{App, SingletonEntity as _};
@@ -448,6 +450,31 @@ fn json_format_input_omits_filepath_and_description_for_proto_upload_result() {
     assert_eq!(value["size_bytes"], 42);
     assert!(value.get("filepath").is_none());
     assert!(value.get("description").is_none());
+}
+
+#[test]
+fn text_format_input_uses_selected_locale() {
+    let input = AIAgentInput::ActionResult {
+        result: AIAgentActionResult {
+            id: "tool-call-1".to_string().into(),
+            task_id: TaskId::new("task-1".to_string()),
+            result: AIAgentActionResultType::RequestCommandOutput(
+                RequestCommandOutputResult::CancelledBeforeExecution,
+            ),
+        },
+        context: Arc::from([]),
+    };
+
+    let mut english = Vec::new();
+    super::output::text::format_input(&input, &mut english)
+        .expect("English text formatting should work");
+
+    let mut chinese = Vec::new();
+    super::output::text::format_input_for_locale(&input, &mut chinese, LocaleId::ZhCn)
+        .expect("localized text formatting should work");
+
+    assert_eq!(String::from_utf8(english).unwrap(), "<cancelled>\n");
+    assert_eq!(String::from_utf8(chinese).unwrap(), "<已取消>\n");
 }
 
 // ── build_secret_env_vars tests ──────────────────────────────────────────────

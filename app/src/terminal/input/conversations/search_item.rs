@@ -17,7 +17,7 @@ use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::conversations::AcceptConversation;
 use crate::terminal::input::inline_menu::styles as inline_styles;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 /// Search item for rendering a conversation in the inline conversation menu.
 #[derive(Debug, Clone)]
@@ -130,7 +130,7 @@ impl SearchItem for ConversationSearchItem {
         // We want the timestamp 'column' to have fixed width so clipping is consistent,
         // limit the timestamp width to about 10 chars.
         let timestamp = Text::new_inline(
-            format_approx_duration_from_now_utc(self.entry.display.last_updated),
+            localized_approx_duration_from_now_utc(app, self.entry.display.last_updated),
             appearance.ui_font_family(),
             font_size,
         )

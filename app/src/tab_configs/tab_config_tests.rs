@@ -40,6 +40,7 @@ fn generated_worktree_path_string(repo: &str, worktree_name: &str) -> String {
 fn build_test_tab_config_toml(name: &str, commands: Vec<String>) -> String {
     let config = TabConfig {
         name: name.to_string(),
+        name_zh_cn: None,
         title: None,
         color: None,
         panes: vec![TabConfigPaneNode {

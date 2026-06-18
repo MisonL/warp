@@ -27,7 +27,10 @@ use crate::auth::UserUid;
 use crate::cloud_object::Owner;
 use crate::localization;
 use crate::server::ids::ServerId;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::{
+    format_approx_duration_from_now_utc, localized_approx_duration_from_now_utc,
+    localized_approx_duration_from_now_utc_for_locale,
+};
 
 fn text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
@@ -100,8 +103,8 @@ impl TableFormat for SecretInfo {
             Cell::new(&self.name),
             Cell::new(super::common::format_owner_scope_for_app(&self.scope, app)),
             Cell::new(format_secret_type_for_app(&self.secret_type, app)),
-            Cell::new(format_approx_duration_from_now_utc(self.created_at)),
-            Cell::new(format_approx_duration_from_now_utc(self.updated_at)),
+            Cell::new(localized_approx_duration_from_now_utc(app, self.created_at)),
+            Cell::new(localized_approx_duration_from_now_utc(app, self.updated_at)),
         ]
     }
 
@@ -112,9 +115,15 @@ impl TableFormat for SecretInfo {
                 &self.scope,
                 locale,
             )),
-            Cell::new(format_secret_type(&self.secret_type)),
-            Cell::new(format_approx_duration_from_now_utc(self.created_at)),
-            Cell::new(format_approx_duration_from_now_utc(self.updated_at)),
+            Cell::new(format_secret_type_for_locale(&self.secret_type, locale)),
+            Cell::new(localized_approx_duration_from_now_utc_for_locale(
+                locale,
+                self.created_at,
+            )),
+            Cell::new(localized_approx_duration_from_now_utc_for_locale(
+                locale,
+                self.updated_at,
+            )),
         ]
     }
 }
@@ -977,7 +986,15 @@ fn format_secret_type(type_: &ManagedSecretType) -> String {
 }
 
 fn format_secret_type_for_app(type_: &ManagedSecretType, app: &AppContext) -> String {
-    let key = match type_ {
+    text(app, secret_type_text_key(type_))
+}
+
+fn format_secret_type_for_locale(type_: &ManagedSecretType, locale: LocaleId) -> String {
+    localization::text_for_locale(locale, secret_type_text_key(type_))
+}
+
+fn secret_type_text_key(type_: &ManagedSecretType) -> &'static str {
+    match type_ {
         ManagedSecretType::RawValue => "agent_sdk.secret.type.raw_value",
         ManagedSecretType::Dotenvx => "agent_sdk.secret.type.dotenvx",
         ManagedSecretType::AnthropicApiKey => "agent_sdk.secret.type.anthropic_api_key",
@@ -988,8 +1005,7 @@ fn format_secret_type_for_app(type_: &ManagedSecretType, app: &AppContext) -> St
             "agent_sdk.secret.type.anthropic_bedrock_api_key"
         }
         ManagedSecretType::OpenaiApiKey => "agent_sdk.secret.type.openai_api_key",
-    };
-    text(app, key)
+    }
 }
 
 #[cfg(test)]

@@ -296,12 +296,12 @@ impl SshInstallTmuxBlock {
 
     fn render_local_install_ui(&self, app: &AppContext) -> Box<dyn Element> {
         let header = if self.is_focused {
-            "Run this script to install tmux?"
+            text(app, "terminal.ssh.install_tmux.run_script_header")
         } else {
-            ""
+            String::default()
         };
         Container::new(requested_script::render_requested_script(
-            header,
+            header.as_str(),
             &self.tmux_local_install_script,
             self.script_status.clone(),
             self.is_collapsed,
@@ -326,7 +326,7 @@ impl SshInstallTmuxBlock {
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let header_contents = render::build_header_row(
-            "Install tmux?",
+            text(app, "terminal.ssh.install_tmux.title"),
             Icon::new(UiIcon::Warp.into(), theme.active_ui_detail()),
             theme,
             appearance,

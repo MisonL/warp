@@ -4559,7 +4559,9 @@ impl TerminalView {
                             log::warn!("Remote server install failed: {error:#}");
                             me.show_ssh_remote_server_failed_banner(
                                 *session_id,
-                                error.user_facing_error(
+                                remote_server_user_facing_error(
+                                    ctx,
+                                    error,
                                     remote_server::transport::SetupStage::InstallBinary,
                                 ),
                                 ctx,
@@ -4594,7 +4596,9 @@ impl TerminalView {
                             log::warn!("Remote server binary check failed: {error:#}");
                             me.show_ssh_remote_server_failed_banner(
                                 *session_id,
-                                error.user_facing_error(
+                                remote_server_user_facing_error(
+                                    ctx,
+                                    error,
                                     remote_server::transport::SetupStage::CheckBinary,
                                 ),
                                 ctx,
@@ -12745,8 +12749,9 @@ impl TerminalView {
                 }
 
                 if self.is_navigated_away_from_window(ctx) {
-                    let notification_title =
-                        title.clone().unwrap_or_else(|| "Notification".to_string());
+                    let notification_title = title.clone().unwrap_or_else(|| {
+                        localization::text_for_app(ctx, "terminal.notification.default_title")
+                    });
                     let notification = BlockNotification {
                         title: notification_title,
                         body: body.clone(),
@@ -13328,7 +13333,9 @@ impl TerminalView {
             .unwrap_or(agent.command_prefix())
             .to_owned();
         let description = if let CLIAgentSessionStatus::Blocked { message } = status {
-            message.clone().unwrap_or_default()
+            message.clone().unwrap_or_else(|| {
+                localization::text_for_app(ctx, "agent_management.notifications.waiting_for_input")
+            })
         } else {
             session_context.response.clone().unwrap_or_default()
         };
@@ -25724,7 +25731,8 @@ impl TerminalView {
             .as_ref()
             .and_then(|data| ShellIndicatorType::try_from(data).ok());
         self.shell_indicator_type = shell_indicator_type;
-        self.shell_detail = shell_launch_data.map(|launch_data| launch_data.shell_detail());
+        self.shell_detail =
+            shell_launch_data.map(|launch_data| localized_shell_detail(ctx, &launch_data));
 
         // Notify pane header to re-render with updated shell indicator.
         self.pane_configuration.update(ctx, |config, ctx| {
@@ -28564,4 +28572,100 @@ fn terminal_text(app: &AppContext, key: &str) -> String {
 
 fn terminal_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
     crate::localization::text_for_app_with_args(app, key, args)
+}
+
+fn localized_shell_detail(app: &AppContext, launch_data: &ShellLaunchData) -> String {
+    match launch_data {
+        ShellLaunchData::Executable {
+            executable_path, ..
+        }
+        | ShellLaunchData::MSYS2 {
+            executable_path, ..
+        } => executable_path.to_string_lossy().into_owned(),
+        ShellLaunchData::WSL { distro } => distro.to_owned(),
+        ShellLaunchData::DockerSandbox { base_image, .. } => match base_image {
+            Some(image) => terminal_text_with_args(
+                app,
+                "terminal.shell_detail.docker_sandbox_with_image",
+                &[("image", image)],
+            ),
+            None => terminal_text(app, "terminal.shell_detail.docker_sandbox"),
+        },
+    }
+}
+
+fn remote_server_user_facing_error(
+    app: &AppContext,
+    error: &remote_server::transport::Error,
+    stage: remote_server::transport::SetupStage,
+) -> remote_server::transport::UserFacingError {
+    const MAX_STDERR_DISPLAY_CHARS: usize = 512;
+
+    let action = terminal_text(app, remote_server_setup_stage_action_key(stage));
+    let body = terminal_text_with_args(
+        app,
+        "terminal.ssh_remote_server_failed.error.failed_to",
+        &[("action", &action)],
+    );
+    let detail = match error {
+        remote_server::transport::Error::TimedOut => Some(terminal_text(
+            app,
+            "terminal.ssh_remote_server_failed.error.timeout_detail",
+        )),
+        remote_server::transport::Error::UnsupportedOs { os } => Some(terminal_text_with_args(
+            app,
+            "terminal.ssh_remote_server_failed.error.unsupported_os",
+            &[("os", os)],
+        )),
+        remote_server::transport::Error::UnsupportedArch { arch } => Some(terminal_text_with_args(
+            app,
+            "terminal.ssh_remote_server_failed.error.unsupported_arch",
+            &[("arch", arch)],
+        )),
+        remote_server::transport::Error::ScriptFailed { exit_code, stderr } => {
+            let truncated = if stderr.chars().count() > MAX_STDERR_DISPLAY_CHARS {
+                let end = stderr
+                    .char_indices()
+                    .nth(MAX_STDERR_DISPLAY_CHARS)
+                    .map(|(i, _)| i)
+                    .unwrap_or(stderr.len());
+                format!("{}...", &stderr[..end])
+            } else {
+                stderr.clone()
+            };
+            Some(terminal_text_with_args(
+                app,
+                "terminal.ssh_remote_server_failed.error.script_failed",
+                &[
+                    ("exit_code", &exit_code.to_string()),
+                    ("stderr", &truncated),
+                ],
+            ))
+        }
+        remote_server::transport::Error::Other(_) => None,
+    };
+
+    remote_server::transport::UserFacingError { body, detail }
+}
+
+fn remote_server_setup_stage_action_key(
+    stage: remote_server::transport::SetupStage,
+) -> &'static str {
+    match stage {
+        remote_server::transport::SetupStage::DetectPlatform => {
+            "terminal.ssh_remote_server_failed.stage.detect_platform"
+        }
+        remote_server::transport::SetupStage::PreinstallCheck => {
+            "terminal.ssh_remote_server_failed.stage.preinstall_check"
+        }
+        remote_server::transport::SetupStage::CheckBinary => {
+            "terminal.ssh_remote_server_failed.stage.check_binary"
+        }
+        remote_server::transport::SetupStage::InstallBinary => {
+            "terminal.ssh_remote_server_failed.stage.install_binary"
+        }
+        remote_server::transport::SetupStage::Launch => {
+            "terminal.ssh_remote_server_failed.stage.launch"
+        }
+    }
 }

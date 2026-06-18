@@ -7,6 +7,7 @@ use repo_metadata::{DirectoryWatcher, RepoMetadataModel};
 use tempfile::TempDir;
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
+use warp_localization::LocaleId;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::remote_path::RemotePath;
@@ -394,7 +395,8 @@ Run `{{warp_cli_binary_name}}` to connect to {{warp_server_url}}.
     )
     .unwrap();
 
-    let skills = futures::executor::block_on(read_bundled_skills(skills_dir));
+    let skills =
+        futures::executor::block_on(read_bundled_skills_for_locale(skills_dir, LocaleId::EnUs));
 
     assert_eq!(skills.len(), 1);
     let skill = skills.get("test-skill").unwrap();
@@ -427,7 +429,8 @@ Use {{other_var}} and {{warp_cli_binary_name}} together.
     )
     .unwrap();
 
-    let skills = futures::executor::block_on(read_bundled_skills(skills_dir));
+    let skills =
+        futures::executor::block_on(read_bundled_skills_for_locale(skills_dir, LocaleId::EnUs));
 
     assert_eq!(skills.len(), 1);
     let skill = skills.get("test-skill").unwrap();
@@ -459,11 +462,120 @@ Plain content with no variables.
     )
     .unwrap();
 
-    let skills = futures::executor::block_on(read_bundled_skills(skills_dir));
+    let skills =
+        futures::executor::block_on(read_bundled_skills_for_locale(skills_dir, LocaleId::EnUs));
 
     assert_eq!(skills.len(), 1);
     let skill = skills.get("test-skill").unwrap();
     assert!(skill.content.contains("Plain content with no variables."));
+}
+
+#[test]
+fn read_bundled_skills_prefers_localized_description_metadata() {
+    let temp_dir = TempDir::new().unwrap();
+    let skills_dir = temp_dir.path();
+    let skill_dir = skills_dir.join("test-skill");
+    fs::create_dir_all(&skill_dir).unwrap();
+    let skill_file = skill_dir.join("SKILL.md");
+    fs::write(
+        &skill_file,
+        r#"---
+name: test-skill
+description: English bundled skill
+description_zh_CN: 中文内置技能
+---
+
+English content.
+"#,
+    )
+    .unwrap();
+    fs::write(
+        skill_dir.join("SKILL.zh-CN.md"),
+        r#"---
+name: test-skill
+description: 中文内置技能
+---
+
+中文内容。
+"#,
+    )
+    .unwrap();
+
+    let skills =
+        futures::executor::block_on(read_bundled_skills_for_locale(skills_dir, LocaleId::ZhCn));
+
+    let skill = skills.get("test-skill").unwrap();
+    assert_eq!(skill.description, "中文内置技能");
+    assert!(skill.content.contains("中文内容。"));
+    assert!(!skill.content.contains("English content."));
+    assert_eq!(skill.path, LocalOrRemotePath::Local(skill_file));
+}
+
+#[test]
+fn read_bundled_skills_keeps_default_content_for_en_us() {
+    let temp_dir = TempDir::new().unwrap();
+    let skills_dir = temp_dir.path();
+    let skill_dir = skills_dir.join("test-skill");
+    fs::create_dir_all(&skill_dir).unwrap();
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: test-skill
+description: English bundled skill
+description_zh_CN: 中文内置技能
+---
+
+English content.
+"#,
+    )
+    .unwrap();
+    fs::write(
+        skill_dir.join("SKILL.zh-CN.md"),
+        r#"---
+name: test-skill
+description: 中文内置技能
+---
+
+中文内容。
+"#,
+    )
+    .unwrap();
+
+    let skills =
+        futures::executor::block_on(read_bundled_skills_for_locale(skills_dir, LocaleId::EnUs));
+
+    let skill = skills.get("test-skill").unwrap();
+    assert_eq!(skill.description, "English bundled skill");
+    assert!(skill.content.contains("English content."));
+    assert!(!skill.content.contains("中文内容。"));
+}
+
+#[test]
+fn read_bundled_skills_falls_back_to_default_description() {
+    let temp_dir = TempDir::new().unwrap();
+    let skills_dir = temp_dir.path();
+    let skill_dir = skills_dir.join("test-skill");
+    fs::create_dir_all(&skill_dir).unwrap();
+    let default_skill_file = skill_dir.join("SKILL.md");
+    fs::write(
+        &default_skill_file,
+        r#"---
+name: test-skill
+description: English bundled skill
+---
+
+English content.
+"#,
+    )
+    .unwrap();
+
+    let skills =
+        futures::executor::block_on(read_bundled_skills_for_locale(skills_dir, LocaleId::ZhCn));
+
+    let skill = skills.get("test-skill").unwrap();
+    assert_eq!(skill.description, "English bundled skill");
+    assert!(skill.content.contains("English content."));
+    assert_eq!(skill.path, LocalOrRemotePath::Local(default_skill_file));
 }
 
 #[test]
