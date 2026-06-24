@@ -36,6 +36,8 @@ const LAUNCH_CONFIG_SAVE_MODAL_SOURCE: &str =
 const USER_CONFIG_NATIVE_SOURCE: &str = include_str!("../../../app/src/user_config/native.rs");
 const WORKSPACE_VIEW_SOURCE: &str = include_str!("../../../app/src/workspace/view.rs");
 const AI_SETTINGS_PAGE_SOURCE: &str = include_str!("../../../app/src/settings_view/ai_page.rs");
+const AMBIENT_AGENT_MODEL_SELECTOR_SOURCE: &str =
+    include_str!("../../../app/src/terminal/view/ambient_agent/model_selector.rs");
 const AGENT_SDK_AMBIENT_SOURCE: &str = include_str!("../../../app/src/ai/agent_sdk/ambient.rs");
 const WORKSPACE_CLI_INSTALL_SOURCE: &str =
     include_str!("../../../app/src/workspace/cli_install.rs");
@@ -3702,6 +3704,27 @@ fn binding_search_accessibility_label_does_not_embed_selected_state() {
             "{locale}: search.a11y.item_with_binding must leave selected state to search.a11y.selected_item"
         );
     }
+}
+
+#[test]
+fn ambient_agent_model_selector_default_label_uses_catalog_copy() {
+    let default_label_key = "settings.ai.model_selector.default_model";
+    let occurrences = AMBIENT_AGENT_MODEL_SELECTOR_SOURCE
+        .match_indices(default_label_key)
+        .count();
+
+    assert!(
+        occurrences >= 2,
+        "ambient model selector should use {default_label_key} for both button and menu labels"
+    );
+    assert!(
+        !AMBIENT_AGENT_MODEL_SELECTOR_SOURCE.contains("MenuItemFields::new(\"default\")"),
+        "ambient model selector menu should not render the default label from a direct string"
+    );
+    assert!(
+        !AMBIENT_AGENT_MODEL_SELECTOR_SOURCE.contains("\"default\".to_string()"),
+        "ambient model selector button should not fall back to a direct default label"
+    );
 }
 
 #[test]
