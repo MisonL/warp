@@ -1381,8 +1381,13 @@ struct AppAnalyticsWidget {
 }
 
 impl AppAnalyticsWidget {
-    fn render_zero_data_retention_badge(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_zero_data_retention_badge(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
+        let tooltip_text = localization::text_for_app(app, "settings.privacy.zdr.tooltip");
 
         Hoverable::new(self.zdr_badge_mouse_state.clone(), move |mouse_state| {
             let is_hovered = mouse_state.is_hovered();
@@ -1403,10 +1408,7 @@ impl AppAnalyticsWidget {
 
             let mut stack = Stack::new().with_child(badge);
             if is_hovered {
-                let tooltip = ui_builder.tool_tip(
-                    "Your administrator has enabled zero data retention for your team. User generated content will never be collected."
-                        .to_string(),
-                );
+                let tooltip = ui_builder.tool_tip(tooltip_text.clone());
                 stack.add_positioned_child(
                     tooltip.build().finish(),
                     OffsetPositioning::offset_from_parent(
@@ -1489,7 +1491,7 @@ impl SettingsWidget for AppAnalyticsWidget {
                     is_toggleable.into(),
                     appearance,
                 ))
-                .with_child(self.render_zero_data_retention_badge(appearance))
+                .with_child(self.render_zero_data_retention_badge(appearance, app))
                 .finish()
         } else {
             render_body_item_label::<PrivacyPageAction>(

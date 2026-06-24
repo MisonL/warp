@@ -6756,7 +6756,10 @@ impl SettingsWidget for TabKeyBehaviorWidget {
                 view.button_mouse_states
                     .tab_behavior_local_only_icon
                     .clone(),
-                None,
+                Some(localization::text_for_app(
+                    app,
+                    "settings.local_only.tooltip",
+                )),
             ));
         }
 

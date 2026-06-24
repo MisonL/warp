@@ -2503,7 +2503,7 @@ impl DriveIndex {
         let mut title_right_side = Flex::row();
 
         if self.show_warp_drive_loading_icon && self.is_online(app) {
-            title_right_side.add_child(self.render_warp_drive_loading_icon(appearance));
+            title_right_side.add_child(self.render_warp_drive_loading_icon(appearance, app));
         }
 
         // Only show the global retry button if there are errored objects
@@ -2944,9 +2944,14 @@ impl DriveIndex {
         .finish()
     }
 
-    fn render_warp_drive_loading_icon(&self, appearance: &Appearance) -> Box<dyn warpui::Element> {
+    fn render_warp_drive_loading_icon(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn warpui::Element> {
         // Use same padding as icon_button (4px) to center the icon within ICON_DIMENSIONS
         let icon_button_padding = (ICON_DIMENSIONS - LOADING_ICON_WIDTH) / 2.;
+        let syncing_tooltip = crate::localization::text_for_app(app, "drive.tooltip.syncing");
         let loading_icon = Container::new(
             ConstrainedBox::new(
                 Icon::Refresh
@@ -2972,9 +2977,7 @@ impl DriveIndex {
             |mouse_state| {
                 let mut stack = Stack::new().with_child(loading_icon);
                 if mouse_state.is_hovered() {
-                    let tooltip = appearance
-                        .ui_builder()
-                        .tool_tip(String::from("Syncing Warp Drive"));
+                    let tooltip = appearance.ui_builder().tool_tip(syncing_tooltip.clone());
 
                     stack.add_positioned_overlay_child(
                         tooltip.build().finish(),

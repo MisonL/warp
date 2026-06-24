@@ -51,7 +51,6 @@ pub enum InstallOrigin {
     Deeplink,
 }
 
-const PAGE_TITLE_TEXT: &str = "MCP Servers";
 #[derive(Debug, Default, Copy, Clone)]
 pub enum MCPServersSettingsPage {
     #[default]
@@ -103,7 +102,7 @@ impl MCPServersSettingsPageView {
         Self {
             page: PageType::new_monolith(
                 MCPServersSettingsWidget::default(),
-                Some(PAGE_TITLE_TEXT),
+                Some("settings.mcp.page.title"),
                 true,
             ),
             current_page: MCPServersSettingsPage::default(),
@@ -149,8 +148,12 @@ impl MCPServersSettingsPageView {
         ctx: &mut ViewContext<Self>,
     ) {
         let message = match server_name {
-            Some(name) => format!("Successfully logged out of {name} MCP server"),
-            None => "Successfully logged out of MCP server".to_string(),
+            Some(name) => localization::text_for_app_with_args(
+                ctx,
+                "settings.mcp.page.logged_out_named",
+                &[("name", name.as_str())],
+            ),
+            None => localization::text_for_app(ctx, "settings.mcp.page.logged_out"),
         };
         match item_id {
             ServerCardItemId::TemplatableMCP(_) => {

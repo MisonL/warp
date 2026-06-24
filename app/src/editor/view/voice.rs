@@ -69,7 +69,7 @@ impl EditorView {
     ) -> ViewHandle<FeaturePopup> {
         let voice_new_feature_popup = ctx.add_typed_action_view(|_| {
             FeaturePopup::new_feature(NewFeaturePopupLabel::FromString(
-                "Try Voice Input".to_string(),
+                crate::localization::text_for_app(ctx, "editor.voice.try_voice_input"),
             ))
         });
 
@@ -188,10 +188,11 @@ impl EditorView {
         ctx.notify();
     }
 
-    fn voice_error_toast(&mut self, message: &str, ctx: &mut ViewContext<Self>) {
+    fn voice_error_toast(&mut self, message_key: &str, ctx: &mut ViewContext<Self>) {
         let window_id = ctx.window_id();
+        let message = crate::localization::text_for_app(ctx, message_key);
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = crate::view_components::DismissibleToast::error(message.to_string());
+            let toast = crate::view_components::DismissibleToast::error(message);
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -263,7 +264,7 @@ impl EditorView {
                     .as_ref(ctx)
                     .can_request_voice()
                 {
-                    self.voice_error_toast(super::VOICE_LIMIT_HIT_TOAST_TEXT, ctx);
+                    self.voice_error_toast("editor.voice.toast.limit_reached", ctx);
                     return false;
                 }
 
@@ -326,11 +327,11 @@ impl EditorView {
                             if let Some(toggle_key) = settings.maybe_setup_first_time_voice(ctx) {
                                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                                     let toast = crate::view_components::DismissibleToast::success(
-                                        format!(
-                                            "Voice input is enabled. You can also press and hold the `{}` key to activate voice input (configure in Settings > AI > Voice)",
-                                            toggle_key.display_name()
-                                        )
-                                            .to_string(),
+                                        crate::localization::text_for_app_with_args(
+                                            ctx,
+                                            "editor.voice.toast.enabled_with_shortcut",
+                                            &[("key", toggle_key.display_name().as_str())],
+                                        ),
                                     );
                                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                                 });
@@ -357,7 +358,7 @@ impl EditorView {
         let active_window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
             let mut toast = crate::view_components::DismissibleToast::error(String::from(
-                "Failed to start voice input (you may need to enable Microphone access)",
+                crate::localization::text_for_app(ctx, "editor.voice.toast.microphone_access"),
             ));
             // Set an id so the toast is shown at most once.
             toast = toast.with_object_id(MICROPHONE_ACCESS_ERROR_ID.to_string());
@@ -497,11 +498,11 @@ impl EditorView {
             }
             Err(e) => match e {
                 TranscribeError::QuotaLimit => {
-                    self.voice_error_toast(super::VOICE_LIMIT_HIT_TOAST_TEXT, ctx)
+                    self.voice_error_toast("editor.voice.toast.limit_reached", ctx)
                 }
                 _ => {
                     log::error!("Failed to transcribe voice input: {e:?}");
-                    self.voice_error_toast(super::VOICE_ERROR_TOAST_TEXT, ctx)
+                    self.voice_error_toast("editor.voice.toast.processing_error", ctx)
                 }
             },
         }

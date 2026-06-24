@@ -3310,9 +3310,10 @@ impl Input {
                     let window_id = ctx.window_id();
                     ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                         ts.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Attached images were removed — the selected model does not support images.".to_string(),
-                            ),
+                            DismissibleToast::error(crate::localization::text_for_app(
+                                ctx,
+                                "terminal.input.toast.attached_images_removed",
+                            )),
                             window_id,
                             ctx,
                         );
@@ -5783,9 +5784,16 @@ impl Input {
             let window_id = ctx.window_id();
 
             let message = if images_removed == 1 {
-                "1 image was removed - limit is 20 per conversation.".into()
+                crate::localization::text_for_app(
+                    ctx,
+                    "terminal.input.toast.images_removed.singular",
+                )
             } else {
-                format!("{images_removed} images were removed - limit is 20 per conversation.")
+                crate::localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.toast.images_removed.plural",
+                    &[("count", &images_removed.to_string())],
+                )
             };
 
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
@@ -11309,16 +11317,38 @@ impl Input {
         // Show toast for excess images if any
         if excess_images > 0 {
             let (limit_name, limit_value) = if available_per_query < available_per_conversation {
-                ("per query", MAX_IMAGE_COUNT_FOR_QUERY)
+                (
+                    crate::localization::text_for_app(ctx, "terminal.input.image_limit.per_query"),
+                    MAX_IMAGE_COUNT_FOR_QUERY,
+                )
             } else {
-                ("per conversation", MAX_IMAGES_PER_CONVERSATION)
+                (
+                    crate::localization::text_for_app(
+                        ctx,
+                        "terminal.input.image_limit.per_conversation",
+                    ),
+                    MAX_IMAGES_PER_CONVERSATION,
+                )
             };
 
             let message = if excess_images == 1 {
-                format!("1 image wasn't attached - limit is {limit_value} images {limit_name}.")
+                crate::localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.toast.image_limit.singular",
+                    &[
+                        ("limit", &limit_value.to_string()),
+                        ("limit_name", &limit_name),
+                    ],
+                )
             } else {
-                format!(
-                    "{excess_images} images weren't attached - limit is {limit_value} images {limit_name}."
+                crate::localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.toast.image_limit.plural",
+                    &[
+                        ("count", &excess_images.to_string()),
+                        ("limit", &limit_value.to_string()),
+                        ("limit_name", &limit_name),
+                    ],
                 )
             };
             self.show_image_paste_error(ctx, message);

@@ -839,7 +839,10 @@ impl View for CustomEndpointModal {
                         ButtonVariant::Secondary,
                         self.add_model_button_mouse_state.clone(),
                     )
-                    .with_text_label("+ Add model".to_string())
+                    .with_text_label(localization::text_for_app(
+                        app,
+                        "settings.ai.custom_endpoint.add_model",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
                         padding: Some(Coords::uniform(6.).left(8.).right(8.)),
@@ -887,9 +890,9 @@ impl View for CustomEndpointModal {
             .ui_builder()
             .button(ButtonVariant::Accent, self.save_button_mouse_state.clone())
             .with_text_label(if is_editing {
-                "Save".to_string()
+                localization::text_for_app(app, "settings.action.save")
             } else {
-                "Add endpoint".to_string()
+                localization::text_for_app(app, "settings.ai.custom_endpoint.add_endpoint")
             })
             .with_style(button_style);
         if !is_valid {

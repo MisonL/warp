@@ -45,6 +45,7 @@ use super::warp_drive_page::WarpDriveSettingsPageView;
 use super::warpify_page::WarpifyPageView;
 use super::SettingsSection;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::settings::CloudPreferencesSettings;
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
@@ -536,7 +537,10 @@ impl LocalOnlyIconState {
                     .clone();
                 Self::Visible {
                     mouse_state,
-                    custom_tooltip: None,
+                    custom_tooltip: Some(localization::text_for_app(
+                        app,
+                        "settings.local_only.tooltip",
+                    )),
                 }
             }
             _ => Self::Hidden,
@@ -604,13 +608,15 @@ pub fn render_local_only_icon(
     mouse_state: MouseStateHandle,
     custom_tooltip: Option<String>,
 ) -> Box<dyn Element> {
+    let tooltip = custom_tooltip.unwrap_or_else(|| {
+        localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "settings.local_only.tooltip",
+        )
+    });
     let info_button = appearance
         .ui_builder()
-        .local_only_icon_with_tooltip(
-            13.,
-            custom_tooltip.unwrap_or("This setting is not synced to your other devices".to_owned()),
-            mouse_state.clone(),
-        )
+        .local_only_icon_with_tooltip(13., tooltip, mouse_state.clone())
         .finish();
 
     Container::new(info_button).with_margin_left(4.).finish()
@@ -1629,8 +1635,9 @@ impl<V: warpui::View> PageType<V> {
                 if let Some(widget) = widget {
                     if widget.should_render(app) {
                         if let Some(title) = title {
+                            let title = localization::text_for_app_or(app, title, title);
                             let col = Flex::column()
-                                .with_child(render_page_title(title, HEADER_FONT_SIZE, appearance))
+                                .with_child(render_page_title(&title, HEADER_FONT_SIZE, appearance))
                                 .with_child(widget.render_widget(view, false, appearance, app));
                             page = col.finish();
                         } else {
@@ -1648,7 +1655,8 @@ impl<V: warpui::View> PageType<V> {
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    let title = localization::text_for_app_or(app, title, title);
+                    page.add_child(render_page_title(&title, HEADER_FONT_SIZE, appearance));
                 }
                 for widget in widgets {
                     let highlighted =
@@ -1667,7 +1675,8 @@ impl<V: warpui::View> PageType<V> {
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    let title = localization::text_for_app_or(app, title, title);
+                    page.add_child(render_page_title(&title, HEADER_FONT_SIZE, appearance));
                 }
                 let num_categories = categories.len();
                 for (i, category) in categories.into_iter().enumerate() {

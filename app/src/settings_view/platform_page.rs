@@ -571,7 +571,10 @@ impl PlatformPageWidget {
                             ButtonVariant::Outlined,
                             self.create_api_key_button_mouse_state.clone(),
                         )
-                        .with_text_label("+ Create API Key".to_string())
+                        .with_text_label(crate::localization::text_for_app(
+                            app,
+                            "settings.platform.api_keys.create_api_key",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| {
                             ctx.dispatch_typed_action(PlatformPageAction::ShowCreateApiKeyModal);
