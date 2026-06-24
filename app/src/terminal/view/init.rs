@@ -768,11 +768,17 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:ask_ai_assistant",
-            BindingDescription::new("Attach Selected Block as Agent Context")
-                .with_custom_description(
-                    bindings::MAC_MENUS_CONTEXT,
-                    "Attach Selection as Agent Context",
+            binding_description(
+                "Attach Selected Block as Agent Context",
+                "terminal.binding.attach_selected_block_as_agent_context",
+            )
+            .with_custom_description(
+                bindings::MAC_MENUS_CONTEXT,
+                crate::localization::text_for_app(
+                    app,
+                    "terminal.binding.attach_selection_as_agent_context",
                 ),
+            ),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::SelectedBlocks)),
         )
         .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
@@ -789,11 +795,17 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:ask_ai_assistant",
-            BindingDescription::new("Attach Selected Text as Agent Context")
-                .with_custom_description(
-                    bindings::MAC_MENUS_CONTEXT,
-                    "Attach Selection as Agent Context",
+            binding_description(
+                "Attach Selected Text as Agent Context",
+                "terminal.binding.attach_selected_text_as_agent_context",
+            )
+            .with_custom_description(
+                bindings::MAC_MENUS_CONTEXT,
+                crate::localization::text_for_app(
+                    app,
+                    "terminal.binding.attach_selection_as_agent_context",
                 ),
+            ),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(
                 AskAISource::SelectedTerminalText,
             )),
@@ -1094,7 +1106,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:write_codebase_index",
-        BindingDescription::new("Write current codebase index snapshot"),
+        binding_description(
+            "Write current codebase index snapshot",
+            "terminal.binding.write_codebase_index_snapshot",
+        ),
         TerminalAction::WriteCodebaseIndex,
     )
     .with_enabled(|| FeatureFlag::CodebaseIndexPersistence.is_enabled())
@@ -1124,14 +1139,20 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:init_project_rules",
-        BindingDescription::new("Initiate project for warp"),
+        binding_description(
+            "Initiate project for warp",
+            "terminal.binding.initiate_project_for_warp",
+        ),
         TerminalAction::InitProject,
     )
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))]);
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:add_current_dir_as_project",
-        BindingDescription::new("Add current folder as project"),
+        binding_description(
+            "Add current folder as project",
+            "terminal.binding.add_current_folder_as_project",
+        ),
         TerminalAction::AddProjectAtCurrentDirectory,
     )
     .with_enabled(|| FeatureFlag::Projects.is_enabled())

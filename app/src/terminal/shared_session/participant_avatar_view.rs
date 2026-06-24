@@ -492,6 +492,7 @@ pub fn render_tooltip(label: String, appearance: &Appearance) -> Box<dyn Element
 pub fn render_revoke_all_button(
     mouse_state_handle: MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let edit = Icon::Edit
         .to_warpui_icon(appearance.theme().foreground())
@@ -547,7 +548,13 @@ pub fn render_revoke_all_button(
                 );
 
             stack.add_positioned_child(
-                render_tooltip("Revoke all edit permissions".to_string(), appearance),
+                render_tooltip(
+                    localization::text_for_app(
+                        app,
+                        "shared_session.participant.revoke_all_edit_permissions",
+                    ),
+                    appearance,
+                ),
                 OffsetPositioning::offset_from_parent(
                     vec2f(0., 3.),
                     ParentOffsetBounds::Unbounded,
@@ -648,6 +655,7 @@ pub fn render_participants_and_role_elements(
         row.add_child(render_revoke_all_button(
             mouse_state_handle.clone(),
             appearance,
+            app,
         ));
     }
 

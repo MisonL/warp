@@ -2240,8 +2240,13 @@ impl Workspace {
                 if let Err(e) = std::fs::remove_file(path) {
                     log::warn!("Failed to remove tab config file: {e:?}");
                     self.toast_stack.update(ctx, |toast_stack, ctx| {
+                        let error = e.to_string();
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(format!("Failed to remove tab config: {e}")),
+                            DismissibleToast::error(localization::text_for_app_with_args(
+                                ctx,
+                                "workspace.toast.failed_to_remove_tab_config",
+                                &[("error", error.as_str())],
+                            )),
                             ctx,
                         );
                     });
@@ -7716,21 +7721,33 @@ impl Workspace {
         if FeatureFlag::Autoupdate.is_enabled() && ChannelState::show_autoupdate_menu_items() {
             if let Some(version) = ChannelState::app_version() {
                 menu_items.push(
-                    MenuItemFields::new(format!("Current version is {version}"))
-                        .with_disabled(true)
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app_with_args(
+                        ctx,
+                        "workspace.menu.current_version",
+                        &[("version", version)],
+                    ))
+                    .with_disabled(true)
+                    .into_item(),
                 );
                 match autoupdate::get_update_state(ctx) {
                     AutoupdateStage::UpdateReady { new_version, .. }
                     | AutoupdateStage::UpdatedPendingRestart { new_version } => menu_items.push(
-                        MenuItemFields::new(format!("Install update ({})", new_version.version))
-                            .with_on_select_action(WorkspaceAction::ApplyUpdate)
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app_with_args(
+                            ctx,
+                            "workspace.menu.install_update",
+                            &[("version", new_version.version.as_str())],
+                        ))
+                        .with_on_select_action(WorkspaceAction::ApplyUpdate)
+                        .into_item(),
                     ),
                     AutoupdateStage::Updating { new_version, .. } => menu_items.push(
-                        MenuItemFields::new(format!("Updating to ({})", new_version.version))
-                            .with_disabled(true)
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app_with_args(
+                            ctx,
+                            "workspace.menu.updating_to",
+                            &[("version", new_version.version.as_str())],
+                        ))
+                        .with_disabled(true)
+                        .into_item(),
                     ),
                     AutoupdateStage::UnableToUpdateToNewVersion { .. } => menu_items.push(
                         MenuItemFields::new(localization::text_for_app(
@@ -9507,9 +9524,13 @@ impl Workspace {
                     ) =>
                 {
                     items.push(
-                        MenuItemFields::new(format!("Updating to ({})", new_version.version))
-                            .with_disabled(true)
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app_with_args(
+                            app,
+                            "workspace.menu.updating_to",
+                            &[("version", new_version.version.as_str())],
+                        ))
+                        .with_disabled(true)
+                        .into_item(),
                     )
                 }
                 AutoupdateStage::UnableToUpdateToNewVersion { new_version }
@@ -13806,7 +13827,11 @@ impl Workspace {
         };
 
         WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::default(format!("Forked \"{title}\""));
+            let toast = DismissibleToast::default(localization::text_for_app_with_args(
+                ctx,
+                "workspace.toast.forked_conversation",
+                &[("title", title.as_str())],
+            ));
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -14725,14 +14750,20 @@ impl Workspace {
                                 .find(|binding| binding.name == "workspace:view_changelog")
                                 .and_then(|binding| trigger_to_keystroke(binding.trigger));
 
-                            let mut link = ToastLink::new("View changelog".to_owned())
-                                .with_onclick_action(WorkspaceAction::ViewLatestChangelog);
+                            let mut link = ToastLink::new(localization::text_for_app(
+                                ctx,
+                                "workspace.banner.view_changelog",
+                            ))
+                            .with_onclick_action(WorkspaceAction::ViewLatestChangelog);
                             if let Some(keystroke) = keystroke {
                                 link = link.with_keystroke(keystroke);
                             }
 
-                            let toast = DismissibleToast::default(String::from("Warp updated!"))
-                                .with_link(link);
+                            let toast = DismissibleToast::default(localization::text_for_app(
+                                ctx,
+                                "workspace.toast.warp_updated",
+                            ))
+                            .with_link(link);
 
                             stack.add_ephemeral_toast(toast, ctx);
                         });

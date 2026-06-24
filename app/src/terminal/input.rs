@@ -1885,8 +1885,20 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:edit_prompt",
-        BindingDescription::new("Edit Prompt")
-            .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Edit Prompt"),
+        BindingDescription::new(localization::text_for_app(
+            app,
+            "terminal.input.binding.edit_prompt",
+        ))
+        .with_dynamic_override(|app| {
+            Some(localization::text_for_app(
+                app,
+                "terminal.input.binding.edit_prompt",
+            ))
+        })
+        .with_custom_description(
+            bindings::MAC_MENUS_CONTEXT,
+            localization::text_for_app(app, "terminal.menu.edit_prompt"),
+        ),
         WorkspaceAction::OpenPromptEditor {
             open_source: PromptEditorOpenSource::CommandPalette,
         },
@@ -5610,8 +5622,10 @@ impl Input {
         else {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                let toast =
-                    DismissibleToast::default(String::from("No active conversation to export"));
+                let toast = DismissibleToast::default(localization::text_for_app(
+                    ctx,
+                    "terminal.input.conversation_export.no_active_conversation",
+                ));
                 toast_stack.add_ephemeral_toast(toast, window_id, ctx);
             });
             return;

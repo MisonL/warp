@@ -102,7 +102,10 @@ impl ThemeDeletionBody {
             }
         }
         if errored {
-            self.send_error_toast("Something went wrong", ctx);
+            self.send_error_toast(
+                &crate::localization::text_for_app(ctx, "settings.theme_deletion.error.generic"),
+                ctx,
+            );
         }
     }
 

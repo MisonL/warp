@@ -15,6 +15,7 @@ use crate::ai::mcp::{
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::Space;
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::settings_view::mcp_servers::edit_page::{
@@ -331,7 +332,14 @@ impl MCPServersSettingsPageView {
             log::warn!(
                 "Unrecognized autoinstall value '{autoinstall_param}': no matching gallery item found"
             );
-            self.add_error_toast(format!("Unknown MCP server '{autoinstall_param}'"), ctx);
+            self.add_error_toast(
+                localization::text_for_app_with_args(
+                    ctx,
+                    "settings.mcp.page.error.unknown_server",
+                    &[("name", autoinstall_param)],
+                ),
+                ctx,
+            );
             return;
         };
 

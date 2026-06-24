@@ -3,6 +3,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 use super::current_prompt::CurrentPrompt;
 use super::prompt_snapshot::PromptSnapshot;
 use super::{ChipResult, ChipValue, ContextChipKind};
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::settings::WarpPromptSeparator;
 use crate::terminal::model::session::Sessions;
@@ -58,15 +59,20 @@ impl PromptType {
             .filter_map(|chip_result| {
                 if chip_result.value.is_some() && chip_result.kind.is_copyable() {
                     if let Some(chip) = chip_result.kind.to_chip() {
+                        let title = chip.title();
                         Some(
-                            MenuItemFields::new(format!("Copy {}", chip.title()))
-                                .with_on_select_action(TerminalAction::ContextMenu(
-                                    ContextMenuAction::CopyPrompt {
-                                        position,
-                                        part: PromptPart::ContextChip(chip_result.kind),
-                                    },
-                                ))
-                                .into_item(),
+                            MenuItemFields::new(localization::text_for_app_with_args(
+                                ctx,
+                                "context_chips.menu.copy_chip",
+                                &[("title", title)],
+                            ))
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::CopyPrompt {
+                                    position,
+                                    part: PromptPart::ContextChip(chip_result.kind),
+                                },
+                            ))
+                            .into_item(),
                         )
                     } else {
                         log::error!("Missing definition for chip: {:?}", chip_result.kind);

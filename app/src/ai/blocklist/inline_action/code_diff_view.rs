@@ -1140,7 +1140,11 @@ impl CodeDiffView {
                     .unwrap_or_else(|| "file".to_string());
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!("Failed to revert changes to {file_name}")),
+                        DismissibleToast::error(localization::text_for_app_with_args(
+                            ctx,
+                            "agent.code_diff.toast.failed_revert_changes",
+                            &[("file_name", file_name.as_str())],
+                        )),
                         window_id,
                         ctx,
                     );

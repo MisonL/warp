@@ -2,20 +2,12 @@ use warpui::{SingletonEntity, View, ViewContext};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::{BeginConversationRenameError, BlocklistAIHistoryModel};
+use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
 
 const CONVERSATION_TITLE_MAX_CHARS: usize = 500;
-
-const EMPTY_TITLE_MESSAGE: &str = "Please provide a conversation title";
-const EMPTY_CONVERSATION_MESSAGE: &str = "You can't rename an empty conversation";
-const CONVERSATION_NOT_FOUND_MESSAGE: &str = "Conversation not found";
-const NOT_SYNCED_MESSAGE: &str =
-    "Your conversation hasn't synced to the cloud yet. Try sending another message, then rename it again.";
-const RENAME_IN_PROGRESS_MESSAGE: &str = "A rename is already in progress for this conversation";
-const CONVERSATION_NOT_READY_MESSAGE: &str =
-    "Your conversation is still syncing. Try renaming it again in a moment.";
 
 /// Renames a conversation locally and triggers a conversation rename on the server.
 ///
@@ -26,7 +18,7 @@ pub(crate) fn rename_conversation<T: View>(
     title: String,
     ctx: &mut ViewContext<T>,
 ) {
-    let title = match validate_conversation_title(title) {
+    let title = match validate_conversation_title(title, ctx) {
         Ok(title) => title,
         Err(message) => {
             let window_id = ctx.window_id();
@@ -43,7 +35,10 @@ pub(crate) fn rename_conversation<T: View>(
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(EMPTY_CONVERSATION_MESSAGE.to_owned()),
+                DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "ai.conversation_rename.error.empty_conversation",
+                )),
                 window_id,
                 ctx,
             );
@@ -60,20 +55,24 @@ pub(crate) fn rename_conversation<T: View>(
     }) {
         Ok(server_conversation_id) => server_conversation_id,
         Err(err) => {
-            let message = match err {
-                BeginConversationRenameError::MissingServerConversationToken => NOT_SYNCED_MESSAGE,
-                BeginConversationRenameError::RenameInProgress => RENAME_IN_PROGRESS_MESSAGE,
+            let key = match err {
+                BeginConversationRenameError::MissingServerConversationToken => {
+                    "ai.conversation_rename.error.not_synced"
+                }
+                BeginConversationRenameError::RenameInProgress => {
+                    "ai.conversation_rename.error.rename_in_progress"
+                }
                 BeginConversationRenameError::ConversationNotFound => {
-                    CONVERSATION_NOT_FOUND_MESSAGE
+                    "ai.conversation_rename.error.not_found"
                 }
                 BeginConversationRenameError::ConversationNotReady => {
-                    CONVERSATION_NOT_READY_MESSAGE
+                    "ai.conversation_rename.error.not_ready"
                 }
             };
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error(message.to_owned()),
+                    DismissibleToast::error(localization::text_for_app(ctx, key)),
                     window_id,
                     ctx,
                 );
@@ -99,7 +98,11 @@ pub(crate) fn rename_conversation<T: View>(
                     });
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::success(format!("Conversation renamed to {title}")),
+                            DismissibleToast::success(localization::text_for_app_with_args(
+                                ctx,
+                                "ai.conversation_rename.toast.success",
+                                &[("title", title.as_str())],
+                            )),
                             window_id,
                             ctx,
                         );
@@ -110,8 +113,13 @@ pub(crate) fn rename_conversation<T: View>(
                         history.fail_conversation_rename(conversation_id, ctx);
                     });
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                        let error = e.to_string();
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(format!("Failed to rename conversation: {e}")),
+                            DismissibleToast::error(localization::text_for_app_with_args(
+                                ctx,
+                                "ai.conversation_rename.toast.failed",
+                                &[("error", error.as_str())],
+                            )),
                             window_id,
                             ctx,
                         );
@@ -137,15 +145,24 @@ fn conversation_already_has_title<T: View>(
 
 /// Trims and validates a requested conversation title, returning a user-facing
 /// error message when the title is invalid.
-fn validate_conversation_title(title: String) -> Result<String, String> {
+fn validate_conversation_title<T: View>(
+    title: String,
+    ctx: &ViewContext<T>,
+) -> Result<String, String> {
     let title = title.trim();
     if title.is_empty() {
-        return Err(EMPTY_TITLE_MESSAGE.to_owned());
+        return Err(localization::text_for_app(
+            ctx,
+            "ai.conversation_rename.error.empty_title",
+        ));
     }
 
     if title.chars().count() > CONVERSATION_TITLE_MAX_CHARS {
-        return Err(format!(
-            "Conversation title must be {CONVERSATION_TITLE_MAX_CHARS} characters or fewer",
+        let max = CONVERSATION_TITLE_MAX_CHARS.to_string();
+        return Err(localization::text_for_app_with_args(
+            ctx,
+            "ai.conversation_rename.error.title_too_long",
+            &[("max", max.as_str())],
         ));
     }
 

@@ -27,6 +27,7 @@ use crate::code_review::github_repo_model::{GitHubRepoEvent, GitHubRepoModel};
 use crate::context_chips::display_chip::GitLineChanges;
 use crate::editor::EditorView;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::settings::{InputSettings, WarpPromptSeparator};
 use crate::terminal::event::{BlockType, UserBlockCompleted};
@@ -1317,15 +1318,20 @@ impl CurrentPrompt {
                     .is_some_and(|state| state.last_computed_value.is_some());
                 if has_value && chip_kind.is_copyable() {
                     if let Some(chip) = chip_kind.to_chip() {
+                        let title = chip.title();
                         Some(
-                            MenuItemFields::new(format!("Copy {}", chip.title()))
-                                .with_on_select_action(TerminalAction::ContextMenu(
-                                    ContextMenuAction::CopyPrompt {
-                                        position,
-                                        part: PromptPart::ContextChip(chip_kind),
-                                    },
-                                ))
-                                .into_item(),
+                            MenuItemFields::new(localization::text_for_app_with_args(
+                                ctx,
+                                "context_chips.menu.copy_chip",
+                                &[("title", title)],
+                            ))
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::CopyPrompt {
+                                    position,
+                                    part: PromptPart::ContextChip(chip_kind),
+                                },
+                            ))
+                            .into_item(),
                         )
                     } else {
                         log::error!("Missing definition for chip: {chip_kind:?}");

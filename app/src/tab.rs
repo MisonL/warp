@@ -356,7 +356,11 @@ impl TabData {
         let mut menu_items = vec![];
         let tab_title = Self::copyable_metadata_value(Some(pane_group.display_title(ctx)));
         if !uses_vertical_tabs(ctx) {
-            Self::push_copy_metadata_menu_item(&mut menu_items, "Copy tab title", tab_title);
+            Self::push_copy_metadata_menu_item(
+                &mut menu_items,
+                localization::text_for_app(ctx, "tab.menu.copy_tab_title"),
+                tab_title,
+            );
             return menu_items;
         }
 
@@ -376,7 +380,7 @@ impl TabData {
                 })
                 .unwrap_or_else(|| pane_group.focused_pane_id(ctx));
             (
-                "Copy pane title",
+                localization::text_for_app(ctx, "tab.menu.copy_pane_title"),
                 Self::copyable_pane_title(pane_group, pane_id, ctx),
                 pane_group.terminal_view_from_pane_id(pane_id, ctx),
             )
@@ -387,20 +391,24 @@ impl TabData {
                     pane_group.terminal_view_from_pane_id(target.locator.pane_id, ctx)
                 })
                 .or_else(|| pane_group.focused_session_view(ctx));
-            ("Copy tab title", tab_title, terminal_view)
+            (
+                localization::text_for_app(ctx, "tab.menu.copy_tab_title"),
+                tab_title,
+                terminal_view,
+            )
         };
 
         if let Some(terminal_view) = terminal_view {
             let terminal_view = terminal_view.as_ref(ctx);
             Self::push_copy_metadata_menu_item(
                 &mut menu_items,
-                "Copy branch",
+                localization::text_for_app(ctx, "tab.menu.copy_branch"),
                 Self::copyable_metadata_value(terminal_view.current_git_branch(ctx)),
             );
             Self::push_copy_metadata_menu_item(&mut menu_items, title_label, title);
             Self::push_copy_metadata_menu_item(
                 &mut menu_items,
-                "Copy working directory",
+                localization::text_for_app(ctx, "tab.menu.copy_working_directory"),
                 Self::copyable_metadata_value(
                     terminal_view
                         .pwd()
@@ -409,7 +417,7 @@ impl TabData {
             );
             Self::push_copy_metadata_menu_item(
                 &mut menu_items,
-                "Copy pull request link",
+                localization::text_for_app(ctx, "tab.menu.copy_pull_request_link"),
                 Self::copyable_metadata_value(terminal_view.current_pull_request_url(ctx)),
             );
         } else {
@@ -421,7 +429,7 @@ impl TabData {
 
     fn push_copy_metadata_menu_item(
         menu_items: &mut Vec<MenuItem<WorkspaceAction>>,
-        label: &'static str,
+        label: String,
         value: Option<String>,
     ) {
         if let Some(value) = value {

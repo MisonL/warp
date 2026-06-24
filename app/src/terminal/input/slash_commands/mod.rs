@@ -385,7 +385,14 @@ impl Input {
         if command.availability.contains(Availability::AI_ENABLED)
             && !AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
         {
-            show_error_toast(format!("{} requires AI to be enabled", command.name), ctx);
+            show_error_toast(
+                localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.slash.error.ai_required",
+                    &[("command", command.name)],
+                ),
+                ctx,
+            );
             return true;
         }
 
@@ -497,7 +504,7 @@ impl Input {
                     .filter(|name| !name.is_empty())
                 else {
                     show_error_toast(
-                        "Please provide a tab name after /rename-tab".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.rename_tab.name_required"),
                         ctx,
                     );
                     return true;
@@ -512,7 +519,10 @@ impl Input {
                     .selected_conversation_id(ctx)
                 else {
                     show_error_toast(
-                        "/rename-conversation requires an active conversation".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.rename_conversation.no_active",
+                        ),
                         ctx,
                     );
                     return true;
@@ -534,9 +544,10 @@ impl Input {
                     .filter(|name| !name.is_empty())
                 else {
                     show_error_toast(
-                        format!(
-                            "Please provide a color after /set-tab-color ({})",
-                            supported_options()
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.slash.set_tab_color.required",
+                            &[("options", &supported_options())],
                         ),
                         ctx,
                     );
@@ -554,9 +565,10 @@ impl Input {
                         Some(c) => SelectedTabColor::Color(c),
                         None => {
                             show_error_toast(
-                                format!(
-                                    "Unknown tab color '{arg}'. Use one of: {}.",
-                                    supported_options()
+                                localization::text_for_app_with_args(
+                                    ctx,
+                                    "terminal.slash.set_tab_color.unknown",
+                                    &[("color", arg), ("options", &supported_options())],
                                 ),
                                 ctx,
                             );
@@ -583,8 +595,10 @@ impl Input {
             create_project if command.name == commands::CREATE_NEW_PROJECT.name => {
                 if argument.is_none_or(|args| args.is_empty()) {
                     show_error_toast(
-                        "Please describe the project you want to create after /create-new-project"
-                            .to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.create_project.description_required",
+                        ),
                         ctx,
                     );
                     return true;
@@ -606,17 +620,13 @@ impl Input {
                         };
 
                         if !session.is_local() {
-                            let window_id = ctx.window_id();
-                            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                                toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(
-                                        "The /open-file command is only available for local sessions"
-                                            .to_owned(),
-                                    ),
-                                    window_id,
+                            show_error_toast(
+                                localization::text_for_app(
                                     ctx,
-                                );
-                            });
+                                    "terminal.slash.open_file.local_only",
+                                ),
+                                ctx,
+                            );
                             return false;
                         }
 
@@ -645,15 +655,21 @@ impl Input {
                             }
                             Ok(_) => {
                                 show_error_toast(
-                                    "The /open-file command only works for files, not directories"
-                                        .to_owned(),
+                                    localization::text_for_app(
+                                        ctx,
+                                        "terminal.slash.open_file.files_only",
+                                    ),
                                     ctx,
                                 );
                                 return true;
                             }
                             Err(_) => {
                                 show_error_toast(
-                                    format!("File not found: {}", file_path.display()),
+                                    localization::text_for_app_with_args(
+                                        ctx,
+                                        "terminal.slash.open_file.not_found",
+                                        &[("path", &file_path.display().to_string())],
+                                    ),
                                     ctx,
                                 );
                                 return true;
@@ -671,7 +687,10 @@ impl Input {
                 #[cfg(not(feature = "local_fs"))]
                 {
                     show_error_toast(
-                        "The /open-file command is not supported in this build".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.open_file.unsupported_build",
+                        ),
                         ctx,
                     );
                     return true;
@@ -683,7 +702,10 @@ impl Input {
                     .as_ref(ctx)
                     .active_conversation(self.terminal_view_id)
                 else {
-                    show_error_toast("No active conversation to export".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.export.no_active"),
+                        ctx,
+                    );
                     return true;
                 };
 
@@ -696,8 +718,9 @@ impl Input {
                 // Show a toast to confirm the export
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::default(String::from(
-                        "Conversation exported to clipboard",
+                    let toast = DismissibleToast::default(localization::text_for_app(
+                        ctx,
+                        "terminal.slash.export.copied",
                     ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -713,7 +736,10 @@ impl Input {
                 #[cfg(target_family = "wasm")]
                 {
                     show_error_toast(
-                        "Export conversation to file unsupported in web".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.export.file_unsupported_web",
+                        ),
                         ctx,
                     );
                     return true;
@@ -899,7 +925,13 @@ impl Input {
                     .shared_session_status()
                     .is_sharer_or_viewer()
                 {
-                    show_error_toast("Session is already being shared".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.remote_control.already_shared",
+                        ),
+                        ctx,
+                    );
                     return true;
                 }
                 ctx.emit(Event::StartRemoteControl);
@@ -911,17 +943,17 @@ impl Input {
                     .active_conversation(self.terminal_view_id);
                 if conversation.is_none() {
                     show_error_toast(
-                        "Cannot show conversation cost: no active conversation".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.cost.no_active"),
                         ctx,
                     );
                 } else if conversation.is_some_and(|c| c.is_empty()) {
                     show_error_toast(
-                        "Cannot show conversation cost: conversation is empty".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.cost.empty"),
                         ctx,
                     );
                 } else if conversation.is_some_and(|c| !c.status().is_done()) {
                     show_error_toast(
-                        "Cannot show conversation cost: conversation is in progress".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.cost.in_progress"),
                         ctx,
                     );
                 } else {
@@ -980,7 +1012,10 @@ impl Input {
                     .as_ref(ctx)
                     .selected_conversation_id(ctx)
                 else {
-                    show_error_toast("/fork requires an active conversation".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.fork.no_active"),
+                        ctx,
+                    );
                     return true;
                 };
 
@@ -1019,7 +1054,10 @@ impl Input {
                     .selected_conversation_id(ctx)
                 else {
                     show_error_toast(
-                        "/continue-locally requires an active conversation".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.continue_locally.no_active",
+                        ),
                         ctx,
                     );
                     return true;
@@ -1027,7 +1065,10 @@ impl Input {
 
                 if !conversation_is_cloud_oz_for_slash_command(conversation_id, ctx) {
                     show_error_toast(
-                        "/continue-locally is only available for cloud Oz conversations".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.continue_locally.cloud_only",
+                        ),
                         ctx,
                     );
                     return true;
@@ -1069,7 +1110,10 @@ impl Input {
                     .selected_conversation_id(ctx)
                 else {
                     show_error_toast(
-                        "/fork-and-compact requires an active conversation".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.slash.fork_and_compact.no_active",
+                        ),
                         ctx,
                     );
                     return true;
@@ -1099,7 +1143,7 @@ impl Input {
                     .is_none()
                 {
                     show_error_toast(
-                        "/compact-and requires an active conversation".to_owned(),
+                        localization::text_for_app(ctx, "terminal.slash.compact_and.no_active"),
                         ctx,
                     );
                     return true;
@@ -1116,12 +1160,18 @@ impl Input {
                     .as_ref(ctx)
                     .selected_conversation_id(ctx)
                 else {
-                    show_error_toast("/queue requires an active conversation".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.queue.no_active"),
+                        ctx,
+                    );
                     return true;
                 };
 
                 let Some(prompt) = argument.filter(|a| !a.is_empty()).cloned() else {
-                    show_error_toast("/queue requires a prompt argument".to_owned(), ctx);
+                    show_error_toast(
+                        localization::text_for_app(ctx, "terminal.slash.queue.prompt_required"),
+                        ctx,
+                    );
                     return true;
                 };
 

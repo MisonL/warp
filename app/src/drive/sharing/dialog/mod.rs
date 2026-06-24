@@ -954,7 +954,11 @@ impl SharingDialog {
             let window_id = ctx.window_id();
             let object_name = self.targeted_object_name(ctx);
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                let toast = DismissibleToast::default(format!("Copied link to {object_name}."));
+                let toast = DismissibleToast::default(localization::text_for_app_with_args(
+                    ctx,
+                    "drive.sharing.toast.copied_link",
+                    &[("object_name", object_name.as_str())],
+                ));
                 toast_stack.add_ephemeral_toast(toast, window_id, ctx);
             });
         }

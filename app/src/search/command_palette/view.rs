@@ -47,7 +47,7 @@ use crate::terminal::keys_settings::KeysSettings;
 use crate::themes::theme::WarpTheme;
 use crate::view_components::DismissibleToast;
 use crate::workspace::{active_terminal_in_window, ForkedConversationDestination, WorkspaceAction};
-use crate::{send_telemetry_from_ctx, ToastStack};
+use crate::{localization, send_telemetry_from_ctx, ToastStack};
 
 lazy_static! {
     /// Set of hardcoded action names that we want to show in the command palette zero state.
@@ -291,7 +291,8 @@ impl View {
         });
 
         let placeholder_element = QueryResultRenderer::new(
-            MatchedBinding::placeholder("No results found".into()).into(),
+            MatchedBinding::placeholder(localization::text_for_app(ctx, "search.no_results"))
+                .into(),
             "command_palette:no_results".into(),
             |_, _, _| {},
             *styles::QUERY_RESULT_RENDERER_STYLES,

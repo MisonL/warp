@@ -921,33 +921,40 @@ impl CodeView {
 
     fn display_load_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(String::from("Failed to load file."))
-                .with_object_id("failed_to_load_file".to_string());
+            let toast =
+                DismissibleToast::error(localization::text_for_app(ctx, "code.toast.load_failed"))
+                    .with_object_id("failed_to_load_file".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
 
     fn display_save_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(String::from("Failed to save file."))
-                .with_object_id("failed_to_save_file".to_string());
+            let toast =
+                DismissibleToast::error(localization::text_for_app(ctx, "code.toast.save_failed"))
+                    .with_object_id("failed_to_save_file".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
 
     fn display_remote_disconnected_save_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast =
-                DismissibleToast::error(String::from("Cannot save — remote session disconnected."))
-                    .with_object_id("failed_to_save_file_remote_disconnected".to_string());
+            let toast = DismissibleToast::error(localization::text_for_app(
+                ctx,
+                "code.toast.save_failed_remote_disconnected",
+            ))
+            .with_object_id("failed_to_save_file_remote_disconnected".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
 
     fn display_save_success(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::success(String::from("File saved."))
-                .with_object_id("file_saved".to_string());
+            let toast = DismissibleToast::success(localization::text_for_app(
+                ctx,
+                "code.toast.save_succeeded",
+            ))
+            .with_object_id("file_saved".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }

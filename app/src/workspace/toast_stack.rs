@@ -1,5 +1,6 @@
 use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
 
+use crate::localization;
 use crate::view_components::{DismissibleToast, ToastType};
 use crate::workspace::WorkspaceAction;
 
@@ -8,16 +9,6 @@ use crate::workspace::WorkspaceAction;
 /// access to the AppContext.
 #[derive(Copy, Clone, Debug)]
 pub struct ToastStack;
-
-impl From<ToastType> for DismissibleToast<WorkspaceAction> {
-    fn from(value: ToastType) -> Self {
-        match value {
-            ToastType::CloudObjectNotFound => {
-                DismissibleToast::error(String::from("Resource not found or access denied"))
-            }
-        }
-    }
-}
 
 impl ToastStack {
     /// Adds an ephemeral toast to the Workspace in the window identified by `window_id`.
@@ -46,7 +37,12 @@ impl ToastStack {
         window_id: WindowId,
         ctx: &mut ModelContext<Self>,
     ) {
-        let toast: DismissibleToast<WorkspaceAction> = toast_type.into();
+        let toast = match toast_type {
+            ToastType::CloudObjectNotFound => DismissibleToast::error(localization::text_for_app(
+                ctx,
+                "workspace.toast.resource_not_found_or_access_denied",
+            )),
+        };
         ctx.emit(ToastStackEvent::AddEphemeralToast { window_id, toast });
     }
 
