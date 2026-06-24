@@ -3,9 +3,9 @@
 //! In list mode it shows a dropdown styled to match the other orchestration
 //! pickers; in custom mode it swaps the top bar for an inline editor that
 //! accepts a self-hosted worker slug. The layout mirrors the Oz webapp's
-//! host selector: workspace default first (badged "Default"), then warp,
-//! then connected worker hosts, then the user's most recent custom slug,
-//! then a "Custom host…" entry.
+//! host selector: workspace default first, then warp, then connected worker
+//! hosts, then the user's most recent custom slug marked as disconnected if it
+//! is not currently connected, then the custom-host entry.
 
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
@@ -13,6 +13,7 @@ use warpui::elements::{
     Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
     PositionedElementAnchor, Radius,
 };
+use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
@@ -51,9 +52,13 @@ pub enum HostPickerEvent {
 }
 
 #[cfg(test)]
-const CUSTOM_HOST_FALLBACK: &str = concat!("Custom ", "host...");
+const CUSTOM_HOST_FALLBACK: &str = concat!("Custom ", "host", "\u{2026}");
 #[cfg(test)]
 const DEFAULT_BADGE_FALLBACK: &str = concat!("Def", "ault");
+#[cfg(test)]
+const CONNECTED_BADGE_FALLBACK: &str = concat!("Conn", "ected");
+#[cfg(test)]
+const DISCONNECTED_BADGE_FALLBACK: &str = concat!("Disconn", "ected");
 
 // ── Internal action plumbing ────────────────────────────────────────
 
@@ -257,9 +262,9 @@ impl HostPicker {
     }
 
     fn sync_dropdown_selection(&mut self, ctx: &mut ViewContext<Self>) {
-        let label = menu_label_for_locale(&self.current_slug, self.default_host.as_deref(), ctx);
+        let action = InternalAction::SelectKnown(self.current_slug.clone());
         self.dropdown.update(ctx, |dropdown, ctx_dropdown| {
-            dropdown.set_selected_by_name(&label, ctx_dropdown);
+            dropdown.set_selected_by_action(action, ctx_dropdown);
         });
     }
 
@@ -424,8 +429,10 @@ fn normalize_slug(slug: &str) -> String {
     }
 }
 
-/// Builds the menu items shown in list mode, in the order: workspace default,
-/// warp, connected worker hosts, recent custom slug, then the custom entry.
+/// Builds the menu items shown in list mode, in the order: workspace default
+/// (badged "Default" if set), warp, connected worker hosts (badged
+/// "Connected"), recent custom slug (badged "Disconnected" when it is not
+/// currently connected), then a "Custom host…" entry.
 #[cfg(test)]
 pub(crate) fn build_menu_items(
     default_host: Option<&str>,
@@ -437,6 +444,8 @@ pub(crate) fn build_menu_items(
         recent_host,
         connected_hosts,
         DEFAULT_BADGE_FALLBACK,
+        CONNECTED_BADGE_FALLBACK,
+        DISCONNECTED_BADGE_FALLBACK,
         CUSTOM_HOST_FALLBACK,
     )
 }
@@ -460,6 +469,10 @@ fn build_menu_items_for_locale(
 ) -> Vec<MenuItem<DropdownAction>> {
     let default_badge =
         localization::text_for_app(app, "agent.orchestration.host_picker.default_badge");
+    let connected_badge =
+        localization::text_for_app(app, "agent.orchestration.host_picker.connected_badge");
+    let disconnected_badge =
+        localization::text_for_app(app, "agent.orchestration.host_picker.disconnected_badge");
     let custom_host_label =
         localization::text_for_app(app, "agent.orchestration.host_picker.custom_host");
     build_menu_items_with_labels(
@@ -467,18 +480,10 @@ fn build_menu_items_for_locale(
         recent_host,
         connected_hosts,
         &default_badge,
+        &connected_badge,
+        &disconnected_badge,
         &custom_host_label,
     )
-}
-
-fn menu_label_for_locale(slug: &str, default_host: Option<&str>, app: &AppContext) -> String {
-    let default_badge =
-        localization::text_for_app(app, "agent.orchestration.host_picker.default_badge");
-    if default_host == Some(slug) {
-        format_known_label(slug, Some(&default_badge))
-    } else {
-        format_known_label(slug, None)
-    }
 }
 
 fn build_menu_items_with_labels(
@@ -486,6 +491,8 @@ fn build_menu_items_with_labels(
     recent_host: Option<&str>,
     connected_hosts: &[String],
     default_badge: &str,
+    connected_badge: &str,
+    disconnected_badge: &str,
     custom_host_label: &str,
 ) -> Vec<MenuItem<DropdownAction>> {
     let mut items: Vec<MenuItem<DropdownAction>> = Vec::new();
@@ -516,7 +523,7 @@ fn build_menu_items_with_labels(
         }
         items.push(menu_item_for_known(
             slug,
-            None,
+            Some(connected_badge),
             InternalAction::SelectKnown(slug.to_string()),
         ));
         known_slugs.push(slug.to_string());
@@ -526,9 +533,13 @@ fn build_menu_items_with_labels(
             .iter()
             .any(|known| known.eq_ignore_ascii_case(slug))
         {
+            // Recent hosts render as plain slugs; only the workspace
+            // default carries a default badge. If the recent host is not in
+            // the connected set, keep it selectable but make the disconnected
+            // state explicit.
             items.push(menu_item_for_known(
                 slug,
-                None,
+                Some(disconnected_badge),
                 InternalAction::SelectKnown(slug.to_string()),
             ));
         }
@@ -542,6 +553,7 @@ fn build_menu_items_with_labels(
     items
 }
 
+#[cfg(test)]
 fn format_known_label(slug: &str, badge: Option<&str>) -> String {
     match badge {
         Some(badge) => format!("{slug}  ({badge})"),
@@ -554,10 +566,18 @@ fn menu_item_for_known(
     badge: Option<&str>,
     action: InternalAction,
 ) -> MenuItem<DropdownAction> {
-    MenuItem::Item(
-        MenuItemFields::new(format_known_label(slug, badge))
-            .with_on_select_action(DropdownAction::select_action_and_close(action)),
-    )
+    let mut fields = MenuItemFields::new(slug)
+        .with_on_select_action(DropdownAction::select_action_and_close(action));
+    if let Some(badge) = badge {
+        fields = fields.with_right_side_label(
+            badge,
+            Properties {
+                weight: Weight::Semibold,
+                ..Default::default()
+            },
+        );
+    }
+    MenuItem::Item(fields)
 }
 
 // ── Entity / View impls ─────────────────────────────────────────────

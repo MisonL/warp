@@ -170,14 +170,6 @@ impl StoredView {
         }
     }
 
-    pub fn child_view_ids(&self, app: &AppContext) -> Vec<EntityId> {
-        match self {
-            StoredView::Gui(view) => view.child_view_ids(app),
-            #[cfg(feature = "tui")]
-            StoredView::Tui(_) => Vec::new(),
-        }
-    }
-
     pub fn self_or_child_interacted_with(
         &self,
         app: &mut AppContext,
@@ -201,6 +193,14 @@ impl StoredView {
             StoredView::Gui(view) => view.accessibility_data(app, window_id, view_id),
             #[cfg(feature = "tui")]
             StoredView::Tui(_) => None,
+        }
+    }
+
+    pub fn child_view_ids(&self, app: &AppContext) -> Vec<EntityId> {
+        match self {
+            StoredView::Gui(view) => view.child_view_ids(app),
+            #[cfg(feature = "tui")]
+            StoredView::Tui(view) => view.child_view_ids(app),
         }
     }
 }

@@ -55,6 +55,7 @@ pub(crate) struct PluginInstructions {
 /// Error returned when plugin installation fails.
 /// Carries both a short user-facing message (for the toast) and a detailed
 /// command log (for the log file the user can inspect).
+#[derive(Debug)]
 pub(crate) struct PluginInstallError {
     /// Short description shown in the toast notification.
     pub message: String,
@@ -98,6 +99,8 @@ impl PluginInstallError {
         }
     }
 }
+
+impl std::error::Error for PluginInstallError {}
 
 impl From<io::Error> for PluginInstallError {
     fn from(err: io::Error) -> Self {

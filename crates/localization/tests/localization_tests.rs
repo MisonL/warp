@@ -4740,10 +4740,6 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
             &["\"SSH Warpification\""][..],
         ),
         (
-            "app/src/server/iap.rs",
-            &["IAP credential refresh failed: {message}"][..],
-        ),
-        (
             "app/src/ai/blocklist/agent_view/agent_input_footer/mod.rs",
             &["context remaining", "No plugin manager available"][..],
         ),

@@ -275,6 +275,14 @@ fn build_menu_items(
     selected: &Host,
     ctx: &mut ViewContext<HostSelector>,
 ) -> Vec<MenuItem<HostSelectorAction>> {
+    let default_badge =
+        localization::text_for_app(ctx, "terminal.ambient_agent.host_selector.default_badge");
+    let connected_badge =
+        localization::text_for_app(ctx, "terminal.ambient_agent.host_selector.connected_badge");
+    let disconnected_badge = localization::text_for_app(
+        ctx,
+        "terminal.ambient_agent.host_selector.disconnected_badge",
+    );
     let header = MenuItem::Header {
         fields: MenuItemFields::new(localization::text_for_app(
             ctx,
@@ -288,22 +296,30 @@ fn build_menu_items(
         right_side_fields: None,
     };
 
-    let item_for = |host: Host| {
+    let item_for = |host: Host, badge: Option<&str>| {
         let label = host.display_name().to_string();
-        MenuItem::Item(
-            MenuItemFields::new(label)
-                .with_font_size_override(ITEM_FONT_SIZE)
-                .with_padding_override(ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
-                .with_override_hover_background_color(hover_background)
-                .with_on_select_action(HostSelectorAction::SelectHost(host)),
-        )
+        let mut fields = MenuItemFields::new(label)
+            .with_font_size_override(ITEM_FONT_SIZE)
+            .with_padding_override(ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
+            .with_override_hover_background_color(hover_background)
+            .with_on_select_action(HostSelectorAction::SelectHost(host));
+        if let Some(badge) = badge {
+            fields = fields.with_right_side_label(
+                badge,
+                Properties {
+                    weight: Weight::Semibold,
+                    ..Default::default()
+                },
+            );
+        }
+        MenuItem::Item(fields)
     };
 
     let mut items = vec![header];
     if let Some(host) = default_host {
-        items.push(item_for(host.clone()));
+        items.push(item_for(host.clone(), Some(default_badge.as_str())));
     }
-    items.push(item_for(Host::Warp));
+    items.push(item_for(Host::Warp, None));
     let default_slug = match default_host {
         Some(Host::SelfHosted { slug }) => Some(slug.as_str()),
         Some(Host::Warp) | None => None,
@@ -312,15 +328,25 @@ fn build_menu_items(
         .worker_hosts_excluding(default_slug)
         .into_iter()
         .collect::<Vec<_>>();
-    if let Host::SelfHosted { slug } = selected {
-        if default_slug != Some(slug.as_str()) {
-            connected_hosts.push(slug.clone());
-        }
-    }
     connected_hosts.sort();
     connected_hosts.dedup();
-    for host in connected_hosts {
-        items.push(item_for(Host::SelfHosted { slug: host }));
+    for host in &connected_hosts {
+        items.push(item_for(
+            Host::SelfHosted { slug: host.clone() },
+            Some(connected_badge.as_str()),
+        ));
+    }
+    if let Host::SelfHosted { slug } = selected {
+        let is_default = default_slug == Some(slug.as_str());
+        let is_connected = connected_hosts
+            .iter()
+            .any(|host| host.eq_ignore_ascii_case(slug));
+        if !is_default && !is_connected {
+            items.push(item_for(
+                Host::SelfHosted { slug: slug.clone() },
+                Some(disconnected_badge.as_str()),
+            ));
+        }
     }
     items
 }
