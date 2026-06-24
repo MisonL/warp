@@ -44,6 +44,7 @@ mod interval_timer;
 mod linear;
 #[cfg(feature = "local_fs")]
 mod local_control;
+mod localization;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod login_item;
 mod menu;
@@ -1005,7 +1006,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         .unwrap_or_else(crate::settings::app_icon::ShowDockIconState::default_value);
         app_builder.set_show_dock_icon_on_launch(show_dock_icon);
         app_builder.set_menu_bar_builder(app_menus::menu_bar);
-        app_builder.set_dock_menu_builder(|_| app_menus::dock_menu());
+        app_builder.set_dock_menu_builder(|ctx| app_menus::dock_menu(ctx));
     }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -1159,6 +1160,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_ctx| SettingsManager::default());
 
     let user_defaults_on_startup = settings::init(startup_toml_parse_error, ctx);
+    localization::register_localization_updater(ctx);
     timer.mark_interval_end("READ_USER_DEFAULTS_AND_INITIALIZE_SETTINGS");
 
     if FeatureFlag::UIZoom.is_enabled() {

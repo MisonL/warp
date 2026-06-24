@@ -785,8 +785,257 @@ impl CommandBinding {
 fn materialize_description(desc: &BindingDescription, ctx: &AppContext) -> BindingDescription {
     if desc.has_dynamic_override() {
         desc.materialized(ctx)
+    } else if let Some(text) = localized_binding_description_text(desc.default_description(), ctx) {
+        BindingDescription::new_preserve_case(text)
     } else {
         desc.clone()
+    }
+}
+
+fn localized_binding_description_text(description: &str, ctx: &AppContext) -> Option<String> {
+    let key = crate::localization::binding_description_key_for_english_text(description)
+        .or_else(|| catalog_key_for_binding_description_alias(description))?;
+    Some(crate::localization::text_for_app(ctx, key))
+}
+
+fn catalog_key_for_binding_description_alias(description: &str) -> Option<&'static str> {
+    match description {
+        "[A11y] Set Concise Accessibility Announcements" => {
+            Some("workspace.binding.set_a11y_concise_announcements")
+        }
+        "[A11y] Set Verbose Accessibility Announcements" => {
+            Some("workspace.binding.set_a11y_verbose_announcements")
+        }
+        "Activate Next Pane" => Some("workspace.binding.activate_next_pane"),
+        "Activate Next Tab" => Some("workspace.binding.activate_next_tab"),
+        "Activate Previous Pane" => Some("workspace.binding.activate_previous_pane"),
+        "Activate Previous Tab" => Some("workspace.binding.activate_previous_tab"),
+        "Add Current Folder As Project" => Some("terminal.binding.add_current_folder_as_project"),
+        "Alternate Terminal Paste" => Some("terminal.binding.alternate_terminal_paste"),
+        "Ask Warp Ai" => Some("terminal.binding.ask_warp_ai"),
+        "Ask Warp Ai About Last Block" => Some("terminal.binding.ask_warp_ai_about_last_block"),
+        "Ask Warp Ai About Selection" => Some("terminal.binding.ask_warp_ai_about_selection"),
+        "Attach Selected Block As Agent Context" => {
+            Some("terminal.binding.attach_selected_block_as_agent_context")
+        }
+        "Attach Selected Text As Agent Context" => {
+            Some("terminal.binding.attach_selected_text_as_agent_context")
+        }
+        "Backward Tabulation Within An Executing Command" => {
+            Some("terminal.binding.backward_tabulation")
+        }
+        "Bookmark Selected Block" => Some("terminal.binding.bookmark_selected_block"),
+        "Check For Updates" => Some("workspace.binding.check_for_updates"),
+        "Clear Blocks" => Some("terminal.binding.clear_blocks"),
+        "Close Current Tab" => Some("workspace.binding.close_current_tab"),
+        "Close Focused Panel" => Some("workspace.binding.close_focused_panel"),
+        "Close Other Tabs" => Some("workspace.binding.close_other_tabs"),
+        "Close Tabs To The Right" => Some("workspace.binding.close_tabs_to_right"),
+        "Close Window" => Some("workspace.binding.close_window"),
+        "Copy" => Some("terminal.binding.copy"),
+        "Copy Access Token To Clipboard" => {
+            Some("workspace.binding.debug.copy_access_token_to_clipboard")
+        }
+        "Copy Command" => Some("terminal.binding.copy_command"),
+        "Copy Command And Output" => Some("terminal.binding.copy_command_and_output"),
+        "Copy Command Output" => Some("terminal.binding.copy_command_output"),
+        "Copy Git Branch" => Some("terminal.binding.copy_git_branch"),
+        "Create A New Personal Folder" => Some("workspace.binding.create_personal_folder"),
+        "Create A New Personal Notebook" => Some("workspace.binding.create_personal_notebook"),
+        "Create A New Personal Prompt" => Some("workspace.binding.create_personal_prompt"),
+        "Create A New Personal Workflow" => Some("workspace.binding.create_personal_workflow"),
+        "Create A New Team Folder" => Some("workspace.binding.create_team_folder"),
+        "Create A New Team Notebook" => Some("workspace.binding.create_team_notebook"),
+        "Create A New Team Prompt" => Some("workspace.binding.create_team_prompt"),
+        "Create A New Team Workflow" => Some("workspace.binding.create_team_workflow"),
+        "Create New Personal Environment Variables" => {
+            Some("workspace.binding.create_personal_environment_variables")
+        }
+        "Create New Tab" => Some("workspace.binding.create_new_tab"),
+        "Create New Team Environment Variables" => {
+            Some("workspace.binding.create_team_environment_variables")
+        }
+        "Decrease Font Size" => Some("workspace.binding.decrease_font_size"),
+        "Decrease Zoom Level" => Some("workspace.binding.decrease_zoom"),
+        "Delete To Line End Within An Executing Command" => {
+            Some("terminal.binding.executing_command_delete_line_end")
+        }
+        "Delete To Line Start Within An Executing Command" => {
+            Some("terminal.binding.executing_command_delete_line_start")
+        }
+        "Delete Word Left Within An Executing Command" => {
+            Some("terminal.binding.executing_command_delete_word_left")
+        }
+        "Dump Heap Profile (Can Only Be Done Once)" => {
+            Some("workspace.binding.debug.dump_heap_profile")
+        }
+        "Expand Selected Blocks Above" => Some("terminal.binding.expand_selected_blocks_above"),
+        "Expand Selected Blocks Below" => Some("terminal.binding.expand_selected_blocks_below"),
+        "Export All Warp Drive Objects" => Some("workspace.binding.export_all_warp_drive_objects"),
+        "Find In Terminal" => Some("terminal.binding.find_in_terminal"),
+        "Find Within Selected Block" => Some("terminal.binding.find_within_selected_block"),
+        "Focus Terminal Input" => Some("terminal.binding.focus_terminal_input"),
+        "Focus Terminal Input From Warp Ai" => Some("ai_assistant.binding.focus_terminal_input"),
+        "Import External Settings" => Some("terminal.binding.import_external_settings"),
+        "Import To Personal Drive" => Some("workspace.binding.import_to_personal_drive"),
+        "Import To Team Drive" => Some("workspace.binding.import_to_team_drive"),
+        "Increase Font Size" => Some("workspace.binding.increase_font_size"),
+        "Increase Zoom Level" => Some("workspace.binding.increase_zoom"),
+        "Initiate Project For Warp" => Some("terminal.binding.initiate_project_for_warp"),
+        "Install Oz Cli Command" => Some("workspace.binding.install_oz_cli_command"),
+        "Install Warp Control Cli Command" => {
+            Some("workspace.binding.install_warp_control_cli_command")
+        }
+        "Install Update And Relaunch" => Some("workspace.binding.install_update_and_relaunch"),
+        "Jump To Latest Agent Task" => Some("workspace.binding.jump_to_latest_agent_task"),
+        "Launch Configuration Palette" => Some("workspace.binding.launch_configuration_palette"),
+        "Left Panel: Agent Conversations" => {
+            Some("workspace.binding.left_panel_agent_conversations")
+        }
+        "Left Panel: Global Search" => Some("workspace.binding.left_panel_global_search"),
+        "Left Panel: Project Explorer" => Some("workspace.binding.left_panel_project_explorer"),
+        "Left Panel: Warp Drive" => Some("workspace.binding.left_panel_warp_drive"),
+        "Log Out" => Some("workspace.binding.log_out"),
+        "Move Cursor End Within An Executing Command" => {
+            Some("terminal.binding.executing_command_move_cursor_end")
+        }
+        "Move Cursor Home Within An Executing Command" => {
+            Some("terminal.binding.executing_command_move_cursor_home")
+        }
+        "Move Cursor To The Bottom" => Some("code.editor.binding.move_to_buffer_end"),
+        "Move Cursor To The Top" => Some("code.editor.binding.move_to_buffer_start"),
+        "Move Cursor One Word To The Left Within An Executing Command" => {
+            Some("terminal.binding.executing_command_move_cursor_word_left")
+        }
+        "Move Cursor One Word To The Right Within An Executing Command" => {
+            Some("terminal.binding.executing_command_move_cursor_word_right")
+        }
+        "Move Backward One Word" => Some("code.editor.binding.move_backward_one_word"),
+        "Move Forward One Word" => Some("code.editor.binding.move_forward_one_word"),
+        "Move To End Of Line" => Some("code.editor.binding.move_to_line_end"),
+        "Move To Start Of Line" => Some("code.editor.binding.move_to_line_start"),
+        "Move Tab Left" => Some("workspace.binding.move_tab_left"),
+        "Move Tab Right" => Some("workspace.binding.move_tab_right"),
+        "New Agent Tab" => Some("workspace.binding.new_agent_tab"),
+        "New Cloud Agent Tab" => Some("workspace.binding.new_cloud_agent_tab"),
+        "New Terminal Tab" => Some("workspace.binding.new_terminal_tab"),
+        "Open Ai Rules" => Some("workspace.binding.open_ai_rules"),
+        "Open Block Context Menu" => Some("terminal.binding.open_block_context_menu"),
+        "Open Global Search" => Some("workspace.binding.open_global_search"),
+        "Open Keybindings Editor" => Some("workspace.binding.open_keybindings_editor"),
+        "Open Left Panel" => Some("workspace.binding.open_left_panel"),
+        "Open Mcp Servers" => Some("workspace.binding.open_mcp_servers"),
+        "Open Repository" => Some("workspace.binding.open_repository"),
+        "Open Settings" => Some("workspace.binding.open_settings"),
+        "Open Settings: About" => Some("workspace.binding.open_settings_about"),
+        "Open Settings: Account" => Some("workspace.binding.open_settings_account"),
+        "Open Settings: Ai" => Some("workspace.binding.open_settings_ai"),
+        "Open Settings: Appearance" => Some("workspace.binding.open_settings_appearance"),
+        "Open Settings: Billing And Usage" => {
+            Some("workspace.binding.open_settings_billing_and_usage")
+        }
+        "Open Settings: Code" => Some("workspace.binding.open_settings_code"),
+        "Open Settings: Environments" => Some("workspace.binding.open_settings_environments"),
+        "Open Settings: Features" => Some("workspace.binding.open_settings_features"),
+        "Open Settings: Keyboard Shortcuts" => {
+            Some("workspace.binding.open_settings_keyboard_shortcuts")
+        }
+        "Open Settings: Mcp Servers" => Some("workspace.binding.open_settings_mcp_servers"),
+        "Open Settings: Privacy" => Some("workspace.binding.open_settings_privacy"),
+        "Open Settings: Referrals" => Some("workspace.binding.open_settings_referrals"),
+        "Open Settings: Shared Blocks" => Some("workspace.binding.open_settings_shared_blocks"),
+        "Open Settings: Teams" => Some("workspace.binding.open_settings_teams"),
+        "Open Settings: Warpify" => Some("workspace.binding.open_settings_warpify"),
+        "Open Tab Configs Menu" => Some("workspace.binding.open_tab_configs_menu"),
+        "Open Theme Picker" => Some("workspace.binding.open_theme_picker"),
+        "Open View Tree Debugger" => Some("workspace.binding.debug.open_view_tree_debugger"),
+        "Paste" => Some("terminal.binding.paste"),
+        "Quit Warp" => Some("workspace.binding.quit_warp"),
+        "Reinput Selected Commands" => Some("terminal.binding.reinput_selected_commands"),
+        "Reinput Selected Commands As Root" => {
+            Some("terminal.binding.reinput_selected_commands_as_root")
+        }
+        "Rename The Current Pane" => Some("workspace.binding.rename_current_pane"),
+        "Rename The Current Tab" => Some("workspace.binding.rename_current_tab"),
+        "Reset Font Size To Default" => Some("workspace.binding.reset_font_size"),
+        "Reset Zoom Level To Default" => Some("workspace.binding.reset_zoom"),
+        "Sample Process" => Some("workspace.binding.sample_process"),
+        "Scroll Terminal Output Down One Line" => {
+            Some("terminal.binding.scroll_output_down_one_line")
+        }
+        "Scroll Terminal Output Down One Page" => {
+            Some("terminal.binding.scroll_output_down_one_page")
+        }
+        "Scroll Terminal Output Up One Line" => Some("terminal.binding.scroll_output_up_one_line"),
+        "Scroll Terminal Output Up One Page" => Some("terminal.binding.scroll_output_up_one_page"),
+        "Scroll To Bottom Of Selected Block" => {
+            Some("terminal.binding.scroll_to_bottom_of_selected_block")
+        }
+        "Scroll To Top Of Selected Block" => {
+            Some("terminal.binding.scroll_to_top_of_selected_block")
+        }
+        "Select All Blocks" => Some("terminal.binding.select_all_blocks"),
+        "Select Next Block" => Some("terminal.binding.select_next_block"),
+        "Select Previous Block" => Some("terminal.binding.select_previous_block"),
+        "Select To Line End" => Some("code.editor.binding.select_to_line_end"),
+        "Select To Line Start" => Some("code.editor.binding.select_to_line_start"),
+        "Select The Closest Bookmark Down" => Some("terminal.binding.select_closest_bookmark_down"),
+        "Select The Closest Bookmark Up" => Some("terminal.binding.select_closest_bookmark_up"),
+        "Share Current Session" => Some("terminal.binding.share_current_session"),
+        "Share Selected Block" => Some("terminal.binding.share_selected_block"),
+        "Stop Sharing Current Session" => Some("terminal.binding.stop_sharing_current_session"),
+        "Switch Focus To Left Panel" => Some("workspace.binding.switch_focus_to_left_panel"),
+        "Switch Focus To Right Panel" => Some("workspace.binding.switch_focus_to_right_panel"),
+        "Switch To 1st Tab" => Some("workspace.binding.switch_to_first_tab"),
+        "Switch To 2nd Tab" => Some("workspace.binding.switch_to_second_tab"),
+        "Switch To 3rd Tab" => Some("workspace.binding.switch_to_third_tab"),
+        "Switch To 4th Tab" => Some("workspace.binding.switch_to_fourth_tab"),
+        "Switch To 5th Tab" => Some("workspace.binding.switch_to_fifth_tab"),
+        "Switch To 6th Tab" => Some("workspace.binding.switch_to_sixth_tab"),
+        "Switch To 7th Tab" => Some("workspace.binding.switch_to_seventh_tab"),
+        "Switch To 8th Tab" => Some("workspace.binding.switch_to_eighth_tab"),
+        "Switch To Last Tab" => Some("workspace.binding.switch_to_last_tab"),
+        "Toggle Agent Conversation List View" => {
+            Some("workspace.binding.toggle_agent_conversation_list_view")
+        }
+        "Toggle Agent Management View" => Some("workspace.binding.toggle_agent_management_view"),
+        "Toggle Code Review" => Some("workspace.binding.toggle_code_review"),
+        "Toggle Command Palette" => Some("workspace.binding.toggle_command_palette"),
+        "Toggle Files Palette" => Some("workspace.binding.toggle_files_palette"),
+        "Toggle Hidden Files In Project Explorer" => {
+            Some("workspace.binding.toggle_hidden_files_project_explorer")
+        }
+        "Toggle Keyboard Shortcuts" => Some("workspace.binding.toggle_keyboard_shortcuts"),
+        "Toggle Navigation Palette" => Some("workspace.binding.toggle_navigation_palette"),
+        "Toggle Notification Mailbox" => Some("workspace.binding.toggle_notification_mailbox"),
+        "Toggle Project Explorer" => Some("workspace.binding.toggle_project_explorer"),
+        "Toggle Resource Center" => Some("workspace.binding.toggle_resource_center"),
+        "Toggle Sticky Command Header" => Some("workspace.binding.toggle_sticky_command_header"),
+        "Toggle Vertical Tabs Panel" => Some("workspace.binding.toggle_vertical_tabs_panel"),
+        "Toggle Warp Ai" => Some("workspace.binding.toggle_warp_ai"),
+        "Toggle Warp Drive" => Some("workspace.binding.toggle_warp_drive"),
+        "Cycle To Next Orchestration Session" => {
+            Some("terminal.binding.cycle_next_orchestration_session")
+        }
+        "Cycle To Previous Orchestration Session" => {
+            Some("terminal.binding.cycle_previous_orchestration_session")
+        }
+        "Turn Notifications Off" => Some("workspace.binding.turn_notifications_off"),
+        "Turn Notifications On" => Some("workspace.binding.turn_notifications_on"),
+        "Uninstall Oz Cli Command" => Some("workspace.binding.uninstall_oz_cli_command"),
+        "Uninstall Warp Control Cli Command" => {
+            Some("workspace.binding.uninstall_warp_control_cli_command")
+        }
+        "View Latest Changelog" => Some("workspace.binding.view_latest_changelog"),
+        "View Privacy Policy (Opens External Link)" => {
+            Some("workspace.binding.view_privacy_policy")
+        }
+        "View User Docs (Opens External Link)" => Some("workspace.binding.view_user_docs"),
+        "View Warp Logs" => Some("workspace.binding.view_warp_logs"),
+        "Write Current Codebase Index Snapshot" => {
+            Some("terminal.binding.write_codebase_index_snapshot")
+        }
+        _ => None,
     }
 }
 

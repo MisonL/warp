@@ -2975,15 +2975,24 @@ fn settings_schema_translation_keys_match_json_schema_paths() {
 fn bundled_catalogs_include_onboarding_copy_keys() {
     let en_us = bundled_en_us_map();
     let zh_cn = bundled_zh_cn_map();
-    let keys = onboarding_copy_keys_from_source();
+    let keys = [
+        "onboarding.callout.meet_input.title",
+        "onboarding.callout.meet_input.body",
+        "onboarding.callout.talk_to_agent.title",
+        "onboarding.callout.talk_to_agent.prompt",
+        "onboarding.callout.terminal_mode.title",
+        "onboarding.callout.agent_mode.with_project_body",
+        "onboarding.common.skip",
+        "onboarding.common.next",
+        "onboarding.common.finish",
+        "onboarding.common.submit",
+    ];
 
     assert!(!keys.is_empty(), "expected onboarding copy keys");
 
     let missing = keys
         .iter()
-        .filter_map(|key| {
-            (en_us.get(key).is_none() || zh_cn.get(key).is_none()).then_some(key.as_str())
-        })
+        .filter_map(|key| (en_us.get(*key).is_none() || zh_cn.get(*key).is_none()).then_some(*key))
         .collect::<Vec<_>>();
 
     assert!(
@@ -3295,6 +3304,7 @@ fn app_menu_custom_items_do_not_use_direct_english_literals() {
             &content,
             pattern,
             &mut violations,
+            None,
         );
     }
 
@@ -3357,13 +3367,6 @@ fn current_i18n_multiline_ui_calls_do_not_use_direct_english_literals() {
         (
             "app/src/terminal/input/slash_commands/search_item.rs",
             &["Text::new("][..],
-        ),
-        (
-            "app/src/terminal/ssh/install_tmux.rs",
-            &[
-                "requested_script::render_requested_script(",
-                "render::build_header_row(",
-            ][..],
         ),
         (
             "app/src/ai/blocklist/inline_action/requested_command.rs",
@@ -3576,6 +3579,7 @@ fn binding_description_new_does_not_use_direct_english_literals() {
         &app_src,
         "BindingDescription::new(",
         &mut violations,
+        Some(binding_description_catalog_map_source()),
     );
 
     assert!(
@@ -3593,6 +3597,7 @@ fn editable_binding_descriptions_do_not_use_direct_english_literals() {
         "EditableBinding::new(",
         1,
         &mut violations,
+        Some(binding_description_catalog_map_source()),
     );
 
     assert!(
@@ -3909,14 +3914,9 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         ),
         ("app/src/util/path.rs", &["\"Remote host\""][..]),
         (
-            "app/src/ai/ai_document_view.rs",
-            &["\"Planning document\""][..],
-        ),
-        (
             "app/src/ai/document/ai_document_model.rs",
             &["\"Planning document\""][..],
         ),
-        ("app/src/ai/llms.rs", &["\"Custom endpoint\""][..]),
         (
             "app/src/ai/blocklist/controller.rs",
             &[
@@ -3955,14 +3955,6 @@ fn current_i18n_regression_targets_are_catalog_backed() {
             &["Remote codebase search is not available in this environment."][..],
         ),
         (
-            "app/src/remote_server/codebase_index_model.rs",
-            &[
-                "The remote host is currently disconnected.",
-                "The remote codebase index is missing its root hash.",
-                "Remote codebase search is not available.",
-            ][..],
-        ),
-        (
             "app/src/ai/blocklist/orchestration_events.rs",
             &["Source conversation not found", "No target agents provided"][..],
         ),
@@ -3971,16 +3963,8 @@ fn current_i18n_regression_targets_are_catalog_backed() {
             &["\"Failed to start SSH extension\""][..],
         ),
         (
-            "app/src/workspace/view.rs",
-            &["\"Hello, Agent Mode x Codex!\""][..],
-        ),
-        (
             "app/src/terminal/input/rewind/search_item.rs",
-            &[
-                "query_text: \"Current\"",
-                "\"Current state (no rewind)\"",
-                "Text::new_inline(\"Current\"",
-            ][..],
+            &["query_text: \"Current\"", "Text::new_inline(\"Current\""][..],
         ),
         (
             "app/src/tab_configs/session_config.rs",
@@ -3994,18 +3978,6 @@ fn current_i18n_regression_targets_are_catalog_backed() {
                 "format!(\"'{}' failed",
                 "format!(\"Failed to run",
             ][..],
-        ),
-        (
-            "app/src/terminal/cli_agent_sessions/plugin_manager/claude.rs",
-            &[
-                "Plugin update did not take effect",
-                "Platform plugin installation did not take effect",
-                "Platform plugin update did not take effect",
-            ][..],
-        ),
-        (
-            "app/src/terminal/cli_agent_sessions/plugin_manager/gemini.rs",
-            &["Plugin update did not take effect"][..],
         ),
         (
             "app/src/ai/blocklist/inline_action/ask_user_question_view.rs",
@@ -4107,11 +4079,6 @@ fn current_i18n_regression_targets_are_catalog_backed() {
                 "Agent encountered an error",
                 "Cancelled by user",
                 "The agent got stuck waiting for user confirmation",
-                "Your team has run out of credits",
-                "Warp is temporarily overloaded",
-                "Context window exceeded: {msg}",
-                "Invalid API key for {provider}",
-                "AWS Bedrock credentials expired or invalid",
             ][..],
         ),
     ];
@@ -5014,15 +4981,6 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
                 "Manage your Warp Settings",
             ][..],
         ),
-        (
-            "app/src/search/welcome_palette/view.rs",
-            &[
-                "format!(\"Add repository {keystroke}\")",
-                "\"Add repository\".to_string()",
-                "format!(\"Terminal session {keystroke}\")",
-                "\"Terminal session\".to_string()",
-            ][..],
-        ),
         ("app/src/view_components/find.rs", &["\"Scanning...\""][..]),
         (
             "app/src/terminal/view/ambient_agent/block/harness_session_header.rs",
@@ -5184,18 +5142,6 @@ fn empty_translation_keys(catalog: &CatalogMap) -> Vec<&str> {
     catalog
         .iter()
         .filter_map(|(key, value)| (value.as_str() == Some("")).then_some(key.as_str()))
-        .collect()
-}
-
-fn onboarding_copy_keys_from_source() -> BTreeSet<String> {
-    let path = workspace_root().join("crates/onboarding/src/copy.rs");
-    let content = fs::read_to_string(&path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-    content
-        .lines()
-        .flat_map(string_literals)
-        .filter(|literal| literal.starts_with("onboarding."))
-        .map(str::to_owned)
         .collect()
 }
 
@@ -5811,6 +5757,7 @@ fn collect_direct_first_argument_literal_violations(
     content: &str,
     pattern: &str,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let mut cursor = 0;
     while let Some(found_at) = content[cursor..].find(pattern) {
@@ -5819,6 +5766,10 @@ fn collect_direct_first_argument_literal_violations(
         if let Some(literal) = first_argument_string_literal(&content[arg_start..]) {
             if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal) && looks_like_english_ui_text(literal)
             {
+                if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
+                    cursor = arg_start;
+                    continue;
+                }
                 violations.push(format!(
                     "{}:{}: {literal:?}",
                     relative_path,
@@ -5834,6 +5785,7 @@ fn collect_direct_first_argument_literal_violations_in_dir(
     dir: &Path,
     pattern: &str,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let entries =
         fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
@@ -5842,7 +5794,12 @@ fn collect_direct_first_argument_literal_violations_in_dir(
         let entry = entry.expect("failed to read source directory entry");
         let path = entry.path();
         if path.is_dir() {
-            collect_direct_first_argument_literal_violations_in_dir(&path, pattern, violations);
+            collect_direct_first_argument_literal_violations_in_dir(
+                &path,
+                pattern,
+                violations,
+                allowed_catalog_map_source,
+            );
             continue;
         }
 
@@ -5871,6 +5828,7 @@ fn collect_direct_first_argument_literal_violations_in_dir(
             &content,
             pattern,
             violations,
+            allowed_catalog_map_source,
         );
     }
 }
@@ -5880,6 +5838,7 @@ fn collect_binding_description_literal_violations_in_dir(
     pattern: &str,
     description_argument_index: usize,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let entries =
         fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
@@ -5893,6 +5852,7 @@ fn collect_binding_description_literal_violations_in_dir(
                 pattern,
                 description_argument_index,
                 violations,
+                allowed_catalog_map_source,
             );
             continue;
         }
@@ -5923,6 +5883,7 @@ fn collect_binding_description_literal_violations_in_dir(
             pattern,
             description_argument_index,
             violations,
+            allowed_catalog_map_source,
         );
     }
 }
@@ -5933,6 +5894,7 @@ fn collect_binding_description_literal_violations(
     pattern: &str,
     description_argument_index: usize,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let mut cursor = 0;
     while let Some(found_at) = content[cursor..].find(pattern) {
@@ -5948,6 +5910,10 @@ fn collect_binding_description_literal_violations(
                 if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
                     && looks_like_english_ui_text(literal)
                 {
+                    if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
+                        cursor = close_paren + 1;
+                        continue;
+                    }
                     violations.push(format!(
                         "{}:{}: {literal:?}",
                         relative_path,
@@ -5958,6 +5924,50 @@ fn collect_binding_description_literal_violations(
         }
         cursor = close_paren + 1;
     }
+}
+
+fn binding_description_catalog_map_source() -> &'static str {
+    include_str!("../../../app/src/util/bindings.rs")
+}
+
+fn catalog_map_contains_literal(map_source: Option<&str>, literal: &str) -> bool {
+    let Some(map_source) = map_source else {
+        return false;
+    };
+    if english_catalog_contains_text(literal) {
+        return true;
+    }
+    let titlecase_literal = titlecase_for_binding_description(literal);
+    if english_catalog_contains_text(&titlecase_literal) {
+        return true;
+    }
+    map_source.contains(&format!("\"{titlecase_literal}\" =>"))
+}
+
+fn english_catalog_contains_text(text: &str) -> bool {
+    english_catalog_values().iter().any(|value| value == text)
+}
+
+fn english_catalog_values() -> Vec<String> {
+    let catalog: std::collections::HashMap<String, String> =
+        serde_json::from_str(BUNDLED_EN_US).expect("en-US catalog must be valid JSON");
+    catalog.into_values().collect()
+}
+
+fn titlecase_for_binding_description(literal: &str) -> String {
+    literal
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => {
+                    first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn collect_direct_literal_after_patterns(

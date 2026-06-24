@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use anyhow::Context as _;
 use clap::Command;
 use warp_localization::{
-    replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId, TranslationSource,
+    AppLanguage, Catalog, CatalogBundle, LocaleId, TranslationSource, replace_placeholders,
 };
 
 static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {

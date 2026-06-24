@@ -139,6 +139,12 @@ impl Catalog {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.entries.get(key).map(String::as_str)
     }
+
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.entries
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -211,6 +217,10 @@ impl CatalogBundle {
 
     pub fn text<'a>(&'a self, locale: LocaleId, key: &'a str) -> Cow<'a, str> {
         self.lookup(locale, key).text
+    }
+
+    pub fn catalog(&self, locale: LocaleId) -> Option<&Catalog> {
+        self.catalogs.get(&locale)
     }
 }
 

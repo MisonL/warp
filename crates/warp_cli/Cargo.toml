@@ -10,6 +10,7 @@ license.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["derive", "env", "string"] }
 cfg-if = { workspace = true }
+color-print.workspace = true
 humantime.workspace = true
 jaq-all.workspace = true
 serde = { workspace = true, features = ["derive"] }
