@@ -19,6 +19,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, DangerSecondaryTheme};
@@ -109,7 +110,10 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., Zach's external models", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.placeholder.name"),
+                ctx,
+            );
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.name, ctx);
             }
@@ -129,7 +133,10 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Please include 'https://'", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.placeholder.url"),
+                ctx,
+            );
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.url, ctx);
             }
@@ -150,7 +157,10 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., sk-...", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.placeholder.api_key"),
+                ctx,
+            );
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.api_key, ctx);
             }
@@ -203,12 +213,15 @@ impl CustomEndpointModal {
                 me.handle_model_editor_event(&editor, event, ctx);
             });
         }
-        let remove_endpoint_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Remove", DangerSecondaryTheme)
-                .with_icon(Icon::Trash)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CustomEndpointModalAction::RemoveEndpoint);
-                })
+        let remove_endpoint_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.remove"),
+                DangerSecondaryTheme,
+            )
+            .with_icon(Icon::Trash)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CustomEndpointModalAction::RemoveEndpoint);
+            })
         });
 
         Self {
@@ -246,7 +259,13 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., GLM-5-FP8", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.ai.custom_endpoint.placeholder.model_name",
+                ),
+                ctx,
+            );
             if let Some(n) = name {
                 editor.set_buffer_text(n, ctx);
             }
@@ -266,7 +285,13 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., GLM-5", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.ai.custom_endpoint.placeholder.model_alias",
+                ),
+                ctx,
+            );
             if let Some(a) = alias {
                 editor.set_buffer_text(a, ctx);
             }
@@ -849,7 +874,7 @@ impl View for CustomEndpointModal {
                     ButtonVariant::Secondary,
                     self.cancel_button_mouse_state.clone(),
                 )
-                .with_text_label("Cancel".to_string())
+                .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
                 .with_style(button_style)
                 .build()
                 .on_click(move |ctx, _, _| {

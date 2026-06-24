@@ -736,7 +736,12 @@ impl ServerCardView {
             .build()
     }
 
-    fn render_actions_row(&self, state: &MouseState, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_actions_row(
+        &self,
+        state: &MouseState,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let item_id = self.item_id;
         let mut actions_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -817,7 +822,10 @@ impl ServerCardView {
                     ButtonVariant::Secondary,
                     self.mouse_handles.view_logs_button.clone(),
                 )
-                .with_centered_text_label("View logs".to_string())
+                .with_centered_text_label(crate::localization::text_for_app(
+                    app,
+                    "settings.mcp.card.action.view_logs",
+                ))
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(ServerCardAction::ViewLogs(item_id))
@@ -833,7 +841,10 @@ impl ServerCardView {
                     ButtonVariant::Accent,
                     self.mouse_handles.edit_config_button.clone(),
                 )
-                .with_centered_text_label("Edit config".to_string())
+                .with_centered_text_label(crate::localization::text_for_app(
+                    app,
+                    "settings.mcp.card.action.edit_config",
+                ))
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(ServerCardAction::Edit(item_id));
@@ -849,7 +860,10 @@ impl ServerCardView {
                     ButtonVariant::Accent,
                     self.mouse_handles.setup_button.clone(),
                 )
-                .with_centered_text_label("Set up".to_string())
+                .with_centered_text_label(crate::localization::text_for_app(
+                    app,
+                    "settings.mcp.card.action.set_up",
+                ))
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(ServerCardAction::Install(item_id));
@@ -1032,7 +1046,7 @@ impl View for ServerCardView {
                 info_column = info_column.with_child(tools_info_row)
             }
 
-            let actions_row = self.render_actions_row(state, appearance);
+            let actions_row = self.render_actions_row(state, appearance, app);
 
             let mut card_body = Flex::column()
                 .with_child(

@@ -154,6 +154,10 @@ const VISUAL_CARD_HEADER_VERTICAL_PADDING: f32 = 8.;
 const VISUAL_CARD_HEADER_HORIZONTAL_PADDING: f32 = 16.;
 const MERMAID_CANVAS_PADDING: f32 = 32.;
 
+fn warping_status_text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
+
 pub struct WarpingProps<'a, V> {
     pub model: &'a dyn AIBlockModel<View = V>,
     pub shimmering_text_handle: &'a ShimmeringTextStateHandle,
@@ -483,6 +487,7 @@ pub fn render_warping_indicator<V: View>(
     let non_shimmering_suffix = match (&non_shimmering_text, props.force_refresh_button) {
         (Some(_), Some(force_refresh_button_props)) => Some(render_force_refresh_inline(
             force_refresh_button_props,
+            app,
             appearance,
         )),
         _ => None,
@@ -940,6 +945,7 @@ fn get_icon_size(appearance: &Appearance) -> f32 {
 /// agent's pending poll timer for the given block and delivers a fresh snapshot.
 fn render_force_refresh_inline(
     props: ForceRefreshButtonProps<'_>,
+    app: &AppContext,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -961,13 +967,17 @@ fn render_force_refresh_inline(
         // Mirror `render_output_status_text` exactly: same `Text` configuration plus
         // the `Container::with_margin_top(1.)` wrapper so this sits on the same
         // baseline as the adjacent `Last seen by agent ...` text.
-        let text = Text::new(" · Check now".to_string(), font_family, font_size)
-            .with_color(color)
-            .with_style(Properties::default())
-            .with_clip(ClipConfig::end())
-            .with_selectable(false)
-            .soft_wrap(false)
-            .finish();
+        let text = Text::new(
+            warping_status_text(app, "agent.warping.check_now_inline"),
+            font_family,
+            font_size,
+        )
+        .with_color(color)
+        .with_style(Properties::default())
+        .with_clip(ClipConfig::end())
+        .with_selectable(false)
+        .soft_wrap(false)
+        .finish();
         let text_with_margin = Container::new(text).with_margin_top(1.).finish();
 
         // Tooltip overlay, positioned above the element on hover. Same pattern as
@@ -975,7 +985,10 @@ fn render_force_refresh_inline(
         let mut stack = Stack::new().with_child(text_with_margin);
         if state.is_hovered() {
             let tool_tip = ui_builder
-                .tool_tip("Ask the agent to check this command now, skipping its timer.".to_owned())
+                .tool_tip(crate::localization::text_for_app(
+                    app,
+                    "agent.command_review.tooltip.check_now",
+                ))
                 .build()
                 .finish();
             stack.add_positioned_overlay_child(
@@ -3216,7 +3229,10 @@ fn render_invalid_api_key_error(
             background: Some(internal_colors::fg_overlay_3(theme).into()),
             ..Default::default()
         })
-        .with_text_label("Edit API Keys".to_string())
+        .with_text_label(crate::localization::text_for_app(
+            app,
+            "agent.error.invalid_api_key.edit_api_keys",
+        ))
         .with_cursor(Some(Cursor::PointingHand))
         .build()
         .on_click(move |ctx, _, _| {
@@ -3349,7 +3365,10 @@ pub(crate) fn render_debug_footer<V: View>(
                     warpui::ui_components::button::ButtonVariant::Text,
                     props.submit_issue_button_handle,
                 )
-                .with_centered_text_label("Send Feedback".to_string())
+                .with_centered_text_label(crate::localization::text_for_app(
+                    app,
+                    "agent.feedback.send",
+                ))
                 .with_style(submit_button_style)
                 .with_hovered_styles(submit_button_hover_style)
                 .with_clicked_styles(submit_button_hover_style)

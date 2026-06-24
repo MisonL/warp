@@ -380,44 +380,11 @@ fn sort_agents(
 
 impl TableFormat for AgentResponse {
     fn header() -> Vec<Cell> {
-        Self::header_for_locale(LocaleId::EnUs)
+        agent_response_header_for_locale(LocaleId::EnUs)
     }
 
     fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
-        vec![
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.uid",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.name",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.created",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.description",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.secrets",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.skills",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.base_model",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.agent_management.table.environment",
-            )),
-        ]
+        agent_response_header_for_locale(locale)
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -434,6 +401,43 @@ impl TableFormat for AgentResponse {
             Cell::new(display_optional(self.environment_id.as_deref())),
         ]
     }
+}
+
+fn agent_response_header_for_locale(locale: LocaleId) -> Vec<Cell> {
+    vec![
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.uid",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.name",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.created",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.description",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.secrets",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.skills",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.base_model",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.environment",
+        )),
+    ]
 }
 
 fn print_agents(

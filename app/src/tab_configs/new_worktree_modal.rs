@@ -28,6 +28,7 @@ use warp_core::ui::theme::color::internal_colors;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
+use crate::localization;
 use crate::modal::ModalAction;
 use crate::tab_configs::branch_picker::BranchPicker;
 use crate::tab_configs::repo_picker::{RepoPicker, RepoPickerEvent};
@@ -180,7 +181,10 @@ impl NewWorktreeModal {
         let editor = ctx.add_typed_action_view(|ctx| {
             let options = SingleLineEditorOptions::default();
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("my-feature-branch", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "tab_config.new_worktree.branch_name_placeholder"),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| match event {
@@ -539,7 +543,7 @@ impl View for NewWorktreeModal {
         let cancel_button = appearance
             .ui_builder()
             .button(ButtonVariant::Text, self.cancel_button_mouse_state.clone())
-            .with_text_label("Cancel".to_string())
+            .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
             .with_style(text_button_base)
             .with_style(UiComponentStyles {
                 font_color: Some(main_text.into()),
@@ -561,7 +565,7 @@ impl View for NewWorktreeModal {
             let mut builder = appearance
                 .ui_builder()
                 .button(ButtonVariant::Text, self.open_button_mouse_state.clone())
-                .with_text_label("Open".to_string())
+                .with_text_label(localization::text_for_app(app, "settings.action.open"))
                 .with_style(text_button_base)
                 .with_style(UiComponentStyles {
                     font_color: Some(font_color.into()),

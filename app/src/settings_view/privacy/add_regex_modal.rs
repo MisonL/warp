@@ -15,6 +15,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 
 const LABEL_FONT_SIZE: f32 = 12.;
@@ -52,7 +53,13 @@ impl AddRegexModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g. \"Google API Key\"", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.privacy.custom_secret_redaction.placeholder.name",
+                ),
+                ctx,
+            );
             editor
         });
 
@@ -67,7 +74,13 @@ impl AddRegexModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("\\bAIza[0-9A-Za-z-_]{35}\\b", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.privacy.custom_secret_redaction.placeholder.pattern",
+                ),
+                ctx,
+            );
             editor
         });
 
@@ -218,7 +231,10 @@ impl View for AddRegexModal {
                 ButtonVariant::Accent,
                 self.submit_button_mouse_state.clone(),
             )
-            .with_text_label("Add regex".to_string())
+            .with_text_label(localization::text_for_app(
+                app,
+                "settings.privacy.add_regex",
+            ))
             .with_style(button_style);
 
         if !is_submit_enabled {
@@ -233,7 +249,7 @@ impl View for AddRegexModal {
                     1.,
                     Container::new(if !is_valid_regex && !pattern_text.trim().is_empty() {
                         Text::new(
-                            "Invalid regex",
+                            localization::text_for_app(app, "settings.privacy.invalid_regex"),
                             appearance.ui_font_family(),
                             LABEL_FONT_SIZE,
                         )
@@ -259,7 +275,7 @@ impl View for AddRegexModal {
                         ButtonVariant::Secondary,
                         self.cancel_button_mouse_state.clone(),
                     )
-                    .with_text_label("Cancel".to_string())
+                    .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
                     .with_style(button_style)
                     .build()
                     .on_click(move |ctx, _, _| {

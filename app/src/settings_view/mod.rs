@@ -42,7 +42,7 @@ use warpui::elements::{
     Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::keymap::{ContextPredicate, EnabledPredicate, FixedBinding};
+use warpui::keymap::{BindingDescription, ContextPredicate, EnabledPredicate, FixedBinding};
 use warpui::{
     id, Action, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView,
     UpdateView as _, View, ViewContext, ViewHandle,
@@ -69,7 +69,7 @@ use crate::ui_components::icons;
 use crate::util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction};
 use crate::view_components::ToastFlavor;
 use crate::workspace::WorkspaceAction;
-use crate::{GlobalResourceHandlesProvider, TelemetryEvent};
+use crate::{localization, GlobalResourceHandlesProvider, TelemetryEvent};
 
 mod about_page;
 mod admin_actions;
@@ -702,6 +702,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 pub struct SettingActionPairDescriptions {
     enable: String,
     disable: String,
+    enable_key: Option<&'static str>,
+    disable_key: Option<&'static str>,
+    label_key: Option<&'static str>,
 }
 
 impl SettingActionPairDescriptions {
@@ -709,7 +712,66 @@ impl SettingActionPairDescriptions {
         Self {
             enable: enable.to_owned(),
             disable: disable.to_owned(),
+            enable_key: None,
+            disable_key: None,
+            label_key: None,
         }
+    }
+
+    pub fn from_label_key(enable: String, disable: String, label_key: &'static str) -> Self {
+        Self {
+            enable,
+            disable,
+            enable_key: Some("command.toggle.enable"),
+            disable_key: Some("command.toggle.disable"),
+            label_key: Some(label_key),
+        }
+    }
+
+    pub fn from_keys(
+        enable: &str,
+        disable: &str,
+        enable_key: &'static str,
+        disable_key: &'static str,
+    ) -> Self {
+        Self {
+            enable: enable.to_owned(),
+            disable: disable.to_owned(),
+            enable_key: Some(enable_key),
+            disable_key: Some(disable_key),
+            label_key: None,
+        }
+    }
+
+    fn enable_description(&self) -> BindingDescription {
+        self.binding_description(self.enable.clone(), self.enable_key)
+    }
+
+    fn disable_description(&self) -> BindingDescription {
+        self.binding_description(self.disable.clone(), self.disable_key)
+    }
+
+    fn binding_description(
+        &self,
+        fallback: String,
+        template_key: Option<&'static str>,
+    ) -> BindingDescription {
+        let Some(template_key) = template_key else {
+            return BindingDescription::new(fallback);
+        };
+        let label_key = self.label_key;
+        BindingDescription::new(fallback).with_dynamic_override(move |app| {
+            if let Some(label_key) = label_key {
+                let label = localization::text_for_app(app, label_key);
+                Some(localization::text_for_app_with_args(
+                    app,
+                    template_key,
+                    &[("label", label.as_str())],
+                ))
+            } else {
+                Some(localization::text_for_app(app, template_key))
+            }
+        })
     }
 }
 
@@ -782,7 +844,37 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
             descriptions: SettingActionPairDescriptions {
                 enable: format!("Enable {description_suffix}"),
                 disable: format!("Disable {description_suffix}"),
+                enable_key: None,
+                disable_key: None,
+                label_key: None,
             },
+            contexts: SettingActionPairContexts {
+                enable_predicate: context_prefix.to_owned() & !id!(context_boolean_flag),
+                disable_predicate: context_prefix.to_owned() & id!(context_boolean_flag),
+            },
+            toggle_action,
+            custom_action: None,
+            binding_group: BindingGroup::Settings,
+            supported_on_current_platform: true,
+            enabled_predicate: None,
+        }
+    }
+
+    pub fn new_localized(
+        description_suffix: &str,
+        label_key: &'static str,
+        toggle_action: T,
+        context_prefix: &ContextPredicate,
+        context_boolean_flag: &'static str,
+    ) -> Self {
+        use warpui::keymap::macros::id;
+
+        ToggleSettingActionPair {
+            descriptions: SettingActionPairDescriptions::from_label_key(
+                format!("Enable {description_suffix}"),
+                format!("Disable {description_suffix}"),
+                label_key,
+            ),
             contexts: SettingActionPairContexts {
                 enable_predicate: context_prefix.to_owned() & !id!(context_boolean_flag),
                 disable_predicate: context_prefix.to_owned() & id!(context_boolean_flag),
@@ -854,14 +946,14 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                                 let mut enable_binding = FixedBinding::custom(
                                     custom_action,
                                     toggle_action.clone(),
-                                    descriptions.enable,
+                                    descriptions.enable_description(),
                                     contexts.enable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
                                 let mut disable_binding = FixedBinding::custom(
                                     custom_action,
                                     toggle_action,
-                                    descriptions.disable,
+                                    descriptions.disable_description(),
                                     contexts.disable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
@@ -876,13 +968,13 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                             }
                             None => {
                                 let mut enable_binding = FixedBinding::empty(
-                                    descriptions.enable,
+                                    descriptions.enable_description(),
                                     toggle_action.clone(),
                                     contexts.enable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
                                 let mut disable_binding = FixedBinding::empty(
-                                    descriptions.disable,
+                                    descriptions.disable_description(),
                                     toggle_action,
                                     contexts.disable_predicate,
                                 )
@@ -1261,7 +1353,10 @@ impl SettingsView {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Search", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.search.placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -1640,34 +1735,46 @@ impl SettingsView {
 
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend(vec![
-                MenuItemFields::new("Split pane right")
-                    .with_on_select_action(SettingsAction::Split(Direction::Right))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_right",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane left")
-                    .with_on_select_action(SettingsAction::Split(Direction::Left))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_left",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane down")
-                    .with_on_select_action(SettingsAction::Split(Direction::Down))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_down",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane up")
-                    .with_on_select_action(SettingsAction::Split(Direction::Up))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_up",
-                        ctx,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_right",
+                ))
+                .with_on_select_action(SettingsAction::Split(Direction::Right))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_right",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_left",
+                ))
+                .with_on_select_action(SettingsAction::Split(Direction::Left))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_left",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_down",
+                ))
+                .with_on_select_action(SettingsAction::Split(Direction::Down))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_down",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_up",
+                ))
+                .with_on_select_action(SettingsAction::Split(Direction::Up))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_up",
+                    ctx,
+                ))
+                .into_item(),
             ]);
         }
 
@@ -1690,7 +1797,7 @@ impl SettingsView {
             );
 
             items.push(
-                MenuItemFields::new("Close pane")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.close_pane"))
                     .with_on_select_action(SettingsAction::Close)
                     .with_key_shortcut_label(
                         custom_tag_to_keystroke(CustomAction::CloseCurrentSession.into())
@@ -2366,15 +2473,19 @@ impl SettingsView {
         .finish()
     }
 
-    fn render_search_zero_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_search_zero_state(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         Container::new(
             Align::new(
                 Flex::column()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_children([
                         Text::new(
-                            "No settings match your search.",
+                            localization::text_for_app(app, "settings.search.no_matches"),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -2382,7 +2493,7 @@ impl SettingsView {
                         .with_color(theme.sub_text_color(theme.background()).into_solid())
                         .finish(),
                         Text::new(
-                            "You may want to try using different keywords or checking for any possible typos.",
+                            localization::text_for_app(app, "settings.search.no_matches_hint"),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -2393,7 +2504,7 @@ impl SettingsView {
             )
             .finish(),
         )
-            .with_uniform_margin(16.)
+        .with_uniform_margin(16.)
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
         .with_background(internal_colors::fg_overlay_1(appearance.theme()))
         .finish()
@@ -2417,7 +2528,7 @@ impl View for SettingsView {
         // (e.g. Oz -> AI, AgentMCPServers -> MCPServers).
         let content_page_section = self.current_settings_page.parent_page_section();
         let (page, current_page_handle) = if settings_pages.is_empty() {
-            (self.render_search_zero_state(appearance), None)
+            (self.render_search_zero_state(appearance, app), None)
         } else {
             match settings_pages
                 .iter()
@@ -2539,6 +2650,7 @@ impl View for SettingsView {
         let footer = render_footer(
             footer_kind,
             appearance,
+            app,
             self.settings_file_error.as_ref(),
             AISettings::as_ref(app).is_any_ai_enabled(app),
             &self.footer_mouse_states,

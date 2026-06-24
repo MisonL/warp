@@ -300,14 +300,20 @@ impl CLISubagentView {
         allow_menu.update(ctx, |menu, ctx| {
             menu.set_items(
                 vec![
-                    MenuItemFields::new("Accept".to_string())
-                        .with_key_shortcut_label(Some(ACCEPT_KEYSTROKE.displayed()))
-                        .with_on_select_action(CLISubagentAction::ExecuteBlockedAction)
-                        .into_item(),
-                    MenuItemFields::new("Auto-approve".to_string())
-                        .with_key_shortcut_label(Some(AUTO_APPROVE_KEYSTROKE.displayed()))
-                        .with_on_select_action(CLISubagentAction::ExecuteAndAutoApprove)
-                        .into_item(),
+                    MenuItemFields::new(crate::localization::text_for_app(
+                        ctx,
+                        "agent.cli.menu.accept",
+                    ))
+                    .with_key_shortcut_label(Some(ACCEPT_KEYSTROKE.displayed()))
+                    .with_on_select_action(CLISubagentAction::ExecuteBlockedAction)
+                    .into_item(),
+                    MenuItemFields::new(crate::localization::text_for_app(
+                        ctx,
+                        "agent.cli.menu.auto_approve",
+                    ))
+                    .with_key_shortcut_label(Some(AUTO_APPROVE_KEYSTROKE.displayed()))
+                    .with_on_select_action(CLISubagentAction::ExecuteAndAutoApprove)
+                    .into_item(),
                 ],
                 ctx,
             );
@@ -1843,7 +1849,10 @@ fn render_permissions_speedbump(
 
     let checkbox_text = appearance
         .ui_builder()
-        .span("Always allow")
+        .span(crate::localization::text_for_app(
+            app,
+            "agent.cli.permissions.always_allow",
+        ))
         .with_style(UiComponentStyles {
             font_color: Some(font_color),
             font_size: Some(font_size),
@@ -1856,7 +1865,10 @@ fn render_permissions_speedbump(
 
     let formatted_text = FormattedTextElement::new(
         FormattedText::new([FormattedTextLine::Line(vec![
-            FormattedTextFragment::hyperlink("Manage Agent permissions", "Settings > AI"),
+            FormattedTextFragment::hyperlink(
+                crate::localization::text_for_app(app, "agent.cli.permissions.manage"),
+                "Settings > AI",
+            ),
         ])]),
         font_size,
         font_family,
@@ -2027,32 +2039,49 @@ fn render_search_action_input(
             ref path,
         } => {
             let display_path = if path == "." {
-                "the current directory"
+                crate::localization::text_for_app(app, "agent.cli.search_action.current_directory")
             } else {
-                path.as_str()
+                path.to_owned()
             };
 
             if queries.len() == 1 {
-                format!("Grep for `{}` in {}", queries[0], display_path)
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.cli.search_action.grep.single",
+                    &[
+                        ("query", queries[0].as_str()),
+                        ("path", display_path.as_str()),
+                    ],
+                )
             } else {
                 let patterns_list = queries
                     .iter()
                     .map(|q| format!(" - `{q}`"))
                     .collect::<Vec<_>>()
                     .join("\n");
-                format!("Grep for the following patterns in {display_path}:\n{patterns_list}")
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.cli.search_action.grep.multiple",
+                    &[
+                        ("path", display_path.as_str()),
+                        ("patterns", patterns_list.as_str()),
+                    ],
+                )
             }
         }
         AIAgentActionType::FileGlobV2 {
             ref patterns,
             ref search_dir,
         } => {
-            let display_path = search_dir.as_deref().unwrap_or("the current directory");
+            let current_directory =
+                crate::localization::text_for_app(app, "agent.cli.search_action.current_directory");
+            let display_path = search_dir.as_deref().unwrap_or(current_directory.as_str());
 
             if patterns.len() == 1 {
-                format!(
-                    "Search for files that match `{}` in {}",
-                    patterns[0], display_path
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.cli.search_action.file_glob.single",
+                    &[("pattern", patterns[0].as_str()), ("path", display_path)],
                 )
             } else {
                 let patterns_list = patterns
@@ -2060,8 +2089,10 @@ fn render_search_action_input(
                     .map(|p| format!(" - `{p}`"))
                     .collect::<Vec<_>>()
                     .join("\n");
-                format!(
-                    "Find files that match the following patterns in {display_path}:\n{patterns_list}"
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.cli.search_action.file_glob.multiple",
+                    &[("path", display_path), ("patterns", patterns_list.as_str())],
                 )
             }
         }

@@ -61,16 +61,16 @@ pub enum TeamDeleteDisabledReason {
 }
 
 impl TeamDeleteDisabledReason {
-    pub fn user_facing_message(&self) -> &str {
+    pub fn translation_key(&self) -> &'static str {
         match self {
             TeamDeleteDisabledReason::ActivePaidSubscription => {
-                "Your team cannot be deleted with an active subscription."
+                "settings.teams.delete_disabled.active_subscription"
             }
             TeamDeleteDisabledReason::RemainingBonusCredits => {
-                "Your team cannot be deleted with unused add-on credits."
+                "settings.teams.delete_disabled.remaining_addon_credits"
             }
             TeamDeleteDisabledReason::OtherMembers => {
-                "Your team cannot be deleted with other team members."
+                "settings.teams.delete_disabled.other_members"
             }
         }
     }

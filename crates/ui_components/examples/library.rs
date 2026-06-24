@@ -560,6 +560,8 @@ impl RootView {
             lightbox::Params {
                 images: &self.lightbox_images,
                 current_index: self.lightbox_current_index,
+                no_images_label: "No images".to_owned(),
+                loading_label: "Loading...".to_owned(),
                 on_dismiss: Arc::new(|ctx, _app| {
                     ctx.dispatch_typed_action(Action::CloseLightbox);
                 }),
@@ -593,6 +595,8 @@ impl RootView {
             lightbox::Params {
                 images: &self.async_lightbox_images,
                 current_index: self.async_lightbox_current_index,
+                no_images_label: "No images".to_owned(),
+                loading_label: "Loading...".to_owned(),
                 on_dismiss: Arc::new(|ctx, _app| {
                     ctx.dispatch_typed_action(Action::CloseLightbox);
                 }),

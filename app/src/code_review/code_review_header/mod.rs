@@ -20,6 +20,7 @@ use crate::code_review::code_review_view::{
     LoadedState, CONTENT_TOP_MARGIN,
 };
 use crate::code_review::diff_state::DiffStateModel;
+use crate::localization;
 use crate::menu::Menu;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::ActionButton;
@@ -135,7 +136,8 @@ impl CodeReviewHeader {
                     code_review_header_fields.header_menu_open,
                 ));
             } else {
-                right_section_wide.add_child(self.render_add_diff_set_context_button(appearance));
+                right_section_wide
+                    .add_child(self.render_add_diff_set_context_button(appearance, app));
             }
         }
 
@@ -217,7 +219,7 @@ impl CodeReviewHeader {
                 ));
             } else {
                 right_subsection_compact
-                    .add_child(self.render_add_diff_set_context_button(appearance));
+                    .add_child(self.render_add_diff_set_context_button(appearance, app));
             }
         }
 
@@ -320,7 +322,7 @@ impl CodeReviewHeader {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    "Discard all".to_string(),
+                    localization::text_for_app(app, "code_review.action.discard_all"),
                     Icon::ReverseLeft.to_warpui_icon(warp_core::ui::theme::Fill::Solid(
                         sub_text_color.into_solid(),
                     )),
@@ -350,7 +352,7 @@ impl CodeReviewHeader {
         let button_element = button_hoverable.finish();
 
         if is_disabled {
-            let tooltip_text = get_discard_button_disabled_tooltip(git_operation_blocked);
+            let tooltip_text = get_discard_button_disabled_tooltip(git_operation_blocked, app);
             Container::new(CodeReviewHeader::wrap_disabled_button_with_tooltip(
                 button_element,
                 tooltip_text,
@@ -405,7 +407,11 @@ impl CodeReviewHeader {
         .finish()
     }
 
-    fn render_add_diff_set_context_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_add_diff_set_context_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder().clone();
 
@@ -431,11 +437,10 @@ impl CodeReviewHeader {
                 left: 6.,
                 right: 6.,
             }))
-            .with_tooltip(move || {
-                ui_builder
-                    .tool_tip("Add diff set as context".to_owned())
-                    .build()
-                    .finish()
+            .with_tooltip({
+                let tooltip_text =
+                    localization::text_for_app(app, "code_review.menu.add_diff_set_context");
+                move || ui_builder.tool_tip(tooltip_text.clone()).build().finish()
             })
             .with_tooltip_position(warpui::ui_components::button::ButtonTooltipPosition::AboveLeft)
             .build()

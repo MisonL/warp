@@ -265,7 +265,10 @@ impl View for Body {
                 ButtonVariant::Outlined,
                 self.button_mouse_states.cancel_button.clone(),
             )
-            .with_centered_text_label(String::from("Cancel"))
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "settings.action.cancel",
+            ))
             .with_style(style::button_styles())
             .build()
             .with_cursor(Cursor::PointingHand)

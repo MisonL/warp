@@ -99,9 +99,8 @@ use crate::view_components::compactible_action_button::{
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-use crate::{cmd_or_ctrl_shift, send_telemetry_from_ctx, TelemetryEvent};
+use crate::{cmd_or_ctrl_shift, localization, send_telemetry_from_ctx, TelemetryEvent};
 
-const REQUESTED_EDIT_CANCEL_LABEL: &str = "Cancel";
 const REQUESTED_EDIT_REFINE_LABEL: &str = "Refine";
 const REQUESTED_EDIT_ACCEPT_LABEL: &str = "Accept";
 const REQUESTED_EDIT_ACCEPT_AND_AUTOEXECUTE_LABEL: &str = "Auto-approve";
@@ -868,7 +867,10 @@ impl CodeDiffView {
         let code_review_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::Diff)
-                .with_tooltip("Review changes")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.code_diff.review_changes",
+                ))
                 .with_width(icon_size(ctx))
                 .with_height(icon_size(ctx))
                 .on_click(|ctx| {
@@ -880,7 +882,7 @@ impl CodeDiffView {
         let expansion_button_collapsed = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::ChevronRight)
-                .with_tooltip("Expand")
+                .with_tooltip(localization::text_for_app(ctx, "agent.code_diff.expand"))
                 .with_width(icon_size(ctx))
                 .with_height(icon_size(ctx))
                 .on_click(|ctx| {
@@ -891,7 +893,7 @@ impl CodeDiffView {
         let expansion_button_expanded = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::ChevronDown)
-                .with_tooltip("Collapse")
+                .with_tooltip(localization::text_for_app(ctx, "agent.code_diff.collapse"))
                 .with_width(icon_size(ctx))
                 .with_height(icon_size(ctx))
                 .on_click(|ctx| {
@@ -2171,11 +2173,11 @@ impl CodeDiffView {
 
         if self.display_mode.is_embedded() {
             let label = if self.is_passive {
-                SUGGESTED_EDIT_DISMISS_LABEL
+                SUGGESTED_EDIT_DISMISS_LABEL.to_string()
             } else {
-                REQUESTED_EDIT_CANCEL_LABEL
+                localization::text_for_app(ctx, "agent.code_diff.cancel")
             };
-            self.cancel_button.set_label(label.to_string(), ctx);
+            self.cancel_button.set_label(label, ctx);
         }
 
         for diff in &self.pending_diffs {
@@ -2539,7 +2541,10 @@ impl CodeDiffView {
 
         let checkbox_text = appearance
             .ui_builder()
-            .span("Don't show me suggested code banners again")
+            .span(localization::text_for_app(
+                app,
+                "settings.ai.active.suggested_code_banners.hide_again",
+            ))
             .with_style(UiComponentStyles {
                 font_color: Some(font_color),
                 font_size: Some(font_size),

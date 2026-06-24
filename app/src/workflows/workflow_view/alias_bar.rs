@@ -29,7 +29,7 @@ use crate::server::telemetry::TelemetrySpace;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::workflows::aliases::{WorkflowAlias, WorkflowAliases};
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 /// Width of the alias name editor.
 const ALIAS_EDITOR_WIDTH: f32 = 100.;
@@ -98,7 +98,10 @@ impl AliasBar {
                 },
                 ctx,
             );
-            view.set_placeholder_text("alias name", ctx);
+            view.set_placeholder_text(
+                localization::text_for_app(ctx, "workflow.aliases.placeholder.name"),
+                ctx,
+            );
 
             view
         });
@@ -431,7 +434,7 @@ impl View for AliasBar {
                     |_state, background| {
                         appearance
                             .ui_builder()
-                            .span("Default")
+                            .span(localization::text_for_app(app, "workflows.alias.default"))
                             .with_style(UiComponentStyles {
                                 font_color: Some(
                                     appearance.theme().main_text_color(background).into_solid(),

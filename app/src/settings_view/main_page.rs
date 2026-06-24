@@ -329,6 +329,7 @@ impl AccountWidget {
         &self,
         auth_state: &AuthState,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let button_styles = UiComponentStyles {
             font_size: Some(14.),
@@ -350,7 +351,10 @@ impl AccountWidget {
                 self.ui_state_handles.anonymous_user_sign_up_button.clone(),
             )
             .with_style(button_styles)
-            .with_text_label("Sign up".to_owned())
+            .with_text_label(crate::localization::text_for_app(
+                app,
+                "settings.billing.action.sign_up",
+            ))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(MainPageAction::SignupAnonymousUser);
@@ -374,7 +378,10 @@ impl AccountWidget {
                     .with_text_and_icon_label(
                         TextAndIcon::new(
                             TextAndIconAlignment::IconFirst,
-                            "Compare plans",
+                            crate::localization::text_for_app(
+                                app,
+                                "settings.billing.action.compare_plans",
+                            ),
                             Icon::CoinsStacked.to_warpui_icon(appearance.theme().accent()),
                             MainAxisSize::Min,
                             MainAxisAlignment::Center,
@@ -527,7 +534,10 @@ impl AccountWidget {
                             appearance
                                 .ui_builder()
                                 .link(
-                                    "Manage billing".into(),
+                                    crate::localization::text_for_app(
+                                        app,
+                                        "settings.billing.action.manage_billing",
+                                    ),
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(
@@ -548,16 +558,25 @@ impl AccountWidget {
                     // If the team is upgradeable to self-serve tier, show them the upgrade link.
                     if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
                         let description = match team.billing_metadata.customer_type {
-                            CustomerType::Prosumer => "Upgrade to Turbo plan",
-                            CustomerType::Turbo => "Upgrade to Lightspeed plan",
-                            _ => "Compare plans",
+                            CustomerType::Prosumer => crate::localization::text_for_app(
+                                app,
+                                "settings.account.upgrade_to_turbo",
+                            ),
+                            CustomerType::Turbo => crate::localization::text_for_app(
+                                app,
+                                "settings.account.upgrade_to_lightspeed",
+                            ),
+                            _ => crate::localization::text_for_app(
+                                app,
+                                "settings.billing.action.compare_plans",
+                            ),
                         };
                         let team_uid = team.uid;
                         plan_info.add_child(
                             appearance
                                 .ui_builder()
                                 .link(
-                                    description.into(),
+                                    description,
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(MainPageAction::Upgrade {
@@ -583,7 +602,10 @@ impl AccountWidget {
                 appearance
                     .ui_builder()
                     .link(
-                        "Compare plans".into(),
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.billing.action.compare_plans",
+                        ),
                         None,
                         Some(Box::new(move |ctx| {
                             ctx.dispatch_typed_action(MainPageAction::Upgrade {
@@ -628,7 +650,7 @@ impl SettingsWidget for AccountWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let account_info = if view.auth_state.is_anonymous_or_logged_out() {
-            self.render_anonymous_account_info(view.auth_state.as_ref(), appearance)
+            self.render_anonymous_account_info(view.auth_state.as_ref(), appearance, app)
         } else {
             let profile_image_source = view.auth_state.user_photo_url().map(|url| {
                 asset_cache::url_source_with_persistence(url, &warp_core::paths::cache_dir())
@@ -1103,26 +1125,50 @@ impl SettingsWidget for IapCredentialsWidget {
         let disabled: ColorU = appearance.theme().disabled_ui_text_color().into();
         let active: ColorU = appearance.theme().active_ui_text_color().into();
         let (status_text, status_color): (String, ColorU) = match &state {
-            IapCredentialsState::Missing => ("Not yet loaded".to_string(), disabled),
-            IapCredentialsState::Refreshing { .. } => ("Refreshing…".to_string(), active),
+            IapCredentialsState::Missing => (
+                crate::localization::text_for_app(app, "settings.account.iap.status.not_loaded"),
+                disabled,
+            ),
+            IapCredentialsState::Refreshing { .. } => (
+                crate::localization::text_for_app(app, "settings.account.iap.status.refreshing"),
+                active,
+            ),
             IapCredentialsState::Loaded(cached) => {
                 let remaining = cached
                     .expires_at
                     .saturating_duration_since(instant::Instant::now());
                 let mins = remaining.as_secs() / 60;
-                (format!("Loaded (refreshes in ~{mins}m)"), active)
+                (
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "settings.account.iap.status.loaded",
+                        &[("minutes", &mins.to_string())],
+                    ),
+                    active,
+                )
             }
-            IapCredentialsState::Failed { message, .. } => (format!("Failed: {message}"), ansi_red),
-            IapCredentialsState::EnvInjected { .. } => {
-                ("Using injected token (WARP_IAP_TOKEN)".to_string(), active)
-            }
+            IapCredentialsState::Failed { message, .. } => (
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "settings.account.iap.status.failed",
+                    &[("message", message)],
+                ),
+                ansi_red,
+            ),
+            IapCredentialsState::EnvInjected { .. } => (
+                crate::localization::text_for_app(
+                    app,
+                    "settings.account.iap.status.using_injected_token",
+                ),
+                active,
+            ),
         };
 
         let is_refreshing = matches!(state, IapCredentialsState::Refreshing { .. });
 
         let label = Align::new(
             Text::new_inline(
-                "Staging IAP credentials".to_string(),
+                crate::localization::text_for_app(app, "settings.account.iap.label"),
                 appearance.ui_font_family(),
                 REGULAR_TEXT_FONT_SIZE,
             )
@@ -1154,9 +1200,9 @@ impl SettingsWidget for IapCredentialsWidget {
                 self.refresh_button_mouse_state.clone(),
             )
             .with_text_label(if is_refreshing {
-                "Refreshing…".into()
+                crate::localization::text_for_app(app, "settings.account.iap.action.refreshing")
             } else {
-                "Refresh".into()
+                crate::localization::text_for_app(app, "settings.account.iap.action.refresh")
             })
             .with_style(UiComponentStyles {
                 font_size: Some(12.),

@@ -14,6 +14,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 
 // Figma node 6583:23542
@@ -188,12 +189,13 @@ impl EnvironmentSetupModeSelector {
         &self,
         index: usize,
         icon: Icon,
-        title: &'static str,
-        description: &'static str,
+        title: String,
+        description: String,
         is_suggested: bool,
         mouse_state: MouseStateHandle,
         action: EnvironmentSetupModeSelectorAction,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
@@ -219,6 +221,8 @@ impl EnvironmentSetupModeSelector {
         let icon_color = nonactive_text;
 
         let is_selected = self.selected_option_index == index;
+        let suggested_label =
+            localization::text_for_app(app, "terminal.init_environment.suggested");
         let action = action.clone();
         Hoverable::new(mouse_state, move |state| {
             let is_hovered = state.is_hovered() || state.is_clicked();
@@ -263,7 +267,7 @@ impl EnvironmentSetupModeSelector {
 
             if is_suggested {
                 let suggested_text =
-                    Text::new("Suggested".to_string(), font_family, OPTION_DESC_FONT_SIZE)
+                    Text::new(suggested_label.clone(), font_family, OPTION_DESC_FONT_SIZE)
                         .with_style(Properties::default().weight(Weight::Medium))
                         .with_color(badge_text_color)
                         .finish();
@@ -339,23 +343,34 @@ impl EnvironmentSetupModeSelector {
         let remote_github_option = self.render_option(
             0,
             Icon::Github,
-            "Quick setup",
-            "Select the GitHub repositories you'd like to work with and we'll suggest a base image and config",
+            localization::text_for_app(
+                app,
+                "terminal.init_environment.mode_selector.quick_setup.title",
+            ),
+            localization::text_for_app(
+                app,
+                "terminal.init_environment.mode_selector.quick_setup.description",
+            ),
             true,
             self.remote_github_mouse_state.clone(),
             EnvironmentSetupModeSelectorAction::SelectRemoteGitHub,
             appearance,
+            app,
         );
 
         let local_repos_option = self.render_option(
             1,
             Icon::Terminal,
-            "Use the agent",
-            "Choose a locally set up project and we'll help you set up an environment based on it",
+            localization::text_for_app(app, "terminal.init_environment.mode_selector.agent.title"),
+            localization::text_for_app(
+                app,
+                "terminal.init_environment.mode_selector.agent.description",
+            ),
             false,
             self.local_repos_mouse_state.clone(),
             EnvironmentSetupModeSelectorAction::SelectLocalRepositories,
             appearance,
+            app,
         );
 
         let options = Flex::column()

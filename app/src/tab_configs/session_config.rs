@@ -129,7 +129,8 @@ pub fn build_tab_config(
             params.insert(
                 WORKTREE_BRANCH_PARAM.to_string(),
                 TabConfigParam {
-                    description: Some("New worktree branch name".to_string()),
+                    description: Some("Worktree branch name".to_string()),
+                    description_zh_cn: Some("Worktree 分支名称".to_string()),
                     default: Some(WORKTREE_BRANCH_DEFAULT.to_string()),
                     param_type: TabConfigParamType::Text,
                 },
@@ -149,6 +150,7 @@ pub fn build_tab_config(
 
     TabConfig {
         name: config_name(directory, enable_worktree),
+        name_zh_cn: None,
         title,
         color: None,
         panes: vec![TabConfigPaneNode {
@@ -216,6 +218,7 @@ pub fn tab_config_from_pane_snapshot(
 
     TabConfig {
         name: "My Tab Config".to_string(),
+        name_zh_cn: None,
         title: custom_title,
         color,
         panes,

@@ -11,7 +11,7 @@ use crate::settings_view::features_page::render_group;
 use crate::terminal::session_settings::*;
 use crate::view_components::dropdown::TOP_MENU_BAR_HEIGHT;
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::{report_if_error, send_telemetry_from_ctx};
+use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::enum_variant_names)]
@@ -367,7 +367,13 @@ fn create_editor(
         };
         ctx.add_typed_action_view(|ctx| {
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Directory path", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.features.working_directory.directory_placeholder",
+                ),
+                ctx,
+            );
             editor
         })
     };

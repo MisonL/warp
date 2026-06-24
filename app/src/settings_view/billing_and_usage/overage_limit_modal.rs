@@ -263,7 +263,10 @@ impl View for SpendingLimitModal {
                 ButtonVariant::Accent,
                 self.update_button_mouse_state.clone(),
             )
-            .with_text_label("Update".to_string())
+            .with_text_label(crate::localization::text_for_app(
+                app,
+                "settings.action.update",
+            ))
             .with_style(button_style);
 
         if self.input_error_state.is_some() {
@@ -278,7 +281,10 @@ impl View for SpendingLimitModal {
                         ButtonVariant::Secondary,
                         self.cancel_button_mouse_state.clone(),
                     )
-                    .with_text_label("Cancel".to_string())
+                    .with_text_label(crate::localization::text_for_app(
+                        app,
+                        "settings.action.cancel",
+                    ))
                     .with_style(button_style)
                     .build()
                     .on_click(|ctx, _, _| {

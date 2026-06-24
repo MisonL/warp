@@ -18,14 +18,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 use crate::terminal::model::session::SessionId;
 use crate::terminal::warpify::render::SSH_DOCS_URL;
 use crate::ui_components::icons::Icon;
-use crate::Appearance;
-
-const BANNER_TITLE: &str = "Tmux SSH warpification has been deprecated";
-
-const BANNER_BODY: &str = "Warp now connects to remote sessions using the SSH extension, which is \
-    more robust than the tmux-based flow. The tmux option has been removed.";
-
-const LEARN_MORE_LABEL: &str = "Learn more";
+use crate::{localization, Appearance};
 
 #[derive(Clone, Debug)]
 pub enum SshTmuxDeprecationBannerAction {
@@ -87,7 +80,7 @@ impl View for SshTmuxDeprecationBanner {
         .finish();
 
         let title = Text::new(
-            BANNER_TITLE.to_string(),
+            localization::text_for_app(app, "terminal.ssh_tmux_deprecation.title"),
             appearance.ui_font_family(),
             font_size,
         )
@@ -95,7 +88,7 @@ impl View for SshTmuxDeprecationBanner {
         .finish();
 
         let body = Text::new(
-            BANNER_BODY.to_string(),
+            localization::text_for_app(app, "terminal.ssh_tmux_deprecation.body"),
             appearance.ui_font_family(),
             small_font_size,
         )
@@ -106,7 +99,7 @@ impl View for SshTmuxDeprecationBanner {
         let learn_more = appearance
             .ui_builder()
             .link(
-                LEARN_MORE_LABEL.into(),
+                localization::text_for_app(app, "terminal.ssh_tmux_deprecation.learn_more"),
                 None,
                 Some(Box::new(|ctx| {
                     ctx.dispatch_typed_action(SshTmuxDeprecationBannerAction::LearnMore);

@@ -18,6 +18,7 @@ use warpui::elements::{
 };
 use warpui::fonts::{FamilyId, Properties, Weight};
 use warpui::platform::Cursor;
+use warpui::AppContext;
 
 use crate::appearance::Appearance;
 use crate::settings::SettingsFileError;
@@ -99,6 +100,7 @@ pub struct SettingsFooterMouseStates {
 /// 4px rounded corners, `code-02` leading icon, semibold label.
 pub fn render_open_settings_file_button(
     appearance: &Appearance,
+    app: &AppContext,
     mouse_state: MouseStateHandle,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -113,13 +115,17 @@ pub fn render_open_settings_file_button(
             .with_height(FOOTER_ICON_SIZE)
             .finish();
 
-        let label = Text::new_inline("Open settings file", ui_font_family, FOOTER_FONT_SIZE)
-            .with_color(text_color)
-            .with_style(Properties {
-                weight: Weight::Semibold,
-                ..Default::default()
-            })
-            .finish();
+        let label = Text::new_inline(
+            crate::localization::text_for_app(app, "settings.footer.open_settings_file"),
+            ui_font_family,
+            FOOTER_FONT_SIZE,
+        )
+        .with_color(text_color)
+        .with_style(Properties {
+            weight: Weight::Semibold,
+            ..Default::default()
+        })
+        .finish();
 
         // Use `MainAxisSize::Max` so the row (and its surrounding bordered
         // container) expands to fill the full sidebar width. The icon + text
@@ -286,6 +292,7 @@ pub fn render_settings_error_alert(
 pub fn render_footer(
     kind: SettingsFooterKind,
     appearance: &Appearance,
+    app: &AppContext,
     error: Option<&SettingsFileError>,
     ai_enabled: bool,
     mouse_states: &SettingsFooterMouseStates,
@@ -294,6 +301,7 @@ pub fn render_footer(
         SettingsFooterKind::Hidden => return Empty::new().finish(),
         SettingsFooterKind::OpenButton => render_open_settings_file_button(
             appearance,
+            app,
             mouse_states.open_settings_file_button.clone(),
         ),
         SettingsFooterKind::ErrorAlert => match error {
@@ -303,6 +311,7 @@ pub fn render_footer(
             // rendering an empty alert shell.
             None => render_open_settings_file_button(
                 appearance,
+                app,
                 mouse_states.open_settings_file_button.clone(),
             ),
         },

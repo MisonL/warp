@@ -244,7 +244,10 @@ impl ConversationSearchItem {
 
             let fork_button_tool_tip = appearance
                 .ui_builder()
-                .tool_tip("Fork conversation".to_string())
+                .tool_tip(crate::localization::text_for_app(
+                    app,
+                    "workspace.conversation.fork",
+                ))
                 .build();
 
             let fork_button_inner = icon_button(

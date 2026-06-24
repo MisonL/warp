@@ -50,7 +50,6 @@ pub fn should_show_bedrock_icon_for_model(llm: &LLMInfo, app: &AppContext) -> bo
 /// Note: this key used to store a single [`AvailableLLMs`]
 /// but was migrated to store a full [`ModelsByFeature`].
 pub const MODELS_BY_FEATURE_CACHE_KEY: &str = "AvailableLLMs";
-const CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL: &str = "Custom endpoint";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LLMUsageMetadata {
@@ -832,7 +831,7 @@ impl LLMPreferences {
         self.custom_llm_info_for_id(&config_key)
             .map(|info| info.display_name.as_str())
             .map(str::to_string)
-            .unwrap_or_else(|| CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL.to_string())
+            .unwrap_or_else(|| "Custom endpoint".to_owned())
     }
 
     fn custom_llm_info_for_id_if_enabled(&self, id: &LLMId, app: &AppContext) -> Option<&LLMInfo> {

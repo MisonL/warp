@@ -227,7 +227,7 @@ impl NotebookEmbed {
                     appearance,
                     Icon::Pencil,
                     self.mouse_state_handles.edit_button_state.clone(),
-                    "Edit",
+                    crate::localization::text_for_app(ctx, "notebook.code_block.action.edit"),
                     None,
                 )
                 .on_click(move |ctx, _, _| {
@@ -318,7 +318,7 @@ impl EmbeddedItemModel for NotebookEmbed {
                             .remove_embedding_button_state
                             .clone(),
                     )
-                    .with_text_label("Remove".to_string())
+                    .with_text_label(crate::localization::text_for_app(ctx, "drive.menu.remove"))
                     .build()
                     .with_cursor(Cursor::Arrow)
                     .on_click(move |ctx, _, _| {

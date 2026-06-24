@@ -23,7 +23,7 @@ pub use init_project::{
     ProjectScopedRulesResult,
 };
 use onboarding::callout::{FinalState, OnboardingCalloutViewEvent, OnboardingQuery};
-use onboarding::{OnboardingCalloutView, OnboardingKeybindings};
+use onboarding::{OnboardingCalloutView, OnboardingCopy, OnboardingKeybindings};
 use repo_metadata::CanonicalizedPath;
 use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
@@ -280,7 +280,7 @@ use crate::ai::predict::prompt_suggestions::{
     is_accept_prompt_suggestion_bound_to_cmd_enter,
     is_accept_prompt_suggestion_bound_to_ctrl_enter,
 };
-use crate::ai_assistant::{AskAIType, ASK_AI_ASSISTANT_TEXT};
+use crate::ai_assistant::{AskAIType, ASK_WARP_AI_MENU_KEY};
 use crate::antivirus::AntivirusInfo;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::auth::auth_manager::AuthManager;
@@ -536,9 +536,9 @@ use crate::workspace::{
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::CustomerType;
 use crate::{
-    report_if_error, safe_error, safe_warn, send_telemetry_from_ctx, send_telemetry_on_executor,
-    send_telemetry_sync_from_ctx, AIAgentActionResultType, AIRequestUsageModel,
-    ActiveSession as WindowActiveSession,
+    localization, report_if_error, safe_error, safe_warn, send_telemetry_from_ctx,
+    send_telemetry_on_executor, send_telemetry_sync_from_ctx, AIAgentActionResultType,
+    AIRequestUsageModel, ActiveSession as WindowActiveSession,
 };
 
 lazy_static! {
@@ -776,19 +776,19 @@ pub enum NotificationsTrigger {
 }
 
 impl NotificationsTrigger {
-    pub fn discovery_banner_copy(&self) -> &'static str {
+    pub fn discovery_banner_key(&self) -> &'static str {
         match self {
             NotificationsTrigger::LongRunningCommand(..) => {
-                "Warp can notify you when long-running commands finish."
+                "terminal.inline_banner.notifications_discovery.long_running_command"
             }
             NotificationsTrigger::AgentTaskCompleted(..) => {
-                "Warp can notify you when an agent finishes responding."
+                "terminal.inline_banner.notifications_discovery.agent_task_completed"
             }
             NotificationsTrigger::NeedsAttention => {
-                "Warp can notify you when a command or agent needs your attention."
+                "terminal.inline_banner.notifications_discovery.needs_attention"
             }
             NotificationsTrigger::PasswordPrompt => {
-                "Warp can notify you when you're prompted to enter a password."
+                "terminal.inline_banner.notifications_discovery.password_prompt"
             }
         }
     }
@@ -3859,16 +3859,23 @@ impl TerminalView {
             me.handle_menu_event(event, ctx);
         });
 
-        let slow_bootstrap_banner = ctx.add_typed_action_view(|_| {
+        let slow_bootstrap_banner = ctx.add_typed_action_view(|ctx| {
             Banner::<TerminalAction>::new_with_buttons(
                 BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::plain_text(
-                        "Seems like your shell is taking a while to start...  ",
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        ctx,
+                        "terminal.banner.slow_bootstrap.prefix",
+                    )),
+                    FormattedTextFragment::hyperlink(
+                        localization::text_for_app(ctx, "terminal.banner.more_info"),
+                        KNOWN_ISSUES_URL,
                     ),
-                    FormattedTextFragment::hyperlink("More info", KNOWN_ISSUES_URL),
                 ]),
                 vec![BannerTextButton::new(
-                    "Show initialization block".to_string(),
+                    localization::text_for_app(
+                        ctx,
+                        "terminal.banner.slow_bootstrap.show_initialization_block",
+                    ),
                     Rc::new(|event_ctx, _ctx, _position| {
                         event_ctx.dispatch_typed_action(BannerAction::<TerminalAction>::Action(
                             TerminalAction::ShowInitializationBlock,
@@ -3886,16 +3893,28 @@ impl TerminalView {
             me.handle_sessions_event(event.clone(), ctx);
         });
 
-        let control_master_error_banner = ctx.add_typed_action_view(|_| {
+        let control_master_error_banner = ctx.add_typed_action_view(|ctx| {
             Banner::new(BannerTextContent::formatted_text(vec![
-                FormattedTextFragment::plain_text("Seems like your completions are not working ("),
-                FormattedTextFragment::hyperlink("more info", CONTROLMASTER_ISSUES_URL),
-                FormattedTextFragment::plain_text("). Enabling the SSH extension in "),
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    ctx,
+                    "terminal.banner.control_master.prefix",
+                )),
+                FormattedTextFragment::hyperlink(
+                    localization::text_for_app(ctx, "terminal.banner.more_info_lower"),
+                    CONTROLMASTER_ISSUES_URL,
+                ),
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    ctx,
+                    "terminal.banner.control_master.middle",
+                )),
                 FormattedTextFragment::hyperlink_action(
-                    "settings",
+                    localization::text_for_app(ctx, "terminal.banner.settings_link"),
                     TerminalAction::ShowWarpifySettings,
                 ),
-                FormattedTextFragment::plain_text(" may resolve this issue."),
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    ctx,
+                    "terminal.banner.control_master.suffix",
+                )),
             ]))
         });
 
@@ -3903,12 +3922,16 @@ impl TerminalView {
             me.handle_controlmaster_error_banner_event(event, ctx);
         });
 
-        let incompatible_configuration_banner = ctx.add_typed_action_view(|_| {
+        let incompatible_configuration_banner = ctx.add_typed_action_view(|ctx| {
             Banner::new(BannerTextContent::formatted_text(vec![
-                FormattedTextFragment::plain_text(
-                    "Your shell configuration is incompatible with Warp...  ",
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    ctx,
+                    "terminal.banner.incompatible_configuration.prefix",
+                )),
+                FormattedTextFragment::hyperlink(
+                    localization::text_for_app(ctx, "terminal.banner.more_info"),
+                    KNOWN_ISSUES_URL,
                 ),
-                FormattedTextFragment::hyperlink("More info", KNOWN_ISSUES_URL),
             ]))
         });
 
@@ -3916,21 +3939,30 @@ impl TerminalView {
             me.handle_incompatible_configuration_banner_event(event, ctx);
         });
 
-        let emacs_bindings_banner = ctx.add_typed_action_view(|_| {
+        let emacs_bindings_banner = ctx.add_typed_action_view(|ctx| {
             Banner::new_with_buttons(
                 BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::plain_text("Did you intend "),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        ctx,
+                        "terminal.banner.emacs_bindings.intent_prefix",
+                    )),
                     FormattedTextFragment::inline_code("ctrl-a"),
                     FormattedTextFragment::plain_text("/"),
                     FormattedTextFragment::inline_code("ctrl-e"),
-                    FormattedTextFragment::plain_text(" to move the cursor?"),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        ctx,
+                        "terminal.banner.emacs_bindings.intent_suffix",
+                    )),
                 ]),
                 // Here, we use DismissalType::Temporary and DismissalType::Permanent variants
                 // as stand-ins for changing bindings vs. leaving them as-is.
                 // TODO(Linear PLAT-512): update Banner to support generic event type.
                 vec![
                     BannerTextButton::new(
-                        String::from("Yes, use Emacs-style bindings"),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.banner.emacs_bindings.yes_use_emacs",
+                        ),
                         Rc::new(|event_ctx, _app_ctx, _| {
                             event_ctx.dispatch_typed_action(
                                 BannerAction::<TerminalAction>::Dismiss(DismissalType::Temporary),
@@ -3938,7 +3970,10 @@ impl TerminalView {
                         }),
                     ),
                     BannerTextButton::new(
-                        String::from("No, keep IDE bindings"),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.banner.emacs_bindings.no_keep_ide",
+                        ),
                         Rc::new(|event_ctx, _app_ctx, _| {
                             event_ctx.dispatch_typed_action(
                                 BannerAction::<TerminalAction>::Dismiss(DismissalType::Permanent),
@@ -4205,25 +4240,28 @@ impl TerminalView {
         ctx.subscribe_to_view(&orchestration_pill_bar, |_, _, _, ctx| ctx.notify());
 
         let agent_view_back_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("for terminal", AgentViewHeaderTheme)
-                .with_icon(icons::Icon::ArrowLeft)
-                .with_size(ButtonSize::Small)
-                .with_keybinding(
-                    KeystrokeSource::Fixed(Keystroke {
-                        key: "escape".to_string(),
-                        ..Default::default()
-                    }),
-                    ctx,
+            ActionButton::new(
+                localization::text_for_app(ctx, "terminal.agent_view_header.for_terminal"),
+                AgentViewHeaderTheme,
+            )
+            .with_icon(icons::Icon::ArrowLeft)
+            .with_size(ButtonSize::Small)
+            .with_keybinding(
+                KeystrokeSource::Fixed(Keystroke {
+                    key: "escape".to_string(),
+                    ..Default::default()
+                }),
+                ctx,
+            )
+            .with_disabled_theme(AgentViewHeaderDisabledTheme)
+            .with_keybinding_before_label(true)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(
+                    PaneHeaderAction::<TerminalAction, TerminalAction>::CustomAction(
+                        TerminalAction::ExitAgentView,
+                    ),
                 )
-                .with_disabled_theme(AgentViewHeaderDisabledTheme)
-                .with_keybinding_before_label(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        PaneHeaderAction::<TerminalAction, TerminalAction>::CustomAction(
-                            TerminalAction::ExitAgentView,
-                        ),
-                    )
-                })
+            })
         });
 
         // Conversation details panel (cloud Oz runs and any active local AI conversation).
@@ -4500,10 +4538,14 @@ impl TerminalView {
                                 },
                                 ctx
                             );
+                            let body = localization::text_for_app(
+                                ctx,
+                                "terminal.ssh_error.start_extension_failed",
+                            );
                             me.show_ssh_remote_server_failed_banner(
                                 *session_id,
                                 remote_server::transport::UserFacingError {
-                                    body: "Failed to start SSH extension".into(),
+                                    body,
                                     detail: if error.is_empty() {
                                         None
                                     } else {
@@ -9865,8 +9907,11 @@ impl TerminalView {
             ));
 
         let a11y_content = AccessibilityContent::new(
-            trigger.discovery_banner_copy(),
-            "You can enable notifications through the command palette.",
+            localization::text_for_app(ctx, trigger.discovery_banner_key()),
+            localization::text_for_app(
+                ctx,
+                "terminal.inline_banner.notifications_discovery.a11y.command_palette",
+            ),
             WarpA11yRole::TextRole,
         );
         ctx.emit_a11y_content(a11y_content);
@@ -14587,10 +14632,41 @@ fn build_onboarding_keybindings(ctx: &AppContext) -> OnboardingKeybindings {
     }
 }
 
+fn build_onboarding_copy(ctx: &AppContext) -> OnboardingCopy {
+    const KEYS: &[&str] = &[
+        "onboarding.callout.agent_mode.back_to_terminal",
+        "onboarding.callout.agent_mode.initialize",
+        "onboarding.callout.agent_mode.skip_initialization",
+        "onboarding.callout.agent_mode.title",
+        "onboarding.callout.agent_mode.with_project_body",
+        "onboarding.callout.agent_mode.without_project_body",
+        "onboarding.callout.agent_prompt.placeholder",
+        "onboarding.callout.meet_input.body",
+        "onboarding.callout.meet_input.title",
+        "onboarding.callout.talk_to_agent.body",
+        "onboarding.callout.talk_to_agent.prompt",
+        "onboarding.callout.talk_to_agent.title",
+        "onboarding.callout.terminal_command.placeholder",
+        "onboarding.callout.terminal_mode.body",
+        "onboarding.callout.terminal_mode.enable_nld",
+        "onboarding.callout.terminal_mode.title",
+        "onboarding.callout.terminal_mode.welcome_title",
+        "onboarding.common.finish",
+        "onboarding.common.next",
+        "onboarding.common.skip",
+        "onboarding.common.submit",
+    ];
+
+    OnboardingCopy::new(
+        KEYS.iter()
+            .map(|key| (*key, localization::text_for_app(ctx, key))),
+    )
+}
+
 /// Builds the context-menu label for forking an AI conversation from a given query.
-fn fork_label_for_query(query: &str) -> String {
+fn fork_label_for_query(query: &str, app: &AppContext) -> String {
     if query.is_empty() {
-        "Fork from last query".to_string()
+        localization::text_for_app(app, "terminal.menu.fork_from_last_query")
     } else {
         let first_line = query.lines().next().unwrap_or(query).trim();
         let chars: Vec<char> = first_line.chars().take(21).collect();
@@ -14599,7 +14675,12 @@ fn fork_label_for_query(query: &str) -> String {
         } else {
             (chars.iter().collect::<String>(), "")
         };
-        format!("Fork from \"{truncated}{suffix}\"")
+        let query = format!("{truncated}{suffix}");
+        localization::text_for_app_with_args(
+            app,
+            "terminal.menu.fork_from_query",
+            &[("query", &query)],
+        )
     }
 }
 
@@ -14646,6 +14727,7 @@ impl TerminalView {
 
         let view = ctx.add_typed_action_view(|ctx| {
             let keybindings = build_onboarding_keybindings(ctx);
+            let copy = build_onboarding_copy(ctx);
 
             match version {
                 AgentOnboardingVersion::UniversalInput { has_project } => {
@@ -14656,6 +14738,7 @@ impl TerminalView {
                         has_project,
                         initial_natural_language_detection_enabled,
                         keybindings,
+                        copy,
                         ctx,
                     )
                 }
@@ -14671,6 +14754,7 @@ impl TerminalView {
                         intention,
                         initial_natural_language_detection_enabled,
                         keybindings,
+                        copy,
                         ctx,
                     )
                 }
@@ -16535,11 +16619,14 @@ impl TerminalView {
                             Some(model.link_at_range(url, RespectObfuscatedSecrets::Yes));
                         url_content
                             .map(|url_content| {
-                                vec![MenuItemFields::new("Copy URL")
-                                    .with_on_select_action(TerminalAction::ContextMenu(
-                                        ContextMenuAction::CopyUrl { url_content },
-                                    ))
-                                    .into_item()]
+                                vec![MenuItemFields::new(localization::text_for_app(
+                                    ctx,
+                                    "terminal.menu.copy_url",
+                                ))
+                                .with_on_select_action(TerminalAction::ContextMenu(
+                                    ContextMenuAction::CopyUrl { url_content },
+                                ))
+                                .into_item()]
                             })
                             .unwrap_or_default()
                     }
@@ -16547,19 +16634,22 @@ impl TerminalView {
                     GridHighlightedLink::File(file_link) => {
                         let path = file_link.get_inner().absolute_path();
                         let show_in_file_explorer_menu_item_label = if cfg!(target_os = "macos") {
-                            "Show in Finder"
+                            localization::text_for_app(ctx, "terminal.menu.show_in_finder")
                         } else {
-                            "Show containing folder"
+                            localization::text_for_app(ctx, "terminal.menu.show_containing_folder")
                         };
                         path.map(|path| {
                             let mut items = vec![
-                                MenuItemFields::new("Copy path")
-                                    .with_on_select_action(TerminalAction::ContextMenu(
-                                        ContextMenuAction::CopyUrl {
-                                            url_content: path.to_string_lossy().into(),
-                                        },
-                                    ))
-                                    .into_item(),
+                                MenuItemFields::new(localization::text_for_app(
+                                    ctx,
+                                    "terminal.menu.copy_path",
+                                ))
+                                .with_on_select_action(TerminalAction::ContextMenu(
+                                    ContextMenuAction::CopyUrl {
+                                        url_content: path.to_string_lossy().into(),
+                                    },
+                                ))
+                                .into_item(),
                                 MenuItemFields::new(show_in_file_explorer_menu_item_label)
                                     .with_on_select_action(TerminalAction::ShowInFileExplorer(
                                         path.clone(),
@@ -16569,18 +16659,24 @@ impl TerminalView {
 
                             if is_markdown_file(&path) {
                                 items.push(
-                                    MenuItemFields::new("Open in Warp")
-                                        .with_on_select_action(TerminalAction::OpenFileInWarp(path))
-                                        .into_item(),
+                                    MenuItemFields::new(localization::text_for_app(
+                                        ctx,
+                                        "terminal.menu.open_in_warp",
+                                    ))
+                                    .with_on_select_action(TerminalAction::OpenFileInWarp(path))
+                                    .into_item(),
                                 );
                                 // Because the default for cmd-click is to open in Warp, we also
                                 // have an open-in-editor option.
                                 items.push(
-                                    MenuItemFields::new("Open in editor")
-                                        .with_on_select_action(TerminalAction::OpenGridLink(
-                                            highlighted_link.clone(),
-                                        ))
-                                        .into_item(),
+                                    MenuItemFields::new(localization::text_for_app(
+                                        ctx,
+                                        "terminal.menu.open_in_editor",
+                                    ))
+                                    .with_on_select_action(TerminalAction::OpenGridLink(
+                                        highlighted_link.clone(),
+                                    ))
+                                    .into_item(),
                                 );
                             }
 
@@ -16597,7 +16693,7 @@ impl TerminalView {
                 true,
             ) => {
                 let mut fields = vec![
-                    MenuItemFields::new("Copy")
+                    MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopySelectedText,
                         ))
@@ -16606,19 +16702,22 @@ impl TerminalView {
                             ctx,
                         ))
                         .into_item(),
-                    MenuItemFields::new("Insert into input")
-                        .with_on_select_action(TerminalAction::ContextMenu(
-                            ContextMenuAction::InsertSelectedText,
-                        ))
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "terminal.menu.insert_into_input",
+                    ))
+                    .with_on_select_action(TerminalAction::ContextMenu(
+                        ContextMenuAction::InsertSelectedText,
+                    ))
+                    .into_item(),
                 ];
                 if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
                     fields.extend([
                         MenuItem::Separator,
                         MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
-                            *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT
+                            (*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT).to_owned()
                         } else {
-                            ASK_AI_ASSISTANT_TEXT
+                            crate::localization::text_for_app(ctx, ASK_WARP_AI_MENU_KEY)
                         })
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::AskAI(if FeatureFlag::AgentMode.is_enabled() {
@@ -16662,25 +16761,25 @@ impl TerminalView {
                     .is_active_and_long_running();
 
                 let copy_commands_str = if is_single_selection {
-                    "Copy command"
+                    localization::text_for_app(ctx, "terminal.menu.copy_command")
                 } else {
-                    "Copy commands"
+                    localization::text_for_app(ctx, "terminal.menu.copy_commands")
                 };
-                let copy_str = "Copy";
+                let copy_str = localization::text_for_app(ctx, "terminal.menu.copy");
                 let find_str = if is_single_selection {
-                    "Find within block"
+                    localization::text_for_app(ctx, "terminal.menu.find_within_block")
                 } else {
-                    "Find within blocks"
+                    localization::text_for_app(ctx, "terminal.menu.find_within_blocks")
                 };
                 let scroll_to_top_str = if is_single_selection {
-                    "Scroll to top of block"
+                    localization::text_for_app(ctx, "terminal.menu.scroll_to_top_of_block")
                 } else {
-                    "Scroll to top of blocks"
+                    localization::text_for_app(ctx, "terminal.menu.scroll_to_top_of_blocks")
                 };
                 let scroll_to_bottom_str = if is_single_selection {
-                    "Scroll to bottom of block"
+                    localization::text_for_app(ctx, "terminal.menu.scroll_to_bottom_of_block")
                 } else {
-                    "Scroll to bottom of blocks"
+                    localization::text_for_app(ctx, "terminal.menu.scroll_to_bottom_of_blocks")
                 };
 
                 // currently, we don't support share for multi selections
@@ -16697,9 +16796,9 @@ impl TerminalView {
                 let share_block_label = if FeatureFlag::CreatingSharedSessions.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled()
                 {
-                    "Share block..."
+                    localization::text_for_app(ctx, "terminal.menu.share_block")
                 } else {
-                    "Share..."
+                    localization::text_for_app(ctx, "terminal.menu.share")
                 };
 
                 let mut items = vec![
@@ -16747,23 +16846,28 @@ impl TerminalView {
                             .block_at(tail_block_index)
                             .is_none_or(|b| b.is_restored());
 
-                    items.extend(
-                        self.session_sharing_context_menu_items(&model, is_share_session_disabled),
-                    );
+                    items.extend(self.session_sharing_context_menu_items(
+                        &model,
+                        is_share_session_disabled,
+                        ctx,
+                    ));
                 }
 
                 if WarpDriveSettings::is_warp_drive_enabled(ctx) {
                     items.push(MenuItem::Separator);
                     items.push(
-                        MenuItemFields::new("Save as workflow")
-                            .with_on_select_action(TerminalAction::ContextMenu(
-                                ContextMenuAction::OpenWorkflowModal,
-                            ))
-                            .with_key_shortcut_label(keybinding_name_to_display_string(
-                                "terminal:toggle_teams_modal",
-                                ctx,
-                            ))
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            ctx,
+                            "terminal.menu.save_as_workflow",
+                        ))
+                        .with_on_select_action(TerminalAction::ContextMenu(
+                            ContextMenuAction::OpenWorkflowModal,
+                        ))
+                        .with_key_shortcut_label(keybinding_name_to_display_string(
+                            "terminal:toggle_teams_modal",
+                            ctx,
+                        ))
+                        .into_item(),
                     );
                 }
 
@@ -16787,41 +16891,49 @@ impl TerminalView {
                     } else {
                         items.extend([
                             MenuItem::Separator,
-                            MenuItemFields::new("Ask Warp AI")
-                                .with_on_select_action(TerminalAction::ContextMenu(
-                                    ContextMenuAction::AskAI(AskAISource::SelectedBlockOrText),
-                                ))
-                                .with_key_shortcut_label(keybinding_name_to_display_string(
-                                    "terminal:ask_ai_assistant",
-                                    ctx,
-                                ))
-                                .with_disabled(is_ask_ai_disabled)
-                                .into_item(),
+                            MenuItemFields::new(crate::localization::text_for_app(
+                                ctx,
+                                ASK_WARP_AI_MENU_KEY,
+                            ))
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::AskAI(AskAISource::SelectedBlockOrText),
+                            ))
+                            .with_key_shortcut_label(keybinding_name_to_display_string(
+                                "terminal:ask_ai_assistant",
+                                ctx,
+                            ))
+                            .with_disabled(is_ask_ai_disabled)
+                            .into_item(),
                         ]);
                     }
                 }
 
                 if is_single_selection {
-                    let mut copy_output_menu_item = MenuItemFields::new("Copy output")
-                        .with_on_select_action(TerminalAction::ContextMenu(
-                            ContextMenuAction::CopyBlockOutputs,
-                        ))
-                        .with_disabled(tail_block.output_grid().is_empty());
+                    let mut copy_output_menu_item = MenuItemFields::new(
+                        localization::text_for_app(ctx, "terminal.menu.copy_output"),
+                    )
+                    .with_on_select_action(TerminalAction::ContextMenu(
+                        ContextMenuAction::CopyBlockOutputs,
+                    ))
+                    .with_disabled(tail_block.output_grid().is_empty());
 
                     // If there is an active filter on a block, then we want to display a
                     // Copy filtered output option and assign the "terminal:copy_outputs" keybinding to it.
                     if tail_block.has_active_filter() {
                         items.insert(
                             1,
-                            MenuItemFields::new("Copy filtered output")
-                                .with_on_select_action(TerminalAction::ContextMenu(
-                                    ContextMenuAction::CopyBlockFilteredOutputs,
-                                ))
-                                .with_key_shortcut_label(keybinding_name_to_display_string(
-                                    "terminal:copy_outputs",
-                                    ctx,
-                                ))
-                                .into_item(),
+                            MenuItemFields::new(localization::text_for_app(
+                                ctx,
+                                "terminal.menu.copy_filtered_output",
+                            ))
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::CopyBlockFilteredOutputs,
+                            ))
+                            .with_key_shortcut_label(keybinding_name_to_display_string(
+                                "terminal:copy_outputs",
+                                ctx,
+                            ))
+                            .into_item(),
                         );
                         items.insert(2, copy_output_menu_item.into_item());
                     } else {
@@ -16835,6 +16947,7 @@ impl TerminalView {
                         self.input_is_on_git_branch(&model),
                         self.is_rprompt_shown(&model),
                         PromptPosition::Block(tail_block_index),
+                        ctx,
                     );
                     items.push(MenuItem::Separator);
                     items.append(&mut prompt_items);
@@ -16852,24 +16965,30 @@ impl TerminalView {
                         ))
                         .into_item(),
                 ]);
-                items.append(&mut vec![MenuItemFields::new("Toggle block filter")
-                    .with_on_select_action(TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(
-                        ToggleBlockFilterSource::ContextMenu,
-                    ))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        TOGGLE_BLOCK_FILTER_KEYBINDING,
-                        ctx,
-                    ))
-                    .into_item()]);
-                items.append(&mut vec![MenuItemFields::new("Toggle bookmark")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::ToggleBookmark,
-                    ))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "terminal:bookmark_selected_block",
-                        ctx,
-                    ))
-                    .into_item()]);
+                items.append(&mut vec![MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.toggle_block_filter",
+                ))
+                .with_on_select_action(TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(
+                    ToggleBlockFilterSource::ContextMenu,
+                ))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    TOGGLE_BLOCK_FILTER_KEYBINDING,
+                    ctx,
+                ))
+                .into_item()]);
+                items.append(&mut vec![MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.toggle_bookmark",
+                ))
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::ToggleBookmark,
+                ))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "terminal:bookmark_selected_block",
+                    ctx,
+                ))
+                .into_item()]);
 
                 items.append(&mut vec![
                     MenuItem::Separator,
@@ -16951,7 +17070,7 @@ impl TerminalView {
                 if FeatureFlag::CreatingSharedSessions.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled()
                 {
-                    items.extend(self.session_sharing_context_menu_items(&model, false));
+                    items.extend(self.session_sharing_context_menu_items(&model, false, ctx));
                 }
 
                 items
@@ -16987,6 +17106,7 @@ impl TerminalView {
                                     .ai_block_handle
                                     .as_ref(ctx)
                                     .get_preceding_user_query(ctx),
+                                ctx,
                             );
                             items.push(
                                 MenuItemFields::new(fork_label)
@@ -17002,15 +17122,18 @@ impl TerminalView {
 
                             if ChannelState::channel().is_dogfood() {
                                 items.push(
-                                    MenuItemFields::new("Fork from here (dev only)")
-                                        .with_on_select_action(TerminalAction::ContextMenu(
-                                            ContextMenuAction::ForkAIConversationFromExactExchange {
-                                                ai_block_view_id: *rich_content_view_id,
-                                                exchange_id: ai_metadata.exchange_id,
-                                                conversation_id: ai_metadata.conversation_id,
-                                            },
-                                        ))
-                                        .into_item(),
+                                    MenuItemFields::new(localization::text_for_app(
+                                        ctx,
+                                        "terminal.menu.fork_from_here_dev_only",
+                                    ))
+                                    .with_on_select_action(TerminalAction::ContextMenu(
+                                        ContextMenuAction::ForkAIConversationFromExactExchange {
+                                            ai_block_view_id: *rich_content_view_id,
+                                            exchange_id: ai_metadata.exchange_id,
+                                            conversation_id: ai_metadata.conversation_id,
+                                        },
+                                    ))
+                                    .into_item(),
                                 );
                             }
                         }
@@ -17020,14 +17143,17 @@ impl TerminalView {
                             && !ai_metadata.ai_block_handle.as_ref(ctx).is_restored()
                         {
                             items.push(
-                                MenuItemFields::new("Rewind to before here")
-                                    .with_on_select_action(TerminalAction::RewindAIConversation {
-                                        ai_block_view_id: *rich_content_view_id,
-                                        exchange_id: ai_metadata.exchange_id,
-                                        conversation_id: ai_metadata.conversation_id,
-                                        entrypoint: AgentModeRewindEntrypoint::ContextMenu,
-                                    })
-                                    .into_item(),
+                                MenuItemFields::new(localization::text_for_app(
+                                    ctx,
+                                    "terminal.menu.rewind_to_before_here",
+                                ))
+                                .with_on_select_action(TerminalAction::RewindAIConversation {
+                                    ai_block_view_id: *rich_content_view_id,
+                                    exchange_id: ai_metadata.exchange_id,
+                                    conversation_id: ai_metadata.conversation_id,
+                                    entrypoint: AgentModeRewindEntrypoint::ContextMenu,
+                                })
+                                .into_item(),
                             );
                         }
 
@@ -17110,13 +17236,16 @@ impl TerminalView {
             return None;
         }
         Some(
-            MenuItemFields::new("Clear Blocks")
-                .with_on_select_action(TerminalAction::ClearBuffer)
-                .with_key_shortcut_label(keybinding_name_to_display_string(
-                    "terminal:clear_blocks",
-                    ctx,
-                ))
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "terminal.menu.clear_blocks",
+            ))
+            .with_on_select_action(TerminalAction::ClearBuffer)
+            .with_key_shortcut_label(keybinding_name_to_display_string(
+                "terminal:clear_blocks",
+                ctx,
+            ))
+            .into_item(),
         )
     }
 
@@ -17125,43 +17254,54 @@ impl TerminalView {
         is_on_git_branch: bool,
         is_rprompt_shown: bool,
         position: PromptPosition,
+        ctx: &AppContext,
     ) -> Vec<MenuItem<TerminalAction>> {
-        let mut items = vec![MenuItemFields::new("Copy prompt")
-            .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
-                position,
-                part: PromptPart::EntirePrompt,
-            }))
-            .into_item()];
+        let mut items =
+            vec![
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy_prompt"))
+                    .with_on_select_action(TerminalAction::ContextMenu(
+                        ContextMenuAction::CopyPrompt {
+                            position,
+                            part: PromptPart::EntirePrompt,
+                        },
+                    ))
+                    .into_item(),
+            ];
 
         if is_rprompt_shown {
             items.push(
-                MenuItemFields::new("Copy right prompt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::CopyRprompt,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.copy_right_prompt",
+                ))
+                .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyRprompt))
+                .into_item(),
             );
         }
 
         items.push(
-            MenuItemFields::new("Copy working directory")
-                .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
-                    position,
-                    part: PromptPart::Pwd,
-                }))
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "terminal.menu.copy_working_directory",
+            ))
+            .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
+                position,
+                part: PromptPart::Pwd,
+            }))
+            .into_item(),
         );
 
         if is_on_git_branch {
             items.push(
-                MenuItemFields::new("Copy git branch")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::CopyPrompt {
-                            position,
-                            part: PromptPart::GitBranch,
-                        },
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.copy_git_branch",
+                ))
+                .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
+                    position,
+                    part: PromptPart::GitBranch,
+                }))
+                .into_item(),
             )
         }
         items
@@ -17176,34 +17316,46 @@ impl TerminalView {
 
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend(vec![
-                MenuItemFields::new("Split pane right")
-                    .with_on_select_action(TerminalAction::SplitRight(shell.clone()))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_right",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane left")
-                    .with_on_select_action(TerminalAction::SplitLeft(shell.clone()))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_left",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane down")
-                    .with_on_select_action(TerminalAction::SplitDown(shell.clone()))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_down",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane up")
-                    .with_on_select_action(TerminalAction::SplitUp(shell))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_up",
-                        ctx,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_right",
+                ))
+                .with_on_select_action(TerminalAction::SplitRight(shell.clone()))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_right",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_left",
+                ))
+                .with_on_select_action(TerminalAction::SplitLeft(shell.clone()))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_left",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_down",
+                ))
+                .with_on_select_action(TerminalAction::SplitDown(shell.clone()))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_down",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_up",
+                ))
+                .with_on_select_action(TerminalAction::SplitUp(shell))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_up",
+                    ctx,
+                ))
+                .into_item(),
             ]);
         }
 
@@ -17221,7 +17373,7 @@ impl TerminalView {
             );
 
             items.push(
-                MenuItemFields::new("Close pane")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.close_pane"))
                     .with_on_select_action(TerminalAction::Close)
                     .with_key_shortcut_label(
                         custom_tag_to_keystroke(CustomAction::CloseCurrentSession.into())
@@ -17270,12 +17422,13 @@ impl TerminalView {
     }
 
     fn prompt_context_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<TerminalAction>> {
-        let copy_prompt = MenuItemFields::new("Copy prompt")
-            .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
-                position: PromptPosition::Input,
-                part: PromptPart::EntirePrompt,
-            }))
-            .into_item();
+        let copy_prompt =
+            MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy_prompt"))
+                .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
+                    position: PromptPosition::Input,
+                    part: PromptPart::EntirePrompt,
+                }))
+                .into_item();
 
         let has_cli_agent_session = CLIAgentSessionsModel::as_ref(ctx)
             .session(self.view_id)
@@ -17287,23 +17440,29 @@ impl TerminalView {
             .is_active();
         let edit_menu_item = if has_cli_agent_session {
             FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
-                MenuItemFields::new("Edit CLI agent toolbelt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::EditCLIAgentToolbar,
-                    ))
-                    .into_item()
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.edit_cli_agent_toolbelt",
+                ))
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::EditCLIAgentToolbar,
+                ))
+                .into_item()
             })
         } else if is_agent_view_active {
             FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
-                MenuItemFields::new("Edit agent toolbelt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::EditAgentToolbar,
-                    ))
-                    .into_item()
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.edit_agent_toolbelt",
+                ))
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::EditAgentToolbar,
+                ))
+                .into_item()
             })
         } else {
             Some(
-                MenuItemFields::new("Edit prompt")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.edit_prompt"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::EditPrompt,
                     ))
@@ -17316,11 +17475,14 @@ impl TerminalView {
             let mut items = vec![copy_prompt];
             if self.is_rprompt_shown(&self.model.lock()) {
                 items.push(
-                    MenuItemFields::new("Copy right prompt")
-                        .with_on_select_action(TerminalAction::ContextMenu(
-                            ContextMenuAction::CopyRprompt,
-                        ))
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "terminal.menu.copy_right_prompt",
+                    ))
+                    .with_on_select_action(TerminalAction::ContextMenu(
+                        ContextMenuAction::CopyRprompt,
+                    ))
+                    .into_item(),
                 );
             }
             if let Some(edit_menu_item) = edit_menu_item {
@@ -17375,12 +17537,12 @@ impl TerminalView {
 
         if !selected_input_text.is_empty() {
             items.extend([
-                MenuItemFields::new("Cut")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.cut"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::CutSelectedText,
                     ))
                     .into_item(),
-                MenuItemFields::new("Copy")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::CopySelectedText,
                     ))
@@ -17394,7 +17556,7 @@ impl TerminalView {
 
         if !all_current_input_text.is_empty() & selected_input_text.is_empty() {
             items.push(
-                MenuItemFields::new("Select all")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.select_all"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::SelectAll,
                     ))
@@ -17408,7 +17570,7 @@ impl TerminalView {
         }
 
         items.push(
-            MenuItemFields::new("Paste")
+            MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.paste"))
                 .with_on_select_action(TerminalAction::InputContextMenuItem(
                     InputContextMenuAction::Paste,
                 ))
@@ -17420,45 +17582,54 @@ impl TerminalView {
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && ContextFlag::CreateSharedSession.is_enabled()
         {
-            items.extend(self.session_sharing_context_menu_items(&model, false));
+            items.extend(self.session_sharing_context_menu_items(&model, false, ctx));
         }
 
         // Section 2: AI Command Search, Ask Warp AI
         items.extend([
             MenuItem::Separator,
-            MenuItemFields::new("Command search")
-                .with_on_select_action(TerminalAction::InputContextMenuItem(
-                    InputContextMenuAction::ShowCommandSearch,
-                ))
-                .with_key_shortcut_label(keybinding_name_to_display_string(
-                    "workspace:show_command_search",
-                    ctx,
-                ))
-                .with_disabled(is_editor_disabled)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "terminal.menu.command_search",
+            ))
+            .with_on_select_action(TerminalAction::InputContextMenuItem(
+                InputContextMenuAction::ShowCommandSearch,
+            ))
+            .with_key_shortcut_label(keybinding_name_to_display_string(
+                "workspace:show_command_search",
+                ctx,
+            ))
+            .with_disabled(is_editor_disabled)
+            .into_item(),
         ]);
 
         if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
             items.push(
-                MenuItemFields::new("AI command search")
-                    .with_on_select_action(TerminalAction::InputContextMenuItem(
-                        InputContextMenuAction::ShowAICommandSearch,
-                    ))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "input:toggle_natural_language_command_search",
-                        ctx,
-                    ))
-                    .with_disabled(is_editor_disabled)
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.ai_command_search",
+                ))
+                .with_on_select_action(TerminalAction::InputContextMenuItem(
+                    InputContextMenuAction::ShowAICommandSearch,
+                ))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "input:toggle_natural_language_command_search",
+                    ctx,
+                ))
+                .with_disabled(is_editor_disabled)
+                .into_item(),
             );
 
             if !selected_input_text.is_empty() && !FeatureFlag::AgentMode.is_enabled() {
                 items.push(
-                    MenuItemFields::new("Ask Warp AI")
-                        .with_on_select_action(TerminalAction::InputContextMenuItem(
-                            InputContextMenuAction::AskWarpAI,
-                        ))
-                        .into_item(),
+                    MenuItemFields::new(crate::localization::text_for_app(
+                        ctx,
+                        ASK_WARP_AI_MENU_KEY,
+                    ))
+                    .with_on_select_action(TerminalAction::InputContextMenuItem(
+                        InputContextMenuAction::AskWarpAI,
+                    ))
+                    .into_item(),
                 );
             }
         }
@@ -17467,25 +17638,28 @@ impl TerminalView {
         if !all_current_input_text.is_empty() && WarpDriveSettings::is_warp_drive_enabled(ctx) {
             items.extend([
                 MenuItem::Separator,
-                MenuItemFields::new("Save as workflow")
-                    .with_on_select_action(TerminalAction::InputContextMenuItem(
-                        InputContextMenuAction::SaveAsWorkflow,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.save_as_workflow",
+                ))
+                .with_on_select_action(TerminalAction::InputContextMenuItem(
+                    InputContextMenuAction::SaveAsWorkflow,
+                ))
+                .into_item(),
             ]);
         }
 
         // Section 4: input hint text toggle
         if !is_editor_disabled {
             let input_settings = InputSettings::as_ref(ctx);
-            let inverse_action = if *input_settings.show_hint_text {
-                "Hide"
+            let label = if *input_settings.show_hint_text {
+                localization::text_for_app(ctx, "terminal.menu.hide_input_hint_text")
             } else {
-                "Show"
+                localization::text_for_app(ctx, "terminal.menu.show_input_hint_text")
             };
             items.push(MenuItem::Separator);
             items.push(
-                MenuItemFields::new(format!("{inverse_action} input hint text"))
+                MenuItemFields::new(label)
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::ToggleInputHintText,
                     ))
@@ -17631,7 +17805,7 @@ impl TerminalView {
             model.selection_to_string(semantic_selection, self.is_inverted_blocklist(ctx), ctx);
         if selection_string.is_some() {
             menu_items.push(
-                MenuItemFields::new("Copy")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopySelectedText,
                     ))
@@ -17642,9 +17816,9 @@ impl TerminalView {
                 menu_items.extend([
                     MenuItem::Separator,
                     MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
-                        *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT
+                        (*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT).to_owned()
                     } else {
-                        ASK_AI_ASSISTANT_TEXT
+                        crate::localization::text_for_app(ctx, ASK_WARP_AI_MENU_KEY)
                     })
                     .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::AskAI(
                         AskAISource::SelectedTerminalText,
@@ -17658,7 +17832,7 @@ impl TerminalView {
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && ContextFlag::CreateSharedSession.is_enabled()
         {
-            menu_items.extend(self.session_sharing_context_menu_items(&model, false));
+            menu_items.extend(self.session_sharing_context_menu_items(&model, false, ctx));
         }
         let current_shell = model.shell_launch_state().available_shell();
         let mut pane_context_menu_items = self.pane_context_menu_items(current_shell, ctx);
@@ -22148,23 +22322,33 @@ impl TerminalView {
         let show_banner = if honor_ps1 {
             let banner_content = if shell_plugins.contains("p10k_unsupported") {
                 Some(BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::bold("Powerlevel10k now supports Warp!  "),
-                    FormattedTextFragment::plain_text(
-                        "You seem to be running an older (unsupported) version, please follow ",
-                    ),
+                    FormattedTextFragment::bold(localization::text_for_app(
+                        ctx,
+                        "terminal.banner.p10k.title",
+                    )),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        ctx,
+                        "terminal.banner.p10k.prefix",
+                    )),
                     FormattedTextFragment::hyperlink(
-                        "these instructions",
+                        localization::text_for_app(ctx, "terminal.banner.p10k.instructions_link"),
                         P10K_UPDATE_INSTRUCTIONS_URL,
                     ),
-                    FormattedTextFragment::plain_text(" to update to the latest version."),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        ctx,
+                        "terminal.banner.p10k.suffix",
+                    )),
                 ]))
             } else if shell_plugins.contains("pure") {
                 Some(BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::plain_text(
-                        "Pure is not yet supported in Warp. You might consider one of the \
-                        supported prompts as an alternative.  ",
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        ctx,
+                        "terminal.banner.pure.unsupported",
+                    )),
+                    FormattedTextFragment::hyperlink(
+                        localization::text_for_app(ctx, "common.learn_more"),
+                        PROMPT_COMPATIBILITY_URL,
                     ),
-                    FormattedTextFragment::hyperlink("Learn more", PROMPT_COMPATIBILITY_URL),
                 ]))
             } else {
                 None
@@ -23543,6 +23727,7 @@ impl TerminalView {
                     state,
                     SessionSettings::as_ref(app).notifications.mode,
                     appearance,
+                    app,
                 ),
             );
         }
@@ -23558,16 +23743,19 @@ impl TerminalView {
                 .notifications_error_banner
                 .error
                 .as_ref()
-                .map(|e| e.notifications_error_banner_title())
-                .unwrap_or("Error sending notification");
+                .map(|e| e.notifications_error_banner_title().to_string())
+                .unwrap_or_else(|| {
+                    localization::text_for_app(app, "terminal.notification.error.title")
+                });
 
             inline_banners.insert(
                 state.banner_id,
                 render_inline_notifications_error_banner(
-                    banner_title,
+                    &banner_title,
                     state,
                     &self.inline_banners_state.notifications_error_banner.error,
                     appearance,
+                    app,
                 ),
             );
         }
@@ -23585,7 +23773,7 @@ impl TerminalView {
         {
             inline_banners.insert(
                 banner_id,
-                render_shell_process_terminated_banner(appearance, was_premature_termination),
+                render_shell_process_terminated_banner(appearance, app, was_premature_termination),
             );
         }
 
@@ -23645,7 +23833,7 @@ impl TerminalView {
         if let Some(open_in_warp_banner) = &self.inline_banners_state.open_in_warp_banner {
             inline_banners.insert(
                 open_in_warp_banner.id,
-                render_open_in_warp_banner(open_in_warp_banner, self.view_id, appearance),
+                render_open_in_warp_banner(open_in_warp_banner, self.view_id, appearance, app),
             );
         }
 
@@ -23835,9 +24023,13 @@ impl TerminalView {
                             .finish(),
                     )
                     .with_child(
-                        Text::new_inline("Loading session...", appearance.ui_font_family(), 14.)
-                            .with_color(color.into())
-                            .finish(),
+                        Text::new_inline(
+                            localization::text_for_app(app, "terminal.status.loading_session"),
+                            appearance.ui_font_family(),
+                            14.,
+                        )
+                        .with_color(color.into())
+                        .finish(),
                     )
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .finish(),
@@ -23885,7 +24077,7 @@ impl TerminalView {
             .block_banner()
             .map(|banner| match banner {
                 WithinBlockBanner::WarpifyBanner(state) => {
-                    render_warpification_banner(state, appearance)
+                    render_warpification_banner(state, appearance, app)
                 }
             });
 
@@ -25372,7 +25564,7 @@ impl TerminalView {
                 env_var_collection
                     .title
                     .clone()
-                    .unwrap_or("Untitled".to_owned()),
+                    .unwrap_or_else(|| localization::text_for_app(ctx, "env_vars.title.untitled")),
                 env_var_collection
                     .vars
                     .iter()
@@ -25415,8 +25607,10 @@ impl TerminalView {
         let (shell_path_string, shell_type) = shell_session_info;
         if shell_type == ShellType::PowerShell {
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                let toast =
-                    DismissibleToast::error("PowerShell subshells not supported".to_owned());
+                let toast = DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "terminal.toast.powershell_subshells_not_supported",
+                ));
                 toast_stack.add_ephemeral_toast(toast, window_id, ctx);
             });
             return;
@@ -25426,7 +25620,9 @@ impl TerminalView {
         // subshell start
         self.env_vars = env_var_collection.vars;
         self.model.lock().set_env_var_collection_name(Some(
-            env_var_collection.title.unwrap_or("Untitled".to_owned()),
+            env_var_collection
+                .title
+                .unwrap_or_else(|| localization::text_for_app(ctx, "env_vars.title.untitled")),
         ));
         self.set_and_execute_subshell_command(&shell_path_string, shell_type, ctx);
 
@@ -26001,7 +26197,9 @@ impl TypedActionView for TerminalView {
             | StartLspServer => ActionAccessibilityContent::from_debug(),
             #[cfg(feature = "local_fs")]
             OpenCodeInWarp { .. } => ActionAccessibilityContent::from_debug(),
-            OpenInWarpBanner(action) => self.open_in_warp_banner_accessibility_content(*action),
+            OpenInWarpBanner(action) => {
+                self.open_in_warp_banner_accessibility_content(*action, ctx)
+            }
             OpenAIBlockAttachedBlocksMenu { .. } => Custom(AccessibilityContent::new_without_help(
                 "Open list of blocks attached as context to this AI query.".to_owned(),
                 WarpA11yRole::PopoverRole,
@@ -27408,7 +27606,7 @@ impl View for TerminalView {
                     if self.is_input_box_visible(&model, app) {
                         column.add_child(self.render_input());
                     } else if self.should_render_legacy_ambient_agent_loading_footer(&model, app) {
-                        column.add_child(ambient_agent::render_loading_footer(appearance));
+                        column.add_child(ambient_agent::render_loading_footer(appearance, app));
                     } else if self.show_remote_server_loading_footer(&model, app) {
                         column.add_child(
                             self.render_remote_server_loading_footer(&model, appearance, app),
@@ -27480,6 +27678,7 @@ impl View for TerminalView {
                     self.render_input_request_edit_access_button(
                         input_request_edit_access_button_handle.clone(),
                         appearance,
+                        app,
                     ),
                     OffsetPositioning::offset_from_save_position_element(
                         self.input.as_ref(app).status_free_input_save_position_id(),

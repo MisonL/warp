@@ -72,7 +72,7 @@ use crate::util::path::{display_name_with_host, display_path_with_host};
 use crate::view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView};
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::{ActiveSession, TabBarDropTargetData, ToastStack, WorkspaceAction};
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut CodeView, &mut ViewContext<CodeView>) + Send + Sync + 'static>;
@@ -1070,7 +1070,10 @@ impl CodeView {
                                     ButtonVariant::Outlined,
                                     tab.mouse_state_handles.reject_mouse_state.clone(),
                                 )
-                                .with_text_label("Reject".to_string())
+                                .with_text_label(crate::localization::text_for_app(
+                                    app,
+                                    "code.action.reject",
+                                ))
                                 .build()
                                 .on_click(|ctx, _, _| {
                                     ctx.dispatch_typed_action(CodeViewAction::RejectPendingDiffs)
@@ -1088,7 +1091,10 @@ impl CodeView {
                                     ButtonVariant::Outlined,
                                     tab.mouse_state_handles.accept_mouse_state.clone(),
                                 )
-                                .with_text_label("Accept and save".to_string())
+                                .with_text_label(crate::localization::text_for_app(
+                                    app,
+                                    "code.action.accept_and_save",
+                                ))
                                 .build()
                                 .on_click(|ctx, _, _| {
                                     ctx.dispatch_typed_action(
@@ -2040,9 +2046,12 @@ impl CodeView {
             if active_location.is_some() {
                 items.push(MenuItem::Separator);
                 items.push(
-                    MenuItemFields::new("Copy file path")
-                        .with_on_select_action(CodeViewAction::CopyFilePath)
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "code.menu.copy_file_path",
+                    ))
+                    .with_on_select_action(CodeViewAction::CopyFilePath)
+                    .into_item(),
                 );
             }
 
@@ -2071,9 +2080,12 @@ impl CodeView {
                 });
             if is_md {
                 items.push(
-                    MenuItemFields::new("View Markdown preview")
-                        .with_on_select_action(CodeViewAction::RenderMarkdown)
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "code.menu.view_markdown_preview",
+                    ))
+                    .with_on_select_action(CodeViewAction::RenderMarkdown)
+                    .into_item(),
                 );
             }
         }

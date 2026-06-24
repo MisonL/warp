@@ -18,6 +18,7 @@ use warpui::{
 use super::session_config::{is_git_repo, SessionConfigSelection, SessionType};
 use super::session_config_rendering;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
@@ -86,13 +87,16 @@ impl SessionConfigModal {
         });
 
         let submit_button = ctx.add_view(|ctx| {
-            ActionButton::new("Get Warping", PrimaryTheme)
-                .with_full_width(true)
-                .with_keybinding(
-                    KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
-                    ctx,
-                )
-                .on_click(|ctx| ctx.dispatch_typed_action(SessionConfigModalAction::Submit))
+            ActionButton::new(
+                localization::text_for_app(ctx, "tab_config.action.get_warping"),
+                PrimaryTheme,
+            )
+            .with_full_width(true)
+            .with_keybinding(
+                KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
+                ctx,
+            )
+            .on_click(|ctx| ctx.dispatch_typed_action(SessionConfigModalAction::Submit))
         });
 
         let pill_mouse_states = session_types
@@ -193,7 +197,8 @@ impl SessionConfigModal {
             .finish()
     }
 
-    fn render_session_type_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_session_type_section(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         session_config_rendering::render_session_type_pills(
             &self.session_types,
             self.selected_session_type_index,
@@ -201,6 +206,7 @@ impl SessionConfigModal {
             |i, ctx, _| {
                 ctx.dispatch_typed_action(SessionConfigModalAction::SelectSessionType(i));
             },
+            app,
             appearance,
         )
     }
@@ -271,7 +277,7 @@ impl View for SessionConfigModal {
 
         if self.show_session_type_row {
             form.add_child(
-                Container::new(self.render_session_type_section(appearance))
+                Container::new(self.render_session_type_section(app))
                     .with_margin_top(SECTION_GAP)
                     .finish(),
             );

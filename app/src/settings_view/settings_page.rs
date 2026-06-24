@@ -1560,8 +1560,8 @@ impl<V: warpui::View> PageType<V> {
                     .map(|(i, indices)| {
                         let category = &categories[i];
                         FilteredCategory {
-                            title: category.title,
-                            subtitle: category.subtitle,
+                            title: category.title.clone(),
+                            subtitle: category.subtitle.clone(),
                             widgets: indices
                                 .iter()
                                 .map(|i| category.widgets[*i].as_ref())
@@ -1671,18 +1671,21 @@ impl<V: warpui::View> PageType<V> {
                 }
                 let num_categories = categories.len();
                 for (i, category) in categories.into_iter().enumerate() {
-                    if !category.title.is_empty() {
-                        if let Some(subtitle) = category.subtitle {
+                    let FilteredCategory {
+                        title,
+                        subtitle,
+                        widgets,
+                    } = category;
+                    if !title.is_empty() {
+                        if let Some(subtitle) = subtitle {
                             page.add_child(render_sub_header_with_description(
-                                appearance,
-                                category.title,
-                                subtitle,
+                                appearance, title, subtitle,
                             ));
                         } else {
-                            page.add_child(render_sub_header(appearance, category.title, None));
+                            page.add_child(render_sub_header(appearance, title, None));
                         }
                     }
-                    for widget in &category.widgets {
+                    for widget in &widgets {
                         let highlighted =
                             highlighted_widget_id.is_some_and(|id| id == widget.widget_id());
                         if widget.should_render(app) {
@@ -1819,33 +1822,33 @@ pub(super) enum FilteredPageType<'a, V: warpui::View> {
 
 /// A grouping of related [`SettingsWidget`]s that fall under the same sub-header.
 pub(super) struct Category<V: warpui::View> {
-    title: &'static str,
-    subtitle: Option<&'static str>,
+    title: String,
+    subtitle: Option<String>,
     widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
 }
 
 impl<V: warpui::View> Category<V> {
     pub(super) fn new(
-        title: &'static str,
+        title: impl Into<String>,
         widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
     ) -> Self {
         Self {
-            title,
+            title: title.into(),
             subtitle: None,
             widgets,
         }
     }
 
-    pub(super) fn with_subtitle(mut self, subtitle: &'static str) -> Self {
-        self.subtitle = Some(subtitle);
+    pub(super) fn with_subtitle(mut self, subtitle: impl Into<String>) -> Self {
+        self.subtitle = Some(subtitle.into());
         self
     }
 }
 
 /// A [`Category`] with only the results which match a search query.
 pub(super) struct FilteredCategory<'a, V: warpui::View> {
-    pub(super) title: &'static str,
-    pub(super) subtitle: Option<&'static str>,
+    pub(super) title: String,
+    pub(super) subtitle: Option<String>,
     pub(super) widgets: Vec<&'a dyn SettingsWidget<View = V>>,
 }
 
@@ -1904,6 +1907,7 @@ pub(super) trait SettingsWidget {
 /// the setting.
 pub(super) fn build_reset_button(
     appearance: &Appearance,
+    app: &AppContext,
     mouse_state: MouseStateHandle,
     changed_from_default: bool,
 ) -> Button {
@@ -1921,5 +1925,8 @@ pub(super) fn build_reset_button(
             font_size: Some(appearance.ui_font_size() * 0.8),
             ..Default::default()
         })
-        .with_text_label("Reset to default".to_owned())
+        .with_text_label(crate::localization::text_for_app(
+            app,
+            "settings.action.reset_to_default",
+        ))
 }

@@ -42,6 +42,14 @@ use warpui::{
     ViewHandle, WeakViewHandle, WindowId,
 };
 
+fn binding_description(
+    fallback: &'static str,
+    key: &'static str,
+) -> warpui::keymap::BindingDescription {
+    warpui::keymap::BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
+
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::{AIAgentHarness, AIConversation, AIConversationId};
 use crate::ai::agent_conversations_model::{
@@ -3012,13 +3020,17 @@ impl PaneGroup {
             ctx.notify();
         });
 
-        let user_default_shell_changed_banner = ctx.add_typed_action_view(|_| {
+        let unsupported_shell_text =
+            crate::localization::text_for_app(ctx, "pane_group.banner.unsupported_shell.fallback");
+        let learn_more_text = crate::localization::text_for_app(ctx, "common.learn_more");
+        let user_default_shell_changed_banner = ctx.add_typed_action_view(move |_| {
             Banner::<PaneGroupAction>::new_permanently_dismissible(
                 BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::plain_text(
-                        "Warp doesn't currently support your default shell, falling back to zsh.  ",
+                    FormattedTextFragment::plain_text(unsupported_shell_text.clone()),
+                    FormattedTextFragment::hyperlink(
+                        learn_more_text.clone(),
+                        WARP_SHELL_COMPATIBILITY_DOCS,
                     ),
-                    FormattedTextFragment::hyperlink("Learn more", WARP_SHELL_COMPATIBILITY_DOCS),
                 ]),
             )
         });

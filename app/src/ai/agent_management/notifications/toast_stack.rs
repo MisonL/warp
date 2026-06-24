@@ -302,6 +302,7 @@ impl View for AgentNotificationToastStack {
                 entry.message_expanded,
                 is_newest.then(|| keystroke.clone()).flatten(),
                 appearance,
+                app,
             );
             column.add_child(Container::new(toast).with_margin_bottom(4.).finish());
         }
@@ -366,6 +367,7 @@ fn render_toast(
     message_expanded: bool,
     keystroke: Option<Keystroke>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let on_expand: OnExpandClick = Box::new(move |ctx: &mut warpui::EventContext| {

@@ -34,6 +34,7 @@ use warp_cli::{CliCommand, GlobalOptions, OZ_HARNESS_ENV};
 use warp_core::features::FeatureFlag;
 use warp_graphql::object_permissions::OwnerType;
 use warp_isolation_platform::IsolationPlatformError;
+use warp_localization::{replace_placeholders, LocaleId};
 #[cfg(not(target_family = "wasm"))]
 use warp_logging::log_file_path;
 use warp_managed_secrets::ManagedSecretManager;
@@ -104,6 +105,19 @@ mod telemetry;
 #[cfg(test)]
 mod test_support;
 mod text_layout;
+
+fn default_text(key: &str) -> String {
+    crate::localization::text_for_locale(LocaleId::EnUs, key)
+}
+
+fn default_text_with_args(key: &str, args: &[(&str, &str)]) -> String {
+    replace_placeholders(&default_text(key), args)
+        .expect("localized text template arguments must match the catalog")
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    crate::localization::text_for_app_with_args(app, key, args)
+}
 
 /// Prints a non-blocking warning to stderr when the CLI is invoked with a team-scoped API key.
 fn maybe_warn_team_api_key(ctx: &AppContext) {
@@ -609,7 +623,7 @@ impl AgentDriverRunner {
         args: RunAgentArgs,
         server_api: Arc<dyn AIClient>,
         output_format: OutputFormat,
-        locale: LocaleId,
+        _locale: LocaleId,
     ) -> Result<(), AgentDriverError> {
         // Extract the task ID as early as possible for best-effort setup observability.
         // Local CLI-created runs may not have a task yet, so those setup events explicitly no-op.
@@ -749,7 +763,7 @@ impl AgentDriverRunner {
             }
 
             if let Some(task_id) = driver_options.task_id {
-                driver::write_run_started(&task_id.to_string(), output_format, locale);
+                driver::write_run_started(&task_id.to_string(), output_format);
             }
 
             // Pull conversation information, if we have it

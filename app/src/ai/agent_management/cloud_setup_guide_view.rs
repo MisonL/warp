@@ -26,10 +26,10 @@ use crate::ai::blocklist::code_block::{
 };
 use crate::appearance::Appearance;
 use crate::completer::SessionAgnosticContext;
-use crate::send_telemetry_from_ctx;
 use crate::view_components::action_button::{ActionButton, SecondaryTheme};
 use crate::workflows::workflow::{Argument, ArgumentType, Workflow};
 use crate::workflows::WorkflowType;
+use crate::{localization, send_telemetry_from_ctx};
 
 const DOCS_URL: &str = "https://docs.warp.dev/agent-platform/cloud-agents/overview";
 const ENV_DOCS_URL: &str =
@@ -117,9 +117,12 @@ impl CloudSetupGuideView {
             },
         );
 
-        let visit_oz_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Visit Oz", SecondaryTheme)
-                .on_click(|ctx| ctx.dispatch_typed_action(CloudSetupGuideAction::VisitOz))
+        let visit_oz_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent_management.cloud_setup.action.visit_oz"),
+                SecondaryTheme,
+            )
+            .on_click(|ctx| ctx.dispatch_typed_action(CloudSetupGuideAction::VisitOz))
         });
 
         Self {
@@ -293,8 +296,8 @@ impl CloudSetupGuideView {
     /// Render a description that includes a link at the end
     /// (e.g. "Use warp's environment setup command to have an agent help you through it. LINK[Visit docs]")
     fn render_description_with_link(
-        prefix: &'static str,
-        link_text: &'static str,
+        prefix: String,
+        link_text: String,
         link_mouse_state: MouseStateHandle,
         telemetry_url: SetupGuideDocs,
         appearance: &Appearance,
@@ -455,8 +458,8 @@ impl CloudSetupGuideView {
         .finish();
 
         let sub_description = Container::new(Self::render_description_with_link(
-            "Use Warp's environment setup command to have an agent help you through it. ",
-            "Visit docs",
+            localization::text_for_app(app, "agent_management.cloud_setup.step1.docs_prefix"),
+            localization::text_for_app(app, "agent_management.cloud_setup.step.docs_link"),
             self.env_docs_link_mouse_state.clone(),
             SetupGuideDocs::Environment,
             appearance,
@@ -528,8 +531,8 @@ impl CloudSetupGuideView {
             .finish();
 
         let sub_description = Container::new(Self::render_description_with_link(
-            "Integrate Slack or Linear to assign Warp's Agent tasks with @Warp. ",
-            "Visit docs",
+            localization::text_for_app(app, "agent_management.cloud_setup.step2.docs_prefix"),
+            localization::text_for_app(app, "agent_management.cloud_setup.step.docs_link"),
             self.integration_docs_link_mouse_state.clone(),
             SetupGuideDocs::Integration,
             appearance,

@@ -16,14 +16,11 @@ use crate::env_vars::view::env_var_collection::{EnvVarCollectionAction, EnvVarCo
 use crate::ui_components::breadcrumb::BreadcrumbState;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
-use crate::{AppContext, Appearance, SingletonEntity};
+use crate::{localization, AppContext, Appearance, SingletonEntity};
 
 const VARIABLE_DIVIDER_HEIGHT: f32 = 2.;
 const SECTION_FONT_SIZE: f32 = 16.;
 const BUTTON_HEIGHT: f32 = 32.;
-
-const SAVE_BUTTON_TEXT: &str = "Save";
-const VARIABLES_LABEL_TEXT: &str = "Variables";
 
 /// This file contains components that fixed in the view,
 /// i.e. the trash banner, breadcrumbs, and variables section header
@@ -57,9 +54,9 @@ impl EnvVarCollectionView {
         let mut stack = Stack::new();
 
         let text = if deleted {
-            "You no longer have access to these environment variables"
+            localization::text_for_app(app, "env_vars.trash_banner.no_access")
         } else {
-            "Environment variables were moved to trash"
+            localization::text_for_app(app, "env_vars.trash_banner.moved_to_trash")
         };
         stack.add_child(
             Align::new(
@@ -102,6 +99,10 @@ impl EnvVarCollectionView {
 
             if !FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash() {
                 let ui_builder = appearance.ui_builder().clone();
+                let restore_tooltip =
+                    localization::text_for_app(app, "env_vars.trash_banner.restore_tooltip");
+                let restore_label =
+                    localization::text_for_app(app, "env_vars.trash_banner.restore");
                 action_row.add_child(
                     Align::new(
                         appearance
@@ -112,13 +113,11 @@ impl EnvVarCollectionView {
                             )
                             .with_tooltip(move || {
                                 ui_builder
-                                    .tool_tip(
-                                        "Restore environment variables from trash".to_string(),
-                                    )
+                                    .tool_tip(restore_tooltip.clone())
                                     .build()
                                     .finish()
                             })
-                            .with_text_label("Restore".to_string())
+                            .with_text_label(restore_label)
                             .build()
                             .on_click(|ctx, _, _| {
                                 ctx.dispatch_typed_action(EnvVarCollectionAction::Untrash)
@@ -150,6 +149,7 @@ impl EnvVarCollectionView {
         &self,
         editability: ContentEditability,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut variables_section_row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
@@ -161,7 +161,7 @@ impl EnvVarCollectionView {
                 2.,
                 appearance
                     .ui_builder()
-                    .span(VARIABLES_LABEL_TEXT.to_string())
+                    .span(localization::text_for_app(app, "env_vars.variables"))
                     .with_style(UiComponentStyles {
                         font_size: Some(SECTION_FONT_SIZE),
                         ..Default::default()
@@ -240,7 +240,7 @@ impl EnvVarCollectionView {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::TextFirst,
-                    "Load",
+                    localization::text_for_app(app, "env_vars.action.load"),
                     Icon::TerminalInput.to_warpui_icon(appearance.theme().active_ui_text_color()),
                     MainAxisSize::Min,
                     MainAxisAlignment::SpaceBetween,
@@ -293,7 +293,7 @@ impl EnvVarCollectionView {
                 font_size: Some(14.),
                 ..Default::default()
             })
-            .with_centered_text_label(SAVE_BUTTON_TEXT.to_owned());
+            .with_centered_text_label(localization::text_for_app(app, "env_vars.action.save"));
 
         if is_save_disabled {
             button = button.disabled();

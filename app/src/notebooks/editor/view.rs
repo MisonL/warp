@@ -55,7 +55,6 @@ use super::model::{NotebooksEditorModel, RichTextEditorModelEvent};
 use super::omnibar::{Omnibar, OmnibarEvent};
 use super::{rich_text_styles, BlockType, NotebookWorkflow};
 use crate::appearance::Appearance;
-use crate::cmd_or_ctrl_shift;
 use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
 use crate::notebooks::editor::find_bar::FindBarAction;
@@ -76,6 +75,7 @@ use crate::util::tooltips::{
 };
 use crate::view_components::DismissibleToast;
 use crate::workspace::WorkspaceAction;
+use crate::{cmd_or_ctrl_shift, localization};
 
 #[cfg(test)]
 #[path = "view_tests.rs"]
@@ -2384,13 +2384,17 @@ impl RichTextEditorView {
 
         // Common secondary link actions:
         let ui_builder = appearance.ui_builder().clone();
+        let copy_link_tooltip = crate::localization::text_for_app(ctx, "notebook.menu.copy_link");
         tool_tip.add_child(
             Container::new(
                 appearance
                     .ui_builder()
                     .copy_button(12., self.mouse_states.copy_link_mouse_handle.clone())
                     .with_tooltip(move || {
-                        ui_builder.tool_tip("Copy link".to_owned()).build().finish()
+                        ui_builder
+                            .tool_tip(copy_link_tooltip.clone())
+                            .build()
+                            .finish()
                     })
                     .build()
                     .on_click(|ctx, _, _| ctx.dispatch_typed_action(EditorViewAction::CopyLink))
@@ -2442,7 +2446,10 @@ impl RichTextEditorView {
                             ButtonVariant::Text,
                             self.mouse_states.edit_link_mouse_handle.clone(),
                         )
-                        .with_text_label("Edit".to_string())
+                        .with_text_label(crate::localization::text_for_app(
+                            ctx,
+                            "notebook.code_block.action.edit",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| ctx.dispatch_typed_action(EditorViewAction::EditLink))
                         .finish(),

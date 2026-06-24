@@ -8,6 +8,7 @@ use super::search_results_common::{
 use crate::ai::agent::icons::yellow_running_icon;
 use crate::ai::agent::WebFetchStatus;
 use crate::ai::blocklist::block::view_impl::WithContentItemSpacing;
+use crate::localization;
 
 pub enum WebFetchViewEvent {}
 
@@ -63,7 +64,7 @@ impl WebFetchView {
         render_collapsible_search_results(
             title_text,
             pages.len(),
-            "URLs",
+            &localization::text_for_app(app, "agent.search_results.urls_label"),
             &self.collapsible,
             body,
             |ctx| {
@@ -92,7 +93,11 @@ impl WebFetchView {
             let display_text = if *success {
                 display_text
             } else {
-                format!("✗ {display_text}")
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.web_fetch.failed_url",
+                    &[("url", display_text.as_str())],
+                )
             };
 
             let text_color = if *success {

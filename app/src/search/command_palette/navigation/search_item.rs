@@ -102,17 +102,48 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!(
-            "Selected {}. {}.",
-            self.navigation_data().prompt(),
-            self.navigation_data()
-                .command_context()
-                .a11y_description()
-                .unwrap_or_default()
+        let description = self
+            .navigation_data()
+            .command_context()
+            .a11y_description()
+            .unwrap_or_default();
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.navigation.a11y.selected_session",
+            &[
+                ("prompt", self.navigation_data().prompt()),
+                ("description", &description),
+            ],
         )
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some("Press enter to navigate to this session.".into())
+        Some(crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "search.navigation.a11y.navigate_help",
+        ))
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let description = self
+            .navigation_data()
+            .command_context()
+            .a11y_description()
+            .unwrap_or_default();
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.navigation.a11y.selected_session",
+            &[
+                ("prompt", self.navigation_data().prompt()),
+                ("description", &description),
+            ],
+        )
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(crate::localization::text_for_app(
+            app,
+            "search.navigation.a11y.navigate_help",
+        ))
     }
 }

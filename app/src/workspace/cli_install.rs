@@ -2,10 +2,28 @@ use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Context};
 use command::blocking::Command;
 use warp_core::channel::ChannelState;
 use warp_util::path::ShellFamily;
+
+#[derive(Debug, thiserror::Error)]
+pub enum CliInstallError {
+    #[error("installation cancelled")]
+    InstallationCancelled,
+    #[error("uninstallation cancelled")]
+    UninstallationCancelled,
+    #[error("target exists and is not a symlink: {0}")]
+    TargetExistsNotSymlink(PathBuf),
+    #[error("target is not a symlink: {0}")]
+    TargetNotSymlink(PathBuf),
+    #[error("not installed")]
+    NotInstalled,
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+}
+
+type Result<T> = std::result::Result<T, CliInstallError>;
 
 /// Compute the target path where the Oz CLI symlink should be installed, based on channel
 fn oz_install_target_path() -> PathBuf {
@@ -26,13 +44,16 @@ fn warpctrl_install_target_path() -> PathBuf {
 /// Warp Control subcommands such as `tab` would reach the normal parser and be
 /// rejected as unknown.
 fn warpctrl_bundle_source_path() -> Result<PathBuf> {
-    let current_binary =
-        std::env::current_exe().context("Failed to get current executable path")?;
+    let current_binary = std::env::current_exe()
+        .context("Failed to get current executable path")
+        .map_err(CliInstallError::Other)?;
     let bundle_root = current_binary
         .parent()
         .and_then(|p| p.parent())
         .and_then(|p| p.parent())
-        .ok_or_else(|| anyhow!("Current executable is not inside a bundled app"))?;
+        .ok_or_else(|| {
+            CliInstallError::Other(anyhow!("Current executable is not inside a bundled app"))
+        })?;
     Ok(bundle_root
         .join("Contents/Resources/bin")
         .join(ChannelState::channel().warpctrl_command_name()))
@@ -60,12 +81,12 @@ pub fn is_warpctrl_installed() -> bool {
 /// This function uses macOS's osascript to prompt for administrator privileges
 /// and create a symlink
 fn create_symlink_with_admin(source: &Path, target: &Path) -> Result<()> {
-    let source_str = source
-        .to_str()
-        .ok_or_else(|| anyhow!("Source path contains invalid UTF-8: {source:?}"))?;
-    let target_str = target
-        .to_str()
-        .ok_or_else(|| anyhow!("Target path contains invalid UTF-8: {target:?}"))?;
+    let source_str = source.to_str().ok_or_else(|| {
+        CliInstallError::Other(anyhow!("Source path contains invalid UTF-8: {source:?}"))
+    })?;
+    let target_str = target.to_str().ok_or_else(|| {
+        CliInstallError::Other(anyhow!("Target path contains invalid UTF-8: {target:?}"))
+    })?;
 
     let escaped_source = ShellFamily::Posix.shell_escape(source_str);
     let escaped_target = ShellFamily::Posix.shell_escape(target_str);
@@ -81,16 +102,17 @@ fn create_symlink_with_admin(source: &Path, target: &Path) -> Result<()> {
         .arg("-e")
         .arg(&script)
         .output()
-        .context("Failed to execute osascript for admin privileges")?;
+        .context("Failed to execute osascript for admin privileges")
+        .map_err(CliInstallError::Other)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr.contains("User canceled") || stderr.contains("cancelled") {
-            return Err(anyhow!("Installation cancelled by user."));
+            return Err(CliInstallError::InstallationCancelled);
         }
-        return Err(anyhow!(
+        return Err(CliInstallError::Other(anyhow!(
             "Failed to create symlink with admin privileges: {stderr}"
-        ));
+        )));
     }
 
     Ok(())
@@ -101,9 +123,9 @@ fn create_symlink_with_admin(source: &Path, target: &Path) -> Result<()> {
 /// This function uses macOS's osascript to prompt for administrator privileges
 /// and remove a file, used for CLI uninstallation.
 fn remove_file_with_admin(target: &Path) -> Result<()> {
-    let target_str = target
-        .to_str()
-        .ok_or_else(|| anyhow!("Target path contains invalid UTF-8: {target:?}"))?;
+    let target_str = target.to_str().ok_or_else(|| {
+        CliInstallError::Other(anyhow!("Target path contains invalid UTF-8: {target:?}"))
+    })?;
 
     let escaped_target = ShellFamily::Posix.shell_escape(target_str);
 
@@ -117,16 +139,17 @@ fn remove_file_with_admin(target: &Path) -> Result<()> {
         .arg("-e")
         .arg(&script)
         .output()
-        .context("Failed to execute osascript for admin privileges")?;
+        .context("Failed to execute osascript for admin privileges")
+        .map_err(CliInstallError::Other)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr.contains("User canceled") || stderr.contains("cancelled") {
-            return Err(anyhow!("Uninstallation cancelled by user."));
+            return Err(CliInstallError::UninstallationCancelled);
         }
-        return Err(anyhow!(
+        return Err(CliInstallError::Other(anyhow!(
             "Failed to remove file with admin privileges: {stderr}"
-        ));
+        )));
     }
 
     Ok(())
@@ -139,9 +162,8 @@ fn remove_file_with_admin(target: &Path) -> Result<()> {
 /// to prompting for administrator privileges.
 fn install_symlink(source: &Path, target: &Path, command_name: &str) -> Result<()> {
     if target.exists() && !target.is_symlink() {
-        return Err(anyhow!(
-            "Cannot install {command_name}: {:?} exists but is not a symlink. Please remove it manually first.",
-            target
+        return Err(CliInstallError::TargetExistsNotSymlink(
+            target.to_path_buf(),
         ));
     }
 
@@ -155,8 +177,7 @@ fn install_symlink(source: &Path, target: &Path, command_name: &str) -> Result<(
         }
         Err(_) => {
             log::debug!("{command_name} symlink creation failed, trying with admin privileges");
-            create_symlink_with_admin(source, target)
-                .context("Failed to create symlink even with admin privileges")?;
+            create_symlink_with_admin(source, target)?;
             log::debug!("{command_name} installed successfully with admin privileges");
         }
     }
@@ -171,14 +192,11 @@ fn install_symlink(source: &Path, target: &Path, command_name: &str) -> Result<(
 /// prompting for administrator privileges.
 fn uninstall_symlink(target: &Path, command_name: &str) -> Result<()> {
     if !target.exists() {
-        return Err(anyhow!("{command_name} is not currently installed."));
+        return Err(CliInstallError::NotInstalled);
     }
 
     if !target.is_symlink() {
-        return Err(anyhow!(
-            "Cannot uninstall {command_name}: {:?} exists but is not a symlink. Please remove it manually.",
-            target
-        ));
+        return Err(CliInstallError::TargetNotSymlink(target.to_path_buf()));
     }
 
     match fs::remove_file(target) {
@@ -187,8 +205,7 @@ fn uninstall_symlink(target: &Path, command_name: &str) -> Result<()> {
         }
         Err(_) => {
             log::debug!("{command_name} file removal failed, trying with admin privileges");
-            remove_file_with_admin(target)
-                .context("Failed to remove symlink even with admin privileges")?;
+            remove_file_with_admin(target)?;
             log::debug!("{command_name} uninstalled successfully with admin privileges");
         }
     }
@@ -203,8 +220,9 @@ fn uninstall_symlink(target: &Path, command_name: &str) -> Result<()> {
 /// GUI when no subcommand is provided.
 pub fn install_oz() -> Result<()> {
     let oz_path = oz_install_target_path();
-    let current_binary =
-        std::env::current_exe().context("Failed to get current executable path")?;
+    let current_binary = std::env::current_exe()
+        .context("Failed to get current executable path")
+        .map_err(CliInstallError::Other)?;
     install_symlink(&current_binary, &oz_path, "Oz CLI")
 }
 
@@ -224,10 +242,10 @@ pub fn install_warpctrl() -> Result<()> {
     let warpctrl_source = warpctrl_bundle_source_path()?;
 
     if !warpctrl_source.exists() {
-        return Err(anyhow!(
+        return Err(CliInstallError::Other(anyhow!(
             "Cannot install Warp Control CLI: bundled wrapper not found at {}",
             warpctrl_source.display()
-        ));
+        )));
     }
 
     install_symlink(&warpctrl_source, &warpctrl_path, "Warp Control CLI")

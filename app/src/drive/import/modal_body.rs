@@ -21,6 +21,7 @@ use super::nodes::{
 use super::queue::{ImportQueue, ImportQueueArgs, ImportQueueEvent, ParentId, RequestContent};
 use crate::appearance::Appearance;
 use crate::cloud_object::Owner;
+use crate::localization;
 use crate::server::ids::{ClientId, SyncId};
 use crate::server::sync_queue::SyncQueue;
 use crate::ui_components::icons::Icon;
@@ -358,7 +359,7 @@ impl ImportModalBody {
         ctx.notify();
     }
 
-    fn render_upload_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_upload_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let is_loading = matches!(self.state, ImportState::PathLoaded | ImportState::Loading);
         let base_button = appearance
             .ui_builder()
@@ -380,13 +381,13 @@ impl ImportModalBody {
 
         let file_picker_button = if is_loading {
             base_button
-                .with_centered_text_label("Preparing...".to_string())
+                .with_centered_text_label(localization::text_for_app(app, "drive.import.preparing"))
                 .disabled()
         } else {
             base_button.with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::TextFirst,
-                    "Choose files...".to_string(),
+                    localization::text_for_app(app, "drive.import.choose_files"),
                     Icon::Import.to_warpui_icon(
                         appearance
                             .theme()
@@ -503,7 +504,7 @@ impl View for ImportModalBody {
 
         match &self.state {
             ImportState::Upload | ImportState::Loading | ImportState::PathLoaded => {
-                self.render_upload_state(appearance)
+                self.render_upload_state(appearance, app)
             }
             ImportState::PathExpanded(paths) => {
                 self.render_loaded_state(paths, sync_queue_dequeueing, appearance)

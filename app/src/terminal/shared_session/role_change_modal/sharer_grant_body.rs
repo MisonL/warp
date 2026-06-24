@@ -44,7 +44,7 @@ impl SharerGrantBody {
         }
     }
 
-    fn render_button_row(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_button_row(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let cancel_button = Container::new(
             appearance
                 .ui_builder()
@@ -59,7 +59,10 @@ impl SharerGrantBody {
                     width: Some(BUTTON_WIDTH),
                     ..Default::default()
                 })
-                .with_centered_text_label(String::from("Cancel"))
+                .with_centered_text_label(crate::localization::text_for_app(
+                    app,
+                    "settings.action.cancel",
+                ))
                 .build()
                 .with_cursor(Cursor::PointingHand)
                 .on_click(move |ctx, _, _| ctx.dispatch_typed_action(SharerGrantBodyAction::Cancel))
@@ -108,7 +111,7 @@ impl View for SharerGrantBody {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let button_row = self.render_button_row(appearance);
+        let button_row = self.render_button_row(appearance, app);
 
         let text1 = "This grants the ability to execute commands on your";
         let text2 = "behalf. Use with caution.";

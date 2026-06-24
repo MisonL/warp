@@ -62,7 +62,7 @@ use crate::workspace::view::{
     TOGGLE_PROJECT_EXPLORER_BINDING_NAME, TOGGLE_WARP_DRIVE_BINDING_NAME,
 };
 use crate::workspace::WorkspaceAction;
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -847,12 +847,18 @@ impl LeftPanelView {
 
         let tooltip = if let Some(keybinding) = tooltip_keybinding {
             ui_builder
-                .tool_tip_with_sublabel("Close panel".to_string(), keybinding)
+                .tool_tip_with_sublabel(
+                    localization::text_for_app(app, "workspace.left_panel.tooltip.close_panel"),
+                    keybinding,
+                )
                 .build()
                 .finish()
         } else {
             ui_builder
-                .tool_tip("Close panel".to_string())
+                .tool_tip(localization::text_for_app(
+                    app,
+                    "workspace.left_panel.tooltip.close_panel",
+                ))
                 .build()
                 .finish()
         };

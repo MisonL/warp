@@ -12,17 +12,17 @@ use warp_completer::parsers::simple::all_parsed_commands;
 use warp_completer::signatures::CommandRegistry;
 use warp_util::path::EscapeChar;
 use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
-use warpui::{SingletonEntity, ViewContext};
+use warpui::{AppContext, SingletonEntity, ViewContext};
 
 use super::{Event, InlineBannerItem, InlineBannerType, TerminalView};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
-use crate::report_if_error;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::session::Session;
 use crate::terminal::view::inline_banner::{OpenInWarpBannerAction, OpenInWarpBannerState};
 use crate::util::openable_file_type::{is_file_openable_in_warp, OpenableFileType};
+use crate::{localization, report_if_error};
 
 #[cfg(test)]
 #[path = "open_in_warp_tests.rs"]
@@ -218,13 +218,18 @@ impl TerminalView {
     pub fn open_in_warp_banner_accessibility_content(
         &self,
         action: OpenInWarpBannerAction,
+        app: &AppContext,
     ) -> ActionAccessibilityContent {
         match action {
             OpenInWarpBannerAction::OpenFile => {
                 match &self.inline_banners_state.open_in_warp_banner {
                     Some(banner_state) => {
                         ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                            format!("Open {} in Warp", banner_state.target.path.display()),
+                            localization::text_for_app_with_args(
+                                app,
+                                "terminal.open_in_warp.a11y.open_file",
+                                &[("path", &banner_state.target.path.display().to_string())],
+                            ),
                             WarpA11yRole::UserAction,
                         ))
                     }
@@ -233,14 +238,14 @@ impl TerminalView {
             }
             OpenInWarpBannerAction::Close => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Close View in Warp banner",
+                    localization::text_for_app(app, "terminal.open_in_warp.a11y.close_banner"),
                     WarpA11yRole::UserAction,
                 ))
             }
             OpenInWarpBannerAction::LearnMore => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new(
-                    "Learn more",
-                    "Learn more about opening Markdown files in Warp",
+                    localization::text_for_app(app, "common.learn_more"),
+                    localization::text_for_app(app, "terminal.open_in_warp.a11y.learn_more"),
                     WarpA11yRole::UserAction,
                 ))
             }

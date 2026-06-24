@@ -38,6 +38,7 @@ use tokio::fs::{self as tokio_fs, OpenOptions};
 use tokio::io::AsyncWriteExt as _;
 use tokio::sync::{mpsc, oneshot};
 use warp_core::report_error;
+use warp_localization::{replace_placeholders, LocaleId};
 use warpui::r#async::executor::Background;
 use warpui::r#async::FutureExt as _;
 
@@ -85,6 +86,15 @@ const UPLOAD_BATCH_SIZE: usize = 25;
 /// here. Blobs beyond the cap are dropped from upload and marked `skipped` in the manifest so
 /// consumers can distinguish capped entries from real upload failures.
 const MAX_SNAPSHOT_FILES_PER_RUN: usize = 100;
+
+fn default_text(key: &str) -> String {
+    crate::localization::text_for_locale(LocaleId::EnUs, key)
+}
+
+fn default_text_with_args(key: &str, args: &[(&str, &str)]) -> String {
+    replace_placeholders(&default_text(key), args)
+        .expect("localized text template arguments must match the catalog")
+}
 
 // --- Declarations file parsing ---
 

@@ -30,6 +30,7 @@ use crate::ai::llms::{
 };
 use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
@@ -43,7 +44,8 @@ use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-const AUTO_BEDROCK_TOOLTIP: &str = "Warp uses Bedrock when the model Auto selects supports it; otherwise it may use Warp-hosted inference.";
+const MODEL_SELECTOR_AUTO_COST_TOOLTIP_KEY: &str =
+    "settings.ai.model_selector.cost.auto_bedrock_tooltip";
 
 #[derive(Clone, Debug)]
 pub struct AcceptModel {
@@ -493,7 +495,7 @@ impl SearchItem for ModelSearchItem {
                     ButtonVariant::Outlined,
                     self.manage_api_key_mouse_state.clone(),
                 )
-                .with_text_label("Manage".to_string())
+                .with_text_label(localization::text_for_app(app, "common.manage"))
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -515,15 +517,18 @@ impl SearchItem for ModelSearchItem {
                 .finish();
             CostRow::BilledToProvider {
                 label: if self.is_using_bedrock && self.is_auto {
-                    "Inference may use Bedrock"
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.cost.may_use_bedrock",
+                    )
                 } else if self.is_using_bedrock {
-                    "Inference via Bedrock"
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_bedrock")
                 } else {
-                    "Inference via API key"
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_api_key")
                 },
                 tooltip: if self.is_using_bedrock && self.is_auto {
                     Some(CostRowTooltip {
-                        text: AUTO_BEDROCK_TOOLTIP,
+                        text: localization::text_for_app(app, MODEL_SELECTOR_AUTO_COST_TOOLTIP_KEY),
                         mouse_state: self.cost_row_tooltip_mouse_state.clone(),
                     })
                 } else {
@@ -578,7 +583,10 @@ impl SearchItem for ModelSearchItem {
                 FormattedTextFragment::plain_text(format!(
                     "{display_name} is not available for free users. "
                 )),
-                FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
+                FormattedTextFragment::hyperlink(
+                    localization::text_for_app(app, "onboarding.common.upgrade"),
+                    upgrade_url,
+                ),
             ];
 
             if byok_available {

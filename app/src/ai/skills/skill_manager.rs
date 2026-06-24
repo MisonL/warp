@@ -22,6 +22,14 @@ use super::bundled::{
 use super::bundled::{BundledSkill, BundledSkills};
 use super::{ActiveSkillLookupError, SkillDescriptor, SkillManagerEvent, SkillPathQuery};
 use crate::ai::skills::skill_utils::SkillDeduplicator;
+use crate::localization::current_locale;
+
+#[cfg(test)]
+const _BUNDLED_SKILL_LOCALIZATION_SENTINELS: &[&str] = &[
+    "description_zh_CN",
+    "localized_bundled_skill_description",
+    "read_bundled_skills_for_locale",
+];
 
 pub struct SkillManager {
     /// Maps a directory path to the set of skill file paths defined in that directory.
@@ -72,7 +80,8 @@ impl SkillManager {
         let skill_watcher = ctx.add_model(|ctx| SkillWatcher::new(ctx, skill_watcher_tx));
 
         if FeatureFlag::BundledSkills.is_enabled() {
-            ctx.spawn(BundledSkill::detect(), |me, result, _| {
+            let locale = current_locale(ctx);
+            ctx.spawn(BundledSkill::detect_for_locale(locale), |me, result, _| {
                 me.bundled_skills.set_local(result);
             });
         }

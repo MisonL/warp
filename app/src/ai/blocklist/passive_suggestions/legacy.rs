@@ -28,7 +28,6 @@ use crate::ai::predict::generate_am_query_suggestions::{
 };
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::network::NetworkStatus;
-use crate::report_error;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::PromptSuggestionFallbackReason;
 use crate::settings::AISettings;
@@ -40,6 +39,7 @@ use crate::terminal::model::terminal_model::TerminalModel;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::{AgentModePromptSuggestion, PromptSuggestion};
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, report_error};
 
 const NUM_TOP_BLOCK_LINES: usize = 100;
 const NUM_BOTTOM_BLOCK_LINES: usize = 200;
@@ -254,7 +254,7 @@ impl PassiveSuggestionsModel {
         let command = block_completed.command.clone();
         let start_ts_ms = Utc::now().timestamp_millis();
 
-        if let Some(suggestion) = fetch_static_prompt_suggestion(&block_completed) {
+        if let Some(suggestion) = fetch_static_prompt_suggestion(&block_completed, ctx) {
             ctx.emit(PassiveSuggestionsEvent::PromptSuggestionsGenerated {
                 prompt_suggestion: suggestion.clone(),
                 block_id: block_id.clone(),
@@ -600,11 +600,15 @@ fn passive_code_diffs_enabled(ctx: &ModelContext<PassiveSuggestionsModel>) -> bo
     is_prompt_suggestions_enabled && is_code_suggestions_enabled && is_toggleable
 }
 
-fn fetch_static_prompt_suggestion(block: &UserBlockCompleted) -> Option<AgentModePromptSuggestion> {
+fn fetch_static_prompt_suggestion(
+    block: &UserBlockCompleted,
+    ctx: &ModelContext<PassiveSuggestionsModel>,
+) -> Option<AgentModePromptSuggestion> {
     if !block.serialized_block.exit_code.was_successful() {
         return None;
     }
-    static_suggested_query(&block.command).map(AgentModePromptSuggestion::Success)
+    static_suggested_query(&block.command, localization::current_locale(ctx))
+        .map(AgentModePromptSuggestion::Success)
 }
 
 fn build_prompt_suggestions_request(

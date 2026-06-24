@@ -26,6 +26,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields, MenuVariant};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
@@ -54,12 +55,6 @@ const SEARCH_VERTICAL_PADDING: f32 = 4.;
 // footer. Combined with the item's own 4px bottom padding, this yields 8px
 // of total breathing room above the divider line.
 const SEARCH_FOOTER_TOP_MARGIN: f32 = 4.;
-
-const SEARCH_PLACEHOLDER_TEXT: &str = "Search models";
-
-const BUTTON_TOOLTIP: &str = "Choose agent model";
-
-const NO_RESULTS_LABEL: &str = "No results";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ModelSelectorAction {
@@ -114,10 +109,13 @@ impl ModelSelector {
         ambient_agent_model: Option<ModelHandle<AmbientAgentViewModel>>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let button = ctx.add_typed_action_view(|_ctx| {
+        let button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_size(ButtonSize::AgentInputButton)
-                .with_tooltip(BUTTON_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "terminal.ambient_agent.model_selector.tooltip",
+                ))
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(ModelSelectorAction::ToggleMenu);
                 })
@@ -137,7 +135,13 @@ impl ModelSelector {
                 },
                 ctx,
             );
-            editor.set_placeholder_text(SEARCH_PLACEHOLDER_TEXT, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "terminal.ambient_agent.model_selector.search_placeholder",
+                ),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&search_editor, |me, _, event, ctx| {
@@ -432,11 +436,14 @@ impl ModelSelector {
         if items.is_empty() {
             let no_results_text_color = internal_colors::text_sub(theme, theme.surface_2());
             items.push(MenuItem::Item(
-                MenuItemFields::new(NO_RESULTS_LABEL)
-                    .with_font_size_override(ITEM_FONT_SIZE)
-                    .with_padding_override(ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
-                    .with_override_text_color(no_results_text_color)
-                    .with_no_interaction_on_hover(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.ambient_agent.model_selector.no_results",
+                ))
+                .with_font_size_override(ITEM_FONT_SIZE)
+                .with_padding_override(ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
+                .with_override_text_color(no_results_text_color)
+                .with_no_interaction_on_hover(),
             ));
         }
 

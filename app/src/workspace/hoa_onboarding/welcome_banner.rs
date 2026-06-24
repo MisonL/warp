@@ -8,9 +8,10 @@ use warpui::elements::{
     ParentElement, ParentOffsetBounds, Radius, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::{Element, ViewHandle};
+use warpui::{AppContext, Element, ViewHandle};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::ActionButton;
 
@@ -20,30 +21,30 @@ const HERO_IMAGE_PATH: &str = "async/png/onboarding/hoa_welcome_banner.png";
 
 struct FeatureItem {
     icon: Icon,
-    title: &'static str,
-    description: &'static str,
+    title_key: &'static str,
+    description_key: &'static str,
 }
 
 const FEATURE_ITEMS: &[FeatureItem] = &[
     FeatureItem {
         icon: Icon::LayoutAlt01,
-        title: "Vertical tabs",
-        description: "Rich tab titles and metadata like git branch, worktree, and PR. Fully customizable.",
+        title_key: "workspace.hoa.welcome.feature.vertical_tabs.title",
+        description_key: "workspace.hoa.welcome.feature.vertical_tabs.description",
     },
     FeatureItem {
         icon: Icon::Sliders,
-        title: "Tab configs",
-        description: "Tab-level schema to set your directory, startup commands, theme, and worktree with one click",
+        title_key: "workspace.hoa.welcome.feature.tab_configs.title",
+        description_key: "workspace.hoa.welcome.feature.tab_configs.description",
     },
     FeatureItem {
         icon: Icon::Inbox,
-        title: "Agent inbox",
-        description: "Notifications when any agent needs your attention, also accessible in a central inbox",
+        title_key: "workspace.hoa.welcome.feature.agent_inbox.title",
+        description_key: "workspace.hoa.welcome.feature.agent_inbox.description",
     },
     FeatureItem {
         icon: Icon::MessageCheckSquare,
-        title: "Native code review",
-        description: "Send inline comments from Warp's code review directly to Claude Code, Codex, or OpenCode",
+        title_key: "workspace.hoa.welcome.feature.native_code_review.title",
+        description_key: "workspace.hoa.welcome.feature.native_code_review.description",
     },
 ];
 
@@ -51,6 +52,7 @@ pub fn render_welcome_banner(
     close_button: &ViewHandle<ActionButton>,
     cta_button: &ViewHandle<ActionButton>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     // Hero image with close button overlay
     let hero = ConstrainedBox::new(
@@ -84,9 +86,13 @@ pub fn render_welcome_banner(
     );
 
     // "New" badge
-    let text = Text::new_inline("New".to_string(), appearance.ui_font_family(), 14.)
-        .with_color(PhenomenonStyle::modal_badge_text())
-        .finish();
+    let text = Text::new_inline(
+        localization::text_for_app(app, "workspace.hoa.welcome.badge.new"),
+        appearance.ui_font_family(),
+        14.,
+    )
+    .with_color(PhenomenonStyle::modal_badge_text())
+    .finish();
     let badge = ConstrainedBox::new(
         Container::new(
             Flex::row()
@@ -105,7 +111,7 @@ pub fn render_welcome_banner(
 
     // Title
     let title = Text::new(
-        "Introducing universal agent support: level up any coding agent with Warp",
+        localization::text_for_app(app, "workspace.hoa.welcome.title"),
         appearance.ui_font_family(),
         20.,
     )
@@ -132,14 +138,22 @@ pub fn render_welcome_banner(
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(2.)
             .with_child(
-                Text::new_inline(item.title.to_string(), appearance.ui_font_family(), 14.)
-                    .with_color(PhenomenonStyle::modal_feature_title_text())
-                    .finish(),
+                Text::new_inline(
+                    localization::text_for_app(app, item.title_key),
+                    appearance.ui_font_family(),
+                    14.,
+                )
+                .with_color(PhenomenonStyle::modal_feature_title_text())
+                .finish(),
             )
             .with_child(
-                Text::new(item.description, appearance.ui_font_family(), 14.)
-                    .with_color(PhenomenonStyle::modal_feature_description_text())
-                    .finish(),
+                Text::new(
+                    localization::text_for_app(app, item.description_key),
+                    appearance.ui_font_family(),
+                    14.,
+                )
+                .with_color(PhenomenonStyle::modal_feature_description_text())
+                .finish(),
             )
             .finish();
 

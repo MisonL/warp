@@ -1,3 +1,4 @@
+use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
 use ui_components::{button, Component as _, Options as _};
 use warp_core::ui::theme::color::internal_colors;
@@ -19,6 +20,7 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 
 const MODAL_WIDTH: f32 = 460.;
 const INPUT_BORDER_RADIUS: Radius = Radius::Pixels(4.);
@@ -126,7 +128,7 @@ impl ProviderKeysModalView {
     fn render_field(
         &self,
         appearance: &Appearance,
-        label: &'static str,
+        label: String,
         editor: ViewHandle<EditorView>,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
@@ -136,12 +138,21 @@ impl ProviderKeysModalView {
         let input_text_color: ColorU = internal_colors::text_main(theme, input_bg_solid);
         let border_color = internal_colors::neutral_4(theme);
 
-        let label_el = FormattedTextElement::from_str(label, appearance.ui_font_family(), 12.)
-            .with_color(internal_colors::text_main(theme, dialog_surface_solid))
-            .with_weight(Weight::Normal)
-            .with_alignment(TextAlignment::Left)
-            .with_line_height_ratio(1.0)
-            .finish();
+        let label_el = FormattedTextElement::new(
+            FormattedText::new([FormattedTextLine::Line(vec![
+                FormattedTextFragment::plain_text(label),
+            ])]),
+            12.,
+            appearance.ui_font_family(),
+            appearance.ui_font_family(),
+            internal_colors::text_main(theme, dialog_surface_solid),
+            Default::default(),
+        )
+        .with_color(internal_colors::text_main(theme, dialog_surface_solid))
+        .with_weight(Weight::Normal)
+        .with_alignment(TextAlignment::Left)
+        .with_line_height_ratio(1.0)
+        .finish();
 
         let input = appearance
             .ui_builder()
@@ -195,11 +206,23 @@ impl View for ProviderKeysModalView {
         let border_color = internal_colors::neutral_4(theme);
         let ui_builder = appearance.ui_builder();
 
-        let title = FormattedTextElement::from_str("Add API key", appearance.ui_font_family(), 16.)
-            .with_color(internal_colors::text_main(theme, dialog_surface_solid))
-            .with_weight(Weight::Bold)
-            .with_line_height_ratio(1.25)
-            .finish();
+        let title = FormattedTextElement::new(
+            FormattedText::new([FormattedTextLine::Line(vec![
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    app,
+                    "auth.provider_keys.title",
+                )),
+            ])]),
+            16.,
+            appearance.ui_font_family(),
+            appearance.ui_font_family(),
+            internal_colors::text_main(theme, dialog_surface_solid),
+            Default::default(),
+        )
+        .with_color(internal_colors::text_main(theme, dialog_surface_solid))
+        .with_weight(Weight::Bold)
+        .with_line_height_ratio(1.25)
+        .finish();
 
         let close_button = ui_builder
             .close_button(24., self.close_mouse_state.clone())
@@ -217,10 +240,18 @@ impl View for ProviderKeysModalView {
             .with_child(close_button)
             .finish();
 
-        let subtitle = FormattedTextElement::from_str(
-            "Use your own API keys from model providers for Warp Agent.",
-            appearance.ui_font_family(),
+        let subtitle = FormattedTextElement::new(
+            FormattedText::new([FormattedTextLine::Line(vec![
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    app,
+                    "auth.provider_keys.subtitle",
+                )),
+            ])]),
             14.,
+            appearance.ui_font_family(),
+            appearance.ui_font_family(),
+            internal_colors::text_sub(theme, dialog_surface_solid),
+            Default::default(),
         )
         .with_color(internal_colors::text_sub(theme, dialog_surface_solid))
         .with_weight(Weight::Normal)
@@ -231,11 +262,15 @@ impl View for ProviderKeysModalView {
         let body = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(Container::new(subtitle).with_margin_bottom(16.).finish())
-            .with_child(self.render_field(appearance, "OpenAI API key", self.openai_input.clone()))
+            .with_child(self.render_field(
+                appearance,
+                localization::text_for_app(app, "auth.provider_keys.openai"),
+                self.openai_input.clone(),
+            ))
             .with_child(
                 Container::new(self.render_field(
                     appearance,
-                    "Anthropic API key",
+                    localization::text_for_app(app, "auth.provider_keys.anthropic"),
                     self.anthropic_input.clone(),
                 ))
                 .with_margin_top(16.)
@@ -244,7 +279,7 @@ impl View for ProviderKeysModalView {
             .with_child(
                 Container::new(self.render_field(
                     appearance,
-                    "Google API key",
+                    localization::text_for_app(app, "auth.provider_keys.google"),
                     self.google_input.clone(),
                 ))
                 .with_margin_top(16.)
@@ -255,7 +290,9 @@ impl View for ProviderKeysModalView {
         let cancel_button = self.cancel_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Cancel".into()),
+                content: button::Content::Label(
+                    crate::localization::text_for_app(app, "settings.action.cancel").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -269,7 +306,9 @@ impl View for ProviderKeysModalView {
         let add_button = self.add_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Add keys".into()),
+                content: button::Content::Label(
+                    localization::text_for_app(app, "auth.provider_keys.add_keys").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {

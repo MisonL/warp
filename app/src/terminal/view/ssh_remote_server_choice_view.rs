@@ -39,7 +39,7 @@ use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettings};
 use crate::ui_components::blended_colors;
-use crate::{send_telemetry_from_ctx, Appearance};
+use crate::{localization, send_telemetry_from_ctx, Appearance};
 
 const PROMPT_BORDER_RADIUS: f32 = 8.;
 
@@ -120,11 +120,12 @@ impl SshRemoteServerChoiceView {
         // Match the Figma design: a plain title row, no icon / chevron /
         // action buttons. `HeaderConfig` without an `interaction_mode` set
         // renders exactly that.
-        HeaderConfig::new("Choose your experience for this remote session:", app)
-            .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(
-                PROMPT_BORDER_RADIUS,
-            )))
-            .render_header(app, None)
+        HeaderConfig::new(
+            localization::text_for_app(app, "terminal.ssh_remote_choice.header"),
+            app,
+        )
+        .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(PROMPT_BORDER_RADIUS)))
+        .render_header(app, None)
     }
 
     fn render_buttons(&self) -> Box<dyn Element> {
@@ -133,7 +134,8 @@ impl SshRemoteServerChoiceView {
             .finish()
     }
 
-    fn render_footer(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_footer(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         let muted_color = internal_colors::neutral_5(theme);
         let accent_color = theme.accent().into_solid();
@@ -153,9 +155,11 @@ impl SshRemoteServerChoiceView {
             })
             .finish();
 
-        let checkbox_label =
+        let checkbox_label = {
+            let label =
+                localization::text_for_app(app, "terminal.ssh_remote_choice.do_not_ask_again");
             Hoverable::new(self.do_not_ask_again_label_mouse_state.clone(), move |_| {
-                Text::new("Don't ask me this again", ui_font_family, footer_font_size)
+                Text::new(label.clone(), ui_font_family, footer_font_size)
                     .with_color(muted_color)
                     .finish()
             })
@@ -163,7 +167,8 @@ impl SshRemoteServerChoiceView {
             .on_click(|ctx, _, _| {
                 ctx.dispatch_typed_action(SshRemoteServerChoiceViewAction::ToggleDoNotAskAgain);
             })
-            .finish();
+            .finish()
+        };
 
         let checkbox_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -237,7 +242,7 @@ impl View for SshRemoteServerChoiceView {
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(self.render_header(app))
             .with_child(self.render_buttons())
-            .with_child(self.render_footer(appearance))
+            .with_child(self.render_footer(app))
             .finish();
 
         let border_color = blended_colors::neutral_2(theme);

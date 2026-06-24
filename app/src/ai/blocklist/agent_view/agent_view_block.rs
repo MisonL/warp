@@ -26,7 +26,7 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icon_with_status::{render_icon_with_status, IconWithStatusVariant};
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ToastStack, WorkspaceAction};
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 #[derive(Default)]
 struct StateHandles {
@@ -207,6 +207,7 @@ fn render_deleted_state(
     cached_title: Option<String>,
     appearance: &Appearance,
     are_block_dividers_enabled: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let disabled_color =
         blended_colors::text_disabled(appearance.theme(), appearance.theme().background());
@@ -216,7 +217,9 @@ fn render_deleted_state(
         .with_main_axis_size(MainAxisSize::Max)
         .with_child(
             Text::new(
-                cached_title.unwrap_or_else(|| "Deleted conversation".to_string()),
+                cached_title.unwrap_or_else(|| {
+                    localization::text_for_app(app, "agent.view_block.deleted_conversation")
+                }),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -227,7 +230,10 @@ fn render_deleted_state(
             })
             .finish(),
         )
-        .with_child(render_subtext("Deleted".to_string(), appearance))
+        .with_child(render_subtext(
+            localization::text_for_app(app, "agent.view_block.deleted_status"),
+            appearance,
+        ))
         .finish();
 
     render_block_container(
@@ -263,6 +269,7 @@ impl View for AgentViewEntryBlock {
                 self.cached_title.clone(),
                 appearance,
                 are_block_dividers_enabled,
+                app,
             );
         };
 
@@ -485,9 +492,10 @@ impl TypedActionView for AgentViewEntryBlock {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "Couldn't navigate to conversation.".to_string(),
-                                ),
+                                DismissibleToast::error(crate::localization::text_for_app(
+                                    ctx,
+                                    "terminal.input.toast.could_not_navigate_to_conversation",
+                                )),
                                 window_id,
                                 ctx,
                             );

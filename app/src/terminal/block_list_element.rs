@@ -62,7 +62,7 @@ use super::warpify::render::{draw_flag_pole, render_subshell_flag};
 use super::{heights_approx_eq, TerminalModel, HEIGHT_FUDGE_FACTOR_LINES};
 use crate::ai::blocklist::agent_view::{agent_view_bg_fill, AgentViewState};
 use crate::ai::blocklist::{ai_brand_color, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT};
-use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_AI_ASSISTANT_TEXT};
+use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_WARP_AI_MENU_KEY};
 use crate::appearance::Appearance;
 use crate::drive::settings::WarpDriveSettings;
 use crate::features::FeatureFlag;
@@ -1162,23 +1162,23 @@ impl BlockListElement {
                 if has_active_long_running_command && active_block.index() == block_index {
                     (
                         Some(TerminalAction::SetInputModeAgent),
-                        TAG_AGENT_FOR_ASSISTANCE_TEXT,
+                        TAG_AGENT_FOR_ASSISTANCE_TEXT.to_owned(),
                     )
                 } else {
                     (
                         Some(TerminalAction::AskAIAssistant { block_index }),
-                        *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT,
+                        (*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT).to_owned(),
                     )
                 }
             } else {
                 (
                     Some(TerminalAction::AskAIAssistant { block_index }),
-                    ASK_AI_ASSISTANT_TEXT,
+                    crate::localization::text_for_app(app, ASK_WARP_AI_MENU_KEY),
                 )
             };
 
             let tooltip = ToolbeltButtonTooltip {
-                label: ai_button_tooltip.to_owned(),
+                label: ai_button_tooltip,
                 tool_tip_below_button: should_render_tooltip_below_button,
             };
 

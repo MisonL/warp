@@ -77,7 +77,6 @@ use crate::ai::skills::{
 };
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _};
-use crate::send_telemetry_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ai::{AIClient, TaskStatusUpdate};
 use crate::server::server_api::harness_support::{
@@ -93,6 +92,7 @@ use crate::terminal::cli_agent_sessions::{
 };
 use crate::terminal::model::BlockId;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
+use crate::{localization, send_telemetry_from_app_ctx};
 
 pub(crate) mod attachments;
 pub(crate) mod cloud_provider;
@@ -1837,15 +1837,29 @@ impl AgentDriver {
                             let RepositoryIdentifier::Local(repo_id_path) = &id else {
                                 return None;
                             };
+                            let repo_display = repo_id_path.as_str().to_owned();
                             let error = match repo_metadata.as_ref(ctx).repository_state(&id, ctx) {
                                 Some(IndexedRepoState::Indexed(_)) => None,
-                                Some(IndexedRepoState::Pending(_)) => Some(format!(
-                                    "Repository indexing is still pending: {repo_id_path}"
-                                )),
-                                Some(IndexedRepoState::Failed(error)) => {
-                                    Some(format!("Repository indexing failed: {error}"))
+                                Some(IndexedRepoState::Pending(_)) => {
+                                    Some(localization::text_for_app_with_args(
+                                        ctx,
+                                        "agent_sdk.driver.error.repository_index_pending",
+                                        &[("repo", &repo_display)],
+                                    ))
                                 }
-                                None => Some(format!("Repository not found: {repo_id_path}")),
+                                Some(IndexedRepoState::Failed(error)) => {
+                                    let error = error.to_string();
+                                    Some(localization::text_for_app_with_args(
+                                        ctx,
+                                        "agent_sdk.driver.error.repository_index_failed",
+                                        &[("error", &error)],
+                                    ))
+                                }
+                                None => Some(localization::text_for_app_with_args(
+                                    ctx,
+                                    "agent_sdk.driver.error.repository_not_found",
+                                    &[("repo", &repo_display)],
+                                )),
                             };
                             Some((repo_path, error))
                         })

@@ -25,6 +25,7 @@ use crate::ai::agent_management::notifications::{
 use crate::ai::agent_management::{AgentManagementEvent, AgentNotificationsModel};
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 
@@ -116,23 +117,32 @@ impl NotificationMailboxView {
             AgentManagementEvent::ConversationNeedsAttention { .. } => {}
         });
 
-        let close_button = ctx.add_typed_action_view(|_| {
+        let close_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::X)
                 .with_size(ButtonSize::XSmall)
-                .with_tooltip("Close")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent_management.notifications.action.close",
+                ))
                 .with_tooltip_sublabel("Esc")
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(NotificationMailboxViewAction::Dismiss);
                 })
         });
 
-        let mark_all_read_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Mark all as read", NakedTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(NotificationMailboxViewAction::MarkAllRead);
-                })
+        let mark_all_read_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(
+                    ctx,
+                    "agent_management.notifications.action.mark_all_read",
+                ),
+                NakedTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(NotificationMailboxViewAction::MarkAllRead);
+            })
         });
 
         Self {

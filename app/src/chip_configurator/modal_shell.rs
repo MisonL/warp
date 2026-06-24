@@ -15,10 +15,10 @@ use warpui::elements::{
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{Action, Element};
+use warpui::{Action, AppContext, Element};
 
 use super::{ChipConfigurator, ChipConfiguratorAction};
-use crate::Appearance;
+use crate::{localization, Appearance};
 
 const MODAL_WIDTH: f32 = 700.;
 const BORDER_WIDTH: f32 = 1.;
@@ -67,6 +67,7 @@ pub fn render_chip_editor_modal<A: Action + Clone + Copy + 'static>(
     chip_configurator: &ChipConfigurator,
     config: ChipEditorModalConfig<A>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
 
@@ -93,7 +94,7 @@ pub fn render_chip_editor_modal<A: Action + Clone + Copy + 'static>(
             .with_margin_bottom(MARGIN_BETWEEN_MODAL_SECTIONS)
             .finish(),
         )
-        .with_child(render_buttons(&config, appearance))
+        .with_child(render_buttons(&config, appearance, app))
         .finish();
 
     let modal = Container::new(
@@ -291,9 +292,10 @@ fn render_primary_button<A: Action + Clone + Copy + 'static>(
 fn render_buttons<A: Action + Clone + Copy + 'static>(
     config: &ChipEditorModalConfig<A>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let cancel_button = render_primary_button(
-        "Cancel".to_string(),
+        localization::text_for_app(app, "prompt.editor.cancel"),
         ButtonVariant::Outlined,
         false,
         &config.mouse_handles.cancel,
@@ -302,7 +304,7 @@ fn render_buttons<A: Action + Clone + Copy + 'static>(
     );
 
     let save_button = render_primary_button(
-        "Save changes".to_string(),
+        localization::text_for_app(app, "prompt.editor.save_changes"),
         ButtonVariant::Accent,
         !config.is_dirty,
         &config.mouse_handles.save,

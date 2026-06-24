@@ -28,7 +28,6 @@ use crate::editor::{
     SingleLineEditorOptions, TextOptions,
 };
 use crate::features::FeatureFlag;
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{FindOption, TelemetryEvent};
 use crate::settings::AppEditorSettings;
 use crate::themes::theme::Fill;
@@ -36,6 +35,7 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, DisabledSecondaryTheme, SecondaryTheme};
 use crate::view_components::find::FindDirection;
+use crate::{localization, send_telemetry_from_ctx};
 
 pub const FIND_BAR_WIDTH: f32 = 500.;
 const ICON_PADDING: f32 = 4.;
@@ -134,7 +134,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
 }
 
 impl CodeEditorFind {
@@ -183,24 +184,30 @@ impl CodeEditorFind {
         // - 5px: Additional spacing to account for button border width
         let editor_height = line_height + (2. * FIND_EDITOR_PADDING) + 5.;
 
-        let select_all_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Select all", SecondaryTheme)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(FindAction::SelectAll);
-                })
-                .with_width(72.)
-                .with_height(editor_height)
-                .with_disabled_theme(DisabledSecondaryTheme)
+        let select_all_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "code.find.action.select_all"),
+                SecondaryTheme,
+            )
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(FindAction::SelectAll);
+            })
+            .with_width(72.)
+            .with_height(editor_height)
+            .with_disabled_theme(DisabledSecondaryTheme)
         });
 
         let replace_all_button = ctx.add_typed_action_view(|ctx| {
-            let mut button = ActionButton::new("Replace all", SecondaryTheme)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(FindAction::ReplaceAll);
-                })
-                .with_width(72.)
-                .with_height(editor_height)
-                .with_disabled_theme(DisabledSecondaryTheme);
+            let mut button = ActionButton::new(
+                localization::text_for_app(ctx, "code.find.action.replace_all"),
+                SecondaryTheme,
+            )
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(FindAction::ReplaceAll);
+            })
+            .with_width(72.)
+            .with_height(editor_height)
+            .with_disabled_theme(DisabledSecondaryTheme);
             button.set_disabled(true, ctx);
             button
         });

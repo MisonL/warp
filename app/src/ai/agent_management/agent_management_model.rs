@@ -20,7 +20,7 @@ use crate::terminal::cli_agent_sessions::{
 use crate::terminal::{CLIAgent, TerminalView};
 use crate::workspace::util::is_terminal_view_in_same_tab;
 use crate::workspace::{Workspace, WorkspaceRegistry};
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 /// Singleton model responsible for triggering in-app notifications on blocking conversation
 /// status updates and tracking/storing these notifications for the notifications mailbox.
@@ -157,17 +157,27 @@ impl AgentNotificationsModel {
                     );
                 }
                 CLIAgentSessionStatus::Success => {
-                    let title = session_context
-                        .display_title()
-                        .unwrap_or_else(|| format!("{} completed", agent.display_name()));
+                    let title = session_context.display_title().unwrap_or_else(|| {
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent_management.notifications.cli_completed_title",
+                            &[("agent", agent.display_name())],
+                        )
+                    });
                     let message = match agent {
-                        CLIAgent::Codex => "Notification from Codex",
-                        _ => "Task completed.",
+                        CLIAgent::Codex => localization::text_for_app(
+                            ctx,
+                            "agent_management.notifications.codex_message",
+                        ),
+                        _ => localization::text_for_app(
+                            ctx,
+                            "agent_management.notifications.task_completed",
+                        ),
                     };
                     let metadata = TerminalViewMetadata::lookup(*terminal_view_id, ctx);
                     self.add_notification(
                         title,
-                        message.to_owned(),
+                        message,
                         NotificationCategory::Complete,
                         NotificationSourceAgent::CLI {
                             agent: *agent,
@@ -181,15 +191,22 @@ impl AgentNotificationsModel {
                     );
                 }
                 CLIAgentSessionStatus::Blocked { message } => {
-                    let title = session_context
-                        .display_title()
-                        .unwrap_or_else(|| format!("{} needs attention", agent.display_name()));
+                    let title = session_context.display_title().unwrap_or_else(|| {
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent_management.notifications.cli_needs_attention_title",
+                            &[("agent", agent.display_name())],
+                        )
+                    });
                     let metadata = TerminalViewMetadata::lookup(*terminal_view_id, ctx);
                     self.add_notification(
                         title,
-                        message
-                            .clone()
-                            .unwrap_or_else(|| "Waiting for input.".to_owned()),
+                        message.clone().unwrap_or_else(|| {
+                            localization::text_for_app(
+                                ctx,
+                                "agent_management.notifications.waiting_for_input",
+                            )
+                        }),
                         NotificationCategory::Request,
                         NotificationSourceAgent::CLI {
                             agent: *agent,
@@ -319,7 +336,9 @@ impl AgentNotificationsModel {
             return;
         }
 
-        let title = latest_query.unwrap_or_else(|| "Agent task".to_owned());
+        let title = latest_query.unwrap_or_else(|| {
+            localization::text_for_app(ctx, "terminal.shared_session.agent_task")
+        });
         let metadata = TerminalViewMetadata::lookup(terminal_view_id, ctx);
         let oz_agent = NotificationSourceAgent::Oz {
             is_ambient: metadata.is_ambient,
@@ -343,7 +362,10 @@ impl AgentNotificationsModel {
                 let artifacts = self.flush_pending_artifacts(conversation_id);
                 self.add_notification(
                     title,
-                    "Task completed.".to_owned(),
+                    localization::text_for_app(
+                        ctx,
+                        "agent_management.notifications.task_completed",
+                    ),
                     NotificationCategory::Complete,
                     oz_agent,
                     origin,
@@ -357,7 +379,10 @@ impl AgentNotificationsModel {
                 let artifacts = self.flush_pending_artifacts(conversation_id);
                 self.add_notification(
                     title,
-                    "Task was cancelled.".to_owned(),
+                    localization::text_for_app(
+                        ctx,
+                        "agent_management.notifications.task_cancelled",
+                    ),
                     NotificationCategory::Complete,
                     oz_agent,
                     origin,
@@ -384,7 +409,10 @@ impl AgentNotificationsModel {
                 let artifacts = self.flush_pending_artifacts(conversation_id);
                 self.add_notification(
                     title,
-                    "Something went wrong.".to_owned(),
+                    localization::text_for_app(
+                        ctx,
+                        "agent_management.notifications.something_went_wrong",
+                    ),
                     NotificationCategory::Error,
                     oz_agent,
                     origin,

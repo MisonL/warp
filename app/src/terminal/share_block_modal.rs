@@ -173,7 +173,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
 }
 
 #[derive(PartialEq, Eq)]
@@ -759,7 +760,11 @@ impl ShareBlockModal {
         col.finish()
     }
 
-    fn render_manage_permalinks_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_manage_permalinks_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let mut button = appearance
             .ui_builder()
             .button(
@@ -768,7 +773,10 @@ impl ShareBlockModal {
                     .manage_permalinks_mouse_state
                     .clone(),
             )
-            .with_centered_text_label("Manage shared blocks".to_string())
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "terminal.share_block_modal.action.manage_shared_blocks",
+            ))
             .with_style(
                 self.button_style_overrides(appearance)
                     .set_font_size(12.)
@@ -893,7 +901,7 @@ impl ShareBlockModal {
                 Shrinkable::new(1., Align::new(modal_title_or_block_title).left().finish())
                     .finish(),
             )
-            .with_child(self.render_manage_permalinks_button(appearance))
+            .with_child(self.render_manage_permalinks_button(appearance, app))
             .with_child(self.render_close_modal_button(appearance))
             .finish();
         column.add_child(
@@ -962,7 +970,10 @@ impl ShareBlockModal {
                 .finish();
             let show_prompt_description = appearance
                 .ui_builder()
-                .span("Show prompt".to_string())
+                .span(crate::localization::text_for_app(
+                    app,
+                    "terminal.share_block_modal.option.show_prompt",
+                ))
                 .build()
                 .with_margin_left(2.)
                 .finish();
@@ -1063,7 +1074,10 @@ impl ShareBlockModal {
 
             let redact_secrets_description = appearance
                 .ui_builder()
-                .span("Redact secrets (API keys, passwords, IP addresses, PII etc.)".to_string())
+                .span(crate::localization::text_for_app(
+                    app,
+                    "terminal.share_block_modal.option.redact_secrets",
+                ))
                 .build()
                 .with_margin_left(4.)
                 .finish();

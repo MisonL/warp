@@ -78,7 +78,10 @@ pub fn render_ai_follow_up_icon(
             let tooltip_background = appearance.theme().tooltip_background();
             let tool_tip = appearance
                 .ui_builder()
-                .tool_tip("Follow up with existing conversation".to_owned())
+                .tool_tip(crate::localization::text_for_app(
+                    app,
+                    "agent.view_util.follow_up_existing_conversation",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(12.),
                     background: Some(warpui::elements::Fill::Solid(tooltip_background)),
@@ -143,17 +146,27 @@ pub fn get_ai_block_overflow_menu_element_position_id(view_id: EntityId) -> Stri
 /// otherwise displays with one decimal place.
 /// Returns a formatted string with proper pluralization ("credit" vs "credits").
 pub fn format_credits(credits: f32) -> String {
+    format_credits_for_locale(credits, warp_localization::LocaleId::EnUs)
+}
+
+pub fn format_credits_for_app(credits: f32, app: &AppContext) -> String {
+    format_credits_for_locale(credits, crate::localization::current_locale(app))
+}
+
+fn format_credits_for_locale(credits: f32, locale: warp_localization::LocaleId) -> String {
     // If the first part of the decimal is 0, we just display the whole number.
-    if credits.fract() < 0.1 {
+    let count = if credits.fract() < 0.1 {
         let whole = credits.trunc() as i32;
-        if whole == 1 {
-            format!("{whole} credit")
-        } else {
-            format!("{whole} credits")
-        }
+        whole.to_string()
     } else {
-        format!("{credits:.1} credits")
-    }
+        format!("{credits:.1}")
+    };
+    let key = if count == "1" {
+        "agent.usage.credit.singular"
+    } else {
+        "agent.usage.credit.plural"
+    };
+    crate::localization::text_for_locale_with_args(locale, key, &[("count", &count)])
 }
 
 /// Renders a secondary button with an MCP/skill provider icon and a text label.

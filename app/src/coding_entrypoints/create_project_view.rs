@@ -15,7 +15,7 @@ use crate::ai::blocklist::telemetry_banner::should_collect_ai_ugc_telemetry;
 use crate::appearance::Appearance;
 use crate::coding_entrypoints::glowing_editor::{GlowingEditor, GlowingEditorEvent};
 use crate::settings::PrivacySettings;
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 const ICON_MARGIN_LEFT: f32 = 12.;
 const ICON_MARGIN_RIGHT: f32 = 8.;
@@ -28,7 +28,7 @@ pub struct CreateProjectView {
 }
 
 struct BuildSuggestion {
-    prompt: &'static str,
+    prompt_key: &'static str,
     mouse_state: MouseStateHandle,
 }
 
@@ -43,23 +43,23 @@ impl CreateProjectView {
 
         let suggestions = vec![
             BuildSuggestion {
-                prompt: "Build a Minesweeper clone in React",
+                prompt_key: "coding_entrypoints.create_project.suggestion.minesweeper.prompt",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
-                prompt: "Code a Node.js server that returns random quotes from a JSON file",
+                prompt_key: "coding_entrypoints.create_project.suggestion.node_quotes.prompt",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
-                prompt: "Write a CSV to JSON converter CLI",
+                prompt_key: "coding_entrypoints.create_project.suggestion.csv_to_json.prompt",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
-                prompt: "Create a starter template for a résumé web page",
+                prompt_key: "coding_entrypoints.create_project.suggestion.resume_page.prompt",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
-                prompt: "Make a Conway's Game of Life simulation",
+                prompt_key: "coding_entrypoints.create_project.suggestion.game_of_life.prompt",
                 mouse_state: Default::default(),
             },
         ];
@@ -111,6 +111,7 @@ impl CreateProjectView {
 
     fn render_suggestion_item(
         &self,
+        app: &AppContext,
         appearance: &Appearance,
         suggestion: &BuildSuggestion,
     ) -> Box<dyn Element> {
@@ -122,7 +123,8 @@ impl CreateProjectView {
         let font_color = theme.sub_text_color(theme.background()).into_solid();
 
         let mouse_state = suggestion.mouse_state.clone();
-        let prompt = suggestion.prompt;
+        let prompt = localization::text_for_app(app, suggestion.prompt_key);
+        let selected_prompt = prompt.clone();
 
         let row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -163,7 +165,7 @@ impl CreateProjectView {
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| {
             ctx.dispatch_typed_action(CreateProjectAction::SuggestionSelected {
-                prompt: prompt.to_string(),
+                prompt: selected_prompt.clone(),
             });
         })
         .finish()
@@ -225,7 +227,7 @@ impl View for CreateProjectView {
             let suggestions = self
                 .suggestions
                 .iter()
-                .map(|suggestion| self.render_suggestion_item(appearance, suggestion))
+                .map(|suggestion| self.render_suggestion_item(app, appearance, suggestion))
                 .collect::<Vec<_>>();
 
             let suggestion_container =

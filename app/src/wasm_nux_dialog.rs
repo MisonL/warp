@@ -9,13 +9,13 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::appearance::Appearance;
-use crate::report_if_error;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
 use crate::settings::{NativePreferenceSettings, UserNativePreference};
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 use crate::uri::web_intent_parser::{self, WebIntent};
+use crate::{localization, report_if_error};
 
 const CLOSE_BUTTON_DIAMETER: f32 = 20.;
 const DIALOG_WIDTH: f32 = 350.;
@@ -152,82 +152,101 @@ impl View for WasmNUXDialog {
 
         let dialog = if self.requested_download {
             Dialog::new(
-                "Open in Warp Desktop?".to_string(),
-                Some("Future links will automatically open on desktop.".to_string()),
+                localization::text_for_app(app, "wasm_nux.open_desktop.title"),
+                Some(localization::text_for_app(
+                    app,
+                    "wasm_nux.open_desktop.description",
+                )),
                 dialog_styles,
             )
             .with_bottom_row_child(Self::render_dialog_button(
-                "Open in Warp",
+                localization::text_for_app(app, "wasm_nux.action.open_in_warp"),
                 WasmNUXDialogAction::OpenNativeAndClose,
                 &self.confirm_mouse_state,
                 appearance,
             ))
         } else if app_install_detected == &UserAppInstallStatus::NotDetected {
-            Dialog::new("Download Warp Desktop?".to_string(), None, dialog_styles)
-                .with_child(
-                    Flex::column()
-                        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                        .with_main_axis_size(MainAxisSize::Min)
-                        .with_child(
+            Dialog::new(
+                localization::text_for_app(app, "wasm_nux.download.title"),
+                None,
+                dialog_styles,
+            )
+            .with_child(
+                Flex::column()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                    .with_main_axis_size(MainAxisSize::Min)
+                    .with_child(
+                        appearance
+                            .ui_builder()
+                            .span(localization::text_for_app(
+                                app,
+                                "wasm_nux.download.description",
+                            ))
+                            .with_style(UiComponentStyles {
+                                font_weight: Some(Weight::Thin),
+                                font_color: Some(
+                                    appearance
+                                        .theme()
+                                        .main_text_color(appearance.theme().surface_1())
+                                        .into_solid(),
+                                ),
+                                ..Default::default()
+                            })
+                            .with_soft_wrap()
+                            .build()
+                            .finish(),
+                    )
+                    .with_child(
+                        Align::new(
                             appearance
                                 .ui_builder()
-                                .span("Warp is the intelligent terminal with AI and your dev team's knowledge built-in.")
-                                .with_style(UiComponentStyles {
-                                    font_weight: Some(Weight::Thin),
-                                    font_color: Some(
-                                        appearance
-                                            .theme()
-                                            .main_text_color(appearance.theme().surface_1())
-                                            .into_solid(),
-                                    ),
-                                    ..Default::default()
-                                })
-                                .with_soft_wrap()
+                                .link(
+                                    localization::text_for_app(app, "wasm_nux.action.learn_more"),
+                                    None,
+                                    Some(Box::new(|ctx| {
+                                        ctx.dispatch_typed_action(WasmNUXDialogAction::LearnMore)
+                                    })),
+                                    self.learn_more_mouse_state.clone(),
+                                )
                                 .build()
                                 .finish(),
                         )
-                        .with_child(
-                            Align::new(
-                                appearance
-                                    .ui_builder()
-                                    .link(
-                                        "Learn more".to_string(),
-                                        None,
-                                        Some(Box::new(|ctx| {
-                                            ctx.dispatch_typed_action(
-                                                WasmNUXDialogAction::LearnMore,
-                                            )
-                                        })),
-                                        self.learn_more_mouse_state.clone(),
-                                    )
-                                    .build()
-                                    .finish(),
-                            )
-                            .left()
-                            .finish(),
-                        )
+                        .left()
                         .finish(),
-                )
-                .with_bottom_row_child(Self::render_dialog_button(
-                    "Download",
-                    WasmNUXDialogAction::OpenDownloadDesktopAppLink,
-                    &self.download_warp_mouse_state,
-                    appearance,
-                ))
+                    )
+                    .finish(),
+            )
+            .with_bottom_row_child(Self::render_dialog_button(
+                localization::text_for_app(app, "wasm_nux.action.download"),
+                WasmNUXDialogAction::OpenDownloadDesktopAppLink,
+                &self.download_warp_mouse_state,
+                appearance,
+            ))
         } else {
             let object_kind = match web_intent_parser::current_web_intent() {
-                Some(WebIntent::DriveObject(_)) => "Warp Drive objects",
-                Some(WebIntent::SessionView(_)) => "shared sessions",
-                _ => "Warp links",
+                Some(WebIntent::DriveObject(_)) => {
+                    localization::text_for_app(app, "wasm_nux.object_kind.drive_objects")
+                }
+                Some(WebIntent::SessionView(_)) => {
+                    localization::text_for_app(app, "wasm_nux.object_kind.shared_sessions")
+                }
+                _ => localization::text_for_app(app, "wasm_nux.object_kind.warp_links"),
             };
 
             Dialog::new(
-                format!("Always open {object_kind} on the web?"),
-                Some("You can change this at any time in settings.".to_string()),
+                localization::text_for_app_with_args(
+                    app,
+                    "wasm_nux.web_preference.title",
+                    &[("object_kind", &object_kind)],
+                ),
+                Some(localization::text_for_app(
+                    app,
+                    "wasm_nux.web_preference.description",
+                )),
                 dialog_styles,
             )
             .with_bottom_row_child(Self::render_dialog_button(
-                "Yes",
+                localization::text_for_app(app, "wasm_nux.action.yes"),
                 WasmNUXDialogAction::SetWebAndClose,
                 &self.confirm_mouse_state,
                 appearance,

@@ -34,6 +34,7 @@ use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHi
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::appearance::Appearance;
 use crate::changelog_model::{self, ChangelogModel};
+use crate::localization;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::event::BlockType;
 use crate::terminal::input::message_bar::common::render_standard_message;
@@ -657,10 +658,14 @@ fn render_title_and_description(props: HeaderProps, app: &AppContext) -> Vec<Box
 
             // Second line: text with "Visit docs" hyperlink.
             let description_with_link = FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(
-                    "Use cloud agents to run parallel agents, build agents that run autonomously, and check in on your agents from anywhere. ",
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    app,
+                    "agent.zero_state.cloud_docs_prefix",
+                )),
+                FormattedTextFragment::hyperlink(
+                    localization::text_for_app(app, "agent.zero_state.cloud_docs_link"),
+                    CLOUD_AGENT_DOCS_URL,
                 ),
-                FormattedTextFragment::hyperlink("Visit docs", CLOUD_AGENT_DOCS_URL),
             ])]);
 
             items.push(

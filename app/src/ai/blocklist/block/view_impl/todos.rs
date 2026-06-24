@@ -21,6 +21,7 @@ use crate::ai::blocklist::inline_action::inline_action_header::{
 };
 use crate::ai::blocklist::inline_action::inline_action_icons::{cancelled_icon, icon_size};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 
@@ -36,14 +37,17 @@ pub(super) fn render_todos(
 
     // Add collapsible header.
     let id = id.clone();
-    let mut header_config = HeaderConfig::new("Tasks", app)
-        .with_interaction_mode(InteractionMode::ManuallyExpandable(
-            ExpandedConfig::new(state.is_expanded, state.header_toggle_mouse_state.clone())
-                .with_toggle_callback(move |ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::ToggleTodoListExpanded(id.clone()));
-                }),
-        ))
-        .with_icon(todo_list_icon(appearance));
+    let mut header_config =
+        HeaderConfig::new(localization::text_for_app(app, "agent.todos.title"), app)
+            .with_interaction_mode(InteractionMode::ManuallyExpandable(
+                ExpandedConfig::new(state.is_expanded, state.header_toggle_mouse_state.clone())
+                    .with_toggle_callback(move |ctx| {
+                        ctx.dispatch_typed_action(AIBlockAction::ToggleTodoListExpanded(
+                            id.clone(),
+                        ));
+                    }),
+            ))
+            .with_icon(todo_list_icon(appearance));
 
     let mut has_cancelled_todo = false;
     let mut rendered_todos = vec![];

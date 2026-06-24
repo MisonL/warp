@@ -237,7 +237,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
 }
 
 impl FileNotebookView {
@@ -321,7 +322,22 @@ impl FileNotebookView {
             .as_ref()
             .map(|location| location.name.clone())
             .or_else(|| self.file_state.display_name())
-            .unwrap_or_else(|| "Untitled".to_string())
+            .unwrap_or_else(|| {
+                crate::localization::text_for_locale(
+                    warp_localization::LocaleId::EnUs,
+                    "notebook.placeholder.untitled",
+                )
+            })
+    }
+
+    pub fn title_for_app(&self, app: &AppContext) -> String {
+        self.location
+            .as_ref()
+            .map(|location| location.name.clone())
+            .or_else(|| self.file_state.display_name())
+            .unwrap_or_else(|| {
+                crate::localization::text_for_app(app, "notebook.placeholder.untitled")
+            })
     }
 
     pub fn focus(&self, ctx: &mut ViewContext<Self>) {
@@ -898,11 +914,21 @@ impl FileNotebookView {
     }
 
     /// Render the loading state while the source file is still being read.
-    fn render_loading(&self, source: &SourceFile, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_loading(
+        &self,
+        source: &SourceFile,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let file_name = source.display_name();
         Align::new(
             appearance
                 .ui_builder()
-                .paragraph(format!("Loading {}...", source.display_name()))
+                .paragraph(crate::localization::text_for_app_with_args(
+                    app,
+                    "notebook.file.loading",
+                    &[("file", &file_name)],
+                ))
                 .with_style(self.state_style(appearance))
                 .build()
                 .finish(),
@@ -911,11 +937,14 @@ impl FileNotebookView {
     }
 
     /// Renders a placeholder for when no file has been specified.
-    fn render_no_file(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_no_file(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Align::new(
             appearance
                 .ui_builder()
-                .paragraph("Missing source file".to_string())
+                .paragraph(crate::localization::text_for_app(
+                    app,
+                    "notebook.file.missing_source_file",
+                ))
                 .with_style(self.state_style(appearance))
                 .build()
                 .finish(),
@@ -935,16 +964,16 @@ impl FileNotebookView {
             .is_none()
     }
 
-    fn render_body(&self, appearance: &Appearance, _app: &AppContext) -> Box<dyn Element> {
+    fn render_body(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let body = match &self.file_state {
-            FileState::NoFile => self.render_no_file(appearance),
-            FileState::Loading(source) => self.render_loading(source, appearance),
+            FileState::NoFile => self.render_no_file(appearance, app),
+            FileState::Loading(source) => self.render_loading(source, appearance, app),
             FileState::Error(source) => self.render_error(source, appearance),
             FileState::Loaded(_) => ChildView::new(&self.editor).finish(),
         };
 
         #[cfg(not(target_family = "wasm"))]
-        if matches!(self.file_state, FileState::Loaded(_)) && self.is_remote_disconnected(_app) {
+        if matches!(self.file_state, FileState::Loaded(_)) && self.is_remote_disconnected(app) {
             let banner =
                 crate::code::local_code_editor::render_remote_disconnected_banner(appearance);
             let mut col = Flex::column();
@@ -966,9 +995,13 @@ impl View for FileNotebookView {
         "FileNotebookView"
     }
 
-    fn accessibility_contents(&self, _ctx: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new_without_help(
-            format!("{} notebook", self.title()),
+            crate::localization::text_for_app_with_args(
+                ctx,
+                "notebook.a11y.label",
+                &[("title", &self.title_for_app(ctx))],
+            ),
             WarpA11yRole::TextRole,
         ))
     }
@@ -1122,9 +1155,12 @@ impl BackingView for FileNotebookView {
         if let Some(SourceFile::FileBased { .. }) = self.file_state.source() {
             actions.push(MenuItem::Separator);
             actions.push(
-                MenuItemFields::new("Refresh file")
-                    .with_on_select_action(FileNotebookAction::ReloadFile)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "notebook.file.menu.refresh_file",
+                ))
+                .with_on_select_action(FileNotebookAction::ReloadFile)
+                .into_item(),
             );
 
             #[cfg(feature = "local_fs")]
@@ -1132,15 +1168,21 @@ impl BackingView for FileNotebookView {
                 // The markdown rendered/raw toggle is always visible in the pane header, so we don't
                 // duplicate it in the overflow menu. Keep "Open in editor" available for local files.
                 actions.push(
-                    MenuItemFields::new("Open in editor")
-                        .with_on_select_action(FileNotebookAction::OpenInEditor)
-                        .into_item(),
+                    MenuItemFields::new(crate::localization::text_for_app(
+                        ctx,
+                        "notebook.file.menu.open_in_editor",
+                    ))
+                    .with_on_select_action(FileNotebookAction::OpenInEditor)
+                    .into_item(),
                 );
                 actions.extend([
                     MenuItem::Separator,
-                    MenuItemFields::new("Copy file path")
-                        .with_on_select_action(FileNotebookAction::CopyFilePath)
-                        .into_item(),
+                    MenuItemFields::new(crate::localization::text_for_app(
+                        ctx,
+                        "notebook.file.menu.copy_file_path",
+                    ))
+                    .with_on_select_action(FileNotebookAction::CopyFilePath)
+                    .into_item(),
                 ]);
             }
         }

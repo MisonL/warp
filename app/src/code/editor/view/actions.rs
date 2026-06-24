@@ -18,7 +18,9 @@ use warp_util::user_input::UserInput;
 use warpui::actions::StandardAction;
 use warpui::elements::Axis;
 use warpui::event::ModifiersState;
-use warpui::keymap::{EditableBinding, FixedBinding, Keystroke, PerPlatformKeystroke};
+use warpui::keymap::{
+    BindingDescription, EditableBinding, FixedBinding, Keystroke, PerPlatformKeystroke,
+};
 use warpui::units::Pixels;
 use warpui::{AppContext, TypedActionView, ViewContext, WeakViewHandle};
 
@@ -31,6 +33,11 @@ use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
 use crate::notebooks::editor::model::word_unit;
 use crate::util::bindings::CustomAction;
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
 
 /// Limit the keybindings that conflict with the Agent Mode embedded editor.
 const NON_EDITABLE_KEYMAP_CONTEXT: &str = "NonEditableKeymapContext";

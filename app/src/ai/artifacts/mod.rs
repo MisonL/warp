@@ -386,7 +386,10 @@ pub fn download_file_artifact<V: warpui::View>(
                 log::warn!("Failed to load file artifact {artifact_uid}: {error}");
                 show_file_download_toast(
                     &artifact_uid,
-                    DismissibleToast::error("Failed to prepare file download.".to_string()),
+                    DismissibleToast::error(crate::localization::text_for_app(
+                        ctx,
+                        "agent_management.artifact.file_download.prepare_failed",
+                    )),
                     ctx,
                 );
             }

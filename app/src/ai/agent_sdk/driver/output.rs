@@ -15,8 +15,7 @@ pub mod text {
         UploadArtifactResult, WebFetchStatus, WebSearchStatus,
         WriteToLongRunningShellCommandResult,
     };
-    use crate::localization;
-    use crate::AIAgentActionResultType;
+    use crate::{localization, AIAgentActionResultType};
 
     const DEFAULT_MIME_TYPE: &str = "text/plain";
     const UNKNOWN_VALUE: &str = "unknown";
@@ -1118,8 +1117,7 @@ pub mod json {
         TodoOperation, UploadArtifactResult, WriteToLongRunningShellCommandResult,
     };
     use crate::code::buffer_location::LocalOrRemotePath;
-    use crate::localization;
-    use crate::AIAgentActionResultType;
+    use crate::{localization, AIAgentActionResultType};
 
     fn text(key: &str) -> String {
         localization::text_for_locale(LocaleId::EnUs, key)

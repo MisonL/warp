@@ -277,8 +277,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::LEFT_PANEL_VISIBILITY_ACROSS_TABS_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "agent font matching terminal font",
+    let match_agent_font_label = crate::localization::text_for_locale(
+        warp_localization::LocaleId::EnUs,
+        "settings.appearance.command_palette.match_agent_font",
+    );
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        &match_agent_font_label,
+        "settings.appearance.command_palette.match_agent_font",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleMatchAIToTerminalFontFamily,
         )),
@@ -286,8 +291,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::MATCH_AI_FONT_TO_TERMINAL_FONT_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "notebook font size matching terminal font size",
+    let match_notebook_font_size_label = crate::localization::text_for_locale(
+        warp_localization::LocaleId::EnUs,
+        "settings.appearance.command_palette.match_notebook_font_size",
+    );
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        &match_notebook_font_size_label,
+        "settings.appearance.command_palette.match_notebook_font_size",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleMatchNotebookToMonospaceFontSize,
         )),
@@ -451,8 +461,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::PRESERVE_ACTIVE_TAB_COLOR_FLAG,
     ));
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "custom padding in alt-screen",
+    let custom_padding_label = crate::localization::text_for_locale(
+        warp_localization::LocaleId::EnUs,
+        "settings.appearance.full_screen_apps.custom_padding.label",
+    );
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+        &custom_padding_label,
+        "settings.appearance.full_screen_apps.custom_padding.label",
         builder(SettingsAction::AppearancePageToggle(
             AppearancePageAction::ToggleAltScreenPadding,
         )),
@@ -1550,7 +1565,12 @@ impl AppearanceSettingsPageView {
             .chip_kinds()
             .into_iter()
             .filter_map(|kind| {
-                ContextChipRenderer::default_from_kind(kind, ChipAvailability::Enabled, appearance)
+                ContextChipRenderer::default_from_kind(
+                    kind,
+                    ChipAvailability::Enabled,
+                    appearance,
+                    app,
+                )
             })
             .collect()
     }
@@ -3912,7 +3932,10 @@ impl SettingsWidget for AIFontWidget {
         ai_font_row.add_child(
             appearance
                 .ui_builder()
-                .span("Match terminal".to_string())
+                .span(crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.text.match_terminal.label",
+                ))
                 .build()
                 .with_margin_left(2.)
                 .with_margin_right(16.)
@@ -3933,6 +3956,7 @@ impl TerminalFontWidget {
     fn render_line_height_editor(
         &self,
         view: &AppearanceSettingsPageView,
+        app: &AppContext,
         appearance: &Appearance,
         row: &mut Flex,
     ) {
@@ -4007,7 +4031,10 @@ impl TerminalFontWidget {
                     font_size: Some(appearance.ui_font_size() * 0.8),
                     ..Default::default()
                 })
-                .with_text_label("Reset to default".to_string());
+                .with_text_label(crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.text.reset_to_default.label",
+                ));
 
             button
                 .build()
@@ -4081,7 +4108,10 @@ impl SettingsWidget for TerminalFontWidget {
                             1.,
                             appearance
                                 .ui_builder()
-                                .span("View all available system fonts".to_string())
+                                .span(crate::localization::text_for_app(
+                                    app,
+                                    "settings.appearance.text.view_all_system_fonts.label",
+                                ))
                                 .build()
                                 .with_margin_left(2.)
                                 .finish(),
@@ -4176,7 +4206,7 @@ impl SettingsWidget for TerminalFontWidget {
                 .finish(),
         );
 
-        self.render_line_height_editor(view, appearance, &mut terminal_font_row);
+        self.render_line_height_editor(view, app, appearance, &mut terminal_font_row);
         terminal_font_row.finish()
     }
 }
@@ -4209,7 +4239,10 @@ impl SettingsWidget for NotebookFontSizeWidget {
                         Align::new(
                             appearance
                                 .ui_builder()
-                                .span("Notebook font size".to_string())
+                                .span(crate::localization::text_for_app(
+                                    app,
+                                    "settings.appearance.text.notebook_font_size.label",
+                                ))
                                 .build()
                                 .with_margin_right(16.)
                                 .finish(),
@@ -4235,7 +4268,10 @@ impl SettingsWidget for NotebookFontSizeWidget {
                 .with_child(
                     appearance
                         .ui_builder()
-                        .span("Match terminal".to_string())
+                        .span(crate::localization::text_for_app(
+                            app,
+                            "settings.appearance.text.match_terminal.label",
+                        ))
                         .build()
                         .with_margin_left(2.)
                         .with_margin_right(16.)
@@ -4444,7 +4480,10 @@ impl SettingsWidget for CursorTypeWidget {
                     .with_child(
                         appearance
                             .ui_builder()
-                            .span("Cursor type is disabled in Vim mode".to_string())
+                            .span(crate::localization::text_for_app(
+                                app,
+                                "settings.appearance.cursor.disabled_in_vim_mode",
+                            ))
                             .build()
                             .finish(),
                     )
@@ -5303,6 +5342,7 @@ impl SettingsWidget for ZoomLevelWidget {
 
         let reset_button = build_reset_button(
             appearance,
+            app,
             view.zoom_reset_button_mouse_state.clone(),
             changed_from_default,
         )

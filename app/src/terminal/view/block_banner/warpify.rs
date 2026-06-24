@@ -6,10 +6,11 @@ use warpui::fonts::Weight;
 use warpui::keymap::Keystroke;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::render_block_banner;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::view::{RememberForWarpification, TerminalAction};
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
@@ -68,6 +69,7 @@ impl WarpifyBannerState {
 pub fn render_warpification_banner(
     state: &WarpifyBannerState,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let yes_button = render_yes_button(
         state,
@@ -84,7 +86,10 @@ pub fn render_warpification_banner(
                 ButtonVariant::Text,
                 state.dont_ask_button_mouse_state.clone(),
             )
-            .with_text_label("Do not show again".to_owned())
+            .with_text_label(localization::text_for_app(
+                app,
+                "terminal.warpify_banner.do_not_show_again",
+            ))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::DismissWarpifyBanner(

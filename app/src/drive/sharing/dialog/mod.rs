@@ -60,7 +60,7 @@ use crate::word_block_editor::{
 };
 use crate::workspace::{ToastStack, WorkspaceAction};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 mod inheritance;
 
@@ -1014,10 +1014,13 @@ impl SharingDialog {
                 if !is_team_guest || !is_session {
                     items.push(MenuItem::Separator);
                     items.push(
-                        MenuItemFields::new("Remove")
-                            .with_on_select_action(SharingDialogAction::RemoveGuest)
-                            .with_disabled(inherited_access)
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            ctx,
+                            "drive.sharing.remove",
+                        ))
+                        .with_on_select_action(SharingDialogAction::RemoveGuest)
+                        .with_disabled(inherited_access)
+                        .into_item(),
                     );
                 }
 
@@ -1451,7 +1454,7 @@ impl SharingDialog {
                 ButtonVariant::Accent,
                 self.ui_state_handles.invite_button.clone(),
             )
-            .with_centered_text_label("Invite".into())
+            .with_centered_text_label(localization::text_for_app(app, "drive.sharing.invite"))
             .with_style(UiComponentStyles {
                 // Adjust the height to match the email editor's padding.
                 height: Some(style::ACL_ITEM_HEIGHT + 6.),
@@ -1786,10 +1789,13 @@ impl SharingDialog {
     }
 
     /// Render the "Who has access" header shown above the ACL list.
-    fn render_access_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_access_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .span("Who has access")
+            .span(localization::text_for_app(
+                app,
+                "drive.sharing.who_has_access",
+            ))
             .with_style(UiComponentStyles {
                 font_color: Some(style::label_text(appearance)),
                 font_size: Some(style::PRIMARY_TEXT_SIZE),
@@ -2027,16 +2033,22 @@ impl SharingDialog {
         let is_ai_conversation = matches!(self.target, Some(ShareableObject::AIConversation(_)));
 
         let mut items = vec![
-            MenuItemFields::new("Only people invited")
-                .with_on_select_action(SharingDialogAction::SetLinkPermissions(None))
-                .with_icon(Icon::Lock)
-                .with_disabled(inherited_access)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "drive.sharing.only_people_invited",
+            ))
+            .with_on_select_action(SharingDialogAction::SetLinkPermissions(None))
+            .with_icon(Icon::Lock)
+            .with_disabled(inherited_access)
+            .into_item(),
             MenuItem::Separator,
-            MenuItemFields::new("Anyone with the link")
-                .with_no_interaction_on_hover()
-                .with_icon(Icon::Globe)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "drive.sharing.anyone_with_link",
+            ))
+            .with_no_interaction_on_hover()
+            .with_icon(Icon::Globe)
+            .into_item(),
             MenuItemFields::new(SharingAccessLevel::View.label())
                 .with_on_select_action(SharingDialogAction::SetLinkPermissions(Some(
                     SharingAccessLevel::View,
@@ -2208,16 +2220,22 @@ impl SharingDialog {
         let inherited_access = self.team_sharing_state.inheritance.is_some();
         let current_access_level = self.team_sharing_state.access_level;
         let items = [
-            MenuItemFields::new("Only invited teammates")
-                .with_on_select_action(SharingDialogAction::SetTeamPermissions(None))
-                .with_icon(Icon::Lock)
-                .with_disabled(inherited_access)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "drive.sharing.only_invited_teammates",
+            ))
+            .with_on_select_action(SharingDialogAction::SetTeamPermissions(None))
+            .with_icon(Icon::Lock)
+            .with_disabled(inherited_access)
+            .into_item(),
             MenuItem::Separator,
-            MenuItemFields::new("Teammates with the link")
-                .with_no_interaction_on_hover()
-                .with_icon(Icon::Users)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "drive.sharing.teammates_with_link",
+            ))
+            .with_no_interaction_on_hover()
+            .with_icon(Icon::Users)
+            .into_item(),
             MenuItemFields::new(SharingAccessLevel::View.label())
                 .with_on_select_action(SharingDialogAction::SetTeamPermissions(Some(
                     SharingAccessLevel::View,
@@ -2447,7 +2465,10 @@ impl SharingDialog {
     fn download_qr_code(&self, ctx: &mut ViewContext<Self>) {
         let Some(url) = self.target_link(ctx) else {
             self.show_ephemeral_toast(
-                DismissibleToast::error("Unable to download QR code.".to_string()),
+                DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "drive.sharing.toast.unable_to_download_qr_code",
+                )),
                 ctx,
             );
             return;
@@ -2457,7 +2478,10 @@ impl SharingDialog {
             Ok(png) => png,
             Err(_) => {
                 self.show_ephemeral_toast(
-                    DismissibleToast::error("Unable to download QR code.".to_string()),
+                    DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "drive.sharing.toast.unable_to_download_qr_code",
+                    )),
                     ctx,
                 );
                 return;
@@ -2485,11 +2509,17 @@ impl SharingDialog {
     fn handle_qr_write_result(&self, result: std::io::Result<()>, ctx: &mut ViewContext<Self>) {
         match result {
             Ok(()) => self.show_ephemeral_toast(
-                DismissibleToast::success("QR code downloaded.".to_string()),
+                DismissibleToast::success(localization::text_for_app(
+                    ctx,
+                    "drive.sharing.toast.qr_code_downloaded",
+                )),
                 ctx,
             ),
             Err(_) => self.show_ephemeral_toast(
-                DismissibleToast::error("Unable to download QR code.".to_string()),
+                DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "drive.sharing.toast.unable_to_download_qr_code",
+                )),
                 ctx,
             ),
         }
@@ -2499,7 +2529,7 @@ impl SharingDialog {
         &self,
         icon: Icon,
         action: SharingDialogAction,
-        tooltip: &'static str,
+        tooltip: String,
         mouse_state: MouseStateHandle,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
@@ -2513,7 +2543,7 @@ impl SharingDialog {
             mouse_state,
             ThemeFill::Solid(button_foreground.into()),
         )
-        .with_tooltip(move || ui_builder.tool_tip(tooltip.to_string()).build().finish())
+        .with_tooltip(move || ui_builder.tool_tip(tooltip.clone()).build().finish())
         .with_style(UiComponentStyles {
             width: Some(style::ACL_ITEM_HEIGHT),
             height: Some(style::ACL_ITEM_HEIGHT),
@@ -2577,7 +2607,7 @@ impl SharingDialog {
             .finish()
     }
 
-    fn render_qr_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_qr_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let foreground = style::acl_primary_text_color(appearance);
         let icon_button_styles = UiComponentStyles {
             width: Some(QR_ICON_BUTTON_SIZE),
@@ -2604,7 +2634,10 @@ impl SharingDialog {
         .finish();
         let title = appearance
             .ui_builder()
-            .span("Share session QR code")
+            .span(localization::text_for_app(
+                app,
+                "drive.sharing.share_session_qr_code",
+            ))
             .with_style(UiComponentStyles {
                 font_color: Some(foreground),
                 font_size: Some(style::HEADER_TEXT_SIZE),
@@ -2673,14 +2706,14 @@ impl SharingDialog {
                         self.render_footer_icon_button(
                             Icon::Copy,
                             SharingDialogAction::CopyLink,
-                            "Copy link",
+                            localization::text_for_app(app, "drive.sharing.copy_link"),
                             self.ui_state_handles.qr_copy_button.clone(),
                             appearance,
                         ),
                         Container::new(self.render_footer_icon_button(
                             Icon::Download,
                             SharingDialogAction::DownloadQrCode,
-                            "Download QR code",
+                            localization::text_for_app(app, "drive.sharing.download_qr_code"),
                             self.ui_state_handles.qr_download_button.clone(),
                             appearance,
                         ))
@@ -2703,7 +2736,10 @@ impl SharingDialog {
             .unwrap_or_else(|| {
                 appearance
                     .ui_builder()
-                    .paragraph("Unable to create QR code for this session link.")
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "drive.sharing.unable_to_create_qr_code_for_session_link",
+                    ))
                     .with_style(UiComponentStyles {
                         font_color: Some(style::acl_secondary_text_color(appearance)),
                         ..Default::default()
@@ -2715,7 +2751,7 @@ impl SharingDialog {
         Flex::column()
             .with_main_axis_size(MainAxisSize::Min)
             .with_children([
-                self.render_qr_header(appearance),
+                self.render_qr_header(appearance, app),
                 Container::new(Align::new(qr_contents).finish())
                     .with_vertical_padding(32.)
                     .finish(),
@@ -2757,7 +2793,7 @@ impl SharingDialog {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    "Copy link",
+                    localization::text_for_app(app, "drive.sharing.copy_link"),
                     Icon::Link.to_warpui_icon(copy_button_foreground),
                     MainAxisSize::Min,
                     MainAxisAlignment::SpaceBetween,
@@ -2788,7 +2824,7 @@ impl SharingDialog {
             self.render_footer_icon_button(
                 Icon::QrCode,
                 SharingDialogAction::ShowQrCode,
-                "Show QR code",
+                localization::text_for_app(app, "drive.sharing.show_qr_code"),
                 self.ui_state_handles.qr_code_button.clone(),
                 appearance,
             )
@@ -2858,7 +2894,7 @@ impl View for SharingDialog {
             if self.can_edit_access(app) && self.can_direct_link_share(app) {
                 contents.add_child(self.render_invite_form(appearance, app));
             }
-            contents.add_child(self.render_access_header(appearance));
+            contents.add_child(self.render_access_header(appearance, app));
             contents.extend(self.render_restricted_access_label(appearance, app));
 
             if self.can_anyone_with_link_share(app) {

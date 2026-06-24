@@ -43,6 +43,7 @@ use crate::code::active_file::{ActiveFileEvent, ActiveFileModel};
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::{EditorOptions, EditorView, TextOptions};
+use crate::localization;
 use crate::menu::{Menu, MenuItem, MenuItemFields};
 #[cfg(feature = "local_fs")]
 use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
@@ -66,9 +67,9 @@ mod render;
 
 use crate::settings::{CodeSettings, CodeSettingsChangedEvent};
 
-const REMOTE_TEXT: &str = "The Project Explorer requires access to your local workspace, which isn’t supported in remote sessions.";
-const DISABLED_TEXT: &str = "The Project Explorer requires access to your local workspace. Open a new session or navigate to an active session to view.";
-const WSL_TEXT: &str = "The Project Explorer doesn't currently work in WSL.";
+fn file_tree_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// Stable identifier for an item in the file tree.
 /// Includes both the root directory and the index within that root's flattened list.
@@ -2329,6 +2330,7 @@ impl FileTreeView {
         &self,
         item: &FileTreeItem,
         id: &FileTreeIdentifier,
+        app: &AppContext,
     ) -> Vec<MenuItem<FileTreeAction>> {
         let is_remote = self.is_remote_item(id);
 
@@ -2345,30 +2347,33 @@ impl FileTreeView {
                     let path_local = item.path().to_local_path_lossy();
                     if !is_file_content_binary(&path_local) {
                         items.extend([
-                            MenuItemFields::new("Open in new pane")
-                                .with_on_select_action(FileTreeAction::OpenInNewPane {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
-                            MenuItemFields::new("Open in new tab")
-                                .with_on_select_action(FileTreeAction::OpenInNewTab {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
+                            MenuItemFields::new(file_tree_text(
+                                app,
+                                "code.file_tree.menu.open_in_new_pane",
+                            ))
+                            .with_on_select_action(FileTreeAction::OpenInNewPane { id: id.clone() })
+                            .into_item(),
+                            MenuItemFields::new(file_tree_text(
+                                app,
+                                "code.file_tree.menu.open_in_new_tab",
+                            ))
+                            .with_on_select_action(FileTreeAction::OpenInNewTab { id: id.clone() })
+                            .into_item(),
                         ]);
                     } else {
                         items.push(
-                            MenuItemFields::new("Open file")
-                                .with_on_select_action(FileTreeAction::ItemClicked {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
+                            MenuItemFields::new(file_tree_text(
+                                app,
+                                "code.file_tree.menu.open_file",
+                            ))
+                            .with_on_select_action(FileTreeAction::ItemClicked { id: id.clone() })
+                            .into_item(),
                         );
                     }
                 }
                 FileTreeItem::DirectoryHeader { .. } => {
                     items.push(
-                        MenuItemFields::new("New file")
+                        MenuItemFields::new(file_tree_text(app, "code.file_tree.menu.new_file"))
                             .with_on_select_action(FileTreeAction::NewFileBelowDirectory {
                                 id: id.clone(),
                             })
@@ -2377,27 +2382,31 @@ impl FileTreeView {
                     items.push(MenuItem::Separator);
                     if self.has_terminal_session {
                         items.push(
-                            MenuItemFields::new("cd to directory")
-                                .with_on_select_action(FileTreeAction::CDToDirectory {
-                                    id: id.clone(),
-                                })
-                                .into_item(),
+                            MenuItemFields::new(file_tree_text(
+                                app,
+                                "code.file_tree.menu.cd_to_directory",
+                            ))
+                            .with_on_select_action(FileTreeAction::CDToDirectory { id: id.clone() })
+                            .into_item(),
                         );
                     }
                     items.push(
-                        MenuItemFields::new("Open in new tab")
-                            .with_on_select_action(FileTreeAction::OpenInNewTab { id: id.clone() })
-                            .into_item(),
+                        MenuItemFields::new(file_tree_text(
+                            app,
+                            "code.file_tree.menu.open_in_new_tab",
+                        ))
+                        .with_on_select_action(FileTreeAction::OpenInNewTab { id: id.clone() })
+                        .into_item(),
                     );
                 }
             };
 
             let open_text = if cfg!(target_os = "macos") {
-                "Reveal in Finder"
+                file_tree_text(app, "code.file_tree.menu.reveal_in_finder")
             } else if cfg!(target_os = "windows") {
-                "Reveal in Explorer"
+                file_tree_text(app, "code.file_tree.menu.reveal_in_explorer")
             } else {
-                "Reveal in file manager"
+                file_tree_text(app, "code.file_tree.menu.reveal_in_file_manager")
             };
             items.push(
                 MenuItemFields::new(open_text)
@@ -2410,12 +2419,12 @@ impl FileTreeView {
             let is_repo_root_dir = id.index == 0;
             if !is_repo_root_dir {
                 items.push(
-                    MenuItemFields::new("Rename")
+                    MenuItemFields::new(file_tree_text(app, "code.file_tree.menu.rename"))
                         .with_on_select_action(FileTreeAction::Rename { id: id.clone() })
                         .into_item(),
                 );
                 items.push(
-                    MenuItemFields::new("Delete")
+                    MenuItemFields::new(file_tree_text(app, "code.file_tree.menu.delete"))
                         .with_on_select_action(FileTreeAction::Delete { id: id.clone() })
                         .into_item(),
                 );
@@ -2427,7 +2436,7 @@ impl FileTreeView {
                 items.push(MenuItem::Separator);
             }
             items.push(
-                MenuItemFields::new("Attach as context")
+                MenuItemFields::new(file_tree_text(app, "code.file_tree.menu.attach_as_context"))
                     .with_on_select_action(FileTreeAction::AttachAsContext { id: id.clone() })
                     .into_item(),
             );
@@ -2437,12 +2446,15 @@ impl FileTreeView {
             items.push(MenuItem::Separator);
         }
         items.extend([
-            MenuItemFields::new("Copy path")
+            MenuItemFields::new(file_tree_text(app, "code.file_tree.menu.copy_path"))
                 .with_on_select_action(FileTreeAction::CopyPath { id: id.clone() })
                 .into_item(),
-            MenuItemFields::new("Copy relative path")
-                .with_on_select_action(FileTreeAction::CopyRelativePath { id: id.clone() })
-                .into_item(),
+            MenuItemFields::new(file_tree_text(
+                app,
+                "code.file_tree.menu.copy_relative_path",
+            ))
+            .with_on_select_action(FileTreeAction::CopyRelativePath { id: id.clone() })
+            .into_item(),
         ]);
 
         items
@@ -2758,7 +2770,7 @@ impl FileTreeView {
             )
             .with_child(
                 Text::new(
-                    "Project explorer unavailable",
+                    file_tree_text(app, "code.file_tree.project_explorer_unavailable"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size() + 2.,
                 )
@@ -2945,13 +2957,14 @@ impl View for FileTreeView {
 
     #[cfg(not(feature = "local_fs"))]
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        self.render_error_state(REMOTE_TEXT.to_string(), app)
+        self.render_error_state(file_tree_text(app, "code.file_tree.error.remote"), app)
     }
 
     #[cfg(feature = "local_fs")]
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         if matches!(self.enablement, CodingPanelEnablementState::Disabled) {
-            return self.render_error_state(DISABLED_TEXT.to_string(), app);
+            return self
+                .render_error_state(file_tree_text(app, "code.file_tree.error.disabled"), app);
         }
 
         if matches!(
@@ -2972,7 +2985,7 @@ impl View for FileTreeView {
                 return if has_remote_server {
                     self.render_loading_state(app)
                 } else {
-                    self.render_error_state(REMOTE_TEXT.to_string(), app)
+                    self.render_error_state(file_tree_text(app, "code.file_tree.error.remote"), app)
                 };
             }
 
@@ -2980,7 +2993,8 @@ impl View for FileTreeView {
                 self.enablement,
                 CodingPanelEnablementState::UnsupportedSession
             ) {
-                return self.render_error_state(WSL_TEXT.to_string(), app);
+                return self
+                    .render_error_state(file_tree_text(app, "code.file_tree.error.wsl"), app);
             }
 
             return self.render_loading_state(app);
@@ -3081,7 +3095,7 @@ impl TypedActionView for FileTreeView {
                 self.context_menu_state = Some(ContextMenuState {
                     position: *position,
                 });
-                let menu_items = self.context_menu_items(item, id);
+                let menu_items = self.context_menu_items(item, id, ctx);
                 self.context_menu.update(ctx, move |menu, ctx| {
                     menu.set_items(menu_items, ctx);
                     ctx.notify();

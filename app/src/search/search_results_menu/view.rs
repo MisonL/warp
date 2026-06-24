@@ -288,7 +288,7 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
 
         let mut column = Flex::column();
 
-        if let Some(title) = active_filter.and_then(renderable_title_name) {
+        if let Some(title) = active_filter.and_then(|filter| renderable_title_name(filter, app)) {
             column.add_child(
                 Container::new(
                     appearance
@@ -339,9 +339,12 @@ impl<T: Action + Clone> View for SearchResultsMenuView<T> {
     }
 }
 
-fn renderable_title_name(query_filter: QueryFilter) -> Option<&'static str> {
+fn renderable_title_name(query_filter: QueryFilter, app: &AppContext) -> Option<String> {
     if matches!(query_filter, QueryFilter::AgentModeWorkflows) {
-        return Some("Prompts");
+        return Some(crate::localization::text_for_app(
+            app,
+            "terminal.cloud_mode_v2.section.prompts",
+        ));
     }
 
     None

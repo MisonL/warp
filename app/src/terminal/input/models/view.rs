@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::LazyLock;
 
 use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent};
 use pathfinder_color::ColorU;
@@ -17,6 +16,7 @@ use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISuba
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::llms::{LLMId, LLMPreferences, LLMPreferencesEvent};
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{SearchMixer, SearchMixerEvent};
 use crate::settings_view::SettingsSection;
@@ -72,22 +72,24 @@ pub enum InlineModelSelectorEvent {
     Dismissed,
 }
 
-static TAB_CONFIGS: LazyLock<Vec<InlineMenuTabConfig<InlineModelSelectorTab>>> =
-    LazyLock::new(|| {
-        let mut configs = vec![InlineMenuTabConfig {
-            id: InlineModelSelectorTab::BaseAgent,
-            label: "Base".to_string(),
-            filters: HashSet::from([QueryFilter::BaseModels]),
-        }];
-        if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            configs.push(InlineMenuTabConfig {
-                id: InlineModelSelectorTab::FullTerminalUse,
-                label: "Full Terminal Use".to_string(),
-                filters: HashSet::from([QueryFilter::FullTerminalUseModels]),
-            });
-        }
-        configs
-    });
+fn build_tab_configs(ctx: &AppContext) -> Vec<InlineMenuTabConfig<InlineModelSelectorTab>> {
+    let mut configs = vec![InlineMenuTabConfig {
+        id: InlineModelSelectorTab::BaseAgent,
+        label: localization::text_for_app(ctx, "settings.ai.model_selector.tab.base"),
+        filters: HashSet::from([QueryFilter::BaseModels]),
+    }];
+    if FeatureFlag::InlineMenuHeaders.is_enabled() {
+        configs.push(InlineMenuTabConfig {
+            id: InlineModelSelectorTab::FullTerminalUse,
+            label: localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.tab.full_terminal_use",
+            ),
+            filters: HashSet::from([QueryFilter::FullTerminalUseModels]),
+        });
+    }
+    configs
+}
 
 struct TabSwitchSelection {
     model_id: Option<LLMId>,
@@ -124,7 +126,7 @@ impl InlineModelSelectorView {
     ) -> Self {
         let data_source = ctx.add_model(|_| ModelSelectorDataSource::new(terminal_view_id));
 
-        let tab_configs = TAB_CONFIGS.clone();
+        let tab_configs = build_tab_configs(ctx);
         let initial_filters = tab_configs
             .first()
             .map(|config| config.filters.clone())
@@ -146,8 +148,10 @@ impl InlineModelSelectorView {
         });
 
         let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            let manage_defaults_button = ctx.add_view(|_| {
-                ActionButton::new("Manage defaults", ManageDefaultsTheme)
+            let manage_defaults_label =
+                localization::text_for_app(ctx, "settings.ai.model_selector.manage_defaults");
+            let manage_defaults_button = ctx.add_view(move |_| {
+                ActionButton::new(manage_defaults_label.clone(), ManageDefaultsTheme)
                     .with_icon(Icon::Settings)
                     .with_size(ButtonSize::Small)
                     .on_click(|ctx| {
@@ -190,20 +194,24 @@ impl InlineModelSelectorView {
                         .is_some_and(|c| !c.is_empty() && c.status().is_in_progress());
                     let is_cli_agent_in_control_or_tagged_in =
                         cli_ctrl.as_ref(app).is_agent_in_control_or_tagged_in();
-                    let message = match active_tab {
-                        InlineModelSelectorTab::FullTerminalUse if main_agent_in_progress && !is_cli_agent_in_control_or_tagged_in => {
-                            Some("You're using the base agent. Full terminal use models only apply to the full terminal use agent.")
+                    let message_key = match active_tab {
+                        InlineModelSelectorTab::FullTerminalUse
+                            if main_agent_in_progress && !is_cli_agent_in_control_or_tagged_in =>
+                        {
+                            Some("settings.ai.model_selector.banner.base_agent_active")
                         }
-                        InlineModelSelectorTab::BaseAgent if is_cli_agent_in_control_or_tagged_in => {
-                            Some("You're using the full terminal use agent. Base models only apply to the base agent.")
+                        InlineModelSelectorTab::BaseAgent
+                            if is_cli_agent_in_control_or_tagged_in =>
+                        {
+                            Some("settings.ai.model_selector.banner.full_terminal_use_active")
                         }
                         _ => None,
                     };
 
-                    message.map(|msg| {
+                    message_key.map(|key| {
                         let appearance = Appearance::as_ref(app);
                         Alert::new().render(
-                            AlertConfig::warning(msg.to_string())
+                            AlertConfig::warning(localization::text_for_app(app, key))
                                 .with_main_axis_size(MainAxisSize::Max),
                             appearance,
                         )

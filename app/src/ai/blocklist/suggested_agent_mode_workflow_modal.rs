@@ -26,7 +26,7 @@ use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::TelemetryEvent;
 
-const SUGGESTED_PROMPT_MODAL_HEADER: &str = "Prompt";
+const SUGGESTED_WORKFLOW_MODAL_TITLE_KEY: &str = "agent.suggested_workflow.modal.title";
 
 /// A modal component for displaying and managing suggested agent mode workflows.
 /// This component wraps a WorkflowView in a modal dialog with proper styling and
@@ -113,7 +113,10 @@ impl SuggestedAgentModeWorkflowModal {
 
         let modal = ctx.add_typed_action_view(|ctx| {
             let mut modal = Modal::new(
-                Some(SUGGESTED_PROMPT_MODAL_HEADER.to_string()),
+                Some(crate::localization::text_for_app(
+                    ctx,
+                    SUGGESTED_WORKFLOW_MODAL_TITLE_KEY,
+                )),
                 workflow_view_handle,
                 ctx,
             )

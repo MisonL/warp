@@ -82,7 +82,7 @@ use crate::workspace::{
     PaneViewLocator, TabBarLocation, TabContextMenuAnchor, VerticalTabsPaneContextMenuTarget,
     VerticalTabsPaneDropTargetData, Workspace,
 };
-use crate::{send_telemetry_from_app_ctx, FeatureFlag};
+use crate::{localization, send_telemetry_from_app_ctx, FeatureFlag};
 
 const PANEL_WIDTH: f32 = 248.;
 const MIN_PANEL_WIDTH: f32 = 200.;
@@ -1391,7 +1391,7 @@ fn render_control_bar(
         .with_child(Shrinkable::new(1., text_input).finish())
         .finish();
 
-    let settings_button = render_settings_button(state, appearance);
+    let settings_button = render_settings_button(state, appearance, app);
     let new_tab_button = render_new_tab_button(state, workspace, appearance, app);
 
     Container::new(
@@ -1467,6 +1467,7 @@ fn render_detail_kind_badge_icon(
 fn render_settings_button(
     state: &VerticalTabsPanelState,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let sub_text = theme.sub_text_color(theme.background());
@@ -1502,7 +1503,10 @@ fn render_settings_button(
 
             if hover_state.is_hovered() && !is_popup_open {
                 let tooltip = ui_builder
-                    .tool_tip("View options".to_string())
+                    .tool_tip(localization::text_for_app(
+                        app,
+                        "workspace.vertical_tabs.tooltip.view_options",
+                    ))
                     .build()
                     .finish();
                 let mut stack = Stack::new().with_child(button_container);
@@ -1582,12 +1586,21 @@ fn render_new_tab_button(
         let contents = if hover_state.is_hovered() {
             let tooltip = if let Some(sublabel) = tab_configs_keybinding.clone() {
                 ui_builder
-                    .tool_tip_with_sublabel("Tab configs".to_string(), sublabel)
+                    .tool_tip_with_sublabel(
+                        localization::text_for_app(
+                            app,
+                            "workspace.vertical_tabs.tooltip.tab_configs",
+                        ),
+                        sublabel,
+                    )
                     .build()
                     .finish()
             } else {
                 ui_builder
-                    .tool_tip("Tab configs".to_string())
+                    .tool_tip(localization::text_for_app(
+                        app,
+                        "workspace.vertical_tabs.tooltip.tab_configs",
+                    ))
                     .build()
                     .finish()
             };
@@ -1707,9 +1720,13 @@ fn render_groups(
 
     if workspace.tabs.is_empty() {
         return Container::new(
-            Text::new_inline("No tabs open", appearance.ui_font_family(), 12.)
-                .with_color(theme.sub_text_color(theme.background()).into())
-                .finish(),
+            Text::new_inline(
+                localization::text_for_app(app, "workspace.vertical_tabs.empty.no_tabs_open"),
+                appearance.ui_font_family(),
+                12.,
+            )
+            .with_color(theme.sub_text_color(theme.background()).into())
+            .finish(),
         )
         .with_padding(Padding::uniform(12.))
         .finish();
@@ -2697,19 +2714,22 @@ fn render_grouped_tabs_header(
         if let Some(editor) = rename_editor.filter(|_| is_being_renamed) {
             render_inline_tab_rename_editor(editor, appearance, app)
         } else {
-            let title_text = group
-                .name
-                .clone()
-                .unwrap_or_else(|| "New Group".to_string());
+            let title_text = group.name.clone().unwrap_or_else(|| {
+                localization::text_for_app(app, "workspace.vertical_tabs.group.new")
+            });
             Text::new_inline(title_text, font_family, 12.)
                 .with_clip(ClipConfig::ellipsis())
                 .with_color(main_text_color.into())
                 .finish()
         };
     let subtitle_text = if member_count == 1 {
-        "1 tab".to_string()
+        localization::text_for_app(app, "workspace.vertical_tabs.group.tab_count.singular")
     } else {
-        format!("{member_count} tabs")
+        localization::text_for_app_with_args(
+            app,
+            "workspace.vertical_tabs.group.tab_count.plural",
+            &[("count", &member_count.to_string())],
+        )
     };
     let subtitle = Text::new_inline(subtitle_text, font_family, 10.)
         .with_clip(ClipConfig::ellipsis())
@@ -4061,9 +4081,9 @@ fn cloud_agent_working_directory_and_env(
         .and_then(|id| CloudAmbientAgentEnvironment::get_by_id(id, app))
         .map(|env| env.model().string_model.display_name());
 
-    let setup_status: Option<&str> = model_ref.agent_progress().map(|p| p.setup_status_text());
+    let setup_status = model_ref.agent_progress().map(|p| p.setup_status_text(app));
 
-    match (env_name, setup_status, working_directory) {
+    match (env_name, setup_status.as_deref(), working_directory) {
         (Some(env), Some(status), _) => Some(format!("{env} · {status}")),
         (Some(env), None, Some(wd)) => Some(format!("{env} · {wd}")),
         (Some(env), None, None) => Some(env),
@@ -6355,7 +6375,9 @@ fn localized_conversation_status_label(status: &ConversationStatus, app: &AppCon
         ConversationStatus::InProgress => "conversation_details.status.in_progress",
         ConversationStatus::Success => "conversation_details.status.done",
         ConversationStatus::Error => "conversation_details.status.error",
+        ConversationStatus::TransientError => "conversation_details.status.error",
         ConversationStatus::Cancelled => "conversation_details.status.cancelled",
+        ConversationStatus::WaitingForEvents => "conversation_details.status.in_progress",
         ConversationStatus::Blocked { .. } => "conversation_details.status.blocked",
     };
     localization::text_for_app(app, key)

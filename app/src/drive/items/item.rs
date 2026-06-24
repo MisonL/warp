@@ -132,6 +132,7 @@ pub struct WarpDriveRow<'a> {
     is_focused: bool,
     overflow_on_left: bool,
     appearance: &'a Appearance,
+    untitled_label: String,
 }
 
 impl<'a> WarpDriveRow<'a> {
@@ -151,6 +152,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        untitled_label: String,
     ) -> Option<Self> {
         let warp_drive_item_id = item.warp_drive_id();
         let overflow_button = match has_menu_items {
@@ -228,6 +230,7 @@ impl<'a> WarpDriveRow<'a> {
             is_focused,
             overflow_on_left: matches!(menu_direction, MenuDirection::Left),
             appearance,
+            untitled_label,
         })
     }
 
@@ -247,6 +250,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        untitled_label: String,
     ) -> Option<Self> {
         let item = object.to_warp_drive_item(appearance)?;
         Self::new(
@@ -264,6 +268,7 @@ impl<'a> WarpDriveRow<'a> {
             sync_queue_is_dequeueing,
             menu_direction,
             appearance,
+            untitled_label,
         )
     }
 
@@ -644,7 +649,7 @@ impl<'a> WarpDriveRow<'a> {
         Span::new(
             self.item
                 .display_name()
-                .unwrap_or_else(|| "Untitled".to_string()),
+                .unwrap_or_else(|| self.untitled_label.clone()),
             style,
         )
         .build()

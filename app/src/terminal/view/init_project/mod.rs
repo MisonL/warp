@@ -38,7 +38,7 @@ use crate::server::telemetry::{
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 const ONBOARDING_TEXT: &str = "Great - let's begin setting up this project! Would you like to give me permission to index this codebase? It allows me to quickly understand context and provide more targeted solutions when working in this codebase. No code is stored on Warp servers.";
 const ALREADY_SETUP_TEXT: &str = "It looks like this project has already been initialized. You can re-generate the AGENTS.md for this codebase by clicking the button below.";
@@ -322,7 +322,7 @@ impl InitStepBlock {
                     keyboard_nav_buttons,
                 },
             ) => {
-                let buttons = Self::create_environment_buttons(mouse_states);
+                let buttons = Self::create_environment_buttons(mouse_states, ctx);
                 *keyboard_nav_buttons =
                     Some(ctx.add_typed_action_view(|_| KeyboardNavigableButtons::new(buttons)));
             }
@@ -456,16 +456,17 @@ impl InitStepBlock {
 
     fn create_environment_buttons(
         mouse_states: &CreateEnvironmentMouseStateHandles,
+        app: &AppContext,
     ) -> Vec<KeyboardNavigableButtonBuilder> {
         vec![
             simple_navigation_button(
-                "Create an environment".to_string(),
+                localization::text_for_app(app, "terminal.init_project.action.create_environment"),
                 mouse_states.create_button.clone(),
                 InitProjectBlockAction::StartCreateEnvironment,
                 false,
             ),
             simple_navigation_button(
-                "Skip for now".to_string(),
+                localization::text_for_app(app, "terminal.init_project.action.skip_for_now"),
                 mouse_states.skip_button.clone(),
                 InitProjectBlockAction::SkipCreateEnvironment,
                 false,
@@ -515,11 +516,15 @@ impl InitStepBlock {
         mouse_state: &MouseStateHandle,
         disabled: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut button = appearance
             .ui_builder()
             .button(ButtonVariant::Outlined, mouse_state.clone())
-            .with_text_label("Re-generate AGENTS.md file".to_string());
+            .with_text_label(localization::text_for_app(
+                app,
+                "terminal.init_project.action.regenerate_agents_md",
+            ));
         if disabled {
             button = button.disabled();
         }
@@ -679,7 +684,10 @@ impl InitStepBlock {
                                 ButtonVariant::Outlined,
                                 mouse_states.view_status_button.clone(),
                             )
-                            .with_text_label("View index status".to_string())
+                            .with_text_label(localization::text_for_app(
+                                app,
+                                "terminal.init_project.action.view_index_status",
+                            ))
                             .build()
                             .on_click(|ctx, _, _| {
                                 ctx.dispatch_typed_action(
@@ -933,6 +941,7 @@ impl InitStepBlock {
                         &mouse_states.regenerate_button,
                         *button_disabled,
                         appearance,
+                        app,
                     ));
                 }
                 action.with_content_item_spacing().render(app).finish()
@@ -945,6 +954,7 @@ impl InitStepBlock {
                         &mouse_states.regenerate_button,
                         *button_disabled,
                         appearance,
+                        app,
                     ));
                 }
                 action.with_content_item_spacing().render(app).finish()
@@ -990,9 +1000,10 @@ impl InitStepBlock {
 
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::success(format!(
-                                "{} installed and enabled successfully.",
-                                server_type.binary_name()
+                            DismissibleToast::success(crate::localization::text_for_app_with_args(
+                                ctx,
+                                "terminal.init_project.lsp.install_success",
+                                &[("server", server_type.binary_name())],
                             )),
                             window_id,
                             ctx,
@@ -1014,9 +1025,13 @@ impl InitStepBlock {
 
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(format!(
-                                "Failed to install {}: {e}",
-                                server_type.binary_name()
+                            DismissibleToast::error(crate::localization::text_for_app_with_args(
+                                ctx,
+                                "terminal.init_project.lsp.install_failed",
+                                &[
+                                    ("server", server_type.binary_name()),
+                                    ("error", &e.to_string()),
+                                ],
                             )),
                             window_id,
                             ctx,
@@ -1138,9 +1153,10 @@ impl TypedActionView for InitStepBlock {
                         servers_to_install.iter().map(|s| s.binary_name()).collect();
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::default(format!(
-                                "Installing {} in background...",
-                                server_names.join(", ")
+                            DismissibleToast::default(crate::localization::text_for_app_with_args(
+                                ctx,
+                                "terminal.init_project.lsp.installing_background",
+                                &[("servers", &server_names.join(", "))],
                             )),
                             window_id,
                             ctx,

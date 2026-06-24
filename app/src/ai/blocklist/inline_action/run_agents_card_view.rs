@@ -59,6 +59,7 @@ use crate::ai::harness_availability::{
 };
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -312,7 +313,7 @@ impl RunAgentsCardView {
         let accept_keystroke = ENTER_KEYSTROKE.clone();
 
         let reject_button = CompactibleActionButton::new(
-            "Reject".to_string(),
+            localization::text_for_app(ctx, "agent.orchestration.run_agents.reject"),
             Some(KeystrokeSource::Fixed(reject_keystroke)),
             ButtonSize::Small,
             RunAgentsCardViewAction::Reject,
@@ -322,7 +323,7 @@ impl RunAgentsCardView {
         );
         let position_id_prefix = format!("{action_id:?}");
         let accept_button = CompactibleSplitActionButton::new(
-            "Accept".to_string(),
+            localization::text_for_app(ctx, "agent.orchestration.run_agents.accept"),
             Some(KeystrokeSource::Fixed(accept_keystroke)),
             ButtonSize::Small,
             RunAgentsCardViewAction::Accept,
@@ -710,8 +711,16 @@ impl RunAgentsCardView {
             return;
         };
         accept.set_disabled(reason.is_some(), ctx);
-        // Tooltip explains why the button is disabled; falls back to "Accept".
-        accept.set_tooltip(reason.or_else(|| Some("Accept".to_string())), ctx);
+        // Tooltip explains why the button is disabled; falls back to the action label.
+        accept.set_tooltip(
+            reason.or_else(|| {
+                Some(localization::text_for_app(
+                    ctx,
+                    "agent.orchestration.run_agents.accept",
+                ))
+            }),
+            ctx,
+        );
         self.handles.accept_button = Some(accept);
     }
 

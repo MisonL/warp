@@ -13,6 +13,7 @@ use super::settings_page::{
 use super::SettingsSection;
 use crate::appearance::Appearance;
 use crate::channel::ChannelState;
+use crate::localization;
 use crate::themes::theme::ColorScheme;
 use crate::workspace::WorkspaceAction;
 
@@ -58,7 +59,7 @@ impl SettingsWidget for AboutPageWidget {
         &self,
         _view: &AboutPageView,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder();
@@ -115,7 +116,7 @@ impl SettingsWidget for AboutPageWidget {
                 .with_child(version_row.finish())
                 .with_child(
                     ui_builder
-                        .span("Copyright 2026 Warp")
+                        .span(localization::text_for_app(app, "settings.about.copyright"))
                         .build()
                         .with_margin_top(16.)
                         .finish(),

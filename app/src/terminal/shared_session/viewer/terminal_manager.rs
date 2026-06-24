@@ -20,9 +20,9 @@ use warpui::{
 
 use super::event_loop::SharedSessionInitialLoadMode;
 use super::network::{
-    agent_prompt_failure_reason_string, command_execution_failure_reason_string,
-    control_action_failure_reason_string, session_ended_reason_string,
-    viewer_removed_reason_string, write_to_pty_failure_reason_string, Network, NetworkEvent,
+    agent_prompt_failure_reason_key, command_execution_failure_reason_key,
+    control_action_failure_reason_key, session_ended_reason_key, viewer_removed_reason_key,
+    write_to_pty_failure_reason_key, Network, NetworkEvent,
 };
 use super::orchestration_viewer_model::OrchestrationViewerModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
@@ -38,6 +38,7 @@ use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::context_chips::prompt_snapshot::PromptSnapshot;
 use crate::context_chips::prompt_type::PromptType;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::pane_group::pane::DetachType;
 use crate::pane_group::TerminalViewResources;
@@ -177,7 +178,8 @@ impl TerminalManager {
         reason: &CommandExecutionFailureReason,
         ctx: &mut ViewContext<TerminalView>,
     ) {
-        let reason_string = command_execution_failure_reason_string(reason);
+        let reason_string =
+            localization::text_for_app(ctx, command_execution_failure_reason_key(reason));
         terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
         terminal_view.clear_queued_command_in_flight(ctx);
 
@@ -903,7 +905,8 @@ impl TerminalManager {
                     Self::shared_session_ended(&view, model.clone(), ctx);
                 }
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = session_ended_reason_string(reason);
+                    let reason_string =
+                        localization::text_for_app(ctx, session_ended_reason_key(reason));
                     match reason {
                         SessionEndedReason::EndedBySharer
                         | SessionEndedReason::ExceededSizeLimit => {}
@@ -937,7 +940,8 @@ impl TerminalManager {
                 Self::stop_orchestration_polling(&orchestration_viewer_model, ctx);
                 Self::shared_session_ended(&view, model.clone(), ctx);
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = viewer_removed_reason_string(reason);
+                    let reason_string =
+                        localization::text_for_app(ctx, viewer_removed_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -969,7 +973,10 @@ impl TerminalManager {
                 Self::shared_session_ended(&view, model.clone(), ctx);
                 view.update(ctx, |terminal_view, ctx| {
                     terminal_view.show_persistent_toast(
-                        "Failed to reconnect. Please try again later.".to_owned(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.shared_session.toast.reconnect_failed",
+                        ),
                         ToastFlavor::Error,
                         ctx,
                     );
@@ -1180,7 +1187,8 @@ impl TerminalManager {
                     return;
                 };
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = write_to_pty_failure_reason_string(reason);
+                    let reason_string =
+                        localization::text_for_app(ctx, write_to_pty_failure_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -1199,7 +1207,8 @@ impl TerminalManager {
                     return;
                 };
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = agent_prompt_failure_reason_string(reason);
+                    let reason_string =
+                        localization::text_for_app(ctx, agent_prompt_failure_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
 
                     terminal_view.input().update(ctx, |input, ctx| {
@@ -1212,7 +1221,8 @@ impl TerminalManager {
                     return;
                 };
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = control_action_failure_reason_string(reason);
+                    let reason_string =
+                        localization::text_for_app(ctx, control_action_failure_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -1274,7 +1284,10 @@ impl TerminalManager {
                     }
                     LinkAccessLevelUpdateResponse::Error => {
                         terminal_view.show_persistent_toast(
-                            "Failed to update permissions for shared session".to_owned(),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );
@@ -1303,7 +1316,10 @@ impl TerminalManager {
                     }
                     TeamAccessLevelUpdateResponse::Error(_) => {
                         terminal_view.show_persistent_toast(
-                            "Something went wrong. Please try again.".to_owned(),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );
@@ -1318,12 +1334,21 @@ impl TerminalManager {
                     view.update(ctx, |terminal_view, ctx| {
                         let reason_string = match reason {
                             session_sharing_protocol::common::FailedToAddGuestsReason::NotWarpUsers => {
-                                "One or more of the emails are not Warp users.".to_owned()
+                                localization::text_for_app(
+                                    ctx,
+                                    "terminal.shared_session.error.guests_not_warp_users",
+                                )
                             }
                             session_sharing_protocol::common::FailedToAddGuestsReason::GuestAlreadyAdded => {
-                                "One or more of the guests has already been added.".to_owned()
+                                localization::text_for_app(
+                                    ctx,
+                                    "terminal.shared_session.error.guests_already_added",
+                                )
                             }
-                            _ => "Something went wrong. Please try again.".to_owned(),
+                            _ => localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                         };
                         terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                     });
@@ -1336,7 +1361,10 @@ impl TerminalManager {
                     };
                     view.update(ctx, |terminal_view, ctx| {
                         terminal_view.show_persistent_toast(
-                            "Something went wrong. Please try again.".to_owned(),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );
@@ -1350,7 +1378,10 @@ impl TerminalManager {
                     };
                     view.update(ctx, |terminal_view, ctx| {
                         terminal_view.show_persistent_toast(
-                            "Something went wrong. Please try again.".to_owned(),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             ToastFlavor::Error,
                             ctx,
                         );

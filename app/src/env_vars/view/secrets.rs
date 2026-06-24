@@ -106,7 +106,7 @@ impl EnvVarCollectionView {
                         }
                         Err(e) => {
                             let error_message_and_command =
-                                secret_manager_clone.get_toast_message_and_link(e);
+                                secret_manager_clone.get_toast_message_and_link(e, dialog_ctx);
 
                             let mut toast =
                                 DismissibleToast::error(error_message_and_command.message);

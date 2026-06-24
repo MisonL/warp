@@ -165,9 +165,16 @@ pub(super) fn show_pr_created_toast(pr_info: &PrInfo, ctx: &mut ViewContext<GitD
     let window_id = ctx.window_id();
     let url = pr_info.url.clone();
     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-        let link = ToastLink::new("Open PR".to_string()).with_href(url);
-        let toast =
-            DismissibleToast::default("PR successfully created.".to_string()).with_link(link);
+        let link = ToastLink::new(crate::localization::text_for_app(
+            ctx,
+            "code_review.git_dialog.pr.open_pr",
+        ))
+        .with_href(url);
+        let toast = DismissibleToast::default(crate::localization::text_for_app(
+            ctx,
+            "code_review.git_dialog.pr.created",
+        ))
+        .with_link(link);
         toast_stack.add_ephemeral_toast(toast, window_id, ctx);
     });
 }

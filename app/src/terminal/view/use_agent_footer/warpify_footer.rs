@@ -8,11 +8,16 @@ use warpui::prelude::Empty;
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
 use super::{AgentFooterButtonTheme, USE_AGENT_KEYSTROKE};
+use crate::localization;
 use crate::terminal::view::{TerminalModel, PADDING_LEFT};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, KeystrokeSource, TooltipAlignment,
 };
+
+fn footer_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// Footer view rendered for detected subshell commands, offering both
 /// "Warpify" and "Use agent" buttons in a horizontal row.
@@ -29,35 +34,50 @@ impl WarpifyFooterView {
     pub fn new(terminal_model: Arc<FairMutex<TerminalModel>>, ctx: &mut ViewContext<Self>) -> Self {
         let button_size = ButtonSize::XSmall;
 
-        let warpify_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Warpify subshell", AgentFooterButtonTheme::new(None))
-                .with_icon(Icon::Warp)
-                .with_size(button_size)
-                .with_tooltip("Enable Warp shell integration in this session")
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WarpifyFooterViewAction::Warpify);
-                })
+        let warpify_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                footer_text(ctx, "terminal.use_agent_footer.action.warpify_subshell"),
+                AgentFooterButtonTheme::new(None),
+            )
+            .with_icon(Icon::Warp)
+            .with_size(button_size)
+            .with_tooltip(footer_text(
+                ctx,
+                "terminal.use_agent_footer.tooltip.enable_warp_shell_integration",
+            ))
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(WarpifyFooterViewAction::Warpify);
+            })
         });
 
         let use_agent_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Use agent", AgentFooterButtonTheme::new(None))
-                .with_icon(Icon::Oz)
-                .with_keybinding(KeystrokeSource::Fixed(USE_AGENT_KEYSTROKE.clone()), ctx)
-                .with_size(button_size)
-                .with_tooltip("Ask the Warp agent to assist")
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WarpifyFooterViewAction::UseAgent);
-                })
+            ActionButton::new(
+                footer_text(ctx, "terminal.use_agent_footer.action.use_agent"),
+                AgentFooterButtonTheme::new(None),
+            )
+            .with_icon(Icon::Oz)
+            .with_keybinding(KeystrokeSource::Fixed(USE_AGENT_KEYSTROKE.clone()), ctx)
+            .with_size(button_size)
+            .with_tooltip(footer_text(
+                ctx,
+                "terminal.use_agent_footer.tooltip.ask_agent_assist",
+            ))
+            .with_tooltip_alignment(TooltipAlignment::Left)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(WarpifyFooterViewAction::UseAgent);
+            })
         });
 
-        let dismiss_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Dismiss", AgentFooterButtonTheme::new(None))
-                .with_size(button_size)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WarpifyFooterViewAction::Dismiss);
-                })
+        let dismiss_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                footer_text(ctx, "terminal.use_agent_footer.action.dismiss"),
+                AgentFooterButtonTheme::new(None),
+            )
+            .with_size(button_size)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(WarpifyFooterViewAction::Dismiss);
+            })
         });
 
         Self {

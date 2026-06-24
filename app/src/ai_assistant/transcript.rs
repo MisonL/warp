@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use markdown_parser::markdown_parser::RUNNABLE_BLOCK_MARKDOWN_LANG;
 use markdown_parser::CodeBlockText;
 use pathfinder_color::ColorU;
@@ -51,9 +53,36 @@ const COPY_BUTTON_SIZE: f32 = 14.;
 const TERMINAL_INPUT_BUTTON_SIZE: f32 = 20.;
 const SAVE_AS_WORKFLOW_BUTTON_SIZE: f32 = 20.;
 
-const HOW_DO_I_FIX_PROMPT: &str = "How do I fix this?";
-const SHOW_EXAMPLES_PROMPT: &str = "Show examples.";
-const WHAT_TO_DO_NEXT_PROMPT: &str = "What should I do next?";
+const HOW_DO_I_FIX_PROMPT_KEY: &str = "ai_assistant.followup_prompt.how_fix";
+const SHOW_EXAMPLES_PROMPT_KEY: &str = "ai_assistant.followup_prompt.show_examples";
+const WHAT_TO_DO_NEXT_PROMPT_KEY: &str = "ai_assistant.followup_prompt.what_next";
+static HOW_DO_I_FIX_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            HOW_DO_I_FIX_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
+static SHOW_EXAMPLES_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            SHOW_EXAMPLES_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
+static WHAT_TO_DO_NEXT_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            WHAT_TO_DO_NEXT_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
 const IN_FLIGHT_REQUEST_TEXT: &str = "Generating answer...";
 const ACCURACY_NOTICE_TEXT: &str = "AI responses can be inaccurate.";
 const MISSING_CONTEXT_NOTICE_TEXT: &str =
@@ -753,7 +782,11 @@ impl Transcript {
             .finish()
     }
 
-    fn render_prepared_responses(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_prepared_responses(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Wrap::row()
             .with_run_spacing(10.)
             .with_main_axis_alignment(MainAxisAlignment::Center)
@@ -762,7 +795,9 @@ impl Transcript {
                 self.mouse_state_handles.what_to_do_next_button.clone(),
                 None,
                 Some(8.),
-                WHAT_TO_DO_NEXT_PROMPT,
+                crate::localization::text_for_app(app, WHAT_TO_DO_NEXT_PROMPT_KEY),
+                WHAT_TO_DO_NEXT_PROMPT.to_string(),
+                *WHAT_TO_DO_NEXT_PROMPT,
             ))
             .with_child(
                 Container::new(render_prepared_response_button(
@@ -770,7 +805,9 @@ impl Transcript {
                     self.mouse_state_handles.show_examples_button.clone(),
                     None,
                     Some(8.),
-                    SHOW_EXAMPLES_PROMPT,
+                    crate::localization::text_for_app(app, SHOW_EXAMPLES_PROMPT_KEY),
+                    SHOW_EXAMPLES_PROMPT.to_string(),
+                    *SHOW_EXAMPLES_PROMPT,
                 ))
                 .with_margin_left(10.)
                 .with_margin_right(10.)
@@ -781,7 +818,9 @@ impl Transcript {
                 self.mouse_state_handles.how_do_i_fix_button.clone(),
                 None,
                 Some(8.),
-                HOW_DO_I_FIX_PROMPT,
+                crate::localization::text_for_app(app, HOW_DO_I_FIX_PROMPT_KEY),
+                HOW_DO_I_FIX_PROMPT.to_string(),
+                *HOW_DO_I_FIX_PROMPT,
             ))
             .finish()
     }
@@ -852,7 +891,7 @@ impl View for Transcript {
             // and the user still has remaining requests.
             if !transcript.last().is_none_or(|p| p.assistant.is_error) && num_remaining_reqs > 0 {
                 blocks.add_child(
-                    Container::new(self.render_prepared_responses(appearance))
+                    Container::new(self.render_prepared_responses(appearance, app))
                         .with_margin_top(15.)
                         .finish(),
                 );

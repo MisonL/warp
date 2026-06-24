@@ -23,6 +23,25 @@ use crate::ui_components::icons::Icon;
 /// The size of the object type icons, in pixels.
 const ICON_SIZE: f32 = 16.;
 
+fn notebook_title_fallback(notebook: &CloudNotebook) -> String {
+    if notebook.model().title.is_empty() {
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "notebook.placeholder.untitled",
+        )
+    } else {
+        notebook.model().title.clone()
+    }
+}
+
+fn notebook_title_for_app(notebook: &CloudNotebook, app: &AppContext) -> String {
+    if notebook.model().title.is_empty() {
+        crate::localization::text_for_app(app, "notebook.placeholder.untitled")
+    } else {
+        notebook.model().title.clone()
+    }
+}
+
 /// Struct designed to be the implementation of CommandSearchItem for notebooks.
 #[derive(Clone, Debug)]
 pub struct NotebookSearchItem {
@@ -101,7 +120,10 @@ impl SearchItem for NotebookSearchItem {
             let warning_font_size = appearance.ui_font_size() - 4.;
             let warning_text = appearance
                 .ui_builder()
-                .span("Not visible to other users")
+                .span(crate::localization::text_for_app(
+                    app,
+                    "search.notebook_embedding.not_visible",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(warning_font_size),
                     margin: Some(Coords::uniform(0.).left(4.)),
@@ -171,7 +193,19 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.cloud_notebook.model().title)
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_fallback(&self.cloud_notebook))],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_for_app(&self.cloud_notebook, app))],
+        )
     }
 }
 

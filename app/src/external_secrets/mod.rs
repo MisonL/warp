@@ -11,6 +11,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use warpui::AppContext;
 
 #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
 use crate::terminal::local_shell::execute_command;
@@ -181,17 +182,27 @@ impl SecretManager {
     pub fn get_toast_message_and_link(
         &self,
         error_type: SecretErrorType,
+        app: &AppContext,
     ) -> ErrorMessageAndCommand {
         match error_type {
             SecretErrorType::NotInstalled => {
-                let message = format!("{} CLI is not installed", &self);
+                let manager = self.to_string();
+                let message = crate::localization::text_for_app_with_args(
+                    app,
+                    "external_secrets.error.cli_not_installed",
+                    &[("manager", &manager)],
+                );
 
                 let (link, link_message) = (
                     match self {
                         SecretManager::OnePassword => Some(ONEPASSWORD_DOCS_LINK.to_owned()),
                         SecretManager::LastPass => Some(LASTPASS_DOCS_LINK.to_owned()),
                     },
-                    Some(format!("View {} CLI installation documentation", &self)),
+                    Some(crate::localization::text_for_app_with_args(
+                        app,
+                        "external_secrets.link.cli_install_docs",
+                        &[("manager", &manager)],
+                    )),
                 );
 
                 ErrorMessageAndCommand {
@@ -204,21 +215,28 @@ impl SecretManager {
                 let (link, link_message) = match self {
                     SecretManager::OnePassword => (
                         Some(ONEPASSWORD_DOCS_LINK.to_owned()),
-                        Some("Integrate 1Password app with CLI".to_owned()),
+                        Some(crate::localization::text_for_app(
+                            app,
+                            "external_secrets.link.integrate_1password_cli",
+                        )),
                     ),
                     SecretManager::LastPass => (None, None),
                 };
                 ErrorMessageAndCommand {
-                    message: format!(
-                        "{} didn't return secrets (likely not configured or authenticated)",
-                        &self
+                    message: crate::localization::text_for_app_with_args(
+                        app,
+                        "external_secrets.error.fetch_failed",
+                        &[("manager", &self.to_string())],
                     ),
                     link,
                     link_message,
                 }
             }
             SecretErrorType::InvalidPlatform => ErrorMessageAndCommand {
-                message: "Platform not supported".to_owned(),
+                message: crate::localization::text_for_app(
+                    app,
+                    "external_secrets.error.platform_not_supported",
+                ),
                 link: None,
                 link_message: None,
             },

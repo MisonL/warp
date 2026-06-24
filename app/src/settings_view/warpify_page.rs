@@ -36,7 +36,7 @@ use crate::terminal::warpify::settings::{
 use crate::ui_components::blended_colors;
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
 use crate::view_components::{SubmittableTextInput, SubmittableTextInputEvent};
-use crate::{report_if_error, send_telemetry_from_ctx};
+use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
     app: &mut AppContext,
@@ -49,8 +49,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         .enable_ssh_warpification
         .is_supported_on_current_platform()
     {
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "SSH Warpification",
+        let ssh_warpification_label = crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "settings.warpify.ssh_warpification.label",
+        );
+        toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+            &ssh_warpification_label,
+            "settings.warpify.ssh_warpification.label",
             builder(SettingsAction::WarpifyPageToggle(
                 WarpifyPageAction::ToggleSshWarpification,
             )),
@@ -111,7 +116,10 @@ impl WarpifyPageView {
         let add_added_commands_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|regex| Regex::new(regex).is_ok());
-            input.set_placeholder_text("command (supports regex)", ctx);
+            input.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.warpify.placeholder.command_regex"),
+                ctx,
+            );
             input
         });
 
@@ -122,7 +130,10 @@ impl WarpifyPageView {
 
         let add_denylisted_commands_editor = ctx.add_typed_action_view(|ctx| {
             let mut input = SubmittableTextInput::new(ctx);
-            input.set_placeholder_text("command (supports regex)", ctx);
+            input.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.warpify.placeholder.command_regex"),
+                ctx,
+            );
             input
         });
 
@@ -478,14 +489,14 @@ struct TitleWidget {
 }
 
 impl TitleWidget {
-    fn render_top_of_page(&self, appearance: &Appearance, _app: &AppContext) -> Box<dyn Element> {
+    fn render_top_of_page(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let warpify_description = vec![
-            FormattedTextFragment::plain_text(
-                "Configure whether Warp attempts to “Warpify” (add support for blocks, \
-                    input modes, etc) certain shells. ",
-            ),
+            FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                app,
+                "settings.warpify.description",
+            )),
             FormattedTextFragment::hyperlink(
-                "Learn more",
+                crate::localization::text_for_app(app, "settings.warpify.learn_more"),
                 "https://docs.warp.dev/terminal/warpify/subshells",
             ),
         ];

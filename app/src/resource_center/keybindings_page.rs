@@ -28,8 +28,8 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::search_bar::SearchBar;
-use crate::settings_view;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::util::bindings::{filter_bindings_including_keystroke, CommandBinding};
 use crate::workspace::tab_settings::TabSettings;
@@ -90,7 +90,10 @@ impl KeybindingsView {
 
         search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
-            editor.set_placeholder_text(settings_view::keybindings::SEARCH_PLACEHOLDER, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
+                ctx,
+            );
         });
 
         let search_bar = {

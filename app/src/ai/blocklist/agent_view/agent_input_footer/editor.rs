@@ -397,6 +397,7 @@ impl View for AgentToolbarEditorModal {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }

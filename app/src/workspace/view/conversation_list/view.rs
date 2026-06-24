@@ -40,6 +40,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
     PropagateHorizontalNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::server::telemetry::SharingDialogSource;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
@@ -238,7 +239,10 @@ impl ConversationListView {
                 ctx,
             );
 
-            editor.set_placeholder_text("Search", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "workspace.conversation_list.search_placeholder"),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&query_editor, |me, _handle, event, ctx| {
@@ -792,15 +796,22 @@ fn render_zero_state(
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_spacing(4.)
         .with_child(
-            Text::new("No conversations yet", appearance.ui_font_family(), 14.)
-                .with_color(theme.sub_text_color(theme.background()).into_solid())
-                .with_style(Properties::default().weight(Weight::Semibold))
-                .finish(),
+            Text::new(
+                localization::text_for_app(app, "workspace.conversation_list.empty.title"),
+                appearance.ui_font_family(),
+                14.,
+            )
+            .with_color(theme.sub_text_color(theme.background()).into_solid())
+            .with_style(Properties::default().weight(Weight::Semibold))
+            .finish(),
         )
         .with_child(
             ConstrainedBox::new(
                 FormattedTextElement::from_str(
-                    "Your active and past conversations with local and ambient agents will appear here.",
+                    localization::text_for_app(
+                        app,
+                        "workspace.conversation_list.empty.description",
+                    ),
                     appearance.ui_font_family(),
                     14.,
                 )
@@ -815,9 +826,13 @@ fn render_zero_state(
 
     let new_conversation_button =
         Hoverable::new(zero_state_button_mouse_state, move |mouse_state| {
-            let label = Text::new_inline("New conversation", appearance.ui_font_family(), 12.)
-                .with_color(theme.main_text_color(theme.background()).into_solid())
-                .finish();
+            let label = Text::new_inline(
+                localization::text_for_app(app, "workspace.conversation_list.new_conversation"),
+                appearance.ui_font_family(),
+                12.,
+            )
+            .with_color(theme.main_text_color(theme.background()).into_solid())
+            .finish();
 
             let button_content = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -1037,25 +1052,33 @@ impl TypedActionView for ConversationListView {
                         return;
                     };
 
-                    let mut delete_item = MenuItemFields::new("Delete")
-                        .with_override_text_color(Appearance::as_ref(ctx).theme().ansi_fg_red())
-                        .with_on_select_action(ConversationListViewAction::DeleteFromOverflowMenu {
-                            conversation_id,
-                        })
-                        .with_disabled(!entry.capabilities.can_delete);
+                    let mut delete_item = MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "workspace.conversation_list.menu.delete",
+                    ))
+                    .with_override_text_color(Appearance::as_ref(ctx).theme().ansi_fg_red())
+                    .with_on_select_action(ConversationListViewAction::DeleteFromOverflowMenu {
+                        conversation_id,
+                    })
+                    .with_disabled(!entry.capabilities.can_delete);
                     if !entry.capabilities.can_delete {
-                        delete_item =
-                            delete_item.with_tooltip("This conversation cannot be deleted");
+                        delete_item = delete_item.with_tooltip(localization::text_for_app(
+                            ctx,
+                            "workspace.conversation_list.tooltip.delete_disabled",
+                        ));
                     }
 
                     // Only show share item if the conversation is shareable
                     let share_item = if entry.capabilities.can_share {
                         Some(
-                            MenuItemFields::new("Share conversation")
-                                .with_on_select_action(
-                                    ConversationListViewAction::OpenShareDialog { conversation_id },
-                                )
-                                .into_item(),
+                            MenuItemFields::new(localization::text_for_app(
+                                ctx,
+                                "workspace.conversation_list.menu.share",
+                            ))
+                            .with_on_select_action(ConversationListViewAction::OpenShareDialog {
+                                conversation_id,
+                            })
+                            .into_item(),
                         )
                     } else {
                         None
@@ -1065,7 +1088,10 @@ impl TypedActionView for ConversationListView {
                         // Forking from a closed ambient agent conversation is not supported at this point.
                         if entry.capabilities.can_fork_locally {
                             Some([
-                                MenuItemFields::new("Fork in new pane")
+                                MenuItemFields::new(localization::text_for_app(
+                                    ctx,
+                                    "workspace.conversation_list.menu.fork_new_pane",
+                                ))
                                     .with_on_select_action(
                                         ConversationListViewAction::ForkConversation {
                                             conversation_id,
@@ -1073,7 +1099,10 @@ impl TypedActionView for ConversationListView {
                                         },
                                     )
                                     .into_item(),
-                                MenuItemFields::new("Fork in new tab")
+                                MenuItemFields::new(localization::text_for_app(
+                                    ctx,
+                                    "workspace.conversation_list.menu.fork_new_tab",
+                                ))
                                     .with_on_select_action(
                                         ConversationListViewAction::ForkConversation {
                                             conversation_id,

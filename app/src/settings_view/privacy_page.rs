@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
 use std::time::Duration;
 
 use pathfinder_geometry::vector::vec2f;
@@ -35,7 +34,10 @@ use super::settings_page::{
     SettingsPageViewHandle, SettingsWidget, ToggleState, HEADER_PADDING, PAGE_PADDING,
     TOGGLE_BUTTON_RIGHT_PADDING,
 };
-use super::{flags, SettingsAction, SettingsSection, ToggleSettingActionPair};
+use super::{
+    flags, SettingActionPairContexts, SettingActionPairDescriptions, SettingsAction,
+    SettingsSection, ToggleSettingActionPair,
+};
 use crate::appearance::Appearance;
 use crate::auth::auth_manager::AuthManager;
 use crate::channel::ChannelState;
@@ -57,40 +59,12 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{
     AdminEnablementSetting, CustomerType, UgcCollectionEnablementSetting,
 };
-use crate::{report_if_error, send_telemetry_from_ctx};
+use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 const FONT_SIZE: f32 = 12.;
 
-const SAFE_MODE_TITLE: &str = "Secret redaction";
-static SAFE_MODE_DESCRIPTION: LazyLock<&'static str> = LazyLock::new(|| {
-    "When this setting is enabled, Warp will scan blocks, the contents of \
-        Warp Drive objects, and Oz prompts for potential sensitive \
-        information and prevent saving or sending this data to any \
-        servers. You can customize this list via regexes."
-});
-const USER_SECRET_REGEX_TITLE: &str = "Custom secret redaction";
-const USER_SECRET_REGEX_DESCRIPTION: &str =
-    "Use regex to define additional secrets or data you'd like to redact. This will take effect \
-    when the next command runs. You can use the inline (?i) flag as a prefix to your regex \
-    to make it case-insensitive.";
-const TELEMETRY_DESCRIPTION_OLD: &str =
-    "App analytics help us make the product better for you. We only collect \
-    app usage metadata, never console input or output.";
-const TELEMETRY_TITLE: &str = "Help improve Warp";
-const TELEMETRY_DESCRIPTION: &str =
-    "App analytics help us make the product better for you. We may collect \
-    certain console interactions to improve Warp's AI capabilities.";
 const TELEMETRY_DOCS_URL: &str =
     "https://docs.warp.dev/support-and-community/privacy-and-security/privacy#what-telemetry-data-does-warp-collect-and-why";
-
-const DATA_MANAGEMENT_TITLE: &str = "Manage your data";
-const DATA_MANAGEMENT_DESCRIPTION: &str =
-    "At any time, you may choose to delete your Warp account permanently. \
-    You will no longer be able to use Warp.";
-const DATA_MANAGEMENT_LINK_TEXT: &str = "Visit the data management page";
-
-const PRIVACY_POLICY_TITLE: &str = "Privacy policy";
-const PRIVACY_POLICY_LINK_TEXT: &str = "Read Warp's privacy policy";
 
 pub fn data_management_url(custom_token: Option<&str>) -> String {
     match custom_token {
@@ -154,34 +128,41 @@ impl PrivacyPageView {
         });
 
         let add_regex_modal_view = ctx.add_typed_action_view(|ctx| {
-            Modal::new(Some("Add regex pattern".to_string()), add_regex_body, ctx)
-                .with_modal_style(UiComponentStyles {
-                    width: Some(600.),
-                    height: Some(400.),
-                    ..Default::default()
-                })
-                .with_header_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 24.,
-                        bottom: 0.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    font_size: Some(16.),
-                    font_weight: Some(Weight::Bold),
-                    ..Default::default()
-                })
-                .with_body_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 0.,
-                        bottom: 24.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    ..Default::default()
-                })
-                .with_background_opacity(100)
-                .with_dismiss_on_click()
+            Modal::new(
+                Some(localization::text_for_app(
+                    ctx,
+                    "settings.privacy.add_regex_pattern",
+                )),
+                add_regex_body,
+                ctx,
+            )
+            .with_modal_style(UiComponentStyles {
+                width: Some(600.),
+                height: Some(400.),
+                ..Default::default()
+            })
+            .with_header_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 24.,
+                    bottom: 0.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                font_size: Some(16.),
+                font_weight: Some(Weight::Bold),
+                ..Default::default()
+            })
+            .with_body_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 0.,
+                    bottom: 24.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                ..Default::default()
+            })
+            .with_background_opacity(100)
+            .with_dismiss_on_click()
         });
         ctx.subscribe_to_view(&add_regex_modal_view, |me, _, event, ctx| {
             me.handle_modal_event(event, ctx);
@@ -758,7 +739,7 @@ impl SecretRedactionWidget {
             .count();
 
         let personal_tab = self.render_tab(
-            "Personal".to_string(),
+            localization::text_for_app(app, "settings.privacy.personal_tab"),
             personal_count,
             SecretRedactionTab::Personal,
             active_tab == SecretRedactionTab::Personal,
@@ -769,7 +750,7 @@ impl SecretRedactionWidget {
         let is_enterprise_tab_active = active_tab == SecretRedactionTab::Enterprise;
 
         let enterprise_tab = self.render_tab(
-            "Enterprise".to_string(),
+            localization::text_for_app(app, "settings.privacy.enterprise_tab"),
             enterprise_count,
             SecretRedactionTab::Enterprise,
             is_enterprise_tab_active,
@@ -785,7 +766,10 @@ impl SecretRedactionWidget {
         if is_enterprise_tab_active {
             row.add_child(Shrinkable::new(1., Empty::new().finish()).finish());
             row.add_child(self.render_info(
-                "Enterprise secret redaction cannot be modified.".to_string(),
+                localization::text_for_app(
+                    app,
+                    "settings.privacy.enterprise_secret_redaction.locked",
+                ),
                 appearance,
             ));
         }
@@ -904,7 +888,10 @@ impl SecretRedactionWidget {
 
         if enterprise_regex_list.is_empty() {
             return ui_builder
-                .paragraph("No enterprise regexes have been configured by your organization.")
+                .paragraph(localization::text_for_app(
+                    app,
+                    "settings.privacy.enterprise_regex.empty",
+                ))
                 .with_style(UiComponentStyles {
                     font_color: Some(description_text_color),
                     ..Default::default()
@@ -1003,9 +990,10 @@ impl SecretRedactionWidget {
                         .with_main_axis_size(MainAxisSize::Max)
                         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                        .with_child(
-                            self.render_section_title("Recommended".to_string(), appearance),
-                        )
+                        .with_child(self.render_section_title(
+                            localization::text_for_app(app, "settings.privacy.recommended"),
+                            appearance,
+                        ))
                         .with_child(
                             Container::new(
                                 ui_builder
@@ -1014,7 +1002,8 @@ impl SecretRedactionWidget {
                                         self.add_all_button_mouse_state.clone(),
                                     )
                                     .with_text_and_icon_label(Self::add_button(
-                                        "Add all", appearance,
+                                        localization::text_for_app(app, "settings.privacy.add_all"),
+                                        appearance,
                                     ))
                                     .with_style(Self::add_button_style())
                                     .build()
@@ -1172,7 +1161,14 @@ impl SettingsWidget for SecretRedactionWidget {
                 .with_child(
                     Shrinkable::new(
                         1.0,
-                        render_sub_header(appearance, SAFE_MODE_TITLE, Some(local_only_icon_state)),
+                        render_sub_header(
+                            appearance,
+                            localization::text_for_app(
+                                app,
+                                "settings.privacy.secret_redaction.title",
+                            ),
+                            Some(local_only_icon_state),
+                        ),
                     )
                     .finish(),
                 )
@@ -1180,7 +1176,10 @@ impl SettingsWidget for SecretRedactionWidget {
                     Container::new({
                         if is_enterprise_enabled {
                             self.render_info(
-                                "Enabled by your organization.".to_string(),
+                                localization::text_for_app(
+                                    app,
+                                    "settings.privacy.organization_enabled",
+                                ),
                                 appearance,
                             )
                         } else {
@@ -1207,7 +1206,10 @@ impl SettingsWidget for SecretRedactionWidget {
             .with_child(secret_redaction_title_row)
             .with_child(
                 ui_builder
-                    .paragraph((*SAFE_MODE_DESCRIPTION).to_owned())
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "settings.privacy.secret_redaction.description",
+                    ))
                     .with_style(UiComponentStyles {
                         font_color: Some(description_text_color),
                         font_size: Some(FONT_SIZE + 1.), // One size up from current 12px to 13px
@@ -1233,7 +1235,7 @@ impl SettingsWidget for SecretRedactionWidget {
 
             // Create the label with local-only icon if needed
             let label_with_icon = super::settings_page::render_dropdown_item_label(
-                "Secret visual redaction mode".to_string(),
+                localization::text_for_app(app, "settings.privacy.secret_visual_redaction.title"),
                 None,
                 local_only_icon_state,
                 None,
@@ -1246,22 +1248,19 @@ impl SettingsWidget for SecretRedactionWidget {
                 .with_child(
                     Container::new(
                         ui_builder
-                            .paragraph(
-                                "Choose how secrets are visually presented in the block list while keeping them searchable. This setting only affects what you see in the block list.",
-                            )
+                            .paragraph(localization::text_for_app(
+                                app,
+                                "settings.privacy.secret_visual_redaction.description",
+                            ))
                             .with_style(UiComponentStyles {
                                 font_color: Some(description_text_color),
-                                margin: Some(
-                                    Coords::default()
-                                        .top(4.)
-                                        .bottom(0.),
-                                ),
+                                margin: Some(Coords::default().top(4.).bottom(0.)),
                                 ..Default::default()
                             })
                             .build()
-                            .finish()
+                            .finish(),
                     )
-                    .finish()
+                    .finish(),
                 )
                 .finish();
 
@@ -1296,11 +1295,17 @@ impl SettingsWidget for SecretRedactionWidget {
                             1.,
                             Flex::column()
                                 .with_child(self.render_section_title(
-                                    USER_SECRET_REGEX_TITLE.to_string(),
+                                    localization::text_for_app(
+                                        app,
+                                        "settings.privacy.custom_secret_redaction.title",
+                                    ),
                                     appearance,
                                 ))
                                 .with_child(self.render_description(
-                                    USER_SECRET_REGEX_DESCRIPTION.to_owned(),
+                                    localization::text_for_app(
+                                        app,
+                                        "settings.privacy.custom_secret_redaction.description",
+                                    ),
                                     appearance,
                                     if privacy_settings.user_secret_regex_list.iter().count() > 0 {
                                         10.
@@ -1318,7 +1323,10 @@ impl SettingsWidget for SecretRedactionWidget {
                                 ButtonVariant::Secondary,
                                 self.add_regex_button_mouse_state.clone(),
                             )
-                            .with_text_and_icon_label(Self::add_button("Add regex", appearance))
+                            .with_text_and_icon_label(Self::add_button(
+                                localization::text_for_app(app, "settings.privacy.add_regex"),
+                                appearance,
+                            ))
                             .with_style(Self::add_button_style())
                             .build()
                             .on_click(move |ctx, _, _| {
@@ -1453,9 +1461,9 @@ impl SettingsWidget for AppAnalyticsWidget {
             .is_some_and(|w| w.billing_metadata.customer_type == CustomerType::Enterprise);
         // Keep the old description for enterprise users because we do not collect block input/output for them.
         let description = if is_enterprise {
-            TELEMETRY_DESCRIPTION_OLD
+            localization::text_for_app(app, "settings.privacy.telemetry.description_enterprise")
         } else {
-            TELEMETRY_DESCRIPTION
+            localization::text_for_app(app, "settings.privacy.telemetry.description")
         };
 
         let org_setting = UserWorkspaces::handle(app)
@@ -1474,7 +1482,7 @@ impl SettingsWidget for AppAnalyticsWidget {
             Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(render_body_item_label::<PrivacyPageAction>(
-                    TELEMETRY_TITLE.into(),
+                    localization::text_for_app(app, "settings.privacy.telemetry.title"),
                     None,
                     None,
                     LocalOnlyIconState::Hidden,
@@ -1485,7 +1493,7 @@ impl SettingsWidget for AppAnalyticsWidget {
                 .finish()
         } else {
             render_body_item_label::<PrivacyPageAction>(
-                TELEMETRY_TITLE.into(),
+                localization::text_for_app(app, "settings.privacy.telemetry.title"),
                 None,
                 None,
                 LocalOnlyIconState::Hidden,
@@ -1507,7 +1515,10 @@ impl SettingsWidget for AppAnalyticsWidget {
         } else {
             switch
                 .with_tooltip(TooltipConfig {
-                    text: "This setting is managed by your organization.".to_string(),
+                    text: localization::text_for_app(
+                        app,
+                        "settings.privacy.setting_managed_by_organization",
+                    ),
                     styles: ui_builder.default_tool_tip_styles(),
                 })
                 .disable()
@@ -1542,7 +1553,7 @@ impl SettingsWidget for AppAnalyticsWidget {
             Align::new(
                 ui_builder
                     .link(
-                        "Read more about Warp's use of data".into(),
+                        localization::text_for_app(app, "settings.privacy.read_more_data_use"),
                         Some(TELEMETRY_DOCS_URL.into()),
                         None,
                         self.docs_link_mouse_state.clone(),
@@ -1592,7 +1603,7 @@ impl SettingsWidget for CrashReportsWidget {
         let privacy_settings = PrivacySettings::as_ref(app);
         Flex::column()
             .with_child(render_body_item::<PrivacyPageAction>(
-                "Send crash reports".into(),
+                localization::text_for_app(app, "settings.privacy.crash_reports.title"),
                 None,
                 // Crash report state is always synced to cloud, so no need to show local only icon.
                 LocalOnlyIconState::Hidden,
@@ -1610,10 +1621,10 @@ impl SettingsWidget for CrashReportsWidget {
             ))
             .with_child(
                 ui_builder
-                    .paragraph(
-                        "Crash reports assist with debugging and stability improvements."
-                            .to_owned(),
-                    )
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "settings.privacy.crash_reports.description",
+                    ))
                     .with_style(UiComponentStyles {
                         font_color: Some(
                             appearance
@@ -1696,7 +1707,10 @@ impl SettingsWidget for CloudConversationStorageWidget {
         } else {
             switch
                 .with_tooltip(TooltipConfig {
-                    text: "This setting is managed by your organization.".to_string(),
+                    text: localization::text_for_app(
+                        app,
+                        "settings.privacy.setting_managed_by_organization",
+                    ),
                     styles: ui_builder.default_tool_tip_styles(),
                 })
                 .disable()
@@ -1706,7 +1720,10 @@ impl SettingsWidget for CloudConversationStorageWidget {
 
         Flex::column()
             .with_child(render_body_item::<PrivacyPageAction>(
-                "Store AI conversations in the cloud".into(),
+                localization::text_for_app(
+                    app,
+                    "settings.privacy.cloud_conversation_storage.title",
+                ),
                 None,
                 LocalOnlyIconState::Hidden,
                 toggle_state,
@@ -1716,18 +1733,17 @@ impl SettingsWidget for CloudConversationStorageWidget {
             ))
             .with_child(
                 ui_builder
-                    .paragraph(
-                        if is_checked {
-                            "Agent conversations can be shared with others and are retained \
-                            when you log in on different devices. This data is only stored \
-                            for product functionality, and Warp will not use it for analytics."
-                        } else {
-                            "Agent conversations are only stored locally on your machine, are \
-                            lost upon logout, and cannot be shared. Note: conversation data \
-                            for ambient agents are still stored in the cloud."
-                        }
-                        .to_owned(),
-                    )
+                    .paragraph(if is_checked {
+                        localization::text_for_app(
+                            app,
+                            "settings.privacy.cloud_conversation_storage.description_enabled",
+                        )
+                    } else {
+                        localization::text_for_app(
+                            app,
+                            "settings.privacy.cloud_conversation_storage.description_disabled",
+                        )
+                    })
                     .with_style(UiComponentStyles {
                         font_color: Some(
                             appearance
@@ -1765,12 +1781,12 @@ impl SettingsWidget for NetworkLogWidget {
         &self,
         _view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         Flex::column()
             .with_child(render_body_item::<PrivacyPageAction>(
-                "Network log console".into(),
+                localization::text_for_app(app, "settings.privacy.network_log.title"),
                 None,
                 // Not rendering a setting, so no need to show local only icon state.
                 LocalOnlyIconState::Hidden,
@@ -1781,12 +1797,10 @@ impl SettingsWidget for NetworkLogWidget {
             ))
             .with_child(
                 ui_builder
-                    .paragraph(
-                        "We've built a native console that allows you to view all communications \
-                        from Warp to external servers to ensure you feel comfortable that your \
-                        work is always kept safe."
-                            .to_owned(),
-                    )
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "settings.privacy.network_log.description",
+                    ))
                     .with_style(UiComponentStyles {
                         font_color: Some(
                             appearance
@@ -1808,7 +1822,7 @@ impl SettingsWidget for NetworkLogWidget {
                 Align::new(
                     ui_builder
                         .link(
-                            "View network logging".to_owned(),
+                            localization::text_for_app(app, "settings.privacy.network_log.link"),
                             None,
                             Some(Box::new(|ctx| {
                                 ctx.dispatch_typed_action(PrivacyPageAction::LaunchNetworkLogging);
@@ -1843,12 +1857,12 @@ impl SettingsWidget for DataManagementWidget {
         &self,
         _view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         Flex::column()
             .with_child(render_body_item::<PrivacyPageAction>(
-                DATA_MANAGEMENT_TITLE.into(),
+                localization::text_for_app(app, "settings.privacy.data_management.title"),
                 None,
                 // Not rendering a setting, so no need to show local only icon state.
                 LocalOnlyIconState::Hidden,
@@ -1859,7 +1873,10 @@ impl SettingsWidget for DataManagementWidget {
             ))
             .with_child(
                 ui_builder
-                    .paragraph(DATA_MANAGEMENT_DESCRIPTION)
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "settings.privacy.data_management.description",
+                    ))
                     .with_style(UiComponentStyles {
                         font_color: Some(
                             appearance
@@ -1882,7 +1899,10 @@ impl SettingsWidget for DataManagementWidget {
                     appearance
                         .ui_builder()
                         .link(
-                            DATA_MANAGEMENT_LINK_TEXT.into(),
+                            localization::text_for_app(
+                                app,
+                                "settings.privacy.data_management.link",
+                            ),
                             None,
                             Some(Box::new(|ctx| {
                                 ctx.dispatch_typed_action(
@@ -1919,11 +1939,11 @@ impl SettingsWidget for PrivacyPolicyWidget {
         &self,
         _view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Flex::column()
             .with_child(render_body_item::<PrivacyPageAction>(
-                PRIVACY_POLICY_TITLE.into(),
+                localization::text_for_app(app, "settings.privacy.privacy_policy.title"),
                 None,
                 // Not rendering a setting, so no need to show local only icon state.
                 LocalOnlyIconState::Hidden,
@@ -1937,7 +1957,7 @@ impl SettingsWidget for PrivacyPolicyWidget {
                     appearance
                         .ui_builder()
                         .link(
-                            PRIVACY_POLICY_LINK_TEXT.into(),
+                            localization::text_for_app(app, "settings.privacy.privacy_policy.link"),
                             Some(PRIVACY_POLICY_URL.into()),
                             None,
                             self.link_mouse_state.clone(),
@@ -1960,16 +1980,18 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     builder: fn(SettingsAction) -> T,
 ) {
     let mut toggle_binding_pairs = vec![
-        ToggleSettingActionPair::new(
+        ToggleSettingActionPair::new_localized(
             "app analytics",
+            "settings.privacy.telemetry.title",
             builder(SettingsAction::PrivacyPageToggle(
                 PrivacyPageAction::ToggleTelemetry,
             )),
             context,
             flags::TELEMETRY_FLAG,
         ),
-        ToggleSettingActionPair::new(
+        ToggleSettingActionPair::new_localized(
             "crash reporting",
+            "settings.privacy.crash_reports.title",
             builder(SettingsAction::PrivacyPageToggle(
                 PrivacyPageAction::ToggleCrashReporting,
             )),
@@ -1978,8 +2000,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     ];
 
-    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+    toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
         "secret redaction",
+        "settings.privacy.secret_redaction.title",
         builder(SettingsAction::PrivacyPageToggle(
             PrivacyPageAction::ToggleSafeMode,
         )),
@@ -1988,15 +2011,26 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     ));
 
     toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "cloud AI conversation storage",
+        ToggleSettingActionPair::custom(
+            SettingActionPairDescriptions::from_label_key(
+                "Enable cloud AI conversation storage".to_string(),
+                "Disable cloud AI conversation storage".to_string(),
+                "settings.privacy.cloud_conversation_storage.title",
+            ),
             builder(SettingsAction::PrivacyPageToggle(
                 PrivacyPageAction::ToggleCloudConversationStorage,
             )),
-            &(context.clone()
-                & id!(flags::IS_ANY_AI_ENABLED)
-                & id!(flags::CLOUD_CONVERSATION_STORAGE_EDITABLE_FLAG)),
-            flags::CLOUD_CONVERSATION_STORAGE_FLAG,
+            SettingActionPairContexts::new(
+                context.clone()
+                    & id!(flags::IS_ANY_AI_ENABLED)
+                    & id!(flags::CLOUD_CONVERSATION_STORAGE_EDITABLE_FLAG)
+                    & !id!(flags::CLOUD_CONVERSATION_STORAGE_FLAG),
+                context.clone()
+                    & id!(flags::IS_ANY_AI_ENABLED)
+                    & id!(flags::CLOUD_CONVERSATION_STORAGE_EDITABLE_FLAG)
+                    & id!(flags::CLOUD_CONVERSATION_STORAGE_FLAG),
+            ),
+            None,
         )
         .with_enabled(|| FeatureFlag::CloudConversations.is_enabled()),
     );

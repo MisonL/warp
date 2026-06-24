@@ -14,6 +14,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, PrimaryTheme, SecondaryTheme,
@@ -22,6 +23,10 @@ use crate::view_components::action_button::{
 const MODAL_WIDTH: f32 = 420.;
 const HERO_HEIGHT: f32 = 92.;
 const HERO_IMAGE_PATH: &str = "async/png/onboarding/auto_handoff_sleep_banner.png";
+
+fn auto_handoff_sleep_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -83,18 +88,24 @@ impl AutoHandoffSleepModal {
                 .on_click(|ctx| ctx.dispatch_typed_action(AutoHandoffSleepModalAction::Dismiss))
         });
 
-        let enable_button = ctx.add_view(|_ctx| {
-            ActionButton::new("Enable", PrimaryTheme)
-                .with_full_width(true)
-                .with_size(ButtonSize::Default)
-                .on_click(|ctx| ctx.dispatch_typed_action(AutoHandoffSleepModalAction::Enable))
+        let enable_button = ctx.add_view(|ctx| {
+            ActionButton::new(
+                auto_handoff_sleep_text(ctx, "settings.action.enable"),
+                PrimaryTheme,
+            )
+            .with_full_width(true)
+            .with_size(ButtonSize::Default)
+            .on_click(|ctx| ctx.dispatch_typed_action(AutoHandoffSleepModalAction::Enable))
         });
 
-        let dismiss_button = ctx.add_view(|_ctx| {
-            ActionButton::new("Dismiss", SecondaryTheme)
-                .with_full_width(true)
-                .with_size(ButtonSize::Default)
-                .on_click(|ctx| ctx.dispatch_typed_action(AutoHandoffSleepModalAction::Dismiss))
+        let dismiss_button = ctx.add_view(|ctx| {
+            ActionButton::new(
+                auto_handoff_sleep_text(ctx, "settings.action.cancel"),
+                SecondaryTheme,
+            )
+            .with_full_width(true)
+            .with_size(ButtonSize::Default)
+            .on_click(|ctx| ctx.dispatch_typed_action(AutoHandoffSleepModalAction::Dismiss))
         });
 
         Self {
@@ -168,16 +179,20 @@ impl AutoHandoffSleepModal {
         .finish()
     }
 
-    fn render_title(appearance: &Appearance) -> Box<dyn Element> {
-        Text::new("Enable auto-handoff?", appearance.ui_font_family(), 20.)
-            .with_color(
-                appearance
-                    .theme()
-                    .main_text_color(appearance.theme().surface_3())
-                    .into_solid(),
-            )
-            .with_style(Properties::default().weight(Weight::Semibold))
-            .finish()
+    fn render_title(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        Text::new(
+            auto_handoff_sleep_text(app, "workspace.auto_handoff_sleep.title"),
+            appearance.ui_font_family(),
+            20.,
+        )
+        .with_color(
+            appearance
+                .theme()
+                .main_text_color(appearance.theme().surface_3())
+                .into_solid(),
+        )
+        .with_style(Properties::default().weight(Weight::Semibold))
+        .finish()
     }
 
     fn render_description(appearance: &Appearance) -> Box<dyn Element> {
@@ -196,7 +211,7 @@ impl AutoHandoffSleepModal {
         .finish()
     }
 
-    fn render_body(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_body(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let footer = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(12.)
@@ -213,7 +228,7 @@ impl AutoHandoffSleepModal {
                         .with_cross_axis_alignment(CrossAxisAlignment::Start)
                         .with_spacing(8.)
                         .with_child(Self::render_badge(appearance))
-                        .with_child(Self::render_title(appearance))
+                        .with_child(Self::render_title(appearance, app))
                         .finish(),
                 )
                 .with_child(Self::render_description(appearance))
@@ -250,7 +265,7 @@ impl View for AutoHandoffSleepModal {
                     .with_main_axis_size(MainAxisSize::Min)
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                     .with_child(self.render_hero())
-                    .with_child(self.render_body(appearance))
+                    .with_child(self.render_body(appearance, app))
                     .finish(),
             )
             .with_background(appearance.theme().surface_3())

@@ -564,11 +564,11 @@ impl CommandSearchView {
         self.search_bar_state.as_ref(app).selected_result_renderer()
     }
 
-    fn render_loading_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_loading_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let muted_color: ColorU = appearance.theme().nonactive_ui_text_color().into();
         let text = appearance
             .ui_builder()
-            .span("Loading...")
+            .span(crate::localization::text_for_app(app, "search.loading"))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.monospace_font_size()),
                 font_family_id: Some(appearance.ui_font_family()),
@@ -701,7 +701,10 @@ impl CommandSearchView {
         row.add_child(
             appearance
                 .ui_builder()
-                .span("Looks like you're out of credits. ")
+                .span(crate::localization::text_for_app(
+                    app,
+                    "search.command_search.out_of_credits_prefix",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.monospace_font_size()),
                     font_family_id: Some(appearance.ui_font_family()),
@@ -750,7 +753,7 @@ impl CommandSearchView {
                 // There are no results to display, so notify the user of that fact.
                 let text = appearance
                     .ui_builder()
-                    .span("No results found.")
+                    .span(crate::localization::text_for_app(app, "search.no_results"))
                     .with_style(UiComponentStyles {
                         font_size: Some(appearance.monospace_font_size()),
                         font_family_id: Some(appearance.ui_font_family()),
@@ -866,7 +869,7 @@ impl CommandSearchView {
                     )
                     .finish()
             }
-            _ => self.render_loading_state(appearance),
+            _ => self.render_loading_state(appearance, app),
         }
     }
 
@@ -1007,7 +1010,7 @@ impl View for CommandSearchView {
         let panel_contents_body = if should_show_zero_state {
             ChildView::new(&self.zero_state_handle).finish()
         } else if mixer.is_loading() && mixer.are_results_empty() {
-            self.render_loading_state(appearance)
+            self.render_loading_state(appearance, app)
         } else {
             self.render_results(appearance, app)
         };

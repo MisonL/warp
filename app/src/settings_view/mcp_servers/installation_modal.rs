@@ -21,6 +21,7 @@ use crate::ai::mcp::templatable_installation::{VariableType, VariableValue};
 use crate::ai::mcp::{TemplatableMCPServer, TemplatableMCPServerManager, TemplateVariable};
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
+use crate::localization;
 use crate::settings_view::mcp_servers::style::{
     INSTALLATION_MODAL_BUTTON_GAP, INSTALLATION_MODAL_BUTTON_PADDING,
     INSTALLATION_MODAL_INPUT_VERTICAL_SPACING, INSTALLATION_MODAL_LABEL_VERTICAL_SPACING,
@@ -74,19 +75,26 @@ pub struct InstallationModalBody {
 
 impl InstallationModalBody {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let cancel_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", NakedTheme).on_click(|ctx| {
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.cancel"),
+                NakedTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(InstallationModalBodyAction::Cancel);
             })
         });
 
         let enter_keystroke = Keystroke::parse("enter").expect("valid keystroke");
         let install_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Install", PrimaryTheme)
-                .with_keybinding(KeystrokeSource::Fixed(enter_keystroke), ctx)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(InstallationModalBodyAction::Install);
-                })
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.mcp.install.install"),
+                PrimaryTheme,
+            )
+            .with_keybinding(KeystrokeSource::Fixed(enter_keystroke), ctx)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(InstallationModalBodyAction::Install);
+            })
         });
 
         Self {
@@ -548,7 +556,7 @@ impl View for InstallationModalBody {
                 .finish()
         } else {
             Text::new(
-                "No MCP server selected",
+                localization::text_for_app(ctx, "settings.mcp.install.no_server_selected"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )

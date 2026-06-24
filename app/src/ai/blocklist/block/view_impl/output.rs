@@ -2121,11 +2121,10 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
             None,
         )
         .with_custom_label(button_content)
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Resume conversation".to_string())
-                .build()
-                .finish()
+        .with_tooltip({
+            let tooltip_text =
+                crate::localization::text_for_app(app, "agent.output.conversation.resume");
+            move || ui_builder.tool_tip(tooltip_text.clone()).build().finish()
         })
         .with_cursor(Some(Cursor::PointingHand))
         .build()
@@ -2329,9 +2328,12 @@ fn render_suggest_new_conversation(
     }
 
     if props.shared_session_status.is_viewer() {
-        let header_element = HeaderConfig::new("Start a new conversation", app)
-            .with_icon(gray_stop_icon(appearance))
-            .render(app);
+        let header_element = HeaderConfig::new(
+            crate::localization::text_for_app(app, "agent.output.new_conversation.start"),
+            app,
+        )
+        .with_icon(gray_stop_icon(appearance))
+        .render(app);
 
         return Some(
             header_element
@@ -2392,30 +2394,38 @@ fn create_formatted_text_for_grep(
         .is_some_and(|status| status.is_queued());
 
     let display_path = if path == "." {
-        "the current directory"
+        crate::localization::text_for_app(app, "agent.cli.search_action.current_directory")
     } else {
-        path
+        path.to_owned()
     };
 
     let formatted_text = if queries.len() == 1 {
         let query = queries
             .first()
             .expect("Queries slice should have an element");
-        let mut fragments = if is_cancelled || is_queued {
-            vec![
-                FormattedTextFragment::plain_text("Grep for "),
-                FormattedTextFragment::inline_code(query),
-            ]
+        let prefix_key = if is_cancelled {
+            "agent.output.grep.cancelled_prefix"
+        } else if is_queued {
+            "agent.output.grep.queued_prefix"
         } else {
-            vec![
-                FormattedTextFragment::plain_text("Grepping for "),
-                FormattedTextFragment::inline_code(query),
-            ]
+            "agent.output.grep.running_prefix"
         };
+        let mut fragments = vec![
+            FormattedTextFragment::plain_text(crate::localization::text_for_app(app, prefix_key)),
+            FormattedTextFragment::inline_code(query),
+        ];
         fragments.push(if is_cancelled {
-            FormattedTextFragment::plain_text(format!(" in {display_path} cancelled"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.grep.cancelled_suffix",
+                &[("path", display_path.as_str())],
+            ))
         } else {
-            FormattedTextFragment::plain_text(format!(" in {display_path}"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.grep.path_suffix",
+                &[("path", display_path.as_str())],
+            ))
         });
         FormattedText::new([FormattedTextLine::Line(fragments)])
     } else {
@@ -2423,18 +2433,24 @@ fn create_formatted_text_for_grep(
 
         if is_cancelled {
             lines.push(FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(format!(
-                    "Cancelled grep for the following patterns in {display_path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.grep.cancelled_patterns",
+                    &[("path", display_path.as_str())],
                 )),
             ]));
         } else {
             lines.push(FormattedTextLine::Line(vec![if is_queued {
-                FormattedTextFragment::plain_text(format!(
-                    "Grep for the following patterns in {display_path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.grep.queued_patterns",
+                    &[("path", display_path.as_str())],
                 ))
             } else {
-                FormattedTextFragment::plain_text(format!(
-                    "Grepping for the following patterns in {display_path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.grep.running_patterns",
+                    &[("path", display_path.as_str())],
                 ))
             }]));
         }
@@ -2491,28 +2507,38 @@ fn create_formatted_text_for_file_glob(
         .as_ref()
         .is_some_and(|status| status.is_queued());
 
-    let path = path.unwrap_or("the current directory");
+    let current_directory =
+        crate::localization::text_for_app(app, "agent.cli.search_action.current_directory");
+    let path = path.unwrap_or(current_directory.as_str());
 
     let formatted_text = if patterns.len() == 1 {
         let pattern = patterns
             .first()
             .expect("Patterns slice should have an element");
 
-        let mut fragments = if is_cancelled || is_queued {
-            vec![
-                FormattedTextFragment::plain_text("Search for files that match "),
-                FormattedTextFragment::inline_code(pattern),
-            ]
+        let prefix_key = if is_cancelled {
+            "agent.output.file_glob.cancelled_prefix"
+        } else if is_queued {
+            "agent.output.file_glob.queued_prefix"
         } else {
-            vec![
-                FormattedTextFragment::plain_text("Finding files that match "),
-                FormattedTextFragment::inline_code(pattern),
-            ]
+            "agent.output.file_glob.running_prefix"
         };
+        let mut fragments = vec![
+            FormattedTextFragment::plain_text(crate::localization::text_for_app(app, prefix_key)),
+            FormattedTextFragment::inline_code(pattern),
+        ];
         fragments.push(if is_cancelled {
-            FormattedTextFragment::plain_text(format!(" in {path} cancelled"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.file_glob.cancelled_suffix",
+                &[("path", path)],
+            ))
         } else {
-            FormattedTextFragment::plain_text(format!(" in {path}"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.file_glob.path_suffix",
+                &[("path", path)],
+            ))
         });
         FormattedText::new([FormattedTextLine::Line(fragments)])
     } else {
@@ -2520,18 +2546,24 @@ fn create_formatted_text_for_file_glob(
 
         if is_cancelled {
             lines.push(FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(format!(
-                    "Cancelled search for files that match the following patterns in {path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.file_glob.cancelled_patterns",
+                    &[("path", path)],
                 )),
             ]));
         } else {
             lines.push(FormattedTextLine::Line(vec![if is_queued {
-                FormattedTextFragment::plain_text(format!(
-                    "Find files that match the following patterns in {path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.file_glob.queued_patterns",
+                    &[("path", path)],
                 ))
             } else {
-                FormattedTextFragment::plain_text(format!(
-                    "Finding files that match the following patterns in {path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.file_glob.running_patterns",
+                    &[("path", path)],
                 ))
             }]));
         }
@@ -3130,11 +3162,10 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
             ),
             props.state_handles.thumbs_up_handle.clone(),
         )
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Good response".to_string())
-                .build()
-                .finish()
+        .with_tooltip({
+            let tooltip_text =
+                crate::localization::text_for_app(app, "agent.output.feedback.good_response");
+            move || ui_builder.tool_tip(tooltip_text.clone()).build().finish()
         })
         .with_style(style_override)
         .with_hovered_styles(style_override_with_background)
@@ -3150,12 +3181,16 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
             ),
             props.state_handles.thumbs_down_handle.clone(),
         )
-        .with_tooltip(move || {
-            ui_builder
-                .clone()
-                .tool_tip("Bad response".to_string())
-                .build()
-                .finish()
+        .with_tooltip({
+            let tooltip_text =
+                crate::localization::text_for_app(app, "agent.output.feedback.bad_response");
+            move || {
+                ui_builder
+                    .clone()
+                    .tool_tip(tooltip_text.clone())
+                    .build()
+                    .finish()
+            }
         })
         .with_style(style_override)
         .with_hovered_styles(style_override_with_background)
@@ -3223,11 +3258,10 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
             false,
             props.state_handles.continue_conversation_handle.clone(),
         )
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Continue conversation".to_string())
-                .build()
-                .finish()
+        .with_tooltip({
+            let tooltip_text =
+                crate::localization::text_for_app(app, "agent.output.conversation.continue");
+            move || ui_builder.tool_tip(tooltip_text.clone()).build().finish()
         })
         .with_style(style_override)
         .with_hovered_styles(style_override_with_background)
@@ -3433,7 +3467,10 @@ fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
                 // Show tooltip on hover or while clicked
                 let mut stack = Stack::new().with_child(content.finish());
                 let tooltip = ui_builder
-                    .tool_tip("Show credit usage details".to_string())
+                    .tool_tip(crate::localization::text_for_app(
+                        app,
+                        "agent.output.usage.show_details",
+                    ))
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(

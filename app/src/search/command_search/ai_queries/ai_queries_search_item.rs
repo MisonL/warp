@@ -11,6 +11,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::ai::blocklist::AIQueryHistoryOutputStatus;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::ai_queries::fuzzy_match::FuzzyMatchAIQueryResults;
 use crate::search::command_search::searcher::CommandSearchItemAction;
 use crate::search::item::SearchItem;

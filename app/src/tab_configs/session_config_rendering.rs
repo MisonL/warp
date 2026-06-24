@@ -13,9 +13,10 @@ use warpui::fonts::{Properties, Weight};
 use warpui::geometry::vector::Vector2F;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
-use warpui::{Element, EventContext};
+use warpui::{AppContext, Element, EventContext};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::tab_configs::session_config::SessionType;
 use crate::ui_components::blended_colors;
 use crate::view_components::callout_bubble::{
@@ -53,6 +54,7 @@ pub fn render_session_type_pills<F>(
     selected_index: usize,
     pill_mouse_states: &[MouseStateHandle],
     on_select: F,
+    app: &AppContext,
     appearance: &Appearance,
 ) -> Box<dyn Element>
 where
@@ -63,6 +65,7 @@ where
         selected_index,
         pill_mouse_states,
         on_select,
+        app,
         None,
         appearance,
     )
@@ -76,6 +79,7 @@ pub fn render_session_type_pills_with_background<F>(
     selected_index: usize,
     pill_mouse_states: &[MouseStateHandle],
     on_select: F,
+    app: &AppContext,
     bg: Option<ColorU>,
     appearance: &Appearance,
 ) -> Box<dyn Element>
@@ -87,13 +91,17 @@ where
     let on_accent_bg = bg.is_some();
     let on_select = Arc::new(on_select);
 
-    let label = Text::new_inline("Session type".to_string(), appearance.ui_font_family(), 12.)
-        .with_color(if on_accent_bg {
-            callout_label_color(appearance)
-        } else {
-            blended_colors::text_disabled(theme, bg_fill)
-        })
-        .finish();
+    let label = Text::new_inline(
+        localization::text_for_app(app, "tab_config.session_type"),
+        appearance.ui_font_family(),
+        12.,
+    )
+    .with_color(if on_accent_bg {
+        callout_label_color(appearance)
+    } else {
+        blended_colors::text_disabled(theme, bg_fill)
+    })
+    .finish();
 
     let mut pills_row = Flex::row().with_spacing(PILL_GAP);
 

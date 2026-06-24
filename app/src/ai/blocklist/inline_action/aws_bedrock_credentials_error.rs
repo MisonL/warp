@@ -16,7 +16,7 @@ use crate::ai::blocklist::view_util::error_color;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
-use crate::{report_if_error, Appearance};
+use crate::{localization, report_if_error, Appearance};
 
 #[derive(Clone, Debug)]
 pub enum AwsBedrockCredentialsErrorAction {
@@ -56,21 +56,25 @@ impl AwsBedrockCredentialsErrorView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         // Run button
-        let run_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Refresh AWS Credentials", PrimaryTheme)
-                .with_size(ButtonSize::InlineActionHeader)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::RunLoginCommand)
-                })
+        let run_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.aws_bedrock_credentials.refresh"),
+                PrimaryTheme,
+            )
+            .with_size(ButtonSize::InlineActionHeader)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::RunLoginCommand)
+            })
         });
 
         // Configure button
-        let configure_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Configure", NakedTheme)
-                .with_size(ButtonSize::InlineActionHeader)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::Configure)
-                })
+        let configure_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.aws_bedrock_credentials.configure"),
+                NakedTheme,
+            )
+            .with_size(ButtonSize::InlineActionHeader)
+            .on_click(|ctx| ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::Configure))
         });
 
         // Subscribe to AISettings changes to update checkbox state

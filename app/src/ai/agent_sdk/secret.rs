@@ -24,6 +24,7 @@ use warpui::{AppContext, SingletonEntity as _};
 use super::output::{self, TableFormat};
 use crate::auth::UserUid;
 use crate::cloud_object::Owner;
+use crate::localization;
 use crate::server::ids::ServerId;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 
@@ -110,13 +111,13 @@ enum SecretInput {
 impl SecretInput {
     /// Read the secret value, prompting the user if necessary.
     /// Returns `Ok(None)` when the user cancels the prompt.
-    fn read(self) -> Result<Option<ManagedSecretValue>> {
+    fn read(self, app: &AppContext) -> Result<Option<ManagedSecretValue>> {
         match self {
             SecretInput::Simple {
                 secret_type,
                 value_args,
             } => {
-                let raw = match read_simple_secret_value(&value_args)? {
+                let raw = match read_simple_secret_value(&value_args, app)? {
                     Some(v) => v,
                     None => return Ok(None),
                 };
@@ -125,7 +126,7 @@ impl SecretInput {
             SecretInput::Bedrock {
                 bedrock_api_key,
                 region,
-            } => read_bedrock_secret_value(bedrock_api_key, region),
+            } => read_bedrock_secret_value(bedrock_api_key, region, app),
             SecretInput::BedrockAccessKey {
                 access_key_id,
                 secret_access_key,
@@ -136,11 +137,12 @@ impl SecretInput {
                 secret_access_key,
                 session_token,
                 region,
+                app,
             ),
             SecretInput::OpenaiApiKey {
                 value_args,
                 base_url,
-            } => read_openai_api_key_secret_value(&value_args, base_url),
+            } => read_openai_api_key_secret_value(&value_args, base_url, app),
         }
     }
 }
@@ -238,7 +240,7 @@ fn create_secret_with_input(
                 }
             };
 
-            let managed_value = match input.read() {
+            let managed_value = match input.read(ctx) {
                 Ok(Some(value)) => value,
                 Ok(None) => {
                     // Treat this as a cancellation.
@@ -391,7 +393,7 @@ fn update_secret(ctx: &mut AppContext, args: UpdateSecretArgs) -> Result<()> {
             // Read the secret value if either --value or --value-file is provided.
             let secret_value = if args.value || args.value_args.value_file.is_some() {
                 // Create ValueArgs to handle reading from file or prompting
-                match read_simple_secret_value(&args.value_args) {
+                match read_simple_secret_value(&args.value_args, ctx) {
                     Ok(Some(value)) => Some(value),
                     Ok(None) => {
                         // Treat this as a cancellation.
@@ -525,7 +527,7 @@ fn list_secrets(
     Ok(())
 }
 /// Read a raw secret string from either the provided file or stdin.
-fn read_simple_secret_value(args: &ValueArgs) -> Result<Option<String>> {
+fn read_simple_secret_value(args: &ValueArgs, app: &AppContext) -> Result<Option<String>> {
     if let Some(value_file) = args.value_file.as_ref() {
         let value = fs::read_to_string(value_file).with_context(|| {
             format!("Failed to read secret value from: {}", value_file.display())
@@ -536,7 +538,8 @@ fn read_simple_secret_value(args: &ValueArgs) -> Result<Option<String>> {
             Ok(Some(value))
         }
     } else if io::stdin().is_terminal() {
-        let result = Password::new("Secret value:")
+        let prompt = localization::text_for_app(app, "agent_sdk.secret.prompt.secret_value");
+        let result = Password::new(&prompt)
             .with_display_toggle_enabled()
             .without_confirmation()
             .prompt();
@@ -620,8 +623,9 @@ fn make_secret_value_from_gql_type(
 fn read_openai_api_key_secret_value(
     value_args: &ValueArgs,
     base_url: Option<String>,
+    app: &AppContext,
 ) -> Result<Option<ManagedSecretValue>> {
-    let api_key = match read_simple_secret_value(value_args)? {
+    let api_key = match read_simple_secret_value(value_args, app)? {
         Some(v) => v,
         None => return Ok(None),
     };
@@ -642,8 +646,12 @@ fn read_openai_api_key_secret_value(
                 // Non-interactive: leave the base URL unset rather than prompting or failing.
                 None
             } else {
-                match inquire::Text::new("OpenAI base URL (optional, press Enter to skip):")
-                    .with_help_message("e.g. https://us.api.openai.com/v1 for a regional endpoint")
+                let prompt =
+                    localization::text_for_app(app, "agent_sdk.secret.prompt.openai_base_url");
+                let help =
+                    localization::text_for_app(app, "agent_sdk.secret.prompt.openai_base_url_help");
+                match inquire::Text::new(&prompt)
+                    .with_help_message(&help)
                     .prompt()
                 {
                     Ok(value) => {
@@ -670,6 +678,7 @@ fn read_openai_api_key_secret_value(
 fn read_bedrock_secret_value(
     bedrock_api_key: Option<String>,
     region: Option<String>,
+    app: &AppContext,
 ) -> Result<Option<ManagedSecretValue>> {
     let api_key = match bedrock_api_key {
         Some(k) if !k.is_empty() => k,
@@ -679,7 +688,8 @@ fn read_bedrock_secret_value(
                     "Bedrock secrets require --bedrock-api-key and --region in non-interactive mode"
                 ));
             }
-            let result = Password::new("Bedrock API key:")
+            let prompt = localization::text_for_app(app, "agent_sdk.secret.prompt.bedrock_api_key");
+            let result = Password::new(&prompt)
                 .with_display_toggle_enabled()
                 .without_confirmation()
                 .prompt();
@@ -702,7 +712,8 @@ fn read_bedrock_secret_value(
                     "Bedrock secrets require --bedrock-api-key and --region in non-interactive mode"
                 ));
             }
-            let result = inquire::Text::new("AWS Region:").prompt();
+            let prompt = localization::text_for_app(app, "agent_sdk.secret.prompt.aws_region");
+            let result = inquire::Text::new(&prompt).prompt();
             match result {
                 Ok(value) if !value.is_empty() => value,
                 Ok(_) => return Ok(None),
@@ -729,6 +740,7 @@ fn read_bedrock_access_key_secret_value(
     secret_access_key: Option<String>,
     session_token: Option<String>,
     region: Option<String>,
+    app: &AppContext,
 ) -> Result<Option<ManagedSecretValue>> {
     // Error message used for all three required fields when running non-interactively.
     // --session-token is intentionally omitted because it is optional.
@@ -740,7 +752,9 @@ fn read_bedrock_access_key_secret_value(
             if !io::stdin().is_terminal() {
                 return Err(anyhow::anyhow!(NON_INTERACTIVE_REQUIRED_MSG));
             }
-            match inquire::Text::new("AWS Access Key ID:").prompt() {
+            let prompt =
+                localization::text_for_app(app, "agent_sdk.secret.prompt.aws_access_key_id");
+            match inquire::Text::new(&prompt).prompt() {
                 Ok(value) if !value.is_empty() => value,
                 Ok(_) => return Ok(None),
                 Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
@@ -757,7 +771,9 @@ fn read_bedrock_access_key_secret_value(
             if !io::stdin().is_terminal() {
                 return Err(anyhow::anyhow!(NON_INTERACTIVE_REQUIRED_MSG));
             }
-            match Password::new("AWS Secret Access Key:")
+            let prompt =
+                localization::text_for_app(app, "agent_sdk.secret.prompt.aws_secret_access_key");
+            match Password::new(&prompt)
                 .with_display_toggle_enabled()
                 .without_confirmation()
                 .prompt()
@@ -783,7 +799,11 @@ fn read_bedrock_access_key_secret_value(
                 // persistent IAM credentials do not need a session token.
                 None
             } else {
-                match Password::new("AWS Session Token (optional, press Enter to skip):")
+                let prompt = localization::text_for_app(
+                    app,
+                    "agent_sdk.secret.prompt.aws_session_token_optional",
+                );
+                match Password::new(&prompt)
                     .with_display_toggle_enabled()
                     .without_confirmation()
                     .prompt()
@@ -806,7 +826,8 @@ fn read_bedrock_access_key_secret_value(
             if !io::stdin().is_terminal() {
                 return Err(anyhow::anyhow!(NON_INTERACTIVE_REQUIRED_MSG));
             }
-            match inquire::Text::new("AWS Region:").prompt() {
+            let prompt = localization::text_for_app(app, "agent_sdk.secret.prompt.aws_region");
+            match inquire::Text::new(&prompt).prompt() {
                 Ok(value) if !value.is_empty() => value,
                 Ok(_) => return Ok(None),
                 Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {

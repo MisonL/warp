@@ -38,7 +38,7 @@ pub const SUBSHELL_DOCS_URL: &str = "https://docs.warp.dev/terminal/warpify/subs
 pub const LEFT_STRIPE_WIDTH: f32 = 5.;
 
 pub fn build_header_row(
-    text: &'static str,
+    text: impl Into<std::borrow::Cow<'static, str>>,
     icon: Icon,
     theme: &WarpTheme,
     appearance: &Appearance,
@@ -54,7 +54,7 @@ pub fn build_header_row(
     row.add_child(
         Container::new(
             Text::new(
-                text,
+                text.into(),
                 appearance.monospace_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -181,7 +181,7 @@ pub fn render_never_warpify_ssh_link(
     let link = appearance
         .ui_builder()
         .link(
-            "Never Warpify this host".into(),
+            crate::localization::text_for_app(app, "terminal.warpify.never_warpify_host"),
             None,
             Some(Box::new({
                 let ssh_host = ssh_host.clone();

@@ -34,6 +34,7 @@ use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::CloudObjectLookup as _;
+use crate::localization;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
@@ -87,13 +88,13 @@ impl AgentProgress {
         }
     }
 
-    pub fn setup_status_text(&self) -> &'static str {
+    pub fn setup_status_text(&self, app: &AppContext) -> String {
         if self.harness_started_at.is_some() {
-            "Starting Environment (Step 3/3)"
+            localization::text_for_app(app, "terminal.ambient_agent.loading.starting")
         } else if self.claimed_at.is_some() {
-            "Creating Environment (Step 2/3)"
+            localization::text_for_app(app, "terminal.ambient_agent.loading.creating")
         } else {
-            "Connecting to Host (Step 1/3)"
+            localization::text_for_app(app, "terminal.ambient_agent.loading.connecting")
         }
     }
 }
@@ -1412,9 +1413,13 @@ impl AmbientAgentViewModel {
                         | AmbientAgentTaskState::Error
                         | AmbientAgentTaskState::Blocked
                         | AmbientAgentTaskState::Unknown => {
-                            let error = status_message
-                                .map(|msg| msg.message)
-                                .unwrap_or_else(|| "Cloud agent failed".to_string());
+                            let error =
+                                status_message.map(|msg| msg.message).unwrap_or_else(|| {
+                                    localization::text_for_app(
+                                        ctx,
+                                        "terminal.ambient_agent.error.default",
+                                    )
+                                });
                             self.handle_spawn_error(error, ctx);
                         }
                     }

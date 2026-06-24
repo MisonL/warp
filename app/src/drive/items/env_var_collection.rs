@@ -12,6 +12,7 @@ use crate::cloud_object::CloudObjectMetadata;
 use crate::drive::index::DriveIndexAction;
 use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
 use crate::env_vars::{CloudEnvVarCollection, EnvVarValue};
+use crate::localization;
 use crate::themes::theme::Fill;
 
 #[derive(Clone)]
@@ -61,7 +62,10 @@ impl WarpDriveItem for WarpDriveEnvVarCollection {
         let title_to_render = if let Some(title) = title_text {
             title
         } else {
-            "Untitled".to_string()
+            localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "env_vars.title.untitled",
+            )
         };
         let title = appearance
             .ui_builder()

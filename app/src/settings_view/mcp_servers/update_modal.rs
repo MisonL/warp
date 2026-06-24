@@ -18,6 +18,7 @@ use warpui::{
 
 use crate::ai::mcp::{Author, MCPServerUpdate};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::settings_view::mcp_servers::style::{
     INSTALLATION_MODAL_BUTTON_GAP, INSTALLATION_MODAL_PADDING,
 };
@@ -56,19 +57,26 @@ pub struct UpdateModalBody {
 
 impl UpdateModalBody {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let cancel_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", NakedTheme).on_click(|ctx| {
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.cancel"),
+                NakedTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(UpdateModalBodyAction::Cancel);
             })
         });
 
         let enter_keystroke = Keystroke::parse("enter").expect("valid keystroke");
         let update_button = ctx.add_typed_action_view(|ctx| {
-            let mut button = ActionButton::new("Update", PrimaryTheme)
-                .with_keybinding(KeystrokeSource::Fixed(enter_keystroke), ctx)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(UpdateModalBodyAction::Update);
-                });
+            let mut button = ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.update"),
+                PrimaryTheme,
+            )
+            .with_keybinding(KeystrokeSource::Fixed(enter_keystroke), ctx)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(UpdateModalBodyAction::Update);
+            });
             // Initial state has no rows selected, so the button starts disabled.
             button.set_disabled(true, ctx);
             button
@@ -121,9 +129,13 @@ impl UpdateModalBody {
         });
     }
 
-    fn render_title(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_title(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
-        let name = self.server_name.as_deref().unwrap_or("Server");
+        let fallback_name = localization::text_for_app(app, "settings.mcp.update.server");
+        let name = self
+            .server_name
+            .as_deref()
+            .unwrap_or(fallback_name.as_str());
 
         // Renders MCP avatar icon
         let avatar_content = if let Some(icon) = ExternalProductIcon::from_string(name) {
@@ -153,7 +165,11 @@ impl UpdateModalBody {
 
         // Renders MCP title text
         let title = Text::new(
-            format!("Update {name}"),
+            localization::text_for_app_with_args(
+                app,
+                "settings.mcp.update.title",
+                &[("name", name)],
+            ),
             appearance.ui_font_family(),
             appearance.header_font_size(),
         )
@@ -239,6 +255,7 @@ impl UpdateModalBody {
         index: usize,
         option: &MCPServerUpdate,
         is_selected: bool,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
@@ -385,13 +402,13 @@ impl View for UpdateModalBody {
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_spacing(16.);
 
-        content_column.add_child(self.render_title(appearance));
+        content_column.add_child(self.render_title(appearance, ctx));
         content_column.add_child(self.render_description(appearance));
 
         // Add update options
         if self.update_options.is_empty() {
             let no_updates_text = Text::new(
-                "No updates available",
+                localization::text_for_app(ctx, "settings.mcp.update.no_updates"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -404,6 +421,7 @@ impl View for UpdateModalBody {
                     index,
                     option,
                     is_selected,
+                    ctx,
                     appearance,
                 ));
             }

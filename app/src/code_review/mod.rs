@@ -25,7 +25,7 @@ pub(crate) mod diff_selector;
 pub(crate) mod file_invalidation_queue;
 
 use code_review_view::CodeReviewAction;
-use warpui::keymap::{EditableBinding, FixedBinding};
+use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui::{
     id, AppContext, Entity, EntityId, ModelContext, SingletonEntity, WeakViewHandle, WindowId,
 };
@@ -35,6 +35,11 @@ use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::terminal::view::TerminalView;
 use crate::terminal::CLIAgent;
 use crate::util::bindings::CustomAction;
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
 
 /// Arguments needed to open or toggle the code review panel.
 /// Bundled into a struct so that events can atomically open the

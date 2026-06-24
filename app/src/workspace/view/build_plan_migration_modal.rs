@@ -22,6 +22,7 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
+use crate::localization;
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
 use crate::terminal::general_settings::GeneralSettings;
 use crate::ui_components::blended_colors;
@@ -631,7 +632,10 @@ impl BuildPlanMigrationModal {
         features_list.add_child(and_more);
 
         let learn_more_fragments = vec![
-            FormattedTextFragment::plain_text("Learn more on our "),
+            FormattedTextFragment::plain_text(localization::text_for_app(
+                app,
+                "workspace.build_plan_migration.learn_more.prefix",
+            )),
             FormattedTextFragment::hyperlink("pricing page", "https://www.warp.dev/pricing"),
             FormattedTextFragment::plain_text("."),
         ];

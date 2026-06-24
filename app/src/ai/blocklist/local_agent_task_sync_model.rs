@@ -6,6 +6,7 @@ use std::sync::Arc;
 use session_sharing_protocol::common::SessionId;
 use update_queue::LocalTaskUpdateQueue;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
+use warp_localization::{replace_placeholders, LocaleId};
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 
 use super::history_model::{
@@ -14,6 +15,7 @@ use super::history_model::{
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::{AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIError};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
+use crate::localization;
 use crate::server::server_api::ai::{AIClient, TaskStatusUpdate};
 use crate::server::server_api::ServerApiProvider;
 use crate::terminal::cli_agent_sessions::{
@@ -207,7 +209,8 @@ impl LocalAgentTaskSyncModel {
     ) {
         let Some((task_id, update)) =
             with_local_conversation(conversation_id, ctx, |conversation| {
-                let (task_state, status_message) = map_conversation_status(conversation);
+                let (task_state, status_message) =
+                    map_conversation_status_to_canonical_english(conversation);
                 LocalTaskUpdate {
                     task_state: Some(task_state),
                     server_conversation_token: conversation
@@ -357,7 +360,7 @@ fn with_local_conversation<T>(
 
 /// Maps conversation state to an `AgentTaskState` and optional status message.
 /// For errors, extracts the specific error from the last exchange when available.
-fn map_conversation_status(
+fn map_conversation_status_to_canonical_english(
     conversation: &AIConversation,
 ) -> (AgentTaskState, Option<TaskStatusUpdate>) {
     match conversation.status() {
@@ -389,15 +392,34 @@ fn map_conversation_status(
         }
         ConversationStatus::Cancelled => (
             AgentTaskState::Cancelled,
-            Some(TaskStatusUpdate::message("Cancelled by user")),
+            Some(status_message(
+                LocaleId::EnUs,
+                "agent.task_status.cancelled",
+            )),
         ),
         ConversationStatus::Blocked { blocked_action } => (
             AgentTaskState::Blocked,
-            Some(TaskStatusUpdate::message(format!(
-                "The agent got stuck waiting for user confirmation on the action: {blocked_action}"
-            ))),
+            Some(status_message_with_args(
+                LocaleId::EnUs,
+                "agent.task_status.blocked",
+                &[("action", blocked_action)],
+            )),
         ),
     }
+}
+
+fn status_message(locale: LocaleId, key: &str) -> TaskStatusUpdate {
+    TaskStatusUpdate::message(localization::text_for_locale(locale, key))
+}
+
+fn status_message_with_args(
+    locale: LocaleId,
+    key: &str,
+    args: &[(&str, &str)],
+) -> TaskStatusUpdate {
+    let message = replace_placeholders(&localization::text_for_locale(locale, key), args)
+        .expect("localized task status template arguments must match the catalog");
+    TaskStatusUpdate::message(message)
 }
 
 /// Maps a conversation-level error to a terminal task update. In-flight recoveries
@@ -410,7 +432,7 @@ fn task_update_for_conversation_error(
         Some(error) => classify_renderable_error(error),
         None => (
             AgentTaskState::Error,
-            Some(TaskStatusUpdate::message("Agent encountered an error")),
+            Some(status_message(LocaleId::EnUs, "agent.task_status.error")),
         ),
     }
 }

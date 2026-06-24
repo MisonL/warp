@@ -19,6 +19,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::auth::AuthStateProvider;
+use crate::localization;
 use crate::settings_view::SettingsSection;
 use crate::ui_components::blended_colors;
 use crate::workspace::WorkspaceAction;
@@ -140,7 +141,7 @@ impl FreeAiRemovalModal {
         }
     }
 
-    fn render_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let byok_button = appearance
             .ui_builder()
             .button(
@@ -152,7 +153,10 @@ impl FreeAiRemovalModal {
                 height: Some(32.),
                 ..Default::default()
             })
-            .with_centered_text_label("Bring your own AI".to_string())
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "workspace.free_ai_removal.action.bring_your_own_ai",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(|ctx, _, _| {
@@ -171,7 +175,10 @@ impl FreeAiRemovalModal {
                 height: Some(32.),
                 ..Default::default()
             })
-            .with_centered_text_label("View pricing".to_string())
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "workspace.free_ai_removal.action.view_pricing",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(|ctx, _, _| {
@@ -251,7 +258,9 @@ impl View for FreeAiRemovalModal {
             content.add_child(Container::new(secondary).with_margin_bottom(20.).finish());
         }
 
-        let content = content.with_child(self.render_buttons(appearance)).finish();
+        let content = content
+            .with_child(self.render_buttons(appearance, app))
+            .finish();
 
         let mut modal = Stack::new();
         modal.add_child(

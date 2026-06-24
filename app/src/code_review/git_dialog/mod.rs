@@ -35,6 +35,7 @@ use crate::code_review::diff_state::{
 use crate::code_review::telemetry_event::{
     CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
 };
+use crate::localization;
 use crate::settings::AISettings;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 use crate::ui_components::icons::Icon;
@@ -593,11 +594,14 @@ impl GitDialog {
             }
             button.on_click(|ctx| ctx.dispatch_typed_action(GitDialogAction::Confirm))
         });
-        let cancel_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", NakedTheme)
-                .with_size(ButtonSize::Small)
-                .with_height(32.)
-                .on_click(|ctx| ctx.dispatch_typed_action(GitDialogAction::Cancel))
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "code_review.action.cancel"),
+                NakedTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .with_height(32.)
+            .on_click(|ctx| ctx.dispatch_typed_action(GitDialogAction::Cancel))
         });
         let close_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("", NakedTheme)

@@ -55,7 +55,7 @@ use crate::util::path::{display_name_with_host, display_path_with_host};
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 use crate::workspace::view::global_search::model::GlobalSearch;
 use crate::workspace::view::global_search::{GlobalSearchMatch, SearchConfig};
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 const BORDER_RADIUS: f32 = 6.;
 const BORDER_WIDTH: f32 = 1.;
@@ -657,7 +657,10 @@ impl GlobalSearchView {
             };
 
             let mut editor = EditorView::new(options, ctx);
-            editor.set_placeholder_text("Search in files", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "global_search.placeholder.search_in_files"),
+                ctx,
+            );
             editor
         });
 
@@ -668,20 +671,26 @@ impl GlobalSearchView {
             |_, _| {},
         );
 
-        let case_sensitivity_button = ctx.add_typed_action_view(|_ctx| {
+        let case_sensitivity_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new_with_boxed_theme(String::new(), Arc::new(NakedTheme))
                 .with_icon(UiIcon::CaseSensitivity)
-                .with_tooltip("Toggle Case Sensitivity")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "global_search.tooltip.toggle_case_sensitivity",
+                ))
                 .with_size(ButtonSize::Small)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(GlobalSearchAction::ToggleCaseSensitivity);
                 })
         });
 
-        let regex_button = ctx.add_typed_action_view(|_ctx| {
+        let regex_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new_with_boxed_theme(String::new(), Arc::new(NakedTheme))
                 .with_icon(UiIcon::Regex)
-                .with_tooltip("Toggle Regex")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "global_search.tooltip.toggle_regex",
+                ))
                 .with_size(ButtonSize::Small)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(GlobalSearchAction::ToggleRegexSearch);
@@ -2090,9 +2099,13 @@ impl View for GlobalSearchView {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let search_label = Text::new_inline("Search", appearance.ui_font_family(), 14.)
-            .with_color(blended_colors::text_sub(theme, theme.background()))
-            .finish();
+        let search_label = Text::new_inline(
+            localization::text_for_app(app, "global_search.label.search"),
+            appearance.ui_font_family(),
+            14.,
+        )
+        .with_color(blended_colors::text_sub(theme, theme.background()))
+        .finish();
 
         let editor_line_height = self
             .query_editor

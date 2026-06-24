@@ -7,6 +7,7 @@
 //! from field-change events to their own action enum.
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use ai::agent::action::RunAgentsExecutionMode;
 use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationExecutionMode};
@@ -15,6 +16,7 @@ use pathfinder_geometry::vector::{vec2f, Vector2F};
 use settings::Setting;
 use warp_cli::agent::Harness;
 use warp_core::ui::theme::Fill;
+use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
@@ -52,11 +54,23 @@ use crate::view_components::dropdown::{
 };
 use crate::view_components::FilterableDropdown;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{report_if_error, LLMPreferences};
+use crate::{localization, report_if_error, LLMPreferences};
 
 /// Env var override for the workspace default host (developer testing).
 /// Mirrors the single-agent ambient flow.
 const DEFAULT_HOST_ENV_VAR: &str = "WARP_CLOUD_MODE_DEFAULT_HOST";
+static OPENCODE_CLOUD_UNSUPPORTED_EN: LazyLock<String> = LazyLock::new(|| {
+    localization::text_for_locale(
+        LocaleId::EnUs,
+        "agent.orchestration.controls.opencode_cloud_unsupported",
+    )
+});
+static DISABLED_BY_ADMIN_EN: LazyLock<String> = LazyLock::new(|| {
+    localization::text_for_locale(
+        LocaleId::EnUs,
+        "agent.orchestration.controls.disabled_by_admin",
+    )
+});
 
 // ── Shared constants ────────────────────────────────────────────────
 
@@ -259,9 +273,7 @@ impl OrchestrationEditState {
             RunAgentsExecutionMode::Remote { .. }
                 if self.harness_type.eq_ignore_ascii_case("opencode") =>
             {
-                Some(
-                    "OpenCode is not supported on Cloud yet. Switch to Local or pick a different harness.",
-                )
+                Some(OPENCODE_CLOUD_UNSUPPORTED_EN.as_str())
             }
             RunAgentsExecutionMode::Remote { .. } => None,
         }
@@ -727,9 +739,14 @@ pub fn populate_harness_picker<A: OrchestrationControlAction, V: View>(
             } else {
                 fields = fields.with_disabled(true);
                 let tooltip = match local_setup_state {
-                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip,
-                    Some(LocalHarnessSetupState::ProductDisabled { message }) => message,
-                    Some(LocalHarnessSetupState::Ready) | None => "Disabled by your administrator",
+                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip.to_string(),
+                    Some(LocalHarnessSetupState::ProductDisabled { message }) => {
+                        message.to_string()
+                    }
+                    Some(LocalHarnessSetupState::Ready) | None => localization::text_for_app(
+                        ctx_dropdown,
+                        "agent.orchestration.controls.disabled_by_admin",
+                    ),
                 };
                 fields = fields.with_tooltip(tooltip);
             }
@@ -893,9 +910,16 @@ fn render_new_environment_footer<A: OrchestrationControlAction>(
                         .finish(),
                 )
                 .with_child(
-                    Text::new_inline("New environment", font_family, font_size)
-                        .with_color(text_color.into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(
+                            app,
+                            "agent.orchestration.controls.new_environment",
+                        ),
+                        font_family,
+                        font_size,
+                    )
+                    .with_color(text_color.into())
+                    .finish(),
                 )
                 .finish(),
         )
@@ -1160,7 +1184,7 @@ pub fn accept_disabled_reason_with_auth(
     ctx: &AppContext,
 ) -> Option<String> {
     if let Some(reason) = state.accept_disabled_reason() {
-        return Some(reason.to_string());
+        return Some(localized_accept_disabled_reason(reason, ctx));
     }
     if matches!(state.execution_mode, RunAgentsExecutionMode::Local) {
         if let Some(harness) = Harness::parse_local_child_harness(&state.harness_type) {
@@ -1176,9 +1200,25 @@ pub fn accept_disabled_reason_with_auth(
         }
     }
     if auth_secret_selection_required(state, ctx) {
-        return Some("Select an API key for this harness to continue.".to_string());
+        return Some(localization::text_for_app(
+            ctx,
+            "agent.orchestration.controls.select_api_key_required",
+        ));
     }
     None
+}
+
+fn localized_accept_disabled_reason(reason: &str, app: &AppContext) -> String {
+    match reason {
+        value if value == OPENCODE_CLOUD_UNSUPPORTED_EN.as_str() => localization::text_for_app(
+            app,
+            "agent.orchestration.controls.opencode_cloud_unsupported",
+        ),
+        value if value == DISABLED_BY_ADMIN_EN.as_str() => {
+            localization::text_for_app(app, "agent.orchestration.controls.disabled_by_admin")
+        }
+        _ => reason.to_string(),
+    }
 }
 
 /// Populates the auth secret picker: Inherit, loaded managed secrets, then
@@ -1237,12 +1277,20 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
             }
             AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
                 items.push(MenuItem::Item(
-                    MenuItemFields::new("Loading…").with_disabled(true),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx_dropdown,
+                        "agent.orchestration.controls.loading",
+                    ))
+                    .with_disabled(true),
                 ));
             }
             AuthSecretFetchState::Failed(_) => {
                 items.push(MenuItem::Item(
-                    MenuItemFields::new("Unable to load secrets").with_disabled(true),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx_dropdown,
+                        "agent.orchestration.controls.unable_to_load_secrets",
+                    ))
+                    .with_disabled(true),
                 ));
             }
         }
@@ -2124,8 +2172,14 @@ pub fn empty_env_recommendation_message(
     }
     let env_count = CloudAmbientAgentEnvironment::get_all(app).len();
     Some(if env_count > 0 {
-        "We recommend selecting an environment for cloud agents.".to_string()
+        localization::text_for_app(
+            app,
+            "agent.orchestration.controls.recommend_select_environment",
+        )
     } else {
-        "We recommend creating an environment for cloud agents.".to_string()
+        localization::text_for_app(
+            app,
+            "agent.orchestration.controls.recommend_create_environment",
+        )
     })
 }

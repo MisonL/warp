@@ -17,6 +17,7 @@ use warp_util::user_input::UserInput;
 use warpui::elements::{Border, ListIndentLevel};
 use warpui::fonts::FamilyId;
 use warpui::ui_components::checkbox::HOVER_BACKGROUND_COLOR;
+use warpui::AppContext;
 
 use crate::appearance::Appearance;
 use crate::notebooks::editor::embedded_item::EmbeddedWorkflow;
@@ -141,6 +142,24 @@ impl BlockType {
             BlockType::Code => "Code",
             BlockType::TaskList => "To-do list",
         }
+    }
+
+    fn localized_label(self, app: &AppContext) -> String {
+        let key = match self {
+            BlockType::Text => "notebook.block.text",
+            BlockType::Header(BlockHeaderSize::Header1) => "notebook.block.header_1",
+            BlockType::Header(BlockHeaderSize::Header2) => "notebook.block.header_2",
+            BlockType::Header(BlockHeaderSize::Header3) => "notebook.block.header_3",
+            BlockType::Header(BlockHeaderSize::Header4) => "notebook.block.header_4",
+            BlockType::Header(BlockHeaderSize::Header5) => "notebook.block.header_5",
+            BlockType::Header(BlockHeaderSize::Header6) => "notebook.block.header_6",
+            BlockType::RunnableCommand => "notebook.block.command",
+            BlockType::UnorderedList => "notebook.block.bulleted_list",
+            BlockType::OrderedList => "notebook.block.numbered_list",
+            BlockType::Code => "notebook.block.code",
+            BlockType::TaskList => "notebook.block.todo_list",
+        };
+        crate::localization::text_for_app(app, key)
     }
 }
 

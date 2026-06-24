@@ -117,7 +117,8 @@ type PtyController = writeable_pty::PtyController<mio_channel::Sender<Message>>;
 type RemoteServerController =
     writeable_pty::remote_server_controller::RemoteServerController<mio_channel::Sender<Message>>;
 
-const ACL_UPDATE_FAILURE_RESPONSE: &str = "Something went wrong. Please try again.";
+const SHARED_SESSION_PERMISSION_UPDATE_FAILED_KEY: &str =
+    "terminal.shared_session.toast.permission_update_failed";
 
 /// Whether the given CRDT operation should be dropped when broadcasting
 /// sharer input to viewers. In ambient agent sessions the sharer is a
@@ -2125,8 +2126,10 @@ impl TerminalManager {
                         );
                     }
                     LinkAccessLevelUpdateResponse::Error => {
-                        let reason_string =
-                            "Failed to update permissions for shared session".to_owned();
+                        let reason_string = crate::localization::text_for_app(
+                            ctx,
+                            SHARED_SESSION_PERMISSION_UPDATE_FAILED_KEY,
+                        );
                         view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                     }
                 });
@@ -2150,7 +2153,10 @@ impl TerminalManager {
                     }
                     TeamAccessLevelUpdateResponse::Error(_) => {
                         view.show_persistent_toast(
-                            ACL_UPDATE_FAILURE_RESPONSE.to_owned(),
+                            crate::localization::text_for_app(
+                                ctx,
+                                SHARED_SESSION_PERMISSION_UPDATE_FAILED_KEY,
+                            ),
                             crate::view_components::ToastFlavor::Error,
                             ctx,
                         );
@@ -2172,7 +2178,10 @@ impl TerminalManager {
                 if let RemoveGuestResponse::Error(_) = response {
                     terminal_view.update(ctx, |view, ctx| {
                         view.show_persistent_toast(
-                            ACL_UPDATE_FAILURE_RESPONSE.to_owned(),
+                            crate::localization::text_for_app(
+                                ctx,
+                                SHARED_SESSION_PERMISSION_UPDATE_FAILED_KEY,
+                            ),
                             crate::view_components::ToastFlavor::Error,
                             ctx,
                         );
@@ -2183,7 +2192,10 @@ impl TerminalManager {
                 if let UpdatePendingUserRoleResponse::Error(_) = response {
                     terminal_view.update(ctx, |view, ctx| {
                         view.show_persistent_toast(
-                            ACL_UPDATE_FAILURE_RESPONSE.to_owned(),
+                            crate::localization::text_for_app(
+                                ctx,
+                                SHARED_SESSION_PERMISSION_UPDATE_FAILED_KEY,
+                            ),
                             crate::view_components::ToastFlavor::Error,
                             ctx,
                         );

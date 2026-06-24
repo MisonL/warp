@@ -31,6 +31,7 @@ use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::modal::MODAL_BACKDROP_OPACITY;
 use crate::themes::theme::Blend;
 use crate::ui_components::buttons::icon_button;
@@ -48,6 +49,10 @@ const AVAILABLE_LIST_MAX_HEIGHT: f32 = 260.;
 const REPO_ROW_HORIZONTAL_PADDING: f32 = 10.;
 const REPO_ROW_VERTICAL_PADDING: f32 = 8.;
 const REPO_ROW_CORNER_RADIUS: f32 = 6.;
+
+fn agent_assisted_environment_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[derive(Debug, Clone)]
 pub enum AgentAssistedEnvironmentModalEvent {
@@ -92,24 +97,39 @@ pub struct AgentAssistedEnvironmentModal {
 
 impl AgentAssistedEnvironmentModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let add_repo_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Add repo", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        AgentAssistedEnvironmentModalAction::OpenDirectoryPicker,
-                    );
-                })
+        let add_repo_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                agent_assisted_environment_text(
+                    ctx,
+                    "settings.environment.agent_assisted.add_repo",
+                ),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentAssistedEnvironmentModalAction::OpenDirectoryPicker);
+            })
         });
 
-        let cancel_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", SecondaryTheme).on_click(|ctx| {
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                agent_assisted_environment_text(ctx, "settings.action.cancel"),
+                SecondaryTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(AgentAssistedEnvironmentModalAction::Cancel);
             })
         });
 
-        let create_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Create environment", PrimaryTheme).on_click(|ctx| {
+        let create_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                agent_assisted_environment_text(
+                    ctx,
+                    "settings.environment.form.create_environment",
+                ),
+                PrimaryTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(AgentAssistedEnvironmentModalAction::Confirm);
             })
         });

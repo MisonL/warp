@@ -13,6 +13,7 @@ use serde::Serialize;
 use tabwriter::TabWriter;
 use warp_cli::agent::OutputFormat;
 use warp_cli::json_filter::{JqFilter, JsonOutput};
+use warp_localization::LocaleId;
 
 pub fn standard_table() -> Table {
     let mut table = Table::new();
@@ -26,6 +27,10 @@ pub fn standard_table() -> Table {
 /// Trait for types that can be printed as a table.
 pub trait TableFormat {
     fn header() -> Vec<Cell>;
+
+    fn header_for_locale(_locale: LocaleId) -> Vec<Cell> {
+        Self::header()
+    }
 
     fn row(&self) -> Vec<Cell>;
 }
@@ -274,32 +279,63 @@ where
     T: TableFormat + Serialize,
     W: std::io::Write,
 {
+    write_list_with_header(items, output_format, &mut output, T::header)
+}
+
+pub fn write_list_for_locale<I, T, W>(
+    items: I,
+    output_format: OutputFormat,
+    mut output: W,
+    locale: LocaleId,
+) -> anyhow::Result<()>
+where
+    I: IntoIterator<Item = T>,
+    T: TableFormat + Serialize,
+    W: std::io::Write,
+{
+    write_list_with_header(items, output_format, &mut output, || {
+        T::header_for_locale(locale)
+    })
+}
+
+fn write_list_with_header<I, T, W, F>(
+    items: I,
+    output_format: OutputFormat,
+    output: &mut W,
+    header: F,
+) -> anyhow::Result<()>
+where
+    I: IntoIterator<Item = T>,
+    T: TableFormat + Serialize,
+    W: std::io::Write,
+    F: FnOnce() -> Vec<Cell>,
+{
     match output_format {
         OutputFormat::Json => {
             let items = items.into_iter().collect::<Vec<_>>();
-            serde_json::to_writer(&mut output, &items).context("unable to write JSON output")
+            serde_json::to_writer(output, &items).context("unable to write JSON output")
         }
         OutputFormat::Ndjson => {
             for item in items {
-                write_json_line(&item, &mut output)?;
+                write_json_line(&item, &mut *output)?;
             }
             Ok(())
         }
         OutputFormat::Pretty => {
             // Use comfy-table to print a table with terminal formatting.
             let mut table = standard_table();
-            table.set_header(T::header());
+            table.set_header(header());
             for item in items {
                 table.add_row(T::row(&item));
             }
-            writeln!(&mut output, "{table}")?;
+            writeln!(output, "{table}")?;
             Ok(())
         }
         OutputFormat::Text => {
             // Print a plain-text table.
             let mut tw = TabWriter::new(output);
 
-            for (idx, column) in T::header().iter().enumerate() {
+            for (idx, column) in header().iter().enumerate() {
                 if idx > 0 {
                     write!(&mut tw, "\t")?;
                 }

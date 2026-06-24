@@ -27,6 +27,7 @@ use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, InteractionState,
     PropagateAndNoOpNavigationKeys, TextOptions,
 };
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::util::git::{get_file_change_entries, FileChangeEntry, PrInfo};
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
@@ -84,9 +85,15 @@ pub(super) fn new_state(
     // whether or not the branch already has an upstream — but the label
     // and icon flip to communicate the user-visible difference.
     let (push_label, push_icon) = if has_upstream {
-        ("Commit and push", Icon::ArrowUp)
+        (
+            localization::text_for_app(ctx, "code_review.git_dialog.commit.commit_and_push"),
+            Icon::ArrowUp,
+        )
     } else {
-        ("Commit and publish", Icon::UploadCloud)
+        (
+            localization::text_for_app(ctx, "code_review.git_dialog.commit.commit_and_publish"),
+            Icon::UploadCloud,
+        )
     };
     // If AI autogen is on, the dialog opens with "Generating\u{2026}" and a
     // background request fills the editor when it resolves. Otherwise, we
@@ -122,19 +129,22 @@ pub(super) fn new_state(
         handle_editor_event(me, event, ctx);
     });
 
-    let commit_button = ctx.add_typed_action_view(|_ctx| {
-        ActionButton::new("Commit", SecondaryTheme)
-            .with_size(ButtonSize::XSmall)
-            .with_height(32.)
-            .with_icon(Icon::GitCommit)
-            .on_click(|ctx| {
-                ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
-                    CommitChainMode::CommitOnly,
-                )))
-            })
+    let commit_button = ctx.add_typed_action_view(|ctx| {
+        ActionButton::new(
+            localization::text_for_app(ctx, "code_review.git.commit"),
+            SecondaryTheme,
+        )
+        .with_size(ButtonSize::XSmall)
+        .with_height(32.)
+        .with_icon(Icon::GitCommit)
+        .on_click(|ctx| {
+            ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
+                CommitChainMode::CommitOnly,
+            )))
+        })
     });
     let commit_and_push_button = ctx.add_typed_action_view(move |_ctx| {
-        ActionButton::new(push_label, SecondaryTheme)
+        ActionButton::new(push_label.clone(), SecondaryTheme)
             .with_size(ButtonSize::XSmall)
             .with_height(32.)
             .with_icon(push_icon)
@@ -146,16 +156,22 @@ pub(super) fn new_state(
     });
 
     let commit_and_create_pr_button = if allow_create_pr {
-        Some(ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Commit and create PR", SecondaryTheme)
-                .with_size(ButtonSize::XSmall)
-                .with_height(32.)
-                .with_icon(Icon::Github)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
-                        CommitChainMode::CommitAndCreatePr,
-                    )))
-                })
+        Some(ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(
+                    ctx,
+                    "code_review.git_dialog.commit.commit_and_create_pr",
+                ),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::XSmall)
+            .with_height(32.)
+            .with_icon(Icon::Github)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
+                    CommitChainMode::CommitAndCreatePr,
+                )))
+            })
         }))
     } else {
         None

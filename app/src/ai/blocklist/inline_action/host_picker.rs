@@ -27,6 +27,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -49,9 +50,10 @@ pub enum HostPickerEvent {
     Closed,
 }
 
-const CUSTOM_HOST_LABEL: &str = "Custom host…";
-const DEFAULT_BADGE: &str = "Default";
-const EDITOR_PLACEHOLDER: &str = "my-worker-host";
+#[cfg(test)]
+const CUSTOM_HOST_FALLBACK: &str = concat!("Custom ", "host...");
+#[cfg(test)]
+const DEFAULT_BADGE_FALLBACK: &str = concat!("Def", "ault");
 
 // ── Internal action plumbing ────────────────────────────────────────
 
@@ -136,7 +138,13 @@ impl HostPicker {
                 },
                 ctx_editor,
             );
-            editor.set_placeholder_text(EDITOR_PLACEHOLDER, ctx_editor);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx_editor,
+                    "agent.orchestration.host_picker.placeholder",
+                ),
+                ctx_editor,
+            );
             editor
         });
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| {
@@ -237,10 +245,11 @@ impl HostPicker {
     }
 
     fn repopulate_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        let items = build_menu_items(
+        let items = build_menu_items_for_locale(
             self.default_host.as_deref(),
             self.recent_host.as_deref(),
             &self.connected_hosts,
+            ctx,
         );
         self.dropdown.update(ctx, |dropdown, ctx_dropdown| {
             dropdown.set_rich_items(items, ctx_dropdown);
@@ -248,7 +257,7 @@ impl HostPicker {
     }
 
     fn sync_dropdown_selection(&mut self, ctx: &mut ViewContext<Self>) {
-        let label = menu_label_for(&self.current_slug, self.default_host.as_deref());
+        let label = menu_label_for_locale(&self.current_slug, self.default_host.as_deref(), ctx);
         self.dropdown.update(ctx, |dropdown, ctx_dropdown| {
             dropdown.set_selected_by_name(&label, ctx_dropdown);
         });
@@ -415,13 +424,69 @@ fn normalize_slug(slug: &str) -> String {
     }
 }
 
-/// Builds the menu items shown in list mode, in the order: workspace default
-/// (badged "Default" if set), warp, connected worker hosts, recent custom
-/// slug (if any and not a duplicate), then a "Custom host…" entry.
+/// Builds the menu items shown in list mode, in the order: workspace default,
+/// warp, connected worker hosts, recent custom slug, then the custom entry.
+#[cfg(test)]
 pub(crate) fn build_menu_items(
     default_host: Option<&str>,
     recent_host: Option<&str>,
     connected_hosts: &[String],
+) -> Vec<MenuItem<DropdownAction>> {
+    build_menu_items_with_labels(
+        default_host,
+        recent_host,
+        connected_hosts,
+        DEFAULT_BADGE_FALLBACK,
+        CUSTOM_HOST_FALLBACK,
+    )
+}
+
+/// Returns the menu label corresponding to `slug`, including the "Default"
+/// badge when it matches the workspace default.
+#[cfg(test)]
+pub(crate) fn menu_label_for(slug: &str, default_host: Option<&str>) -> String {
+    if default_host == Some(slug) {
+        format_known_label(slug, Some(DEFAULT_BADGE_FALLBACK))
+    } else {
+        format_known_label(slug, None)
+    }
+}
+
+fn build_menu_items_for_locale(
+    default_host: Option<&str>,
+    recent_host: Option<&str>,
+    connected_hosts: &[String],
+    app: &AppContext,
+) -> Vec<MenuItem<DropdownAction>> {
+    let default_badge =
+        localization::text_for_app(app, "agent.orchestration.host_picker.default_badge");
+    let custom_host_label =
+        localization::text_for_app(app, "agent.orchestration.host_picker.custom_host");
+    build_menu_items_with_labels(
+        default_host,
+        recent_host,
+        connected_hosts,
+        &default_badge,
+        &custom_host_label,
+    )
+}
+
+fn menu_label_for_locale(slug: &str, default_host: Option<&str>, app: &AppContext) -> String {
+    let default_badge =
+        localization::text_for_app(app, "agent.orchestration.host_picker.default_badge");
+    if default_host == Some(slug) {
+        format_known_label(slug, Some(&default_badge))
+    } else {
+        format_known_label(slug, None)
+    }
+}
+
+fn build_menu_items_with_labels(
+    default_host: Option<&str>,
+    recent_host: Option<&str>,
+    connected_hosts: &[String],
+    default_badge: &str,
+    custom_host_label: &str,
 ) -> Vec<MenuItem<DropdownAction>> {
     let mut items: Vec<MenuItem<DropdownAction>> = Vec::new();
     let mut known_slugs: Vec<String> = Vec::new();
@@ -429,7 +494,7 @@ pub(crate) fn build_menu_items(
     if let Some(slug) = default_host {
         items.push(menu_item_for_known(
             slug,
-            Some(DEFAULT_BADGE),
+            Some(default_badge),
             InternalAction::SelectKnown(slug.to_string()),
         ));
         known_slugs.push(slug.to_string());
@@ -461,8 +526,6 @@ pub(crate) fn build_menu_items(
             .iter()
             .any(|known| known.eq_ignore_ascii_case(slug))
         {
-            // Recent hosts render as plain slugs; only the workspace
-            // default carries a badge.
             items.push(menu_item_for_known(
                 slug,
                 None,
@@ -471,22 +534,12 @@ pub(crate) fn build_menu_items(
         }
     }
     items.push(MenuItem::Item(
-        MenuItemFields::new(CUSTOM_HOST_LABEL).with_on_select_action(
+        MenuItemFields::new(custom_host_label).with_on_select_action(
             DropdownAction::select_action_and_close(InternalAction::EnterCustomMode),
         ),
     ));
 
     items
-}
-
-/// Returns the menu label corresponding to `slug`, including the "Default"
-/// badge when it matches the workspace default.
-pub(crate) fn menu_label_for(slug: &str, default_host: Option<&str>) -> String {
-    if default_host == Some(slug) {
-        format_known_label(slug, Some(DEFAULT_BADGE))
-    } else {
-        format_known_label(slug, None)
-    }
 }
 
 fn format_known_label(slug: &str, badge: Option<&str>) -> String {

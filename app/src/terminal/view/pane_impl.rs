@@ -29,6 +29,7 @@ use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::appearance::Appearance;
 use crate::drive::sharing::ShareableObject;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent, PaneGroupFocusState};
 use crate::pane_group::pane::view::header::components::{
@@ -136,7 +137,7 @@ impl TerminalView {
                 }
                 None => {
                     if is_ambient_agent {
-                        default_agent_conversation_title(is_ambient_agent)
+                        default_agent_conversation_title(is_ambient_agent, ctx)
                     } else {
                         self.terminal_title.clone()
                     }
@@ -652,17 +653,23 @@ impl BackingView for TerminalView {
         if shared_session_status.is_sharer_or_viewer() {
             if !is_ambient_agent {
                 items.push(
-                    MenuItemFields::new("Copy link")
-                        .with_on_select_action(TerminalAction::CopySharedSessionLink { source })
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "terminal.shared_session.menu.copy_link",
+                    ))
+                    .with_on_select_action(TerminalAction::CopySharedSessionLink { source })
+                    .into_item(),
                 );
             }
 
             if shared_session_status.is_sharer() {
                 items.push(
-                    MenuItemFields::new("Stop sharing session")
-                        .with_on_select_action(TerminalAction::StopSharingCurrentSession { source })
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "terminal.shared_session.menu.stop_sharing",
+                    ))
+                    .with_on_select_action(TerminalAction::StopSharingCurrentSession { source })
+                    .into_item(),
                 );
             }
             if !ContextFlag::HideOpenOnDesktopButton.is_enabled()
@@ -672,20 +679,24 @@ impl BackingView for TerminalView {
                     == UserAppInstallStatus::Detected
             {
                 items.push(
-                    MenuItemFields::new("Open on Desktop")
-                        .with_on_select_action(TerminalAction::OpenSharedSessionOnDesktop {
-                            source,
-                        })
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "terminal.shared_session.action.open_in_warp",
+                    ))
+                    .with_on_select_action(TerminalAction::OpenSharedSessionOnDesktop { source })
+                    .into_item(),
                 );
             }
         } else if FeatureFlag::CreatingSharedSessions.is_enabled()
             && ContextFlag::CreateSharedSession.is_enabled()
         {
             items.push(
-                MenuItemFields::new("Share session")
-                    .with_on_select_action(TerminalAction::OpenShareSessionModal { source })
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.shared_session.menu.share_session",
+                ))
+                .with_on_select_action(TerminalAction::OpenShareSessionModal { source })
+                .into_item(),
             );
         }
 
@@ -754,6 +765,7 @@ impl TerminalView {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder().clone();
+        let cancel_tooltip = localization::text_for_app(app, "settings.action.cancel");
 
         icon_button_with_color(
             appearance,
@@ -762,7 +774,7 @@ impl TerminalView {
             self.ambient_agent_cancel_mouse_state.clone(),
             blended_colors::text_sub(theme, theme.background()).into(),
         )
-        .with_tooltip(move || ui_builder.tool_tip("Cancel".to_string()).build().finish())
+        .with_tooltip(move || ui_builder.tool_tip(cancel_tooltip.clone()).build().finish())
         .build()
         .on_click(|ctx, _, _| {
             ctx.dispatch_typed_action::<PaneHeaderAction<TerminalAction, TerminalAction>>(
@@ -803,18 +815,13 @@ impl TerminalView {
             button
         };
 
+        let tooltip_text = if is_open {
+            localization::text_for_app(app, "terminal.pane_header.hide_details")
+        } else {
+            localization::text_for_app(app, "terminal.pane_header.show_details")
+        };
         button
-            .with_tooltip(move || {
-                let tooltip_text = if is_open {
-                    "Hide details"
-                } else {
-                    "Show details"
-                };
-                ui_builder
-                    .tool_tip(tooltip_text.to_string())
-                    .build()
-                    .finish()
-            })
+            .with_tooltip(move || ui_builder.tool_tip(tooltip_text.clone()).build().finish())
             .build()
             .on_click(|ctx, _, _| {
                 ctx.dispatch_typed_action::<PaneHeaderAction<TerminalAction, TerminalAction>>(
@@ -930,12 +937,13 @@ impl TerminalView {
         &self,
         conversation: &AIConversation,
         is_ambient_agent: bool,
+        app: &AppContext,
     ) -> String {
         if FeatureFlag::AgentView.is_enabled() {
             conversation
                 .title()
                 .filter(|title| !title.is_empty())
-                .unwrap_or_else(|| default_agent_conversation_title(is_ambient_agent))
+                .unwrap_or_else(|| default_agent_conversation_title(is_ambient_agent, app))
         } else {
             conversation
                 .title()
@@ -1026,7 +1034,11 @@ impl TerminalView {
         let is_ambient_agent = self.is_ambient_agent_session(ctx);
         self.selected_conversation_for_user_facing_chrome(ctx)
             .map(|conversation| {
-                self.selected_conversation_display_title_for_chrome(conversation, is_ambient_agent)
+                self.selected_conversation_display_title_for_chrome(
+                    conversation,
+                    is_ambient_agent,
+                    ctx,
+                )
             })
     }
 
@@ -1074,10 +1086,10 @@ impl TerminalView {
     }
 }
 
-fn default_agent_conversation_title(is_ambient_agent: bool) -> String {
+fn default_agent_conversation_title(is_ambient_agent: bool, app: &AppContext) -> String {
     if is_ambient_agent {
-        "New cloud agent".to_owned()
+        localization::text_for_app(app, "terminal.agent_title.new_cloud_agent")
     } else {
-        "New agent conversation".to_owned()
+        localization::text_for_app(app, "terminal.agent_title.new_agent_conversation")
     }
 }

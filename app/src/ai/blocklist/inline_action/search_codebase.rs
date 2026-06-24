@@ -28,6 +28,7 @@ use crate::ai::blocklist::inline_action::inline_action_header::{
 };
 use crate::ai::blocklist::inline_action::inline_action_icons::cancelled_icon;
 use crate::ai::blocklist::TextLocation;
+use crate::localization;
 use crate::terminal::find::TerminalFindModel;
 use crate::terminal::view::RichContentLink;
 use crate::terminal::ShellLaunchData;
@@ -155,9 +156,20 @@ impl SearchCodebaseView {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let title_text = if let Some(repo_name) = &self.repo_name {
-            format!("Searched for \"{}\" in {}", self.search_query, repo_name)
+            localization::text_for_app_with_args(
+                app,
+                "agent.search_codebase.searched_in_repo",
+                &[
+                    ("query", self.search_query.as_str()),
+                    ("repo", repo_name.as_str()),
+                ],
+            )
         } else {
-            format!("Searched for \"{}\"", self.search_query)
+            localization::text_for_app_with_args(
+                app,
+                "agent.search_codebase.searched",
+                &[("query", self.search_query.as_str())],
+            )
         };
 
         let body = if self.collapsible.is_expanded {
@@ -169,7 +181,7 @@ impl SearchCodebaseView {
         render_collapsible_search_results(
             title_text,
             file_contexts.len(),
-            "results",
+            &localization::text_for_app(app, "agent.search_results.results_label"),
             &self.collapsible,
             body,
             |ctx| {
@@ -461,9 +473,20 @@ impl View for SearchCodebaseView {
                 | AIActionStatus::RunningAsync,
             ) => {
                 let loading_text = if let Some(repo_name) = &self.repo_name {
-                    format!("Searching for \"{}\" in {}", self.search_query, repo_name)
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.search_codebase.searching_in_repo",
+                        &[
+                            ("query", self.search_query.as_str()),
+                            ("repo", repo_name.as_str()),
+                        ],
+                    )
                 } else {
-                    format!("Searching codebase for \"{}\"", self.search_query)
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.search_codebase.searching",
+                        &[("query", self.search_query.as_str())],
+                    )
                 };
                 let loading_icon = yellow_running_icon(appearance);
                 self.render_header(appearance, loading_text, loading_icon, app)
@@ -472,12 +495,20 @@ impl View for SearchCodebaseView {
             }
             Some(AIActionStatus::Finished(result)) if result.result.is_cancelled() => {
                 let cancelled_text = if let Some(repo_name) = &self.repo_name {
-                    format!(
-                        "Search for \"{}\" in {} cancelled",
-                        self.search_query, repo_name
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.search_codebase.cancelled_in_repo",
+                        &[
+                            ("query", self.search_query.as_str()),
+                            ("repo", repo_name.as_str()),
+                        ],
                     )
                 } else {
-                    format!("Search for \"{}\" cancelled", self.search_query)
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.search_codebase.cancelled",
+                        &[("query", self.search_query.as_str())],
+                    )
                 };
                 let cancelled_icon = cancelled_icon(appearance);
                 self.render_header(appearance, cancelled_text, cancelled_icon, app)
@@ -490,12 +521,20 @@ impl View for SearchCodebaseView {
                 .finish(),
             _ => {
                 let text = if let Some(repo_name) = &self.repo_name {
-                    format!(
-                        "Searched codebase for \"{}\" in {}",
-                        self.search_query, repo_name
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.search_codebase.searched_codebase_in_repo",
+                        &[
+                            ("query", self.search_query.as_str()),
+                            ("repo", repo_name.as_str()),
+                        ],
                     )
                 } else {
-                    format!("Searched codebase for \"{}\"", self.search_query)
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.search_codebase.searched_codebase",
+                        &[("query", self.search_query.as_str())],
+                    )
                 };
                 self.render_simple_header(text, app)
                     .with_agent_output_item_spacing(app)

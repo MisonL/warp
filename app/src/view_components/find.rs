@@ -329,7 +329,7 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
             let label = if match_count > 0 {
                 format!("{}+ ...", match_count)
             } else {
-                "Scanning...".to_string()
+                crate::localization::text_for_app(app, "code.find.scanning")
             };
             return Text::new_inline(label, appearance.ui_font_family(), FIND_EDITOR_FONT_SIZE)
                 .with_color(blended_colors::text_sub(

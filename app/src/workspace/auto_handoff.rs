@@ -17,7 +17,7 @@ use crate::settings::AISettings;
 use crate::system::{SystemStats, SystemStatsEvent};
 use crate::terminal::view::TerminalView;
 use crate::view_components::DismissibleToast;
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AutoCloudHandoffSkipReason {
@@ -196,7 +196,10 @@ impl AutoCloudHandoffController {
         log::info!("auto handoff: showing success toast in window {window_id:?}");
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
-                DismissibleToast::success("Handed session off to the cloud".to_owned()),
+                DismissibleToast::success(localization::text_for_app(
+                    ctx,
+                    "workspace.auto_handoff.toast.success",
+                )),
                 window_id,
                 ctx,
             );

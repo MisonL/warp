@@ -14,7 +14,7 @@ use warpui::elements::{
 };
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::UiComponent as _;
-use warpui::{Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
+use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::terminal::ssh::util::InteractiveSshCommand;
 use crate::ui_components::buttons::icon_button;
@@ -103,7 +103,7 @@ impl View for FileUpload {
 
     fn render(&self, app: &warpui::AppContext) -> Box<dyn warpui::Element> {
         let appearance = Appearance::as_ref(app);
-        self.render_file_upload_element(&self.uploads, appearance)
+        self.render_file_upload_element(&self.uploads, appearance, app)
     }
 }
 
@@ -290,19 +290,23 @@ impl FileUpload {
         &self,
         file: &FileUploadInfo,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let font_family = appearance.ui_font_family();
         let font_size = appearance.ui_font_size();
 
         let mut button_group = Flex::row().with_main_axis_size(MainAxisSize::Min);
-        button_group.add_child(self.render_view_session_button(file, appearance));
+        button_group.add_child(self.render_view_session_button(file, appearance, app));
 
         let mut session_action_row =
             Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
         if let FileUploadStatus::AwaitingPassword = file.status {
             session_action_row.add_child(
                 FormattedTextElement::from_str(
-                    String::from("Waiting for password input"),
+                    crate::localization::text_for_app(
+                        app,
+                        "terminal.ssh_file_upload.waiting_for_password",
+                    ),
                     font_family,
                     font_size,
                 )
@@ -313,13 +317,13 @@ impl FileUpload {
         session_action_row.add_child(button_group.finish());
 
         let mut file_info_and_status = Flex::column()
-            .with_child(self.render_file_details(file, appearance))
+            .with_child(self.render_file_details(file, appearance, app))
             .with_child(session_action_row.finish());
 
         if let FileUploadStatus::Completed { successful: _ } = file.status {
             file_info_and_status = Flex::row()
                 .with_child(file_info_and_status.finish())
-                .with_child(self.render_clear_upload_button(file, appearance))
+                .with_child(self.render_clear_upload_button(file, appearance, app))
                 .with_cross_axis_alignment(CrossAxisAlignment::Center);
         }
 
@@ -346,9 +350,10 @@ impl FileUpload {
         &self,
         file: &FileUploadInfo,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         FormattedTextElement::new(
-            self.render_file_detail_text(file),
+            self.render_file_detail_text(file, app),
             appearance.ui_font_size(),
             appearance.ui_font_family(),
             appearance.monospace_font_family(),
@@ -363,11 +368,17 @@ impl FileUpload {
 
     /// Helper function to `render_file_details` with logic for formatted text
     /// assembly.
-    fn render_file_detail_text(&self, file: &FileUploadInfo) -> FormattedText {
+    fn render_file_detail_text(&self, file: &FileUploadInfo, app: &AppContext) -> FormattedText {
         let status_string = match file.status {
-            FileUploadStatus::Started | FileUploadStatus::AwaitingPassword => "Uploading",
-            FileUploadStatus::Completed { successful: true } => "Uploaded",
-            FileUploadStatus::Completed { successful: false } => "Failed to upload",
+            FileUploadStatus::Started | FileUploadStatus::AwaitingPassword => {
+                crate::localization::text_for_app(app, "terminal.ssh_file_upload.status.uploading")
+            }
+            FileUploadStatus::Completed { successful: true } => {
+                crate::localization::text_for_app(app, "terminal.ssh_file_upload.status.uploaded")
+            }
+            FileUploadStatus::Completed { successful: false } => {
+                crate::localization::text_for_app(app, "terminal.ssh_file_upload.status.failed")
+            }
         };
 
         let mut file_iter = file.local_file_paths.iter().peekable();
@@ -392,7 +403,10 @@ impl FileUpload {
         }
 
         let mut dest_fragments = vec![
-            FormattedTextFragment::plain_text(" to "),
+            FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                app,
+                "terminal.ssh_file_upload.destination",
+            )),
             FormattedTextFragment::inline_code(&file.remote_host),
         ];
         if let Some(remote_path) = &file.remote_dest_path {
@@ -411,12 +425,20 @@ impl FileUpload {
         &self,
         file: &FileUploadInfo,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let upload_id = file.upload_id;
         let ui_builder = appearance.ui_builder().clone();
+        let clear_upload_tooltip =
+            crate::localization::text_for_app(app, "terminal.ssh_file_upload.clear_upload");
         Container::new(
             icon_button(appearance, Icon::X, true, file.clear_button.clone())
-                .with_tooltip(move || ui_builder.tool_tip("Clear upload".into()).build().finish())
+                .with_tooltip(move || {
+                    ui_builder
+                        .tool_tip(clear_upload_tooltip.clone())
+                        .build()
+                        .finish()
+                })
                 .build()
                 .on_click(move |event_ctx, _, _| {
                     event_ctx
@@ -432,12 +454,13 @@ impl FileUpload {
         &self,
         file: &FileUploadInfo,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let view_session_text = if file.local_session_open {
-            String::from("Close")
+            crate::localization::text_for_app(app, "terminal.ssh_file_upload.close_session")
         } else {
-            String::from("View")
-        } + " upload session";
+            crate::localization::text_for_app(app, "terminal.ssh_file_upload.view_session")
+        };
         let upload_id = file.upload_id;
         Container::new(
             appearance
@@ -455,12 +478,18 @@ impl FileUpload {
         .finish()
     }
 
-    fn render_file_upload_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_file_upload_header(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Container::new(
             FormattedTextElement::new(
                 FormattedText::new(vec![FormattedTextLine::Heading(FormattedTextHeader {
                     heading_size: 3,
-                    text: vec![FormattedTextFragment::plain_text("File Uploads")],
+                    text: vec![FormattedTextFragment::plain_text(
+                        crate::localization::text_for_app(app, "terminal.ssh_file_upload.header"),
+                    )],
                 })]),
                 appearance.ui_font_size(),
                 appearance.ui_font_family(),
@@ -478,18 +507,19 @@ impl FileUpload {
         &self,
         uploads: &HashMap<FileUploadId, FileUploadInfo>,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut upload_element = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_main_axis_size(MainAxisSize::Min)
-            .with_child(self.render_file_upload_header(appearance));
+            .with_child(self.render_file_upload_header(appearance, app));
 
         // Sort by ID.
         uploads
             .iter()
             .sorted_by(|upload_a, upload_b| Ord::cmp(upload_a.0, upload_b.0))
             .for_each(|(_upload_id, upload)| {
-                let file_upload = self.render_single_file_upload_info(upload, appearance);
+                let file_upload = self.render_single_file_upload_info(upload, appearance, app);
                 upload_element.add_child(file_upload);
             });
 

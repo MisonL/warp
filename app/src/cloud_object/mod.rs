@@ -27,12 +27,13 @@ use crate::auth::UserUid;
 use crate::channel::ChannelState;
 use crate::drive::items::WarpDriveItem;
 use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
+use crate::localization;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId};
 use crate::server::server_api::object::ObjectClient;
 use crate::server::sync_queue::{QueueItem, SerializedModel};
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 use crate::workflows::{CloudWorkflow, WorkflowSource};
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -913,13 +914,31 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
         let time_ago_string = self
             .revision
             .clone()
-            .map(|r| format_approx_duration_from_now_utc(r.utc()));
+            .map(|r| localized_approx_duration_from_now_utc(app, r.utc()));
 
         let full_string = match (editor_string, time_ago_string) {
-            (Some(name), Some(time_ago)) if name.is_empty() => format!("Edited {time_ago}"),
-            (Some(name), Some(time_ago)) => format!("{name} edited {time_ago}"),
-            (None, Some(time_ago)) => format!("Edited {time_ago}"),
-            (Some(name), None) => format!("Last edited by {name}"),
+            (Some(name), Some(time_ago)) if name.is_empty() => {
+                localization::text_for_app_with_args(
+                    app,
+                    "cloud_object.semantic.edited",
+                    &[("time", &time_ago)],
+                )
+            }
+            (Some(name), Some(time_ago)) => localization::text_for_app_with_args(
+                app,
+                "cloud_object.semantic.edited_by",
+                &[("name", &name), ("time", &time_ago)],
+            ),
+            (None, Some(time_ago)) => localization::text_for_app_with_args(
+                app,
+                "cloud_object.semantic.edited",
+                &[("time", &time_ago)],
+            ),
+            (Some(name), None) => localization::text_for_app_with_args(
+                app,
+                "cloud_object.semantic.last_edited_by",
+                &[("name", &name)],
+            ),
             _ => return None,
         };
 
@@ -947,8 +966,14 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
             let days_left = deletion_time.signed_duration_since(current_time).num_days();
 
             let full_string = match days_left {
-                0 | 1 => "1 day until permanent deletion".to_string(),
-                _ => format!("{days_left} days until permanent deletion"),
+                0 | 1 => {
+                    localization::text_for_app(app, "cloud_object.semantic.permadeletion.singular")
+                }
+                _ => localization::text_for_app_with_args(
+                    app,
+                    "cloud_object.semantic.permadeletion.plural",
+                    &[("count", &days_left.to_string())],
+                ),
             };
             Some(full_string)
         } else {
@@ -1002,16 +1027,16 @@ pub enum Space {
 impl Space {
     pub fn name(&self, app: &AppContext) -> String {
         match self {
-            Space::Personal => "Personal".to_string(),
+            Space::Personal => localization::text_for_app(app, "drive.space.personal"),
             Space::Team { team_uid, .. } => {
                 let user_workspaces = UserWorkspaces::as_ref(app);
                 if let Some(team) = user_workspaces.team_from_uid(*team_uid) {
                     team.name.clone()
                 } else {
-                    "Team".to_string()
+                    localization::text_for_app(app, "drive.space.team")
                 }
             }
-            Space::Shared => "Shared with me".to_string(),
+            Space::Shared => localization::text_for_app(app, "drive.space.shared_with_me"),
         }
     }
 }

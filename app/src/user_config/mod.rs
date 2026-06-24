@@ -252,6 +252,7 @@ pub(crate) fn default_worktree_template_for_locale(locale: LocaleId) -> &'static
 }
 
 #[cfg(feature = "local_fs")]
+#[cfg(test)]
 pub(crate) fn new_tab_config_template_for_locale(locale: LocaleId) -> &'static str {
     match locale {
         LocaleId::EnUs => include_str!("../../resources/tab_configs/new_tab_config_template.toml"),

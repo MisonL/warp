@@ -171,7 +171,13 @@ impl PlatformPageView {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Search API keys", ctx);
+            editor.set_placeholder_text(
+                crate::localization::text_for_app(
+                    ctx,
+                    "settings.platform.api_keys.search_placeholder",
+                ),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&api_key_search_editor, |me, _, event, ctx| {
@@ -186,34 +192,41 @@ impl PlatformPageView {
         });
 
         let create_api_key_modal_view = ctx.add_typed_action_view(|ctx| {
-            Modal::new(Some("New API key".to_string()), create_api_key_body, ctx)
-                .with_modal_style(UiComponentStyles {
-                    width: Some(MODAL_WIDTH),
-                    height: Some(MODAL_HEIGHT),
-                    ..Default::default()
-                })
-                .with_header_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 24.,
-                        bottom: 0.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    font_size: Some(16.),
-                    font_weight: Some(warpui::fonts::Weight::Bold),
-                    ..Default::default()
-                })
-                .with_body_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 0.,
-                        bottom: 24.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    ..Default::default()
-                })
-                .with_background_opacity(100)
-                .with_dismiss_on_click()
+            Modal::new(
+                Some(crate::localization::text_for_app(
+                    ctx,
+                    "settings.platform.api_keys.modal_title.new",
+                )),
+                create_api_key_body,
+                ctx,
+            )
+            .with_modal_style(UiComponentStyles {
+                width: Some(MODAL_WIDTH),
+                height: Some(MODAL_HEIGHT),
+                ..Default::default()
+            })
+            .with_header_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 24.,
+                    bottom: 0.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                font_size: Some(16.),
+                font_weight: Some(warpui::fonts::Weight::Bold),
+                ..Default::default()
+            })
+            .with_body_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 0.,
+                    bottom: 24.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                ..Default::default()
+            })
+            .with_background_opacity(100)
+            .with_dismiss_on_click()
         });
         ctx.subscribe_to_view(&create_api_key_modal_view, |me, _, event, ctx| {
             me.handle_modal_event(event, ctx);
@@ -236,8 +249,13 @@ impl PlatformPageView {
     }
 
     fn show_create_api_key_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        self.create_api_key_modal_state
-            .set_title(Some("New API key".to_string()), ctx);
+        self.create_api_key_modal_state.set_title(
+            Some(crate::localization::text_for_app(
+                ctx,
+                "settings.platform.api_keys.modal_title.new",
+            )),
+            ctx,
+        );
         self.create_api_key_modal_state.open(ctx);
         ctx.emit(PlatformPageViewEvent::ShowCreateApiKeyModal);
     }
@@ -265,8 +283,13 @@ impl PlatformPageView {
                 self.hide_create_api_key_modal(ctx);
             }
             CreateApiKeyModalEvent::Created { api_key } => {
-                self.create_api_key_modal_state
-                    .set_title(Some("Save your key".to_string()), ctx);
+                self.create_api_key_modal_state.set_title(
+                    Some(crate::localization::text_for_app(
+                        ctx,
+                        "settings.platform.api_keys.modal_title.save",
+                    )),
+                    ctx,
+                );
                 let ui_key = APIKeyProperties::from(api_key);
                 self.ensure_expire_button_for_key(ctx, ui_key.uid.clone());
                 self.api_keys.push(ui_key);
@@ -487,10 +510,17 @@ impl PlatformPageWidget {
         &self,
         view: &PlatformPageView,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let text = vec![
-            FormattedTextFragment::plain_text("Create and manage API keys to allow other Oz cloud agents to access your Warp account.\nFor more information, visit the "),
-            FormattedTextFragment::hyperlink("Documentation.", API_KEY_DOCS_URL),
+            FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                app,
+                "settings.platform.api_keys.description",
+            )),
+            FormattedTextFragment::hyperlink(
+                crate::localization::text_for_app(app, "settings.platform.api_keys.documentation"),
+                API_KEY_DOCS_URL,
+            ),
         ];
 
         let text_element = FormattedTextElement::new(
@@ -514,7 +544,7 @@ impl PlatformPageWidget {
         &self,
         appearance: &Appearance,
         view: &PlatformPageView,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         let api_keys = &view.api_keys;
@@ -524,11 +554,15 @@ impl PlatformPageWidget {
             Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
-                    Text::new_inline("Oz Cloud API Keys", appearance.ui_font_family(), 16.)
-                        .with_style(Properties::default().weight(Weight::Bold))
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .with_clip(ClipConfig::end())
-                        .finish(),
+                    Text::new_inline(
+                        crate::localization::text_for_app(app, "settings.platform.api_keys.title"),
+                        appearance.ui_font_family(),
+                        16.,
+                    )
+                    .with_style(Properties::default().weight(Weight::Bold))
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .with_clip(ClipConfig::end())
+                    .finish(),
                 )
                 .with_child(Shrinkable::new(1.0, Empty::new().finish()).finish())
                 .with_child(
@@ -548,7 +582,7 @@ impl PlatformPageWidget {
         );
 
         col.add_child(
-            Container::new(self.render_description_with_link(view, appearance))
+            Container::new(self.render_description_with_link(view, appearance, app))
                 .with_margin_top(8.)
                 .finish(),
         );
@@ -892,7 +926,10 @@ impl PlatformPageWidget {
     fn render_no_search_results(&self, appearance: &Appearance) -> Box<dyn Element> {
         Container::new(
             Text::new(
-                "No API keys match your search",
+                crate::localization::text_for_locale(
+                    warp_localization::LocaleId::EnUs,
+                    "settings.platform.api_keys.no_search_results",
+                ),
                 appearance.ui_font_family(),
                 CONTENT_FONT_SIZE,
             )

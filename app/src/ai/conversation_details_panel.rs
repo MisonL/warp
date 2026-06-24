@@ -51,7 +51,6 @@ use crate::appearance::Appearance;
 use crate::auth::UserUid;
 use crate::cloud_object::CloudObjectLookup as _;
 use crate::notebooks::NotebookId;
-use crate::send_telemetry_from_ctx;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ai::AmbientAgentTask;
 #[cfg(not(target_family = "wasm"))]
@@ -71,6 +70,7 @@ use crate::view_components::copyable_text_field::{
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
+use crate::{localization, send_telemetry_from_ctx};
 
 const FIELD_SPACING: f32 = 16.0;
 const HEADER_SPACING: f32 = 12.0;
@@ -79,9 +79,10 @@ const HARNESS_CIRCLE_SIZE: f32 = 16.0;
 const HARNESS_ICON_IN_CIRCLE: f32 = 9.0;
 const LABEL_VALUE_GAP: f32 = 4.0;
 const SECTION_HEADER_GAP: f32 = 8.0;
-const RUN_METADATA_ACCESS_DENIED_TITLE: &str = "Run metadata is not available";
-const RUN_METADATA_ACCESS_DENIED_DESCRIPTION: &str =
-    "You can view this shared session, but run metadata is only visible to users with access to this run.";
+
+fn conversation_details_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// Panel rendering mode.
 #[derive(Debug, Clone, PartialEq)]
@@ -537,7 +538,10 @@ impl ConversationDetailsData {
                 environment_id: None,
                 conversation_id: None,
             },
-            title: "Cloud agent run".to_string(),
+            title: crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "agent_management.loading.tooltip",
+            ),
             creator: None,
             executor: None,
             created_at: None,
@@ -670,21 +674,33 @@ impl ConversationDetailsPanel {
         ctx.subscribe_to_view(&action_buttons, Self::handle_action_buttons_event);
 
         #[cfg(not(target_family = "wasm"))]
-        let continue_locally_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Continue locally", PrimaryTheme)
-                .with_tooltip("Fork this conversation locally")
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(ConversationDetailsPanelAction::ContinueLocally);
-                })
+        let continue_locally_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                conversation_details_text(ctx, "conversation_details.action.continue_locally"),
+                PrimaryTheme,
+            )
+            .with_tooltip(conversation_details_text(
+                ctx,
+                "conversation_details.tooltip.continue_locally",
+            ))
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(ConversationDetailsPanelAction::ContinueLocally);
+            })
         });
-        let open_in_oz_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("View in Oz", SecondaryTheme)
-                .with_tooltip("View this run in the Oz web app")
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(ConversationDetailsPanelAction::OpenInOz);
-                })
+        let open_in_oz_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                conversation_details_text(ctx, "conversation_details.action.view_in_oz"),
+                SecondaryTheme,
+            )
+            .with_tooltip(conversation_details_text(
+                ctx,
+                "conversation_details.tooltip.view_in_oz",
+            ))
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(ConversationDetailsPanelAction::OpenInOz);
+            })
         });
         #[cfg(not(target_family = "wasm"))]
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
@@ -786,7 +802,10 @@ impl ConversationDetailsPanel {
 
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::default("Copied branch name".to_string());
+                    let toast = DismissibleToast::default(localization::text_for_app(
+                        ctx,
+                        "agent_management.toast.copied_branch_name",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
             }
@@ -1158,7 +1177,10 @@ impl ConversationDetailsPanel {
                     .finish();
 
             let title = Text::new(
-                RUN_METADATA_ACCESS_DENIED_TITLE,
+                conversation_details_text(
+                    app,
+                    "conversation_details.run_metadata.access_denied.title",
+                ),
                 appearance.ui_font_family(),
                 ui_font_size,
             )
@@ -1167,7 +1189,10 @@ impl ConversationDetailsPanel {
             .with_selectable(true)
             .finish();
             let description = Text::new(
-                RUN_METADATA_ACCESS_DENIED_DESCRIPTION,
+                conversation_details_text(
+                    app,
+                    "conversation_details.run_metadata.access_denied.description",
+                ),
                 appearance.ui_font_family(),
                 ui_font_size - 1.,
             )
@@ -1363,7 +1388,11 @@ impl ConversationDetailsPanel {
     }
 
     /// Renders the primary skill that this conversation ran.
-    fn render_skill_section(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn render_skill_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Option<Box<dyn Element>> {
         let skill_spec = self.data.skill_spec.as_ref()?;
         let skill_name = skill_spec.skill_name();
         let theme = appearance.theme();
@@ -1391,7 +1420,7 @@ impl ConversationDetailsPanel {
         let oz_link = appearance
             .ui_builder()
             .link(
-                "Open in Oz".to_string(),
+                conversation_details_text(app, "conversation_details.link.open_in_oz"),
                 Some(skill_url),
                 None,
                 self.mouse_states.skill_link.clone(),
@@ -1401,7 +1430,7 @@ impl ConversationDetailsPanel {
 
         let separator = || {
             Container::new(
-                Text::new("•".to_string(), appearance.ui_font_family(), ui_font_size)
+                Text::new("/".to_string(), appearance.ui_font_family(), ui_font_size)
                     .with_color(sub_color)
                     .finish(),
             )
@@ -1832,7 +1861,7 @@ impl View for ConversationDetailsPanel {
         // Title
         let ui_font_size = appearance.ui_font_size();
         let title_font_size = ui_font_size + 2.;
-        let skill_section = self.render_skill_section(appearance);
+        let skill_section = self.render_skill_section(appearance, app);
         let title_margin = if skill_section.is_some() {
             LABEL_VALUE_GAP
         } else {

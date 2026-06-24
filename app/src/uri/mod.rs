@@ -931,8 +931,10 @@ impl Action {
                 if let Err(err) = open_docker_container(url, ctx) {
                     if let Some(window_id) = primary_window_id {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                            let toast =
-                                DismissibleToast::error("Custom URI is invalid.".to_owned());
+                            let toast = DismissibleToast::error(crate::localization::text_for_app(
+                                ctx,
+                                "uri.error.custom_uri_invalid",
+                            ));
                             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                         });
                     }

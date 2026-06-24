@@ -24,7 +24,7 @@ use crate::view_components::{
     render_warning_box, Dropdown, DropdownItemAction, FilterableDropdown, SubmittableTextInput,
     WarningBoxConfig,
 };
-use crate::{Appearance, TemplatableMCPServerManager};
+use crate::{localization, Appearance, TemplatableMCPServerManager};
 
 const CONTEXT_WINDOW_SLIDER_WIDTH: f32 = 220.;
 const CONTEXT_WINDOW_INPUT_BOX_WIDTH: f32 = 120.;
@@ -70,13 +70,14 @@ use crate::settings_view::{render_input_list, render_separator, InputListItem};
 pub const WORKSPACE_OVERRIDE_TOOLTIP_MESSAGE: &str =
     "This option is enforced by your organization's settings and cannot be customized.";
 pub fn render_header_section(
-    appearance: &Appearance,
+    app: &AppContext,
     profile_name_editor: &ViewHandle<EditorView>,
     is_default_profile: bool,
 ) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
     let mut column = Flex::column()
-        .with_child(render_header_title(appearance))
-        .with_child(render_header_name_label(appearance))
+        .with_child(render_header_title(app))
+        .with_child(render_header_name_label(app))
         .with_child(
             Container::new(
                 appearance
@@ -103,18 +104,28 @@ pub fn render_header_section(
         .finish()
 }
 
-fn render_header_title(appearance: &Appearance) -> Box<dyn Element> {
-    Text::new_inline("Edit Profile", appearance.ui_font_family(), 16.)
-        .with_style(Properties::default().weight(Weight::Bold))
-        .with_color(appearance.theme().active_ui_text_color().into())
-        .finish()
+fn render_header_title(app: &AppContext) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+    Text::new_inline(
+        localization::text_for_app(app, "settings.execution_profile.editor.title"),
+        appearance.ui_font_family(),
+        16.,
+    )
+    .with_style(Properties::default().weight(Weight::Bold))
+    .with_color(appearance.theme().active_ui_text_color().into())
+    .finish()
 }
 
-fn render_header_name_label(appearance: &Appearance) -> Box<dyn Element> {
+fn render_header_name_label(app: &AppContext) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
     Container::new(
-        Text::new("Name", appearance.ui_font_family(), 13.)
-            .with_color(appearance.theme().active_ui_text_color().into())
-            .finish(),
+        Text::new(
+            localization::text_for_app(app, "settings.execution_profile.editor.name"),
+            appearance.ui_font_family(),
+            13.,
+        )
+        .with_color(appearance.theme().active_ui_text_color().into())
+        .finish(),
     )
     .with_margin_top(16.)
     .finish()
@@ -202,9 +213,12 @@ fn render_info_section(
         .finish();
     Container::new(description).with_margin_bottom(12.).finish()
 }
-fn render_long_context_pricing_warning(appearance: &Appearance) -> Box<dyn Element> {
+fn render_long_context_pricing_warning(
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     render_warning_box(
-        WarningBoxConfig::formatted_title(long_context_pricing_warning_title()),
+        WarningBoxConfig::formatted_title(long_context_pricing_warning_title(app)),
         appearance,
     )
 }
@@ -430,7 +444,7 @@ fn render_context_window_row(
         .permissions_profile_for_id(app, view.profile_id())
         .should_show_long_context_pricing_warning(view.dragged_context_window_value, app)
     {
-        column.add_child(render_long_context_pricing_warning(appearance));
+        column.add_child(render_long_context_pricing_warning(appearance, app));
     }
 
     Some(

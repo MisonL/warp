@@ -17,6 +17,7 @@ use warp_cli::task::{
 use warp_cli::{GlobalOptions, SortOrderArg};
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::r#async::{Spawnable, Timer};
 use warpui::{AppContext, ModelContext, SingletonEntity};
@@ -31,7 +32,8 @@ use crate::ai::ambient_agents::spawn::{
 };
 use crate::ai::ambient_agents::task::HarnessConfig;
 use crate::ai::ambient_agents::{
-    AgentConfigSnapshot, AmbientAgentTask, AmbientAgentTaskId, AmbientAgentTaskState,
+    localized_task_status_message_for_locale, AgentConfigSnapshot, AmbientAgentTask,
+    AmbientAgentTaskId, AmbientAgentTaskState,
 };
 use crate::ai::artifacts::Artifact;
 use crate::auth::AuthStateProvider;
@@ -812,6 +814,10 @@ impl AmbientAgentRunner {
         }
     }
 
+    fn ambient_task_status_message(locale: LocaleId, message: &str) -> String {
+        localized_task_status_message_for_locale(locale, message)
+    }
+
     /// Print runs in a beautifully formatted ASCII table with card-style layout.
     fn print_tasks_table(tasks: &[AmbientAgentTask]) {
         if tasks.is_empty() {
@@ -866,9 +872,11 @@ impl AmbientAgentRunner {
 
             // Status message (if available) - single multi-line cell
             if let Some(status_msg) = &task.status_message {
+                let locale = LocaleId::EnUs;
+                let status_message = Self::ambient_task_status_message(locale, &status_msg.message);
                 let status_cell = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
                     "Status",
-                    &status_msg.message,
+                    &status_message,
                     MAX_LINE_WIDTH,
                 );
                 table.add_row(vec![status_cell]);
@@ -891,7 +899,11 @@ impl AmbientAgentRunner {
 
     /// Format artifacts for display.
     fn format_artifacts(artifacts: &[Artifact]) -> String {
-        let mut lines = vec!["Artifacts:".to_string()];
+        let locale = warp_localization::LocaleId::EnUs;
+        let mut lines = vec![crate::localization::text_for_locale(
+            locale,
+            "agent_sdk.ambient.artifacts.header",
+        )];
 
         for artifact in artifacts {
             match artifact {
@@ -903,25 +915,54 @@ impl AmbientAgentRunner {
                     ..
                 } => {
                     let pr_display = match (repo, number) {
-                        (Some(repo), Some(num)) => format!("  PR: {} #{}", repo, num),
-                        _ => "  PR:".to_string(),
+                        (Some(repo), Some(num)) => {
+                            let number = num.to_string();
+                            crate::localization::text_for_locale_with_args(
+                                locale,
+                                "agent_sdk.ambient.artifacts.pull_request_with_repo",
+                                &[("repo", repo), ("number", &number)],
+                            )
+                        }
+                        _ => crate::localization::text_for_locale(
+                            locale,
+                            "agent_sdk.ambient.artifacts.pull_request",
+                        ),
                     };
                     lines.push(pr_display);
-                    lines.push(format!("    Branch: {}", branch));
-                    lines.push(format!("    Link: {}", url));
+                    lines.push(crate::localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.branch",
+                        &[("branch", branch)],
+                    ));
+                    lines.push(crate::localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.link",
+                        &[("url", url)],
+                    ));
                 }
                 Artifact::Plan {
                     notebook_uid,
                     title,
                     ..
                 } => {
-                    let plan_title = title.as_deref().unwrap_or("Untitled Plan");
-                    lines.push(format!("  Plan: {}", plan_title));
+                    let plan_title = title.clone().unwrap_or_else(|| {
+                        crate::localization::text_for_locale(
+                            locale,
+                            "agent_sdk.ambient.artifacts.untitled_plan",
+                        )
+                    });
+                    lines.push(crate::localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.plan",
+                        &[("title", &plan_title)],
+                    ));
                     if let Some(id) = notebook_uid {
-                        lines.push(format!(
-                            "    Link: {}/drive/notebook/{}",
-                            ChannelState::server_root_url(),
-                            id
+                        let url =
+                            format!("{}/drive/notebook/{}", ChannelState::server_root_url(), id);
+                        lines.push(crate::localization::text_for_locale_with_args(
+                            locale,
+                            "agent_sdk.ambient.artifacts.link",
+                            &[("url", &url)],
                         ));
                     }
                 }
@@ -930,8 +971,17 @@ impl AmbientAgentRunner {
                     description,
                     ..
                 } => {
-                    let desc = description.as_deref().unwrap_or("No description");
-                    lines.push(format!("  Screenshot: {} ({})", artifact_uid, desc));
+                    let desc = description.clone().unwrap_or_else(|| {
+                        crate::localization::text_for_locale(
+                            locale,
+                            "agent_sdk.ambient.artifacts.no_description",
+                        )
+                    });
+                    lines.push(crate::localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.screenshot",
+                        &[("artifact_uid", artifact_uid), ("description", &desc)],
+                    ));
                 }
                 Artifact::File {
                     filename,
@@ -940,10 +990,22 @@ impl AmbientAgentRunner {
                     ..
                 } => {
                     let label = super::super::artifacts::file_button_label(filename, filepath);
-                    lines.push(format!("  File: {}", label));
-                    lines.push(format!("    Path: {}", filepath));
+                    lines.push(crate::localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.file",
+                        &[("label", &label)],
+                    ));
+                    lines.push(crate::localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.path",
+                        &[("path", filepath)],
+                    ));
                     if let Some(description) = description {
-                        lines.push(format!("    Description: {}", description));
+                        lines.push(crate::localization::text_for_locale_with_args(
+                            locale,
+                            "agent_sdk.ambient.artifacts.description",
+                            &[("description", description)],
+                        ));
                     }
                 }
             }

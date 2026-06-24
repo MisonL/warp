@@ -66,6 +66,7 @@ use crate::code::footer::{CodeFooterView, CodeFooterViewEvent};
 use crate::code::global_buffer_model::{BufferState, GlobalBufferModel, GlobalBufferModelEvent};
 use crate::code::{SaveOutcome, ShowFindReferencesCardProvider};
 use crate::code_review::comments::CommentId;
+use crate::localization;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::settings::{AISettings, CodeSettings};
 use crate::terminal::TerminalView;
@@ -1960,12 +1961,15 @@ impl LocalCodeEditorView {
     }
 
     /// Creates menu items for the context menu
-    fn context_menu_items(&self) -> Vec<MenuItem<LocalCodeEditorAction>> {
+    fn context_menu_items(&self, ctx: &ViewContext<Self>) -> Vec<MenuItem<LocalCodeEditorAction>> {
         vec![
-            MenuItemFields::new("Go to definition")
-                .with_on_select_action(LocalCodeEditorAction::GotoDefinition)
-                .into_item(),
-            MenuItemFields::new("Find references")
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "code.menu.go_to_definition",
+            ))
+            .with_on_select_action(LocalCodeEditorAction::GotoDefinition)
+            .into_item(),
+            MenuItemFields::new(localization::text_for_app(ctx, "code.menu.find_references"))
                 .with_on_select_action(LocalCodeEditorAction::FindReferences)
                 .into_item(),
         ]
@@ -2179,6 +2183,7 @@ impl View for LocalCodeEditorView {
                 let appearance = Appearance::as_ref(app);
                 let banner = render_unsaved_changes_banner(
                     appearance,
+                    app,
                     self.conflict_banner_mouse_states
                         .discard_mouse_state
                         .clone(),
@@ -2349,7 +2354,7 @@ impl TypedActionView for LocalCodeEditorView {
                 // Only show context menu if LSP is available
                 if self.is_lsp_server_available(ctx) {
                     self.context_menu_state.is_open = true;
-                    let menu_items = self.context_menu_items();
+                    let menu_items = self.context_menu_items(ctx);
                     self.context_menu.update(ctx, move |menu, ctx| {
                         menu.set_items(menu_items, ctx);
                         ctx.notify();
@@ -2372,6 +2377,7 @@ impl TypedActionView for LocalCodeEditorView {
 /// Renders a banner warning that the file has saved changes not reflected in the diff
 pub fn render_unsaved_changes_banner(
     appearance: &Appearance,
+    app: &AppContext,
     discard_mouse_state: MouseStateHandle,
     overwrite_mouse_state: MouseStateHandle,
 ) -> Box<dyn Element> {
@@ -2395,7 +2401,7 @@ pub fn render_unsaved_changes_banner(
             Shrinkable::new(
                 1.,
                 Text::new(
-                    "This file has saved changes that are not reflected here.",
+                    localization::text_for_app(app, "code.saved_changes_notice"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -2413,7 +2419,10 @@ pub fn render_unsaved_changes_banner(
             appearance
                 .ui_builder()
                 .button(ButtonVariant::Text, discard_mouse_state)
-                .with_text_label("Discard this version".into())
+                .with_text_label(localization::text_for_app(
+                    app,
+                    "code.action.discard_this_version",
+                ))
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -2435,7 +2444,7 @@ pub fn render_unsaved_changes_banner(
                 appearance
                     .ui_builder()
                     .button(ButtonVariant::Outlined, overwrite_mouse_state)
-                    .with_text_label("Overwrite".into())
+                    .with_text_label(localization::text_for_app(app, "code.action.overwrite"))
                     .with_style(UiComponentStyles {
                         font_color: Some(appearance.theme().active_ui_text_color().into()),
                         ..Default::default()

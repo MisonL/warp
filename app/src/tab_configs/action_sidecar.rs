@@ -9,6 +9,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::settings::ai::DefaultSessionMode;
 use crate::tab_configs::TabConfig;
 use crate::terminal::available_shells::AvailableShell;
@@ -122,6 +123,8 @@ pub(crate) fn render_action_sidecar(
 
     // "Make default" button (always shown; visually disabled with tooltip when already the default)
     let make_default_button = if is_already_default {
+        let already_default_tooltip =
+            localization::text_for_app(app, "tab_config.tooltip.already_default");
         let disabled_style = UiComponentStyles {
             font_color: Some(theme.disabled_text_color(theme.surface_2()).into()),
             border_color: Some(theme.outline().into()),
@@ -130,13 +133,17 @@ pub(crate) fn render_action_sidecar(
         appearance
             .ui_builder()
             .button(ButtonVariant::Outlined, mouse_states.make_default.clone())
-            .with_centered_text_label("Make default".into())
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "tab_config.action.make_default",
+            ))
             .with_style(disabled_style)
             .with_tooltip({
                 let ui_builder = appearance.ui_builder().clone();
+                let already_default_tooltip = already_default_tooltip.clone();
                 move || {
                     ui_builder
-                        .tool_tip("Already the default".into())
+                        .tool_tip(already_default_tooltip.clone())
                         .build()
                         .finish()
                 }
@@ -149,7 +156,10 @@ pub(crate) fn render_action_sidecar(
         appearance
             .ui_builder()
             .button(ButtonVariant::Outlined, mouse_states.make_default.clone())
-            .with_centered_text_label("Make default".into())
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "tab_config.action.make_default",
+            ))
             .with_style(button_style)
             .build()
             .with_cursor(Cursor::PointingHand)
@@ -171,7 +181,10 @@ pub(crate) fn render_action_sidecar(
             let edit_button = appearance
                 .ui_builder()
                 .button(ButtonVariant::Outlined, mouse_states.edit_config.clone())
-                .with_centered_text_label("Edit config".into())
+                .with_centered_text_label(localization::text_for_app(
+                    app,
+                    "tab_config.action.edit_config",
+                ))
                 .with_style(button_style)
                 .build()
                 .with_cursor(Cursor::PointingHand)
@@ -202,7 +215,10 @@ pub(crate) fn render_action_sidecar(
             let remove_button = appearance
                 .ui_builder()
                 .button(ButtonVariant::Outlined, mouse_states.remove_config.clone())
-                .with_centered_text_label("Remove".into())
+                .with_centered_text_label(localization::text_for_app(
+                    app,
+                    "tab_config.action.remove",
+                ))
                 .with_style(remove_style)
                 .with_hovered_styles(UiComponentStyles {
                     border_color: Some(theme.accent().into()),

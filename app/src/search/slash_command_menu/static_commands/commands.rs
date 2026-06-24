@@ -156,7 +156,11 @@ pub static RENAME_CONVERSATION: LazyLock<StaticCommand> = LazyLock::new(|| Stati
         | Availability::ACTIVE_CONVERSATION
         | Availability::AI_ENABLED,
     auto_enter_ai_mode: false,
-    argument: Some(Argument::required().with_hint_text("<new title>")),
+    argument: Some(
+        Argument::required()
+            .with_hint_text("<new title>")
+            .with_hint_text_key("terminal.slash.command.rename_conversation.hint"),
+    ),
 });
 
 static SET_TAB_COLOR_HINT: LazyLock<String> = LazyLock::new(|| {

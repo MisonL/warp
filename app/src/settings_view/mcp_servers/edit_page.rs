@@ -53,7 +53,7 @@ use crate::view_components::action_button::{
 };
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-use crate::GlobalResourceHandlesProvider;
+use crate::{localization, GlobalResourceHandlesProvider};
 
 const DEFAULT_JSON_TEXT: &str = r#"{
     "": {
@@ -61,6 +61,10 @@ const DEFAULT_JSON_TEXT: &str = r#"{
     }
 }
 "#;
+
+fn mcp_edit_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 #[derive(Debug, Clone)]
 pub enum MCPServersEditPageViewEvent {
@@ -126,34 +130,44 @@ pub struct MCPServersEditPageView {
 
 impl MCPServersEditPageView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let save_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Save", PrimaryTheme)
+        let save_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(mcp_edit_text(ctx, "settings.action.save"), PrimaryTheme)
                 .with_icon(Icon::Check)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(MCPServersEditPageViewAction::Save);
                 })
         });
 
-        let reinstall_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Edit Variables", PrimaryTheme).on_click(|ctx| {
+        let reinstall_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                mcp_edit_text(ctx, "settings.mcp.edit.edit_variables"),
+                PrimaryTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(MCPServersEditPageViewAction::Reinstall);
             })
         });
 
-        let delete_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Delete MCP", DangerSecondaryTheme)
-                .with_icon(Icon::Trash)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(MCPServersEditPageViewAction::Delete);
-                })
+        let delete_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                mcp_edit_text(ctx, "settings.mcp.edit.delete_mcp"),
+                DangerSecondaryTheme,
+            )
+            .with_icon(Icon::Trash)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(MCPServersEditPageViewAction::Delete);
+            })
         });
 
-        let unshare_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Remove from team", DangerNakedTheme)
-                .with_icon(Icon::MinusCircle)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(MCPServersEditPageViewAction::Unshare);
-                })
+        let unshare_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                mcp_edit_text(ctx, "settings.mcp.edit.remove_from_team"),
+                DangerNakedTheme,
+            )
+            .with_icon(Icon::MinusCircle)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(MCPServersEditPageViewAction::Unshare);
+            })
         });
 
         let json_editor = ctx.add_typed_action_view(|ctx| {
@@ -314,13 +328,19 @@ impl MCPServersEditPageView {
         };
 
         let ui_builder = appearance.ui_builder().clone();
+        let log_out_tooltip = localization::text_for_app(app, "settings.mcp.edit.log_out");
         let log_out_icon_button = icon_button(
             appearance,
             Icon::LogOut,
             false,
             self.log_out_icon_button_mouse_handle.clone(),
         )
-        .with_tooltip(move || ui_builder.tool_tip("Log out".to_string()).build().finish())
+        .with_tooltip(move || {
+            ui_builder
+                .tool_tip(log_out_tooltip.clone())
+                .build()
+                .finish()
+        })
         .build()
         .on_click(|ctx, _, _| ctx.dispatch_typed_action(MCPServersEditPageViewAction::LogOut))
         .finish();
@@ -479,10 +499,17 @@ impl MCPServersEditPageView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                 .with_child(
                     Container::new(
-                        Container::new(Text::new("JSON", ui_font_family, font_size).finish())
-                            .with_vertical_padding(10.)
-                            .with_horizontal_padding(16.)
+                        Container::new(
+                            Text::new(
+                                mcp_edit_text(app, "settings.mcp.edit.json"),
+                                ui_font_family,
+                                font_size,
+                            )
                             .finish(),
+                        )
+                        .with_vertical_padding(10.)
+                        .with_horizontal_padding(16.)
+                        .finish(),
                     )
                     .with_background_color(border_color)
                     .finish(),
@@ -532,12 +559,18 @@ impl MCPServersEditPageView {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error("This MCP server contains secrets. Visit Settings > Privacy to modify your secret redaction settings.".to_string()),
+                    DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "settings.mcp.edit.error.contains_secrets",
+                    )),
                     window_id,
                     ctx,
                 );
             });
-            return Err("This MCP server contains secrets. Visit Settings > Privacy to modify your secret redaction settings.".to_string());
+            return Err(localization::text_for_app(
+                ctx,
+                "settings.mcp.edit.error.contains_secrets",
+            ));
         }
 
         Ok(())
@@ -592,7 +625,10 @@ impl MCPServersEditPageView {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error("No MCP Server specified.".to_string()),
+                    DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "settings.mcp.edit.error.no_server_specified",
+                    )),
                     window_id,
                     ctx,
                 );
@@ -889,7 +925,10 @@ impl TypedActionView for MCPServersEditPageView {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error("No MCP Server specified.".to_string()),
+                                DismissibleToast::error(localization::text_for_app(
+                                    ctx,
+                                    "settings.mcp.edit.error.no_server_specified",
+                                )),
                                 window_id,
                                 ctx,
                             );

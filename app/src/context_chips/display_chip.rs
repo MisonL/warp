@@ -37,7 +37,6 @@ use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIInputModel};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::appearance::Appearance;
 use crate::code::editor::{add_color, remove_color};
-use crate::code_review::code_review_view::CODE_REVIEW_TOOLTIP_TEXT;
 use crate::code_review::diff_state::DiffStats;
 use crate::completer::SessionContext;
 use crate::context_chips::git_branch_on_click::{
@@ -1398,7 +1397,10 @@ impl DisplayChip {
             if state.is_hovered() && is_interactive && !menu_open {
                 let tool_tip = appearance
                     .ui_builder()
-                    .tool_tip("Change git branch".to_string())
+                    .tool_tip(crate::localization::text_for_app(
+                        app,
+                        "context_chips.tooltip.change_git_branch",
+                    ))
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(tool_tip, udi_tooltip_positioning());
@@ -1465,7 +1467,10 @@ impl DisplayChip {
             if state.is_hovered() {
                 let tool_tip = appearance
                     .ui_builder()
-                    .tool_tip("View pull request".to_string())
+                    .tool_tip(crate::localization::text_for_app(
+                        app,
+                        "context_chips.tooltip.view_pull_request",
+                    ))
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(tool_tip, udi_tooltip_positioning());
@@ -1678,7 +1683,10 @@ impl DisplayChip {
                     let tool_tip = appearance
                         .ui_builder()
                         .tool_tip_with_sublabel(
-                            CODE_REVIEW_TOOLTIP_TEXT.to_string(),
+                            crate::localization::text_for_app(
+                                app,
+                                "code_review.tooltip.view_changes",
+                            ),
                             code_review_keybinding.clone(),
                         )
                         .build()
@@ -1766,7 +1774,10 @@ impl DisplayChip {
                 if state.is_hovered() {
                     let tool_tip = appearance
                         .ui_builder()
-                        .tool_tip("Change working directory".to_string())
+                        .tool_tip(crate::localization::text_for_app(
+                            app,
+                            "context_chips.tooltip.change_working_directory",
+                        ))
                         .build()
                         .finish();
 
@@ -1813,7 +1824,10 @@ impl DisplayChip {
                 if state.is_hovered() && !is_cli_agent_active {
                     let tool_tip = appearance
                         .ui_builder()
-                        .tool_tip("Working directory".to_string())
+                        .tool_tip(crate::localization::text_for_app(
+                            app,
+                            "context_chips.tooltip.working_directory",
+                        ))
                         .build()
                         .finish();
 

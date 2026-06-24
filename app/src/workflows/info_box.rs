@@ -250,16 +250,17 @@ impl WorkflowsMoreInfoView {
         &self,
         cloud_workflow: &CloudWorkflow,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let label = if cloud_workflow.model().data.is_agent_mode_workflow() {
-            "Edit prompt"
+            crate::localization::text_for_app(app, "workflow.info_box.edit_prompt")
         } else {
-            "Edit workflow"
+            crate::localization::text_for_app(app, "workflow.info_box.edit_workflow")
         };
         let workflow = cloud_workflow.clone();
         render_hoverable_card_button(
             icons::Icon::Rename,
-            Some(label.to_owned()),
+            Some(label),
             self.button_mouse_states.edit_cloud_workflow.clone(),
             move |ctx: &mut warpui::EventContext<'_>, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::OpenWorkflowModalWithCloudWorkflow(
@@ -485,7 +486,11 @@ impl WorkflowsMoreInfoView {
             .finish()
     }
 
-    fn render_keyboard_shortcut_menu(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_keyboard_shortcut_menu(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let cycle_parameter_text = Flex::row()
             .with_child(
                 appearance
@@ -502,8 +507,11 @@ impl WorkflowsMoreInfoView {
                 Shrinkable::new(
                     1.,
                     Container::new(
-                        Text::new_inline(
-                            "to cycle parameters",
+                        Text::new(
+                            crate::localization::text_for_app(
+                                app,
+                                "workflow.info_box.cycle_parameters",
+                            ),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size(),
                         )
@@ -533,11 +541,18 @@ impl WorkflowsMoreInfoView {
             .finish()
     }
 
-    fn render_save_workflow_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_save_workflow_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let workflow = self.workflow.as_workflow().to_owned();
         render_hoverable_card_button(
             icons::Icon::Workflow,
-            Some("Save as workflow".to_string()),
+            Some(crate::localization::text_for_app(
+                app,
+                "workflow.info_box.save_as_workflow",
+            )),
             self.button_mouse_states.save_as_workflow.clone(),
             move |ctx, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::OpenWorkflowModalForAIWorkflow(
@@ -710,11 +725,11 @@ impl WorkflowsMoreInfoView {
                     row_content.add_child(Shrinkable::new(1., metadata_history_element).finish());
                 }
 
-                let edit_button = self.render_edit_button(cloud_workflow, appearance);
+                let edit_button = self.render_edit_button(cloud_workflow, appearance, app);
                 row_content.add_children([edit_button, collapse_button, close_button]);
             }
             WorkflowType::AIGenerated { .. } => {
-                let save_as_workflow_button = self.render_save_workflow_button(appearance);
+                let save_as_workflow_button = self.render_save_workflow_button(appearance, app);
                 row_content.add_children([save_as_workflow_button, collapse_button, close_button]);
             }
             _ => row_content.add_children([collapse_button, close_button]),
@@ -783,7 +798,7 @@ impl WorkflowsMoreInfoView {
         if !self.show_shift_tab_treatment {
             children.push(self.render_command_edited_menu(appearance));
         } else if !workflow.arguments().is_empty() {
-            children.push(self.render_keyboard_shortcut_menu(appearance));
+            children.push(self.render_keyboard_shortcut_menu(appearance, app));
         }
 
         match input_mode {

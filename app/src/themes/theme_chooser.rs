@@ -111,17 +111,32 @@ impl ThemeChooserMode {
         }
     }
 
-    fn render_hint_text(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_hint_text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let hint_text = match self {
-            ThemeChooserMode::SystemAgnostic => appearance
-                .ui_builder()
-                .paragraph("Change your current theme.".to_string()),
-            ThemeChooserMode::SystemLight => appearance
-                .ui_builder()
-                .paragraph("Pick a theme for when your system is in light mode.".to_string()),
-            ThemeChooserMode::SystemDark => appearance
-                .ui_builder()
-                .paragraph("Pick a theme for when your system is in dark mode.".to_string()),
+            ThemeChooserMode::SystemAgnostic => {
+                appearance
+                    .ui_builder()
+                    .paragraph(crate::localization::text_for_app(
+                        app,
+                        "themes.chooser.hint.current",
+                    ))
+            }
+            ThemeChooserMode::SystemLight => {
+                appearance
+                    .ui_builder()
+                    .paragraph(crate::localization::text_for_app(
+                        app,
+                        "themes.chooser.hint.light",
+                    ))
+            }
+            ThemeChooserMode::SystemDark => {
+                appearance
+                    .ui_builder()
+                    .paragraph(crate::localization::text_for_app(
+                        app,
+                        "themes.chooser.hint.dark",
+                    ))
+            }
         };
         hint_text
             .build()
@@ -725,7 +740,7 @@ impl ThemeChooser {
         .finish()
     }
 
-    fn render_list(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_list(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let themes = self
             .filtered_themes
             .as_ref()
@@ -742,7 +757,10 @@ impl ThemeChooser {
                 .with_child(
                     appearance
                         .ui_builder()
-                        .span("No matching themes!".to_string())
+                        .span(crate::localization::text_for_app(
+                            app,
+                            "themes.chooser.no_matching",
+                        ))
                         .build()
                         .finish(),
                 )
@@ -853,9 +871,9 @@ impl View for ThemeChooser {
             Flex::column()
                 .with_child(self.render_header(traffic_light_data.as_ref(), appearance, app))
                 .with_child(self.render_title_row(appearance))
-                .with_child(self.mode.render_hint_text(appearance))
+                .with_child(self.mode.render_hint_text(appearance, app))
                 .with_child(self.render_search_bar(appearance))
-                .with_child(self.render_list(appearance))
+                .with_child(self.render_list(appearance, app))
                 .finish(),
         )
         .finish()

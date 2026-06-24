@@ -17,6 +17,7 @@ use warpui::{
 
 use crate::ai::skills::SkillManager;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
@@ -398,6 +399,14 @@ impl SearchItem for SkillSearchItem {
 
     fn execute_result(&self) -> Self::Action {
         self.accept_result()
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.skills.a11y.label",
+            &[("name", &self.skill_name)],
+        )
     }
 
     fn accessibility_label(&self) -> String {

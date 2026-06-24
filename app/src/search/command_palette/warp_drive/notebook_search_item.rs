@@ -18,6 +18,25 @@ use crate::search::notebooks::fuzzy_match::{
 use crate::search::result_renderer::ItemHighlightState;
 use crate::ui_components::icons::Icon;
 
+fn notebook_title_for_app(notebook: &CloudNotebook, app: &AppContext) -> String {
+    if notebook.model().title.is_empty() {
+        crate::localization::text_for_app(app, "notebook.placeholder.untitled")
+    } else {
+        notebook.model().title.clone()
+    }
+}
+
+fn notebook_title_fallback(notebook: &CloudNotebook) -> String {
+    if notebook.model().title.is_empty() {
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "notebook.placeholder.untitled",
+        )
+    } else {
+        notebook.model().title.clone()
+    }
+}
+
 /// Search item result for a cloud notebook.
 #[derive(Debug)]
 pub struct NotebookSearchItem {
@@ -61,13 +80,8 @@ impl SearchItem for NotebookSearchItem {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let title = if self.cloud_notebook.model().title.is_empty() {
-            "Untitled".to_string()
-        } else {
-            self.cloud_notebook.model().title.clone()
-        };
         let mut name_text = Text::new_inline(
-            title,
+            notebook_title_for_app(&self.cloud_notebook, app),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -142,6 +156,18 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.cloud_notebook.model().title)
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_fallback(&self.cloud_notebook))],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_for_app(&self.cloud_notebook, app))],
+        )
     }
 }

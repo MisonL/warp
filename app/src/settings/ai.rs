@@ -475,11 +475,13 @@ impl ThinkingDisplayMode {
         }
     }
 
-    pub fn command_palette_description(&self) -> &'static str {
+    pub fn command_palette_description_key(&self) -> &'static str {
         match self {
-            ThinkingDisplayMode::ShowAndCollapse => "Set agent thinking display: show & collapse",
-            ThinkingDisplayMode::AlwaysShow => "Set agent thinking display: always show",
-            ThinkingDisplayMode::NeverShow => "Set agent thinking display: never show",
+            ThinkingDisplayMode::ShowAndCollapse => {
+                "settings.command_palette.ai.thinking.show_and_collapse"
+            }
+            ThinkingDisplayMode::AlwaysShow => "settings.command_palette.ai.thinking.always_show",
+            ThinkingDisplayMode::NeverShow => "settings.command_palette.ai.thinking.never_show",
         }
     }
 
@@ -737,6 +739,17 @@ impl LongRunningCommandSubmissionMode {
             }
             LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
                 "Set long-running command submission: queue until command finishes"
+            }
+        }
+    }
+
+    pub fn command_palette_description_key(&self) -> &'static str {
+        match self {
+            LongRunningCommandSubmissionMode::SendImmediately => {
+                "settings.command_palette.ai.long_running_command_submission.send_immediately"
+            }
+            LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                "settings.command_palette.ai.long_running_command_submission.queue_until_command_finishes"
             }
         }
     }

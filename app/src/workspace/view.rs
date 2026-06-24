@@ -209,7 +209,7 @@ use crate::ai::facts::view::AIFactPage;
 use crate::ai::facts::{AIFactManager, AIFactView, AIFactViewEvent};
 use crate::ai::llms::LLMPreferences;
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::ai::{conversation_utils, AIRequestUsageModel};
+use crate::ai::{conversation_utils, AIRequestUsageModel, BonusGrantScope};
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::panel::{AIAssistantPanelEvent, AIAssistantPanelView};
 use crate::ai_assistant::{AskAIType, AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR};
@@ -519,9 +519,43 @@ use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::AdminEnablementSetting;
 use crate::{
-    autoupdate, report_if_error, send_telemetry_from_ctx, settings, AgentNotificationsModel,
-    BlocklistAIHistoryModel, GlobalResourceHandles, TelemetryEvent,
+    autoupdate, localization, report_if_error, send_telemetry_from_ctx, settings,
+    AgentNotificationsModel, BlocklistAIHistoryModel, GlobalResourceHandles, TelemetryEvent,
 };
+
+#[cfg(target_os = "macos")]
+fn localized_cli_install_error(error: &cli_install::CliInstallError, app: &AppContext) -> String {
+    match error {
+        cli_install::CliInstallError::InstallationCancelled => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.installation_cancelled")
+        }
+        cli_install::CliInstallError::UninstallationCancelled => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.uninstallation_cancelled")
+        }
+        cli_install::CliInstallError::TargetExistsNotSymlink(path) => {
+            let path = path.display().to_string();
+            localization::text_for_app_with_args(
+                app,
+                "workspace.toast.oz_cli_error.target_exists_not_symlink",
+                &[("path", &path)],
+            )
+        }
+        cli_install::CliInstallError::TargetNotSymlink(path) => {
+            let path = path.display().to_string();
+            localization::text_for_app_with_args(
+                app,
+                "workspace.toast.oz_cli_error.target_not_symlink",
+                &[("path", &path)],
+            )
+        }
+        cli_install::CliInstallError::NotInstalled => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.not_installed")
+        }
+        cli_install::CliInstallError::Other(_) => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.see_logs")
+        }
+    }
+}
 
 /// The padding that should be applied to the workspace as a whole.
 pub const WORKSPACE_PADDING: f32 = 1.0;
@@ -680,6 +714,35 @@ lazy_static! {
 enum TabConfigsMenuOpenSource {
     KeyboardShortcut,
     Pointer,
+}
+
+fn disambiguated_tab_config_display_names(
+    tab_configs: &[crate::tab_configs::TabConfig],
+    ctx: &AppContext,
+) -> Vec<String> {
+    let mut name_totals: HashMap<String, usize> = HashMap::new();
+    for config in tab_configs {
+        *name_totals.entry(config.localized_name(ctx)).or_default() += 1;
+    }
+
+    let mut name_seen: HashMap<String, usize> = HashMap::new();
+    tab_configs
+        .iter()
+        .map(|config| {
+            let localized_name = config.localized_name(ctx);
+            if name_totals.get(&localized_name).copied().unwrap_or(0) <= 1 {
+                return localized_name;
+            }
+
+            let seen = name_seen.entry(localized_name.clone()).or_default();
+            *seen += 1;
+            if *seen == 1 {
+                localized_name
+            } else {
+                format!("{} ({})", localized_name, *seen - 1)
+            }
+        })
+        .collect()
 }
 
 /// This enumerates the different kinds of banners we show to the user.
@@ -1308,7 +1371,10 @@ impl Workspace {
                 },
                 ctx,
             );
-            editor.set_placeholder_text("Search repos", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "workspace.placeholder.search_repos"),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&editor, |me, editor_view, event, ctx| match event {
@@ -1344,7 +1410,10 @@ impl Workspace {
             EditorView::single_line(options, ctx)
         });
         editor.update(ctx, |editor, ctx| {
-            editor.set_placeholder_text("Search tabs...", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "workspace.placeholder.search_tabs"),
+                ctx,
+            );
         });
         ctx.subscribe_to_view(&editor, |me, editor_view, event, ctx| match event {
             EditorEvent::Edited(_) => {
@@ -3264,10 +3333,24 @@ impl Workspace {
                 ctx,
             ),
             |me, _, event, ctx| {
-                let BonusGrantNotificationEvent::ShowNotification { message, .. } = event;
+                let BonusGrantNotificationEvent::ShowNotification { grant, message } = event;
+                let message = message.clone().unwrap_or_else(|| {
+                    let scope_key = match grant.scope {
+                        BonusGrantScope::User => "workspace.bonus_grant.scope.account",
+                        BonusGrantScope::Workspace(_) => "workspace.bonus_grant.scope.team",
+                    };
+                    let scope = localization::text_for_app(ctx, scope_key);
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "workspace.bonus_grant.generic_message",
+                        &[
+                            ("count", &grant.request_credits_granted.to_string()),
+                            ("scope", &scope),
+                        ],
+                    )
+                });
                 me.toast_stack.update(ctx, |toast_stack, ctx| {
-                    toast_stack
-                        .add_persistent_toast(DismissibleToast::success(message.clone()), ctx);
+                    toast_stack.add_persistent_toast(DismissibleToast::success(message), ctx);
                 });
             },
         );
@@ -4497,7 +4580,10 @@ impl Workspace {
         ));
 
         self.toast_stack.update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::default("Remote control link copied.".to_string());
+            let toast = DismissibleToast::default(localization::text_for_app(
+                ctx,
+                "workspace.toast.remote_control_link_copied",
+            ));
             toast_stack.add_ephemeral_toast(toast, ctx);
         });
     }
@@ -5948,9 +6034,12 @@ impl Workspace {
         if !FeatureFlag::ConfigurableToolbar.is_enabled() {
             return;
         }
-        let items = vec![MenuItemFields::new("Re-arrange toolbar items")
-            .with_on_select_action(WorkspaceAction::OpenHeaderToolbarEditor)
-            .into_item()];
+        let items = vec![MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "workspace.menu.rearrange_toolbar_items",
+        ))
+        .with_on_select_action(WorkspaceAction::OpenHeaderToolbarEditor)
+        .into_item()];
         self.header_toolbar_context_menu
             .update(ctx, |menu, ctx| menu.set_items(items, ctx));
         self.show_header_toolbar_context_menu = Some(position);
@@ -6427,9 +6516,10 @@ impl Workspace {
 
         // 1. Agent (if AI enabled)
         if is_any_ai_enabled {
-            let mut agent_item = MenuItemFields::new("Agent")
-                .with_on_select_action(WorkspaceAction::AddAgentTab)
-                .with_icon(icons::Icon::LayoutAlt01);
+            let mut agent_item =
+                MenuItemFields::new(localization::text_for_app(ctx, "workspace.menu.agent"))
+                    .with_on_select_action(WorkspaceAction::AddAgentTab)
+                    .with_icon(icons::Icon::LayoutAlt01);
             if effective_default == DefaultSessionMode::Agent {
                 agent_item = agent_item.with_key_shortcut_label(shortcut_label.clone());
             }
@@ -6443,11 +6533,12 @@ impl Workspace {
             #[cfg(target_os = "windows")]
             {
                 let is_terminal_default = effective_default == DefaultSessionMode::Terminal;
-                let mut terminal_item = MenuItemFields::new("Terminal")
-                    .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                        hide_homepage: false,
-                    })
-                    .with_icon(icons::Icon::LayoutAlt01);
+                let mut terminal_item =
+                    MenuItemFields::new(localization::text_for_app(ctx, "workspace.menu.terminal"))
+                        .with_on_select_action(WorkspaceAction::AddTerminalTab {
+                            hide_homepage: false,
+                        })
+                        .with_icon(icons::Icon::LayoutAlt01);
                 if is_terminal_default {
                     terminal_item = terminal_item.with_key_shortcut_label(shortcut_label.clone());
                 }
@@ -6480,11 +6571,12 @@ impl Workspace {
             // On other platforms, Terminal is a regular item.
             #[cfg(not(target_os = "windows"))]
             {
-                let mut terminal_item = MenuItemFields::new("Terminal")
-                    .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                        hide_homepage: false,
-                    })
-                    .with_icon(icons::Icon::LayoutAlt01);
+                let mut terminal_item =
+                    MenuItemFields::new(localization::text_for_app(ctx, "workspace.menu.terminal"))
+                        .with_on_select_action(WorkspaceAction::AddTerminalTab {
+                            hide_homepage: false,
+                        })
+                        .with_icon(icons::Icon::LayoutAlt01);
                 if effective_default == DefaultSessionMode::Terminal {
                     terminal_item = terminal_item.with_key_shortcut_label(shortcut_label.clone());
                 }
@@ -6497,9 +6589,12 @@ impl Workspace {
             && FeatureFlag::AgentView.is_enabled()
             && FeatureFlag::CloudMode.is_enabled()
         {
-            let mut cloud_item = MenuItemFields::new("Cloud Agent")
-                .with_on_select_action(WorkspaceAction::AddAmbientAgentTab)
-                .with_icon(icons::Icon::LayoutAlt01);
+            let mut cloud_item = MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "workspace.menu.cloud_agent",
+            ))
+            .with_on_select_action(WorkspaceAction::AddAmbientAgentTab)
+            .with_icon(icons::Icon::LayoutAlt01);
             if effective_default == DefaultSessionMode::CloudAgent {
                 cloud_item = cloud_item.with_key_shortcut_label(shortcut_label.clone());
             }
@@ -6508,9 +6603,12 @@ impl Workspace {
 
         // 3b. Local Docker Sandbox
         if FeatureFlag::LocalDockerSandbox.is_enabled() {
-            let mut docker_item = MenuItemFields::new("Local Docker Sandbox")
-                .with_on_select_action(WorkspaceAction::AddDockerSandboxTab)
-                .with_icon(icons::Icon::Docker);
+            let mut docker_item = MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "workspace.menu.local_docker_sandbox",
+            ))
+            .with_on_select_action(WorkspaceAction::AddDockerSandboxTab)
+            .with_icon(icons::Icon::Docker);
             if effective_default == DefaultSessionMode::DockerSandbox {
                 docker_item = docker_item.with_key_shortcut_label(shortcut_label.clone());
             }
@@ -6521,15 +6619,9 @@ impl Workspace {
         if FeatureFlag::TabConfigs.is_enabled() {
             let tab_configs = WarpConfig::as_ref(ctx).tab_configs().to_vec();
 
-            // Count occurrences of each config name so we can disambiguate
-            // duplicates in the menu (e.g. "My Tab Config", "My Tab Config (1)").
-            let mut name_totals: HashMap<String, usize> = HashMap::new();
-            for config in &tab_configs {
-                *name_totals.entry(config.name.clone()).or_default() += 1;
-            }
-            let mut name_seen: HashMap<String, usize> = HashMap::new();
+            let display_names = disambiguated_tab_config_display_names(&tab_configs, ctx);
 
-            for tab_config in tab_configs {
+            for (tab_config, display_name) in tab_configs.into_iter().zip(display_names) {
                 let is_worktree = tab_config.is_worktree();
                 let icon = if is_worktree {
                     icons::Icon::Dataflow02
@@ -6541,18 +6633,6 @@ impl Workspace {
                         .source_path
                         .as_ref()
                         .is_some_and(|p| p.to_string_lossy() == default_tab_config_path);
-
-                let display_name = if name_totals.get(&tab_config.name).copied().unwrap_or(0) > 1 {
-                    let seen = name_seen.entry(tab_config.name.clone()).or_default();
-                    *seen += 1;
-                    if *seen == 1 {
-                        tab_config.name.clone()
-                    } else {
-                        format!("{} ({})", tab_config.name, *seen - 1)
-                    }
-                } else {
-                    tab_config.name.clone()
-                };
 
                 let mut item = MenuItemFields::new(display_name)
                     .with_on_select_action(WorkspaceAction::SelectTabConfig(tab_config))
@@ -6568,19 +6648,25 @@ impl Workspace {
         if FeatureFlag::TabConfigs.is_enabled() {
             menu_items.push(MenuItem::Separator);
             menu_items.push(
-                MenuItemFields::new_submenu("New worktree config")
-                    .with_icon(icons::Icon::Dataflow02)
-                    .into_item(),
+                MenuItemFields::new_submenu(localization::text_for_app(
+                    ctx,
+                    "workspace.menu.new_worktree_config",
+                ))
+                .with_icon(icons::Icon::Dataflow02)
+                .into_item(),
             );
 
             // 6. New tab config — V0: opens the TOML template.
             menu_items.push(
-                MenuItemFields::new("New tab config")
-                    .with_on_select_action(WorkspaceAction::SelectNewSessionMenuItem(
-                        NewSessionMenuItem::CreateNewTabConfig,
-                    ))
-                    .with_icon(icons::Icon::Plus)
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "workspace.menu.new_tab_config",
+                ))
+                .with_on_select_action(WorkspaceAction::SelectNewSessionMenuItem(
+                    NewSessionMenuItem::CreateNewTabConfig,
+                ))
+                .with_icon(icons::Icon::Plus)
+                .into_item(),
             );
         }
 
@@ -6589,22 +6675,28 @@ impl Workspace {
         if FeatureFlag::GroupedTabs.is_enabled() {
             menu_items.push(MenuItem::Separator);
             menu_items.push(
-                MenuItemFields::new("New tab group")
-                    .with_on_select_action(WorkspaceAction::SelectNewSessionMenuItem(
-                        NewSessionMenuItem::CreateNewTabGroup,
-                    ))
-                    .with_icon(icons::Icon::LayersThree01)
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "workspace.menu.new_tab_group",
+                ))
+                .with_on_select_action(WorkspaceAction::SelectNewSessionMenuItem(
+                    NewSessionMenuItem::CreateNewTabGroup,
+                ))
+                .with_icon(icons::Icon::LayersThree01)
+                .into_item(),
             );
         }
 
         menu_items.push(MenuItem::Separator);
         menu_items.push(
-            MenuItemFields::new("Reopen closed session")
-                .with_on_select_action(WorkspaceAction::ReopenClosedSession)
-                .with_key_shortcut_label(reopen_closed_session_shortcut_label)
-                .with_disabled(UndoCloseStack::handle(ctx).as_ref(ctx).is_empty())
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "workspace.menu.reopen_closed_session",
+            ))
+            .with_on_select_action(WorkspaceAction::ReopenClosedSession)
+            .with_key_shortcut_label(reopen_closed_session_shortcut_label)
+            .with_disabled(UndoCloseStack::handle(ctx).as_ref(ctx).is_empty())
+            .into_item(),
         );
 
         menu_items
@@ -7534,7 +7626,7 @@ impl Workspace {
             return;
         }
 
-        let menu_items = self.tab_group_menu_items(group_id, uses_vertical_tabs(ctx));
+        let menu_items = self.tab_group_menu_items(group_id, uses_vertical_tabs(ctx), ctx);
         ctx.update_view(&self.tab_right_click_menu, |context_menu, view_ctx| {
             context_menu.set_items(menu_items, view_ctx);
         });
@@ -7571,13 +7663,13 @@ impl Workspace {
         let pane_name_target = match target {
             VerticalTabsPaneContextMenuTarget::ClickedPane(locator) => PaneNameMenuTarget {
                 locator,
-                rename_label: "Rename pane",
-                reset_label: "Reset pane name",
+                rename_label_key: "tab.menu.rename_pane",
+                reset_label_key: "tab.menu.reset_pane_name",
             },
             VerticalTabsPaneContextMenuTarget::ActivePane(locator) => PaneNameMenuTarget {
                 locator,
-                rename_label: "Rename active pane",
-                reset_label: "Reset active pane name",
+                rename_label_key: "tab.menu.rename_active_pane",
+                reset_label_key: "tab.menu.reset_active_pane_name",
             },
         };
         let can_move_left = self.can_move_tab(tab_index, TabMovement::Left);
@@ -7630,9 +7722,12 @@ impl Workspace {
                             .into_item(),
                     ),
                     AutoupdateStage::UnableToUpdateToNewVersion { .. } => menu_items.push(
-                        MenuItemFields::new("Update Warp manually")
-                            .with_on_select_action(WorkspaceAction::DownloadNewVersion)
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            ctx,
+                            "workspace.menu.update_warp_manually",
+                        ))
+                        .with_on_select_action(WorkspaceAction::DownloadNewVersion)
+                        .into_item(),
                     ),
                     AutoupdateStage::NoUpdateAvailable
                     | AutoupdateStage::CheckingForUpdate
@@ -8699,9 +8794,9 @@ impl Workspace {
     #[cfg(target_os = "macos")]
     fn handle_cli_command_result(
         &mut self,
-        result: Result<()>,
+        result: Result<(), cli_install::CliInstallError>,
         success_toast: DismissibleToast<WorkspaceAction>,
-        failure_message: &str,
+        failure_key: &str,
         ctx: &mut ViewContext<Self>,
     ) {
         match result {
@@ -8711,8 +8806,13 @@ impl Workspace {
                 });
             }
             Err(error) => {
-                let error_message = format!("{failure_message}: {error}");
-                log::warn!("{error_message}");
+                log::warn!("{failure_key}: {error}");
+                let localized_error = localized_cli_install_error(&error, ctx);
+                let error_message = localization::text_for_app_with_args(
+                    ctx,
+                    failure_key,
+                    &[("error", &localized_error)],
+                );
                 self.toast_stack.update(ctx, |toast_stack, ctx| {
                     let toast = DismissibleToast::error(error_message);
                     toast_stack.add_persistent_toast(toast, ctx);
@@ -8726,12 +8826,21 @@ impl Workspace {
     fn install_oz(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.spawn(async { cli_install::install_oz() }, |view, result, ctx| {
             let command_name = ChannelState::channel().cli_command_name();
-            let message = format!("Successfully installed the Oz CLI! You can now run '{command_name}' from the command line.");
+            let message = localization::text_for_app_with_args(
+                ctx,
+                "workspace.toast.oz_cli_installed",
+                &[("command", command_name)],
+            );
             let toast = DismissibleToast::success(message).with_link(
-                ToastLink::new("Learn more".to_string())
+                ToastLink::new(localization::text_for_app(ctx, "common.learn_more"))
                     .with_href("https://docs.warp.dev/reference/cli".to_string()),
             );
-            view.handle_cli_command_result(result, toast, "Failed to install Oz command", ctx);
+            view.handle_cli_command_result(
+                result,
+                toast,
+                "workspace.toast.oz_cli_install_failed",
+                ctx,
+            );
         });
     }
 
@@ -8741,13 +8850,14 @@ impl Workspace {
         ctx.spawn(
             async { cli_install::uninstall_oz() },
             |view, result, ctx| {
-                let toast = DismissibleToast::success(
-                    "Successfully uninstalled the Oz command.".to_string(),
-                );
+                let toast = DismissibleToast::success(localization::text_for_app(
+                    ctx,
+                    "workspace.toast.oz_cli_uninstalled",
+                ));
                 view.handle_cli_command_result(
                     result,
                     toast,
-                    "Failed to uninstall Oz command",
+                    "workspace.toast.oz_cli_uninstall_failed",
                     ctx,
                 );
             },
@@ -9371,10 +9481,13 @@ impl Workspace {
                     ) =>
                 {
                     items.push(
-                        MenuItemFields::new("Update and relaunch Warp")
-                            .with_on_select_action(WorkspaceAction::ApplyUpdate)
-                            .with_override_text_color(appearance.theme().ansi_fg_red())
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            app,
+                            "workspace.menu.update_and_relaunch_warp",
+                        ))
+                        .with_on_select_action(WorkspaceAction::ApplyUpdate)
+                        .with_override_text_color(appearance.theme().ansi_fg_red())
+                        .into_item(),
                     )
                 }
                 AutoupdateStage::Updating { new_version, .. }
@@ -9394,10 +9507,13 @@ impl Workspace {
                     ) =>
                 {
                     items.push(
-                        MenuItemFields::new("Update Warp manually")
-                            .with_on_select_action(WorkspaceAction::DownloadNewVersion)
-                            .with_override_text_color(appearance.theme().ansi_fg_red())
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            app,
+                            "workspace.menu.update_warp_manually",
+                        ))
+                        .with_on_select_action(WorkspaceAction::DownloadNewVersion)
+                        .with_override_text_color(appearance.theme().ansi_fg_red())
+                        .into_item(),
                     )
                 }
                 _ => {}
@@ -9405,33 +9521,42 @@ impl Workspace {
         }
 
         items.extend([
-            MenuItemFields::new("What's new")
+            MenuItemFields::new(localization::text_for_app(app, "workspace.menu.whats_new"))
                 .with_on_select_action(WorkspaceAction::ViewLatestChangelog)
                 .into_item(),
-            MenuItemFields::new("Settings")
+            MenuItemFields::new(localization::text_for_app(app, "workspace.menu.settings"))
                 .with_on_select_action(WorkspaceAction::ShowSettings)
                 .into_item(),
-            MenuItemFields::new("Keyboard shortcuts")
-                .with_on_select_action(WorkspaceAction::ToggleKeybindingsPage)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                app,
+                "workspace.menu.keyboard_shortcuts",
+            ))
+            .with_on_select_action(WorkspaceAction::ToggleKeybindingsPage)
+            .into_item(),
             MenuItem::Separator,
-            MenuItemFields::new("Documentation")
-                .with_on_select_action(WorkspaceAction::ViewUserDocs)
-                .into_item(),
-            MenuItemFields::new("Feedback")
+            MenuItemFields::new(localization::text_for_app(
+                app,
+                "workspace.menu.documentation",
+            ))
+            .with_on_select_action(WorkspaceAction::ViewUserDocs)
+            .into_item(),
+            MenuItemFields::new(localization::text_for_app(app, "workspace.menu.feedback"))
                 .with_on_select_action(WorkspaceAction::SendFeedback)
                 .into_item(),
         ]);
 
         #[cfg(not(target_family = "wasm"))]
         items.push(
-            MenuItemFields::new("View Warp logs")
-                .with_on_select_action(WorkspaceAction::ViewLogs)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                app,
+                "workspace.menu.view_warp_logs",
+            ))
+            .with_on_select_action(WorkspaceAction::ViewLogs)
+            .into_item(),
         );
 
         items.extend([
-            MenuItemFields::new("Slack")
+            MenuItemFields::new(localization::text_for_app(app, "workspace.menu.slack"))
                 .with_on_select_action(WorkspaceAction::JoinSlack)
                 .into_item(),
             MenuItem::Separator,
@@ -9439,7 +9564,7 @@ impl Workspace {
 
         if self.auth_state.is_anonymous_or_logged_out() {
             items.push(
-                MenuItemFields::new("Sign up")
+                MenuItemFields::new(localization::text_for_app(app, "workspace.menu.sign_up"))
                     .with_on_select_action(WorkspaceAction::SignupAnonymousUser)
                     .into_item(),
             );
@@ -9453,29 +9578,35 @@ impl Workspace {
 
         if is_on_paid_plan {
             items.push(
-                MenuItemFields::new("Billing and usage")
-                    .with_on_select_action(WorkspaceAction::ShowSettingsPage(
-                        SettingsSection::BillingAndUsage,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    app,
+                    "workspace.menu.billing_and_usage",
+                ))
+                .with_on_select_action(WorkspaceAction::ShowSettingsPage(
+                    SettingsSection::BillingAndUsage,
+                ))
+                .into_item(),
             );
         } else {
             items.push(
-                MenuItemFields::new("Upgrade")
+                MenuItemFields::new(localization::text_for_app(app, "workspace.menu.upgrade"))
                     .with_on_select_action(WorkspaceAction::ShowUpgrade)
                     .into_item(),
             );
         }
 
         items.push(
-            MenuItemFields::new("Invite a friend")
-                .with_on_select_action(WorkspaceAction::ShowReferralSettingsPage)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                app,
+                "workspace.menu.invite_a_friend",
+            ))
+            .with_on_select_action(WorkspaceAction::ShowReferralSettingsPage)
+            .into_item(),
         );
 
         if !self.auth_state.is_anonymous_or_logged_out() {
             items.push(
-                MenuItemFields::new("Log out")
+                MenuItemFields::new(localization::text_for_app(app, "workspace.menu.log_out"))
                     .with_on_select_action(WorkspaceAction::LogOut)
                     .into_item(),
             );
@@ -9591,6 +9722,7 @@ impl Workspace {
         &self,
         group_id: TabGroupId,
         is_vertical: bool,
+        ctx: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
         let Some((first, last)) = group_member_index_range(&self.tabs, group_id) else {
             return vec![];
@@ -9608,9 +9740,9 @@ impl Workspace {
             let mut items = vec![];
             if can_move_up {
                 let label = if is_vertical {
-                    "Move group up"
+                    localization::text_for_app(ctx, "tab.menu.group.move_up")
                 } else {
-                    "Move group left"
+                    localization::text_for_app(ctx, "tab.menu.group.move_left")
                 };
                 items.push(
                     MenuItemFields::new(label)
@@ -9620,9 +9752,9 @@ impl Workspace {
             }
             if can_move_down {
                 let label = if is_vertical {
-                    "Move group down"
+                    localization::text_for_app(ctx, "tab.menu.group.move_down")
                 } else {
-                    "Move group right"
+                    localization::text_for_app(ctx, "tab.menu.group.move_right")
                 };
                 items.push(
                     MenuItemFields::new(label)
@@ -9634,21 +9766,27 @@ impl Workspace {
         };
 
         let close_section = {
-            let mut items = vec![MenuItemFields::new("Close all tabs in group")
-                .with_on_select_action(WorkspaceAction::CloseTabGroup(group_id))
-                .into_item()];
+            let mut items = vec![MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "tab.menu.group.close_all_tabs",
+            ))
+            .with_on_select_action(WorkspaceAction::CloseTabGroup(group_id))
+            .into_item()];
             if has_tabs_outside {
                 items.push(
-                    MenuItemFields::new("Close other tabs")
-                        .with_on_select_action(WorkspaceAction::CloseTabsOutsideGroup(group_id))
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "tab.menu.close_other_tabs",
+                    ))
+                    .with_on_select_action(WorkspaceAction::CloseTabsOutsideGroup(group_id))
+                    .into_item(),
                 );
             }
             if has_tabs_above {
                 let label = if is_vertical {
-                    "Close tabs above"
+                    localization::text_for_app(ctx, "tab.menu.group.close_tabs_above")
                 } else {
-                    "Close tabs to the left"
+                    localization::text_for_app(ctx, "tab.menu.group.close_tabs_to_left")
                 };
                 items.push(
                     MenuItemFields::new(label)
@@ -9658,9 +9796,9 @@ impl Workspace {
             }
             if has_tabs_below {
                 let label = if is_vertical {
-                    "Close tabs below"
+                    localization::text_for_app(ctx, "tab.menu.close_tabs_below")
                 } else {
-                    "Close tabs to the right"
+                    localization::text_for_app(ctx, "tab.menu.close_tabs_to_right")
                 };
                 items.push(
                     MenuItemFields::new(label)
@@ -9673,9 +9811,15 @@ impl Workspace {
 
         let pin_section = if FeatureFlag::PinnedTabs.is_enabled() {
             let (label, action) = if self.tab_groups.get(&group_id).is_some_and(|g| g.pinned) {
-                ("Unpin group", WorkspaceAction::UnpinTabGroup(group_id))
+                (
+                    localization::text_for_app(ctx, "tab.menu.group.unpin_group"),
+                    WorkspaceAction::UnpinTabGroup(group_id),
+                )
             } else {
-                ("Pin group", WorkspaceAction::PinTabGroup(group_id))
+                (
+                    localization::text_for_app(ctx, "tab.menu.group.pin_group"),
+                    WorkspaceAction::PinTabGroup(group_id),
+                )
             };
             vec![MenuItemFields::new(label)
                 .with_on_select_action(action)
@@ -9688,17 +9832,25 @@ impl Workspace {
         for section_items in [
             pin_section,
             vec![
-                MenuItemFields::new("Ungroup tabs")
-                    .with_on_select_action(WorkspaceAction::UngroupTabs(group_id))
-                    .into_item(),
-                MenuItemFields::new("New tab in group")
-                    .with_on_select_action(WorkspaceAction::NewTabInGroup(group_id))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "tab.menu.group.ungroup_tabs",
+                ))
+                .with_on_select_action(WorkspaceAction::UngroupTabs(group_id))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "tab.menu.group.new_tab_in_group",
+                ))
+                .with_on_select_action(WorkspaceAction::NewTabInGroup(group_id))
+                .into_item(),
             ],
             move_section,
-            vec![MenuItemFields::new("Rename")
-                .with_on_select_action(WorkspaceAction::RenameTabGroup(group_id))
-                .into_item()],
+            vec![
+                MenuItemFields::new(localization::text_for_app(ctx, "common.rename"))
+                    .with_on_select_action(WorkspaceAction::RenameTabGroup(group_id))
+                    .into_item(),
+            ],
             close_section,
         ] {
             if section_items.is_empty() {
@@ -10667,7 +10819,7 @@ impl Workspace {
     #[cfg(feature = "local_fs")]
     fn open_worktree_in_repo(&mut self, repo_path: String, ctx: &mut ViewContext<Self>) {
         log::info!("open_worktree_in_repo requested: repo_path={repo_path:?}");
-        let config_path = ensure_default_worktree_config();
+        let config_path = ensure_default_worktree_config(crate::localization::current_locale(ctx));
         log::info!("Reading default worktree config from {config_path:?}");
         let template_toml = match std::fs::read_to_string(&config_path) {
             Ok(s) => s,
@@ -10828,12 +10980,17 @@ impl Workspace {
                     .unwrap_or_else(|| UserWorkspaces::upgrade_link(*user_id));
 
                 self.toast_stack.update(ctx, |view, ctx| {
-                    let new_toast =
-                        DismissibleToast::error("Looks like you're out of AI credits.".into())
-                            .with_link(
-                                ToastLink::new("Upgrade for more credits.".into())
-                                    .with_href(upgrade_link),
-                            );
+                    let new_toast = DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.out_of_ai_credits",
+                    ))
+                    .with_link(
+                        ToastLink::new(localization::text_for_app(
+                            ctx,
+                            "workspace.toast.upgrade_for_more_credits",
+                        ))
+                        .with_href(upgrade_link),
+                    );
                     view.add_ephemeral_toast(new_toast, ctx);
                 });
             }
@@ -12907,7 +13064,10 @@ impl Workspace {
                     ctx.notify();
                 });
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::error("Failed to load conversation.".to_owned());
+                    let toast = DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.failed_to_load_conversation",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 return;
@@ -12968,7 +13128,10 @@ impl Workspace {
             let Some(conversation) = conversation else {
                 log::warn!("Failed to load conversation {conversation_id}");
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::error("Failed to load conversation.".to_owned());
+                    let toast = DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.failed_to_load_conversation",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 // Close the loading pane
@@ -13037,7 +13200,10 @@ impl Workspace {
             let Some(conversation) = conversation else {
                 log::warn!("Failed to load conversation {conversation_id}");
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::error("Failed to load conversation.".to_owned());
+                    let toast = DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.failed_to_load_conversation",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 // Close the loading tab
@@ -13275,7 +13441,10 @@ impl Workspace {
             Err(e) => {
                 log::error!("Conversation forking failed. {e}.");
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::error("Conversation forking failed.".to_owned());
+                    let toast = DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.conversation_forking_failed",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 return;
@@ -17188,8 +17357,10 @@ impl Workspace {
             {
                 let window_id = ctx.window_id();
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast =
-                        DismissibleToast::default("This plan is already in context.".to_owned());
+                    let toast = DismissibleToast::default(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.plan_already_in_context",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 return;
@@ -17270,9 +17441,10 @@ impl Workspace {
             // The active terminal exists but is busy, and the fallback behavior is
             // RequireExisting or OpenIfNone. In those cases, show a toast and no-op.
             self.toast_stack.update(ctx, |toast_stack, ctx| {
-                let mut toast = DismissibleToast::error(
-                    "A command in this session is still running.".to_string(),
-                );
+                let mut toast = DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "workspace.toast.command_still_running",
+                ));
                 if let Some(id) = object_id {
                     toast = toast.with_object_id(id.uid());
                 }
@@ -17293,8 +17465,10 @@ impl Workspace {
 
         if !ContextFlag::CreateNewSession.is_enabled() {
             self.toast_stack.update(ctx, |toast_stack, ctx| {
-                let toast =
-                    DismissibleToast::error("Cannot open a new terminal session".to_string());
+                let toast = DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "workspace.toast.cannot_open_new_terminal_session",
+                ));
                 toast_stack.add_ephemeral_toast(toast, ctx);
             });
             return None;
@@ -20602,13 +20776,13 @@ impl Workspace {
         {
             if is_web_anonymous_user {
                 target.add_child(
-                    Container::new(self.render_web_anonymous_user_sign_in_button(appearance))
+                    Container::new(self.render_web_anonymous_user_sign_in_button(appearance, ctx))
                         .with_margin_left(8.)
                         .finish(),
                 );
             } else {
                 target.add_child(
-                    Container::new(self.render_anonymous_sign_up_user_button(appearance))
+                    Container::new(self.render_anonymous_sign_up_user_button(appearance, ctx))
                         .with_margin_left(8.)
                         .finish(),
                 );
@@ -21039,6 +21213,7 @@ impl Workspace {
     fn render_web_anonymous_user_sign_in_button(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let default_styles = UiComponentStyles {
             font_color: Some(appearance.theme().active_ui_text_color().into()),
@@ -21067,7 +21242,7 @@ impl Workspace {
                 Some(hovered_styles),
                 None,
             )
-            .with_centered_text_label(String::from("Sign up"));
+            .with_centered_text_label(localization::text_for_app(app, "auth.sign_up"));
 
         Align::new(
             button
@@ -21080,7 +21255,11 @@ impl Workspace {
         .finish()
     }
 
-    fn render_anonymous_sign_up_user_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_anonymous_sign_up_user_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let default_styles = UiComponentStyles {
             font_color: Some(appearance.theme().active_ui_text_color().into()),
             font_size: Some(12.),
@@ -21109,7 +21288,7 @@ impl Workspace {
                 Some(hovered_styles),
                 None,
             )
-            .with_centered_text_label(String::from("Sign up"));
+            .with_centered_text_label(localization::text_for_app(app, "auth.sign_up"));
 
         Align::new(
             button
@@ -24306,8 +24485,10 @@ impl TypedActionView for Workspace {
                 self.process_updated_sync_state(ctx);
 
                 self.toast_stack.update(ctx, |view, ctx| {
-                    let new_toast =
-                        DismissibleToast::success("Disabled all synchronized inputs.".to_string());
+                    let new_toast = DismissibleToast::success(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.disabled_all_synchronized_inputs",
+                    ));
                     view.add_ephemeral_toast(new_toast, ctx);
                 });
                 send_telemetry_from_ctx!(TelemetryEvent::DisableInputSync, ctx);
@@ -25066,7 +25247,10 @@ impl TypedActionView for Workspace {
 
                 self.toast_stack.update(ctx, |view, ctx| {
                     view.add_ephemeral_toast(
-                        DismissibleToast::default("Sampling process for 3 seconds...".to_string()),
+                        DismissibleToast::default(localization::text_for_app(
+                            ctx,
+                            "workspace.toast.sampling_process",
+                        )),
                         ctx,
                     );
                 });
@@ -25314,7 +25498,10 @@ impl TypedActionView for Workspace {
                 send_telemetry_from_ctx!(TelemetryEvent::ConversationListItemDeleted, ctx);
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Conversation deleted".to_string()),
+                        DismissibleToast::success(localization::text_for_app(
+                            ctx,
+                            "workspace.toast.conversation_deleted",
+                        )),
                         window_id,
                         ctx,
                     );

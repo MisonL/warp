@@ -21,9 +21,10 @@ use crate::ai::blocklist::usage::render_context_window_usage_icon;
 use crate::ai::blocklist::usage::rollup::{
     compute_orchestration_rollup, AgentAvatar, OrchestrationCreditRollup, PerAgentCreditEntry,
 };
-use crate::ai::blocklist::view_util::format_credits;
+use crate::ai::blocklist::view_util::format_credits_for_app;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::persistence::model::{
     token_usage_category_display_name, ModelTokenUsage, FULL_TERMINAL_USE_CATEGORY,
     PRIMARY_AGENT_CATEGORY,
@@ -65,13 +66,13 @@ pub struct TimingInfo {
 }
 
 /// Typed actions dispatched by widgets inside [`ConversationUsageView`]. The
-/// view uses a single typed action surface for the "View details" /
-/// "Hide details" toggle and the "Show N more" affordance so each row's
+/// view uses a single typed action surface for the details toggle and
+/// show-more affordance so each row's
 /// click handler can dispatch through the regular action pipeline without
 /// borrowing the view directly.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConversationUsageViewAction {
-    /// Flip the "View details" / "Hide details" toggle.
+    /// Flip the details toggle.
     ToggleDetailsExpanded,
     /// Reveal the truncated rows beyond the first 5 in the per-agent
     /// breakdown.
@@ -93,17 +94,17 @@ pub struct ConversationUsageView {
     /// `parent_conversation_id` so descendant updates always read fresh
     /// values.
     parent_conversation_id: Option<AIConversationId>,
-    /// Local UI state: whether the "View details" toggle is currently
+    /// Local UI state: whether the details toggle is currently
     /// expanded. Resets to `false` whenever the footer is rebuilt — the
     /// rich-content view backing this struct is dropped and recreated on
     /// every collapse / reopen cycle, satisfying PRODUCT invariant 6.
     details_expanded: bool,
-    /// Local UI state: whether the user clicked "Show N more" to reveal the
+    /// Local UI state: whether the user clicked the show-more affordance to reveal the
     /// rows beyond the first 5. Resets on view rebuild for the same reason
     /// as `details_expanded`.
     show_all_clicked: bool,
-    /// Per-row mouse states for the "View details" / "Hide details" link
-    /// and the "Show N more" link. Stored on the view so hover/click state
+    /// Per-row mouse states for the details toggle link
+    /// and the show-more link. Stored on the view so hover/click state
     /// survives across renders.
     details_toggle_mouse_state: MouseStateHandle,
     show_more_mouse_state: MouseStateHandle,
@@ -289,12 +290,12 @@ impl ConversationUsageView {
 
         // Usage summary
         labels.push(render_section_header(
-            "USAGE SUMMARY".to_string(),
+            localization::text_for_app(app, "agent.usage.section.usage_summary"),
             appearance,
         ));
         values.push(render_section_header("".to_string(), appearance));
 
-        // "Credits spent (total)" value: use the rollup total when available,
+        // Total credit value: use the rollup total when available,
         // otherwise the orchestrator's own self total (today's behavior).
         // PRODUCT invariants 2a, 11.
         let total_credits_value = rollup
@@ -307,40 +308,51 @@ impl ConversationUsageView {
         {
             let last_block_credits = self.usage_info.credits_spent_for_last_block.unwrap();
             labels.push(render_label_text(
-                "Credits spent (last response)",
+                &localization::text_for_app(app, "agent.usage.credits_spent.last_response"),
                 appearance,
             ));
             values.push(render_value_text(
-                format_credits(last_block_credits),
+                format_credits_for_app(last_block_credits, app),
                 appearance,
             ));
 
-            labels.push(render_label_text("Credits spent (total)", appearance));
-            values.push(self.render_total_credits_value_row(
-                total_credits_value,
-                rollup.as_ref(),
+            labels.push(render_label_text(
+                &localization::text_for_app(app, "agent.usage.credits_spent.total"),
                 appearance,
             ));
-        } else {
-            labels.push(render_label_text("Credits spent", appearance));
             values.push(self.render_total_credits_value_row(
                 total_credits_value,
                 rollup.as_ref(),
                 appearance,
+                app,
+            ));
+        } else {
+            labels.push(render_label_text(
+                &localization::text_for_app(app, "agent.usage.credits_spent"),
+                appearance,
+            ));
+            values.push(self.render_total_credits_value_row(
+                total_credits_value,
+                rollup.as_ref(),
+                appearance,
+                app,
             ));
         }
 
         // Per-agent breakdown rows render immediately beneath the
-        // "Credits spent (total)" row so they read as a drill-down of
+        // total credit row so they read as a drill-down of
         // that value, not as a separate section appended at the bottom
         // of the card. The rows are pushed into the same two-column
         // label/value layout as the rest of the usage summary; the
         // existing flex spacing handles indentation.
-        self.append_per_agent_rows(&mut labels, &mut values, rollup.as_ref(), appearance);
+        self.append_per_agent_rows(&mut labels, &mut values, rollup.as_ref(), appearance, app);
 
-        labels.push(render_label_text("Tool calls", appearance));
+        labels.push(render_label_text(
+            &localization::text_for_app(app, "agent.usage.tool_calls"),
+            appearance,
+        ));
         values.push(render_value_text(
-            format_value_text(self.usage_info.tool_calls, "call"),
+            format_count_text(self.usage_info.tool_calls, "call", app),
             appearance,
         ));
 
@@ -360,9 +372,13 @@ impl ConversationUsageView {
 
             let label_text = if category == PRIMARY_AGENT_CATEGORY && entries_by_category.len() == 1
             {
-                "Models".to_string()
+                localization::text_for_app(app, "agent.usage.models")
             } else {
-                format!("Models ({})", token_usage_category_display_name(&category))
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.usage.models_with_category",
+                    &[("category", &token_usage_category_display_name(&category))],
+                )
             };
 
             // For FULL_TERMINAL_USE_CATEGORY, add an info icon with tooltip
@@ -373,7 +389,7 @@ impl ConversationUsageView {
                     .ui_builder()
                     .info_button_with_tooltip(
                         font_size * 0.85,
-                        "You can change which model is used for full terminal use in the AI settings page",
+                        localization::text_for_app(app, "agent.usage.full_terminal_use_tooltip"),
                         self.full_terminal_use_tooltip_mouse_state.clone(),
                     )
                     .finish();
@@ -436,7 +452,10 @@ impl ConversationUsageView {
             );
         }
 
-        labels.push(render_label_text("Context window used", appearance));
+        labels.push(render_label_text(
+            &localization::text_for_app(app, "agent.usage.context_window_used"),
+            appearance,
+        ));
         let context_usage_str =
             format!("{}%", (self.usage_info.context_window_usage * 100.).round());
         let context_window_element = Flex::row()
@@ -474,18 +493,24 @@ impl ConversationUsageView {
 
         // Tool call summary
         labels.push(render_section_header(
-            "TOOL CALL SUMMARY".to_string(),
+            localization::text_for_app(app, "agent.usage.section.tool_call_summary"),
             appearance,
         ));
         values.push(render_section_header("".to_string(), appearance));
 
-        labels.push(render_label_text("Files changed", appearance));
+        labels.push(render_label_text(
+            &localization::text_for_app(app, "agent.usage.files_changed"),
+            appearance,
+        ));
         values.push(render_value_text(
-            format_value_text(self.usage_info.files_changed, "file"),
+            format_count_text(self.usage_info.files_changed, "file", app),
             appearance,
         ));
 
-        labels.push(render_label_text("Diffs applied", appearance));
+        labels.push(render_label_text(
+            &localization::text_for_app(app, "agent.usage.diffs_applied"),
+            appearance,
+        ));
         let diffs_element = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
@@ -522,9 +547,12 @@ impl ConversationUsageView {
             .finish();
         values.push(diffs_element);
 
-        labels.push(render_label_text("Commands executed", appearance));
+        labels.push(render_label_text(
+            &localization::text_for_app(app, "agent.usage.commands_executed"),
+            appearance,
+        ));
         values.push(render_value_text(
-            format_value_text(self.usage_info.commands_executed, "command"),
+            format_count_text(self.usage_info.commands_executed, "command", app),
             appearance,
         ));
 
@@ -549,37 +577,40 @@ impl ConversationUsageView {
 
                     // Section header
                     labels.push(render_section_header(
-                        "LAST RESPONSE TIME".to_string(),
+                        localization::text_for_app(app, "agent.usage.section.last_response_time"),
                         appearance,
                     ));
                     values.push(render_section_header("".to_string(), appearance));
 
-                    labels.push(render_label_text("Time to first token", appearance));
+                    labels.push(render_label_text(
+                        &localization::text_for_app(app, "agent.usage.time_to_first_token"),
+                        appearance,
+                    ));
                     values.push(render_value_text(
-                        format!(
-                            "{:.1} seconds",
-                            timing.time_to_first_token_ms as f64 / 1000.0
-                        ),
+                        format_seconds(timing.time_to_first_token_ms as f64 / 1000.0, app),
                         appearance,
                     ));
 
-                    labels.push(render_label_text("Total agent response time", appearance));
+                    labels.push(render_label_text(
+                        &localization::text_for_app(app, "agent.usage.total_agent_response_time"),
+                        appearance,
+                    ));
                     values.push(render_value_text(
-                        format!(
-                            "{:.1} seconds",
-                            timing.total_agent_response_time_ms as f64 / 1000.0
-                        ),
+                        format_seconds(timing.total_agent_response_time_ms as f64 / 1000.0, app),
                         appearance,
                     ));
 
                     if let Some(wall_ms) = timing.wall_to_wall_response_time_ms {
                         if wall_ms != 0 {
                             labels.push(render_label_text(
-                                "Total time (including tool calls)",
+                                &localization::text_for_app(
+                                    app,
+                                    "agent.usage.total_time_including_tool_calls",
+                                ),
                                 appearance,
                             ));
                             values.push(render_value_text(
-                                format!("{:.1} seconds", wall_ms as f64 / 1000.0),
+                                format_seconds(wall_ms as f64 / 1000.0, app),
                                 appearance,
                             ));
                         }
@@ -611,6 +642,7 @@ impl ConversationUsageView {
         values: &mut Vec<Box<dyn Element>>,
         rollup: Option<&OrchestrationCreditRollup>,
         appearance: &Appearance,
+        app: &AppContext,
     ) {
         let Some(rollup) = rollup else {
             return;
@@ -626,37 +658,38 @@ impl ConversationUsageView {
                 total_entries
             };
         for entry in rollup.per_agent.iter().take(shown_entries) {
-            let (label_el, value_el) = self.render_per_agent_row(entry, appearance);
+            let (label_el, value_el) = self.render_per_agent_row(entry, appearance, app);
             labels.push(label_el);
             values.push(value_el);
         }
         if total_entries > shown_entries {
             let hidden_count = total_entries - shown_entries;
-            // "Show N more" sits on a row of its own. We push a value-
+            // The show-more link sits on a row of its own. We push a value-
             // side placeholder that mirrors the link's natural line
             // height so the right column stays in lock-step with the
-            // left and the subsequent "Tool calls" / value row pair
+            // left and the subsequent tool-call/value row pair
             // doesn't slip out of alignment.
-            labels.push(self.render_show_more_link(hidden_count, appearance));
+            labels.push(self.render_show_more_link(hidden_count, appearance, app));
             values.push(render_value_text_placeholder(appearance));
         }
     }
 
-    /// Renders the "Credits spent (total)" value cell. When a rollup
+    /// Renders the total credit value cell. When a rollup
     /// applies, the cell is a row with the value followed by a
-    /// "View details ▾" / "Hide details ▴" toggle.
+    /// details toggle.
     fn render_total_credits_value_row(
         &self,
         total_credits: f32,
         rollup: Option<&OrchestrationCreditRollup>,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        let value_text = render_value_text(format_credits(total_credits), appearance);
+        let value_text = render_value_text(format_credits_for_app(total_credits, app), appearance);
         if rollup.is_none() {
             return value_text;
         }
 
-        let toggle = self.render_details_toggle(appearance);
+        let toggle = self.render_details_toggle(appearance, app);
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min)
@@ -666,8 +699,8 @@ impl ConversationUsageView {
             .finish()
     }
 
-    /// Renders the "View details ▾" / "Hide details ▴" toggle link
-    /// rendered to the right of the "Credits spent (total)" value when
+    /// Renders the details toggle link
+    /// rendered to the right of the total credit value when
     /// a rollup applies. The link is styled in the theme's hyperlink
     /// color (`ansi_fg_blue`) — the same color the `FormattedTextElement`
     /// uses for in-line hyperlinks throughout Agent Mode — so it reads
@@ -676,24 +709,29 @@ impl ConversationUsageView {
     /// also flip the color or weight on hover because `Text` doesn't
     /// expose an underline knob and changing color in this two-token
     /// theme system tends to push the link into the accent space.
-    fn render_details_toggle(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_details_toggle(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
         let font_size = appearance.ui_font_size() + 2.;
         let link_color = theme.ansi_fg_blue();
         let icon_size = font_size;
         let (label, icon) = if self.details_expanded {
-            ("Hide details", Icon::ChevronUp)
+            (
+                localization::text_for_app(app, "agent.usage.toggle.hide_details"),
+                Icon::ChevronUp,
+            )
         } else {
-            ("View details", Icon::ChevronDown)
+            (
+                localization::text_for_app(app, "agent.usage.toggle.view_details"),
+                Icon::ChevronDown,
+            )
         };
         Hoverable::new(
             self.details_toggle_mouse_state.clone(),
             move |_hover_state| {
-                let text_element =
-                    Text::new(label.to_string(), appearance.ui_font_family(), font_size)
-                        .with_color(link_color)
-                        .with_selectable(false)
-                        .finish();
+                let text_element = Text::new(label.clone(), appearance.ui_font_family(), font_size)
+                    .with_color(link_color)
+                    .with_selectable(false)
+                    .finish();
                 let icon_element =
                     ConstrainedBox::new(icon.to_warpui_icon(link_color.into()).finish())
                         .with_width(icon_size)
@@ -720,12 +758,12 @@ impl ConversationUsageView {
     /// the caller can append them to the existing two-column flex layout.
     ///
     /// Color choices:
-    /// * Agent name uses the same color as the "USAGE SUMMARY" section
+    /// * Agent name uses the same color as the usage-summary section
     ///   header (the disabled-text token) so the rollup rows read as a
     ///   sub-list of that section rather than competing with primary
     ///   labels.
     /// * Credit value uses the label-row color (`text_sub`) so it
-    ///   visually echoes the "Credits spent" label rather than the
+    ///   visually echoes the credit label rather than the
     ///   primary credit count beside it.
     ///
     /// Name length: agent names are clipped to the same max width and
@@ -736,6 +774,7 @@ impl ConversationUsageView {
         &self,
         entry: &PerAgentCreditEntry,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> (Box<dyn Element>, Box<dyn Element>) {
         let theme = appearance.theme();
         let bg = theme.surface_2();
@@ -769,7 +808,7 @@ impl ConversationUsageView {
             .with_child(name_element)
             .finish();
         let value = Text::new(
-            format_credits(entry.credits_spent),
+            format_credits_for_app(entry.credits_spent, app),
             appearance.ui_font_family(),
             font_size,
         )
@@ -778,21 +817,27 @@ impl ConversationUsageView {
         (label, value)
     }
 
-    /// Renders the "Show N more" link row shown beneath the first 5
+    /// Renders the show-more link row shown beneath the first 5
     /// per-agent rows when the breakdown has more entries than the
     /// truncation cap. Clicking the link replaces the truncated list with
     /// the full list on the next render (PRODUCT invariant 5f). Uses the
-    /// same hyperlink-blue color as the "View details" toggle so the
+    /// same hyperlink-blue color as the details toggle so the
     /// affordances visually match.
     fn render_show_more_link(
         &self,
         hidden_count: usize,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let font_size = appearance.ui_font_size() + 2.;
         let link_color = theme.ansi_fg_blue();
-        let label = format!("Show {hidden_count} more");
+        let count = hidden_count.to_string();
+        let label = localization::text_for_app_with_args(
+            app,
+            "agent.usage.show_more",
+            &[("count", &count)],
+        );
         Hoverable::new(self.show_more_mouse_state.clone(), move |_hover_state| {
             Text::new(label.clone(), appearance.ui_font_family(), font_size)
                 .with_color(link_color)
@@ -870,7 +915,7 @@ impl TypedActionView for ConversationUsageView {
         match action {
             ConversationUsageViewAction::ToggleDetailsExpanded => {
                 self.details_expanded = !self.details_expanded;
-                // Collapsing the breakdown resets the "Show N more"
+                // Collapsing the breakdown resets the show-more
                 // expansion so the user lands back on the truncated list
                 // the next time they expand.
                 if !self.details_expanded {
@@ -904,10 +949,23 @@ fn render_section_header(header_label: String, appearance: &Appearance) -> Box<d
     .finish()
 }
 
-/// Format a value and a label into one usage string,
-/// making the label plural if the value is not 1.
-fn format_value_text(value: i32, label: &str) -> String {
-    format!("{} {}{}", value, label, if value == 1 { "" } else { "s" })
+fn format_count_text(value: i32, label: &str, app: &AppContext) -> String {
+    let count = value.to_string();
+    let key = match (label, value == 1) {
+        ("call", true) => "agent.usage.count.call.singular",
+        ("call", false) => "agent.usage.count.call.plural",
+        ("command", true) => "agent.usage.count.command.singular",
+        ("command", false) => "agent.usage.count.command.plural",
+        ("file", true) => "agent.usage.count.file.singular",
+        ("file", false) => "agent.usage.count.file.plural",
+        _ => return count,
+    };
+    localization::text_for_app_with_args(app, key, &[("count", &count)])
+}
+
+fn format_seconds(seconds: f64, app: &AppContext) -> String {
+    let count = format!("{seconds:.1}");
+    localization::text_for_app_with_args(app, "agent.usage.seconds", &[("count", &count)])
 }
 
 /// Helper to build a text element with consistent styling for labels.
@@ -933,12 +991,12 @@ fn render_value_text(text: String, appearance: &Appearance) -> Box<dyn Element> 
 
 /// Renders a placeholder value cell that occupies one full line of the
 /// value column without painting any visible text. Used opposite the
-/// "Show N more" link so the two-column flex stays row-aligned for the
+/// show-more link so the two-column flex stays row-aligned for the
 /// subsequent rows.
 ///
 /// A simple `Empty` element would also keep the slot count matched, but
 /// `Empty` has zero height, so the value column collapses by one line
-/// and "Tool calls" ends up paired with "Show N more" instead of with
+/// and the tool-call label ends up paired with the show-more row instead of with
 /// the next labels-column row. Pushing a `Text` element with a
 /// single-space content forces a real line-height equal to the link's
 /// own line-height.
@@ -954,9 +1012,9 @@ fn render_value_text_placeholder(appearance: &Appearance) -> Box<dyn Element> {
 const PER_AGENT_LABEL_MAX_WIDTH: f32 = 110.;
 
 /// Maximum number of rows shown in the per-agent breakdown before the
-/// "Show N more" affordance truncates the list. Matches PRODUCT
+/// show-more affordance truncates the list. Matches PRODUCT
 /// invariants 5e (≤ 5 rows render in full) and 5f (> 5 rows render the
-/// first 5 followed by a "Show N more" link).
+/// first 5 followed by a show-more link).
 const PER_AGENT_BREAKDOWN_TRUNCATION_CAP: usize = 5;
 
 #[cfg(test)]

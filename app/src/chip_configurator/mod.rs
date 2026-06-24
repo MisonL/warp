@@ -45,14 +45,16 @@ impl ConfigurableItem {
     pub fn from_toolbar_item(kind: AgentToolbarItemKind, appearance: &Appearance) -> Option<Self> {
         match kind {
             AgentToolbarItemKind::ContextChip(chip_kind) => {
-                ContextChipRenderer::default_from_kind_with_agent_view(
+                let chip = chip_kind.to_chip()?;
+                let placeholder_value = chip_kind.placeholder_value();
+                let styles = chip_kind.default_styles(appearance, true);
+                Some(Self::ContextChip(Box::new(ContextChipRenderer::new(
                     chip_kind,
+                    chip,
+                    placeholder_value,
+                    styles,
                     ChipAvailability::Enabled,
-                    true,
-                    appearance,
-                )
-                .map(Box::new)
-                .map(Self::ContextChip)
+                ))))
             }
             control => Some(Self::Control(ControlItemRenderer::new(control))),
         }

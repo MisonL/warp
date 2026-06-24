@@ -28,12 +28,12 @@ use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
 use crate::menu::MenuItemFields;
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
-use crate::send_telemetry_from_ctx;
 use crate::server::ids::ServerId;
 use crate::server::telemetry::{OutOfCreditsBannerAction, TelemetryEvent};
 use crate::settings_view::create_discount_badge;
 use crate::view_components::{Dropdown, DropdownAction};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
+use crate::{localization, send_telemetry_from_ctx};
 
 #[derive(Default)]
 struct MouseStates {
@@ -226,7 +226,11 @@ impl BuyCreditsBanner {
         }
     }
 
-    fn render_auto_reload_checkbox(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_auto_reload_checkbox(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let check_color = theme.background().into_solid();
         let auto_reload_enabled = self.auto_reload_enabled;
@@ -250,9 +254,13 @@ impl BuyCreditsBanner {
 
         let sub_text_color = theme.sub_text_color(theme.surface_1());
 
-        let label = Text::new_inline("Auto reload", appearance.ui_font_family(), 12.)
-            .with_color(sub_text_color.into())
-            .finish();
+        let label = Text::new_inline(
+            localization::text_for_app(app, "settings.billing.addon_credits.auto_reload.label"),
+            appearance.ui_font_family(),
+            12.,
+        )
+        .with_color(sub_text_color.into())
+        .finish();
 
         // Get the selected amount for the tooltip
         let selected_credits = self
@@ -261,9 +269,10 @@ impl BuyCreditsBanner {
             .map(|option| option.credits)
             .unwrap_or(0);
 
-        let tooltip_text = format!(
-            "When enabled, auto reload will purchase {} credits when your credit balance gets low",
-            selected_credits
+        let tooltip_text = localization::text_for_app_with_args(
+            app,
+            "settings.billing.addon_credits.auto_reload.tooltip",
+            &[("count", &selected_credits.to_string())],
         );
 
         // Create info icon with a custom sub_text_color & mouse cursor (i.e. as opposed to using IconWithTooltip)
@@ -340,7 +349,7 @@ impl BuyCreditsBanner {
                 };
                 if discount_percent > 0 {
                     MenuItemFields::new_with_custom_label(
-                        Arc::new(enclose!((primary_text) move |is_selected, is_hovered, appearance, _| {
+                        Arc::new(enclose!((primary_text) move |is_selected, is_hovered, appearance, app| {
                             let text_color = appearance.theme().main_text_color(
                                 if is_selected || is_hovered {
                                     appearance.theme().accent()
@@ -356,7 +365,8 @@ impl BuyCreditsBanner {
                             .with_color(text_color.into())
                             .finish();
 
-                            let discount_badge = create_discount_badge(discount_percent, appearance);
+                            let discount_badge =
+                                create_discount_badge(discount_percent, appearance, app);
 
                             Flex::row()
                                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -417,16 +427,19 @@ impl BuyCreditsBanner {
 
         // Banner text with title and description based on admin status
         let banner_description = if has_admin_permissions {
-            "Your monthly spend limit has been reached. Increase it to continue."
+            localization::text_for_app(app, "terminal.buy_credits.monthly_limit.admin_description")
         } else {
-            "Contact a team admin to increase monthly limit."
+            localization::text_for_app(app, "terminal.buy_credits.monthly_limit.member_description")
         };
 
         let banner_text = Flex::column()
             .with_children([
                 appearance
                     .ui_builder()
-                    .paragraph("Monthly limit reached")
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "terminal.buy_credits.monthly_limit.title",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
                         ..Default::default()
@@ -477,7 +490,10 @@ impl BuyCreditsBanner {
                     }),
                     ..Default::default()
                 })
-                .with_text_label("Manage billing".to_string())
+                .with_text_label(localization::text_for_app(
+                    app,
+                    "settings.billing.action.manage_billing",
+                ))
                 .build()
                 .on_click(|ctx, _, _| {
                     ctx.dispatch_typed_action(Action::ManageBilling);
@@ -562,7 +578,10 @@ impl BuyCreditsBanner {
         let make_banner_text = || {
             let mut banner_text_children = vec![appearance
                 .ui_builder()
-                .paragraph("Out of credits")
+                .paragraph(localization::text_for_app(
+                    app,
+                    "terminal.buy_credits.out_of_credits.title",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     ..Default::default()
@@ -577,7 +596,10 @@ impl BuyCreditsBanner {
                     FormattedTextFragment::plain_text(
                         "Purchasing these credits would take you over your monthly spend limit. ",
                     ),
-                    FormattedTextFragment::hyperlink_action("Increase it", Action::ManageBilling),
+                    FormattedTextFragment::hyperlink_action(
+                        localization::text_for_app(app, "terminal.buy_credits.action.increase_it"),
+                        Action::ManageBilling,
+                    ),
                     FormattedTextFragment::plain_text(" to continue."),
                 ];
 
@@ -714,7 +736,7 @@ impl BuyCreditsBanner {
 
             if auto_reload_banner_toggle_ff {
                 children.push(
-                    Container::new(self.render_auto_reload_checkbox(appearance))
+                    Container::new(self.render_auto_reload_checkbox(appearance, app))
                         .with_margin_right(8.)
                         .finish(),
                 );

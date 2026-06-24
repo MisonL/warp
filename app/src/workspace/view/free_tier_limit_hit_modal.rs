@@ -26,7 +26,7 @@ use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 const BUTTON_DIAMETER: f32 = 20.;
 const MODAL_HEIGHT: f32 = 440.;
@@ -229,7 +229,10 @@ impl FreeTierLimitHitModal {
                         .with_child(
                             Container::new({
                                 let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
-                                    FormattedTextFragment::plain_text("Access to "),
+                                    FormattedTextFragment::plain_text(localization::text_for_app(
+                                        app,
+                                        "workspace.free_tier_limit.access_to_prefix",
+                                    )),
                                     FormattedTextFragment::hyperlink(
                                         "Reload Credits".to_string(),
                                         "https://docs.warp.dev/support-and-community/plans-and-billing/add-on-credits".to_string(),
@@ -328,7 +331,10 @@ impl FreeTierLimitHitModal {
                                 width: Some(296.),
                                 ..Default::default()
                             })
-                            .with_centered_text_label("Upgrade plan".to_string())
+                            .with_centered_text_label(localization::text_for_app(
+                                app,
+                                "workspace.free_tier_limit.action.upgrade_plan",
+                            ))
                             .build()
                             .with_cursor(Cursor::PointingHand)
                             .on_click(move |ctx, _, _| {

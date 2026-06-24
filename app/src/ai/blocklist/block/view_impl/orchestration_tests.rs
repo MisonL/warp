@@ -15,6 +15,14 @@ use crate::ai::agent::{StartAgentExecutionMode, StartAgentResult};
 use crate::test_util::settings::initialize_history_persistence_for_tests;
 use crate::BlocklistAIHistoryModel;
 
+fn orchestrator_participant() -> OrchestrationParticipant {
+    OrchestrationParticipant {
+        display_name: "Orchestrator".to_string(),
+        avatar: OrchestrationAvatar::Orchestrator,
+        conversation_id: None,
+    }
+}
+
 #[test]
 fn child_conversation_card_data_for_success_result_returns_conversation_id_and_title() {
     App::test((), |mut app| async move {
@@ -421,7 +429,7 @@ fn transcript_metadata_uses_transcript_copy_without_technical_labels() {
 
 #[test]
 fn transcript_metadata_omits_orchestrator_recipients() {
-    let recipients = vec![OrchestrationParticipant::orchestrator()];
+    let recipients = vec![orchestrator_participant()];
 
     assert_eq!(
         transcript_metadata(&recipients, "Status update"),
@@ -433,7 +441,7 @@ fn transcript_metadata_omits_orchestrator_recipients() {
 #[test]
 fn transcript_metadata_preserves_non_orchestrator_recipients() {
     let recipients = vec![
-        OrchestrationParticipant::orchestrator(),
+        orchestrator_participant(),
         OrchestrationParticipant {
             display_name: "Agent 1".to_string(),
             avatar: OrchestrationAvatar::agent("Agent 1".to_string()),

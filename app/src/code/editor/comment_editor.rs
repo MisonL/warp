@@ -21,6 +21,7 @@ use crate::code::editor::comments::{EditorCommentsModel, PendingCommentEvent};
 use crate::code::editor::line::EditorLineLocation;
 use crate::code_review::comments::{CommentId, CommentOrigin};
 use crate::editor::InteractionState;
+use crate::localization;
 use crate::notebooks::editor::model::NotebooksEditorModel;
 use crate::notebooks::editor::rich_text_styles;
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorView};
@@ -164,35 +165,44 @@ impl CommentEditor {
         ViewHandle<ActionButton>,
     ) {
         let save_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Comment", PrimaryTheme)
-                .with_keybinding(
-                    KeystrokeSource::Fixed(Keystroke::parse("cmdorctrl-enter").unwrap_or_default()),
-                    ctx,
-                )
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CommentEditorAction::SaveComment);
-                })
-                .with_size(ButtonSize::Small)
+            ActionButton::new(
+                localization::text_for_app(ctx, "code.comment.action.comment"),
+                PrimaryTheme,
+            )
+            .with_keybinding(
+                KeystrokeSource::Fixed(Keystroke::parse("cmdorctrl-enter").unwrap_or_default()),
+                ctx,
+            )
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CommentEditorAction::SaveComment);
+            })
+            .with_size(ButtonSize::Small)
         });
 
         save_button.update(ctx, |button, ctx| {
             button.set_disabled(true, ctx);
         });
 
-        let close_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", NakedTheme)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CommentEditorAction::CloseEditor);
-                })
-                .with_size(ButtonSize::Small)
+        let close_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.cancel"),
+                NakedTheme,
+            )
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CommentEditorAction::CloseEditor);
+            })
+            .with_size(ButtonSize::Small)
         });
 
-        let remove_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Remove", DangerNakedTheme)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CommentEditorAction::RemoveComment);
-                })
-                .with_size(ButtonSize::Small)
+        let remove_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "code.comment.action.remove"),
+                DangerNakedTheme,
+            )
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CommentEditorAction::RemoveComment);
+            })
+            .with_size(ButtonSize::Small)
         });
 
         (save_button, close_button, remove_button)

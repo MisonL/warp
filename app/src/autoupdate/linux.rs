@@ -205,7 +205,10 @@ mod package_manager {
                     ))],
                 }),
                 FormattedTextLine::Line(vec![
-                    FormattedTextFragment::plain_text("If you installed Warp using "),
+                    FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                        app,
+                        "workspace.autoupdate.package_manager.description_prefix",
+                    )),
                     FormattedTextFragment::bold(package_manager_name),
                     FormattedTextFragment::plain_text(
                         " or a compatible tool, the pre-filled command will update Warp for you.",

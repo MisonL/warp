@@ -34,7 +34,7 @@ use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::workspaces::user_profiles::UserProfiles;
-use crate::CloudObjectTypeAndId;
+use crate::{localization, CloudObjectTypeAndId};
 
 const WARP_DEV_ENVIRONMENTS_REPO: &str = "https://github.com/warpdotdev/warp-dev-environments";
 
@@ -167,19 +167,36 @@ impl EnvironmentCommandRunner {
                         OutputFormat::Text | OutputFormat::Pretty
                     ) {
                         println!(
-                            "All Warp dev images contain Python and Node. For more information, see: {}\n",
-                            WARP_DEV_ENVIRONMENTS_REPO
+                            "{}\n",
+                            localization::text_for_app_with_args(
+                                ctx,
+                                "agent_sdk.environment.image_list_info",
+                                &[("url", WARP_DEV_ENVIRONMENTS_REPO)],
+                            )
                         );
                     }
                     output::print_list(image_infos, global_options.output_format);
                     ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
                 }
                 ListWarpDevImagesResult::UserFacingError(_) | ListWarpDevImagesResult::Unknown => {
-                    super::report_fatal_error(anyhow::anyhow!("Failed to fetch images"), ctx);
+                    super::report_fatal_error(
+                        anyhow::anyhow!(localization::text_for_app(
+                            ctx,
+                            "agent_sdk.environment.error.fetch_images"
+                        )),
+                        ctx,
+                    );
                 }
             },
             Err(err) => {
-                super::report_fatal_error(anyhow::anyhow!("Failed to fetch images: {}", err), ctx);
+                super::report_fatal_error(
+                    anyhow::anyhow!(localization::text_for_app_with_args(
+                        ctx,
+                        "agent_sdk.environment.error.fetch_images_with_error",
+                        &[("error", &err.to_string())],
+                    )),
+                    ctx,
+                );
             }
         });
     }
@@ -192,7 +209,10 @@ impl EnvironmentCommandRunner {
         ctx.spawn(initial_sync, move |_, result, ctx| {
             if result.is_err() {
                 super::report_fatal_error(
-                    anyhow::anyhow!("Timed out waiting for Warp Drive to sync"),
+                    anyhow::anyhow!(localization::text_for_app(
+                        ctx,
+                        "agent_sdk.common.error.warp_drive_sync_timeout",
+                    )),
                     ctx,
                 );
                 return;
@@ -351,46 +371,65 @@ impl EnvironmentCommandRunner {
                 ListWarpDevImagesResult::ListWarpDevImagesOutput(output) => {
                     if output.images.is_empty() {
                         super::report_fatal_error(
-                            anyhow::anyhow!("No Warp dev images available."),
+                            anyhow::anyhow!(localization::text_for_app(
+                                ctx,
+                                "agent_sdk.environment.error.no_images",
+                            )),
                             ctx,
                         );
                         return;
                     }
 
                     println!(
-                        "No docker image provided, please select a base image.\n"
+                        "{}\n",
+                        localization::text_for_app(ctx, "agent_sdk.environment.no_image_provided")
                     );
                     println!(
-                        "All warpdotdev images contain Python and Node, in addition to language-specific tooling. For more info: {}\n",
-                        WARP_DEV_ENVIRONMENTS_REPO
+                        "{}\n",
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent_sdk.environment.image_info",
+                            &[("url", WARP_DEV_ENVIRONMENTS_REPO)],
+                        )
                     );
 
                     let mut image_choices: Vec<String> =
                         output.images.into_iter().map(|img| img.image).collect();
                     image_choices.push(CUSTOM_IMAGE_OPTION.to_string());
 
-                    let selected_image = match Select::new("Select a base image:", image_choices)
-                        .prompt()
-                    {
-                        Ok(image) => image,
-                        Err(err) => {
-                            if !Self::handle_inquire_error(err, ctx) {
-                                super::report_fatal_error(
-                                    anyhow::anyhow!("Error selecting image"),
-                                    ctx,
-                                );
+                    let select_image_prompt =
+                        localization::text_for_app(ctx, "agent_sdk.environment.select_base_image");
+                    let selected_image =
+                        match Select::new(&select_image_prompt, image_choices).prompt() {
+                            Ok(image) => image,
+                            Err(err) => {
+                                if !Self::handle_inquire_error(err, ctx) {
+                                    super::report_fatal_error(
+                                        anyhow::anyhow!(localization::text_for_app(
+                                            ctx,
+                                            "agent_sdk.environment.error.selecting_image",
+                                        )),
+                                        ctx,
+                                    );
+                                }
+                                return;
                             }
-                            return;
-                        }
-                    };
+                        };
 
                     let final_image = if selected_image == CUSTOM_IMAGE_OPTION {
-                        match inquire::Text::new("Enter custom Docker image name:").prompt() {
+                        let custom_image_prompt = localization::text_for_app(
+                            ctx,
+                            "agent_sdk.environment.enter_custom_image",
+                        );
+                        match inquire::Text::new(&custom_image_prompt).prompt() {
                             Ok(custom) => custom,
                             Err(err) => {
                                 if !Self::handle_inquire_error(err, ctx) {
                                     super::report_fatal_error(
-                                        anyhow::anyhow!("Error entering custom image"),
+                                        anyhow::anyhow!(localization::text_for_app(
+                                            ctx,
+                                            "agent_sdk.environment.error.entering_custom_image",
+                                        )),
                                         ctx,
                                     );
                                 }
@@ -405,13 +444,23 @@ impl EnvironmentCommandRunner {
                 }
                 ListWarpDevImagesResult::UserFacingError(_) | ListWarpDevImagesResult::Unknown => {
                     super::report_fatal_error(
-                        anyhow::anyhow!("Failed to fetch list of base images"),
+                        anyhow::anyhow!(localization::text_for_app(
+                            ctx,
+                            "agent_sdk.environment.error.fetch_base_images",
+                        )),
                         ctx,
                     );
                 }
             },
             Err(err) => {
-                super::report_fatal_error(anyhow::anyhow!("Failed to fetch images: {err}"), ctx);
+                super::report_fatal_error(
+                    anyhow::anyhow!(localization::text_for_app_with_args(
+                        ctx,
+                        "agent_sdk.environment.error.fetch_images_with_error",
+                        &[("error", &err.to_string())],
+                    )),
+                    ctx,
+                );
             }
         });
     }

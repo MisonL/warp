@@ -9,7 +9,8 @@ use cfg_if::cfg_if;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use onboarding::{
-    AgentOnboardingEvent, AgentOnboardingView, OnboardingIntention, SelectedSettings,
+    AgentOnboardingEvent, AgentOnboardingView, OnboardingCopy, OnboardingIntention,
+    SelectedSettings, AGENT_ONBOARDING_COPY_KEYS, AI_FEATURE_COPY_KEYS,
 };
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;
@@ -1930,6 +1931,7 @@ impl RootView {
                 .has_any_overrides();
 
             let auth_state = current_onboarding_auth_state(ctx);
+            let copy = build_agent_onboarding_copy(ctx);
 
             AgentOnboardingView::new(
                 themes.clone(),
@@ -1939,6 +1941,7 @@ impl RootView {
                 workspace_enforces_autonomy,
                 FeatureFlag::AgentView.is_enabled(),
                 auth_state,
+                copy,
                 ctx,
             )
         });
@@ -3389,6 +3392,13 @@ impl RootView {
 
         traffic_light_data(ctx, self.window_id)
     }
+}
+
+fn build_agent_onboarding_copy(ctx: &AppContext) -> OnboardingCopy {
+    let keys = AGENT_ONBOARDING_COPY_KEYS
+        .iter()
+        .chain(AI_FEATURE_COPY_KEYS.iter());
+    OnboardingCopy::new(keys.map(|key| (*key, crate::localization::text_for_app(ctx, key))))
 }
 
 #[derive(Clone, Debug)]

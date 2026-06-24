@@ -13,8 +13,8 @@ use ::ai::index::full_source_code_embedding::{
 use ::ai::index::locations::CodeContextLocation;
 use itertools::Itertools;
 use remote_server::proto::{
-    file_context_proto, FragmentMetadata as ProtoFragmentMetadata, LineRange, ReadFileContextFile,
-    ReadFileContextRequest, ReadFileContextResponse,
+    file_context_proto, FailedFileRead, FragmentMetadata as ProtoFragmentMetadata, LineRange,
+    ReadFileContextFile, ReadFileContextRequest, ReadFileContextResponse,
 };
 use string_offset::ByteOffset;
 use warpui::{AppContext, ModelContext, SingletonEntity};
@@ -27,6 +27,7 @@ use crate::ai::codebase_auto_indexing::{
     should_use_codebase_indexing, CodebaseAutoIndexingSurface,
 };
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
+use crate::localization;
 use crate::remote_server::codebase_index_model::{
     RemoteCodebaseIndexModel, RemoteCodebaseSearchAvailability, RemoteCodebaseSearchContext,
 };
@@ -64,7 +65,10 @@ pub(super) fn send_request(
     if !should_use_codebase_indexing(CodebaseAutoIndexingSurface::Remote, ctx) {
         return RemoteSearchRequest::Ready(SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-            message: "Remote codebase search is not enabled.".to_string(),
+            message: localization::text_for_app(
+                ctx,
+                "agent.search_codebase.error.remote_not_enabled",
+            ),
         });
     }
 
@@ -87,6 +91,7 @@ pub(super) fn send_request(
                 }
             }
             let store_client = ServerApiProvider::as_ref(ctx).get();
+            let locale = localization::current_locale(ctx);
             let abort_handle = ctx
                 .spawn(
                     async move {
@@ -96,6 +101,7 @@ pub(super) fn send_request(
                             search_context,
                             handle,
                             store_client,
+                            locale,
                         )
                         .await
                     },
@@ -107,13 +113,13 @@ pub(super) fn send_request(
             RemoteSearchRequest::Pending(abort_handle)
         }
         availability @ RemoteCodebaseSearchAvailability::NotIndexed { .. } => {
-            RemoteSearchRequest::Ready(remote_availability_failure(availability))
+            RemoteSearchRequest::Ready(remote_availability_failure(availability, ctx))
         }
         RemoteCodebaseSearchAvailability::NoConnectedHost
         | RemoteCodebaseSearchAvailability::NoActiveRepo
         | RemoteCodebaseSearchAvailability::Indexing { .. }
         | RemoteCodebaseSearchAvailability::Unavailable { .. } => {
-            RemoteSearchRequest::Ready(remote_availability_failure(availability))
+            RemoteSearchRequest::Ready(remote_availability_failure(availability, ctx))
         }
     }
 }
@@ -127,6 +133,7 @@ async fn execute_remote_codebase_search(
     search_context: RemoteCodebaseSearchContext,
     handle: remote_server::manager::HostRequestHandle,
     store_client: Arc<ServerApi>,
+    locale: warp_localization::LocaleId,
 ) -> Result<SearchCodebaseResult, anyhow::Error> {
     let root_hash = search_context.root_hash;
     let root_hash_string = root_hash.to_string();
@@ -208,17 +215,17 @@ async fn execute_remote_codebase_search(
             .failed_files
             .iter()
             .map(|file| {
-                let reason = file
-                    .error
-                    .as_ref()
-                    .map(|error| error.message.as_str())
-                    .unwrap_or("unknown error");
+                let reason = failed_file_reason(file, locale);
                 format!("{}: {reason}", file.path)
             })
             .join(", ");
         return Ok(SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::InvalidFilePaths,
-            message: format!("Failed to read remote search result files: {failed}"),
+            message: localization::text_for_locale_with_args(
+                locale,
+                "agent.search_codebase.error.remote_read_failed",
+                &[("failed", failed.as_str())],
+            ),
         });
     }
     let file_contents = file_contents_from_response(response);
@@ -256,17 +263,17 @@ async fn execute_remote_codebase_search(
             .failed_files
             .iter()
             .map(|file| {
-                let reason = file
-                    .error
-                    .as_ref()
-                    .map(|error| error.message.as_str())
-                    .unwrap_or("unknown error");
+                let reason = failed_file_reason(file, locale);
                 format!("{}: {reason}", file.path)
             })
             .join(", ");
         return Ok(SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::InvalidFilePaths,
-            message: format!("Failed to read remote search result files: {failed}"),
+            message: localization::text_for_locale_with_args(
+                locale,
+                "agent.search_codebase.error.remote_read_failed",
+                &[("failed", failed.as_str())],
+            ),
         });
     }
     let files = response
@@ -403,33 +410,37 @@ fn proto_file_context_to_file_context(
 
 fn remote_availability_failure(
     availability: RemoteCodebaseSearchAvailability,
+    app: &AppContext,
 ) -> SearchCodebaseResult {
     match availability {
         RemoteCodebaseSearchAvailability::NoConnectedHost => SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::ClientError,
-            message:
-                "Remote codebase search is unavailable because the remote host is not connected."
-                    .to_string(),
+            message: localization::text_for_app(
+                app,
+                "agent.search_codebase.error.remote_host_not_connected",
+            ),
         },
         RemoteCodebaseSearchAvailability::NoActiveRepo => SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-            message: "The current remote directory is not in a known codebase.".to_string(),
+            message: localization::text_for_app(app, "agent.search_codebase.error.remote_no_repo"),
         },
         RemoteCodebaseSearchAvailability::NotIndexed { remote_path } => {
             SearchCodebaseResult::Failed {
                 reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-                message: format!(
-                    "The remote codebase at {} is not indexed yet.",
-                    remote_path.path.as_str()
+                message: localization::text_for_app_with_args(
+                    app,
+                    "agent.search_codebase.error.remote_not_indexed",
+                    &[("path", remote_path.path.as_str())],
                 ),
             }
         }
         RemoteCodebaseSearchAvailability::Indexing { remote_path } => {
             SearchCodebaseResult::Failed {
                 reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-                message: format!(
-                    "The remote codebase at {} is still being indexed. Try again later.",
-                    remote_path.path.as_str()
+                message: localization::text_for_app_with_args(
+                    app,
+                    "agent.search_codebase.error.remote_indexing",
+                    &[("path", remote_path.path.as_str())],
                 ),
             }
         }
@@ -438,16 +449,32 @@ fn remote_availability_failure(
             message,
         } => SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-            message: format!(
-                "Remote codebase search is unavailable for {}: {message}",
-                remote_path.path.as_str()
+            message: localization::text_for_app_with_args(
+                app,
+                "agent.search_codebase.error.remote_unavailable_for_path",
+                &[
+                    ("path", remote_path.path.as_str()),
+                    ("message", message.as_str()),
+                ],
             ),
         },
         RemoteCodebaseSearchAvailability::Ready(_) => SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::ClientError,
-            message: "Remote codebase search was unexpectedly unavailable.".to_string(),
+            message: localization::text_for_app(
+                app,
+                "agent.search_codebase.error.remote_unexpected_unavailable",
+            ),
         },
     }
+}
+
+fn failed_file_reason(file: &FailedFileRead, locale: warp_localization::LocaleId) -> String {
+    file.error
+        .as_ref()
+        .map(|error| error.message.clone())
+        .unwrap_or_else(|| {
+            localization::text_for_locale(locale, "agent.search_codebase.error.remote_read_unknown")
+        })
 }
 
 #[cfg(test)]

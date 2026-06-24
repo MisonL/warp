@@ -5,7 +5,9 @@
 //! [`BlocklistAIHistoryModel`] using the shared
 //! [`descendant_conversation_ids_in_spawn_order`] helper, sums each loaded
 //! conversation's `credits_spent`, and emits a per-agent breakdown for the
-//! footer's "View details" list.
+//! footer's per-agent detail list.
+
+use warp_localization::LocaleId;
 
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::blocklist::orchestration_topology::descendant_conversation_ids_in_spawn_order;
@@ -137,7 +139,9 @@ fn orchestrator_display_name(orchestrator: &AIConversation) -> String {
         .agent_name()
         .filter(|n| !n.is_empty())
         .map(|n| n.to_string())
-        .unwrap_or_else(|| "Orchestrator".to_string())
+        .unwrap_or_else(|| {
+            crate::localization::text_for_locale(LocaleId::EnUs, "agent.orchestration.orchestrator")
+        })
 }
 
 /// Display name for a child row. Mirrors the orchestration pill bar's
@@ -148,7 +152,9 @@ fn child_display_name(child: &AIConversation) -> String {
         .agent_name()
         .filter(|n| !n.is_empty())
         .map(|n| n.to_string())
-        .unwrap_or_else(|| "Agent".to_string())
+        .unwrap_or_else(|| {
+            crate::localization::text_for_locale(LocaleId::EnUs, "agent.orchestration.agent")
+        })
 }
 
 #[cfg(test)]

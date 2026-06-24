@@ -25,7 +25,7 @@ use warpui::{
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::editor::{EditorView, Event as EditorEvent};
 use crate::themes::theme::{InMemoryThemeOptions, ThemeKind};
-use crate::user_config;
+use crate::{localization, user_config};
 #[cfg(feature = "local_fs")]
 use crate::{
     send_telemetry_from_ctx, server::telemetry::TelemetryEvent, themes::theme::CustomTheme,
@@ -36,13 +36,9 @@ const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BORDER_WIDTH: f32 = 1.;
 
-const MODAL_SUBHEADER: &str =
-    "Automatically generate a theme based on extracted colors from an image (.png, .jpg).";
 const IMAGE_PICKER_BUTTON_PRE_SELECT_TEXT: &str = "Select an image";
 const IMAGE_PICKER_BUTTON_SELECTING_TEXT: &str = "Selecting image...";
 const IMAGE_PICKER_BUTTON_POST_SELECT_TEXT: &str = "Select a new image";
-const CANCEL_BUTTON_TEXT: &str = "Cancel";
-const CREATE_BUTTON_TEXT: &str = "Create theme";
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -176,8 +172,7 @@ impl ThemeCreatorBody {
 
             let Some(image_extension) = image_extension else {
                 self.send_error_toast(
-                    "Failed to process selected image. Please try again with a different image."
-                        .to_string(),
+                    localization::text_for_app(ctx, "settings.theme_creator.error.process_image"),
                     ctx,
                 );
                 return;
@@ -260,25 +255,27 @@ impl ThemeCreatorBody {
 
         ctx.spawn(
             InMemoryThemeOptions::new(file_stem_string.clone(), path.clone()),
-            move |theme_creator_body, theme_options, ctx| {
-                match theme_options {
-                    Ok(theme_options) => {
-                        AppearanceManager::handle(ctx).update(ctx, |appearance_manager, ctx| {
-                            appearance_manager.clear_transient_theme(ctx);
-                        });
+            move |theme_creator_body, theme_options, ctx| match theme_options {
+                Ok(theme_options) => {
+                    AppearanceManager::handle(ctx).update(ctx, |appearance_manager, ctx| {
+                        appearance_manager.clear_transient_theme(ctx);
+                    });
 
-                        theme_creator_body.theme_options = Some(theme_options);
-                        theme_creator_body.editor.update(ctx, |editor, ctx| {
-                            editor.set_buffer_text(&file_stem_string, ctx);
-                        });
-                        theme_creator_body.image_state = ThemeCreatorImageState::Uploaded;
-                    },
-                    Err(e) => {
-                        theme_creator_body.send_error_toast(
-                            format!("Failed to process selected image due to error: {e}. Please try again with a different image."),
+                    theme_creator_body.theme_options = Some(theme_options);
+                    theme_creator_body.editor.update(ctx, |editor, ctx| {
+                        editor.set_buffer_text(&file_stem_string, ctx);
+                    });
+                    theme_creator_body.image_state = ThemeCreatorImageState::Uploaded;
+                }
+                Err(e) => {
+                    theme_creator_body.send_error_toast(
+                        localization::text_for_app_with_args(
                             ctx,
-                        );
-                    }
+                            "settings.theme_creator.error.process_image_with_error",
+                            &[("error", &e.to_string())],
+                        ),
+                        ctx,
+                    );
                 }
             },
         );
@@ -418,7 +415,10 @@ impl View for ThemeCreatorBody {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_centered_text_label(CANCEL_BUTTON_TEXT.into());
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "settings.theme_creator.cancel",
+            ));
 
         let mut create_button = appearance
             .ui_builder()
@@ -430,15 +430,22 @@ impl View for ThemeCreatorBody {
                 Some(create_hovered_styles),
                 Some(disabled_styles),
             )
-            .with_centered_text_label(CREATE_BUTTON_TEXT.into());
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "settings.theme_creator.create_theme",
+            ));
 
         let mut flex: Flex = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(
                 Container::new(
-                    Text::new_inline(MODAL_SUBHEADER, appearance.ui_font_family(), 14.)
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(app, "settings.theme_creator.subheader"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .finish(),
             );
@@ -446,9 +453,13 @@ impl View for ThemeCreatorBody {
         if let Some(theme_options) = &self.theme_options {
             flex.add_child(
                 Container::new(
-                    Text::new_inline("Theme name", appearance.ui_font_family(), 14.)
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(app, "settings.theme_creator.theme_name"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .with_margin_top(12.)
                 .finish(),
@@ -475,9 +486,13 @@ impl View for ThemeCreatorBody {
 
             flex.add_child(
                 Container::new(
-                    Text::new_inline("Background color", appearance.ui_font_family(), 14.)
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(app, "settings.theme_creator.background_color"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .with_margin_top(24.)
                 .finish(),

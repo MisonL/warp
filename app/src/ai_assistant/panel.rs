@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use chrono::Local;
@@ -30,7 +30,7 @@ use super::transcript::{Transcript, TranscriptEvent};
 use super::utils::{render_prepared_response_button, render_request_limit_info, TranscriptPart};
 use super::{
     AskAIType, AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AI_ASSISTANT_SVG_PATH,
-    ASK_AI_ASSISTANT_TEXT, PROMPT_CHARACTER_LIMIT,
+    ASK_WARP_AI_MENU_KEY, PROMPT_CHARACTER_LIMIT,
 };
 use crate::appearance::Appearance;
 use crate::editor::{
@@ -69,9 +69,36 @@ const TITLE_FONT_SIZE: f32 = 16.;
 const ZERO_STATE_HELP_TEXT_FONT_SIZE: f32 = 12.;
 
 const ZERO_STATE_HELP_TEXT: &str = "Shift + ctrl + space a block or text selection to ask Warp AI.";
-const SCRIPT_ZERO_STATE_PROMPT: &str = "Write a script to connect to an AWS EC2 instance.";
-const GIT_ZERO_STATE_PROMPT: &str = "How do I undo the most recent commits in git?";
-const FILES_ZERO_STATE_PROMPT: &str = "How do I find all files containing specific text?";
+const SCRIPT_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.script";
+const GIT_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.git";
+const FILES_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.files";
+static SCRIPT_ZERO_STATE_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            SCRIPT_ZERO_STATE_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
+static GIT_ZERO_STATE_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            GIT_ZERO_STATE_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
+static FILES_ZERO_STATE_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            FILES_ZERO_STATE_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
 
 // The placeholder texts are prepended with a space to give them cushion from the cursor.
 const INIT_PLACEHOLDER_TEXT: &str = " Ask a question...";
@@ -131,7 +158,10 @@ pub enum AIAssistantAction {
     ClosePanel,
     ResetContext,
     CopyTranscript,
-    PreparedPrompt(&'static str),
+    PreparedPrompt {
+        prompt: String,
+        telemetry_prompt: &'static str,
+    },
     ClickedUrl(HyperlinkUrl),
     CopyAnswerToClipboard(Arc<String>),
     FocusTerminalInput,
@@ -740,7 +770,7 @@ impl AIAssistantPanelView {
             );
 
             header.add_child(
-                Container::new(self.render_copy_transcript_button(appearance))
+                Container::new(self.render_copy_transcript_button(appearance, app))
                     .with_margin_right(4.)
                     .finish(),
             );
@@ -766,9 +796,14 @@ impl AIAssistantPanelView {
         header.finish()
     }
 
-    fn render_copy_transcript_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_copy_transcript_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let tooltip_background = appearance.theme().surface_1().into_solid();
         let ui_builder = appearance.ui_builder().clone();
+        let tooltip_text = crate::localization::text_for_app(app, "ai_assistant.copy_transcript");
         icon_button(
             appearance,
             crate::ui_components::icons::Icon::Copy,
@@ -781,7 +816,7 @@ impl AIAssistantPanelView {
                 ..Default::default()
             };
             ui_builder
-                .tool_tip("Copy transcript to clipboard".to_owned())
+                .tool_tip(tooltip_text.clone())
                 .with_style(tool_tip_style)
                 .build()
                 .finish()
@@ -903,9 +938,13 @@ impl AIAssistantPanelView {
             )
             .with_child(
                 Container::new(
-                    Text::new_inline(ASK_AI_ASSISTANT_TEXT, appearance.ui_font_family(), 14.)
-                        .with_color(sub_text_color)
-                        .finish(),
+                    Text::new_inline(
+                        crate::localization::text_for_app(app, ASK_WARP_AI_MENU_KEY),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(sub_text_color)
+                    .finish(),
                 )
                 .with_margin_top(8.)
                 .finish(),
@@ -918,7 +957,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.git_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    GIT_ZERO_STATE_PROMPT,
+                    crate::localization::text_for_app(app, GIT_ZERO_STATE_PROMPT_KEY),
+                    GIT_ZERO_STATE_PROMPT.to_string(),
+                    *GIT_ZERO_STATE_PROMPT,
                 ))
                 .with_margin_top(20.)
                 .with_margin_bottom(10.)
@@ -928,7 +969,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.files_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    FILES_ZERO_STATE_PROMPT,
+                    crate::localization::text_for_app(app, FILES_ZERO_STATE_PROMPT_KEY),
+                    FILES_ZERO_STATE_PROMPT.to_string(),
+                    *FILES_ZERO_STATE_PROMPT,
                 ))
                 .with_margin_bottom(10.)
                 .finish(),
@@ -937,7 +980,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.script_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    SCRIPT_ZERO_STATE_PROMPT,
+                    crate::localization::text_for_app(app, SCRIPT_ZERO_STATE_PROMPT_KEY),
+                    SCRIPT_ZERO_STATE_PROMPT.to_string(),
+                    *SCRIPT_ZERO_STATE_PROMPT,
                 ))
                 .finish(),
             ]);
@@ -1040,9 +1085,17 @@ impl TypedActionView for AIAssistantPanelView {
             ClosePanel => {
                 ctx.emit(AIAssistantPanelEvent::ClosePanel);
             }
-            PreparedPrompt(prompt) => {
-                self.issue_request(prompt.to_string(), ctx);
-                send_telemetry_from_ctx!(TelemetryEvent::UsedWarpAIPreparedPrompt { prompt }, ctx);
+            PreparedPrompt {
+                prompt,
+                telemetry_prompt,
+            } => {
+                self.issue_request(prompt.clone(), ctx);
+                send_telemetry_from_ctx!(
+                    TelemetryEvent::UsedWarpAIPreparedPrompt {
+                        prompt: telemetry_prompt
+                    },
+                    ctx
+                );
             }
             ClickedUrl(url) => {
                 ctx.open_url(&url.url);

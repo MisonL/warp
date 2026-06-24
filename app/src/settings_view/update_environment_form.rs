@@ -49,9 +49,13 @@ use crate::view_components::{
     WarningBoxConfig,
 };
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::ChannelState;
+use crate::{localization, ChannelState};
 
 const SUBMIT_BUTTON_FOCUSED: &str = "SubmitButtonFocused";
+
+fn environment_form_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -461,24 +465,34 @@ impl UpdateEnvironmentForm {
         );
 
         // Create buttons
-        let submit_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Create", PrimaryTheme)
-                .with_icon(Icon::Check)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(UpdateEnvironmentFormAction::Submit);
-                })
+        let submit_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                environment_form_text(ctx, "settings.environment.form.create"),
+                PrimaryTheme,
+            )
+            .with_icon(Icon::Check)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(UpdateEnvironmentFormAction::Submit);
+            })
         });
 
-        let delete_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Delete environment", DangerSecondaryTheme)
-                .with_icon(Icon::Trash)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(UpdateEnvironmentFormAction::Delete);
-                })
+        let delete_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                environment_form_text(ctx, "settings.environment.form.delete"),
+                DangerSecondaryTheme,
+            )
+            .with_icon(Icon::Trash)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(UpdateEnvironmentFormAction::Delete);
+            })
         });
 
-        let cancel_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Cancel", SecondaryTheme).on_click(|ctx| {
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                environment_form_text(ctx, "settings.action.cancel"),
+                SecondaryTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(UpdateEnvironmentFormAction::Cancel);
             })
         });
@@ -831,10 +845,18 @@ impl UpdateEnvironmentForm {
 
     fn update_submit_button_label(&mut self, ctx: &mut ViewContext<Self>) {
         let button_text = match (&self.mode, self.show_header) {
-            (EnvironmentFormMode::Create, true) => "Create",
-            (EnvironmentFormMode::Create, false) => "Create environment",
-            (EnvironmentFormMode::Edit { .. }, true) => "Save",
-            (EnvironmentFormMode::Edit { .. }, false) => "Save environment",
+            (EnvironmentFormMode::Create, true) => {
+                environment_form_text(ctx, "settings.environment.form.create")
+            }
+            (EnvironmentFormMode::Create, false) => {
+                environment_form_text(ctx, "settings.environment.form.create_environment")
+            }
+            (EnvironmentFormMode::Edit { .. }, true) => {
+                environment_form_text(ctx, "settings.environment.form.save")
+            }
+            (EnvironmentFormMode::Edit { .. }, false) => {
+                environment_form_text(ctx, "settings.environment.form.save_environment")
+            }
         };
         self.submit_button.update(ctx, |button, ctx| {
             button.set_label(button_text, ctx);
@@ -867,7 +889,10 @@ impl UpdateEnvironmentForm {
                 self.remove_setup_command_mouse_states.clear();
                 // Update button text for Create mode
                 self.submit_button.update(ctx, |button, ctx| {
-                    button.set_label("Create", ctx);
+                    button.set_label(
+                        environment_form_text(ctx, "settings.environment.form.create"),
+                        ctx,
+                    );
                 });
             }
             EnvironmentFormInitArgs::Edit {
@@ -908,7 +933,10 @@ impl UpdateEnvironmentForm {
                     .collect();
                 // Update button text for Edit mode
                 self.submit_button.update(ctx, |button, ctx| {
-                    button.set_label("Save", ctx);
+                    button.set_label(
+                        environment_form_text(ctx, "settings.environment.form.save"),
+                        ctx,
+                    );
                 });
             }
         }
@@ -1649,9 +1677,13 @@ impl UpdateEnvironmentForm {
                         theme.active_ui_text_color()
                     };
 
-                    Text::new_inline("Share with team", font_family, font_size)
-                        .with_color(color.into())
-                        .finish()
+                    Text::new_inline(
+                        environment_form_text(app, "settings.environment.share_with_team"),
+                        font_family,
+                        font_size,
+                    )
+                    .with_color(color.into())
+                    .finish()
                 },
             )
             .with_cursor(Cursor::PointingHand)
@@ -1731,8 +1763,14 @@ impl UpdateEnvironmentForm {
 
     fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let (title, button_handle) = match &self.mode {
-            EnvironmentFormMode::Create => ("Create environment", &self.submit_button),
-            EnvironmentFormMode::Edit { .. } => ("Edit environment", &self.submit_button),
+            EnvironmentFormMode::Create => (
+                environment_form_text(app, "settings.environment.form.create_environment"),
+                &self.submit_button,
+            ),
+            EnvironmentFormMode::Edit { .. } => (
+                environment_form_text(app, "settings.environment.form.edit_environment"),
+                &self.submit_button,
+            ),
         };
 
         let submit_actions = || self.render_submit_actions(appearance, app, button_handle);
@@ -1741,14 +1779,14 @@ impl UpdateEnvironmentForm {
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(self.render_back_button_and_title(title, appearance))
+            .with_child(self.render_back_button_and_title(&title, appearance))
             .with_child(submit_actions())
             .finish();
 
         let compact_header = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(8.)
-            .with_child(self.render_back_button_and_title(title, appearance))
+            .with_child(self.render_back_button_and_title(&title, appearance))
             .with_child(submit_actions())
             .finish();
 

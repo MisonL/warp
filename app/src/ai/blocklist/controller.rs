@@ -66,7 +66,6 @@ use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::network::NetworkStatus;
 use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::persistence::ModelEvent;
-use crate::send_telemetry_from_ctx;
 use crate::server::server_api::AIApiError;
 #[cfg(not(target_family = "wasm"))]
 use crate::server::server_api::ServerApiProvider;
@@ -82,6 +81,7 @@ use crate::terminal::ShellLaunchData;
 use crate::workspace::OneTimeModalModel;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
 #[derive(Debug, Clone)]
 pub struct SessionContext {
@@ -1307,7 +1307,7 @@ impl BlocklistAIController {
             InputQuery {
                 which_task: WhichTask::NewConversation,
                 input_query: InputQueryType::UserSubmittedQueryFromInput {
-                    query: query_type.query().to_string(),
+                    query: query_type.prompt(),
                     static_query_type: query_type.static_query_type(),
                     running_command: None,
                 },
@@ -3150,7 +3150,7 @@ impl BlocklistAIController {
                 });
             }
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::Other(_)) => {
-                let error_message = "Response stream finished unexpectedly (with finish reason `Other`).";
+                let error_message = localization::text_for_app(ctx, "agent.error.response_stream_other");
                 history_model.update(ctx, |history_model, ctx| {
                     history_model.mark_response_stream_completed_with_error(
                         RenderableAIError::Other {
@@ -3168,7 +3168,7 @@ impl BlocklistAIController {
                 });
             }
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::ContextWindowExceeded(_)) => {
-                let error_message = "Input exceeded context window limit.";
+                let error_message = localization::text_for_app(ctx, "agent.error.context_window_exceeded");
                 history_model.update(ctx, |history_model, ctx| {
                     history_model.mark_response_stream_completed_with_error(
                         RenderableAIError::ContextWindowExceeded(error_message.to_owned()),
@@ -3195,7 +3195,7 @@ impl BlocklistAIController {
                 });
             }
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::LlmUnavailable(_)) => {
-                let error_message = "The LLM is currently unavailable.";
+                let error_message = localization::text_for_app(ctx, "agent.error.llm_unavailable");
                 history_model.update(ctx, |history_model, ctx| {
                     history_model.mark_response_stream_completed_with_error(
                         RenderableAIError::Other {
@@ -3252,8 +3252,10 @@ impl BlocklistAIController {
             }
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::InternalError(
                 warp_multi_agent_api::response_event::stream_finished::InternalError{ message})) => {
-                let error_message = format!(
-                    "Response stream finished unexpectedly with internal error: {message}",
+                let error_message = localization::text_for_app_with_args(
+                    ctx,
+                    "agent.error.response_stream_internal",
+                    &[("message", message.as_str())],
                 );
                 history_model.update(ctx, |history_model, ctx| {
                     history_model.mark_response_stream_completed_with_error(
@@ -3272,7 +3274,7 @@ impl BlocklistAIController {
                 });
             }
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::MaxTokenLimit(_)) => {
-                let error_message = "Input exceeded context window limit.";
+                let error_message = localization::text_for_app(ctx, "agent.error.context_window_exceeded");
                 history_model.update(ctx, |history_model, ctx| {
                     history_model.mark_response_stream_completed_with_error(
                         RenderableAIError::ContextWindowExceeded(error_message.to_owned()),

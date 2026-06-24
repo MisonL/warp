@@ -168,6 +168,11 @@ impl View for LightboxView {
             lightbox::Params {
                 images: &self.params.images,
                 current_index: self.current_index,
+                no_images_label: crate::localization::text_for_app(
+                    app,
+                    "workspace.lightbox.no_images",
+                ),
+                loading_label: crate::localization::text_for_app(app, "status.loading"),
                 on_dismiss: Arc::new(|ctx, _| {
                     ctx.dispatch_typed_action(LightboxViewAction::Dismiss);
                 }),

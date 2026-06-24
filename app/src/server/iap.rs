@@ -348,7 +348,11 @@ impl IapManager {
             return;
         };
         let toast: DismissibleToast<WorkspaceAction> =
-            DismissibleToast::error(format!("IAP credential refresh failed: {message}"));
+            DismissibleToast::error(crate::localization::text_for_app_with_args(
+                ctx,
+                "settings.account.iap.toast.credential_refresh_failed",
+                &[("message", message)],
+            ));
         ToastStack::handle(ctx).update(ctx, |stack, ctx| {
             stack.add_ephemeral_toast(toast, window_id, ctx);
         });

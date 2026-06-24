@@ -146,17 +146,6 @@ impl SearchItem for DiffSetSearchItem {
     fn accessibility_label(&self) -> String {
         format!("{} - {}", self.name(), self.description())
     }
-
-    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
-        crate::localization::text_for_app_with_args(
-            app,
-            "search.diffset.a11y.label",
-            &[
-                ("name", &self.localized_name(app)),
-                ("description", &self.localized_description(app)),
-            ],
-        )
-    }
 }
 
 #[cfg(test)]

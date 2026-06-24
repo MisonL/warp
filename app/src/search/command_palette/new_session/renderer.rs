@@ -10,7 +10,7 @@ use crate::search::result_renderer::ItemHighlightState;
 impl NewSessionOption {
     pub(super) fn render(
         &self,
-        app: &AppContext,
+        _app: &AppContext,
         appearance: &Appearance,
         highlight_state: ItemHighlightState,
         highlight_indices: Vec<usize>,
@@ -30,7 +30,7 @@ impl NewSessionOption {
         .finish();
 
         let details = Text::new_inline(
-            self.details_for_app(app).to_string(),
+            self.details().to_string(),
             appearance.monospace_font_family(),
             appearance.monospace_font_size() - 2.,
         )

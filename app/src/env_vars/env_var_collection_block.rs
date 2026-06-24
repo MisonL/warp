@@ -44,8 +44,8 @@ use crate::view_components::compactible_action_button::{
 /// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.
 const ENV_VAR_COLLECTION_BODY_VERTICAL_PADDING: f32 = 16.;
 
-const ENV_VAR_COLLECTION_CANCEL_LABEL: &str = "Cancel";
-const ENV_VAR_COLLECTION_ACCEPT_LABEL: &str = "Run";
+const ENV_VAR_COLLECTION_CANCEL_LABEL_KEY: &str = "agent.block.action.cancel";
+const ENV_VAR_COLLECTION_ACCEPT_LABEL_KEY: &str = "agent.block.action.run";
 
 lazy_static! {
     static ref CANCEL_ENV_VAR_COLLECTION_KEYSTROKE: Keystroke = Keystroke {
@@ -147,7 +147,10 @@ impl EnvVarCollectionBlock {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let cancel_button = CompactibleActionButton::new(
-            ENV_VAR_COLLECTION_CANCEL_LABEL.to_string(),
+            crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                ENV_VAR_COLLECTION_CANCEL_LABEL_KEY,
+            ),
             Some(KeystrokeSource::Fixed(
                 CANCEL_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),
@@ -159,7 +162,10 @@ impl EnvVarCollectionBlock {
         );
 
         let accept_button = CompactibleActionButton::new(
-            ENV_VAR_COLLECTION_ACCEPT_LABEL.to_string(),
+            crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                ENV_VAR_COLLECTION_ACCEPT_LABEL_KEY,
+            ),
             Some(KeystrokeSource::Fixed(
                 ACCEPT_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),
@@ -255,11 +261,9 @@ impl EnvVarCollectionBlock {
     }
 
     fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
-        const COMMAND_WAITING_FOR_USER_MESSAGE: &str =
-            "OK if I run this command and read the output?";
-
         let title: Cow<'static, str> = if self.state == EnvVarCollectionState::WaitingForUser {
-            COMMAND_WAITING_FOR_USER_MESSAGE.into()
+            crate::localization::text_for_app(app, "agent.requested_command.status.waiting_command")
+                .into()
         } else {
             self.command.clone().into()
         };

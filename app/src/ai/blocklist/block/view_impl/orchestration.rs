@@ -38,6 +38,7 @@ use crate::ai::blocklist::inline_action::requested_action::{
 };
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -54,18 +55,19 @@ struct OrchestrationParticipant {
 }
 
 impl OrchestrationParticipant {
-    fn orchestrator() -> Self {
+    fn orchestrator(app: &AppContext) -> Self {
         Self {
-            display_name: "Orchestrator".to_string(),
+            display_name: localization::text_for_app(app, "agent.orchestration.orchestrator"),
             avatar: OrchestrationAvatar::Orchestrator,
             conversation_id: None,
         }
     }
 
-    fn unknown_child() -> Self {
+    fn unknown_child(app: &AppContext) -> Self {
+        let display_name = localization::text_for_app(app, "agent.orchestration.unknown_agent");
         Self {
-            display_name: "Unknown agent".to_string(),
-            avatar: OrchestrationAvatar::agent("Unknown agent".to_string()),
+            display_name: display_name.clone(),
+            avatar: OrchestrationAvatar::agent(display_name),
             conversation_id: None,
         }
     }
@@ -97,19 +99,21 @@ fn participant_for_agent_id(
                 conversation,
                 orchestrator_agent_id,
                 Some(agent_id),
+                app,
             );
         }
     }
     if orchestrator_agent_id.is_some_and(|id| id == agent_id) {
-        return OrchestrationParticipant::orchestrator();
+        return OrchestrationParticipant::orchestrator(app);
     }
-    OrchestrationParticipant::unknown_child()
+    OrchestrationParticipant::unknown_child(app)
 }
 
 fn participant_for_conversation(
     conversation: &AIConversation,
     orchestrator_agent_id: Option<&str>,
     agent_id: Option<&str>,
+    app: &AppContext,
 ) -> OrchestrationParticipant {
     let is_orchestrator = agent_id
         .map(|id| {
@@ -119,10 +123,13 @@ fn participant_for_conversation(
         })
         .unwrap_or_else(|| conversation.parent_conversation_id().is_none());
     if is_orchestrator {
-        return OrchestrationParticipant::orchestrator();
+        return OrchestrationParticipant::orchestrator(app);
     }
 
-    let display_name = conversation.agent_name().unwrap_or("Agent").to_string();
+    let display_name = conversation
+        .agent_name()
+        .map(str::to_string)
+        .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.agent"));
     OrchestrationParticipant {
         display_name: display_name.clone(),
         avatar: OrchestrationAvatar::agent(display_name),
@@ -155,9 +162,10 @@ fn participant_for_current_conversation(
                 conversation,
                 orchestrator_agent_id,
                 conversation.orchestration_agent_id().as_deref(),
+                app,
             )
         })
-        .unwrap_or_else(OrchestrationParticipant::orchestrator)
+        .unwrap_or_else(|| OrchestrationParticipant::orchestrator(app))
 }
 
 fn transcript_metadata(recipients: &[OrchestrationParticipant], subject: &str) -> Option<String> {
@@ -501,7 +509,10 @@ pub(super) fn render_send_message(
         || status.as_ref().is_some_and(|s| s.is_queued());
 
     let label_fragments = vec![
-        FormattedTextFragment::plain_text("Sending message to "),
+        FormattedTextFragment::plain_text(localization::text_for_app(
+            app,
+            "agent.orchestration.sending_message_to",
+        )),
         FormattedTextFragment::bold(&recipients),
         FormattedTextFragment::plain_text(format!(": {subject}")),
     ];
@@ -578,7 +589,10 @@ pub(super) fn render_start_agent(
         let (label_fragments, status_icon) = match result {
             StartAgentResult::Success { .. } => (
                 vec![
-                    FormattedTextFragment::plain_text("Started agent "),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        app,
+                        "agent.orchestration.started_agent",
+                    )),
                     FormattedTextFragment::bold(name),
                     FormattedTextFragment::plain_text(start_agent_success_suffix(execution_mode)),
                 ],
@@ -802,7 +816,10 @@ fn child_conversation_card_data_for_result(
             let conversation_id = conversation_id_for_agent_id(agent_id, app)?;
             let conversation =
                 BlocklistAIHistoryModel::as_ref(app).conversation(&conversation_id)?;
-            let agent_name = conversation.agent_name().unwrap_or("Agent").to_string();
+            let agent_name = conversation
+                .agent_name()
+                .map(str::to_string)
+                .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.agent"));
             let status = conversation.status().clone();
             let title = available_conversation_title_for_id(conversation_id, app)?;
             Some(ChildConversationCardData {

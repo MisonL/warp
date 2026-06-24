@@ -1527,7 +1527,12 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
             "workspace:open_settings_file",
-            "Open settings file",
+            BindingDescription::new("Open settings file").with_dynamic_override(|app| {
+                Some(crate::localization::text_for_app(
+                    app,
+                    "settings.footer.open_settings_file",
+                ))
+            }),
             WorkspaceAction::OpenSettingsFile,
         )
         .with_enabled(|| FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs"))

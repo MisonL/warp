@@ -13,6 +13,7 @@ use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision, UniquePer,
 };
+use crate::localization;
 use crate::server::sync_queue::QueueItem;
 use crate::settings::AISettings;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -20,12 +21,19 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 pub const LONG_CONTEXT_WARNING_THRESHOLD: u32 = 272_000;
 pub(crate) const LONG_CONTEXT_PRICING_WARNING_URL: &str =
     "https://developers.openai.com/api/docs/pricing";
-pub(crate) fn long_context_pricing_warning_title() -> FormattedTextInline {
+pub(crate) fn long_context_pricing_warning_title(app: &AppContext) -> FormattedTextInline {
     vec![
-        FormattedTextFragment::plain_text(
-            "OpenAI automatically applies long-context pricing when context exceeds 272,000 tokens. ",
+        FormattedTextFragment::plain_text(localization::text_for_app(
+            app,
+            "settings.execution_profile.long_context_pricing_warning.message",
+        )),
+        FormattedTextFragment::hyperlink(
+            localization::text_for_app(
+                app,
+                "settings.execution_profile.long_context_pricing_warning.learn_more",
+            ),
+            LONG_CONTEXT_PRICING_WARNING_URL,
         ),
-        FormattedTextFragment::hyperlink("Learn more", LONG_CONTEXT_PRICING_WARNING_URL),
     ]
 }
 

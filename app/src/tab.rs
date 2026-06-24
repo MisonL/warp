@@ -52,7 +52,7 @@ use crate::workspace::tab_settings::{
 use crate::workspace::{
     PaneViewLocator, TabBarDropTargetData, TabBarLocation, TabContextMenuAnchor, WorkspaceAction,
 };
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 pub const TAB_BAR_BORDER_HEIGHT: f32 = 1.0;
 const TAB_INDICATOR_HEIGHT: f32 = 14.0;
@@ -129,8 +129,8 @@ pub enum NewSessionMenuItem {
 #[derive(Clone, Copy)]
 pub struct PaneNameMenuTarget {
     pub locator: PaneViewLocator,
-    pub rename_label: &'static str,
-    pub reset_label: &'static str,
+    pub rename_label_key: &'static str,
+    pub reset_label_key: &'static str,
 }
 
 /// TabData struct holds the state of the given tab. It includes the pane group and mouse states
@@ -225,13 +225,13 @@ impl TabData {
         let mut menu_items = vec![];
 
         for section_items in [
-            self.pin_menu_items(index),
-            self.tab_group_menu_items(index, tab_groups),
+            self.pin_menu_items(index, ctx),
+            self.tab_group_menu_items(index, tab_groups, ctx),
             self.session_sharing_menu_items(index, ctx),
             self.copy_metadata_menu_items(pane_name_target, ctx),
             self.modify_tab_menu_items(index, can_move_left, can_move_right, pane_name_target, ctx),
             self.close_tab_menu_items(index, tabs_len, ctx),
-            Self::save_config_menu_items(index),
+            Self::save_config_menu_items(index, ctx),
             self.color_option_menu_items(index, terminal_colors),
         ] {
             if menu_items
@@ -269,17 +269,23 @@ impl TabData {
                     .is_active_sharer()
                 {
                     menu_items.push(
-                        MenuItemFields::new("Stop sharing")
-                            .with_on_select_action(WorkspaceAction::StopSharingSessionFromTabMenu {
-                                terminal_view_id: focused_session_view.id(),
-                            })
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            ctx,
+                            "tab.menu.stop_sharing",
+                        ))
+                        .with_on_select_action(WorkspaceAction::StopSharingSessionFromTabMenu {
+                            terminal_view_id: focused_session_view.id(),
+                        })
+                        .into_item(),
                     );
                 } else {
                     menu_items.push(
-                        MenuItemFields::new("Share session")
-                            .with_on_select_action(WorkspaceAction::OpenShareSessionModal(index))
-                            .into_item(),
+                        MenuItemFields::new(localization::text_for_app(
+                            ctx,
+                            "tab.menu.share_session",
+                        ))
+                        .with_on_select_action(WorkspaceAction::OpenShareSessionModal(index))
+                        .into_item(),
                     );
                 }
             }
@@ -287,11 +293,14 @@ impl TabData {
             // Always show an option to stop sharing all when there's at least 1 shared session in the tab.
             if !shared_session_view_ids.is_empty() {
                 menu_items.push(
-                    MenuItemFields::new("Stop sharing all")
-                        .with_on_select_action(WorkspaceAction::StopSharingAllSessionsInTab {
-                            pane_group: self.pane_group.downgrade(),
-                        })
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "tab.menu.stop_sharing_all",
+                    ))
+                    .with_on_select_action(WorkspaceAction::StopSharingAllSessionsInTab {
+                        pane_group: self.pane_group.downgrade(),
+                    })
+                    .into_item(),
                 );
             }
         }
@@ -312,7 +321,7 @@ impl TabData {
 
         if is_shared_or_viewed {
             menu_items.push(
-                MenuItemFields::new("Copy link")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.copy_link"))
                     .with_on_select_action(WorkspaceAction::CopySharedSessionLinkFromTab {
                         tab_index: index,
                     })
@@ -441,15 +450,18 @@ impl TabData {
 
         // TODO add option to show the keybinding once we figure out a nice API to retrieve
         // the actual keybinding (based on the user's preferences etc.)
-        menu_items.append(&mut vec![MenuItemFields::new("Rename tab")
-            .with_on_select_action(WorkspaceAction::RenameTab(index))
-            .into_item()]);
+        menu_items.append(&mut vec![MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "tab.menu.rename_tab",
+        ))
+        .with_on_select_action(WorkspaceAction::RenameTab(index))
+        .into_item()]);
         // Group together with rename option (note, resetting doesn't make
         // sense unless you're able to rename a tab).
         let title = self.pane_group.as_ref(ctx).custom_title(ctx);
         if title.is_some() {
             menu_items.push(
-                MenuItemFields::new("Reset tab name")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.reset_tab_name"))
                     .with_on_select_action(WorkspaceAction::ResetTabName(index))
                     .into_item(),
             );
@@ -463,9 +475,9 @@ impl TabData {
         if can_move_right {
             menu_items.push(
                 MenuItemFields::new(if uses_vertical_tabs {
-                    "Move Tab Down"
+                    localization::text_for_app(ctx, "tab.menu.move_down")
                 } else {
-                    "Move Tab Right"
+                    localization::text_for_app(ctx, "tab.menu.move_right")
                 })
                 .with_on_select_action(WorkspaceAction::MoveTabRight(index))
                 .into_item(),
@@ -474,9 +486,9 @@ impl TabData {
         if can_move_left {
             menu_items.push(
                 MenuItemFields::new(if uses_vertical_tabs {
-                    "Move Tab Up"
+                    localization::text_for_app(ctx, "tab.menu.move_up")
                 } else {
-                    "Move Tab Left"
+                    localization::text_for_app(ctx, "tab.menu.move_left")
                 })
                 .with_on_select_action(WorkspaceAction::MoveTabLeft(index))
                 .into_item(),
@@ -503,12 +515,15 @@ impl TabData {
             .custom_vertical_tabs_title()
             .is_some();
 
-        let mut menu_items = vec![MenuItemFields::new(target.rename_label)
-            .with_on_select_action(WorkspaceAction::RenamePane(target.locator))
-            .into_item()];
+        let mut menu_items =
+            vec![
+                MenuItemFields::new(localization::text_for_app(ctx, target.rename_label_key))
+                    .with_on_select_action(WorkspaceAction::RenamePane(target.locator))
+                    .into_item(),
+            ];
         if has_custom_name {
             menu_items.push(
-                MenuItemFields::new(target.reset_label)
+                MenuItemFields::new(localization::text_for_app(ctx, target.reset_label_key))
                     .with_on_select_action(WorkspaceAction::ResetPaneName(target.locator))
                     .into_item(),
             );
@@ -527,14 +542,14 @@ impl TabData {
 
         if ContextFlag::CloseWindow.is_enabled() || tabs_len != 1 {
             menu_items.push(
-                MenuItemFields::new("Close tab")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.close_tab"))
                     .with_on_select_action(WorkspaceAction::CloseTab(index))
                     .into_item(),
             );
         }
         if tabs_len > 1 {
             menu_items.push(
-                MenuItemFields::new("Close other tabs")
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.close_other_tabs"))
                     .with_on_select_action(WorkspaceAction::CloseOtherTabs(index))
                     .into_item(),
             );
@@ -543,9 +558,9 @@ impl TabData {
         if not_last_tab {
             menu_items.push(
                 MenuItemFields::new(if uses_vertical_tabs {
-                    "Close Tabs Below"
+                    localization::text_for_app(ctx, "tab.menu.close_tabs_below")
                 } else {
-                    "Close Tabs to the Right"
+                    localization::text_for_app(ctx, "tab.menu.close_tabs_to_right")
                 })
                 .with_on_select_action(WorkspaceAction::CloseTabsRight(index))
                 .into_item(),
@@ -554,25 +569,34 @@ impl TabData {
         menu_items
     }
 
-    fn save_config_menu_items(index: usize) -> Vec<MenuItem<WorkspaceAction>> {
+    fn save_config_menu_items(index: usize, ctx: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
         if !FeatureFlag::TabConfigs.is_enabled() {
             return vec![];
         }
-        vec![MenuItemFields::new("Save as new config")
-            .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
-            .into_item()]
+        vec![MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "tab.menu.save_as_new_config",
+        ))
+        .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
+        .into_item()]
     }
 
     /// Pin/unpin entry for the per-tab right-click menu.
-    fn pin_menu_items(&self, index: usize) -> Vec<MenuItem<WorkspaceAction>> {
+    fn pin_menu_items(&self, index: usize, ctx: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
         if !FeatureFlag::PinnedTabs.is_enabled() {
             return vec![];
         }
 
         let (label, action) = if self.pinned {
-            ("Unpin tab", WorkspaceAction::UnpinTab(index))
+            (
+                localization::text_for_app(ctx, "tab.menu.unpin_tab"),
+                WorkspaceAction::UnpinTab(index),
+            )
         } else {
-            ("Pin tab", WorkspaceAction::PinTab(index))
+            (
+                localization::text_for_app(ctx, "tab.menu.pin_tab"),
+                WorkspaceAction::PinTab(index),
+            )
         };
         vec![MenuItemFields::new(label)
             .with_on_select_action(action)
@@ -591,22 +615,29 @@ impl TabData {
         &self,
         index: usize,
         tab_groups: &HashMap<TabGroupId, TabGroup>,
+        ctx: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
         if !FeatureFlag::GroupedTabs.is_enabled() {
             return vec![];
         }
-        let mut menu_items = vec![MenuItemFields::new("New group with tab")
-            .with_on_select_action(WorkspaceAction::NewTabGroupFromTab(index))
-            .into_item()];
+        let mut menu_items = vec![MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "tab.menu.new_group_with_tab",
+        ))
+        .with_on_select_action(WorkspaceAction::NewTabGroupFromTab(index))
+        .into_item()];
         let has_other_groups = tab_groups.keys().any(|gid| Some(*gid) != self.group_id);
         if has_other_groups {
             menu_items.push(MenuItemFields::new_submenu(MOVE_TO_GROUP_LABEL).into_item());
         }
         if self.group_id.is_some() {
             menu_items.push(
-                MenuItemFields::new("Remove from group")
-                    .with_on_select_action(WorkspaceAction::RemoveTabFromGroup(index))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "tab.menu.remove_from_group",
+                ))
+                .with_on_select_action(WorkspaceAction::RemoveTabFromGroup(index))
+                .into_item(),
             );
         }
         menu_items
@@ -791,6 +822,7 @@ pub struct TabComponent<'a> {
     tooltip_message: Option<String>,
     tooltip_directory: Option<String>,
     tooltip_git_branch: Option<String>,
+    ambient_agent_tooltip: String,
     is_drag_target: bool,
     background_opacity: u8,
     /// Set to `true` when this `TabComponent` is being rendered inside the
@@ -950,6 +982,7 @@ impl<'a> TabComponent<'a> {
         let tooltip_message = Self::get_tooltip_message(&indicator, tab, ctx);
         let tooltip_directory = Self::get_tooltip_directory(&indicator, tab, ctx);
         let tooltip_git_branch = Self::get_tooltip_git_branch(&indicator, tab, ctx);
+        let ambient_agent_tooltip = localization::text_for_app(ctx, "tab.tooltip.cloud_agent_run");
         let window_id = tab.pane_group.window_id(ctx);
         let background_opacity = WindowSettings::as_ref(ctx)
             .background_opacity
@@ -976,6 +1009,7 @@ impl<'a> TabComponent<'a> {
             tooltip_message,
             tooltip_directory,
             tooltip_git_branch,
+            ambient_agent_tooltip,
             is_drag_target,
             background_opacity,
             for_drag_ghost: false,
@@ -1418,6 +1452,7 @@ impl<'a> TabComponent<'a> {
                     .unwrap_or_else(|| self.appearance.theme().active_ui_text_color().into());
 
                 let ui_builder = self.ui_builder.clone();
+                let tooltip_text = self.ambient_agent_tooltip.clone();
                 let mouse_state = self.tab.indicator_hover_state.clone();
                 Some(
                     Hoverable::new(mouse_state, move |state| {
@@ -1425,10 +1460,8 @@ impl<'a> TabComponent<'a> {
                             .with_child(Icon::OzCloud.to_warpui_icon(icon_color.into()).finish());
 
                         if state.is_hovered() {
-                            let tooltip = ui_builder
-                                .tool_tip("Cloud agent run".to_string())
-                                .build()
-                                .finish();
+                            let tooltip =
+                                ui_builder.tool_tip(tooltip_text.clone()).build().finish();
                             stack.add_positioned_overlay_child(
                                 tooltip,
                                 OffsetPositioning::offset_from_parent(

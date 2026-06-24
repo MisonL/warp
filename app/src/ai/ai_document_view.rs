@@ -58,7 +58,7 @@ use crate::view_components::action_button::{
 };
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-use crate::{send_telemetry_from_ctx, BlocklistAIHistoryModel};
+use crate::{localization, send_telemetry_from_ctx, BlocklistAIHistoryModel};
 
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(
@@ -133,6 +133,7 @@ impl From<PaneEvent> for AIDocumentEvent {
     }
 }
 
+pub const DEFAULT_PLANNING_DOCUMENT_TITLE_KEY: &str = "ai_document.title.default";
 pub const DEFAULT_PLANNING_DOCUMENT_TITLE: &str = "Planning document";
 
 /// Entry for the version history dropdown menu.
@@ -359,7 +360,9 @@ impl AIDocumentView {
         let document_title = AIDocumentModel::as_ref(ctx)
             .get_document(&document_id, document_version)
             .map(|doc| doc.get_title())
-            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
+            .unwrap_or_else(|| {
+                localization::text_for_app(ctx, DEFAULT_PLANNING_DOCUMENT_TITLE_KEY)
+            });
         let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(document_title));
 
         // Create version menu view and subscribe to close events to hide overlay
@@ -374,11 +377,14 @@ impl AIDocumentView {
         });
 
         // Anchor overlay to the toolbelt "Show version history" button
-        let version_button = ctx.add_typed_action_view(|_| {
+        let version_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(icons::Icon::History)
                 .with_size(ButtonSize::Small)
-                .with_tooltip("Show version history")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "ai_document.tooltip.show_version_history",
+                ))
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(
                         PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
@@ -401,34 +407,44 @@ impl AIDocumentView {
         // Read the actual configured keybinding for the save action
         let save_action = keybinding_name_to_keystroke(SAVE_FILE_BINDING_NAME, ctx)
             .map(|k| k.displayed())
-            .unwrap_or("Click".to_string());
-        let tooltip_text = format!("This plan has changes the agent isn't aware of. {save_action} to stop the agent's current task and send the updated plan");
-        let update_plan_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Update Agent", PrimaryTheme)
-                .with_size(ButtonSize::Small)
-                .with_tooltip(tooltip_text)
-                .with_tooltip_alignment(TooltipAlignment::Right)
-                .with_tooltip_positioning_provider(Arc::new(MenuPositioning::BelowInputBox))
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
-                            AIDocumentAction::SendUpdatedPlan,
-                        ),
-                    );
-                })
+            .unwrap_or_else(|| localization::text_for_app(ctx, "ai_document.action.click"));
+        let tooltip_text = localization::text_for_app_with_args(
+            ctx,
+            "ai_document.tooltip.update_agent",
+            &[("save_action", save_action.as_str())],
+        );
+        let update_plan_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "ai_document.action.update_agent"),
+                PrimaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .with_tooltip(tooltip_text)
+            .with_tooltip_alignment(TooltipAlignment::Right)
+            .with_tooltip_positioning_provider(Arc::new(MenuPositioning::BelowInputBox))
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(
+                    PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
+                        AIDocumentAction::SendUpdatedPlan,
+                    ),
+                );
+            })
         });
 
         // Create restore button
-        let restore_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Restore", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
-                            AIDocumentAction::RevertToDocumentVersion,
-                        ),
-                    );
-                })
+        let restore_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "ai_document.action.restore"),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(
+                    PaneHeaderAction::<AIDocumentAction, AIDocumentAction>::CustomAction(
+                        AIDocumentAction::RevertToDocumentVersion,
+                    ),
+                );
+            })
         });
 
         // Create the orchestration config block if there's an active config
@@ -660,7 +676,10 @@ impl AIDocumentView {
                 let appearance = Appearance::as_ref(app);
                 let ui_builder = appearance.ui_builder().clone();
                 let tooltip = ui_builder
-                    .tool_tip("Save and auto-sync this plan to your Warp Drive".to_string())
+                    .tool_tip(localization::text_for_app(
+                        app,
+                        "ai_document.tooltip.save_and_sync_to_warp_drive",
+                    ))
                     .build()
                     .finish();
                 let sync_button_mouse_state = self.sync_button_mouse_state.clone();
@@ -771,7 +790,9 @@ impl AIDocumentView {
         let title = AIDocumentModel::as_ref(app)
             .get_current_document(&self.document_id)
             .map(|doc| doc.title.clone())
-            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
+            .unwrap_or_else(|| {
+                localization::text_for_app(app, DEFAULT_PLANNING_DOCUMENT_TITLE_KEY)
+            });
 
         let version_button = SavePosition::new(
             ChildView::new(&self.version_button).finish(),
@@ -1144,7 +1165,10 @@ impl TypedActionView for AIDocumentView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Link copied to clipboard".to_string()),
+                        DismissibleToast::success(localization::text_for_app(
+                            ctx,
+                            "ai_document.toast.link_copied",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -1157,7 +1181,10 @@ impl TypedActionView for AIDocumentView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Plan ID copied to clipboard".to_string()),
+                        DismissibleToast::success(localization::text_for_app(
+                            ctx,
+                            "ai_document.toast.plan_id_copied",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -1307,43 +1334,58 @@ impl BackingView for AIDocumentView {
             AIDocumentModel::as_ref(ctx).get_document_warp_drive_object_link(&self.document_id, ctx)
         {
             menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(AIDocumentAction::CopyLink(link))
-                    .with_icon(Icon::Link)
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "ai_document.menu.copy_link",
+                ))
+                .with_on_select_action(AIDocumentAction::CopyLink(link))
+                .with_icon(Icon::Link)
+                .into_item(),
             );
             menu_items.push(
-                MenuItemFields::new("Show in Warp Drive")
-                    .with_on_select_action(AIDocumentAction::ShowInWarpDrive)
-                    .with_icon(Icon::WarpDrive)
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "ai_document.menu.show_in_warp_drive",
+                ))
+                .with_on_select_action(AIDocumentAction::ShowInWarpDrive)
+                .with_icon(Icon::WarpDrive)
+                .into_item(),
             );
         }
 
         #[cfg(feature = "local_fs")]
         {
             menu_items.push(
-                crate::menu::MenuItemFields::new("Save as markdown file")
-                    .with_on_select_action(AIDocumentAction::Export)
-                    .with_icon(Icon::Download)
-                    .into_item(),
+                crate::menu::MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "ai_document.menu.save_as_markdown",
+                ))
+                .with_on_select_action(AIDocumentAction::Export)
+                .with_icon(Icon::Download)
+                .into_item(),
             );
         }
 
         // Add "Attach to active session" menu item
         menu_items.push(
-            MenuItemFields::new("Attach to active session")
-                .with_on_select_action(AIDocumentAction::AttachToActiveSession)
-                .with_icon(Icon::Paperclip)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "ai_document.menu.attach_to_active_session",
+            ))
+            .with_on_select_action(AIDocumentAction::AttachToActiveSession)
+            .with_icon(Icon::Paperclip)
+            .into_item(),
         );
 
         // Add "Copy plan ID" menu item
         menu_items.push(
-            MenuItemFields::new("Copy plan ID")
-                .with_on_select_action(AIDocumentAction::CopyPlanId)
-                .with_icon(Icon::Copy)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "ai_document.menu.copy_plan_id",
+            ))
+            .with_on_select_action(AIDocumentAction::CopyPlanId)
+            .with_icon(Icon::Copy)
+            .into_item(),
         );
 
         menu_items

@@ -8,8 +8,8 @@ use warpui::App;
 
 use super::super::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use super::{
-    classify_renderable_error, map_cli_session_status, map_conversation_status,
-    LocalAgentTaskSyncModel,
+    classify_renderable_error, map_cli_session_status,
+    map_conversation_status_to_canonical_english, LocalAgentTaskSyncModel,
 };
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::{
@@ -187,7 +187,7 @@ fn map_conversation_status_waiting_for_events_reports_in_progress_with_no_messag
         history_model.read(&app, |model, _| {
             let conv = model.conversation(&conversation_id).unwrap();
             assert_eq!(conv.status(), &ConversationStatus::WaitingForEvents);
-            let (state, update) = map_conversation_status(conv);
+            let (state, update) = map_conversation_status_to_canonical_english(conv);
             assert_eq!(state, AgentTaskState::InProgress);
             assert!(
                 update.is_none(),
@@ -206,7 +206,7 @@ fn map_conversation_status_in_progress_reports_in_progress_with_no_message() {
         "freshly constructed conversation should start in InProgress"
     );
 
-    let (state, update) = map_conversation_status(&conversation);
+    let (state, update) = map_conversation_status_to_canonical_english(&conversation);
 
     assert_eq!(state, AgentTaskState::InProgress);
     assert!(update.is_none());
@@ -219,7 +219,7 @@ fn transient_error_status_maps_to_in_progress_with_no_message() {
     let mut conversation = AIConversation::new(false, false);
     conversation.set_status_for_test(ConversationStatus::TransientError);
     assert_update(
-        map_conversation_status(&conversation),
+        map_conversation_status_to_canonical_english(&conversation),
         AgentTaskState::InProgress,
         None,
         None,
@@ -264,7 +264,7 @@ fn map_conversation_status_error_classifies_exchange_error() {
     }));
     conversation.set_status_for_test(ConversationStatus::Error);
     assert_update(
-        map_conversation_status(&conversation),
+        map_conversation_status_to_canonical_english(&conversation),
         AgentTaskState::Failed,
         Some(PlatformErrorCode::InsufficientCredits),
         Some("credits"),
@@ -283,7 +283,7 @@ fn map_conversation_status_error_ignores_will_attempt_resume() {
     }));
     conversation.set_status_for_test(ConversationStatus::Error);
     assert_update(
-        map_conversation_status(&conversation),
+        map_conversation_status_to_canonical_english(&conversation),
         AgentTaskState::Error,
         Some(PlatformErrorCode::InternalError),
         Some("connection reset"),
@@ -296,7 +296,7 @@ fn map_conversation_status_error_without_exchange_error_is_generic() {
     let mut conversation = AIConversation::new(false, false);
     conversation.set_status_for_test(ConversationStatus::Error);
     assert_update(
-        map_conversation_status(&conversation),
+        map_conversation_status_to_canonical_english(&conversation),
         AgentTaskState::Error,
         None,
         Some("Agent encountered an error"),

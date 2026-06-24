@@ -11,7 +11,7 @@ use crate::terminal::local_tty::shell::is_valid_path_or_command_for_supported_sh
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::view_components::dropdown::TOP_MENU_BAR_HEIGHT;
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::{report_if_error, send_telemetry_from_ctx};
+use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 /// A view for configuring the initial shell for new sessions. This can be the
 /// user's login shell, the default installed version of zsh, bash, or fish,
@@ -93,7 +93,13 @@ impl StartupShellView {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Executable path", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.features.default_shell.executable_placeholder",
+                ),
+                ctx,
+            );
 
             if let Some(shell) = custom_shell_text.as_ref() {
                 editor.set_buffer_text(shell, ctx);

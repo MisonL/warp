@@ -29,7 +29,8 @@ use crate::ui_components::blended_colors;
 use crate::user_config::{self, WarpConfig};
 use crate::window_settings::WindowSettings;
 use crate::{
-    report_if_error, send_telemetry_from_ctx, GlobalResourceHandlesProvider, TelemetryEvent,
+    localization, report_if_error, send_telemetry_from_ctx, GlobalResourceHandlesProvider,
+    TelemetryEvent,
 };
 
 // UI does not scale, so we set a fixed size for all text.
@@ -278,7 +279,7 @@ impl SettingsImportView {
                     font_size: Some(FONT_SIZE),
                     ..Default::default()
                 })
-                .with_centered_text_label("Import".to_owned())
+                .with_centered_text_label(localization::text_for_app(app, "settings.import.import"))
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(SettingsImportAction::ImportButtonClicked);
@@ -289,7 +290,11 @@ impl SettingsImportView {
         .finish()
     }
 
-    fn render_reset_button(&self, appearance: &Appearance) -> Box<dyn warpui::Element> {
+    fn render_reset_button(
+        &self,
+        appearance: &Appearance,
+        app: &warpui::AppContext,
+    ) -> Box<dyn warpui::Element> {
         appearance
             .ui_builder()
             .button(ButtonVariant::Secondary, self.skip_button_handle.clone())
@@ -305,7 +310,10 @@ impl SettingsImportView {
                 background: Some(appearance.theme().outline().into()),
                 ..Default::default()
             })
-            .with_centered_text_label("Reset to Warp defaults".to_owned())
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "settings.import.reset_to_defaults",
+            ))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(SettingsImportAction::ResetButtonClicked);
@@ -956,7 +964,7 @@ impl View for SettingsImportView {
             State::Completed { imported_idx: None } | State::Failed => {
                 Container::new(Flex::row().finish()).finish()
             }
-            State::Completed { imported_idx: _ } => self.render_reset_button(appearance),
+            State::Completed { imported_idx: _ } => self.render_reset_button(appearance, app),
         };
 
         let config_radio_buttons = appearance
