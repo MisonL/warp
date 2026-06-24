@@ -24,6 +24,7 @@ use crate::model::{
     AiAccessChoice, NoAiConfirmationSource, OnboardingAuthState, OnboardingStateModel,
 };
 use crate::slides::{bottom_nav, layout, slide_content};
+use crate::OnboardingCopy;
 
 #[derive(Debug, Clone)]
 pub enum AiAccessSlideAction {
@@ -71,10 +72,14 @@ pub struct AiAccessSlide {
     /// line and gates "Next" on the bring-your-own path.
     byok_key_count: usize,
     byok_endpoint_count: usize,
+    copy: OnboardingCopy,
 }
 
 impl AiAccessSlide {
-    pub(crate) fn new(onboarding_state: ModelHandle<OnboardingStateModel>) -> Self {
+    pub(crate) fn new(
+        onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
+    ) -> Self {
         Self {
             onboarding_state,
             subscription_mouse_state: MouseStateHandle::default(),
@@ -91,6 +96,7 @@ impl AiAccessSlide {
             paste_token_mouse_state: MouseStateHandle::default(),
             byok_key_count: 0,
             byok_endpoint_count: 0,
+            copy,
         }
     }
 
@@ -141,7 +147,7 @@ impl AiAccessSlide {
 
         let title = appearance
             .ui_builder()
-            .paragraph("Choose how to access AI")
+            .paragraph(self.copy.text_owned("onboarding.ai_access.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -151,7 +157,7 @@ impl AiAccessSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            "Save with a recurring plan, or use your own key or endpoint.",
+            self.copy.text_owned("onboarding.ai_access.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -250,7 +256,10 @@ impl AiAccessSlide {
 
         let label = appearance
             .ui_builder()
-            .paragraph("Subscription")
+            .paragraph(
+                self.copy
+                    .text_owned("onboarding.ai_access.subscription.title"),
+            )
             .with_style(UiComponentStyles {
                 font_size: Some(16.),
                 font_weight: Some(Weight::Semibold),
@@ -264,7 +273,7 @@ impl AiAccessSlide {
             let green = theme.ansi_fg_green();
             let badge_text = appearance
                 .ui_builder()
-                .paragraph("Best value")
+                .paragraph(self.copy.text_owned("onboarding.ai_access.best_value"))
                 .with_style(UiComponentStyles {
                     font_size: Some(12.),
                     font_weight: Some(Weight::Normal),
@@ -290,8 +299,8 @@ impl AiAccessSlide {
             .finish();
 
         let description = FormattedTextElement::from_str(
-            "Starting at $18 / mo, available with monthly or annual plans. Includes base credits, \
-             frontier models, cloud agents, collaboration, and more.",
+            self.copy
+                .text_owned("onboarding.ai_access.subscription.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -304,7 +313,11 @@ impl AiAccessSlide {
         let choose_plan_button = self.choose_plan_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Choose plan".into()),
+                content: button::Content::Label(
+                    self.copy
+                        .text_owned("onboarding.ai_access.choose_plan")
+                        .into(),
+                ),
                 theme: &button::themes::Secondary,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -348,7 +361,7 @@ impl AiAccessSlide {
 
         let label = appearance
             .ui_builder()
-            .paragraph("Use my own key or endpoint")
+            .paragraph(self.copy.text_owned("onboarding.ai_access.byok.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(16.),
                 font_weight: Some(Weight::Semibold),
@@ -359,7 +372,8 @@ impl AiAccessSlide {
             .finish();
 
         let description = FormattedTextElement::from_str(
-            "Use your own API key or OpenAI-compatible endpoint with Warp for free.",
+            self.copy
+                .text_owned("onboarding.ai_access.byok.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -372,7 +386,9 @@ impl AiAccessSlide {
         let add_key_button = self.add_key_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("+ Add key".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.ai_access.add_key").into(),
+                ),
                 theme: &button::themes::Secondary,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -386,7 +402,11 @@ impl AiAccessSlide {
         let add_endpoint_button = self.add_endpoint_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("+ Add custom endpoint".into()),
+                content: button::Content::Label(
+                    self.copy
+                        .text_owned("onboarding.ai_access.add_custom_endpoint")
+                        .into(),
+                ),
                 theme: &button::themes::Secondary,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -486,7 +506,9 @@ impl AiAccessSlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -501,7 +523,9 @@ impl AiAccessSlide {
         let no_ai_button = self.no_ai_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("I don't want AI".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.no_ai.confirm").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     keystroke: Some(no_ai_keystroke),
@@ -518,7 +542,9 @@ impl AiAccessSlide {
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Next".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.next").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     disabled: !can_advance,
@@ -526,9 +552,10 @@ impl AiAccessSlide {
                     // paid plan or a configured key/endpoint.
                     tooltip: (!can_advance).then(|| button::Tooltip {
                         params: tooltip::Params {
-                            label:
-                                "Warp Agent requires a subscription or inference supplied by you"
-                                    .into(),
+                            label: self
+                                .copy
+                                .text_owned("onboarding.ai_access.tooltip.requires_inference")
+                                .into(),
                             options: tooltip::Options {
                                 keyboard_shortcut: None,
                             },
@@ -602,7 +629,7 @@ impl AiAccessSlide {
 
         let copy_url_link = ui_builder
             .link(
-                "copy the URL".into(),
+                self.copy.text_owned("onboarding.agent.auth.copy_url"),
                 None,
                 Some(Box::new(|ctx| {
                     ctx.dispatch_typed_action(AiAccessSlideAction::CopyUpgradeUrlClicked);
@@ -616,7 +643,7 @@ impl AiAccessSlide {
 
         let paste_token_link = ui_builder
             .link(
-                "Click here".into(),
+                self.copy.text_owned("onboarding.agent.auth.click_here"),
                 None,
                 Some(Box::new(|ctx| {
                     ctx.dispatch_typed_action(
@@ -636,7 +663,7 @@ impl AiAccessSlide {
             .with_child(
                 Container::new(
                     ui_builder
-                        .span("If your browser hasn't launched, ")
+                        .span(self.copy.text_owned("onboarding.agent.auth.browser_prefix"))
                         .with_style(text_styles)
                         .build()
                         .finish(),
@@ -647,7 +674,7 @@ impl AiAccessSlide {
             .with_child(copy_url_link)
             .with_child(
                 ui_builder
-                    .span(" and open the page manually. ")
+                    .span(self.copy.text_owned("onboarding.agent.auth.browser_middle"))
                     .with_style(text_styles)
                     .build()
                     .finish(),
@@ -655,7 +682,7 @@ impl AiAccessSlide {
             .with_child(paste_token_link)
             .with_child(
                 ui_builder
-                    .span(" to paste your token from the browser.")
+                    .span(self.copy.text_owned("onboarding.agent.auth.browser_suffix"))
                     .with_style(text_styles)
                     .build()
                     .finish(),

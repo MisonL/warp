@@ -23,7 +23,7 @@ use warpui_core::{
 
 use super::OnboardingSlide;
 use crate::model::OnboardingStateModel;
-use crate::OnboardingEvent;
+use crate::{OnboardingCopy, OnboardingEvent};
 
 #[derive(Clone, Debug)]
 pub enum IntroSlideEvent {
@@ -41,15 +41,20 @@ pub struct IntroSlide {
     get_started_button: button::Button,
     shimmering_title_handle: ShimmeringTextStateHandle,
     login_mouse_state: MouseStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl IntroSlide {
-    pub(crate) fn new(onboarding_state: ModelHandle<OnboardingStateModel>) -> Self {
+    pub(crate) fn new(
+        onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
+    ) -> Self {
         Self {
             onboarding_state,
             get_started_button: button::Button::default(),
             shimmering_title_handle: ShimmeringTextStateHandle::new(),
             login_mouse_state: MouseStateHandle::default(),
+            copy,
         }
     }
 }
@@ -82,7 +87,7 @@ impl View for IntroSlide {
         let login_row = Flex::row()
             .with_child(
                 ui_builder
-                    .span("Already have an account? ")
+                    .span(self.copy.text_owned("onboarding.intro.account_prompt"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -90,7 +95,7 @@ impl View for IntroSlide {
             .with_child(
                 ui_builder
                     .link(
-                        "Log in".into(),
+                        self.copy.text_owned("onboarding.intro.log_in"),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(IntroSlideAction::LoginClicked);
@@ -151,7 +156,7 @@ impl IntroSlide {
         let base_color: ColorU = internal_colors::fg_overlay_4(theme).into();
         let shimmer_color: ColorU = theme.foreground().into();
         let title = ShimmeringTextElement::new(
-            "Welcome to Warp",
+            self.copy.text_owned("onboarding.intro.title"),
             appearance.ui_font_family(),
             32.,
             base_color,
@@ -163,7 +168,7 @@ impl IntroSlide {
 
         let subtitle_color = internal_colors::text_sub(theme, theme.background().into_solid());
         let subtitle = FormattedTextElement::from_str(
-            "A modern terminal with state of the art agents built in.",
+            self.copy.text_owned("onboarding.intro.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -176,7 +181,9 @@ impl IntroSlide {
         let get_started_button = self.get_started_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Get started".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.get_started").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),

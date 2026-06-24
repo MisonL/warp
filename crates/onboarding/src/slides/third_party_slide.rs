@@ -19,7 +19,7 @@ use super::toggle_card::{render_toggle_card, ToggleCardSpec};
 use super::OnboardingSlide;
 use crate::model::{OnboardingStateEvent, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
-use crate::OnboardingIntention;
+use crate::{OnboardingCopy, OnboardingIntention};
 
 /// Which setting card is currently expanded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,11 +49,13 @@ pub struct ThirdPartySlide {
     back_button: button::Button,
     next_button: button::Button,
     scroll_state: ClippedScrollStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl ThirdPartySlide {
     pub(crate) fn new(
         onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&onboarding_state, |_me, _model, event, ctx| {
@@ -74,6 +76,7 @@ impl ThirdPartySlide {
             back_button: button::Button::default(),
             next_button: button::Button::default(),
             scroll_state: ClippedScrollStateHandle::new(),
+            copy,
         }
     }
 
@@ -137,7 +140,7 @@ impl ThirdPartySlide {
     fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let title = appearance
             .ui_builder()
-            .paragraph("Customize third party agents")
+            .paragraph(self.copy.text_owned("onboarding.third_party.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -147,7 +150,7 @@ impl ThirdPartySlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            "Select defaults for using agents like Claude Code, Codex, and Gemini.",
+            self.copy.text_owned("onboarding.third_party.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -178,11 +181,13 @@ impl ThirdPartySlide {
         let card = render_toggle_card(
             appearance,
             ToggleCardSpec {
-                title: "CLI agent toolbar",
+                title: self
+                    .copy
+                    .text_owned("onboarding.third_party.cli_agent_toolbar"),
                 is_expanded: is_selected,
                 is_left_selected: cli_toolbar_enabled,
-                left_label: "Enabled",
-                right_label: "Disabled",
+                left_label: self.copy.text_owned("onboarding.common.enabled"),
+                right_label: self.copy.text_owned("onboarding.common.disabled"),
                 card_mouse_state: self.cli_toolbar_card_mouse_state.clone(),
                 on_expand: Box::new(|ctx, _, _| {
                     ctx.dispatch_typed_action(ThirdPartySlideAction::SelectSettingCard {
@@ -226,11 +231,11 @@ impl ThirdPartySlide {
         let card = render_toggle_card(
             appearance,
             ToggleCardSpec {
-                title: "Notifications",
+                title: self.copy.text_owned("onboarding.third_party.notifications"),
                 is_expanded: is_selected,
                 is_left_selected: show_agent_notifications,
-                left_label: "Enabled",
-                right_label: "Disabled",
+                left_label: self.copy.text_owned("onboarding.common.enabled"),
+                right_label: self.copy.text_owned("onboarding.common.disabled"),
                 card_mouse_state: self.notifications_card_mouse_state.clone(),
                 on_expand: Box::new(|ctx, _, _| {
                     ctx.dispatch_typed_action(ThirdPartySlideAction::SelectSettingCard {
@@ -268,7 +273,9 @@ impl ThirdPartySlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -283,7 +290,9 @@ impl ThirdPartySlide {
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Next".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.next").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),

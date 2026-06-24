@@ -24,7 +24,7 @@ use crate::model::{OnboardingStateEvent, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::telemetry::OnboardingEvent;
 use crate::visuals::theme_picker_visual;
-use crate::OnboardingIntention;
+use crate::{OnboardingCopy, OnboardingIntention};
 
 #[derive(Debug, Clone)]
 pub enum ThemePickerSlideEvent {
@@ -72,12 +72,14 @@ pub struct ThemePickerSlide {
     back_button: button::Button,
     next_button: button::Button,
     scroll_state: ClippedScrollStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl ThemePickerSlide {
     pub(crate) fn new(
         themes: [WarpTheme; 4],
         onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let theme_options = themes.map(|theme| ThemeOption {
@@ -121,6 +123,7 @@ impl ThemePickerSlide {
             back_button: button::Button::default(),
             next_button: button::Button::default(),
             scroll_state: ClippedScrollStateHandle::new(),
+            copy,
         }
     }
 
@@ -194,7 +197,7 @@ impl ThemePickerSlide {
     fn render_header_text(&self, appearance: &Appearance) -> Box<dyn Element> {
         let title = appearance
             .ui_builder()
-            .paragraph("Choose a theme")
+            .paragraph(self.copy.text_owned("onboarding.theme.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -204,7 +207,7 @@ impl ThemePickerSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            "Click or use arrow keys to select, Enter to confirm.",
+            self.copy.text_owned("onboarding.theme.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -261,7 +264,9 @@ impl ThemePickerSlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -274,16 +279,16 @@ impl ThemePickerSlide {
 
         let theme_picker_last = FeatureFlag::OpenWarpNewSettingsModes.is_enabled();
         let next_label = if theme_picker_last {
-            "Get Warping"
+            self.copy.text("onboarding.common.get_warping")
         } else {
-            "Next"
+            self.copy.text("onboarding.common.next")
         };
 
         let enter = Keystroke::parse("enter").unwrap_or_default();
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(next_label.into()),
+                content: button::Content::Label(next_label.to_owned().into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),
@@ -532,7 +537,7 @@ impl ThemePickerSlide {
             .finish();
 
         let label = Text::new(
-            "Sync light/dark theme with OS",
+            self.copy.text_owned("onboarding.theme.sync_with_os"),
             appearance.ui_font_family(),
             14.0,
         )
@@ -576,7 +581,7 @@ impl ThemePickerSlide {
         let privacy_line = Flex::row()
             .with_child(
                 ui_builder
-                    .span("If you'd like to opt out of analytics, you can adjust your ")
+                    .span(self.copy.text_owned("onboarding.theme.privacy_prefix"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -584,7 +589,7 @@ impl ThemePickerSlide {
             .with_child(
                 ui_builder
                     .link(
-                        "Privacy Settings".into(),
+                        self.copy.text_owned("onboarding.theme.privacy_link"),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(
@@ -603,7 +608,7 @@ impl ThemePickerSlide {
         let tos_line = Flex::row()
             .with_child(
                 ui_builder
-                    .span("By continuing, you agree to Warp's ")
+                    .span(self.copy.text_owned("onboarding.theme.tos_prefix"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -611,7 +616,7 @@ impl ThemePickerSlide {
             .with_child(
                 ui_builder
                     .link(
-                        "Terms of Service".into(),
+                        self.copy.text_owned("onboarding.theme.tos_link"),
                         Some(TOS_URL.into()),
                         None,
                         self.tos_mouse_state.clone(),

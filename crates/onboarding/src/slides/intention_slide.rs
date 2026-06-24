@@ -24,7 +24,7 @@ use super::OnboardingSlide;
 use crate::model::{NoAiConfirmationSource, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::visuals::{intention_terminal_visual, intention_visual};
-use crate::{OnboardingIntention, AI_FEATURES};
+use crate::{OnboardingCopy, OnboardingIntention, AI_FEATURE_COPY_KEYS};
 
 #[derive(Debug, Clone)]
 pub enum IntentionSlideAction {
@@ -40,10 +40,14 @@ pub struct IntentionSlide {
     back_button: button::Button,
     next_button: button::Button,
     scroll_state: ClippedScrollStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl IntentionSlide {
-    pub(crate) fn new(onboarding_state: ModelHandle<OnboardingStateModel>) -> Self {
+    pub(crate) fn new(
+        onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
+    ) -> Self {
         Self {
             onboarding_state,
             agent_driven_development_mouse_state: MouseStateHandle::default(),
@@ -51,6 +55,7 @@ impl IntentionSlide {
             back_button: button::Button::default(),
             next_button: button::Button::default(),
             scroll_state: ClippedScrollStateHandle::new(),
+            copy,
         }
     }
 
@@ -83,7 +88,7 @@ impl IntentionSlide {
 
         let title = appearance
             .ui_builder()
-            .paragraph("Welcome to Warp")
+            .paragraph(self.copy.text_owned("onboarding.intention.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -93,7 +98,7 @@ impl IntentionSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            "How do you want to work?",
+            self.copy.text_owned("onboarding.intention.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -202,7 +207,7 @@ impl IntentionSlide {
         let header_row = {
             let label = appearance
                 .ui_builder()
-                .paragraph("Build faster with AI agents")
+                .paragraph(self.copy.text_owned("onboarding.intention.agent.title"))
                 .with_style(UiComponentStyles {
                     font_size: Some(16.),
                     font_weight: Some(Weight::Semibold),
@@ -240,7 +245,8 @@ impl IntentionSlide {
         };
 
         let description = FormattedTextElement::from_str(
-            "An agent-first experience with best in class terminal support. Get terminal and agent driven development AI features like:",
+            self.copy
+                .text_owned("onboarding.intention.agent.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -251,7 +257,7 @@ impl IntentionSlide {
         .finish();
 
         let checklist = {
-            let items = AI_FEATURES;
+            let items = AI_FEATURE_COPY_KEYS;
             // When the agent card is selected, use the theme's green to match the
             // "Blended ANSI/green_fg" token in the design.
             let check_fill = if is_selected {
@@ -262,14 +268,14 @@ impl IntentionSlide {
             let mut col = Flex::column()
                 .with_main_axis_size(MainAxisSize::Min)
                 .with_cross_axis_alignment(CrossAxisAlignment::Start);
-            for &item in items {
+            for &item_key in items {
                 let icon_el = ConstrainedBox::new(Icon::Check.to_warpui_icon(check_fill).finish())
                     .with_width(16.)
                     .with_height(16.)
                     .finish();
                 let text_el = appearance
                     .ui_builder()
-                    .paragraph(item.to_string())
+                    .paragraph(self.copy.text_owned(item_key))
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
                         font_weight: Some(Weight::Normal),
@@ -321,7 +327,7 @@ impl IntentionSlide {
 
         let label = appearance
             .ui_builder()
-            .paragraph("Just use the terminal")
+            .paragraph(self.copy.text_owned("onboarding.intention.terminal.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(16.),
                 font_weight: Some(Weight::Semibold),
@@ -334,7 +340,7 @@ impl IntentionSlide {
         let badge = {
             let badge_text = appearance
                 .ui_builder()
-                .paragraph("No AI features")
+                .paragraph(self.copy.text_owned("onboarding.intention.terminal.badge"))
                 .with_style(UiComponentStyles {
                     font_size: Some(12.),
                     font_weight: Some(Weight::Semibold),
@@ -360,7 +366,8 @@ impl IntentionSlide {
             .finish();
 
         let description = FormattedTextElement::from_str(
-            "A modern terminal optimized for speed, context, and control without AI.",
+            self.copy
+                .text_owned("onboarding.intention.terminal.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -388,7 +395,9 @@ impl IntentionSlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -401,15 +410,15 @@ impl IntentionSlide {
 
         let new_settings_modes = FeatureFlag::OpenWarpNewSettingsModes.is_enabled();
         let next_text = if !new_settings_modes && selected_index == 1 {
-            "Get Warping"
+            self.copy.text("onboarding.common.get_warping")
         } else {
-            "Next"
+            self.copy.text("onboarding.common.next")
         };
         let enter = Keystroke::parse("enter").unwrap_or_default();
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(next_text.into()),
+                content: button::Content::Label(next_text.to_owned().into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),

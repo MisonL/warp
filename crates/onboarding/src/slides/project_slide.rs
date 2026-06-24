@@ -24,6 +24,7 @@ use crate::model::OnboardingStateModel;
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::telemetry::OnboardingEvent;
 use crate::visuals::project_visual;
+use crate::OnboardingCopy;
 
 const LEFT_COLUMN_W: f32 = 428.;
 
@@ -66,10 +67,14 @@ pub struct ProjectSlide {
     next_button: button::Button,
     initialize_projects_automatically_mouse_state: MouseStateHandle,
     scroll_state: ClippedScrollStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl ProjectSlide {
-    pub(crate) fn new(onboarding_state: ModelHandle<OnboardingStateModel>) -> Self {
+    pub(crate) fn new(
+        onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
+    ) -> Self {
         Self {
             onboarding_state,
             open_folder_mouse_state: MouseStateHandle::default(),
@@ -77,6 +82,7 @@ impl ProjectSlide {
             next_button: button::Button::default(),
             initialize_projects_automatically_mouse_state: MouseStateHandle::default(),
             scroll_state: ClippedScrollStateHandle::new(),
+            copy,
         }
     }
 
@@ -124,7 +130,7 @@ impl ProjectSlide {
     fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let title = appearance
             .ui_builder()
-            .paragraph("Open a project")
+            .paragraph(self.copy.text_owned("onboarding.project.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -135,7 +141,7 @@ impl ProjectSlide {
 
         let subtitle = appearance
             .ui_builder()
-            .paragraph("Set up a project to optimize it for coding in Warp.")
+            .paragraph(self.copy.text_owned("onboarding.project.subtitle"))
             .with_style(UiComponentStyles {
                 font_size: Some(20.),
                 font_weight: Some(Weight::Normal),
@@ -213,7 +219,7 @@ impl ProjectSlide {
                 let folder_text = Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph("Open local folder")
+                        .paragraph(self.copy.text_owned("onboarding.project.open_local_folder"))
                         .with_style(UiComponentStyles {
                             font_color: Some(text_color),
                             ..Default::default()
@@ -280,7 +286,9 @@ impl ProjectSlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -297,15 +305,15 @@ impl ProjectSlide {
         let (label, keystroke, action) = match settings {
             ProjectOnboardingSettings::Project { .. } => (
                 if theme_picker_last {
-                    "Next"
+                    self.copy.text("onboarding.common.next")
                 } else {
-                    "Get Warping"
+                    self.copy.text("onboarding.common.get_warping")
                 },
                 Keystroke::parse("enter").unwrap_or_default(),
                 ProjectSlideAction::NextClicked,
             ),
             ProjectOnboardingSettings::NoProject => (
-                "Skip",
+                self.copy.text("onboarding.common.skip"),
                 Keystroke::parse("cmdorctrl-enter").unwrap_or_default(),
                 ProjectSlideAction::SkipClicked,
             ),
@@ -314,7 +322,7 @@ impl ProjectSlide {
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(label.into()),
+                content: button::Content::Label(label.to_owned().into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(keystroke),
