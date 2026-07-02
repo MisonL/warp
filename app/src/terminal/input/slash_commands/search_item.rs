@@ -181,14 +181,6 @@ impl SearchItem for InlineItem {
         format!("{:?}", self.action)
     }
 
-    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
-        crate::localization::text_for_app_with_args(
-            app,
-            "terminal.slash.command.a11y.label",
-            &[("name", &self.name)],
-        )
-    }
-
     fn detail_data(&self) -> Option<SearchItemDetail> {
         Some(SearchItemDetail {
             title: self.name.clone(),

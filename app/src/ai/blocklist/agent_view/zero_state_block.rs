@@ -20,8 +20,10 @@ use warpui::prelude::{
     Align, ConstrainedBox, Cursor, Empty, Hoverable, MainAxisAlignment, SavePosition,
 };
 use warpui::scene::Border;
+use warpui::ui_components::components::{UiComponent as _, UiComponentStyles};
 use warpui::{
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    Action, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext,
 };
 
 use crate::ai::active_agent_views_model::{ActiveAgentViewsModel, ConversationOrTaskId};
@@ -48,6 +50,8 @@ use crate::terminal::{self, prompt, TerminalModel};
 use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const CLOUD_AGENT_DOCS_URL: &str = "https://docs.warp.dev/agent-platform/cloud-agents/overview";
+const OZ_UPDATES_SECTION_HEADER: &str = "What's new in Oz";
+
 // The maximum number of Oz updates from the changelog rendered in-line in the 'What's new in Oz section'.
 const MAX_OZ_UPDATE_COUNT: usize = 4;
 
@@ -253,6 +257,10 @@ impl AgentViewZeroStateBlock {
                 Self::recent_conversations_for_working_directory(current_working_directory, ctx)
             })
             .unwrap_or_default();
+        let should_hide = matches!(origin, AgentViewEntryOrigin::AcceptedPassiveCodeDiff)
+            || is_local_to_cloud_handoff;
+        let is_oz_updates_expanded = !origin.is_cloud_agent()
+            && *AISettings::handle(ctx).as_ref(ctx).should_expand_oz_updates;
 
         Self {
             conversation_id,
@@ -262,13 +270,11 @@ impl AgentViewZeroStateBlock {
             terminal_model,
             current_working_directory,
             cached_recent_conversations,
-            should_hide: matches!(origin, AgentViewEntryOrigin::AcceptedPassiveCodeDiff)
-                || is_local_to_cloud_handoff,
+            should_hide,
             should_show_init_callout,
             has_parent_terminal,
             state_handles,
-            is_oz_updates_expanded: !origin.is_cloud_agent()
-                && *AISettings::handle(ctx).as_ref(ctx).should_expand_oz_updates,
+            is_oz_updates_expanded,
         }
     }
 
@@ -398,27 +404,23 @@ impl View for AgentViewZeroStateBlock {
 
         let header_props = if self.origin.is_cloud_agent() {
             HeaderProps {
-                title: localization::text_for_app(app, "agent.zero_state.cloud_title").into(),
+                title: "New Oz cloud agent conversation".into(),
                 description: AgentViewDescription::CloudModeWithDocsLink,
                 icon: Icon::OzCloud,
             }
         } else {
             let mut local_description =
-                localization::text_for_app(app, "agent.zero_state.local_description");
+                "Send a prompt below to start a new conversation".to_owned();
             let active_session = self.active_session(app);
             let location_label = active_session.as_deref().and_then(|session| {
                 format_session_location(session, self.current_working_directory.as_deref())
             });
             if let Some(location_label) = location_label {
-                local_description = localization::text_for_app(
-                    app,
-                    "agent.zero_state.local_description_with_location",
-                )
-                .replace("{location}", &format!("`{location_label}`"));
+                local_description += &format!(" in `{location_label}`");
             }
 
             HeaderProps {
-                title: localization::text_for_app(app, "agent.zero_state.local_title").into(),
+                title: "New Oz agent conversation".into(),
                 description: AgentViewDescription::PlainText(vec![local_description.into()]),
                 icon: Icon::Oz,
             }
@@ -446,7 +448,7 @@ impl View for AgentViewZeroStateBlock {
         let active_session = self.active_session(app);
         let body = render_body(
             ZeroStateBodyProps {
-                origin: self.origin,
+                origin: self.origin.clone(),
                 has_parent_terminal: self.has_parent_terminal,
                 should_show_init_callout: self.should_show_init_callout,
                 recent_conversations: &self.cached_recent_conversations,
@@ -645,7 +647,7 @@ fn render_title_and_description(props: HeaderProps, app: &AppContext) -> Vec<Box
             items.push(
                 Container::new(
                     Text::new(
-                        localization::text_for_app(app, "agent.zero_state.cloud_description"),
+                        "Run your agent task in an isolated cloud environment.",
                         appearance.ui_font_family(),
                         appearance.monospace_font_size(),
                     )
@@ -735,13 +737,14 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                 Message::new(vec![MessageItem::clickable(
                     vec![
                         MessageItem::keystroke(ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone()),
-                        MessageItem::text(localization::text_for_app(
-                            app,
-                            "agent.zero_state.shortcut.new_agent_conversation",
-                        )),
+                        MessageItem::text("start a new agent conversation"),
                     ],
                     |ctx| {
-                        ctx.dispatch_typed_action(TerminalAction::StartNewAgentConversation);
+                        ctx.dispatch_typed_action(TerminalAction::StartNewAgentConversation {
+                            origin: AgentViewEntryOrigin::Input {
+                                was_prompt_autodetected: false,
+                            },
+                        });
                     },
                     state_handles.start_new_conversation.clone(),
                 )]),
@@ -753,10 +756,7 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                         MessageItem::keystroke(
                             ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
                         ),
-                        MessageItem::text(localization::text_for_app(
-                            app,
-                            "agent.zero_state.shortcut.new_cloud_agent_conversation",
-                        )),
+                        MessageItem::text("start a new cloud agent conversation"),
                     ],
                     |ctx| {
                         ctx.dispatch_typed_action(TerminalAction::EnterCloudAgentView);
@@ -772,10 +772,7 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                             key: "/model".to_owned(),
                             ..Default::default()
                         }),
-                        MessageItem::text(localization::text_for_app(
-                            app,
-                            "agent.zero_state.shortcut.switch_model",
-                        )),
+                        MessageItem::text("switch model"),
                     ],
                     |ctx| {
                         ctx.dispatch_typed_action(TerminalAction::OpenModelSelector);
@@ -795,10 +792,7 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                             key: "escape".to_owned(),
                             ..Default::default()
                         }),
-                        MessageItem::text(localization::text_for_app(
-                            app,
-                            "agent.zero_state.shortcut.go_back_to_terminal",
-                        )),
+                        MessageItem::text("go back to terminal"),
                     ],
                     |ctx| {
                         ctx.dispatch_typed_action(TerminalAction::ExitAgentView);
@@ -895,7 +889,7 @@ fn render_recent_conversations_section(
         .with_child(
             Container::new(
                 Text::new(
-                    localization::text_for_app(app, "agent.zero_state.recent_activity"),
+                    "RECENT ACTIVITY",
                     appearance.ui_font_family(),
                     header_font_size,
                 )
@@ -1066,7 +1060,7 @@ fn render_oz_updates(props: OzUpdatesProps<'_>, app: &AppContext) -> Option<Box<
                         .with_child(
                             Container::new(
                                 Text::new(
-                                    localization::text_for_app(app, "agent.zero_state.oz_updates"),
+                                    OZ_UPDATES_SECTION_HEADER,
                                     appearance.ui_font_family(),
                                     appearance.monospace_font_size() - 2.,
                                 )
@@ -1126,10 +1120,7 @@ fn render_oz_updates(props: OzUpdatesProps<'_>, app: &AppContext) -> Option<Box<
                                 .with_child(
                                     Container::new(
                                         Text::new(
-                                            localization::text_for_app(
-                                                app,
-                                                "agent.zero_state.view_changelog",
-                                            ),
+                                            "View changelog",
                                             appearance.ui_font_family(),
                                             appearance.monospace_font_size() - 2.,
                                         )
@@ -1234,14 +1225,19 @@ fn render_oz_updates(props: OzUpdatesProps<'_>, app: &AppContext) -> Option<Box<
 }
 
 /// Renders the ambient credits banner showing free cloud credits.
-/// If `link_mouse_state` is provided, a "Launch cloud agent" link is shown.
-pub fn render_ambient_credits_banner(credits: i32, app: &AppContext) -> Box<dyn Element> {
+pub fn render_ambient_credits_banner<A>(
+    credits: i32,
+    close_button_mouse_state: MouseStateHandle,
+    dismiss_action: A,
+    app: &AppContext,
+) -> Box<dyn Element>
+where
+    A: Action + Clone + 'static,
+{
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
     let font_family = appearance.ui_font_family();
     let font_size = styles::CREDITS_BANNER_FONT_SIZE;
-
-    // Use ANSI terminal colors for the pill styling.
     let text_color = theme.terminal_colors().normal.blue;
 
     let credits_text = localization::text_for_app_with_args(
@@ -1254,8 +1250,26 @@ pub fn render_ambient_credits_banner(credits: i32, app: &AppContext) -> Box<dyn 
         .with_style(Properties::default().weight(Weight::Semibold))
         .soft_wrap(false)
         .finish();
+    let close_button = appearance
+        .ui_builder()
+        .close_button(12., close_button_mouse_state)
+        .with_style(UiComponentStyles {
+            font_color: Some(text_color.into()),
+            ..Default::default()
+        })
+        .build()
+        .on_click(move |ctx, _, _| {
+            ctx.dispatch_typed_action(dismiss_action.clone());
+        })
+        .finish();
 
-    Container::new(text)
+    let content = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_child(text)
+        .with_child(Container::new(close_button).with_margin_left(4.).finish())
+        .finish();
+
+    Container::new(content)
         .with_border(Border::all(1.).with_border_color(text_color.into()))
         .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
         .with_vertical_padding(2.)

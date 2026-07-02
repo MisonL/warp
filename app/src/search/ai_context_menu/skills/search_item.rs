@@ -9,7 +9,6 @@ use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::styles;
 use crate::search::item::SearchItem;
@@ -131,9 +130,5 @@ impl SearchItem for SkillSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Skill: {}", self.name)
-    }
-
-    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
-        localization::text_for_app_with_args(app, "search.a11y.type.skill", &[("name", &self.name)])
     }
 }

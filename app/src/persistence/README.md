@@ -1,63 +1,60 @@
-# 如何执行 migration
+# How to perform migrations
 
-## Migration 如何工作？
+## How do migrations work?
+A sqlite database is one single file on the user's computer, and instead of being a separate process, it's a set of C functions
+that are bundled in our app. When the warp app starts, we upgrade the schema to the latest version in a transaction.
+Since we don't control the machine, we need to be super careful about the migrations that we ship.
 
-sqlite 数据库是用户计算机上的单个文件。它不是一个单独进程，而是一组打包在我们应用中的 C 函数。Warp 应用启动时，我们会在一个 transaction 中将 schema 升级到最新版本。
-由于我们无法控制用户机器，因此必须对发布的 migration 极其谨慎。
+TODO: C.I. and remediation of failed migrations
 
-TODO：C.I. 和失败 migration 的修复处理
+## Step 1: One-time setup
+Make sure you have run `/script/bootstrap` at least once before. That installs our fork of
+`diesel_cli`. Our fork is an old version that [bundles](https://github.com/warpdotdev/diesel/blob/b2c58897c39c519a946314bd5b63765d3af56204/diesel_cli/Cargo.toml#L54)
+SQLite in with the `diesel_cli`. We use these version of Diesel and SQLite instead of relying on
+the versions on our machines. So do not follow the official Diesel CLI installation instructions.
 
-## 第 1 步：一次性设置
+Additionally, the `sqlite3` binary is useful in development. The one on your Macbook is ok, but
+likely will be missing some basic language features. You can grab the latest binary from the
+official website https://www.sqlite.org/download.html. Note that we use SQL language features that
+are not available on old versions of sqlite. Note that you'll have to approve it to be run in your mac system preferences.
 
-请确保之前至少运行过一次 `/script/bootstrap`。它会安装我们 fork 的 `diesel_cli`。我们的 fork 是一个旧版本，会将 SQLite [捆绑](https://github.com/warpdotdev/diesel/blob/b2c58897c39c519a946314bd5b63765d3af56204/diesel_cli/Cargo.toml#L54)进 `diesel_cli`。我们使用这些版本的 Diesel 和 SQLite，而不是依赖机器上的版本。因此不要遵循官方 Diesel CLI 安装说明。
-
-此外，`sqlite3` binary 在开发中很有用。Macbook 自带版本也可以，但很可能缺少一些基本语言特性。你可以从官方网站 https://www.sqlite.org/download.html 获取最新 binary。注意，我们使用了一些旧版 sqlite 不可用的 SQL 语言特性。还要注意，你需要在 Mac 系统偏好设置中批准它运行。
-
-## 第 2 步：编写 migration
-
+## Step 2: Write the migration
 ```
 diesel migration generate <descriptive name of your migration>
 ```
+This will create a new folder with an up.sql and down.sql.
 
-这会创建一个包含 up.sql 和 down.sql 的新文件夹。
-
-## 第 3 步：运行 migration 并生成 schema
-
+## Step 3: Run the migration + generate the schema
 ```
 cd <repo root>
 diesel migration run --database-url="/Users/$USER/Library/Application Support/dev.warp.Warp-Local/warp.sqlite"
 ```
+This will run the migration on the same warp that runs when you run the app locally. This automatically generates or updates the `crates/persistence/src/schema.rs`. We do not make manual edits to `schema.rs`.
 
-这会在你本地运行应用时使用的同一个 Warp 数据库上运行 migration。该命令会自动生成或更新 `crates/persistence/src/schema.rs`。我们不手动编辑 `schema.rs`。
-
-你也可以从已经包含该 migration 的数据库打印 schema：
-
+You can also print the schema from a database that already has the migration with:
 ```
 diesel print-schema --database-url="/Users/$USER/Library/Application Support/dev.warp.Warp-Local/warp.sqlite"
 ```
 
-## 回退/重做 migration
-
-在编写功能和切换分支时，你会需要撤销 migration 来修复数据库，并让它与旧代码兼容。迭代 schema 时，redo 也可能很有帮助。
-
+## Reverting/redo-ing migrations
+As you are writing features and changing branches, you'll want to undo migrations to fix your database and make it compatible with older code. Redo-ing can also be helpful as you are iterating on your schema.
 ```
 diesel migration revert --database-url="/Users/$USER/Library/Application Support/dev.warp.Warp-Local/warp.sqlite"
 diesel migration redo --database-url="/Users/$USER/Library/Application Support/dev.warp.Warp-Local/warp.sqlite"
 ```
 
-# Schema 风格
+# Schema style
+- We use `id` for integer primary keys. If there's something more special about the primary key, consider a more descriptive name.
+- Plural table names, singular for structs in the rust model code.
+- If there's a table `foos` and a table `bars`, and `bars` has a column with a foreign key that references `foos.id`, name it `foo_id`.
 
-- 对整数主键使用 `id`。如果主键有更特殊的含义，请考虑使用更具描述性的名称。
-- 表名使用复数；Rust model 代码中的 struct 使用单数。
-- 如果有一张 `foos` 表和一张 `bars` 表，而 `bars` 中有一个引用 `foos.id` 的外键列，请将其命名为 `foo_id`。
+# The `schema.patch` file
+The `crates/persistence/schema.patch` is manually updated by us. This file lets us make manual
+changes on top of the auto-generated `schema.rs` file produced by `diesel_cli`.
 
-# `schema.patch` 文件
+To create the `schema.patch` file, we:
+1. Run the diesel migrations
+1. Manually edit `schema.rs`
+1. Run `git diff -U6 > crates/persistence/schema.patch`.
 
-`crates/persistence/schema.patch` 由我们手动更新。该文件允许我们在 `diesel_cli` 生成的 `schema.rs` 文件之上进行手动变更。
-
-创建 `schema.patch` 文件时，我们会：
-1. 运行 diesel migration
-1. 手动编辑 `schema.rs`
-1. 运行 `git diff -U6 > crates/persistence/schema.patch`。
-
-关于该 patch 文件的更多信息，可阅读官方 [Diesel 文档](https://diesel.rs/guides/configuring-diesel-cli.html#the-patch_file-field)。
+You can read more about this patch file in the official [Diesel documentation](https://diesel.rs/guides/configuring-diesel-cli.html#the-patch_file-field).

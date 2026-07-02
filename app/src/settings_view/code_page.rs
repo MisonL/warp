@@ -109,13 +109,6 @@ impl CodeSubpage {
             Self::EditorAndCodeReview => "settings.code.subpage.editor_code_review",
         }
     }
-
-    fn search_terms(&self) -> &'static str {
-        match self {
-            Self::Indexing => "Codebase Indexing",
-            Self::EditorAndCodeReview => "Editor and Code Review",
-        }
-    }
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -329,7 +322,7 @@ impl CodeSettingsPageView {
 
         let manual_add_directory_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                localization::text_for_app(ctx, "settings.code.action.index_new_folder"),
+                code_settings_text(ctx, "settings.code.action.index_new_folder"),
                 SecondaryTheme,
             )
             .with_icon(Icon::FindAll)
@@ -373,14 +366,16 @@ impl CodeSettingsPageView {
                 Box::new(CodeReviewDiffStatsToggleWidget::default()),
                 Box::new(ProjectExplorerToggleWidget::default()),
                 Box::new(GlobalSearchToggleWidget::default()),
+                Box::new(ShowHiddenFilesToggleWidget::default()),
+                Box::new(FormatOnSaveToggleWidget::default()),
             ]);
             let categories = vec![
-                Category::new_localized(
-                    "settings.code.category.indexing",
+                Category::new(
+                    code_settings_text(ctx, "settings.code.category.indexing"),
                     codebase_indexing_widgets,
                 ),
-                Category::new_localized(
-                    "settings.code.category.editor_code_review",
+                Category::new(
+                    code_settings_text(ctx, "settings.code.category.editor_code_review"),
                     code_editor_review_widgets,
                 ),
             ];
@@ -433,7 +428,7 @@ impl CodeSettingsPageView {
             if let Some(subpage) = subpage {
                 let manual_add_directory_button = ctx.add_typed_action_view(|ctx| {
                     ActionButton::new(
-                        localization::text_for_app(ctx, "settings.code.action.index_new_folder"),
+                        code_settings_text(ctx, "settings.code.action.index_new_folder"),
                         SecondaryTheme,
                     )
                     .with_icon(Icon::FindAll)
@@ -444,7 +439,6 @@ impl CodeSettingsPageView {
                 let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
                     vec![Box::new(CodeSubpageHeaderWidget {
                         title_key: subpage.title_key(),
-                        search_terms: subpage.search_terms(),
                     })];
                 match subpage {
                     CodeSubpage::Indexing => {
@@ -466,6 +460,8 @@ impl CodeSettingsPageView {
                             Box::new(CodeReviewDiffStatsToggleWidget::default()),
                             Box::new(ProjectExplorerToggleWidget::default()),
                             Box::new(GlobalSearchToggleWidget::default()),
+                            Box::new(ShowHiddenFilesToggleWidget::default()),
+                            Box::new(FormatOnSaveToggleWidget::default()),
                         ]);
                     }
                 }
@@ -486,7 +482,7 @@ impl CodeSettingsPageView {
         if FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
             let manual_add_directory_button = ctx.add_typed_action_view(|ctx| {
                 ActionButton::new(
-                    localization::text_for_app(ctx, "settings.code.action.index_new_folder"),
+                    code_settings_text(ctx, "settings.code.action.index_new_folder"),
                     SecondaryTheme,
                 )
                 .with_icon(Icon::FindAll)
@@ -518,14 +514,16 @@ impl CodeSettingsPageView {
                 Box::new(CodeReviewDiffStatsToggleWidget::default()),
                 Box::new(ProjectExplorerToggleWidget::default()),
                 Box::new(GlobalSearchToggleWidget::default()),
+                Box::new(ShowHiddenFilesToggleWidget::default()),
+                Box::new(FormatOnSaveToggleWidget::default()),
             ]);
             let categories = vec![
-                Category::new_localized(
-                    "settings.code.category.indexing",
+                Category::new(
+                    code_settings_text(ctx, "settings.code.category.indexing"),
                     codebase_indexing_widgets,
                 ),
-                Category::new_localized(
-                    "settings.code.category.editor_code_review",
+                Category::new(
+                    code_settings_text(ctx, "settings.code.category.editor_code_review"),
                     code_editor_review_widgets,
                 ),
             ];
@@ -533,7 +531,7 @@ impl CodeSettingsPageView {
         } else {
             let manual_add_directory_button = ctx.add_typed_action_view(|ctx| {
                 ActionButton::new(
-                    localization::text_for_app(ctx, "settings.code.action.index_new_folder"),
+                    code_settings_text(ctx, "settings.code.action.index_new_folder"),
                     SecondaryTheme,
                 )
                 .with_icon(Icon::FindAll)
@@ -646,6 +644,8 @@ pub enum CodeSettingsPageAction {
     ToggleAutoOpenCodeReviewPane,
     ToggleProjectExplorer,
     ToggleGlobalSearch,
+    ToggleShowHiddenFiles,
+    ToggleFormatOnSave,
     /// Install (if needed) and enable a suggested LSP server.
     InstallAndEnableLspServer {
         workspace_path: PathBuf,
@@ -846,6 +846,18 @@ impl TypedActionView for CodeSettingsPageView {
                 });
                 ctx.notify();
             }
+            CodeSettingsPageAction::ToggleShowHiddenFiles => {
+                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.show_hidden_files.toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
+            CodeSettingsPageAction::ToggleFormatOnSave => {
+                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.format_on_save.toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
             CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane => {
                 GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings
@@ -933,9 +945,8 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 ) {
     if FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-            vec![ToggleSettingActionPair::new_localized(
-                app,
-                "settings.code.codebase_indexing.label",
+            vec![ToggleSettingActionPair::new(
+                "codebase index",
                 builder(SettingsAction::Code(
                     CodeSettingsPageAction::ToggleCodebaseContext,
                 )),
@@ -946,9 +957,8 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         );
 
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
-            vec![ToggleSettingActionPair::new_localized(
-                app,
-                "settings.code.auto_index.label",
+            vec![ToggleSettingActionPair::new(
+                "auto-indexing",
                 builder(SettingsAction::Code(
                     CodeSettingsPageAction::ToggleAutoIndexing,
                 )),
@@ -962,50 +972,53 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     if FeatureFlag::OpenWarpNewSettingsModes.is_enabled() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.code.editor.auto_open_code_review_panel.label",
+                ToggleSettingActionPair::new(
+                    "auto open code review panel",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane,
                     )),
                     context,
                     flags::AUTO_OPEN_CODE_REVIEW_PANE_FLAG,
                 ),
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.code.editor.show_code_review_button.label",
+                ToggleSettingActionPair::new(
+                    "code review button",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleCodeReviewPanel,
                     )),
                     context,
                     flags::SHOW_CODE_REVIEW_BUTTON_FLAG,
                 ),
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.code.editor.show_diff_stats.label",
+                ToggleSettingActionPair::new(
+                    "diff stats on code review button",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleShowCodeReviewDiffStats,
                     )),
                     context,
                     flags::SHOW_CODE_REVIEW_DIFF_STATS_FLAG,
                 ),
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.code.editor.project_explorer.label",
+                ToggleSettingActionPair::new(
+                    "project explorer",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleProjectExplorer,
                     )),
                     context,
                     flags::SHOW_PROJECT_EXPLORER,
                 ),
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.code.editor.global_file_search.label",
+                ToggleSettingActionPair::new(
+                    "global file search",
                     builder(SettingsAction::Code(
                         CodeSettingsPageAction::ToggleGlobalSearch,
                     )),
                     context,
                     flags::SHOW_GLOBAL_SEARCH,
+                ),
+                ToggleSettingActionPair::new(
+                    "show hidden files in project explorer",
+                    builder(SettingsAction::Code(
+                        CodeSettingsPageAction::ToggleShowHiddenFiles,
+                    )),
+                    context,
+                    flags::SHOW_HIDDEN_FILES,
                 ),
             ],
             app,
@@ -1119,7 +1132,7 @@ impl CodePageWidget {
         {
             rows.push(self.render_settings_subtext(
                 false,
-                localization::text_for_app(app, "settings.code.auto_index.limit_reached"),
+                code_settings_text(app, "settings.code.auto_index.limit_reached"),
                 appearance,
             ));
         }
@@ -1134,7 +1147,7 @@ impl CodePageWidget {
 
     fn render_autoindex_row(
         &self,
-        label: impl Into<Cow<'static, str>>,
+        label: String,
         switch_state: SwitchStateHandle,
         auto_indexing_enabled: bool,
         action: CodeSettingsPageAction,
@@ -1149,7 +1162,7 @@ impl CodePageWidget {
                 .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                 .with_child(
                     ui_builder
-                        .span(label.into().into_owned())
+                        .span(label)
                         .with_style(UiComponentStyles {
                             font_size: Some(16.0),
                             font_weight: Some(Weight::Semibold),
@@ -1183,7 +1196,7 @@ impl CodePageWidget {
     fn render_settings_subtext(
         &self,
         _active: bool,
-        description: impl Into<Cow<'static, str>>,
+        description: String,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
@@ -1191,7 +1204,7 @@ impl CodePageWidget {
 
         // Per Figma: subtext uses disabled_ui_text_color (#9b9b9b)
         ui_builder
-            .paragraph(description.into().into_owned())
+            .paragraph(description)
             .with_style(UiComponentStyles {
                 font_color: Some(theme.disabled_ui_text_color().into()),
                 ..Default::default()
@@ -1734,7 +1747,7 @@ impl CodePageWidget {
         let mut column = Flex::column().with_spacing(SUB_SECTION_MARGIN);
         column.add_child(
             ui_builder
-                .span(localization::text_for_app(
+                .span(code_settings_text(
                     app,
                     "settings.code.indexing.subsection.indexing",
                 ))
@@ -1777,7 +1790,7 @@ impl CodePageWidget {
         let theme = appearance.theme();
         let Some(index_state) = index_state else {
             return IndexingStatusPresentation {
-                text: Cow::from(localization::text_for_app(
+                text: Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.no_index_created",
                 )),
@@ -1791,24 +1804,26 @@ impl CodePageWidget {
         if index_state.has_pending() {
             let text = match index_state.sync_progress() {
                 Some(SyncProgress::Discovering { total_nodes }) => {
-                    Cow::from(localization::text_for_app_with_args(
+                    let value = total_nodes.to_string();
+                    Cow::Owned(localization::text_for_app_with_args(
                         app,
                         "settings.code.indexing.status.discovered",
-                        &[("value", &total_nodes.to_string())],
+                        &[("value", &value)],
                     ))
                 }
                 Some(SyncProgress::Syncing {
                     completed_nodes,
                     total_nodes,
-                }) => Cow::from(localization::text_for_app_with_args(
-                    app,
-                    "settings.code.indexing.status.syncing_progress",
-                    &[
-                        ("completed", &completed_nodes.to_string()),
-                        ("total", &total_nodes.to_string()),
-                    ],
-                )),
-                None => Cow::from(localization::text_for_app(
+                }) => {
+                    let completed = completed_nodes.to_string();
+                    let total = total_nodes.to_string();
+                    Cow::Owned(localization::text_for_app_with_args(
+                        app,
+                        "settings.code.indexing.status.syncing_progress",
+                        &[("completed", &completed), ("total", &total)],
+                    ))
+                }
+                None => Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.syncing",
                 )),
@@ -1826,7 +1841,7 @@ impl CodePageWidget {
         if let Some(completed_successfully) = index_state.last_sync_successful() {
             let (text, color, icon) = if completed_successfully {
                 (
-                    localization::text_for_app(app, "settings.code.indexing.status.synced"),
+                    code_settings_text(app, "settings.code.indexing.status.synced"),
                     theme.ansi_fg_green(),
                     Icon::Check,
                 )
@@ -1836,26 +1851,26 @@ impl CodePageWidget {
             )) = index_state.last_sync_result()
             {
                 (
-                    localization::text_for_app(app, "settings.code.indexing.status.too_large"),
+                    code_settings_text(app, "settings.code.indexing.status.too_large"),
                     theme.ui_warning_color(),
                     Icon::AlertTriangle,
                 )
             } else if index_state.has_synced_version() {
                 (
-                    localization::text_for_app(app, "settings.code.indexing.status.stale"),
+                    code_settings_text(app, "settings.code.indexing.status.stale"),
                     theme.nonactive_ui_detail().into_solid(),
                     Icon::ClockRefresh,
                 )
             } else {
                 (
-                    localization::text_for_app(app, "settings.code.indexing.status.failed"),
+                    code_settings_text(app, "settings.code.indexing.status.failed"),
                     theme.ui_error_color(),
                     Icon::AlertTriangle,
                 )
             };
 
             return IndexingStatusPresentation {
-                text: Cow::from(text),
+                text: Cow::Owned(text),
                 color,
                 icon: Some(icon),
                 refresh_action: Some(IndexingRefreshAction::Resync),
@@ -1865,7 +1880,7 @@ impl CodePageWidget {
 
         log::warn!("No index state for codebase");
         IndexingStatusPresentation {
-            text: Cow::from(localization::text_for_app(
+            text: Cow::Owned(code_settings_text(
                 app,
                 "settings.code.indexing.status.not_built",
             )),
@@ -1887,7 +1902,7 @@ impl CodePageWidget {
 
         match status.state {
             RemoteCodebaseIndexState::NotEnabled => IndexingStatusPresentation {
-                text: Cow::from(localization::text_for_app(
+                text: Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.no_index_created",
                 )),
@@ -1899,13 +1914,10 @@ impl CodePageWidget {
             RemoteCodebaseIndexState::Unavailable => {
                 let limit_reached = remote_codebase_index_limit_reached(status);
                 IndexingStatusPresentation {
-                    text: Cow::from(if limit_reached {
-                        localization::text_for_app(
-                            app,
-                            "settings.code.indexing.status.limit_reached",
-                        )
+                    text: Cow::Owned(if limit_reached {
+                        code_settings_text(app, "settings.code.indexing.status.limit_reached")
                     } else {
-                        localization::text_for_app(app, "settings.code.indexing.status.unavailable")
+                        code_settings_text(app, "settings.code.indexing.status.unavailable")
                     }),
                     color: if limit_reached {
                         theme.ui_warning_color()
@@ -1922,7 +1934,7 @@ impl CodePageWidget {
                 }
             }
             RemoteCodebaseIndexState::Disabled => IndexingStatusPresentation {
-                text: Cow::from(localization::text_for_app(
+                text: Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.disabled",
                 )),
@@ -1932,7 +1944,7 @@ impl CodePageWidget {
                 show_delete: true,
             },
             RemoteCodebaseIndexState::Queued => IndexingStatusPresentation {
-                text: Cow::from(localization::text_for_app(
+                text: Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.queued",
                 )),
@@ -1944,26 +1956,32 @@ impl CodePageWidget {
             RemoteCodebaseIndexState::Indexing => {
                 let text = match (status.progress_completed, status.progress_total) {
                     (Some(completed), Some(total)) => {
-                        Cow::from(localization::text_for_app_with_args(
+                        let completed = completed.to_string();
+                        let total = total.to_string();
+                        Cow::Owned(localization::text_for_app_with_args(
                             app,
                             "settings.code.indexing.status.indexing_progress",
-                            &[
-                                ("completed", &completed.to_string()),
-                                ("total", &total.to_string()),
-                            ],
+                            &[("completed", &completed), ("total", &total)],
                         ))
                     }
-                    (Some(completed), None) => Cow::from(localization::text_for_app_with_args(
-                        app,
-                        "settings.code.indexing.status.indexing_completed",
-                        &[("completed", &completed.to_string())],
-                    )),
-                    (None, Some(total)) => Cow::from(localization::text_for_app_with_args(
-                        app,
-                        "settings.code.indexing.status.indexing_progress",
-                        &[("completed", "0"), ("total", &total.to_string())],
-                    )),
-                    (None, None) => Cow::from(localization::text_for_app(
+                    (Some(completed), None) => {
+                        let completed = completed.to_string();
+                        Cow::Owned(localization::text_for_app_with_args(
+                            app,
+                            "settings.code.indexing.status.indexing_completed",
+                            &[("completed", &completed)],
+                        ))
+                    }
+                    (None, Some(total)) => {
+                        let completed = "0".to_string();
+                        let total = total.to_string();
+                        Cow::Owned(localization::text_for_app_with_args(
+                            app,
+                            "settings.code.indexing.status.indexing_progress",
+                            &[("completed", &completed), ("total", &total)],
+                        ))
+                    }
+                    (None, None) => Cow::Owned(code_settings_text(
                         app,
                         "settings.code.indexing.status.indexing",
                     )),
@@ -1978,7 +1996,7 @@ impl CodePageWidget {
                 }
             }
             RemoteCodebaseIndexState::Ready => IndexingStatusPresentation {
-                text: Cow::from(localization::text_for_app(
+                text: Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.synced",
                 )),
@@ -1988,7 +2006,7 @@ impl CodePageWidget {
                 show_delete: true,
             },
             RemoteCodebaseIndexState::Stale => IndexingStatusPresentation {
-                text: Cow::from(localization::text_for_app(
+                text: Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.stale",
                 )),
@@ -1998,7 +2016,7 @@ impl CodePageWidget {
                 show_delete: true,
             },
             RemoteCodebaseIndexState::Failed => IndexingStatusPresentation {
-                text: Cow::from(localization::text_for_app(
+                text: Cow::Owned(code_settings_text(
                     app,
                     "settings.code.indexing.status.failed",
                 )),
@@ -2468,7 +2486,7 @@ impl CodePageWidget {
                         background: Some(theme.surface_3().into()),
                         ..Default::default()
                     })
-                    .with_text_label(code_settings_text(
+                    .with_text_label(localization::text_for_app(
                         app,
                         "settings.code.lsp.action.restart_server",
                     ))
@@ -2502,7 +2520,7 @@ impl CodePageWidget {
                         font_size: Some(12.),
                         ..Default::default()
                     })
-                    .with_text_label(code_settings_text(
+                    .with_text_label(localization::text_for_app(
                         app,
                         "settings.code.lsp.action.view_logs",
                     ))
@@ -2592,14 +2610,13 @@ impl CodePageWidget {
 /// A simple widget that renders a subheader title for a Code subpage.
 struct CodeSubpageHeaderWidget {
     title_key: &'static str,
-    search_terms: &'static str,
 }
 
 impl SettingsWidget for CodeSubpageHeaderWidget {
     type View = CodeSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        self.search_terms
+        self.title_key
     }
 
     fn render(
@@ -2716,7 +2733,7 @@ impl SettingsWidget for CodebaseIndexingCategorizedWidget {
             if !CodebaseIndexManager::as_ref(app).can_create_new_indices() {
                 content.add_child(
                     ui_builder
-                        .paragraph(localization::text_for_app(
+                        .paragraph(code_settings_text(
                             app,
                             "settings.code.auto_index.limit_reached",
                         ))
@@ -3029,6 +3046,92 @@ impl SettingsWidget for GlobalSearchToggleWidget {
             Some(code_settings_text(
                 app,
                 "settings.code.editor.global_file_search.description",
+            )),
+        )
+    }
+}
+
+#[derive(Default)]
+struct ShowHiddenFilesToggleWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for ShowHiddenFilesToggleWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "show hidden files dotfiles project explorer file tree"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let code_settings = CodeSettings::as_ref(app);
+
+        render_body_item::<CodeSettingsPageAction>(
+            code_settings_text(app, "settings.code.editor.show_hidden_files.label"),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*code_settings.show_hidden_files)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(CodeSettingsPageAction::ToggleShowHiddenFiles);
+                })
+                .finish(),
+            Some(code_settings_text(
+                app,
+                "settings.code.editor.show_hidden_files.description",
+            )),
+        )
+    }
+}
+
+#[derive(Default)]
+struct FormatOnSaveToggleWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for FormatOnSaveToggleWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "format on save lsp language server formatting reformat editor"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let code_settings = CodeSettings::as_ref(app);
+
+        render_body_item::<CodeSettingsPageAction>(
+            code_settings_text(app, "settings.code.editor.format_on_save.label"),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*code_settings.format_on_save)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(CodeSettingsPageAction::ToggleFormatOnSave);
+                })
+                .finish(),
+            Some(code_settings_text(
+                app,
+                "settings.code.editor.format_on_save.description",
             )),
         )
     }

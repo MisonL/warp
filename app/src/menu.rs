@@ -28,7 +28,6 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::safe_triangle::SafeTriangle;
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::icon_button_with_color;
@@ -474,7 +473,6 @@ pub struct MenuItemFields<A: Action + Clone> {
     /// [`MenuItemLabel::Text`] labels — multiline/stacked/labeled/icon/custom
     /// variants ignore this field.
     clip_config: Option<ClipConfig>,
-    save_position_id: Option<String>,
 }
 
 impl<A: Action + Clone> std::fmt::Debug for MenuItemFields<A> {
@@ -516,7 +514,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
-            save_position_id: None,
         }
     }
 
@@ -547,7 +544,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
-            save_position_id: None,
         }
     }
 
@@ -581,7 +577,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
-            save_position_id: None,
         }
     }
 
@@ -618,7 +613,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
-            save_position_id: None,
         }
     }
 
@@ -653,7 +647,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
-            save_position_id: None,
         }
     }
 
@@ -687,7 +680,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
-            save_position_id: None,
         }
     }
 
@@ -718,15 +710,14 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: None,
             icon_size_override: None,
             clip_config: None,
-            save_position_id: None,
         }
     }
 
-    pub fn toggle_pane_action(is_maximized: bool, app: &AppContext) -> Self {
+    pub fn toggle_pane_action(is_maximized: bool) -> Self {
         Self::new(if is_maximized {
-            localization::text_for_app(app, "terminal.menu.minimize_pane")
+            "Minimize pane"
         } else {
-            localization::text_for_app(app, "terminal.menu.maximize_pane")
+            "Maximize pane"
         })
     }
 
@@ -771,7 +762,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
             override_hover_background_color: self.override_hover_background_color,
             icon_size_override: self.icon_size_override,
             clip_config: self.clip_config,
-            save_position_id: self.save_position_id,
         }
     }
 
@@ -885,11 +875,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
         self
     }
 
-    pub fn with_save_position_id(mut self, save_position_id: impl Into<String>) -> Self {
-        self.save_position_id = Some(save_position_id.into());
-        self
-    }
-
     pub(crate) fn with_tooltip_position(mut self, position: MenuTooltipPosition) -> Self {
         self.tooltip_position = position;
         self
@@ -944,13 +929,6 @@ impl<A: Action + Clone> MenuItemFields<A> {
 
     pub fn label(&self) -> &str {
         self.element.label().unwrap_or_default()
-    }
-
-    pub fn save_position_id(&self) -> &str {
-        match &self.save_position_id {
-            Some(save_position_id) => save_position_id,
-            None => self.label(),
-        }
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -1483,7 +1461,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 .finish();
         }
 
-        SavePosition::new(element, self.save_position_id()).finish()
+        SavePosition::new(element, self.label()).finish()
     }
 }
 
@@ -1506,7 +1484,7 @@ pub enum MenuItem<A: Action + Clone = ()> {
     Header {
         fields: MenuItemFields<A>,
         clickable: bool,
-        right_side_fields: Option<Box<MenuItemFields<A>>>,
+        right_side_fields: Option<MenuItemFields<A>>,
     },
 }
 
@@ -1662,7 +1640,7 @@ impl<A: Action + Clone> MenuItem<A> {
                 right_side_fields,
             } => {
                 let mut fields = fields.clone();
-                let mut right_side_fields = right_side_fields.as_deref().cloned();
+                let mut right_side_fields = right_side_fields.clone();
                 if !*clickable {
                     fields = fields.with_no_interaction_on_hover();
                     right_side_fields =
@@ -2558,7 +2536,7 @@ impl<A: Action + Clone> SubMenu<A> {
     fn action_accessibility_contents(
         &mut self,
         action: &MenuAction,
-        ctx: &mut ViewContext<Menu<A>>,
+        _: &mut ViewContext<Menu<A>>,
     ) -> ActionAccessibilityContent {
         use ActionAccessibilityContent::*;
         use MenuAction::*;
@@ -2587,9 +2565,9 @@ impl<A: Action + Clone> SubMenu<A> {
 
                 let instructions = if matches!(self.selected_item(), Some(MenuItem::Submenu { .. }))
                 {
-                    localization::text_for_app(ctx, "menu.a11y.instructions.submenu")
+                    "Press the up key or the down key to select a menu item. Press the right key to open the submenu"
                 } else {
-                    localization::text_for_app(ctx, "menu.a11y.instructions.default")
+                    "Press the up key or the down key to select a menu item"
                 };
 
                 Custom(AccessibilityContent::new(
@@ -2599,23 +2577,23 @@ impl<A: Action + Clone> SubMenu<A> {
                 ))
             }
             OpenSubmenu => Custom(AccessibilityContent::new(
-                localization::text_for_app(ctx, "menu.a11y.submenu_expanded"),
-                localization::text_for_app(ctx, "menu.a11y.open_submenu_help"),
+                String::from("Submenu Expanded"),
+                "Press the right key to open the selected submenu",
                 WarpA11yRole::TextRole,
             )),
             CloseSubmenu(_) => Custom(AccessibilityContent::new(
-                localization::text_for_app(ctx, "menu.a11y.submenu_closed"),
-                localization::text_for_app(ctx, "menu.a11y.close_submenu_help"),
+                String::from("Submenu Closed"),
+                "Removing focus from a submenu will close the submenu",
                 WarpA11yRole::TextRole,
             )),
             Close(_) => Custom(AccessibilityContent::new(
-                localization::text_for_app(ctx, "menu.a11y.menu_closed"),
-                localization::text_for_app(ctx, "menu.a11y.close_menu_help"),
+                String::from("Menu Closed"),
+                "Press the escape key to close the menu",
                 WarpA11yRole::TextRole,
             )),
             Enter => Custom(AccessibilityContent::new(
-                localization::text_for_app(ctx, "menu.a11y.action_selected"),
-                localization::text_for_app(ctx, "menu.a11y.action_selected_help"),
+                String::from("Action Selected"),
+                "Press the enter key to execute the selected menu item action",
                 WarpA11yRole::TextRole,
             )),
             HoverSubmenuLeafNode { .. }

@@ -47,8 +47,8 @@ use crate::workspace::{
     WorkspaceRegistry,
 };
 use crate::{
-    localization, quake_mode_window_id, quake_mode_window_is_open, safe_info,
-    send_telemetry_from_app_ctx, ChannelState, OpenPath,
+    quake_mode_window_id, quake_mode_window_is_open, safe_info, send_telemetry_from_app_ctx,
+    ChannelState, OpenPath,
 };
 
 const DESKTOP_REDIRECT_URI_PATH: &str = "/desktop_redirect";
@@ -343,6 +343,7 @@ impl UriHost {
                 // - warp://settings/mcp - opens MCP servers settings page
                 // - warp://settings/platform - opens platform settings page
                 // - warp://settings/appearance - opens appearance settings page (themes, fonts, etc.)
+                // - warp://settings/warp_agent - opens the Warp Agent settings page (inference / API keys)
                 let settings_sub_page: Option<String> = url
                     .path_segments()
                     .into_iter()
@@ -361,15 +362,6 @@ impl UriHost {
                                 "root_view:open_team_settings_with_email_invite_in_existing_window",
                                 "root_view:open_team_settings_with_email_invite_in_new_window",
                                 &args,
-                                ctx,
-                            );
-                        }
-                        "billing_and_usage" => {
-                            dispatch_action_in_new_or_existing_window(
-                                primary_window_id,
-                                "root_view:open_settings_page_in_existing_window",
-                                "root_view:open_settings_page_in_new_window",
-                                &SettingsSection::BillingAndUsage,
                                 ctx,
                             );
                         }
@@ -407,26 +399,21 @@ impl UriHost {
                                 ctx,
                             );
                         }
-                        "platform" => {
-                            dispatch_action_in_new_or_existing_window(
-                                primary_window_id,
-                                "root_view:open_settings_page_in_existing_window",
-                                "root_view:open_settings_page_in_new_window",
-                                &SettingsSection::OzCloudAPIKeys,
-                                ctx,
-                            );
-                        }
-                        "appearance" => {
-                            dispatch_action_in_new_or_existing_window(
-                                primary_window_id,
-                                "root_view:open_settings_page_in_existing_window",
-                                "root_view:open_settings_page_in_new_window",
-                                &SettingsSection::Appearance,
-                                ctx,
-                            );
-                        }
-                        _ => {
-                            log::warn!("Failed to open settings pane with uri={url}");
+                        // Subpages that open a settings section directly with no extra
+                        // parameters (e.g. billing_and_usage, platform, appearance,
+                        // warp_agent) are resolved via `settings_section_for_simple_subpage`.
+                        other => {
+                            if let Some(section) = settings_section_for_simple_subpage(other) {
+                                dispatch_action_in_new_or_existing_window(
+                                    primary_window_id,
+                                    "root_view:open_settings_page_in_existing_window",
+                                    "root_view:open_settings_page_in_new_window",
+                                    &section,
+                                    ctx,
+                                );
+                            } else {
+                                log::warn!("Failed to open settings pane with uri={url}");
+                            }
                         }
                     }
                 } else {
@@ -603,10 +590,7 @@ impl WindowBehaviorHint {
 enum WindowActivationFallbackBehavior {
     /// If the primary window picked to handle the URL is not the active one, send a native push
     /// notification.
-    Notify {
-        title_key: &'static str,
-        description_key: &'static str,
-    },
+    Notify { title: String, description: String },
     /// Create a new window to handle the URI.
     NewWindow {
         /// Close the former "primary window" as determined by [`get_primary_window`]. This should
@@ -623,10 +607,7 @@ impl WindowActivationFallbackBehavior {
     #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
     fn resolve(self, primary_window_id: WindowId, ctx: &mut AppContext) -> Option<WindowId> {
         match self {
-            WindowActivationFallbackBehavior::Notify {
-                title_key,
-                description_key,
-            } => {
+            WindowActivationFallbackBehavior::Notify { title, description } => {
                 if ctx
                     .windows()
                     .active_window()
@@ -640,8 +621,6 @@ impl WindowActivationFallbackBehavior {
                     .map(|mut views| views.swap_remove(0))
                 {
                     view_handle.update(ctx, |_, ctx| {
-                        let title = localization::text_for_app(ctx, title_key);
-                        let description = localization::text_for_app(ctx, description_key);
                         ctx.send_desktop_notification(
                             UserNotification::new(title, description, None),
                             |_, err, ctx| {
@@ -952,9 +931,9 @@ impl Action {
                 if let Err(err) = open_docker_container(url, ctx) {
                     if let Some(window_id) = primary_window_id {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                            let toast = DismissibleToast::error(localization::text_for_app(
+                            let toast = DismissibleToast::error(crate::localization::text_for_app(
                                 ctx,
-                                "uri.toast.custom_invalid",
+                                "uri.error.custom_uri_invalid",
                             ));
                             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                         });
@@ -1155,8 +1134,8 @@ impl Action {
             | Self::FocusCloudMode
             | Self::AutoHandoffToCloud { .. } => W::default(),
             Self::NewTab => W::ShowPrimaryWindow(WindowActivationFallbackBehavior::Notify {
-                title_key: "uri.notification.new_tab_created.title",
-                description_key: "uri.notification.new_tab_created.description",
+                title: "New tab created".to_owned(),
+                description: "Go to Warp to see your new tab.".to_owned(),
             }),
             Self::NewWindow => W::Nothing,
         }
@@ -1166,13 +1145,8 @@ impl Action {
 /// Handles all incoming urls. These urls are file urls, auth urls for login,
 /// and team urls for opening team settings.
 pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
-    // Non-dogfood builds must never log the full URL here: URLs routed to this
-    // handler can carry secrets in their query string (for example, the
-    // Firebase `refresh_token` on `warp://auth/desktop_redirect?...`). Log
-    // only the non-sensitive components (scheme, host, path) on release
-    // channels; dogfood builds retain the full URL for local debugging.
     safe_info!(
-        safe: ("received url {}", safe_url_log_fields(url)),
+        safe: ("received url"),
         full: ("received url {:?}", &url)
     );
 
@@ -1201,10 +1175,13 @@ pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
         Err(e) => {
             if let Some(window_id) = primary_window_id {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let message =
-                        localization::text_for_app(ctx, "uri.toast.custom_invalid_with_error")
-                            .replace("{error}", &format!("{e:?}"));
-                    let toast = DismissibleToast::error(message);
+                    let error = format!("{e:?}");
+                    let toast =
+                        DismissibleToast::error(crate::localization::text_for_app_with_args(
+                            ctx,
+                            "uri.toast.custom_invalid_with_error",
+                            &[("error", error.as_str())],
+                        ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
             }
@@ -1600,6 +1577,16 @@ fn dispatch_action_in_new_or_existing_window<T: 'static>(
     }
 }
 
+fn settings_section_for_simple_subpage(subpage: &str) -> Option<SettingsSection> {
+    match subpage {
+        "billing_and_usage" => Some(SettingsSection::BillingAndUsage),
+        "platform" => Some(SettingsSection::OzCloudAPIKeys),
+        "appearance" => Some(SettingsSection::Appearance),
+        "warp_agent" => Some(SettingsSection::WarpAgent),
+        _ => None,
+    }
+}
+
 /// Validates an incoming custom URI for security and returns the host.
 fn validate_custom_uri(url: &Url) -> Result<UriHost> {
     // For now the only scheme we support is `[scheme_name]://[host_str]/...
@@ -1642,28 +1629,6 @@ fn validate_custom_uri(url: &Url) -> Result<UriHost> {
     );
 
     Ok(host)
-}
-
-/// Formats the non-sensitive components of an incoming URL for logging on
-/// release channels.
-///
-/// The returned string contains only the URL's scheme, host, and path — never
-/// its query string, fragment, or userinfo component. URLs that reach
-/// [`handle_incoming_uri`] can carry secrets in their query (for example, the
-/// Firebase refresh token in `warp://auth/desktop_redirect?refresh_token=...`),
-/// so this helper exists to give [`safe_info!`] a redacted representation that
-/// still preserves enough signal for triage.
-///
-/// `url.host_str()` can return `None` for schemes that don't require a host
-/// (e.g. some `file://` URLs on certain platforms); the literal `-` is used
-/// as a placeholder in that case so the formatter never panics.
-fn safe_url_log_fields(url: &Url) -> String {
-    format!(
-        "scheme={} host={} path={}",
-        url.scheme(),
-        url.host_str().unwrap_or("-"),
-        url.path(),
-    )
 }
 
 fn decode_uuid_hex(hex: &str) -> Option<Vec<u8>> {

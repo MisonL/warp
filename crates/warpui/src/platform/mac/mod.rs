@@ -15,7 +15,7 @@ mod text_layout;
 pub mod utils;
 mod window;
 
-pub use app::{rebuild_native_menus, App, AppExt};
+pub use app::{App, AppExt};
 use clipboard::*;
 use cocoa::base::{id, nil};
 use cocoa::foundation::NSAutoreleasePool;
@@ -27,6 +27,10 @@ use objc2::rc::Retained;
 use objc2_foundation::NSString;
 pub use rendering::is_low_power_gpu_available;
 pub use window::{Window, WindowExt};
+
+pub fn refresh_localized_menus() {
+    app::refresh_localized_menus();
+}
 
 /// Create an autoreleased NSString from a string reference.
 pub fn make_nsstring<S>(s: S) -> id

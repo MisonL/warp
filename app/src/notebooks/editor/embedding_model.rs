@@ -31,7 +31,6 @@ use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::CloudObject;
 use crate::completer::SessionAgnosticContext;
-use crate::localization;
 use crate::notebooks::styles::block_footer_action_button;
 use crate::notebooks::telemetry::{ActionEntrypoint, BlockInfo};
 use crate::server::ids::{HashableId, ToServerId};
@@ -228,7 +227,7 @@ impl NotebookEmbed {
                     appearance,
                     Icon::Pencil,
                     self.mouse_state_handles.edit_button_state.clone(),
-                    text(ctx, "notebook.code_block.action.edit"),
+                    crate::localization::text_for_app(ctx, "notebook.code_block.action.edit"),
                     None,
                 )
                 .on_click(move |ctx, _, _| {
@@ -246,7 +245,7 @@ impl NotebookEmbed {
                     appearance,
                     Icon::Copy,
                     self.mouse_state_handles.copy_button_state.clone(),
-                    text(ctx, "notebook.code_block.action.copy"),
+                    "Copy",
                     custom_action_to_display(CustomAction::Copy),
                 )
                 .on_click(move |ctx, _, _| {
@@ -268,7 +267,7 @@ impl NotebookEmbed {
                     appearance,
                     Icon::TerminalInput,
                     self.mouse_state_handles.insert_button_state.clone(),
-                    text(ctx, "notebook.code_block.action.run_in_terminal"),
+                    "Run in terminal",
                     NotebookKeybindings::as_ref(ctx).run_commands_keybinding(),
                 )
                 .on_click(move |ctx, _, _| {
@@ -319,7 +318,7 @@ impl EmbeddedItemModel for NotebookEmbed {
                             .remove_embedding_button_state
                             .clone(),
                     )
-                    .with_text_label(text(ctx, "code_review.comments.remove"))
+                    .with_text_label(crate::localization::text_for_app(ctx, "drive.menu.remove"))
                     .build()
                     .with_cursor(Cursor::Arrow)
                     .on_click(move |ctx, _, _| {
@@ -378,8 +377,4 @@ impl ChildModelHandle for ModelHandle<NotebookEmbed> {
     fn clone_boxed(&self) -> Box<dyn ChildModelHandle> {
         Box::new(self.clone())
     }
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }

@@ -1,91 +1,91 @@
 ---
 name: warp-integration-test
-description: 使用 `crates/integration` 中的自定义 Builder/TestStep framework 编写、运行并调试 Warp integration tests。添加新的 integration test、修复失败的 integration test、将测试接入 manual runner 或 nextest suite，或验证 Warp 中端到端 UI 与 terminal 行为时使用。
+description: Writes, runs, and debugs Warp integration tests using the custom Builder/TestStep framework in `crates/integration`. Use when adding a new integration test, fixing a failing integration test, wiring a test into the manual runner or nextest suite, or verifying end-to-end UI and terminal behavior in Warp.
 ---
 
-# Warp 集成测试
+# Warp Integration Tests
 
-将本技能用于 `crates/integration/` 下 Warp 自定义 framework 中的 Rust integration tests。
+Use this skill for Rust integration tests in Warp's custom framework under `crates/integration/`.
 
-这些不是普通 unit tests。它们会启动真实 Warp app instance，分配隔离的 test home directory，用 synthetic UI 和 terminal events 驱动它，并轮询 assertions，直到成功或超时。
+These are not ordinary unit tests. They boot a real Warp app instance, give it an isolated test home directory, drive it with synthetic UI and terminal events, and poll assertions until success or timeout.
 
-## Framework 映射
+## Framework map
 
-核心组件如下：
+The core pieces are:
 
 - `crates/integration/src/bin/integration.rs`
-  - 手动 integration test runner binary。
-  - 将 test names 注册到 `Builder` factories。
-  - 每次 invocation 只运行一个具名 test。
+  - Manual integration test runner binary.
+  - Registers test names to `Builder` factories.
+  - Runs exactly one named test per invocation.
 - `crates/integration/tests/common/mod.rs`
-  - `cargo test` 和 `cargo nextest` 使用的外层 Rust test harness。
-  - shell out 到 integration binary。
-  - 转发有限的一组 env vars（`PATH`、`RUST_*`、`WARP_*`、`WARPUI_*`、`WGPU_*`、display-related vars）。
-  - 当 integration binary 以特殊 rerun code 退出时，最多重新运行 tests 10 次。
+  - The outer Rust test harness used by `cargo test` and `cargo nextest`.
+  - Shells out to the integration binary.
+  - Forwards a limited set of env vars (`PATH`, `RUST_*`, `WARP_*`, `WARPUI_*`, `WGPU_*`, display-related vars).
+  - Re-runs tests up to 10 times when the integration binary exits with the special rerun code.
 - `crates/integration/src/test.rs`
-  - integration tests 的 module hub。
-  - 在这里添加新的 test modules，并 `pub use` 它们的 functions，让 runner 可以看到。
+  - Module hub for integration tests.
+  - Add new test modules here and `pub use` their functions so the runner can see them.
 - `crates/integration/tests/integration/ui_tests.rs`
-  - nextest 应运行的 UI-oriented integration tests 列表。
+  - List of UI-oriented integration tests that nextest should run.
 - `crates/integration/tests/integration/shell_integration_tests.rs`
-  - 必须针对每个 shell 或特定 shell matrix 运行的 tests 列表。
+  - List of tests that must run against every shell or a specific shell matrix.
 - `crates/integration/src/builder.rs`
-  - lower-level WarpUI integration builder 外层的 Warp-specific wrapper。
-  - 按需设置 default timeout、hermetic home directory、shell rc files、user prefs 和 real-display mode。
+  - Warp-specific wrapper around the lower-level WarpUI integration builder.
+  - Sets default timeout, hermetic home directory, shell rc files, user prefs, and real-display mode when requested.
 - `crates/warpui_core/src/integration/driver.rs`
-  - 执行 steps，处理 retries、precondition reruns、screenshots、video capture、artifact export 和 `on_finish`。
+  - Executes steps, handles retries, precondition reruns, screenshots, video capture, artifact export, and `on_finish`.
 - `crates/warpui_core/src/integration/step.rs`
-  - 定义 `TestStep`、input/event APIs、assertion polling、step-to-step data passing 和 screenshot/recording hooks。
+  - Defines `TestStep`, input/event APIs, assertion polling, step-to-step data passing, and screenshot/recording hooks.
 - `app/src/integration_testing/`
-  - 常见 Warp behaviors 的 high-level helpers 和 assertions。
-  - 只要适用，就优先使用这些 helpers，而不是 raw low-level event plumbing。
+  - High-level helpers and assertions for common Warp behaviors.
+  - Prefer these helpers over raw low-level event plumbing whenever they fit.
 
-## Framework 实际如何运行 test
+## How the framework actually runs a test
 
-1. `crates/integration/tests/integration/*.rs` 中的 Rust test 调用 `run_integration_test("test_name")`。
-2. 该 harness 用 test name 启动 `integration` binary。
-3. `crates/integration/src/bin/integration.rs` 中的 binary 在 `register_tests()` 中查找名称，构建 `Builder`，并将其转换为 `TestDriver`。
-4. `Builder::build(...)` 创建隔离的 temp directory，将 `HOME` 指向它，写入最小 rc files，并初始化 file-backed user preferences。
-5. driver 按顺序运行每个 `TestStep`：
+1. A Rust test from `crates/integration/tests/integration/*.rs` calls `run_integration_test("test_name")`.
+2. That harness launches the `integration` binary with the test name.
+3. The binary in `crates/integration/src/bin/integration.rs` looks up the name in `register_tests()`, builds the `Builder`, and turns it into a `TestDriver`.
+4. `Builder::build(...)` creates an isolated temp directory, points `HOME` at it, writes minimal rc files, and initializes file-backed user preferences.
+5. The driver runs each `TestStep` in order:
    - setup callbacks
    - synthetic events
    - actions
    - assertion polling until success or timeout
-6. 如果 assertion 返回 `PreconditionFailed`，binary 会以 rerun code 退出，外层 harness 会重试整个 test。
-7. 在成功、失败或取消时，driver 可以运行 `on_finish` 并导出 artifacts/runtime tags。
+6. If an assertion returns `PreconditionFailed`, the binary exits with the rerun code and the outer harness retries the whole test.
+7. On success, failure, or cancellation, the driver can run `on_finish` and export artifacts/runtime tags.
 
-这意味着 integration tests 应面向 hermetic environment 编写。不要依赖开发者真实的 shell dotfiles、home directory contents 或 persisted Warp settings。
+This means integration tests should be written for a hermetic environment. Do not rely on the developer's real shell dotfiles, home directory contents, or persisted Warp settings.
 
-## 新 test 放在哪里
+## Where to put a new test
 
-将实际 test function 添加到 `crates/integration/src/test/` 下的某个 module 中。
+Add the actual test function in a module under `crates/integration/src/test/`.
 
-使用这些启发式规则：
+Use these heuristics:
 
-- 当 test 匹配某个已有 feature area 时，将它放入现有 module。
-- 当 feature 无法自然放入现有 module 时，创建新 module。
-- 如果它主要是 UI/app behavior test，将 test 添加到 `crates/integration/tests/integration/ui_tests.rs`。
-- 如果它需要针对每个 shell 运行，或依赖特定 shell/set of shells，将 test 添加到 `crates/integration/tests/integration/shell_integration_tests.rs`。
+- Put the test in an existing module when it matches that feature area.
+- Create a new module when the feature does not fit an existing one cleanly.
+- Add the test to `crates/integration/tests/integration/ui_tests.rs` if it is primarily a UI/app behavior test.
+- Add the test to `crates/integration/tests/integration/shell_integration_tests.rs` if it needs to run against every shell, or depends on a specific shell/set of shells.
 
-只出现在 `crates/integration/src/test/*.rs` 中还不够。要让 test 在 `cargo nextest` 下运行，还需要将它列入 `crates/integration/tests/integration/` 中的某个 macro file。
+Being present in `crates/integration/src/test/*.rs` is not enough. For a test to run under `cargo nextest`, it also needs to be listed in one of the macro files in `crates/integration/tests/integration/`.
 
-## 新 test 编写清单
+## Authoring checklist for a new test
 
-添加新的 integration test 时，完成以下所有事项：
+When adding a new integration test, do all of the following:
 
-1. 在 `crates/integration/src/test/` 下的 module 中实现 `pub fn test_name() -> Builder`。
-2. 将 module 添加到 `crates/integration/src/test.rs`。
-3. 从 `crates/integration/src/test.rs` 中 `pub use` 新 module 的 exports。
-4. 在 `crates/integration/src/bin/integration.rs` 中添加 `register_test!(test_name);`。
-5. 将 `test_name` 添加到以下位置之一：
-   - `crates/integration/tests/integration/ui_tests.rs`，或
+1. Implement `pub fn test_name() -> Builder` in a module under `crates/integration/src/test/`.
+2. Add the module to `crates/integration/src/test.rs`.
+3. `pub use` the new module's exports from `crates/integration/src/test.rs`.
+4. Add `register_test!(test_name);` in `crates/integration/src/bin/integration.rs`.
+5. Add `test_name` to either:
+   - `crates/integration/tests/integration/ui_tests.rs`, or
    - `crates/integration/tests/integration/shell_integration_tests.rs`
-6. 一旦 test 添加到这些 macro lists 之一，默认让它在 CI 中运行。只有当任务明确要求 manual-only coverage，或存在具体且已记录的原因说明它无法在 CI 中可靠运行时，才标记为 `#[ignore]`。
-7. 先手动运行 test；当它对所选 suite 足够稳定后，再通过 nextest 运行。
+6. Default to making the test run in CI once it is added to one of those macro lists. Only mark it `#[ignore]` when the task explicitly calls for manual-only coverage or there is a concrete, documented reason it cannot run reliably in CI.
+7. Run the test manually first, then through nextest once it is stable enough for the suite you chose.
 
-## 编写 test 正文
+## Writing the test body
 
-常规形态如下：
+The normal shape is:
 
 ```rust
 use crate::Builder;
@@ -117,56 +117,56 @@ pub fn test_example() -> Builder {
 }
 ```
 
-优先使用少量具备描述性名称的 focused steps，而不是一个巨大的 monolithic test。
+Prefer a small number of focused steps with descriptive names over a huge monolithic test.
 
-## Builder 指南
+## Builder guidance
 
 ### `Builder::new()`
 
-几乎每次都从这里开始。
+Start here almost every time.
 
-Warp 的 wrapper 会自动提供：
+Warp's wrapper automatically gives you:
 
-- 每个 test 独立的 root directory
-- 隔离的 `HOME`
-- 为 Bash、Zsh 和 Fish 生成的 rc files
+- a per-test root directory
+- isolated `HOME`
+- generated rc files for Bash, Zsh, and Fish
 - file-backed user preferences
-- 默认 2 分钟 hard timeout
-- 如果存在 `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS`，则启用 real-display support
+- a default 2-minute hard timeout
+- real-display support if `WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS` is present
 
 ### `with_setup(...)`
 
-在 app 运行前需要 filesystem 或 environment setup 时使用它。
+Use this for filesystem or environment setup before the app runs.
 
-常见模式：
+Common patterns:
 
 - `utils.set_env("NAME", Some(value))`
-- 在 `utils.test_dir()` 下创建 files
-- 写入 fixture config files
+- creating files under `utils.test_dir()`
+- writing fixture config files
 
-优先使用这种方式，而不是触碰真实 filesystem。
+Prefer this over reaching into the real filesystem.
 
 ### `with_user_defaults(...)`
 
-用它在 test 启动前设置 persisted Warp preferences。
+Use this to set persisted Warp preferences before the test starts.
 
-对于由 user preferences 而不是 environment variables 支撑的 settings，这是正确工具。
+This is the right tool for settings backed by user preferences rather than environment variables.
 
 ### `set_should_run_test(...)`
 
-当 test 确实无法在所有环境运行时，用它基于 shell/platform/runtime capabilities 对 tests 做 gate。
+Use this to gate tests on shell/platform/runtime capabilities when the test genuinely cannot run everywhere.
 
 ### `with_on_finish(...)`
 
-用它执行所有 steps 完成后才应进行的 final verification 或 artifact inspection，例如检查 screenshots 或 recordings 是否已写入。
+Use this for final verification or artifact inspection that should happen after all steps complete, such as checking that screenshots or recordings were written.
 
 ### `with_real_display()`
 
-当 test 需要 real display 执行 frame capture 或 visual workflows 时，显式使用它。除非存在稳定的 real-display path，否则 video/screenshot tests 通常应为 manual 或在 CI 中 ignored。
+Use this explicitly when the test needs a real display for frame capture or visual workflows. Video/screenshot tests should normally be manual or ignored in CI unless there is a stable real-display path.
 
-## `TestStep` 指南
+## `TestStep` guidance
 
-`TestStep` 是执行单元。每个 step 可以包含：
+`TestStep` is the unit of execution. Each step can have:
 
 - setup callbacks
 - input events
@@ -176,24 +176,24 @@ Warp 的 wrapper 会自动提供：
 - retry count
 - failure handling
 
-### 从 helper constructors 开始
+### Start from helper constructors
 
-优先使用：
+Prefer:
 
 - `wait_until_bootstrapped_single_pane_for_tab(0)`
 - `new_step_with_default_assertions("...")`
 - `new_step_with_default_assertions_for_pane("...", tab, pane)`
 
-默认 step helpers 已经会 assert：
+The default step helpers already assert:
 
-- 没有 pending model events
-- 没有 block executing
+- no pending model events
+- no block executing
 
-这些是大多数 UI interactions 的良好 baseline invariants。
+These are good baseline invariants for most UI interactions.
 
-### 优先使用 helper APIs，而不是 raw event plumbing
+### Prefer helper APIs over raw event plumbing
 
-只要可能，就使用 `app/src/integration_testing/` 中的 high-level helpers：
+Use high-level helpers from `app/src/integration_testing/` whenever possible:
 
 - terminal command execution helpers
 - block list helpers
@@ -202,186 +202,186 @@ Warp 的 wrapper 会自动提供：
 - settings helpers
 - workflow/file tree/notebook helpers
 
-只有在没有合适 helper 时，才降级使用 raw `with_event(...)`、`with_event_fn(...)` 或 saved-position mouse events。
+Drop to raw `with_event(...)`, `with_event_fn(...)`, or saved-position mouse events only when there is no suitable helper.
 
-### 使用 named assertions
+### Use named assertions
 
-优先使用 `add_named_assertion(...)`，而不是 unnamed assertions。Named assertions 会让 failure output 和 runtime tags 更容易解读。
+Prefer `add_named_assertion(...)` over unnamed assertions. Named assertions make failure output and runtime tags much easier to interpret.
 
-### 使用 polling assertions，而不是 sleeps
+### Use polling assertions instead of sleeps
 
-Assertions 会被轮询，直到成功或超时。应利用这个模型，而不是硬编码 sleeps。
+Assertions are polled until success or timeout. Lean on that model instead of hardcoding sleeps.
 
-良好模式：
+Good pattern:
 
-- 触发 event 或 action
-- 对最终 UI/model state 做 assert
+- trigger an event or action
+- assert on the eventual UI/model state
 
-避免脆弱的 timing assumptions。
+Avoid brittle timing assumptions.
 
-### 当一个 step 为下一个 step 计算内容时，使用 step data
+### Use step data when one step computes something for the next
 
-如果后续 step 需要来自前一个 step 的 data，使用：
+If a later step needs data from an earlier one, use:
 
 - `add_named_assertion_with_data_from_prior_step(...)`
 - `StepDataMap`
 
-这对于保存 prior frames 中测量得到的 positions、counts、IDs 或其他 values 很有用。
+This is useful for saving measured positions, counts, IDs, or other values from prior frames.
 
-### 谨慎使用 retries
+### Use retries sparingly
 
-`set_retries(...)` 可以帮助处理确实可 retry 的 step，但不要用它隐藏 deterministic failures。优先先让 step 更 robust。
+`set_retries(...)` can help for a legitimately retryable step, but do not use it to hide deterministic failures. Prefer making the step more robust first.
 
-### 对已知 environmental flakes 使用 `PreconditionFailed`
+### Use `PreconditionFailed` for known environmental flakes
 
-如果 environment 到达某种使 test 剩余部分无效的状态，返回 `AssertionOutcome::PreconditionFailed(...)`，而不是直接 hard fail。外层 harness 可以最多重新运行整个 test 10 次。
+If the environment reaches a state where the rest of the test is invalid, return `AssertionOutcome::PreconditionFailed(...)` instead of failing hard. The outer harness can rerun the entire test up to 10 times.
 
-现有 bootstrap helper 是这方面的良好范例。
+The existing bootstrap helper is a good model for this.
 
-## 常见 test 编写模式
+## Common test-writing patterns
 
-### 1. 先等待 bootstrap
+### 1. Wait for bootstrap first
 
-对大多数 terminal-facing tests，第一个真实 step 应该是：
+For most terminal-facing tests, the first real step should be:
 
 - `wait_until_bootstrapped_single_pane_for_tab(0)`
 
-不要在 bootstrap 完成前开始 assert terminal UI。
+Do not start asserting on terminal UI before bootstrap completes.
 
-### 2. 如果 block indices 很重要，清理 bootstrapped blocks
+### 2. Clear the bootstrapped blocks if block indices matter
 
-如果 test 依赖 `block_index:0` 这类 saved positions，在 bootstrap 后清理 block list：
+If the test relies on saved positions like `block_index:0`, clear the block list after bootstrap:
 
 - `clear_blocklist_to_remove_bootstrapped_blocks()`
 
-否则，第一个 user-generated block index 会依赖 bootstrap output 和 active shell。
+Otherwise the first user-generated block index depends on bootstrap output and the active shell.
 
-### 3. 使用 helper command runners
+### 3. Use helper command runners
 
-优先使用如下 helpers：
+Prefer helpers like:
 
 - `execute_command_for_single_terminal_in_tab(...)`
 - `execute_echo(...)`
 - `execute_echo_str(...)`
 - `execute_long_running_command(...)`
 
-这些 helpers 已经处理了大量 correctness 和 output validation。
+These helpers already handle a lot of correctness and output validation.
 
-### 4. 断言 visible behavior，而不只是 internal mutation
+### 4. Assert visible behavior, not just internal mutation
 
-高质量 integration test 会验证 user-observable behavior：
+A good integration test verifies the user-observable behavior:
 
-- terminal 中可见 output
-- focus 移动到预期位置
-- UI element 打开/关闭
+- output visible in the terminal
+- focus moved where expected
+- UI element opened/closed
 - selection changed
 - settings applied
 
-Internal state assertions 仍然有用，但应支撑 visible behavior，而不是替代它。
+Internal state assertions are still useful, but they should support the visible behavior rather than replace it.
 
-### 5. 保持 tests feature-focused
+### 5. Keep tests feature-focused
 
-为一个 behavior 或一个紧密相关的 flow 编写一个 test。如果需要覆盖多个 scenarios，考虑使用多个 tests，而不是一个巨大的 script。
+Write a test for one behavior or one closely related flow. If you need to cover multiple scenarios, consider multiple tests instead of one giant script.
 
-## 运行 tests
+## Running tests
 
-### 直接通过 integration binary 运行单个 test
+### Run one test directly through the integration binary
 
-编写时先使用这个命令：
+Use this first while authoring:
 
 ```bash
 cargo run -p integration --bin integration -- test_name
 ```
 
-这是迭代特定 test 的最快方式，因为它绕过外层 Rust test wrapper，直接运行具名 test。
+This is the fastest way to iterate on a specific test because it bypasses the outer Rust test wrapper and runs the named test directly.
 
-### 通过 nextest 运行单个 test
+### Run one test through nextest
 
-一旦它被接入 `tests/integration/*.rs` macro lists 之一，就用 nextest 运行它：
+Once it is wired into one of the `tests/integration/*.rs` macro lists, run it with nextest:
 
 ```bash
 cargo nextest run --no-fail-fast --workspace test_name
 ```
 
-### 需要时使用 real display 运行
+### Run with a real display when needed
 
-对于 screenshot/video 或其他 real-display flows：
+For screenshot/video or other real-display flows:
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 cargo run -p integration --bin integration -- test_name
 ```
 
-或使用 nextest：
+Or with nextest:
 
 ```bash
 WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS=1 cargo nextest run --no-fail-fast --workspace test_name
 ```
 
-## 调试与调查
+## Debugging and investigation
 
-### 失败时获取 backtrace
+### Get a backtrace on failures
 
 ```bash
 RUST_BACKTRACE=1 cargo run -p integration --bin integration -- test_name
 ```
 
-### 失败时暂停
+### Pause on failure
 
-本地运行且想检查失败的 UI state 时，这很有用：
+This is useful when running locally and you want to inspect the failed UI state:
 
 ```bash
 WARPUI_PAUSE_INTEGRATION_TEST_ON_FAILURE=1 cargo run -p integration --bin integration -- test_name
 ```
 
-### 每个 step 后暂停
+### Pause after every step
 
-这有助于准确理解 test 正在做什么：
+Useful for understanding exactly what the test is doing:
 
 ```bash
 WARPUI_PAUSE_INTEGRATION_TEST_AT_EVERY_STEP=1 cargo run -p integration --bin integration -- test_name
 ```
 
-### Video 与 screenshots
+### Video and screenshots
 
-如果任务专门涉及 recording a test、collecting screenshots 或 validating overlay/video artifacts，也使用 `integration-test-video` 技能（位于 `.warp/skills/integration-test-video/SKILL.md`）。
+If the task is specifically about recording a test, collecting screenshots, or validating overlay/video artifacts, also use the `integration-test-video` skill (located at `.warp/skills/integration-test-video/SKILL.md`).
 
-### Environment variable 注意事项
+### Environment variable gotcha
 
-`utils.set_env(...)` 会影响 `std::env::var(...)` 这类 runtime environment lookups。
+`utils.set_env(...)` affects runtime environment lookups such as `std::env::var(...)`.
 
-它不会影响 `option_env!(...)` 这类 compile-time lookups。如果 product code 使用 `option_env!`，在 test 内修改 env var 不会在未重新构建的情况下改变该行为。
+It does not affect compile-time lookups like `option_env!(...)`. If the product code uses `option_env!`, changing the env var inside the test will not change that behavior without rebuilding.
 
 ## Verification checklist
 
-在认为新的 integration test 完成之前，验证以下所有事项：
+Before considering a new integration test done, verify all of the following:
 
-- test function 位于 `crates/integration/src/test/` 下。
-- module 已添加到 `crates/integration/src/test.rs` 并重新导出。
-- test 已在 `crates/integration/src/bin/integration.rs` 中注册。
-- test 已列入正确的 nextest macro file，并默认会在 CI 中运行，除非它因已记录原因被明确设为 manual-only。
-- 直接通过 integration binary 运行时，test 通过。
-- 如果它应属于 automated suite，通过 nextest 运行时，test 通过。
-- assertions 检查预期 user-visible behavior。
-- test 不依赖开发者真实 home directory、shell config 或 machine state。
-- 如果 test 使用 screenshots/video，实际检查了生成的 artifacts，而不是只假设它们存在。
+- The test function lives under `crates/integration/src/test/`.
+- The module is added and re-exported in `crates/integration/src/test.rs`.
+- The test is registered in `crates/integration/src/bin/integration.rs`.
+- The test is listed in the correct nextest macro file and will run in CI by default, unless it was explicitly made manual-only with a documented reason.
+- The test passes when run directly through the integration binary.
+- The test passes through nextest if it is meant to be part of the automated suite.
+- The assertions check the intended user-visible behavior.
+- The test does not depend on the developer's real home directory, shell config, or machine state.
+- If the test uses screenshots/video, the produced artifacts were actually inspected rather than only assuming they exist.
 
-## 要避免的 anti-patterns
+## Anti-patterns to avoid
 
-- 只在 `src/test/*.rs` 中编写 test，却忘记 nextest macro list。
-- 未先清理 bootstrapped blocks，就 assert bootstrap-sensitive block indices。
-- 已有 helper 时仍到处使用 raw events。
-- 添加 sleeps，而不是使用 assertion polling。
-- 让 test 依赖个人 dotfiles、真实 settings 或 non-hermetic filesystem state。
-- 使用 retries 掩盖 deterministic bug。
-- 在没有稳定路径的情况下，让 real-display/manual test 在 CI 中启用。
+- Writing a test only in `src/test/*.rs` and forgetting the nextest macro list.
+- Asserting on bootstrap-sensitive block indices without clearing the bootstrapped blocks first.
+- Using raw events everywhere when a helper already exists.
+- Adding sleeps instead of assertion polling.
+- Making the test depend on personal dotfiles, real settings, or non-hermetic filesystem state.
+- Using retries to paper over a deterministic bug.
+- Leaving a real-display/manual test enabled in CI without a stable path.
 
-## Agents 的良好 workflow
+## Good workflow for agents
 
-当被要求添加或修复 integration test 时：
+When asked to add or fix an integration test:
 
-1. 找到该 feature 最接近的现有 integration test module。
-2. 在发明新的 low-level plumbing 前，先复用 helper assertions 和 step constructors。
-3. 在所有必要位置注册 test，而不只是 implementation file。
-4. 先手动运行 test。
-5. 如果它属于 automation，也用 nextest 运行。
-6. 如果 test 覆盖 visual behavior，直接验证生成的 UI behavior 或 artifacts。
+1. Find the closest existing integration test module for the feature.
+2. Reuse helper assertions and step constructors before inventing new low-level plumbing.
+3. Register the test in all required places, not just the implementation file.
+4. Run the test manually first.
+5. If it belongs in automation, run it with nextest too.
+6. If the test exercises visual behavior, verify the resulting UI behavior or artifacts directly.

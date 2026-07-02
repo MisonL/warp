@@ -345,13 +345,6 @@ fn find_entry<'a>(entry: &'a super::Entry, path: &std::path::Path) -> Option<&'a
         .find_map(|child| find_entry(child, path))
 }
 
-fn count_files(entry: &super::Entry) -> usize {
-    match entry {
-        super::Entry::File(_) => 1,
-        super::Entry::Directory(directory) => directory.children.iter().map(count_files).sum(),
-    }
-}
-
 fn build_skill_tree_with_gitignore(root: &std::path::Path, gitignore: &str) -> super::Entry {
     std::fs::write(root.join(".gitignore"), gitignore).unwrap();
     let mut files = Vec::new();
@@ -1027,35 +1020,6 @@ fn build_tree_budget_covers_breadth_first_and_leaves_remainder_unloaded() {
         );
         assert!(find_entry(&tree, &d_path.join("sub").join("g0.txt")).is_none());
     }
-}
-
-#[test]
-fn build_tree_stop_and_lazy_load_does_not_consume_files_past_budget_in_flat_directory() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let root = dunce::canonicalize(temp_dir.path()).unwrap();
-
-    for i in 0..10 {
-        fs::write(root.join(format!("f{i}.txt")), "").unwrap();
-    }
-
-    let mut files = Vec::new();
-    let mut gitignores = Vec::new();
-    let mut file_limit = 3;
-    let tree = Entry::build_tree(
-        &root,
-        &mut files,
-        &mut gitignores,
-        Some(&mut file_limit),
-        200,
-        0,
-        &IgnoredPathStrategy::Exclude,
-        super::BudgetExceededBehavior::StopAndLazyLoad,
-    )
-    .unwrap();
-
-    assert_eq!(files.len(), 3);
-    assert_eq!(count_files(&tree), 3);
-    assert_eq!(file_limit, 0);
 }
 
 #[test]

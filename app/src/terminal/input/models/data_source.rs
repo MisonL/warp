@@ -20,7 +20,8 @@ use warpui::{AppContext, Element, Entity, EntityId, SingletonEntity as _};
 
 use super::model_spec_scores::{
     render_model_spec_header, render_model_spec_scores, CostRow, CostRowTooltip,
-    ModelSpecScoresLayout,
+    ModelSpecScoresLayout, MODEL_SPECS_DESCRIPTION, MODEL_SPECS_TITLE, REASONING_LEVEL_DESCRIPTION,
+    REASONING_LEVEL_TITLE,
 };
 use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
@@ -29,6 +30,7 @@ use crate::ai::llms::{
 };
 use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
@@ -42,9 +44,8 @@ use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-fn localized_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
+const MODEL_SELECTOR_AUTO_COST_TOOLTIP_KEY: &str =
+    "settings.ai.model_selector.cost.auto_bedrock_tooltip";
 
 #[derive(Clone, Debug)]
 pub struct AcceptModel {
@@ -64,10 +65,7 @@ impl InlineMenuAction for AcceptModel {
                 key: "enter".to_owned(),
                 ..Default::default()
             }),
-            MessageItem::text(localized_text(
-                args.app,
-                "settings.ai.model_selector.message.to_select",
-            )),
+            MessageItem::text(" to select"),
             MessageItem::keystroke(if OperatingSystem::get().is_mac() {
                 Keystroke {
                     key: "enter".to_owned(),
@@ -82,10 +80,7 @@ impl InlineMenuAction for AcceptModel {
                     ..Default::default()
                 }
             }),
-            MessageItem::text(localized_text(
-                args.app,
-                "settings.ai.model_selector.message.select_and_save_to_profile",
-            )),
+            MessageItem::text(" select and save to profile"),
         ];
 
         if args.inline_menu_model.tab_configs().len() > 1 {
@@ -94,10 +89,7 @@ impl InlineMenuAction for AcceptModel {
                 shift: true,
                 ..Default::default()
             }));
-            items.push(MessageItem::text(localized_text(
-                args.app,
-                "terminal.inline_menu.navigation.to_cycle_tabs",
-            )));
+            items.push(MessageItem::text(" to cycle tabs"));
         }
 
         items.push(MessageItem::clickable(
@@ -106,10 +98,7 @@ impl InlineMenuAction for AcceptModel {
                     key: "escape".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(localized_text(
-                    args.app,
-                    "terminal.inline_menu.navigation.to_dismiss",
-                )),
+                MessageItem::text(" to dismiss"),
             ],
             |ctx| {
                 ctx.dispatch_typed_action(
@@ -257,7 +246,6 @@ struct ModelSearchItem {
     is_selected: bool,
     is_custom_endpoint: bool,
     disable_reason: Option<DisableReason>,
-    disable_reason_tooltip: Option<String>,
     is_auto: bool,
     is_using_bedrock: bool,
     name_match_result: Option<FuzzyMatchResult>,
@@ -266,9 +254,6 @@ struct ModelSearchItem {
     cost_row_tooltip_mouse_state: MouseStateHandle,
     reasoning_level: Option<String>,
     discount_percentage: Option<f32>,
-    accessibility_prefix: String,
-    selected_accessibility_label: String,
-    disabled_accessibility_label: String,
 }
 
 impl ModelSearchItem {
@@ -308,9 +293,6 @@ impl ModelSearchItem {
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
             is_custom_endpoint,
-            disable_reason_tooltip: disable_reason
-                .as_ref()
-                .map(|reason| localized_text(app, reason.tooltip_key())),
             disable_reason,
             is_auto,
             is_using_bedrock,
@@ -320,15 +302,6 @@ impl ModelSearchItem {
             cost_row_tooltip_mouse_state: Default::default(),
             reasoning_level: llm.reasoning_level(),
             discount_percentage: llm.discount_percentage,
-            accessibility_prefix: localized_text(app, "settings.ai.model_selector.a11y.prefix"),
-            selected_accessibility_label: localized_text(
-                app,
-                "settings.ai.model_selector.a11y.selected",
-            ),
-            disabled_accessibility_label: localized_text(
-                app,
-                "settings.ai.model_selector.a11y.disabled",
-            ),
         }
     }
 
@@ -423,9 +396,9 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_selected {
-            let selected_label = localized_text(app, "settings.ai.model_selector.selected");
+            let selected_label = "(selected)";
             let selected_text = Text::new_inline(
-                selected_label.clone(),
+                selected_label.to_string(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -442,9 +415,9 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_disabled() {
-            let disabled_label = localized_text(app, "settings.ai.model_selector.disabled");
+            let disabled_label = "(disabled)";
             let disabled_text = Text::new_inline(
-                disabled_label.clone(),
+                disabled_label.to_string(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -467,10 +440,7 @@ impl SearchItem for ModelSearchItem {
             let discount_percentage = self.discount_percentage.unwrap_or(0.);
             let chip = Container::new(
                 Text::new_inline(
-                    localized_text(app, "settings.ai.model_selector.discount_chip").replace(
-                        "{discount}",
-                        &(discount_percentage.round() as u32).to_string(),
-                    ),
+                    format!("{}% off!", discount_percentage.round() as u32),
                     appearance.ui_font_family(),
                     font_size,
                 )
@@ -504,17 +474,11 @@ impl SearchItem for ModelSearchItem {
         let theme = appearance.theme();
 
         let (title, description) = if self.reasoning_level.is_some() {
-            (
-                localized_text(app, "terminal.input.models.reasoning_level.title"),
-                localized_text(app, "terminal.input.models.reasoning_level.description"),
-            )
+            (REASONING_LEVEL_TITLE, REASONING_LEVEL_DESCRIPTION)
         } else {
-            (
-                localized_text(app, "terminal.input.models.model_specs.title"),
-                localized_text(app, "terminal.input.models.model_specs.description"),
-            )
+            (MODEL_SPECS_TITLE, MODEL_SPECS_DESCRIPTION)
         };
-        let header = render_model_spec_header(&title, &description, app);
+        let header = render_model_spec_header(title, description, app);
 
         let is_using_api_key =
             self.is_custom_endpoint || is_using_api_key_for_provider(&self.provider, app);
@@ -531,10 +495,7 @@ impl SearchItem for ModelSearchItem {
                     ButtonVariant::Outlined,
                     self.manage_api_key_mouse_state.clone(),
                 )
-                .with_text_label(localized_text(
-                    app,
-                    "settings.ai.model_selector.manage_api_keys",
-                ))
+                .with_text_label(localization::text_for_app(app, "common.manage"))
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -556,18 +517,18 @@ impl SearchItem for ModelSearchItem {
                 .finish();
             CostRow::BilledToProvider {
                 label: if self.is_using_bedrock && self.is_auto {
-                    localized_text(app, "settings.ai.model_selector.cost.may_use_bedrock")
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.cost.may_use_bedrock",
+                    )
                 } else if self.is_using_bedrock {
-                    localized_text(app, "settings.ai.model_selector.cost.via_bedrock")
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_bedrock")
                 } else {
-                    localized_text(app, "settings.ai.model_selector.cost.via_api_key")
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_api_key")
                 },
                 tooltip: if self.is_using_bedrock && self.is_auto {
                     Some(CostRowTooltip {
-                        text: localized_text(
-                            app,
-                            "settings.ai.model_selector.cost.auto_bedrock_tooltip",
-                        ),
+                        text: localization::text_for_app(app, MODEL_SELECTOR_AUTO_COST_TOOLTIP_KEY),
                         mouse_state: self.cost_row_tooltip_mouse_state.clone(),
                     })
                 } else {
@@ -619,23 +580,19 @@ impl SearchItem for ModelSearchItem {
                 );
 
             let mut text_fragments = vec![
-                FormattedTextFragment::plain_text(
-                    localized_text(app, "settings.ai.model_selector.upgrade_required.prefix")
-                        .replace("{name}", &display_name),
-                ),
+                FormattedTextFragment::plain_text(format!(
+                    "{display_name} is not available for free users. "
+                )),
                 FormattedTextFragment::hyperlink(
-                    localized_text(app, "settings.billing.upgrade.generic"),
+                    localization::text_for_app(app, "onboarding.common.upgrade"),
                     upgrade_url,
                 ),
             ];
 
             if byok_available {
-                text_fragments.push(FormattedTextFragment::plain_text(localized_text(
-                    app,
-                    "settings.billing.upgrade.or",
-                )));
+                text_fragments.push(FormattedTextFragment::plain_text(" or ".to_string()));
                 text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    localized_text(app, "settings.billing.upgrade.bring_own_key"),
+                    "bring your own key",
                     WorkspaceAction::ShowSettingsPageWithSearch {
                         search_query: "api".to_string(),
                         section: Some(SettingsSection::WarpAgent),
@@ -704,18 +661,18 @@ impl SearchItem for ModelSearchItem {
     }
 
     fn tooltip(&self) -> Option<String> {
-        self.disable_reason_tooltip.clone()
+        self.disable_reason
+            .as_ref()
+            .map(|reason| reason.tooltip_text().to_string())
     }
 
     fn accessibility_label(&self) -> String {
-        let mut label = format!("{}: {}", self.accessibility_prefix, self.display_text);
+        let mut label = format!("Model: {}", self.display_text);
         if self.is_selected {
-            label.push(' ');
-            label.push_str(&self.selected_accessibility_label);
+            label.push_str(" (selected)");
         }
         if self.is_disabled() {
-            label.push(' ');
-            label.push_str(&self.disabled_accessibility_label);
+            label.push_str(" (disabled)");
         }
         label
     }

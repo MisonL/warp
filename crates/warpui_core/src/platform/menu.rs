@@ -6,10 +6,6 @@ pub enum MenuItem {
     Custom(CustomMenuItem),
     Separator,
     Standard(StandardAction),
-    LocalizedStandard {
-        action: StandardAction,
-        title: String,
-    },
 
     /// Services is a system-defined standard menu on macOS.
     #[cfg(target_os = "macos")]
@@ -19,40 +15,40 @@ pub enum MenuItem {
 // We allow dead_code here because the title is only read when compiling the
 // Mac bits.
 #[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MenuRole {
+    Standard,
+    Window,
+}
+
+// We allow dead_code here because the title is only read when compiling the
+// Mac bits.
+#[allow(dead_code)]
 pub struct Menu {
     pub title: String,
     pub menu_items: Vec<MenuItem>,
-    is_window_menu: bool,
+    role: MenuRole,
 }
 
 impl Menu {
     pub fn new<S: Into<String>>(title: S, menu_items: Vec<MenuItem>) -> Self {
-        Menu {
-            title: title.into(),
-            menu_items,
-            is_window_menu: false,
-        }
+        Self::with_role(title, menu_items, MenuRole::Standard)
     }
 
-    pub fn new_window_menu<S: Into<String>>(title: S, menu_items: Vec<MenuItem>) -> Self {
+    pub fn window<S: Into<String>>(title: S, menu_items: Vec<MenuItem>) -> Self {
+        Self::with_role(title, menu_items, MenuRole::Window)
+    }
+
+    fn with_role<S: Into<String>>(title: S, menu_items: Vec<MenuItem>, role: MenuRole) -> Self {
         Menu {
             title: title.into(),
             menu_items,
-            is_window_menu: true,
+            role,
         }
     }
 
     pub fn is_window_menu(&self) -> bool {
-        self.is_window_menu
-    }
-}
-
-impl MenuItem {
-    pub fn localized_standard(action: StandardAction, title: impl Into<String>) -> Self {
-        Self::LocalizedStandard {
-            action,
-            title: title.into(),
-        }
+        self.role == MenuRole::Window
     }
 }
 

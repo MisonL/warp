@@ -1,6 +1,7 @@
 use std::cmp;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use fuzzy_match::{match_indices_case_insensitive, FuzzyMatchResult};
@@ -212,7 +213,7 @@ pub struct DisplayChipMenu {
     list_state: UniformListState,
     scroll_state: ScrollStateHandle,
     menu_items: Vec<Arc<dyn GenericMenuItem>>,
-    filtered_items: Vec<FilteredMenuItem>,
+    filtered_items: Rc<Vec<FilteredMenuItem>>,
     selected_index: usize,
     is_footer_selected: bool,
     fixed_footer: Option<FixedFooter>,
@@ -381,13 +382,15 @@ impl DisplayChipMenu {
             })
             .collect();
 
-        let filtered_items: Vec<FilteredMenuItem> = menu_items
-            .iter()
-            .map(|item| FilteredMenuItem {
-                item: item.clone(),
-                match_result: None,
-            })
-            .collect();
+        let filtered_items: Rc<Vec<FilteredMenuItem>> = Rc::new(
+            menu_items
+                .iter()
+                .map(|item| FilteredMenuItem {
+                    item: item.clone(),
+                    match_result: None,
+                })
+                .collect(),
+        );
 
         // Always start selection at the top (first item) for consistent behavior
         let initial_selected_index = 0;
@@ -457,19 +460,20 @@ impl DisplayChipMenu {
     fn update_filtered_items(&mut self) {
         if self.search_query.is_empty() {
             // No search query - show all items
-            self.filtered_items = self
-                .menu_items
-                .iter()
-                .map(|item| FilteredMenuItem {
-                    item: item.clone(),
-                    match_result: None,
-                })
-                .collect();
+            self.filtered_items = Rc::new(
+                self.menu_items
+                    .iter()
+                    .map(|item| FilteredMenuItem {
+                        item: item.clone(),
+                        match_result: None,
+                    })
+                    .collect(),
+            );
             return;
         }
 
         // Filter items based on search query
-        self.filtered_items = self
+        let mut filtered_items: Vec<FilteredMenuItem> = self
             .menu_items
             .iter()
             .filter_map(|item| {
@@ -484,7 +488,7 @@ impl DisplayChipMenu {
             .collect();
 
         // Sort by match score (higher scores first)
-        self.filtered_items.sort_by(|a, b| {
+        filtered_items.sort_by(|a, b| {
             let score_a = a.match_result.as_ref().map(|r| r.score).unwrap_or(0);
             let score_b = b.match_result.as_ref().map(|r| r.score).unwrap_or(0);
             score_b.cmp(&score_a)
@@ -502,7 +506,7 @@ impl DisplayChipMenu {
             );
             if !already_matches_existing {
                 if let Some(synthetic) = builder(trimmed) {
-                    self.filtered_items.insert(
+                    filtered_items.insert(
                         0,
                         FilteredMenuItem {
                             item: synthetic,
@@ -512,6 +516,8 @@ impl DisplayChipMenu {
                 }
             }
         }
+
+        self.filtered_items = Rc::new(filtered_items);
     }
 
     pub fn update_search_query(&mut self, query: String, ctx: &mut ViewContext<Self>) {
@@ -792,14 +798,10 @@ impl DisplayChipMenu {
                 .finish()
         };
 
-        let label_text = |text: &str| {
-            Text::new_inline(
-                text.to_string(),
-                appearance.ui_font_family(),
-                label_font_size,
-            )
-            .with_color(label_text_color)
-            .finish()
+        let label_text = |text: String| {
+            Text::new_inline(text, appearance.ui_font_family(), label_font_size)
+                .with_color(label_text_color)
+                .finish()
         };
 
         let value_text = |text: String| {
@@ -853,7 +855,7 @@ impl DisplayChipMenu {
             )
         };
 
-        let row = |row_icon: Icon, label: &str, value: Box<dyn Element>, is_last: bool| {
+        let row = |row_icon: Icon, label: String, value: Box<dyn Element>, is_last: bool| {
             let label_cluster = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
@@ -888,15 +890,25 @@ impl DisplayChipMenu {
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(row(
                 Icon::Globe4,
-                "Name:",
+                localization::text_for_app(app, "context_chips.environment.name"),
                 value_text(data.name.clone()),
                 false,
             ))
-            .with_child(row(Icon::Hash, "ID:", id_value, false))
-            .with_child(row(Icon::Docker, "Image:", image_value, false))
+            .with_child(row(
+                Icon::Hash,
+                localization::text_for_app(app, "context_chips.environment.id"),
+                id_value,
+                false,
+            ))
+            .with_child(row(
+                Icon::Docker,
+                localization::text_for_app(app, "context_chips.environment.image"),
+                image_value,
+                false,
+            ))
             .with_child(row(
                 Icon::Github,
-                "Repos:",
+                localization::text_for_app(app, "context_chips.environment.repos"),
                 value_text(data.repos_text.clone()),
                 true,
             ))
@@ -1083,10 +1095,7 @@ impl DisplayChipMenu {
                 let (label, font_size, horizontal_padding, vertical_padding, text_color) =
                     match self.chip_menu_type {
                         ChipMenuType::Environments => (
-                            localization::text_for_app(
-                                ctx,
-                                "terminal.ambient_agent.model_selector.no_results",
-                            ),
+                            localization::text_for_app(ctx, "context_chips.menu.no_results"),
                             ENV_MENU_ITEM_FONT_SIZE,
                             ENV_MENU_ITEM_HORIZONTAL_PADDING,
                             ENV_MENU_ITEM_VERTICAL_PADDING,
@@ -1095,7 +1104,7 @@ impl DisplayChipMenu {
                         ChipMenuType::Directories
                         | ChipMenuType::Branches
                         | ChipMenuType::CodeReview => (
-                            localization::text_for_app(ctx, "search.no_results"),
+                            localization::text_for_app(ctx, "context_chips.menu.no_results_found"),
                             appearance.ui_font_size(),
                             LABEL_HORIZONTAL_PADDING,
                             LABEL_VERTICAL_PADDING * 2.0,

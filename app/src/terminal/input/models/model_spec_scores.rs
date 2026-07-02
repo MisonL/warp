@@ -13,11 +13,16 @@ use warpui::{AppContext, Element, SingletonEntity as _};
 
 use crate::ai::llms::LLMSpec;
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::terminal::input::inline_menu::styles as inline_styles;
 
 const CORNER_RADIUS: f32 = 4.0;
 const ROW_SPACING: f32 = 12.0;
+
+pub const MODEL_SPECS_TITLE: &str = "Model Specs";
+pub const MODEL_SPECS_DESCRIPTION: &str = "Warp's benchmarks for how well a model performs in our harness, the rate at which it consumes credits, and task speed.";
+
+pub const REASONING_LEVEL_TITLE: &str = "Reasoning level";
+pub const REASONING_LEVEL_DESCRIPTION: &str = "Increased reasoning levels consume more credits and have higher latency, but higher performance for complicated tasks.";
 
 pub enum CostRow {
     Bar {
@@ -45,7 +50,7 @@ pub fn render_model_spec_scores(
     app: &AppContext,
 ) -> Box<dyn Element> {
     let mut rows = vec![render_score_row(
-        localization::text_for_app(app, "terminal.input.models.spec.intelligence"),
+        "Intelligence",
         ScoreRowKind::Bar {
             value: spec.as_ref().map(|spec| spec.quality),
         },
@@ -55,7 +60,7 @@ pub fn render_model_spec_scores(
     )];
 
     rows.push(render_score_row(
-        localization::text_for_app(app, "terminal.input.models.spec.speed"),
+        "Speed",
         ScoreRowKind::Bar {
             value: spec.as_ref().map(|spec| spec.speed),
         },
@@ -67,7 +72,7 @@ pub fn render_model_spec_scores(
     match cost_row {
         CostRow::Bar { value } => {
             rows.push(render_score_row(
-                localization::text_for_app(app, "terminal.input.models.spec.cost"),
+                "Cost",
                 ScoreRowKind::Bar { value },
                 None,
                 layout.bg_bar_color,
@@ -80,7 +85,7 @@ pub fn render_model_spec_scores(
             manage_button,
         } => {
             rows.push(render_score_row(
-                localization::text_for_app(app, "terminal.input.models.spec.cost"),
+                "Cost",
                 ScoreRowKind::BilledToProvider {
                     label,
                     manage_button,
@@ -109,7 +114,7 @@ enum ScoreRowKind {
 }
 
 fn render_score_row(
-    name: String,
+    name: &str,
     kind: ScoreRowKind,
     label_tooltip: Option<CostRowTooltip>,
     bg_bar_color: ColorU,
@@ -126,7 +131,7 @@ fn render_score_row(
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     ) * 8.;
-    let label = ConstrainedBox::new(render_row_label(&name, label_tooltip, appearance, app))
+    let label = ConstrainedBox::new(render_row_label(name, label_tooltip, appearance, app))
         .with_width(label_width)
         .finish();
 
@@ -266,7 +271,7 @@ fn render_provider_label(label: &str, appearance: &Appearance) -> Box<dyn Elemen
 fn render_info_tooltip(tooltip: CostRowTooltip, appearance: &Appearance) -> Box<dyn Element> {
     let icon_color = appearance.theme().disabled_ui_text_color();
     let ui_builder = appearance.ui_builder();
-    let tooltip_text = tooltip.text;
+    let tooltip_text = tooltip.text.to_string();
     Hoverable::new(tooltip.mouse_state, move |state| {
         let info_icon = Container::new(
             ConstrainedBox::new(WarpUiIcon::new("bundled/svg/info.svg", icon_color).finish())

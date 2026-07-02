@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use crate::localization;
 pub mod telemetry;
 
 use std::cell::RefCell;
@@ -38,6 +35,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::text_input::TextInput;
 use warpui::{AppContext, EntityId, SingletonEntity, ViewHandle, WindowId};
 
+use super::{render_group_member_icon_collage, select_unique_pane_kinds};
 use crate::ai::agent::conversation::{ConversationStatus, StatusColorStyle};
 use crate::ai::agent_management::AgentNotificationsModel;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
@@ -84,7 +82,7 @@ use crate::workspace::{
     PaneViewLocator, TabBarLocation, TabContextMenuAnchor, VerticalTabsPaneContextMenuTarget,
     VerticalTabsPaneDropTargetData, Workspace,
 };
-use crate::{send_telemetry_from_app_ctx, FeatureFlag};
+use crate::{localization, send_telemetry_from_app_ctx, FeatureFlag};
 
 const PANEL_WIDTH: f32 = 248.;
 const MIN_PANEL_WIDTH: f32 = 200.;
@@ -98,6 +96,8 @@ const GROUP_ITEM_SPACING: f32 = 4.;
 const TABS_MODE_ITEM_SPACING: f32 = 4.;
 const GROUP_ACTION_BUTTON_ICON_SIZE: f32 = 12.;
 const TAB_GROUP_HEADER_ACTION_ICON_SIZE: f32 = 14.;
+const PIN_INDICATOR_ICON_SIZE: f32 = 16.;
+const PIN_INDICATOR_CORNER_INSET: f32 = 6.;
 const GROUP_ACTION_BUTTON_PADDING: f32 = 2.;
 const GROUP_ACTION_BUTTON_GAP: f32 = 2.;
 const ROW_CORNER_RADIUS: f32 = 4.;
@@ -138,6 +138,13 @@ pub(crate) fn vtab_group_kebab_position_id(tab_group_id: TabGroupId) -> String {
 /// Save-position id for a tab group's full container rect, used for drop hit-testing.
 pub(crate) fn vtab_group_position_id(group_id: TabGroupId) -> String {
     format!("vertical_tabs:group:{group_id:?}")
+}
+
+/// Save-position id for a horizontal tab group's container rect, used for
+/// drop hit-testing and as the collapsed-group fallback in horizontal-axis
+/// drag math.
+pub(crate) fn htab_group_position_id(group_id: TabGroupId) -> String {
+    format!("horizontal_tabs:group:{group_id:?}")
 }
 
 fn terminal_title_fallback_font(agent_text: &TerminalAgentText) -> TerminalPrimaryLineFont {
@@ -296,15 +303,49 @@ struct TabGroupMouseStates {
     close: MouseStateHandle,
 }
 
+/// Describes how a pane row sits in its tab's row layout. Carried as state
+/// on `PaneProps`; the actual corner radius is derived at render time.
+#[derive(Clone, Copy)]
+enum PaneRowStackPosition {
+    /// Rendered with normal vertical spacing; row's background fully rounds.
+    Standalone,
+    /// Stacked flush against siblings (no inter-row gap); only the outer
+    /// (first/last) corners round so adjacent backgrounds meet edge-to-edge.
+    Flush { is_first: bool, is_last: bool },
+}
+
+impl PaneRowStackPosition {
+    /// Resting corner radius for the row's background — derived from its
+    /// position in the stack alone, before hover/selected overrides.
+    fn corner_radius(self) -> CornerRadius {
+        match self {
+            PaneRowStackPosition::Standalone => {
+                CornerRadius::with_all(Radius::Pixels(ROW_CORNER_RADIUS))
+            }
+            PaneRowStackPosition::Flush { is_first, is_last } => {
+                let mut cr = CornerRadius::default();
+                if is_first {
+                    cr.merge(CornerRadius::with_top(Radius::Pixels(ROW_CORNER_RADIUS)));
+                }
+                if is_last {
+                    cr.merge(CornerRadius::with_bottom(Radius::Pixels(ROW_CORNER_RADIUS)));
+                }
+                cr
+            }
+        }
+    }
+}
+
 fn pane_row_background(
     pane_color: Option<ThemeFill>,
     is_selected: bool,
+    is_in_multi_selection: bool,
     is_hovered: bool,
     is_being_dragged: bool,
     theme: &WarpTheme,
 ) -> Option<ThemeFill> {
     if let Some(color) = pane_color {
-        let opacity = if is_selected || is_hovered {
+        let opacity = if is_selected || is_hovered || is_in_multi_selection {
             TAB_COLOR_HOVER_OPACITY
         } else {
             TAB_COLOR_OPACITY
@@ -312,7 +353,11 @@ fn pane_row_background(
         Some(color.with_opacity(opacity))
     } else if is_selected {
         Some(internal_colors::fg_overlay_2(theme))
-    } else if is_being_dragged || is_hovered {
+    } else if is_in_multi_selection && is_hovered {
+        // Hovering a multi-selected row steps one shade darker so the hover
+        // stays visually distinguishable from the in-selection highlight.
+        Some(internal_colors::fg_overlay_2(theme))
+    } else if is_in_multi_selection || is_being_dragged || is_hovered {
         Some(internal_colors::fg_overlay_1(theme))
     } else {
         None
@@ -347,6 +392,9 @@ fn render_pane_row_element(
         is_focused,
         typed: _,
         is_being_dragged,
+        stack_position,
+        is_in_multi_selection,
+        is_in_multi_tab_selection,
         pane_color,
         badge_mouse_states: _,
         detail_hover_state,
@@ -357,16 +405,27 @@ fn render_pane_row_element(
         rename_editor: _,
         is_pane_being_renamed,
         pane_rename_editor: _,
+        is_pinned,
+        container_is_hovered,
     } = props;
     let is_selected = is_active_tab && is_focused;
+    let show_pin = FeatureFlag::PinnedTabs.is_enabled() && is_pinned && !container_is_hovered;
     let mut row = Hoverable::new(mouse_state, move |state| {
+        // Hovered or selected rows always fully round; otherwise derive the
+        // resting radius from the row's stack position.
+        let corner_radius = if state.is_hovered() || is_selected {
+            CornerRadius::with_all(Radius::Pixels(ROW_CORNER_RADIUS))
+        } else {
+            stack_position.corner_radius()
+        };
         let mut container = Container::new(Clipped::new(content).finish())
             .with_padding(padding)
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(ROW_CORNER_RADIUS)));
+            .with_corner_radius(corner_radius);
 
         if let Some(background) = pane_row_background(
             pane_color,
             is_selected,
+            is_in_multi_selection,
             state.is_hovered(),
             is_being_dragged,
             theme,
@@ -374,19 +433,54 @@ fn render_pane_row_element(
             container = container.with_background(background);
         }
 
-        container
+        let pane: Box<dyn Element> = container
             .with_border(Border::all(1.).with_border_fill(if is_selected {
                 internal_colors::fg_overlay_3(theme).into()
             } else {
                 ElementFill::None
             }))
-            .finish()
+            .finish();
+
+        // Pin indicator anchored at the visible pane's top-right corner. Pin
+        // is visible when the container is not hovered.
+        if show_pin {
+            let pin_icon = ConstrainedBox::new(
+                WarpIcon::PinFilledDiagonal
+                    .to_warpui_icon(theme.sub_text_color(theme.background()))
+                    .finish(),
+            )
+            .with_width(PIN_INDICATOR_ICON_SIZE)
+            .with_height(PIN_INDICATOR_ICON_SIZE)
+            .finish();
+            let mut stack = Stack::new().with_child(pane);
+            stack.add_positioned_overlay_child(
+                pin_icon,
+                OffsetPositioning::offset_from_parent(
+                    vec2f(-PIN_INDICATOR_CORNER_INSET, PIN_INDICATOR_CORNER_INSET),
+                    ParentOffsetBounds::ParentByPosition,
+                    ParentAnchor::TopRight,
+                    ChildAnchor::TopRight,
+                ),
+            );
+            stack.finish()
+        } else {
+            pane
+        }
     })
-    .on_click(move |ctx, _, _| {
-        ctx.dispatch_typed_action(WorkspaceAction::FocusPane(PaneViewLocator {
+    .on_click_with_modifiers(move |ctx, _, _, modifiers| {
+        let locator = PaneViewLocator {
             pane_group_id,
             pane_id,
-        }));
+        };
+        // Shift-click extends the range selection; cmd/ctrl-click toggles a
+        // single tab in/out of the selection; plain click focuses the pane.
+        if modifiers.shift && FeatureFlag::GroupedTabs.is_enabled() {
+            ctx.dispatch_typed_action(WorkspaceAction::ShiftSelectTabRange { locator });
+        } else if modifiers.cmd && FeatureFlag::GroupedTabs.is_enabled() {
+            ctx.dispatch_typed_action(WorkspaceAction::ToggleTabMultiSelection { locator });
+        } else {
+            ctx.dispatch_typed_action(WorkspaceAction::FocusPane(locator));
+        }
     })
     .on_hover(move |is_hovered, ctx, app, position| {
         let show_details_on_hover = *TabSettings::as_ref(app)
@@ -459,11 +553,21 @@ fn render_pane_row_element(
     }
     if let Some(tab_index) = pane_context_menu_tab_index {
         row = row.on_right_click(move |ctx, _, position| {
-            ctx.dispatch_typed_action(WorkspaceAction::ToggleVerticalTabsPaneContextMenu {
-                tab_index,
-                target: VerticalTabsPaneContextMenuTarget::ClickedPane(pane_locator),
-                position,
-            });
+            let anchor = TabContextMenuAnchor::Pointer(position);
+            if is_in_multi_tab_selection {
+                ctx.dispatch_typed_action(WorkspaceAction::ToggleTabSelectionRightClickMenu {
+                    tab_index,
+                    anchor,
+                });
+            } else {
+                // Right-clicking outside the multi-selection cancels it.
+                ctx.dispatch_typed_action(WorkspaceAction::ClearTabMultiSelection);
+                ctx.dispatch_typed_action(WorkspaceAction::ToggleVerticalTabsPaneContextMenu {
+                    tab_index,
+                    target: VerticalTabsPaneContextMenuTarget::ClickedPane(pane_locator),
+                    position,
+                });
+            }
         });
     }
 
@@ -588,6 +692,10 @@ pub(super) struct VerticalTabsPanelState {
     pane_row_mouse_states: RefCell<HashMap<PaneId, MouseStateHandle>>,
     pane_title_mouse_states: RefCell<HashMap<PaneId, MouseStateHandle>>,
     pane_badge_mouse_states: RefCell<HashMap<PaneId, PaneRowBadgeMouseStates>>,
+    /// Hover states for the clickable GitHub PR chips on a Summary-mode tab card,
+    /// keyed by the card's representative pane id. A card can show multiple branch
+    /// lines (one per repo/branch), so each entry holds one handle per branch line.
+    summary_pr_badge_mouse_states: RefCell<HashMap<PaneId, Vec<MouseStateHandle>>>,
     detail_pane_badge_mouse_states: RefCell<HashMap<PaneId, PaneRowBadgeMouseStates>>,
     detail_scroll_state: ClippedScrollStateHandle,
     detail_sidecar_mouse_state: MouseStateHandle,
@@ -625,6 +733,7 @@ impl Default for VerticalTabsPanelState {
             pane_row_mouse_states: RefCell::default(),
             pane_title_mouse_states: RefCell::default(),
             pane_badge_mouse_states: RefCell::default(),
+            summary_pr_badge_mouse_states: RefCell::default(),
             detail_pane_badge_mouse_states: RefCell::default(),
             detail_scroll_state: ClippedScrollStateHandle::default(),
             detail_sidecar_mouse_state: Default::default(),
@@ -714,6 +823,16 @@ struct PaneProps<'a> {
     is_focused: bool,
     typed: TypedPane<'a>,
     is_being_dragged: bool,
+    /// Where this row sits in its tab's row stack. Drives corner-radius
+    /// derivation at render time; defaults to `Standalone`.
+    stack_position: PaneRowStackPosition,
+    /// True when this row's tab is part of the active multi-selection
+    /// (shift-click range or cmd-click toggle).
+    is_in_multi_selection: bool,
+    /// True when the row's tab is part of a multi-tab (count > 1) selection.
+    /// The right-click handler dispatches the selection menu when set,
+    /// otherwise the single-pane menu.
+    is_in_multi_tab_selection: bool,
     pane_color: Option<ThemeFill>,
     badge_mouse_states: PaneRowBadgeMouseStates,
     detail_hover_state: VerticalTabsDetailHoverState,
@@ -724,6 +843,11 @@ struct PaneProps<'a> {
     rename_editor: Option<ViewHandle<EditorView>>,
     is_pane_being_renamed: bool,
     pane_rename_editor: Option<ViewHandle<EditorView>>,
+    /// Whether the tab this pane belongs to is pinned.
+    is_pinned: bool,
+    /// True when the tab container containing this pane is hovered.
+    /// The pin icon is hidden when a tab is hovered.
+    container_is_hovered: bool,
 }
 
 struct PaneRowState {
@@ -734,7 +858,6 @@ struct PaneRowState {
 }
 
 enum TerminalPrimaryLineData {
-    DefaultText,
     StatusText {
         text: String,
     },
@@ -745,14 +868,10 @@ enum TerminalPrimaryLineData {
 }
 
 impl TerminalPrimaryLineData {
-    fn display_text(&self, app: &AppContext) -> Cow<'_, str> {
+    fn text(&self) -> &str {
         match self {
-            TerminalPrimaryLineData::DefaultText => Cow::Owned(localization::text_for_app(
-                app,
-                "workspace.vertical_tabs.new_session",
-            )),
             TerminalPrimaryLineData::StatusText { text, .. }
-            | TerminalPrimaryLineData::Text { text, .. } => Cow::Borrowed(text),
+            | TerminalPrimaryLineData::Text { text, .. } => text,
         }
     }
 }
@@ -771,7 +890,7 @@ enum VerticalTabsResolvedMode {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum SummaryPaneKind {
+pub(super) enum SummaryPaneKind {
     Terminal,
     OzAgent { is_ambient: bool },
     CLIAgent { agent: CLIAgent, is_ambient: bool },
@@ -790,7 +909,7 @@ enum SummaryPaneKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum SummaryPaneKindIcons {
+pub(super) enum SummaryPaneKindIcons {
     Single(SummaryPaneKind),
     Pair {
         primary: SummaryPaneKind,
@@ -804,6 +923,9 @@ struct VerticalTabsSummaryBranchEntry {
     branch_name: String,
     diff_stats: Option<GitLineChanges>,
     pull_request_label: Option<String>,
+    /// Full PR URL backing the chip, used to open the PR in the browser when the
+    /// chip is clicked. Paired with `pull_request_label` (the display text).
+    pull_request_url: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -962,6 +1084,9 @@ fn coalesce_summary_branch_entries(
             if existing.pull_request_label.is_none() {
                 existing.pull_request_label = entry.pull_request_label;
             }
+            if existing.pull_request_url.is_none() {
+                existing.pull_request_url = entry.pull_request_url;
+            }
         } else {
             indices.insert(key, coalesced.len());
             coalesced.push(entry);
@@ -1004,26 +1129,12 @@ fn summary_search_text_fragments(
 fn select_summary_pane_kind_icons(
     pane_kinds: impl IntoIterator<Item = (EntityId, SummaryPaneKind)>,
 ) -> Option<SummaryPaneKindIcons> {
-    let mut pane_kinds: Vec<(EntityId, SummaryPaneKind)> = pane_kinds.into_iter().collect();
-    pane_kinds.sort_by_key(|(creation_order_id, _)| *creation_order_id);
-
-    let mut unique_kinds = Vec::new();
-    for (_, pane_kind) in pane_kinds {
-        if !unique_kinds.contains(&pane_kind) {
-            unique_kinds.push(pane_kind);
-        }
-        if unique_kinds.len() == 2 {
-            return Some(SummaryPaneKindIcons::Pair {
-                primary: unique_kinds[0].clone(),
-                secondary: unique_kinds[1].clone(),
-            });
-        }
+    let mut unique_kinds = select_unique_pane_kinds(pane_kinds, 2).into_iter();
+    let primary = unique_kinds.next()?;
+    match unique_kinds.next() {
+        Some(secondary) => Some(SummaryPaneKindIcons::Pair { primary, secondary }),
+        None => Some(SummaryPaneKindIcons::Single(primary)),
     }
-
-    unique_kinds
-        .first()
-        .cloned()
-        .map(SummaryPaneKindIcons::Single)
 }
 
 fn resolve_summary_pane_kind_icons(
@@ -1032,15 +1143,8 @@ fn resolve_summary_pane_kind_icons(
     app: &AppContext,
 ) -> Option<SummaryPaneKindIcons> {
     select_summary_pane_kind_icons(visible_pane_ids.iter().filter_map(|pane_id| {
-        pane_group.pane_by_id(*pane_id).map(|pane| {
-            let pane_configuration = pane.pane_configuration();
-            let pane_configuration = pane_configuration.as_ref(app);
-            let typed = pane_group.resolve_pane_type(*pane_id, app);
-            (
-                pane_id.creation_order_id(),
-                typed.summary_pane_kind(pane_configuration.title().trim(), app),
-            )
-        })
+        let kind = pane_summary_kind(pane_group, *pane_id, app)?;
+        Some((pane_id.creation_order_id(), kind))
     }))
 }
 
@@ -1106,6 +1210,8 @@ impl VerticalTabsPanelState {
                                 pane_id,
                                 tab.pane_group.id(),
                                 *tab_index == active_tab_index,
+                                false,
+                                false,
                                 PaneRowState {
                                     mouse_state: ms,
                                     title_mouse_state: None,
@@ -1122,6 +1228,8 @@ impl VerticalTabsPanelState {
                                 None,
                                 false,
                                 None,
+                                tab.pinned,
+                                false,
                                 app,
                             )
                             .is_some_and(|props| pane_matches_query(&props, &query_lower, app))
@@ -1377,8 +1485,6 @@ fn render_settings_button(
     let main_text = theme.main_text_color(theme.background());
     let is_popup_open = state.show_settings_popup;
     let ui_builder = appearance.ui_builder().clone();
-    let view_options_tooltip =
-        localization::text_for_app(app, "workspace.vertical_tabs.tooltip.view_options");
 
     let button = Hoverable::new(
         state.settings_button_mouse_state.clone(),
@@ -1408,7 +1514,10 @@ fn render_settings_button(
 
             if hover_state.is_hovered() && !is_popup_open {
                 let tooltip = ui_builder
-                    .tool_tip(view_options_tooltip.clone())
+                    .tool_tip(localization::text_for_app(
+                        app,
+                        "workspace.vertical_tabs.tooltip.view_options",
+                    ))
                     .build()
                     .finish();
                 let mut stack = Stack::new().with_child(button_container);
@@ -1446,8 +1555,6 @@ fn render_new_tab_button(
     let sub_text = theme.sub_text_color(theme.background());
     let main_text = theme.main_text_color(theme.background());
     let ui_builder = appearance.ui_builder().clone();
-    let tab_configs_tooltip =
-        localization::text_for_app(app, "workspace.vertical_tabs.tooltip.tab_configs");
     let tab_configs_keybinding =
         keybinding_name_to_display_string(super::TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME, app);
     // Only highlight the `+` button when the menu was opened from it, not when
@@ -1490,12 +1597,21 @@ fn render_new_tab_button(
         let contents = if hover_state.is_hovered() {
             let tooltip = if let Some(sublabel) = tab_configs_keybinding.clone() {
                 ui_builder
-                    .tool_tip_with_sublabel(tab_configs_tooltip.clone(), sublabel)
+                    .tool_tip_with_sublabel(
+                        localization::text_for_app(
+                            app,
+                            "workspace.vertical_tabs.tooltip.tab_configs",
+                        ),
+                        sublabel,
+                    )
                     .build()
                     .finish()
             } else {
                 ui_builder
-                    .tool_tip(tab_configs_tooltip.clone())
+                    .tool_tip(localization::text_for_app(
+                        app,
+                        "workspace.vertical_tabs.tooltip.tab_configs",
+                    ))
                     .build()
                     .finish()
             };
@@ -1586,6 +1702,9 @@ fn render_vertical_tabs_panel(
                 anchor: NewSessionMenuAnchor::Pointer(position),
             });
         }
+    })
+    .on_double_click(|ctx, _, _| {
+        ctx.dispatch_typed_action(WorkspaceAction::AddDefaultTab);
     })
     .with_defer_events_to_children()
     .finish();
@@ -1682,6 +1801,8 @@ fn render_groups(
                                     pane_id,
                                     tab.pane_group.id(),
                                     tab_index == workspace.active_tab_index,
+                                    false,
+                                    false,
                                     PaneRowState {
                                         mouse_state: ms,
                                         title_mouse_state: None,
@@ -1698,6 +1819,8 @@ fn render_groups(
                                     None,
                                     false,
                                     None,
+                                    tab.pinned,
+                                    false,
                                     app,
                                 )
                                 .is_some_and(|props| {
@@ -1709,6 +1832,8 @@ fn render_groups(
                                 pane_id,
                                 tab.pane_group.id(),
                                 tab_index == workspace.active_tab_index,
+                                false,
+                                false,
                                 PaneRowState {
                                     mouse_state,
                                     title_mouse_state: None,
@@ -1725,6 +1850,8 @@ fn render_groups(
                                 None,
                                 false,
                                 None,
+                                tab.pinned,
+                                false,
                                 app,
                             )
                             .is_some_and(|props| pane_matches_query(&props, &query_lower, app))
@@ -1744,10 +1871,7 @@ fn render_groups(
         } else {
             return Container::new(
                 Text::new_inline(
-                    localization::text_for_app(
-                        app,
-                        "workspace.vertical_tabs.empty.no_search_results",
-                    ),
+                    "No tabs match your search.",
                     appearance.ui_font_family(),
                     12.,
                 )
@@ -1771,6 +1895,7 @@ fn render_groups(
     }
 
     // Consecutive tabs sharing a group_id collapse into a single group container.
+    // TODO(johnturcoo) adopt horizontal tabs 'tab slot' pattern to remove this while loop.
     let total_visible = visible_tabs.len();
     let mut i = 0;
     while i < total_visible {
@@ -1841,6 +1966,10 @@ fn render_groups(
         .collect();
     state
         .pane_badge_mouse_states
+        .borrow_mut()
+        .retain(|id, _| all_pane_ids.contains(id));
+    state
+        .summary_pr_badge_mouse_states
         .borrow_mut()
         .retain(|id, _| all_pane_ids.contains(id));
     state
@@ -1967,14 +2096,29 @@ fn render_tab_group_internal(
     let is_first_tab = tab_index == 0;
     let is_last_tab = tab_index + 1 == workspace.tabs.len();
     let is_this_tab_dragging = tab.draggable_state.is_dragging();
+    // Panes inherit multi-selection status from the tab they belong to.
+    let is_in_multi_selection = tab.in_multi_selection;
+    // Captured into row/group right-click closures so they can pick between
+    // the single-pane menu and the multi-tab selection menu.
+    let is_in_multi_tab_selection = workspace.is_tab_in_multi_tab_selection(tab_index);
     let color_mode = compute_tab_group_color_mode(tab, pane_group, &visible_pane_ids, theme, app);
     let per_pane_colors = color_mode.into_per_pane_colors(&visible_pane_ids);
     let is_being_renamed = is_active && workspace.current_workspace_state.is_tab_being_renamed();
     let rename_editor = workspace.tab_rename_editor.clone();
     let has_custom_title = pane_group.custom_title(app).is_some();
-    let displayed_tab_title_override = (!uses_outer_group_container)
-        .then(|| pane_group.custom_title(app))
-        .flatten();
+    // In Panes view, tabs inside a group render individual pane rows, so each
+    // pane keeps its own generated title. Propagating the tab's custom title as
+    // an override here would shadow every pane's title with the same string.
+    // In Tabs/Summary modes there is only one row per tab, so the tab-level
+    // custom title is still the right thing to show.
+    let displayed_tab_title_override =
+        if in_tab_group && matches!(display_granularity, VerticalTabsDisplayGranularity::Panes) {
+            None
+        } else {
+            (!uses_outer_group_container)
+                .then(|| pane_group.custom_title(app))
+                .flatten()
+        };
     let is_menu_open_for_tab = workspace
         .show_tab_right_click_menu
         .is_some_and(|(idx, _)| idx == tab_index);
@@ -1990,11 +2134,19 @@ fn render_tab_group_internal(
     };
 
     let mut group_element = Hoverable::new(group_mouse_state, move |group_state| {
+        // GroupedTabs: stack panes flush in Panes view.
+        let stack_panes_flush = FeatureFlag::GroupedTabs.is_enabled()
+            && matches!(display_granularity, VerticalTabsDisplayGranularity::Panes);
+        let row_spacing = if stack_panes_flush {
+            0.
+        } else {
+            GROUP_ITEM_SPACING
+        };
         let build_rows = || {
             let mut rows = Flex::column()
                 .with_main_axis_size(MainAxisSize::Min)
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                .with_spacing(GROUP_ITEM_SPACING);
+                .with_spacing(row_spacing);
             if matches!(resolved_mode, VerticalTabsResolvedMode::Summary) {
                 let Some((pane_id, row_mouse_state)) = row_mouse_states.first() else {
                     return Empty::new().finish();
@@ -2009,11 +2161,27 @@ fn render_tab_group_internal(
                     .entry(*pane_id)
                     .or_default()
                     .clone();
+                // One persistent hover handle per branch line so each PR chip
+                // highlights independently across frames.
+                let branch_line_count = summary
+                    .as_ref()
+                    .map(|summary| summary.branch_entries.len())
+                    .unwrap_or(0);
+                let pr_badge_mouse_states = {
+                    let mut map = state.summary_pr_badge_mouse_states.borrow_mut();
+                    let handles = map.entry(*pane_id).or_default();
+                    while handles.len() < branch_line_count {
+                        handles.push(MouseStateHandle::default());
+                    }
+                    handles[..branch_line_count].to_vec()
+                };
                 let Some(pane_props) = PaneProps::new(
                     pane_group,
                     *pane_id,
                     pane_group_id,
                     is_active,
+                    is_in_multi_selection,
+                    is_in_multi_tab_selection,
                     PaneRowState {
                         mouse_state: row_mouse_state.clone(),
                         title_mouse_state: None,
@@ -2030,6 +2198,8 @@ fn render_tab_group_internal(
                     (!uses_outer_group_container).then_some(rename_editor.clone()),
                     false,
                     None,
+                    tab.pinned,
+                    group_state.is_hovered(),
                     app,
                 ) else {
                     return Empty::new().finish();
@@ -2040,11 +2210,13 @@ fn render_tab_group_internal(
                         .as_ref()
                         .expect("summary data must exist in summary mode"),
                     summary_pane_kind_icons,
+                    &pr_badge_mouse_states,
                     app,
                 ));
                 return rows.finish();
             }
-            for (pane_id, row_mouse_state) in &row_mouse_states {
+            let total_rows = row_mouse_states.len();
+            for (row_idx, (pane_id, row_mouse_state)) in row_mouse_states.iter().enumerate() {
                 let pane_color = per_pane_colors
                     .as_ref()
                     .and_then(|map| map.get(pane_id).copied())
@@ -2062,11 +2234,13 @@ fn render_tab_group_internal(
                 let is_pane_being_renamed = workspace
                     .current_workspace_state
                     .is_pane_being_renamed(locator);
-                let Some(pane_props) = PaneProps::new(
+                let Some(mut pane_props) = PaneProps::new(
                     pane_group,
                     *pane_id,
                     pane_group_id,
                     is_active,
+                    is_in_multi_selection,
+                    is_in_multi_tab_selection,
                     PaneRowState {
                         mouse_state: row_mouse_state.clone(),
                         title_mouse_state: title_mouse_states.get(pane_id).cloned(),
@@ -2083,10 +2257,18 @@ fn render_tab_group_internal(
                     (!uses_outer_group_container).then_some(rename_editor.clone()),
                     is_pane_being_renamed,
                     is_pane_being_renamed.then_some(workspace.pane_rename_editor.clone()),
+                    tab.pinned,
+                    group_state.is_hovered(),
                     app,
                 ) else {
                     continue;
                 };
+                if stack_panes_flush {
+                    pane_props.stack_position = PaneRowStackPosition::Flush {
+                        is_first: row_idx == 0,
+                        is_last: row_idx + 1 == total_rows,
+                    };
+                }
                 let view_mode = *TabSettings::as_ref(app).vertical_tabs_view_mode.value();
                 let row = match view_mode {
                     VerticalTabsViewMode::Compact => render_compact_pane_row(pane_props, app),
@@ -2152,28 +2334,35 @@ fn render_tab_group_internal(
             // hover/active state for the whole group, so suppress the
             // per-tab background here and let each row show its own
             // selected/hovered state.
+            let allow_per_tab_highlight = !in_tab_group || FeatureFlag::GroupedTabs.is_enabled();
             let background = if is_drag_target {
                 internal_colors::fg_overlay_2(theme)
-            } else if !in_tab_group && (is_active || group_state.is_hovered()) {
+            } else if allow_per_tab_highlight && (is_active || group_state.is_hovered()) {
                 internal_colors::fg_overlay_1(theme)
             } else {
                 ThemeFill::Solid(ColorU::transparent_black())
             };
-            // Pane view inside a tab group: reserve a top band so the action
-            // buttons (anchored to this wrapper's top-right) sit above the
-            // first pane row instead of overlaying its content, matching how
-            // regular pane view places them in the body's top padding.
+            // Top band reserved for the per-tab action buttons.
+            const GROUPED_TAB_ACTION_BUTTON_BAND: f32 = 4.;
             let needs_action_button_band = in_tab_group
                 && matches!(display_granularity, VerticalTabsDisplayGranularity::Panes);
+            let action_button_band = if FeatureFlag::GroupedTabs.is_enabled() {
+                GROUPED_TAB_ACTION_BUTTON_BAND
+            } else {
+                GROUP_BODY_BOTTOM_PADDING
+            };
             let mut container = Container::new(build_rows()).with_background(background);
-            if needs_action_button_band {
+            if FeatureFlag::GroupedTabs.is_enabled() && stack_panes_flush {
                 container = container
-                    .with_padding(Padding::uniform(0.).with_top(GROUP_BODY_BOTTOM_PADDING));
+                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(ROW_CORNER_RADIUS)));
             }
             if is_drag_target {
                 container = container.with_border(
                     Border::all(1.).with_border_fill(ThemeFill::Solid(theme.accent().into())),
                 );
+            }
+            if needs_action_button_band {
+                container = container.with_margin_top(action_button_band);
             }
             container.finish()
         };
@@ -2235,10 +2424,19 @@ fn render_tab_group_internal(
         } else {
             -4.
         };
+        // GroupedTabs: pull the action buttons up to match the band of padding.
+        let action_button_y_offset = if FeatureFlag::GroupedTabs.is_enabled()
+            && in_tab_group
+            && matches!(display_granularity, VerticalTabsDisplayGranularity::Panes)
+        {
+            0.
+        } else {
+            GROUP_HEADER_VERTICAL_PADDING
+        };
         stack.add_positioned_overlay_child(
             action_buttons,
             OffsetPositioning::offset_from_parent(
-                vec2f(action_button_x_offset, GROUP_HEADER_VERTICAL_PADDING),
+                vec2f(action_button_x_offset, action_button_y_offset),
                 ParentOffsetBounds::WindowByPosition,
                 ParentAnchor::TopRight,
                 ChildAnchor::TopRight,
@@ -2247,11 +2445,23 @@ fn render_tab_group_internal(
         stack.finish()
     })
     .on_right_click(move |ctx, _, position| {
-        ctx.dispatch_typed_action(WorkspaceAction::ToggleVerticalTabsPaneContextMenu {
-            tab_index,
-            target: VerticalTabsPaneContextMenuTarget::ActivePane(active_pane_context_menu_target),
-            position,
-        });
+        let anchor = TabContextMenuAnchor::Pointer(position);
+        if is_in_multi_tab_selection {
+            ctx.dispatch_typed_action(WorkspaceAction::ToggleTabSelectionRightClickMenu {
+                tab_index,
+                anchor,
+            });
+        } else {
+            // Right-clicking outside the multi-selection cancels it.
+            ctx.dispatch_typed_action(WorkspaceAction::ClearTabMultiSelection);
+            ctx.dispatch_typed_action(WorkspaceAction::ToggleVerticalTabsPaneContextMenu {
+                tab_index,
+                target: VerticalTabsPaneContextMenuTarget::ActivePane(
+                    active_pane_context_menu_target,
+                ),
+                position,
+            });
+        }
     });
 
     // Mirror the horizontal-tab behavior: middle-click closes the tab, except when it would
@@ -2274,7 +2484,7 @@ fn render_tab_group_internal(
     let is_sole_group_member = in_tab_group
         && tab
             .group_id
-            .is_some_and(|gid| super::group_member_indices(&workspace.tabs, gid).count() == 1);
+            .is_some_and(|gid| super::group_has_single_member(&workspace.tabs, gid));
 
     let draggable: Box<dyn Element> = if is_parent_group_dragging || is_sole_group_member {
         group_element
@@ -2473,9 +2683,14 @@ fn render_tab_group_header_icon_button(
     .finish()
 }
 
-/// Renders the header row for a tab group: chevron, title + "N tabs", and (on hover)
-/// kebab + close buttons. Single-clicking outside the per-button regions toggles collapse;
-/// double-clicking opens the inline rename editor.
+/// Renders the header row for a tab group: leading icon (chevron when expanded,
+/// member icon collage when collapsed), title + "N tabs", and (on hover) kebab
+/// + close buttons. Single-clicking outside the per-button regions toggles
+/// collapse; double-clicking opens the inline rename editor.
+///
+/// `collapsed_member_kinds` is the deduped list of pane kinds used to build the
+/// icon collage shown in place of the chevron when the group is collapsed.
+/// Pass `None` when the group is expanded; the chevron is rendered instead.
 #[allow(clippy::too_many_arguments)]
 fn render_grouped_tabs_header(
     group: &TabGroup,
@@ -2486,6 +2701,7 @@ fn render_grouped_tabs_header(
     show_action_buttons: bool,
     is_being_renamed: bool,
     rename_editor: Option<&ViewHandle<EditorView>>,
+    collapsed_member_kinds: Option<&[SummaryPaneKind]>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
@@ -2495,31 +2711,34 @@ fn render_grouped_tabs_header(
     let sub_text_color = theme.sub_text_color(theme.background());
     let group_id = group.id;
 
-    let chevron_icon = if is_collapsed {
-        WarpIcon::ChevronRight
+    // Collapsed groups show the icon collage (same component as horizontal tab
+    // groups) in place of the chevron, sized to VERTICAL_TABS_ICON_SIZE so
+    // the 2-icon variant matches the tab Summary Pair layout exactly.
+    let tab_group_icon = if is_collapsed {
+        let kinds = collapsed_member_kinds.unwrap_or(&[]);
+        render_group_member_icon_collage(kinds, VERTICAL_TABS_ICON_SIZE, appearance)
     } else {
-        WarpIcon::ChevronDown
-    };
-    let chevron_button = render_tab_group_header_icon_button(
-        chevron_icon,
-        TAB_GROUP_ICON_SIZE,
-        main_text_color,
-        internal_colors::fg_overlay_2(theme),
-        mouse_states.chevron.clone(),
-        Some(WorkspaceAction::ToggleTabGroupCollapsed(group_id)),
-    );
-    // Center the chevron in a `VERTICAL_TABS_ICON_SIZE` slot so the title aligns with member rows.
-    let chevron_slot = ConstrainedBox::new(
+        let chevron_button = render_tab_group_header_icon_button(
+            WarpIcon::ChevronDown,
+            TAB_GROUP_ICON_SIZE,
+            main_text_color,
+            internal_colors::fg_overlay_2(theme),
+            mouse_states.chevron.clone(),
+            Some(WorkspaceAction::ToggleTabGroupCollapsed(group_id)),
+        );
+        // Center the chevron in a `VERTICAL_TABS_ICON_SIZE` slot so the
+        // title aligns with member rows.
         Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::Center)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(chevron_button)
-            .finish(),
-    )
-    .with_width(VERTICAL_TABS_ICON_SIZE)
-    .with_height(VERTICAL_TABS_ICON_SIZE)
-    .finish();
+            .finish()
+    };
+    let tab_group_icon = ConstrainedBox::new(tab_group_icon)
+        .with_width(VERTICAL_TABS_ICON_SIZE)
+        .with_height(VERTICAL_TABS_ICON_SIZE)
+        .finish();
 
     let title_element: Box<dyn Element> =
         if let Some(editor) = rename_editor.filter(|_| is_being_renamed) {
@@ -2589,6 +2808,7 @@ fn render_grouped_tabs_header(
         Empty::new().finish()
     };
 
+    let group_pinned = FeatureFlag::PinnedTabs.is_enabled() && group.pinned;
     let row = Flex::row()
         .with_main_axis_size(MainAxisSize::Max)
         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
@@ -2600,7 +2820,7 @@ fn render_grouped_tabs_header(
                     .with_main_axis_size(MainAxisSize::Max)
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_spacing(ICON_WITH_STATUS_GAP)
-                    .with_child(chevron_slot)
+                    .with_child(tab_group_icon)
                     .with_child(Shrinkable::new(1., text_column).finish())
                     .finish(),
             )
@@ -2622,7 +2842,34 @@ fn render_grouped_tabs_header(
         if is_header_selected || state.is_hovered() {
             container = container.with_background(internal_colors::fg_overlay_2(theme));
         }
-        container.finish()
+        let header = container.finish();
+
+        // Pin indicator anchored at the visible top-right corner, matching
+        // the per-tab pin placement. Hidden whenever the action buttons
+        // are visible so the two never overlap.
+        if group_pinned && !show_action_buttons {
+            let pin_icon = ConstrainedBox::new(
+                WarpIcon::PinFilledDiagonal
+                    .to_warpui_icon(sub_text_color)
+                    .finish(),
+            )
+            .with_width(PIN_INDICATOR_ICON_SIZE)
+            .with_height(PIN_INDICATOR_ICON_SIZE)
+            .finish();
+            let mut stack = Stack::new().with_child(header);
+            stack.add_positioned_overlay_child(
+                pin_icon,
+                OffsetPositioning::offset_from_parent(
+                    vec2f(-PIN_INDICATOR_CORNER_INSET, PIN_INDICATOR_CORNER_INSET),
+                    ParentOffsetBounds::ParentByPosition,
+                    ParentAnchor::TopRight,
+                    ChildAnchor::TopRight,
+                ),
+            );
+            stack.finish()
+        } else {
+            header
+        }
     })
     .with_cursor(Cursor::PointingHand)
     .with_defer_events_to_children();
@@ -2678,11 +2925,20 @@ fn render_grouped_tab_container(
         _ => VerticalTabsDisplayGranularity::Tabs,
     });
 
+    // GroupedTabs: zero inter-tab gap in Panes mode (each tab already has
+    // its own wrapper). Other modes keep `TABS_MODE_ITEM_SPACING`.
+    let member_tab_spacing = if FeatureFlag::GroupedTabs.is_enabled()
+        && matches!(resolved_mode, VerticalTabsResolvedMode::Panes)
+    {
+        0.
+    } else {
+        TABS_MODE_ITEM_SPACING
+    };
     let container = Hoverable::new(mouse_states.container.clone(), |hover_state| {
         let mut content = Flex::column()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_spacing(TABS_MODE_ITEM_SPACING);
+            .with_spacing(member_tab_spacing);
 
         // Collapsed group + active member: highlight the header instead of the (now hidden) member row.
         let is_header_selected = is_collapsed && any_member_active;
@@ -2690,6 +2946,10 @@ fn render_grouped_tab_container(
             .current_workspace_state
             .is_tab_group_being_renamed(group.id);
         let rename_editor = is_being_renamed.then(|| workspace.tab_group_rename_editor.clone());
+        // Compute member kinds only when collapsed — the collage is only
+        // rendered then, so this skips the per-tab pane walk when expanded.
+        let collapsed_member_kinds =
+            is_collapsed.then(|| workspace.compute_group_member_kinds(group.id, app));
         content.add_child(render_grouped_tabs_header(
             &group,
             member_count,
@@ -2699,6 +2959,7 @@ fn render_grouped_tab_container(
             hover_state.is_hovered(),
             is_being_renamed,
             rename_editor.as_ref(),
+            collapsed_member_kinds.as_deref(),
             app,
         ));
 
@@ -2825,7 +3086,7 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
     let theme = appearance.theme();
     let title = pane_group.display_title(app);
     let title = if title.is_empty() {
-        localization::text_for_app(app, "workspace.vertical_tabs.untitled_tab")
+        "Untitled tab".to_string()
     } else {
         title
     };
@@ -3140,27 +3401,22 @@ impl TypedPane<'_> {
         matches!(self, TypedPane::Terminal(_) | TypedPane::Code(_))
             || self.warp_drive_object_type().is_some()
     }
-    fn kind_label(&self, app: &AppContext) -> String {
-        let key = match self {
-            TypedPane::Terminal(_) => "workspace.vertical_tabs.pane_kind.terminal",
-            TypedPane::Code(_) => "workspace.vertical_tabs.pane_kind.code",
-            TypedPane::CodeDiff => "workspace.vertical_tabs.pane_kind.code_diff",
-            TypedPane::File => "workspace.vertical_tabs.pane_kind.file",
-            TypedPane::Notebook { .. } => "workspace.vertical_tabs.pane_kind.notebook",
-            TypedPane::Workflow { .. } => "workspace.vertical_tabs.pane_kind.workflow",
-            TypedPane::Settings => "workspace.vertical_tabs.pane_kind.settings",
-            TypedPane::EnvVarCollection => {
-                "workspace.vertical_tabs.pane_kind.environment_variables"
-            }
-            TypedPane::EnvironmentManagement => "workspace.vertical_tabs.pane_kind.environments",
-            TypedPane::AIFact => "workspace.vertical_tabs.pane_kind.rules",
-            TypedPane::AIDocument => "workspace.vertical_tabs.pane_kind.plan",
-            TypedPane::ExecutionProfileEditor => {
-                "workspace.vertical_tabs.pane_kind.execution_profile"
-            }
-            TypedPane::Other => "workspace.vertical_tabs.pane_kind.other",
-        };
-        localization::text_for_app(app, key)
+    fn kind_label(&self) -> &'static str {
+        match self {
+            TypedPane::Terminal(_) => "Terminal",
+            TypedPane::Code(_) => "Code",
+            TypedPane::CodeDiff => "Code Diff",
+            TypedPane::File => "File",
+            TypedPane::Notebook { .. } => "Notebook",
+            TypedPane::Workflow { .. } => "Workflow",
+            TypedPane::Settings => "Settings",
+            TypedPane::EnvVarCollection => "Environment Variables",
+            TypedPane::EnvironmentManagement => "Environments",
+            TypedPane::AIFact => "Rules",
+            TypedPane::AIDocument => "Plan",
+            TypedPane::ExecutionProfileEditor => "Execution Profile",
+            TypedPane::Other => "Other",
+        }
     }
 
     fn badge(&self, app: &AppContext) -> Option<String> {
@@ -3169,7 +3425,7 @@ impl TypedPane<'_> {
                 .file_view(app)
                 .as_ref(app)
                 .contains_unsaved_changes(app)
-                .then(|| localization::text_for_app(app, "workspace.vertical_tabs.badge.unsaved")),
+                .then(|| "Unsaved".to_string()),
             TypedPane::Terminal(_)
             | TypedPane::CodeDiff
             | TypedPane::File
@@ -3211,7 +3467,6 @@ fn pane_display_title_and_subtitle(
     typed: &TypedPane<'_>,
     title: &str,
     secondary_title: &str,
-    app: &AppContext,
 ) -> (String, String) {
     if matches!(typed, TypedPane::Code(_)) && !title.is_empty() {
         let path = Path::new(title);
@@ -3230,7 +3485,7 @@ fn pane_display_title_and_subtitle(
     } else {
         (
             if title.is_empty() {
-                typed.kind_label(app)
+                typed.kind_label().to_string()
             } else {
                 title.to_string()
             },
@@ -3262,7 +3517,6 @@ fn build_vertical_tabs_summary_data(
             &typed,
             pane_configuration.title().trim(),
             pane_configuration.title_secondary().trim(),
-            app,
         );
 
         match typed {
@@ -3290,12 +3544,11 @@ fn build_vertical_tabs_summary_data(
                     terminal_title_fallback_font(&agent_text),
                     terminal_view.last_completed_command_text(),
                 );
-                let primary_label_text = primary_label.display_text(app);
                 let status = summary_conversation_status_for_terminal(terminal_view, app);
                 push_normalized_unique_summary_label(
                     &mut primary_labels,
                     &mut primary_seen,
-                    primary_label_text.as_ref(),
+                    primary_label.text(),
                     status,
                 );
 
@@ -3315,15 +3568,16 @@ fn build_vertical_tabs_summary_data(
                         .current_git_branch(app)
                         .and_then(|branch| normalize_summary_text(&branch)),
                 ) {
+                    let pull_request_url = terminal_view.current_pull_request_url(app);
                     branch_entries.push(VerticalTabsSummaryBranchEntry {
                         repo_path,
                         branch_name,
                         diff_stats: terminal_view.current_diff_line_changes(app),
-                        pull_request_label: terminal_view
-                            .current_pull_request_url(app)
+                        pull_request_label: pull_request_url
                             .as_deref()
                             .map(terminal_pull_request_badge_label)
                             .and_then(|label| normalize_summary_text(&label)),
+                        pull_request_url,
                     });
                 }
             }
@@ -3378,6 +3632,8 @@ impl<'a> PaneProps<'a> {
         pane_id: PaneId,
         pane_group_id: EntityId,
         is_active_tab: bool,
+        is_in_multi_selection: bool,
+        is_in_multi_tab_selection: bool,
         pane_row_state: PaneRowState,
         detail_hover_state: VerticalTabsDetailHoverState,
         display_granularity: VerticalTabsDisplayGranularity,
@@ -3389,6 +3645,8 @@ impl<'a> PaneProps<'a> {
         rename_editor: Option<ViewHandle<EditorView>>,
         is_pane_being_renamed: bool,
         pane_rename_editor: Option<ViewHandle<EditorView>>,
+        is_pinned: bool,
+        container_is_hovered: bool,
         app: &AppContext,
     ) -> Option<Self> {
         let pane = pane_group.pane_by_id(pane_id)?;
@@ -3407,7 +3665,6 @@ impl<'a> PaneProps<'a> {
             &typed,
             pane_configuration.title().trim(),
             pane_configuration.title_secondary().trim(),
-            app,
         );
 
         Some(Self {
@@ -3429,6 +3686,9 @@ impl<'a> PaneProps<'a> {
             is_focused: pane_group.focused_pane_id(app) == pane_id,
             typed,
             is_being_dragged: pane.is_pane_being_dragged(app),
+            stack_position: PaneRowStackPosition::Standalone,
+            is_in_multi_selection,
+            is_in_multi_tab_selection,
             pane_color: pane_row_state.pane_color,
             badge_mouse_states: pane_row_state.badge_mouse_states,
             detail_hover_state,
@@ -3439,6 +3699,8 @@ impl<'a> PaneProps<'a> {
             rename_editor,
             is_pane_being_renamed,
             pane_rename_editor,
+            is_pinned,
+            container_is_hovered,
         })
     }
 
@@ -3553,8 +3815,8 @@ fn terminal_pane_search_text_fragments(
                 terminal_title_fallback_font(&agent_text),
                 terminal_view.last_completed_command_text(),
             )
-            .display_text(app)
-            .into_owned()
+            .text()
+            .to_string()
         });
     let pull_request_label = terminal_view
         .current_pull_request_url(app)
@@ -3565,7 +3827,7 @@ fn terminal_pane_search_text_fragments(
         primary_text,
         working_directory,
         terminal_view.current_git_branch(app),
-        terminal_kind_badge_label(agent_text.is_oz_agent, agent_text.cli_agent, app),
+        terminal_kind_badge_label(agent_text.is_oz_agent, agent_text.cli_agent),
         pull_request_label,
         terminal_view.current_diff_line_changes(app),
     )
@@ -3635,20 +3897,19 @@ fn terminal_primary_line_data(
         };
     }
 
-    TerminalPrimaryLineData::DefaultText
+    TerminalPrimaryLineData::Text {
+        text: "New session".to_string(),
+        font: TerminalPrimaryLineFont::Ui,
+    }
 }
 
-fn terminal_kind_badge_label(
-    is_oz_agent: bool,
-    cli_agent: Option<CLIAgent>,
-    app: &AppContext,
-) -> String {
+fn terminal_kind_badge_label(is_oz_agent: bool, cli_agent: Option<CLIAgent>) -> String {
     if let Some(cli_agent) = cli_agent {
         cli_agent.display_name().to_string()
     } else if is_oz_agent {
         "Oz".to_string()
     } else {
-        localization::text_for_app(app, "workspace.vertical_tabs.pane_kind.terminal")
+        "Terminal".to_string()
     }
 }
 
@@ -3790,14 +4051,35 @@ impl PaneGroup {
             IPaneType::AIFact => TypedPane::AIFact,
             IPaneType::AIDocument => TypedPane::AIDocument,
             IPaneType::ExecutionProfileEditor => TypedPane::ExecutionProfileEditor,
-            IPaneType::GetStarted
-            | IPaneType::NetworkLog
-            | IPaneType::Welcome
-            | IPaneType::DeferredPlaceholder => TypedPane::Other,
+            IPaneType::GetStarted | IPaneType::NetworkLog | IPaneType::DeferredPlaceholder => {
+                TypedPane::Other
+            }
             #[cfg(test)]
             IPaneType::Dummy => TypedPane::Other,
         }
     }
+}
+
+/// Returns the [`SummaryPaneKind`] representing how the given pane should
+/// be rendered visually, matching the treatment used by vertical tabs
+/// Summary mode. For Terminal panes, distinguishes Oz vs Oz cloud vs each
+/// known CLI agent (Claude, Codex, …) by routing through
+/// `terminal_view_agent_icon_variant`; for other pane types it falls back
+/// to `TypedPane::summary_pane_kind`. Returns `None` when `pane_id` does
+/// not resolve to a pane in `pane_group` so callers can skip stale ids
+/// via `filter_map`; note this is distinct from a known pane that
+/// classifies as `SummaryPaneKind::Other`.
+pub(super) fn pane_summary_kind(
+    pane_group: &PaneGroup,
+    pane_id: PaneId,
+    app: &AppContext,
+) -> Option<SummaryPaneKind> {
+    let pane = pane_group.pane_by_id(pane_id)?;
+    let pane_configuration = pane.pane_configuration();
+    let pane_configuration = pane_configuration.as_ref(app);
+    let title = pane_configuration.title().trim();
+    let typed = pane_group.resolve_pane_type(pane_id, app);
+    Some(typed.summary_pane_kind(title, app))
 }
 
 /// Returns the best available working-directory string for a terminal pane,
@@ -3830,11 +4112,9 @@ fn cloud_agent_working_directory_and_env(
         .and_then(|id| CloudAmbientAgentEnvironment::get_by_id(id, app))
         .map(|env| env.model().string_model.display_name());
 
-    let setup_status: Option<String> = model_ref
-        .agent_progress()
-        .map(|p| localization::text_for_app(app, p.setup_status_text_key()));
+    let setup_status = model_ref.agent_progress().map(|p| p.setup_status_text(app));
 
-    match (env_name, setup_status, working_directory) {
+    match (env_name, setup_status.as_deref(), working_directory) {
         (Some(env), Some(status), _) => Some(format!("{env} · {status}")),
         (Some(env), None, Some(wd)) => Some(format!("{env} · {wd}")),
         (Some(env), None, None) => Some(env),
@@ -4062,7 +4342,7 @@ fn render_text_line(
         .finish()
 }
 
-fn render_inline_tab_rename_editor(
+pub(crate) fn render_inline_tab_rename_editor(
     rename_editor: &ViewHandle<EditorView>,
     appearance: &Appearance,
     app: &AppContext,
@@ -4154,6 +4434,7 @@ fn render_summary_tab_item(
     props: PaneProps<'_>,
     summary: &VerticalTabsSummaryData,
     summary_pane_kind_icons: Option<SummaryPaneKindIcons>,
+    pr_badge_mouse_states: &[MouseStateHandle],
     app: &AppContext,
 ) -> Box<dyn Element> {
     // Region caps for v2 per-line rendering: each region shows at most 3 visible lines
@@ -4169,7 +4450,7 @@ fn render_summary_tab_item(
     let main_text_color = theme.main_text_color(theme.background());
     let sub_text_color = theme.sub_text_color(theme.background());
     let icon = summary_pane_kind_icons
-        .map(|icons| render_summary_pane_kind_icons(icons, appearance))
+        .map(|icons| render_summary_pane_kind_icons(icons, VERTICAL_TABS_ICON_SIZE, appearance))
         .unwrap_or_else(|| {
             render_pane_icon_with_status(
                 resolve_icon_with_status_variant(&props.typed, &props.title, appearance, app),
@@ -4308,11 +4589,22 @@ fn render_summary_tab_item(
     }
 
     // Branch region. Each branch line gets the existing 4px top margin from APP-3875.
-    for branch_entry in summary.branch_entries.iter().take(MAX_VISIBLE_BRANCH_LINES) {
+    let pr_chip_entrypoint = chip_entrypoint_for_granularity(props.display_granularity);
+    for (idx, branch_entry) in summary
+        .branch_entries
+        .iter()
+        .take(MAX_VISIBLE_BRANCH_LINES)
+        .enumerate()
+    {
         text_col.add_child(
-            Container::new(render_summary_branch_line(branch_entry, appearance))
-                .with_margin_top(REGION_GAP)
-                .finish(),
+            Container::new(render_summary_branch_line(
+                branch_entry,
+                pr_badge_mouse_states.get(idx).cloned(),
+                pr_chip_entrypoint,
+                appearance,
+            ))
+            .with_margin_top(REGION_GAP)
+            .finish(),
         );
     }
 
@@ -4396,20 +4688,21 @@ fn render_summary_overflow_line(
     .finish()
 }
 
-fn render_summary_pane_kind_icons(
+pub(super) fn render_summary_pane_kind_icons(
     icons: SummaryPaneKindIcons,
+    total_size: f32,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     match icons {
         SummaryPaneKindIcons::Single(kind) => {
-            render_summary_pane_kind_icon_circle(kind, VERTICAL_TABS_ICON_SIZE, appearance)
+            render_summary_pane_kind_icon_circle(kind, total_size, appearance)
         }
         SummaryPaneKindIcons::Pair { primary, secondary } => {
             // The secondary icon sits at the BR of the primary at roughly badge
             // proportions, with a small cutout ring separating it from the primary.
-            let primary_total = VERTICAL_TABS_ICON_SIZE;
-            let secondary_total = VERTICAL_TABS_ICON_SIZE * 0.5;
+            let primary_total = total_size;
+            let secondary_total = total_size * 0.5;
             let ring_padding = secondary_total * 0.1;
             let primary_icon =
                 render_summary_pane_kind_icon_circle(primary, primary_total, appearance);
@@ -4458,7 +4751,7 @@ fn render_summary_pane_kind_icons(
 const SUMMARY_INLINE_ICON_RATIO: f32 = 2. / 3.;
 const SUMMARY_INLINE_PADDING_RATIO: f32 = (1. - SUMMARY_INLINE_ICON_RATIO) / 2.;
 
-fn render_summary_pane_kind_icon_circle(
+pub(super) fn render_summary_pane_kind_icon_circle(
     kind: SummaryPaneKind,
     total_size: f32,
     appearance: &Appearance,
@@ -4622,6 +4915,8 @@ fn summary_pane_kind_icon(
 
 fn render_summary_branch_line(
     entry: &VerticalTabsSummaryBranchEntry,
+    pr_badge_mouse_state: Option<MouseStateHandle>,
+    pr_chip_entrypoint: VerticalTabsChipEntrypoint,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -4648,7 +4943,23 @@ fn render_summary_branch_line(
         ));
         has_right_badges = true;
     }
-    if let Some(pull_request_label) = &entry.pull_request_label {
+    // Prefer the clickable PR badge (opens the PR in the browser) when we have both
+    // the URL and a persistent hover handle for it; fall back to the passive badge
+    // (label only) so the chip still renders even if either is missing.
+    if let (Some(pull_request_label), Some(pull_request_url), Some(mouse_state)) = (
+        entry.pull_request_label.as_ref(),
+        entry.pull_request_url.as_ref(),
+        pr_badge_mouse_state,
+    ) {
+        right_badges.add_child(render_terminal_pull_request_badge(
+            pull_request_label.clone(),
+            pull_request_url.clone(),
+            pr_chip_entrypoint,
+            mouse_state,
+            appearance,
+        ));
+        has_right_badges = true;
+    } else if let Some(pull_request_label) = &entry.pull_request_label {
         right_badges.add_child(render_passive_terminal_pull_request_badge(
             pull_request_label,
             appearance,
@@ -4694,7 +5005,6 @@ fn render_terminal_primary_line_for_view(
         terminal_view,
         appearance,
         text_color,
-        app,
     )
 }
 
@@ -4707,7 +5017,6 @@ fn render_terminal_primary_line(
     terminal_view: &TerminalView,
     appearance: &Appearance,
     text_color: WarpThemeFill,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
 
@@ -4736,17 +5045,6 @@ fn render_terminal_primary_line(
             .finish()
     };
     match primary_line {
-        TerminalPrimaryLineData::DefaultText => {
-            let title_el = Text::new_inline(
-                primary_line.display_text(app).into_owned(),
-                appearance.ui_font_family(),
-                12.,
-            )
-            .with_clip(ClipConfig::ellipsis())
-            .with_color(text_color.into())
-            .finish();
-            wrap_with_error_indicator(title_el)
-        }
         TerminalPrimaryLineData::StatusText { text, .. } => {
             Text::new_inline(text, appearance.ui_font_family(), 12.)
                 .with_clip(ClipConfig::ellipsis())
@@ -5040,7 +5338,7 @@ fn compute_tab_group_color_mode(
     app: &AppContext,
 ) -> TabGroupColorMode {
     // Manual override applies to the whole group.
-    if !matches!(tab.selected_color, SelectedTabColor::Unset) {
+    if tab.selected_color != SelectedTabColor::Unset {
         return match tab.color() {
             Some(color) => TabGroupColorMode::Uniform(
                 color.to_ansi_color(&theme.terminal_colors().normal).into(),
@@ -5058,11 +5356,13 @@ fn compute_tab_group_color_mode(
         .map(|&pane_id| {
             let color = if let Some(tv) = pane_group.terminal_view_from_pane_id(pane_id, app) {
                 // Terminal pane: determine color from CWD.
-                tv.as_ref(app).pwd_if_local(app).and_then(|cwd| {
-                    dir_colors
-                        .color_for_directory(Path::new(&cwd))
-                        .and_then(|c| c.ansi_color())
-                })
+                tv.as_ref(app)
+                    .canonical_session_pwd_if_local(app)
+                    .and_then(|cwd| {
+                        dir_colors
+                            .color_for_directory(cwd.as_path())
+                            .and_then(|c| c.ansi_color())
+                    })
             } else if let Some(code_view) = pane_group.code_view_from_pane_id(pane_id, app) {
                 // Code pane: determine color from the open file path using longest-prefix
                 // matching against configured directories, so e.g. warp-internal/code.rs
@@ -5071,9 +5371,11 @@ fn compute_tab_group_color_mode(
                     .as_ref(app)
                     .local_path(app)
                     .as_deref()
+                    // TODO(andy): avoid canonicalizing on a render code path
+                    .and_then(|file_path| dunce::canonicalize(file_path).ok())
                     .and_then(|file_path| {
                         dir_colors
-                            .color_for_directory(file_path)
+                            .color_for_directory(&file_path)
                             .and_then(|c| c.ansi_color())
                     })
             } else {
@@ -5150,33 +5452,27 @@ fn subtitle_options_for_primary(
 ) -> [(VerticalTabsCompactSubtitle, &'static str); 2] {
     match primary {
         VerticalTabsPrimaryInfo::Command => [
-            (
-                VerticalTabsCompactSubtitle::Branch,
-                "workspace.vertical_tabs.settings.branch",
-            ),
+            (VerticalTabsCompactSubtitle::Branch, "Branch"),
             (
                 VerticalTabsCompactSubtitle::WorkingDirectory,
-                "workspace.vertical_tabs.settings.working_directory",
+                "Working Directory",
             ),
         ],
         VerticalTabsPrimaryInfo::WorkingDirectory => [
-            (
-                VerticalTabsCompactSubtitle::Branch,
-                "workspace.vertical_tabs.settings.branch",
-            ),
+            (VerticalTabsCompactSubtitle::Branch, "Branch"),
             (
                 VerticalTabsCompactSubtitle::Command,
-                "workspace.vertical_tabs.settings.command_conversation",
+                "Command / Conversation",
             ),
         ],
         VerticalTabsPrimaryInfo::Branch => [
             (
                 VerticalTabsCompactSubtitle::Command,
-                "workspace.vertical_tabs.settings.command_conversation",
+                "Command / Conversation",
             ),
             (
                 VerticalTabsCompactSubtitle::WorkingDirectory,
-                "workspace.vertical_tabs.settings.working_directory",
+                "Working Directory",
             ),
         ],
     }
@@ -5216,11 +5512,10 @@ pub(super) fn render_settings_popup(
         resolve_vertical_tabs_mode(app),
         VerticalTabsResolvedMode::Summary
     );
-    let text = |key: &str| localization::text_for_app(app, key);
     let sub_text = theme.sub_text_color(theme.background());
     let view_as_header = Container::new(
         Text::new_inline(
-            text("workspace.vertical_tabs.settings.view_as"),
+            "View as".to_string(),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5239,7 +5534,7 @@ pub(super) fn render_settings_popup(
                 Expanded::new(
                     1.,
                     render_popup_text_segment(
-                        &text("workspace.vertical_tabs.settings.panes"),
+                        "Panes",
                         matches!(current_granularity, VerticalTabsDisplayGranularity::Panes),
                         state.panes_segment_mouse_state.clone(),
                         VerticalTabsDisplayGranularity::Panes,
@@ -5253,7 +5548,7 @@ pub(super) fn render_settings_popup(
                 Expanded::new(
                     1.,
                     render_popup_text_segment(
-                        &text("workspace.vertical_tabs.settings.tabs"),
+                        "Tabs",
                         matches!(current_granularity, VerticalTabsDisplayGranularity::Tabs),
                         state.tabs_segment_mouse_state.clone(),
                         VerticalTabsDisplayGranularity::Tabs,
@@ -5279,7 +5574,7 @@ pub(super) fn render_settings_popup(
 
     let tab_item_header = Container::new(
         Text::new_inline(
-            text("workspace.vertical_tabs.settings.tab_item"),
+            "Tab item".to_string(),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5291,7 +5586,7 @@ pub(super) fn render_settings_popup(
     .finish();
 
     let focused_session_option = render_tab_item_mode_option(
-        &text("workspace.vertical_tabs.settings.focused_session"),
+        "Focused session",
         matches!(
             current_tab_item_mode,
             VerticalTabsTabItemMode::FocusedSession
@@ -5304,7 +5599,7 @@ pub(super) fn render_settings_popup(
 
     let summary_option = if FeatureFlag::VerticalTabsSummaryMode.is_enabled() {
         Some(render_tab_item_mode_option(
-            &text("workspace.vertical_tabs.settings.summary"),
+            "Summary",
             matches!(current_tab_item_mode, VerticalTabsTabItemMode::Summary),
             state.summary_option_mouse_state.clone(),
             VerticalTabsTabItemMode::Summary,
@@ -5317,7 +5612,7 @@ pub(super) fn render_settings_popup(
 
     let density_header = Container::new(
         Text::new_inline(
-            text("workspace.vertical_tabs.settings.density"),
+            "Density".to_string(),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5394,7 +5689,7 @@ pub(super) fn render_settings_popup(
 
     let pane_title_header = Container::new(
         Text::new_inline(
-            text("workspace.vertical_tabs.settings.pane_title_as"),
+            "Pane title as".to_string(),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5406,7 +5701,7 @@ pub(super) fn render_settings_popup(
     .finish();
 
     let command_option = render_primary_info_option(
-        &text("workspace.vertical_tabs.settings.command_conversation"),
+        "Command / Conversation",
         matches!(current_primary_info, VerticalTabsPrimaryInfo::Command),
         state.command_option_mouse_state.clone(),
         VerticalTabsPrimaryInfo::Command,
@@ -5415,7 +5710,7 @@ pub(super) fn render_settings_popup(
     );
 
     let directory_option = render_primary_info_option(
-        &text("workspace.vertical_tabs.settings.working_directory"),
+        "Working Directory",
         matches!(
             current_primary_info,
             VerticalTabsPrimaryInfo::WorkingDirectory
@@ -5427,7 +5722,7 @@ pub(super) fn render_settings_popup(
     );
 
     let branch_option = render_primary_info_option(
-        &text("workspace.vertical_tabs.settings.branch"),
+        "Branch",
         matches!(current_primary_info, VerticalTabsPrimaryInfo::Branch),
         state.branch_option_mouse_state.clone(),
         VerticalTabsPrimaryInfo::Branch,
@@ -5465,7 +5760,7 @@ pub(super) fn render_settings_popup(
 
             let subtitle_header = Container::new(
                 Text::new_inline(
-                    text("workspace.vertical_tabs.settings.additional_metadata"),
+                    "Additional metadata".to_string(),
                     appearance.ui_font_family(),
                     SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
                 )
@@ -5482,9 +5777,9 @@ pub(super) fn render_settings_popup(
                 state.subtitle_option_1_mouse_state.clone(),
                 state.subtitle_option_2_mouse_state.clone(),
             ];
-            for (i, (value, label_key)) in options.iter().enumerate() {
+            for (i, (value, label)) in options.iter().enumerate() {
                 popup_col.add_child(render_compact_subtitle_option(
-                    &text(label_key),
+                    label,
                     current_subtitle == *value,
                     mouse_states[i].clone(),
                     *value,
@@ -5499,7 +5794,7 @@ pub(super) fn render_settings_popup(
 
             let show_header = Container::new(
                 Text::new_inline(
-                    text("workspace.vertical_tabs.settings.show"),
+                    "Show".to_string(),
                     appearance.ui_font_family(),
                     SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
                 )
@@ -5516,14 +5811,14 @@ pub(super) fn render_settings_popup(
             let pr_link_info_tooltip = if show_pr_link && pr_validation_suppressed {
                 Some(ShowToggleInfoTooltip {
                     mouse_state: state.show_pr_link_info_tooltip_mouse_state.clone(),
-                    tooltip_text: text("workspace.vertical_tabs.settings.github_cli_required"),
+                    tooltip_text: "Requires the GitHub CLI to be installed and authenticated",
                 })
             } else {
                 None
             };
 
             popup_col.add_child(render_show_toggle_option(
-                &text("workspace.vertical_tabs.settings.pr_link"),
+                "PR link",
                 show_pr_link,
                 state.show_pr_link_mouse_state.clone(),
                 WorkspaceAction::ToggleVerticalTabsShowPrLink,
@@ -5532,7 +5827,7 @@ pub(super) fn render_settings_popup(
                 theme,
             ));
             popup_col.add_child(render_show_toggle_option(
-                &text("workspace.vertical_tabs.settings.diff_stats"),
+                "Diff stats",
                 show_diff_stats,
                 state.show_diff_stats_mouse_state.clone(),
                 WorkspaceAction::ToggleVerticalTabsShowDiffStats,
@@ -5545,7 +5840,7 @@ pub(super) fn render_settings_popup(
     popup_col.add_child(make_divider(theme));
 
     popup_col.add_child(render_show_toggle_option(
-        &text("workspace.vertical_tabs.settings.show_details_on_hover"),
+        "Show details on hover",
         show_details_on_hover,
         state.show_details_on_hover_mouse_state.clone(),
         WorkspaceAction::ToggleVerticalTabsShowDetailsOnHover,
@@ -5733,7 +6028,7 @@ fn render_primary_info_option(
 
 struct ShowToggleInfoTooltip {
     mouse_state: MouseStateHandle,
-    tooltip_text: String,
+    tooltip_text: &'static str,
 }
 
 fn render_show_toggle_option(
@@ -5757,7 +6052,7 @@ fn render_show_toggle_option(
     let ui_builder = appearance.ui_builder().clone();
 
     let info_mouse_state = info_tooltip.as_ref().map(|t| t.mouse_state.clone());
-    let info_tooltip_text = info_tooltip.as_ref().map(|t| t.tooltip_text.clone());
+    let info_tooltip_text = info_tooltip.as_ref().map(|t| t.tooltip_text.to_string());
 
     Hoverable::new(mouse_state, move |hover_state| {
         let check_icon: Box<dyn Element> = if is_enabled {
@@ -6141,7 +6436,9 @@ fn localized_conversation_status_label(status: &ConversationStatus, app: &AppCon
         ConversationStatus::InProgress => "conversation_details.status.in_progress",
         ConversationStatus::Success => "conversation_details.status.done",
         ConversationStatus::Error => "conversation_details.status.error",
+        ConversationStatus::TransientError => "conversation_details.status.error",
         ConversationStatus::Cancelled => "conversation_details.status.cancelled",
+        ConversationStatus::WaitingForEvents => "conversation_details.status.in_progress",
         ConversationStatus::Blocked { .. } => "conversation_details.status.blocked",
     };
     localization::text_for_app(app, key)
@@ -6167,10 +6464,8 @@ fn render_terminal_detail_primary_line(
     primary_line: &TerminalPrimaryLineData,
     color: WarpThemeFill,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let font_family = match primary_line {
-        TerminalPrimaryLineData::DefaultText => appearance.ui_font_family(),
         TerminalPrimaryLineData::StatusText { .. } => appearance.ui_font_family(),
         TerminalPrimaryLineData::Text { font, .. } => match font {
             TerminalPrimaryLineFont::Ui => appearance.ui_font_family(),
@@ -6178,14 +6473,10 @@ fn render_terminal_detail_primary_line(
         },
     };
 
-    Text::new(
-        primary_line.display_text(app).into_owned(),
-        font_family,
-        12.,
-    )
-    .soft_wrap(true)
-    .with_color(color.into())
-    .finish()
+    Text::new(primary_line.text().to_string(), font_family, 12.)
+        .soft_wrap(true)
+        .with_color(color.into())
+        .finish()
 }
 
 fn detail_pane_props<'a>(
@@ -6207,6 +6498,8 @@ fn detail_pane_props<'a>(
         pane_id,
         pane_group_id,
         false,
+        false,
+        false,
         PaneRowState {
             mouse_state: MouseStateHandle::default(),
             title_mouse_state: None,
@@ -6225,6 +6518,8 @@ fn detail_pane_props<'a>(
         None,
         false,
         None,
+        false,
+        false,
         app,
     )
 }
@@ -6243,7 +6538,7 @@ fn render_terminal_detail_section(
     let agent_text = terminal_agent_text(terminal_view, app);
     let (conversation_display_title, cli_agent_title) =
         preferred_agent_tab_titles(&agent_text, agent_tab_text_preference(app));
-    let kind_label = terminal_kind_badge_label(agent_text.is_oz_agent, agent_text.cli_agent, app);
+    let kind_label = terminal_kind_badge_label(agent_text.is_oz_agent, agent_text.cli_agent);
     let status = if let Some(session) = cli_agent_session.filter(|s| s.supports_rich_status()) {
         Some(session.status.to_conversation_status())
     } else if agent_text.is_oz_agent {
@@ -6291,7 +6586,6 @@ fn render_terminal_detail_section(
         &primary_line,
         text_colors.sub,
         appearance,
-        app,
     ));
 
     let mut metadata_row = Flex::row()
@@ -6378,11 +6672,7 @@ fn render_code_detail_section(
 
     if extra_open_tabs > 0 {
         section.add_child(render_detail_wrapping_text(
-            localization::text_for_app_with_args(
-                app,
-                "workspace.vertical_tabs.and_more",
-                &[("count", &extra_open_tabs.to_string())],
-            ),
+            format!("and {extra_open_tabs} more"),
             12.,
             text_colors.sub,
             None,
@@ -6438,7 +6728,7 @@ fn render_warp_drive_object_detail_section(
         appearance,
     ));
     section.add_child(render_detail_badge(
-        props.typed.kind_label(app),
+        props.typed.kind_label(),
         Some(render_detail_kind_badge_icon(props, appearance, app)),
         None,
         text_colors.disabled,
@@ -6781,14 +7071,10 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
                         terminal_view.last_completed_command_text(),
                     );
                     Some(
-                        Text::new_inline(
-                            line_data.display_text(app).into_owned(),
-                            font_family,
-                            10.,
-                        )
-                        .with_clip(ClipConfig::ellipsis())
-                        .with_color(sub_text_color.into())
-                        .finish(),
+                        Text::new_inline(line_data.text().to_string(), font_family, 10.)
+                            .with_clip(ClipConfig::ellipsis())
+                            .with_color(sub_text_color.into())
+                            .finish(),
                     )
                 }
             };

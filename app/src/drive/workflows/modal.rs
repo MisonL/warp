@@ -84,24 +84,7 @@ const DIALOG_WIDTH: f32 = 460.;
 const AI_ASSIST_BUTTON_SIZE: f32 = 96.;
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 
-const TITLE_PLACEHOLDER_KEY: &str = "workflow.placeholder.title";
-const DESCRIPTION_PLACEHOLDER_KEY: &str = "workflow.placeholder.description";
-const COMMAND_EDITOR_PLACEHOLDER_KEY: &str = "workflow.placeholder.command";
-const ARGUMENT_BUTTON_KEY: &str = "workflow.action.new_argument";
-const ARGUMENT_DESCRIPTION_PLACEHOLDER_KEY: &str = "workflow.arguments.placeholder.description";
-const ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_KEY: &str =
-    "workflow.arguments.placeholder.default_value_optional";
-const SAVE_BUTTON_KEY: &str = "workflow.action.save";
-const AI_ASSIST_BUTTON_KEY: &str = "workflow.action.autofill";
-const AI_ASSIST_LOADING_KEY: &str = "workflow.action.loading";
 const DEFAULT_ARGUMENT_PREFIX: &str = "argument";
-const UNSAVED_CHANGES_KEY: &str = "workflow.unsaved_changes.message";
-const KEEP_EDITING_KEY: &str = "workflow.unsaved_changes.keep_editing";
-const DISCARD_CHANGES_KEY: &str = "workflow.unsaved_changes.discard";
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -217,12 +200,16 @@ impl WorkflowModal {
         let appearance = Appearance::as_ref(ctx);
         let header_font_size = appearance.header_font_size();
         let ui_font_family = appearance.ui_font_family();
+        let title_placeholder = localization::text_for_app(ctx, "workflow.title.untitled");
+        let description_placeholder =
+            localization::text_for_app(ctx, "workflow.placeholder.description");
+        let command_placeholder = localization::text_for_app(ctx, "workflow.placeholder.command");
 
         let title_editor: ViewHandle<EditorView> = Self::create_editor_handle(
             ctx,
             Some(header_font_size),
             Some(ui_font_family),
-            Some(&text(ctx, TITLE_PLACEHOLDER_KEY)),
+            Some(&title_placeholder),
             false, /* vim_keybindings */
             true,  /* single_line */
         );
@@ -235,7 +222,7 @@ impl WorkflowModal {
             ctx,
             Some(DESCRIPTION_FONT_SIZE),
             Some(ui_font_family),
-            Some(&text(ctx, DESCRIPTION_PLACEHOLDER_KEY)),
+            Some(&description_placeholder),
             false, /* vim_keybindings */
             false, /* single_line */
         );
@@ -248,7 +235,7 @@ impl WorkflowModal {
             ctx,
             Some(CONTENT_EDITOR_FONT_SIZE),
             None,
-            Some(&text(ctx, COMMAND_EDITOR_PLACEHOLDER_KEY)),
+            Some(&command_placeholder),
             true,  /* vim_keybindings */
             false, /* single_line */
         );
@@ -678,18 +665,19 @@ impl WorkflowModal {
     fn menu_items(&self, app: &AppContext) -> Vec<MenuItem<WorkflowModalAction>> {
         let mut menu_items = Vec::new();
 
-        // Add "Copy workflow text" to menu
         menu_items.push(
-            MenuItemFields::new(text(app, "drive.menu.copy_workflow_text"))
-                .with_on_select_action(WorkflowModalAction::CopyObjectToClipboard)
-                .with_icon(Icon::CopyMenuItem)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                app,
+                "drive.menu.copy_workflow_text",
+            ))
+            .with_on_select_action(WorkflowModalAction::CopyObjectToClipboard)
+            .with_icon(Icon::CopyMenuItem)
+            .into_item(),
         );
 
-        // Add "Trash" to menu
         if self.is_online(app) {
             menu_items.push(
-                MenuItemFields::new(text(app, "drive.menu.trash"))
+                MenuItemFields::new(localization::text_for_app(app, "drive.menu.trash"))
                     .with_on_select_action(WorkflowModalAction::TrashObject)
                     .with_icon(Icon::Trash)
                     .into_item(),
@@ -737,12 +725,7 @@ impl WorkflowModal {
         match (self.workflow_id, self.owner) {
             (Some(workflow_id), None) => {
                 UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                    update_manager.update_workflow(
-                        workflow,
-                        workflow_id,
-                        self.revision_ts.clone(),
-                        ctx,
-                    );
+                    update_manager.update_workflow(workflow, workflow_id, self.revision_ts.clone(), ctx);
                 });
                 ctx.emit(WorkflowModalEvent::UpdatedWorkflow(workflow_id));
             }
@@ -759,9 +742,7 @@ impl WorkflowModal {
                     );
                 });
             }
-            _ => log::error!(
-                "Only one of a workflow ID or space can be specified for saving workflows, but both or neither were specified instead"
-            ),
+            _ => log::error!("Only one of a workflow ID or space can be specified for saving workflows, but both or neither were specified instead")
         }
 
         self.close(true, ctx);
@@ -1208,7 +1189,10 @@ impl WorkflowModal {
                                 ctx,
                                 Some(ARGUMENT_EDITOR_FONT_SIZE),
                                 Some(ui_font_family),
-                                Some(&text(ctx, ARGUMENT_DESCRIPTION_PLACEHOLDER_KEY)),
+                                Some(&localization::text_for_app(
+                                    ctx,
+                                    "workflow.arguments.placeholder.description",
+                                )),
                                 false, /* vim_keybindings */
                                 false,
                             );
@@ -1224,7 +1208,10 @@ impl WorkflowModal {
                                 ctx,
                                 Some(ARGUMENT_EDITOR_FONT_SIZE),
                                 Some(ui_font_family),
-                                Some(&text(ctx, ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_KEY)),
+                                Some(&localization::text_for_app(
+                                    ctx,
+                                    "workflow.arguments.placeholder.default_value_optional",
+                                )),
                                 false, /* vim_keybindings */
                                 false,
                             );
@@ -1651,7 +1638,10 @@ impl WorkflowModal {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_text_label(text(app, ARGUMENT_BUTTON_KEY));
+            .with_text_label(localization::text_for_app(
+                app,
+                "workflow.action.new_argument",
+            ));
 
         if self.is_new_argument_button_disabled() {
             new_argument_button = new_argument_button.disabled();
@@ -1667,7 +1657,7 @@ impl WorkflowModal {
                 Some(primary_hovered_and_clicked_styles),
                 Some(primary_disabled_styles),
             )
-            .with_text_label(text(app, SAVE_BUTTON_KEY));
+            .with_text_label(localization::text_for_app(app, "workflow.action.save"));
 
         if self.is_save_workflow_button_disabled() {
             save_button = save_button.disabled();
@@ -1697,10 +1687,14 @@ impl WorkflowModal {
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween);
 
         let label_and_icon = match self.ai_metadata_assist_state {
-            AiAssistState::PreRequest => Some((text(app, AI_ASSIST_BUTTON_KEY), Icon::AiAssistant)),
-            AiAssistState::RequestInFlight => {
-                Some((text(app, AI_ASSIST_LOADING_KEY), Icon::Refresh))
-            }
+            AiAssistState::PreRequest => Some((
+                localization::text_for_app(app, "workflow.action.autofill"),
+                Icon::AiAssistant,
+            )),
+            AiAssistState::RequestInFlight => Some((
+                localization::text_for_app(app, "workflow.action.loading"),
+                Icon::Refresh,
+            )),
             AiAssistState::Generated => None,
         };
 
@@ -1738,7 +1732,7 @@ impl WorkflowModal {
                 .finish();
 
             let button_with_tool_tip = appearance.ui_builder().tool_tip_on_element(
-                text(app, "workflow.tooltip.ai_assist"),
+                localization::text_for_app(app, "workflow.tooltip.ai_assist"),
                 self.button_mouse_states.ai_assist_tool_tip.clone(),
                 rendered_button,
                 ParentAnchor::BottomMiddle,
@@ -1785,7 +1779,10 @@ impl WorkflowModal {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_text_label(text(app, KEEP_EDITING_KEY))
+            .with_text_label(localization::text_for_app(
+                app,
+                "workflow.unsaved_changes.keep_editing",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -1805,7 +1802,10 @@ impl WorkflowModal {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_text_label(text(app, DISCARD_CHANGES_KEY))
+            .with_text_label(localization::text_for_app(
+                app,
+                "workflow.unsaved_changes.discard",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| ctx.dispatch_typed_action(WorkflowModalAction::ForceClose))
@@ -1813,7 +1813,7 @@ impl WorkflowModal {
 
         Container::new(
             Dialog::new(
-                text(app, UNSAVED_CHANGES_KEY),
+                localization::text_for_app(app, "workflow.unsaved_changes.message"),
                 None,
                 dialog_styles(appearance),
             )

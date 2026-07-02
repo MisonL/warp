@@ -1,6 +1,5 @@
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
-use warp_localization::replace_placeholders;
 use warpui::elements::{Container, Flex, Highlight, ParentElement, Text};
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
@@ -20,24 +19,37 @@ use crate::ui_components::icons::Icon;
 
 pub const ENV_VAR_NAME_SEPARATOR: &str = ", ";
 
+fn env_var_collection_title_for_app(
+    env_var_collection: &CloudEnvVarCollection,
+    app: &AppContext,
+) -> String {
+    env_var_collection
+        .model()
+        .string_model
+        .title
+        .clone()
+        .unwrap_or_else(|| crate::localization::text_for_app(app, "env_vars.title.untitled"))
+}
+
+fn env_var_collection_title_fallback(env_var_collection: &CloudEnvVarCollection) -> String {
+    env_var_collection
+        .model()
+        .string_model
+        .title
+        .clone()
+        .unwrap_or_else(|| {
+            crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "env_vars.title.untitled",
+            )
+        })
+}
+
 /// Search item result for a cloud EnvVarCollection.
 #[derive(Debug)]
 pub struct EnvVarCollectionSearchItem {
     pub match_result: FuzzyMatchEnvVarCollectionResult,
     pub cloud_env_var_collection: CloudEnvVarCollection,
-    pub untitled_fallback: String,
-    pub accessibility_label_template: String,
-}
-
-impl EnvVarCollectionSearchItem {
-    fn title(&self) -> String {
-        self.cloud_env_var_collection
-            .model()
-            .string_model
-            .title
-            .clone()
-            .unwrap_or_else(|| self.untitled_fallback.clone())
-    }
 }
 
 impl SearchItem for EnvVarCollectionSearchItem {
@@ -72,7 +84,7 @@ impl SearchItem for EnvVarCollectionSearchItem {
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut title_text = Text::new_inline(
-            self.title(),
+            env_var_collection_title_for_app(&self.cloud_env_var_collection, app),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -171,10 +183,24 @@ impl SearchItem for EnvVarCollectionSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        replace_placeholders(
-            &self.accessibility_label_template,
-            &[("title", &self.title())],
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.env_var_collection.a11y.label",
+            &[(
+                "title",
+                &env_var_collection_title_fallback(&self.cloud_env_var_collection),
+            )],
         )
-        .expect("env var collection accessibility label template must use title")
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.env_var_collection.a11y.label",
+            &[(
+                "title",
+                &env_var_collection_title_for_app(&self.cloud_env_var_collection, app),
+            )],
+        )
     }
 }

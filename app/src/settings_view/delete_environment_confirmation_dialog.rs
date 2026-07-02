@@ -6,7 +6,6 @@ use warpui::{
 
 use crate::appearance::Appearance;
 use crate::localization;
-use crate::localization::LocalizationUpdater;
 use crate::server::ids::SyncId;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 use crate::view_components::action_button::{ActionButton, DangerPrimaryTheme, NakedTheme};
@@ -54,31 +53,13 @@ impl DeleteEnvironmentConfirmationDialog {
             })
         });
 
-        let me = Self {
+        Self {
             visible: false,
             env_id: None,
             env_name: String::new(),
             cancel_button,
             confirm_button,
-        };
-
-        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
-            me.cancel_button.update(ctx, |button, ctx| {
-                button.set_label(
-                    localization::text_for_app(ctx, "settings.action.cancel"),
-                    ctx,
-                );
-            });
-            me.confirm_button.update(ctx, |button, ctx| {
-                button.set_label(
-                    localization::text_for_app(ctx, "settings.environment.form.delete"),
-                    ctx,
-                );
-            });
-            ctx.notify();
-        });
-
-        me
+        }
     }
 
     pub fn show(&mut self, env_id: SyncId, env_name: String, ctx: &mut ViewContext<Self>) {
@@ -110,9 +91,11 @@ impl View for DeleteEnvironmentConfirmationDialog {
 
         let appearance = Appearance::as_ref(app);
 
-        let description =
-            localization::text_for_app(app, "settings.environment.delete_confirmation.description")
-                .replace("{name}", &self.env_name);
+        let description = localization::text_for_app_with_args(
+            app,
+            "settings.environment.delete_confirmation.description",
+            &[("name", self.env_name.as_str())],
+        );
 
         let dialog = Dialog::new(
             localization::text_for_app(app, "settings.environment.delete_confirmation.title"),

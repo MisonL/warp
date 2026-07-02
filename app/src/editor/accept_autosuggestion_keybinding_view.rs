@@ -153,12 +153,9 @@ impl AcceptAutosuggestionKeybinding {
             {
                 let found =
                     menu.set_selected_by_name(accept_autosuggestion_keybinding_displayed, ctx);
-                // If the keybinding is not one of our default options, select the custom item.
+                // If the keybinding is not one of our default options, select the "Custom..." item.
                 if !found {
-                    menu.set_selected_by_name(
-                        localization::text_for_app(ctx, "editor.autosuggestion.keybinding.custom"),
-                        ctx,
-                    );
+                    menu.set_selected_by_name("Custom...", ctx);
                 }
             } else {
                 // If the keybinding is not set, we show right arrow which always works.

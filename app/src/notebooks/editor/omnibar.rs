@@ -27,7 +27,6 @@ use super::model::{NotebooksEditorModel, RichTextEditorModelEvent};
 use super::view::EditorViewAction;
 use super::BlockType;
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::menu::MenuVariant;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
@@ -447,12 +446,9 @@ impl TypedActionView for Omnibar {
                 ))
             }
             OmnibarAction::OpenLinkEditor => ActionAccessibilityContent::from_debug(),
-            OmnibarAction::UnstyleLink => {
-                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    localization::text_for_app(ctx, "notebook.editor.a11y.remove_link"),
-                    WarpA11yRole::UserAction,
-                ))
-            }
+            OmnibarAction::UnstyleLink => ActionAccessibilityContent::Custom(
+                AccessibilityContent::new_without_help("Remove link", WarpA11yRole::UserAction),
+            ),
         }
     }
 }

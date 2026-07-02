@@ -1,20 +1,20 @@
-# 测试图片
+# Test Images
 
-本目录包含用于验证 Markdown 图片渲染的测试图片。
+This directory contains test images for validating markdown image rendering.
 
-## 文件
+## Files
 
-- `image_test.md` - 包含多种图片引用的 Markdown 文件
-- `sample1.jpg` - 400x300 JPEG，带垂直渐变（蓝色到红橙色）和白色边框
-- `sample2.jpg` - 600x400 JPEG，带棋盘图案和橙色圆形叠层
-- `sample3.png` - 300x300 PNG，带径向图案和透明度（alpha channel）
-- `parent_test.jpg` - 300x200 JPEG，带对角蓝色条纹，位于父目录中，用于测试相对路径解析
+- `image_test.md` - Markdown file with various image references
+- `sample1.jpg` - 400x300 JPEG with vertical gradient (blue to red-orange) and white border
+- `sample2.jpg` - 600x400 JPEG with checkered pattern and orange circle overlay
+- `sample3.png` - 300x300 PNG with radial pattern and transparency (alpha channel)
+- `parent_test.jpg` - 300x200 JPEG with diagonal blue stripes, located in parent directory for testing relative path resolution
 
-## 目的
+## Purpose
 
-这些图片用于测试图片渲染的不同方面：
-- 不同格式（JPEG、PNG）
-- 不同尺寸（300x300、400x300、600x400）
-- 透明度（带 alpha channel 的 PNG）
-- 用于验证正确渲染的视觉图案（渐变、图案、形状）
-- 相对路径解析（父目录引用）
+These images test different aspects of image rendering:
+- Different formats (JPEG, PNG)
+- Different dimensions (300x300, 400x300, 600x400)
+- Transparency (PNG with alpha channel)
+- Visual patterns to verify proper rendering (gradients, patterns, shapes)
+- Relative path resolution (parent directory references)

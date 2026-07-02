@@ -1,10 +1,4 @@
-use warp_cli::agent::OutputFormat;
-use warp_localization::LocaleId;
-use warpui::App;
-
 use super::*;
-use crate::ai::agent_sdk::output::write_list_for_locale;
-use crate::test_util::settings::initialize_settings_for_tests;
 
 fn key(name: &str, scope: &str, created_at: DateTime<Utc>) -> ApiKeyInfo {
     key_with_uid(name, name, scope, created_at)
@@ -58,73 +52,55 @@ fn sort_api_keys_sorts_by_created_at_descending() {
 
 #[test]
 fn resolve_api_key_identifier_prefers_uid_match() {
-    App::test((), |app| async move {
-        let created_at = Utc::now();
-        let keys = vec![
-            key_with_uid("target", "other-name", "Team", created_at),
-            key_with_uid("other-uid", "target", "Team", created_at),
-        ];
+    let created_at = Utc::now();
+    let keys = vec![
+        key_with_uid("target", "other-name", "Team", created_at),
+        key_with_uid("other-uid", "target", "Team", created_at),
+    ];
 
-        app.read(|ctx| {
-            assert_eq!(
-                resolve_api_key_identifier(&keys, "target", ctx)
-                    .unwrap()
-                    .unwrap(),
-                keys[0].clone()
-            );
-        });
-    });
+    assert_eq!(
+        resolve_api_key_identifier(&keys, "target")
+            .unwrap()
+            .unwrap(),
+        keys[0].clone()
+    );
 }
 
 #[test]
 fn resolve_api_key_identifier_falls_back_to_name_match() {
-    App::test((), |app| async move {
-        let created_at = Utc::now();
-        let keys = vec![key_with_uid("uid-1", "deploy-key", "Team", created_at)];
+    let created_at = Utc::now();
+    let keys = vec![key_with_uid("uid-1", "deploy-key", "Team", created_at)];
 
-        app.read(|ctx| {
-            assert_eq!(
-                resolve_api_key_identifier(&keys, "deploy-key", ctx)
-                    .unwrap()
-                    .unwrap(),
-                keys[0].clone()
-            );
-        });
-    });
+    assert_eq!(
+        resolve_api_key_identifier(&keys, "deploy-key")
+            .unwrap()
+            .unwrap(),
+        keys[0].clone()
+    );
 }
 
 #[test]
 fn resolve_api_key_identifier_errors_for_ambiguous_name_matches() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        let created_at = Utc::now();
-        let keys = vec![
-            key_with_uid("uid-1", "deploy-key", "Team", created_at),
-            key_with_uid("uid-2", "deploy-key", "Personal", created_at),
-        ];
+    let created_at = Utc::now();
+    let keys = vec![
+        key_with_uid("uid-1", "deploy-key", "Team", created_at),
+        key_with_uid("uid-2", "deploy-key", "Personal", created_at),
+    ];
+    let err = resolve_api_key_identifier(&keys, "deploy-key").unwrap_err();
 
-        app.read(|ctx| {
-            let err = resolve_api_key_identifier(&keys, "deploy-key", ctx).unwrap_err();
-            assert_eq!(
-                err.to_string(),
-                "Multiple API keys match 'deploy-key'; specify the key by UID"
-            );
-        });
-    });
+    assert_eq!(
+        err.to_string(),
+        "Multiple API keys match 'deploy-key'; specify the key by UID"
+    );
 }
 
 #[test]
 fn resolve_api_key_identifier_errors_when_not_found() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        let created_at = Utc::now();
-        let keys = vec![key_with_uid("uid-1", "deploy-key", "Team", created_at)];
+    let created_at = Utc::now();
+    let keys = vec![key_with_uid("uid-1", "deploy-key", "Team", created_at)];
+    let err = resolve_api_key_identifier(&keys, "missing-key").unwrap_err();
 
-        app.read(|ctx| {
-            let err = resolve_api_key_identifier(&keys, "missing-key", ctx).unwrap_err();
-            assert_eq!(err.to_string(), "API key 'missing-key' not found");
-        });
-    });
+    assert_eq!(err.to_string(), "API key 'missing-key' not found");
 }
 
 #[test]
@@ -136,51 +112,4 @@ fn api_key_display_includes_creation_date() {
         key.to_string(),
         "deploy-key (uid-1, created 2026-01-02 03:04:05 UTC)"
     );
-}
-
-#[test]
-fn api_key_selection_display_includes_uid_for_duplicate_names() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        let created_at = "2026-01-02T03:04:05Z".parse().unwrap();
-
-        app.read(|ctx| {
-            let first =
-                ApiKeySelection::new(key_with_uid("uid-1", "deploy-key", "Team", created_at), ctx);
-            let second =
-                ApiKeySelection::new(key_with_uid("uid-2", "deploy-key", "Team", created_at), ctx);
-
-            assert_eq!(
-                first.to_string(),
-                "deploy-key (UID uid-1, Created 2026-01-02 03:04:05 UTC)"
-            );
-            assert_eq!(
-                second.to_string(),
-                "deploy-key (UID uid-2, Created 2026-01-02 03:04:05 UTC)"
-            );
-            assert_ne!(first.to_string(), second.to_string());
-        });
-    });
-}
-
-#[test]
-fn api_key_list_text_localizes_never_rows() {
-    let created_at = "2026-01-02T03:04:05Z".parse().unwrap();
-    let localized_never =
-        crate::localization::text_for_locale(LocaleId::ZhCn, "agent_sdk.api_key.table.never");
-    let localized_last_used =
-        crate::localization::text_for_locale(LocaleId::ZhCn, "agent_sdk.api_key.table.last_used");
-    let mut output = Vec::new();
-
-    write_list_for_locale(
-        [key_with_uid("uid-1", "deploy-key", "Team", created_at)],
-        OutputFormat::Text,
-        &mut output,
-        LocaleId::ZhCn,
-    )
-    .unwrap();
-
-    let rendered = String::from_utf8(output).unwrap();
-    assert!(rendered.contains(&localized_never));
-    assert!(rendered.contains(&localized_last_used));
 }

@@ -43,10 +43,9 @@ use crate::drive::settings::WarpDriveSettings;
 use crate::search::command_search::searcher::{CommandSearchItemAction, CommandSearchMixer};
 use crate::search::mixer::AddAsyncSourceOptions;
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
-use crate::search::search_bar::{
-    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
-};
+use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
 use crate::search::QueryFilter;
+use crate::send_telemetry_from_ctx;
 use crate::server::ids::ServerId;
 use crate::server::server_api::ai::AIClient;
 use crate::server::telemetry::TelemetryEvent;
@@ -56,7 +55,6 @@ use crate::terminal::model::session::SessionId;
 use crate::terminal::resizable_data::{ModalType, ResizableData, DEFAULT_UNIVERSAL_SEARCH_WIDTH};
 use crate::terminal::{History, HistoryEvent};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{localization, send_telemetry_from_ctx};
 
 const PANEL_POSITION_ID: &str = "CommandSearchViewPanel";
 const DETAILS_PANEL_MARGIN: f32 = 4.;
@@ -143,10 +141,10 @@ impl CommandSearchView {
         let mixer = ctx.add_model(|_| CommandSearchMixer::new());
 
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                SearchBarPlaceholder::localized("search.command_search.placeholder"),
+                "search.command_search.placeholder",
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -311,8 +309,9 @@ impl CommandSearchView {
                     ctx,
                 );
             } else {
-                ctx.subscribe_to_model(&History::handle(ctx), move |mixer, history_event, ctx| {
-                    match history_event {
+                ctx.subscribe_to_model(
+                    &History::handle(ctx),
+                    move |mixer, _, history_event, ctx| match history_event {
                         HistoryEvent::Initialized(id) => {
                             if id == &session_id {
                                 let source = history_data_source_for_session(
@@ -336,8 +335,8 @@ impl CommandSearchView {
                                 ctx.notify();
                             }
                         }
-                    }
-                });
+                    },
+                );
             }
         })
     }
@@ -508,13 +507,25 @@ impl CommandSearchView {
 
             let (a11y_content, a11y_help_content) = if was_immediately_executed {
                 (
-                    "Result executed".to_owned(),
-                    "Press Cmd-Up to navigate to the command's output.".to_owned(),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_executed",
+                    ),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_executed_help",
+                    ),
                 )
             } else {
                 (
-                    "Result accepted.".to_owned(),
-                    "You can edit the command here before pressing Enter to execute it.".to_owned(),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_accepted",
+                    ),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_accepted_help",
+                    ),
                 )
             };
             ctx.emit_a11y_content(AccessibilityContent::new(
@@ -568,7 +579,7 @@ impl CommandSearchView {
         let muted_color: ColorU = appearance.theme().nonactive_ui_text_color().into();
         let text = appearance
             .ui_builder()
-            .span(localization::text_for_app(app, "search.loading"))
+            .span(crate::localization::text_for_app(app, "search.loading"))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.monospace_font_size()),
                 font_family_id: Some(appearance.ui_font_family()),
@@ -610,7 +621,7 @@ impl CommandSearchView {
                         )
                     } else {
                         self.render_error_header_text(
-                            localization::text_for_app(
+                            crate::localization::text_for_app(
                                 app,
                                 "search.command_search.out_of_credits_contact_admin",
                             ),
@@ -680,7 +691,7 @@ impl CommandSearchView {
             appearance
                 .ui_builder()
                 .link(
-                    localization::text_for_app(app, "search.command_search.upgrade"),
+                    crate::localization::text_for_app(app, "search.command_search.upgrade"),
                     None,
                     Some(Box::new(move |ctx| {
                         ctx.dispatch_typed_action(CommandSearchAction::AttemptLoginGatedUpgrade);
@@ -692,7 +703,7 @@ impl CommandSearchView {
             appearance
                 .ui_builder()
                 .link(
-                    localization::text_for_app(app, "search.command_search.upgrade"),
+                    crate::localization::text_for_app(app, "search.command_search.upgrade"),
                     None,
                     Some(Box::new(move |ctx| {
                         ctx.dispatch_typed_action(CommandSearchAction::OpenUpgradeLink(
@@ -707,7 +718,7 @@ impl CommandSearchView {
         row.add_child(
             appearance
                 .ui_builder()
-                .span(localization::text_for_app(
+                .span(crate::localization::text_for_app(
                     app,
                     "search.command_search.out_of_credits_prefix",
                 ))
@@ -732,7 +743,7 @@ impl CommandSearchView {
         row.add_child(
             appearance
                 .ui_builder()
-                .span(localization::text_for_app(
+                .span(crate::localization::text_for_app(
                     app,
                     "search.command_search.out_of_credits_suffix",
                 ))
@@ -762,7 +773,7 @@ impl CommandSearchView {
                 // There are no results to display, so notify the user of that fact.
                 let text = appearance
                     .ui_builder()
-                    .span(localization::text_for_app(app, "search.no_results"))
+                    .span(crate::localization::text_for_app(app, "search.no_results"))
                     .with_style(UiComponentStyles {
                         font_size: Some(appearance.monospace_font_size()),
                         font_family_id: Some(appearance.ui_font_family()),
@@ -848,7 +859,7 @@ impl CommandSearchView {
                         .unwrap_or(false);
                     column.add_child(self.render_error_header(
                         app,
-                        data_source_error_message(app, error),
+                        error.user_facing_error_for_app(app),
                         is_ratelimit_error,
                         appearance,
                     ));
@@ -982,7 +993,7 @@ impl TypedActionView for CommandSearchView {
             AttemptLoginGatedUpgrade => {
                 AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
                     auth_manager.attempt_login_gated_feature(
-                        "Upgrade AI usage",
+                        "Upgrade AI Usage",
                         AuthViewVariant::RequireLoginCloseable,
                         ctx,
                     )
@@ -1005,8 +1016,8 @@ impl View for CommandSearchView {
 
     fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            localization::text_for_app(ctx, "search.command_search.title"),
-            localization::text_for_app(ctx, "search.command_search.a11y.description"),
+            crate::localization::text_for_app(ctx, "search.command_search.title"),
+            crate::localization::text_for_app(ctx, "search.command_search.a11y.description"),
             WarpA11yRole::MenuRole,
         ))
     }
@@ -1111,16 +1122,6 @@ impl View for CommandSearchView {
             })
             .finish()
     }
-}
-
-fn data_source_error_message(
-    app: &AppContext,
-    error: &crate::search::mixer::DataSourceRunErrorWrapper,
-) -> String {
-    error
-        .user_facing_error_text_key()
-        .map(|key| localization::text_for_app(app, key))
-        .unwrap_or_else(|| error.user_facing_error())
 }
 
 #[cfg(feature = "integration_tests")]

@@ -4,10 +4,9 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, Radius, Text,
 };
 use warpui::platform::Cursor;
-use warpui::{AppContext, Element, EventContext};
+use warpui::{Element, EventContext};
 
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::search::QueryFilter;
 
 /// Trait to render a filter chip.
@@ -22,7 +21,6 @@ pub trait FilterChipRenderer {
     fn render_filter_chip(
         &self,
         mouse_state_handle: MouseStateHandle,
-        app: &AppContext,
         appearance: &Appearance,
         on_click_fn: fn(&mut EventContext, Self),
     ) -> Box<dyn Element>;
@@ -48,14 +46,11 @@ impl FilterChipRenderer for QueryFilter {
     fn render_filter_chip(
         &self,
         mouse_state_handle: MouseStateHandle,
-        app: &AppContext,
         appearance: &Appearance,
         on_click_fn: fn(&mut EventContext, Self),
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let self_copy: QueryFilter = *self;
-        let display_name =
-            localization::text_for_app_or(app, self.display_name_text_key(), self.display_name());
         Hoverable::new(mouse_state_handle, |mouse_state| {
             let font_size = appearance.monospace_font_size() + 2.;
             let icon_size = font_size + self.icon_size_offset();
@@ -85,7 +80,7 @@ impl FilterChipRenderer for QueryFilter {
             }
 
             flex.add_child(
-                Text::new_inline(display_name.clone(), appearance.ui_font_family(), font_size)
+                Text::new_inline(self.display_name(), appearance.ui_font_family(), font_size)
                     .with_color(
                         appearance
                             .theme()

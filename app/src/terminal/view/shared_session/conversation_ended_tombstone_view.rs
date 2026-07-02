@@ -4,7 +4,6 @@ use warp_core::paths::home_relative_path;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
-use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, MainAxisSize, Padding, ParentElement, Radius, Shrinkable, Text,
@@ -19,22 +18,24 @@ use super::cloud_conversation_continuation::TombstoneCta;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, ArtifactType};
 use crate::ai::ambient_agents::{
-    conversation_output_status_from_conversation, localized_task_status_message_for_locale,
-    AmbientAgentTask, AmbientAgentTaskId, AmbientConversationStatus,
+    conversation_output_status_from_conversation, AmbientAgentTask, AmbientAgentTaskId,
+    AmbientConversationStatus,
 };
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
-use crate::ai::blocklist::{format_credits, format_credits_for_locale, BlocklistAIHistoryModel};
+use crate::ai::blocklist::{format_credits, BlocklistAIHistoryModel};
 use crate::appearance::Appearance;
 use crate::localization;
 use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::ai::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
-use crate::util::time_format::{
-    localized_human_readable_precise_duration, localized_human_readable_precise_duration_for_locale,
-};
+use crate::util::time_format::human_readable_precise_duration;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
 use crate::workspace::WorkspaceAction;
+
+fn shared_session_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
 
 /// Metadata collected for display in the tombstone.
 #[derive(Default)]
@@ -101,7 +102,7 @@ impl TombstoneDisplayData {
             let last_exchange = conversation.latest_exchange()?;
             let finish_time = last_exchange.finish_time?;
             let duration = finish_time.signed_duration_since(first_exchange.start_time);
-            Some(localized_human_readable_precise_duration(ctx, duration))
+            Some(human_readable_precise_duration(duration))
         })();
 
         Self {
@@ -112,18 +113,13 @@ impl TombstoneDisplayData {
             source: None,
             skill_name: None,
             run_time,
-            credits: Some(format_credits(ctx, conversation.credits_spent())),
+            credits: Some(format_credits(conversation.credits_spent())),
             working_directory: conversation.initial_working_directory(),
             artifacts: conversation.artifacts().to_vec(),
         }
     }
 
-    fn enrich_from_task(&mut self, task: AmbientAgentTask, app: &AppContext) {
-        let locale = localization::current_locale(app);
-        self.enrich_from_task_for_locale(task, locale);
-    }
-
-    fn enrich_from_task_for_locale(&mut self, task: AmbientAgentTask, locale: LocaleId) {
+    fn enrich_from_task(&mut self, task: AmbientAgentTask) {
         // Use task title if we don't have a conversation title.
         if self.title.is_none() {
             self.title = Some(task.title.clone());
@@ -140,10 +136,7 @@ impl TombstoneDisplayData {
         if task.state.is_failure_like() {
             self.is_error = true;
             if let Some(status_message) = &task.status_message {
-                self.error_message = Some(localized_task_status_message_for_locale(
-                    locale,
-                    &status_message.message,
-                ));
+                self.error_message = Some(status_message.message.clone());
             }
         }
 
@@ -151,12 +144,10 @@ impl TombstoneDisplayData {
         // the full credit cost (inference + compute). This matches what we show in
         // the details panel.
         if let Some(run_time) = task.run_time() {
-            self.run_time = Some(localized_human_readable_precise_duration_for_locale(
-                locale, run_time,
-            ));
+            self.run_time = Some(human_readable_precise_duration(run_time));
         }
         if let Some(credits) = task.credits_used() {
-            self.credits = Some(format_credits_for_locale(locale, credits));
+            self.credits = Some(format_credits(credits));
         }
 
         // Surface task artifacts (plans, PRs, files, screenshots) for third-party
@@ -204,7 +195,7 @@ impl ConversationEndedTombstoneView {
             })
             .unwrap_or_default();
         if display_data.is_error && task_id.is_none() && !display_data.conversation_is_transcript {
-            display_data.title = Some(localization::text_for_app(
+            display_data.title = Some(shared_session_text(
                 ctx,
                 "terminal.shared_session.cloud_agent_failed_to_start",
             ));
@@ -215,20 +206,20 @@ impl ConversationEndedTombstoneView {
             ctx.add_typed_action_view(|ctx| ArtifactButtonsRow::new(&display_data.artifacts, ctx));
         let continue_in_cloud_button = match tombstone_cta {
             Some(TombstoneCta::ContinueInCloud { task_id }) => {
-                let label =
-                    localization::text_for_app(ctx, "terminal.shared_session.action.continue");
-                let tooltip = localization::text_for_app(
-                    ctx,
-                    "terminal.shared_session.tooltip.continue_cloud_conversation",
-                );
-                Some(ctx.add_typed_action_view(move |_| {
-                    ActionButton::new(label.clone(), PrimaryTheme)
-                        .with_tooltip(tooltip.clone())
-                        .on_click(move |ctx| {
-                            ctx.dispatch_typed_action(
-                                ConversationEndedTombstoneAction::ContinueInCloud { task_id },
-                            );
-                        })
+                Some(ctx.add_typed_action_view(move |ctx| {
+                    ActionButton::new(
+                        shared_session_text(ctx, "terminal.shared_session.action.continue"),
+                        PrimaryTheme,
+                    )
+                    .with_tooltip(shared_session_text(
+                        ctx,
+                        "terminal.shared_session.tooltip.continue_cloud_conversation",
+                    ))
+                    .on_click(move |ctx| {
+                        ctx.dispatch_typed_action(
+                            ConversationEndedTombstoneAction::ContinueInCloud { task_id },
+                        );
+                    })
                 }))
             }
             Some(TombstoneCta::ContinueLocally { .. }) | None => None,
@@ -237,22 +228,20 @@ impl ConversationEndedTombstoneView {
         #[cfg(not(target_family = "wasm"))]
         let continue_locally_button = match tombstone_cta {
             Some(TombstoneCta::ContinueLocally { conversation_id }) => {
-                let label = localization::text_for_app(
-                    ctx,
-                    "terminal.shared_session.action.continue_locally",
-                );
-                let tooltip = localization::text_for_app(
-                    ctx,
-                    "terminal.shared_session.tooltip.continue_locally",
-                );
-                Some(ctx.add_typed_action_view(move |_| {
-                    ActionButton::new(label.clone(), PrimaryTheme)
-                        .with_tooltip(tooltip.clone())
-                        .on_click(move |ctx| {
-                            ctx.dispatch_typed_action(
-                                ConversationEndedTombstoneAction::ContinueLocally(conversation_id),
-                            );
-                        })
+                Some(ctx.add_typed_action_view(move |ctx| {
+                    ActionButton::new(
+                        shared_session_text(ctx, "terminal.shared_session.action.continue_locally"),
+                        PrimaryTheme,
+                    )
+                    .with_tooltip(shared_session_text(
+                        ctx,
+                        "terminal.shared_session.tooltip.continue_locally",
+                    ))
+                    .on_click(move |ctx| {
+                        ctx.dispatch_typed_action(
+                            ConversationEndedTombstoneAction::ContinueLocally(conversation_id),
+                        );
+                    })
                 }))
             }
             Some(TombstoneCta::ContinueInCloud { .. }) | None => None,
@@ -266,15 +255,12 @@ impl ConversationEndedTombstoneView {
                 None
             } else {
                 conversation_id.map(|conv_id| {
-                    ctx.add_typed_action_view(move |_| {
+                    ctx.add_typed_action_view(move |ctx| {
                         ActionButton::new(
-                            localization::text_for_app(
-                                ctx,
-                                "terminal.shared_session.action.open_in_warp",
-                            ),
+                            shared_session_text(ctx, "terminal.shared_session.action.open_in_warp"),
                             PrimaryTheme,
                         )
-                        .with_tooltip(localization::text_for_app(
+                        .with_tooltip(shared_session_text(
                             ctx,
                             "terminal.shared_session.tooltip.open_in_warp",
                         ))
@@ -361,7 +347,7 @@ impl ConversationEndedTombstoneView {
                 async move { ai_client.get_ambient_agent_task(&task_id).await },
                 |me, result, ctx| match result {
                     Ok(task) => {
-                        me.display_data.enrich_from_task(task, ctx);
+                        me.display_data.enrich_from_task(task);
                         me.artifact_buttons_view.update(ctx, |row, ctx| {
                             row.update_artifacts(&me.display_data.artifacts, ctx);
                         });
@@ -389,7 +375,7 @@ impl ConversationEndedTombstoneView {
 
         if is_transcript {
             return Text::new(
-                localization::text_for_app(app, "terminal.shared_session.snapshot.title"),
+                shared_session_text(app, "terminal.shared_session.snapshot.title"),
                 appearance.overline_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -417,9 +403,11 @@ impl ConversationEndedTombstoneView {
         .with_margin_right(8.)
         .finish();
 
-        let title = self.display_data.title.clone().unwrap_or_else(|| {
-            localization::text_for_app(app, "terminal.shared_session.agent_task")
-        });
+        let title = self
+            .display_data
+            .title
+            .clone()
+            .unwrap_or_else(|| shared_session_text(app, "terminal.shared_session.agent_task"));
         Flex::row()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -450,7 +438,7 @@ impl ConversationEndedTombstoneView {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                localization::text_for_app(app, "terminal.shared_session.snapshot.description"),
+                shared_session_text(app, "terminal.shared_session.snapshot.description"),
                 appearance.overline_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -468,7 +456,7 @@ impl ConversationEndedTombstoneView {
 
         if let Some(dir) = &self.display_data.working_directory {
             let display_dir = home_relative_path(Path::new(dir));
-            parts.push(localization::text_for_app_with_args(
+            parts.push(crate::localization::text_for_app_with_args(
                 app,
                 "terminal.shared_session.metadata.directory",
                 &[("directory", &display_dir)],
@@ -476,7 +464,7 @@ impl ConversationEndedTombstoneView {
         }
 
         if let Some(source) = &self.display_data.source {
-            parts.push(localization::text_for_app_with_args(
+            parts.push(crate::localization::text_for_app_with_args(
                 app,
                 "terminal.shared_session.metadata.source",
                 &[("source", source)],
@@ -484,7 +472,7 @@ impl ConversationEndedTombstoneView {
         }
 
         if let Some(skill) = &self.display_data.skill_name {
-            parts.push(localization::text_for_app_with_args(
+            parts.push(crate::localization::text_for_app_with_args(
                 app,
                 "terminal.shared_session.metadata.skill_value",
                 &[("skill", skill)],
@@ -492,7 +480,7 @@ impl ConversationEndedTombstoneView {
         }
 
         if let Some(run_time) = &self.display_data.run_time {
-            parts.push(localization::text_for_app_with_args(
+            parts.push(crate::localization::text_for_app_with_args(
                 app,
                 "terminal.shared_session.metadata.run_time",
                 &[("run_time", run_time)],
@@ -500,7 +488,7 @@ impl ConversationEndedTombstoneView {
         }
 
         if let Some(credits) = &self.display_data.credits {
-            parts.push(localization::text_for_app_with_args(
+            parts.push(crate::localization::text_for_app_with_args(
                 app,
                 "terminal.shared_session.metadata.credits_used",
                 &[("credits", credits)],

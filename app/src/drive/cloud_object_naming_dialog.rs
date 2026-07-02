@@ -133,22 +133,23 @@ impl CloudObjectNamingDialog {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let title_key = match object_type {
-            DriveObjectType::Notebook { .. } => "cloud_object.naming.notebook_title",
-            DriveObjectType::Folder => "cloud_object.naming.folder_title",
-            DriveObjectType::EnvVarCollection => "cloud_object.naming.env_var_collection_title",
+        let title = match object_type {
+            DriveObjectType::Notebook { .. } => {
+                localization::text_for_app(app, "cloud_object.naming.notebook_title")
+            }
+            DriveObjectType::Folder => {
+                localization::text_for_app(app, "cloud_object.naming.folder_title")
+            }
+            DriveObjectType::EnvVarCollection => {
+                localization::text_for_app(app, "cloud_object.naming.env_var_collection_title")
+            }
             // workflows and ai facts aren't a part of this dialog
             DriveObjectType::Workflow
             | DriveObjectType::AgentModeWorkflow
             | DriveObjectType::AIFact
             | DriveObjectType::AIFactCollection
             | DriveObjectType::MCPServer
-            | DriveObjectType::MCPServerCollection => "",
-        };
-        let title = if title_key.is_empty() {
-            String::new()
-        } else {
-            localization::text_for_app(app, title_key)
+            | DriveObjectType::MCPServerCollection => String::new(),
         };
 
         Text::new_inline(

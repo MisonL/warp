@@ -87,15 +87,14 @@ fn render_collapsed(appearance: &Appearance, spec: ToggleCardSpec) -> Box<dyn El
     let border_color = Fill::Solid(internal_colors::neutral_4(theme));
     let subtitle = collapsed_subtitle(
         spec.is_left_selected,
-        spec.left_label.as_str(),
-        spec.right_label.as_str(),
+        &spec.left_label,
+        &spec.right_label,
         &spec.chips,
     );
     let mut on_expand = spec.on_expand;
-    let title = spec.title;
 
     Hoverable::new(spec.card_mouse_state, move |_| {
-        let title_el = FormattedTextElement::from_str(title.clone(), ui_font_family, 16.)
+        let title_el = FormattedTextElement::from_str(spec.title.clone(), ui_font_family, 16.)
             .with_color(text_color)
             .with_weight(Weight::Normal)
             .with_alignment(TextAlignment::Left)
@@ -134,7 +133,7 @@ fn render_expanded(appearance: &Appearance, spec: ToggleCardSpec) -> Box<dyn Ele
     let border_color = theme.accent();
     let background = internal_colors::accent_overlay_1(theme);
 
-    let title_el = FormattedTextElement::from_str(spec.title, ui_font_family, 16.)
+    let title_el = FormattedTextElement::from_str(spec.title.clone(), ui_font_family, 16.)
         .with_color(text_color)
         .with_weight(Weight::Normal)
         .with_alignment(TextAlignment::Left)
@@ -271,7 +270,7 @@ fn render_chip(appearance: &Appearance, mut chip: ChipSpec) -> Box<dyn Element> 
     let label = chip.label;
 
     let mut hoverable = Hoverable::new(chip.mouse_state, move |_| {
-        let label_el = FormattedTextElement::from_str(label.clone(), ui_font_family, 14.)
+        let label_el = FormattedTextElement::from_str(label.to_owned(), ui_font_family, 14.)
             .with_color(text_color)
             .with_weight(Weight::Normal)
             .with_alignment(TextAlignment::Center)

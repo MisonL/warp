@@ -36,14 +36,12 @@ impl CreateEnvironmentModal {
             }
             HandoffEnvironmentCreationModalEvent::CreationFailed { error_message } => {
                 me.visible = false;
-                me.show_error_toast(
-                    localization::text_for_app_with_args(
-                        ctx,
-                        "settings.environment.create.toast.failed",
-                        &[("message", error_message)],
-                    ),
+                let message = localization::text_for_app_with_args(
                     ctx,
+                    "workspace.toast.failed_to_create_environment",
+                    &[("error", error_message.as_str())],
                 );
+                me.show_error_toast(message, ctx);
                 ctx.notify();
             }
         });

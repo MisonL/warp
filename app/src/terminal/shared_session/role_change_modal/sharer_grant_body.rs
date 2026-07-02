@@ -10,7 +10,6 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use super::{MODAL_PADDING, TEXT_FONT_SIZE};
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::ui_components::blended_colors;
 const BUTTON_HEIGHT: f32 = 40.;
 const BUTTON_WIDTH: f32 = 172.;
@@ -60,7 +59,10 @@ impl SharerGrantBody {
                     width: Some(BUTTON_WIDTH),
                     ..Default::default()
                 })
-                .with_centered_text_label(text(app, "shared_session.role_change.action.cancel"))
+                .with_centered_text_label(crate::localization::text_for_app(
+                    app,
+                    "settings.action.cancel",
+                ))
                 .build()
                 .with_cursor(Cursor::PointingHand)
                 .on_click(move |ctx, _, _| ctx.dispatch_typed_action(SharerGrantBodyAction::Cancel))
@@ -83,7 +85,10 @@ impl SharerGrantBody {
                 width: Some(BUTTON_WIDTH),
                 ..Default::default()
             })
-            .with_centered_text_label(text(app, "shared_session.role_change.action.make_editor"))
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "shared_session.role_change.action.make_editor",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -111,8 +116,14 @@ impl View for SharerGrantBody {
         let appearance = Appearance::as_ref(app);
         let button_row = self.render_button_row(appearance, app);
 
-        let text1 = text(app, "shared_session.role_change.grant_warning.line_1");
-        let text2 = text(app, "shared_session.role_change.grant_warning.line_2");
+        let text1 = crate::localization::text_for_app(
+            app,
+            "shared_session.role_change.grant_warning.line_1",
+        );
+        let text2 = crate::localization::text_for_app(
+            app,
+            "shared_session.role_change.grant_warning.line_2",
+        );
         let text_body = Container::new(
             Flex::column()
                 .with_child(
@@ -147,7 +158,10 @@ impl View for SharerGrantBody {
                     Some(TEXT_FONT_SIZE),
                 )
                 .with_label(Span::new(
-                    text(app, "workspace.close_session.dont_show_again"),
+                    crate::localization::text_for_app(
+                        app,
+                        "shared_session.role_change.dont_show_again",
+                    ),
                     Default::default(),
                 ))
                 .check(self.dont_show_again)
@@ -169,10 +183,6 @@ impl View for SharerGrantBody {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .finish()
     }
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }
 
 impl TypedActionView for SharerGrantBody {

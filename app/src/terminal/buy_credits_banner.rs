@@ -28,16 +28,12 @@ use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
 use crate::menu::MenuItemFields;
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
-use crate::send_telemetry_from_ctx;
 use crate::server::ids::ServerId;
 use crate::server::telemetry::{OutOfCreditsBannerAction, TelemetryEvent};
 use crate::settings_view::create_discount_badge;
 use crate::view_components::{Dropdown, DropdownAction};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
+use crate::{localization, send_telemetry_from_ctx};
 
 #[derive(Default)]
 struct MouseStates {
@@ -221,10 +217,7 @@ impl BuyCreditsBanner {
                 if self.banner_auto_reload_update_in_flight {
                     self.banner_auto_reload_update_in_flight = false;
                     ctx.emit(BuyCreditsBannerEvent::ShowAutoReloadError {
-                        error_message: text(
-                            ctx,
-                            "settings.billing.buy_credits_banner.auto_reload_failed",
-                        ),
+                        error_message: "Failed to enable auto-reload for your team. Please try again in Settings > Billing and Usage.",
                     });
                     ctx.notify();
                 }
@@ -262,7 +255,7 @@ impl BuyCreditsBanner {
         let sub_text_color = theme.sub_text_color(theme.surface_1());
 
         let label = Text::new_inline(
-            text(app, "settings.billing.addon_credits.auto_reload.label"),
+            localization::text_for_app(app, "settings.billing.addon_credits.auto_reload.label"),
             appearance.ui_font_family(),
             12.,
         )
@@ -276,8 +269,11 @@ impl BuyCreditsBanner {
             .map(|option| option.credits)
             .unwrap_or(0);
 
-        let tooltip_text = text(app, "settings.billing.addon_credits.auto_reload.tooltip")
-            .replace("{count}", &selected_credits.to_string());
+        let tooltip_text = localization::text_for_app_with_args(
+            app,
+            "settings.billing.addon_credits.auto_reload.tooltip",
+            &[("count", &selected_credits.to_string())],
+        );
 
         // Create info icon with a custom sub_text_color & mouse cursor (i.e. as opposed to using IconWithTooltip)
         let ui_builder = appearance.ui_builder();
@@ -431,24 +427,18 @@ impl BuyCreditsBanner {
 
         // Banner text with title and description based on admin status
         let banner_description = if has_admin_permissions {
-            text(
-                app,
-                "settings.billing.addon_credits.monthly_limit_reached.admin",
-            )
+            localization::text_for_app(app, "terminal.buy_credits.monthly_limit.admin_description")
         } else {
-            text(
-                app,
-                "settings.billing.addon_credits.monthly_limit_reached.non_admin",
-            )
+            localization::text_for_app(app, "terminal.buy_credits.monthly_limit.member_description")
         };
 
         let banner_text = Flex::column()
             .with_children([
                 appearance
                     .ui_builder()
-                    .paragraph(text(
+                    .paragraph(localization::text_for_app(
                         app,
-                        "settings.billing.addon_credits.monthly_limit_reached.title",
+                        "terminal.buy_credits.monthly_limit.title",
                     ))
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
@@ -500,7 +490,10 @@ impl BuyCreditsBanner {
                     }),
                     ..Default::default()
                 })
-                .with_text_label(text(app, "settings.billing.action.manage_billing"))
+                .with_text_label(localization::text_for_app(
+                    app,
+                    "settings.billing.action.manage_billing",
+                ))
                 .build()
                 .on_click(|ctx, _, _| {
                     ctx.dispatch_typed_action(Action::ManageBilling);
@@ -585,7 +578,10 @@ impl BuyCreditsBanner {
         let make_banner_text = || {
             let mut banner_text_children = vec![appearance
                 .ui_builder()
-                .paragraph(text(app, "settings.billing.out_of_credits.title"))
+                .paragraph(localization::text_for_app(
+                    app,
+                    "terminal.buy_credits.out_of_credits.title",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     ..Default::default()
@@ -597,18 +593,14 @@ impl BuyCreditsBanner {
             if is_at_monthly_limit || would_purchase_exceed_limit {
                 // Create formatted text with clickable hyperlink
                 let warning_text_fragments = vec![
-                    FormattedTextFragment::plain_text(text(
-                        app,
-                        "settings.billing.out_of_credits.exceed_limit.prefix",
-                    )),
+                    FormattedTextFragment::plain_text(
+                        "Purchasing these credits would take you over your monthly spend limit. ",
+                    ),
                     FormattedTextFragment::hyperlink_action(
-                        text(app, "settings.billing.out_of_credits.exceed_limit.link"),
+                        localization::text_for_app(app, "terminal.buy_credits.action.increase_it"),
                         Action::ManageBilling,
                     ),
-                    FormattedTextFragment::plain_text(text(
-                        app,
-                        "settings.billing.out_of_credits.exceed_limit.suffix",
-                    )),
+                    FormattedTextFragment::plain_text(" to continue."),
                 ];
 
                 let formatted_warning = FormattedTextElement::new(
@@ -636,9 +628,9 @@ impl BuyCreditsBanner {
             } else {
                 // Default message when not at limit
                 let banner_description = if has_admin_permissions {
-                    text(app, "settings.billing.out_of_credits.admin")
+                    "Add more credits to your account to continue using Oz agents."
                 } else {
-                    text(app, "settings.billing.out_of_credits.non_admin")
+                    "Contact a team admin to purchase more credits to continue."
                 };
 
                 banner_text_children.push(
@@ -677,9 +669,9 @@ impl BuyCreditsBanner {
                 || would_purchase_exceed_limit;
 
             let button_text = if self.purchase_addon_credits_loading {
-                text(app, "settings.billing.addon_credits.buying")
+                "Buying…".to_string()
             } else {
-                text(app, "settings.billing.addon_credits.buy")
+                "Buy".to_string()
             };
 
             let button_font_color = buy_button_disabled.then_some(
@@ -836,7 +828,7 @@ pub enum BuyCreditsBannerEvent {
     OpenBillingAndUsage,
     RefocusInput,
     OpenAutoReloadModal { purchased_credits: i32 },
-    ShowAutoReloadError { error_message: String },
+    ShowAutoReloadError { error_message: &'static str },
 }
 
 impl Entity for BuyCreditsBanner {

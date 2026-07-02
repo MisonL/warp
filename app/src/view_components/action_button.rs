@@ -24,7 +24,6 @@ use warpui::{
     SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
-use crate::localization;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::ui_components::icons::Icon;
@@ -533,7 +532,7 @@ impl ActionButton {
                 Some(
                     Container::new(
                         Text::new_inline(
-                            localization::text_for_app(app, "view_components.action_button.beta"),
+                            "Beta",
                             appearance.ui_font_family(),
                             overall_height - padding.top() - padding.bottom(),
                         )

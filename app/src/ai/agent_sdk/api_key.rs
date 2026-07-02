@@ -17,32 +17,13 @@ use warp_graphql::mutations::expire_api_key::ExpireApiKeyResult;
 use warp_graphql::mutations::generate_api_key::GenerateApiKeyResult;
 use warp_graphql::queries::api_keys::ApiKeyProperties;
 use warp_graphql::scalars::Time;
-use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::{self, TableFormat};
 use crate::server::ids::ApiKeyUid;
-use crate::util::time_format::{
-    localized_approx_duration_from_now_utc, localized_approx_duration_from_now_utc_for_locale,
-};
-use crate::{localization, ServerApiProvider};
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_for_locale(locale: LocaleId, key: &str) -> String {
-    localization::text_for_locale(locale, key)
-}
-
-fn default_text(key: &str) -> String {
-    text_for_locale(LocaleId::EnUs, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
+use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::ServerApiProvider;
 
 /// Run API key-related commands.
 pub fn run(
@@ -93,22 +74,14 @@ impl ApiKeyCommandRunner {
                     .map(ApiKeyInfo::from)
                     .collect();
                 sort_api_keys(&mut keys, args.sort_by, args.sort_order);
-                Ok(keys)
-            },
-            move |_, result: Result<Vec<ApiKeyInfo>>, ctx| match result {
-                Ok(keys) => {
-                    let result = if args.json_output.force_json_output() {
-                        serde_json::to_value(&keys)
-                            .map_err(anyhow::Error::from)
-                            .and_then(|value| output::print_raw_json(value, &args.json_output))
-                    } else {
-                        output::print_list_for_app(keys, output_format, ctx);
-                        Ok(())
-                    };
-                    finish_command(result, ctx);
+                if args.json_output.force_json_output() {
+                    output::print_raw_json(serde_json::to_value(&keys)?, &args.json_output)?;
+                } else {
+                    output::print_list(keys, output_format);
                 }
-                Err(err) => finish_command(Err(err), ctx),
+                Ok(())
             },
+            |_, result: Result<()>, ctx| finish_command(result, ctx),
         );
     }
 
@@ -119,18 +92,14 @@ impl ApiKeyCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
-        let unknown_error = text(ctx, "agent_sdk.api_key.error.create_failed");
-        let name = args.name;
-        let agent_uid = args.agent_uid;
-        let expiration = args.expiration;
-        let json_output = args.json_output;
 
         ctx.spawn(
             async move {
-                let expires_at = expires_at_from_args(expiration)?;
-                let agent_uid = agent_uid.map(cynic::Id::new);
+                let json_output = args.json_output;
+                let expires_at = expires_at_from_args(args.expiration)?;
+                let agent_uid = args.agent_uid.map(cynic::Id::new);
                 let result = auth_client
-                    .create_api_key(name, None, agent_uid, expires_at)
+                    .create_api_key(args.name, None, agent_uid, expires_at)
                     .await?;
                 let result = match result {
                     GenerateApiKeyResult::GenerateApiKeyOutput(output) => CreatedApiKeyInfo {
@@ -142,19 +111,14 @@ impl ApiKeyCommandRunner {
                             warp_graphql::client::get_user_facing_error_message(e)
                         ));
                     }
-                    GenerateApiKeyResult::Unknown => return Err(anyhow!(unknown_error)),
-                };
-                Ok(result)
-            },
-            move |_, result: Result<CreatedApiKeyInfo>, ctx| match result {
-                Ok(result) => {
-                    match print_created_api_key(result, output_format, json_output, ctx) {
-                        Ok(()) => ctx.terminate_app(TerminationMode::ForceTerminate, None),
-                        Err(err) => super::report_fatal_error(err, ctx),
+                    GenerateApiKeyResult::Unknown => {
+                        return Err(anyhow!("failed to create API key"))
                     }
-                }
-                Err(err) => super::report_fatal_error(err, ctx),
+                };
+                print_created_api_key(result, output_format, json_output)?;
+                Ok(())
             },
+            |_, result: Result<()>, ctx| finish_command(result, ctx),
         );
     }
 
@@ -168,7 +132,6 @@ impl ApiKeyCommandRunner {
         let force = args.force;
         let json_output = args.json_output;
         let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
-        let unknown_error = text(ctx, "agent_sdk.api_key.error.expire_failed");
 
         ctx.spawn(
             async move {
@@ -189,7 +152,7 @@ impl ApiKeyCommandRunner {
                     }
                 };
 
-                let key = match resolve_api_key_identifier(&keys, &key_identifier, ctx) {
+                let key = match resolve_api_key_identifier(&keys, &key_identifier) {
                     Ok(Some(key)) => key,
                     Ok(None) => {
                         ctx.terminate_app(TerminationMode::ForceTerminate, None);
@@ -204,31 +167,22 @@ impl ApiKeyCommandRunner {
                 if !force {
                     if !io::stdin().is_terminal() {
                         super::report_fatal_error(
-                            anyhow!(text(
-                                ctx,
-                                "agent_sdk.api_key.error.expire_non_interactive_requires_force"
-                            )),
+                            anyhow!(
+                                "Refusing to expire API key without confirmation in non-interactive mode (use --force to bypass)"
+                            ),
                             ctx,
                         );
                         return;
                     }
 
-                    let key_label = key.to_string();
-                    let prompt = text_with_args(
-                        ctx,
-                        "agent_sdk.api_key.confirm.expire",
-                        &[("key", &key_label)],
-                    );
-                    let help = text(ctx, "agent_sdk.api_key.confirm.expire_help");
+                    let prompt = format!("Expire API key '{key}'?");
                     let should_expire = match Confirm::new(&prompt)
                         .with_default(false)
-                        .with_help_message(&help)
+                        .with_help_message("This action takes effect immediately")
                         .prompt()
                     {
                         Ok(should_expire) => should_expire,
-                        Err(
-                            InquireError::OperationCanceled | InquireError::OperationInterrupted,
-                        ) => {
+                        Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
                             ctx.terminate_app(TerminationMode::ForceTerminate, None);
                             return;
                         }
@@ -239,10 +193,7 @@ impl ApiKeyCommandRunner {
                     };
 
                     if !should_expire {
-                        println!(
-                            "{}",
-                            text(ctx, "agent_sdk.api_key.confirm.expire_cancelled")
-                        );
+                        println!("Expiration cancelled");
                         ctx.terminate_app(TerminationMode::ForceTerminate, None);
                         return;
                     }
@@ -260,25 +211,19 @@ impl ApiKeyCommandRunner {
                                     warp_graphql::client::get_user_facing_error_message(e)
                                 ));
                             }
-                            ExpireApiKeyResult::Unknown => return Err(anyhow!(unknown_error)),
+                            ExpireApiKeyResult::Unknown => {
+                                return Err(anyhow!("failed to expire API key"))
+                            }
                         };
-                        Ok(ExpiredApiKeyInfo {
-                            key_uid: uid.to_string(),
+                        print_expire_api_key_result(
+                            uid.to_string(),
                             expired,
-                        })
-                    },
-                    move |_, result: Result<ExpiredApiKeyInfo>, ctx| match result {
-                        Ok(result) => match print_expire_api_key_result(
-                            result,
                             output_format,
                             json_output,
-                            ctx,
-                        ) {
-                            Ok(()) => ctx.terminate_app(TerminationMode::ForceTerminate, None),
-                            Err(err) => super::report_fatal_error(err, ctx),
-                        },
-                        Err(err) => super::report_fatal_error(err, ctx),
+                        )?;
+                        Ok(())
                     },
+                    |_, result: Result<()>, ctx| finish_command(result, ctx),
                 );
             },
         );
@@ -325,117 +270,35 @@ impl fmt::Display for ApiKeyInfo {
     }
 }
 
-#[derive(Debug, Clone)]
-struct ApiKeySelection {
-    label: String,
-    key: ApiKeyInfo,
-}
-
-impl ApiKeySelection {
-    fn new(key: ApiKeyInfo, app: &AppContext) -> Self {
-        let uid_label = text(app, "agent_sdk.api_key.table.uid");
-        let created_label = text(app, "agent_sdk.api_key.table.created");
-        let label = format!(
-            "{} ({} {}, {} {})",
-            key.name,
-            uid_label,
-            key.uid,
-            created_label,
-            key.created_at.format("%Y-%m-%d %H:%M:%S UTC")
-        );
-        Self { label, key }
-    }
-
-    fn into_key(self) -> ApiKeyInfo {
-        self.key
-    }
-}
-
-impl fmt::Display for ApiKeySelection {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.label)
-    }
-}
-
 impl TableFormat for ApiKeyInfo {
     fn header() -> Vec<Cell> {
-        Self::header_for_locale(LocaleId::EnUs)
-    }
-
-    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
         vec![
-            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.uid")),
-            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.name")),
-            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.key")),
-            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.scope")),
-            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.created")),
-            Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.last_used")),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.api_key.table.expires_at",
-            )),
-        ]
-    }
-
-    fn header_for_app(app: &AppContext) -> Vec<Cell> {
-        vec![
-            Cell::new(text(app, "agent_sdk.api_key.table.uid")),
-            Cell::new(text(app, "agent_sdk.api_key.table.name")),
-            Cell::new(text(app, "agent_sdk.api_key.table.key")),
-            Cell::new(text(app, "agent_sdk.api_key.table.scope")),
-            Cell::new(text(app, "agent_sdk.api_key.table.created")),
-            Cell::new(text(app, "agent_sdk.api_key.table.last_used")),
-            Cell::new(text(app, "agent_sdk.api_key.table.expires_at")),
+            Cell::new("UID"),
+            Cell::new("Name"),
+            Cell::new("Key"),
+            Cell::new("Scope"),
+            Cell::new("Created"),
+            Cell::new("Last Used"),
+            Cell::new("Expires At"),
         ]
     }
 
     fn row(&self) -> Vec<Cell> {
-        self.row_for_locale(LocaleId::EnUs)
-    }
-
-    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
-        let never = || text_for_locale(locale, "agent_sdk.api_key.table.never");
-
         vec![
             Cell::new(&self.uid),
             Cell::new(&self.name),
             Cell::new(format!("wk-**{}", self.key_suffix)),
             Cell::new(&self.scope),
-            Cell::new(localized_approx_duration_from_now_utc_for_locale(
-                locale,
-                self.created_at,
-            )),
+            Cell::new(format_approx_duration_from_now_utc(self.created_at)),
             Cell::new(
                 self.last_used_at
-                    .map(|dt| localized_approx_duration_from_now_utc_for_locale(locale, dt))
-                    .unwrap_or_else(never),
+                    .map(format_approx_duration_from_now_utc)
+                    .unwrap_or_else(|| "Never".to_string()),
             ),
             Cell::new(
                 self.expires_at
                     .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-                    .unwrap_or_else(never),
-            ),
-        ]
-    }
-
-    fn row_for_app(&self, app: &AppContext) -> Vec<Cell> {
-        let never = || text(app, "agent_sdk.api_key.table.never");
-
-        vec![
-            Cell::new(&self.uid),
-            Cell::new(&self.name),
-            Cell::new(format!("wk-**{}", self.key_suffix)),
-            Cell::new(&self.scope),
-            Cell::new(localized_approx_duration_from_now_utc(app, self.created_at)),
-            Cell::new(
-                self.last_used_at
-                    .map(|dt| localized_approx_duration_from_now_utc(app, dt))
-                    .unwrap_or_else(never),
-            ),
-            Cell::new(
-                self.expires_at
-                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-                    .unwrap_or_else(never),
+                    .unwrap_or_else(|| "Never".to_string()),
             ),
         ]
     }
@@ -444,7 +307,6 @@ impl TableFormat for ApiKeyInfo {
 fn resolve_api_key_identifier(
     keys: &[ApiKeyInfo],
     key_identifier: &str,
-    app: &AppContext,
 ) -> Result<Option<ApiKeyInfo>> {
     if let Some(key) = keys.iter().find(|key| key.uid == key_identifier) {
         return Ok(Some(key.clone()));
@@ -458,48 +320,31 @@ fn resolve_api_key_identifier(
     matches.sort_by_key(|key| Reverse(key.created_at));
 
     if matches.is_empty() {
-        return Err(anyhow!(text_with_args(
-            app,
-            "agent_sdk.api_key.error.not_found",
-            &[("key_identifier", key_identifier)],
-        )));
+        return Err(anyhow!("API key '{key_identifier}' not found"));
     } else if matches.len() == 1 {
         return Ok(Some(matches[0].clone()));
     }
 
     if io::stdin().is_terminal() {
-        let prompt = text_with_args(
-            app,
-            "agent_sdk.api_key.prompt.select_key_to_expire",
-            &[("key_identifier", key_identifier)],
-        );
-        let selections = matches
-            .into_iter()
-            .map(|key| ApiKeySelection::new(key, app))
-            .collect::<Vec<_>>();
-        return match Select::new(&prompt, selections).prompt() {
-            Ok(selection) => Ok(Some(selection.into_key())),
+        return match Select::new(
+            &format!("Multiple API keys match '{key_identifier}'. Select a key to expire:"),
+            matches,
+        )
+        .prompt()
+        {
+            Ok(key) => Ok(Some(key)),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => Ok(None),
             Err(err) => Err(err.into()),
         };
     }
-    println!(
-        "{}",
-        text_with_args(
-            app,
-            "agent_sdk.api_key.output.multiple_matches",
-            &[("key_identifier", key_identifier)],
-        )
-    );
+    println!("Multiple API keys match '{key_identifier}':");
     for key in matches {
         println!("  {key}");
     }
 
-    Err(anyhow!(text_with_args(
-        app,
-        "agent_sdk.api_key.error.multiple_matches_specify_uid",
-        &[("key_identifier", key_identifier)],
-    )))
+    Err(anyhow!(
+        "Multiple API keys match '{key_identifier}'; specify the key by UID"
+    ))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -573,20 +418,17 @@ fn expires_at_from_args(args: ApiKeyExpirationArgs) -> Result<Option<Time>> {
 
     if let Some(expires_in) = args.expires_in {
         let duration = chrono::Duration::from_std(expires_in.into())
-            .map_err(|_| anyhow!(default_text("agent_sdk.api_key.error.expiration_too_large")))?;
+            .map_err(|_| anyhow!("expiration duration is too large"))?;
         return Ok(Some(Time::from(Utc::now() + duration)));
     }
 
-    Err(anyhow!(default_text(
-        "agent_sdk.api_key.error.expiration_behavior_required"
-    )))
+    Err(anyhow!("expiration behavior is required"))
 }
 
 fn print_created_api_key(
     result: CreatedApiKeyInfo,
     output_format: OutputFormat,
     json_output: warp_cli::json_filter::JsonOutput,
-    app: &AppContext,
 ) -> Result<()> {
     if json_output.force_json_output() {
         output::print_raw_json(serde_json::to_value(&result)?, &json_output)?;
@@ -596,39 +438,22 @@ fn print_created_api_key(
         OutputFormat::Json => output::write_json(&result, std::io::stdout())?,
         OutputFormat::Ndjson => output::write_json_line(&result, std::io::stdout())?,
         OutputFormat::Pretty | OutputFormat::Text => {
-            println!(
-                "{}",
-                text_with_args(
-                    app,
-                    "agent_sdk.api_key.output.created",
-                    &[("name", &result.api_key.name)],
-                )
-            );
-            println!(
-                "{} {}",
-                text(app, "agent_sdk.api_key.output.uid"),
-                result.api_key.uid
-            );
-            println!(
-                "{} {}",
-                text(app, "agent_sdk.api_key.output.raw_api_key"),
-                result.raw_api_key
-            );
-            println!(
-                "{}",
-                text(app, "agent_sdk.api_key.output.secret_shown_once")
-            );
+            println!("API key '{}' created.", result.api_key.name);
+            println!("UID: {}", result.api_key.uid);
+            println!("Raw API key: {}", result.raw_api_key);
+            println!("This secret key is shown only once. Store it securely.");
         }
     }
     Ok(())
 }
 
 fn print_expire_api_key_result(
-    result: ExpiredApiKeyInfo,
+    key_uid: String,
+    expired: bool,
     output_format: OutputFormat,
     json_output: warp_cli::json_filter::JsonOutput,
-    app: &AppContext,
 ) -> Result<()> {
+    let result = ExpiredApiKeyInfo { key_uid, expired };
     if json_output.force_json_output() {
         output::print_raw_json(serde_json::to_value(&result)?, &json_output)?;
         return Ok(());
@@ -638,24 +463,10 @@ fn print_expire_api_key_result(
         OutputFormat::Json => output::write_json(&result, std::io::stdout())?,
         OutputFormat::Ndjson => output::write_json_line(&result, std::io::stdout())?,
         OutputFormat::Pretty | OutputFormat::Text => {
-            if result.expired {
-                println!(
-                    "{}",
-                    text_with_args(
-                        app,
-                        "agent_sdk.api_key.output.expired",
-                        &[("key_uid", &result.key_uid)],
-                    )
-                );
+            if expired {
+                println!("API key '{}' expired.", result.key_uid);
             } else {
-                println!(
-                    "{}",
-                    text_with_args(
-                        app,
-                        "agent_sdk.api_key.output.not_expired",
-                        &[("key_uid", &result.key_uid)],
-                    )
-                );
+                println!("API key '{}' was not expired.", result.key_uid);
             }
         }
     }

@@ -22,10 +22,6 @@ const VARIABLE_DIVIDER_HEIGHT: f32 = 2.;
 const SECTION_FONT_SIZE: f32 = 16.;
 const BUTTON_HEIGHT: f32 = 32.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 /// This file contains components that fixed in the view,
 /// i.e. the trash banner, breadcrumbs, and variables section header
 impl EnvVarCollectionView {
@@ -57,10 +53,10 @@ impl EnvVarCollectionView {
 
         let mut stack = Stack::new();
 
-        let banner_text = if deleted {
-            text(app, "env_vars.trash_banner.no_access")
+        let text = if deleted {
+            localization::text_for_app(app, "env_vars.trash_banner.no_access")
         } else {
-            text(app, "env_vars.trash_banner.moved_to_trash")
+            localization::text_for_app(app, "env_vars.trash_banner.moved_to_trash")
         };
         stack.add_child(
             Align::new(
@@ -76,7 +72,7 @@ impl EnvVarCollectionView {
                         .finish(),
                         appearance
                             .ui_builder()
-                            .span(banner_text)
+                            .span(text)
                             .with_style(UiComponentStyles {
                                 font_size: Some(appearance.ui_font_size() + 2.),
                                 ..Default::default()
@@ -103,7 +99,10 @@ impl EnvVarCollectionView {
 
             if !FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash() {
                 let ui_builder = appearance.ui_builder().clone();
-                let restore_tooltip = text(app, "env_vars.trash_banner.restore_tooltip");
+                let restore_tooltip =
+                    localization::text_for_app(app, "env_vars.trash_banner.restore_tooltip");
+                let restore_label =
+                    localization::text_for_app(app, "env_vars.trash_banner.restore");
                 action_row.add_child(
                     Align::new(
                         appearance
@@ -118,7 +117,7 @@ impl EnvVarCollectionView {
                                     .build()
                                     .finish()
                             })
-                            .with_text_label(text(app, "env_vars.trash_banner.restore"))
+                            .with_text_label(restore_label)
                             .build()
                             .on_click(|ctx, _, _| {
                                 ctx.dispatch_typed_action(EnvVarCollectionAction::Untrash)
@@ -162,7 +161,7 @@ impl EnvVarCollectionView {
                 2.,
                 appearance
                     .ui_builder()
-                    .span(text(app, "env_vars.variables"))
+                    .span(localization::text_for_app(app, "env_vars.variables"))
                     .with_style(UiComponentStyles {
                         font_size: Some(SECTION_FONT_SIZE),
                         ..Default::default()
@@ -241,7 +240,7 @@ impl EnvVarCollectionView {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::TextFirst,
-                    text(app, "env_vars.action.load"),
+                    localization::text_for_app(app, "env_vars.action.load"),
                     Icon::TerminalInput.to_warpui_icon(appearance.theme().active_ui_text_color()),
                     MainAxisSize::Min,
                     MainAxisAlignment::SpaceBetween,
@@ -294,7 +293,7 @@ impl EnvVarCollectionView {
                 font_size: Some(14.),
                 ..Default::default()
             })
-            .with_centered_text_label(text(app, "env_vars.action.save"));
+            .with_centered_text_label(localization::text_for_app(app, "env_vars.action.save"));
 
         if is_save_disabled {
             button = button.disabled();

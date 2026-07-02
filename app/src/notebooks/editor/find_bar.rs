@@ -27,7 +27,10 @@ use super::view::{EditorViewEvent, RichTextEditorView};
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
 use crate::ui_components::icons::Icon;
-use crate::view_components::find::{CASE_SENSITIVE_LABEL, FIND_BAR_WIDTH, REGEX_TOGGLE_LABEL};
+use crate::view_components::find::{
+    CASE_SENSITIVE_LABEL, CASE_SENSITIVE_TOOLTIP, FIND_BAR_WIDTH, REGEX_TOGGLE_LABEL,
+    REGEX_TOGGLE_TOOLTIP,
+};
 
 /// View for the find bar within a notebook.
 pub struct FindBar {
@@ -384,11 +387,6 @@ impl View for FindBar {
         .with_vertical_padding(16.)
         .finish();
 
-        let regex_tooltip =
-            crate::localization::text_for_app(app, "code.find.tooltip.regex_toggle");
-        let case_sensitive_tooltip =
-            crate::localization::text_for_app(app, "code.find.tooltip.case_sensitive");
-
         let find_box = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_children([
@@ -413,7 +411,7 @@ impl View for FindBar {
                 ),
                 self.render_toggle_button(
                     REGEX_TOGGLE_LABEL,
-                    &regex_tooltip,
+                    REGEX_TOGGLE_TOOLTIP,
                     FindBarAction::ToggleRegex,
                     searcher.is_regex(),
                     self.button_handles.regex_toggle.clone(),
@@ -422,7 +420,7 @@ impl View for FindBar {
                 ),
                 self.render_toggle_button(
                     CASE_SENSITIVE_LABEL,
-                    &case_sensitive_tooltip,
+                    CASE_SENSITIVE_TOOLTIP,
                     FindBarAction::ToggleCaseSensitive,
                     searcher.is_case_sensitive(),
                     self.button_handles.case_sensitive_toggle.clone(),

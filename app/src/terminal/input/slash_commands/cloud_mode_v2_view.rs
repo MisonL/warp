@@ -16,7 +16,6 @@ use warpui::{
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
-use crate::localization;
 use crate::search::data_source::QueryFilter;
 use crate::search::item::SearchItemDetail;
 use crate::search::mixer::{AddAsyncSourceOptions, SearchMixer, SearchMixerEvent};
@@ -896,7 +895,7 @@ impl CloudModeV2SlashCommandView {
         let label = if self.mixer.as_ref(app).is_loading() {
             crate::localization::text_for_app(app, "common.loading")
         } else {
-            crate::localization::text_for_app(app, "search.no_results")
+            crate::localization::text_for_app(app, "terminal.cloud_mode_v2_history.no_results")
         };
         Container::new(
             Text::new(label, appearance.ui_font_family(), ITEM_FONT_SIZE)
@@ -1156,7 +1155,7 @@ fn render_section_header(section: Section, app: &AppContext) -> Box<dyn Element>
 
     Container::new(
         Text::new(
-            localization::text_for_app(app, section.header_key()),
+            crate::localization::text_for_app(app, section.header_key()),
             appearance.ui_font_family(),
             SECTION_HEADER_FONT_SIZE,
         )
@@ -1181,10 +1180,11 @@ fn render_show_more_row(
     let menu_bg = inline_styles::menu_background_color(app);
     let secondary_color = theme.sub_text_color(Fill::Solid(menu_bg)).into_solid();
 
-    let label = localization::text_for_app_with_args(
+    let count = hidden_count.to_string();
+    let label = crate::localization::text_for_app_with_args(
         app,
         "terminal.cloud_mode_v2.show_more",
-        &[("count", &hidden_count.to_string())],
+        &[("count", &count)],
     );
 
     let row = Hoverable::new(mouse_state, move |mouse_state| {

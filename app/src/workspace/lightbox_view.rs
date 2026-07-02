@@ -10,7 +10,6 @@ use warpui::prelude::*;
 use warpui::{AppContext, BlurContext, Element, Entity, SingletonEntity, View, ViewContext};
 
 use crate::appearance::Appearance;
-use crate::localization;
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -143,8 +142,6 @@ impl View for LightboxView {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let no_images_label = localization::text_for_app(app, "workspace.lightbox.no_images");
-        let loading_label = localization::text_for_app(app, "common.loading");
 
         // Determine the native pixel size of the current image by querying the
         // asset cache. This will be `Some` once the image bytes have been fully
@@ -171,8 +168,11 @@ impl View for LightboxView {
             lightbox::Params {
                 images: &self.params.images,
                 current_index: self.current_index,
-                no_images_label,
-                loading_label,
+                no_images_label: crate::localization::text_for_app(
+                    app,
+                    "workspace.lightbox.no_images",
+                ),
+                loading_label: crate::localization::text_for_app(app, "status.loading"),
                 on_dismiss: Arc::new(|ctx, _| {
                     ctx.dispatch_typed_action(LightboxViewAction::Dismiss);
                 }),

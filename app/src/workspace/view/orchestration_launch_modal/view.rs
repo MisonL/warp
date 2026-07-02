@@ -186,7 +186,7 @@ impl OrchestrationLaunchModal {
 
         let learn_more_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                localization::text_for_app(ctx, "auth.learn_more"),
+                localization::text_for_app(ctx, "settings.action.learn_more"),
                 LearnMoreButtonTheme,
             )
             .with_icon(Icon::LinkExternal)
@@ -249,7 +249,7 @@ impl OrchestrationLaunchModal {
         hero_stack.finish()
     }
 
-    fn render_badge(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_badge(app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let text_color = modal_terminal_magenta(appearance);
         let background_color = modal_terminal_magenta_overlay_1(appearance);
         let text = Text::new_inline(
@@ -276,7 +276,7 @@ impl OrchestrationLaunchModal {
         .finish()
     }
 
-    fn render_title(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_title(app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         Text::new(
             localization::text_for_app(app, "workspace.orchestration_launch.title"),
             appearance.ui_font_family(),
@@ -287,7 +287,7 @@ impl OrchestrationLaunchModal {
         .finish()
     }
 
-    fn render_description(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_description(app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         Text::new(
             localization::text_for_app(app, "workspace.orchestration_launch.description"),
             appearance.ui_font_family(),
@@ -301,7 +301,7 @@ impl OrchestrationLaunchModal {
         let font_family = appearance.ui_font_family();
         let color = modal_text_sub(appearance);
         Container::new(
-            Text::new_inline(label.to_string(), font_family, 11.)
+            Text::new_inline(label, font_family, 11.)
                 .with_color(color)
                 .finish(),
         )
@@ -315,8 +315,8 @@ impl OrchestrationLaunchModal {
     fn render_feature_row(
         &self,
         item: &FeatureItem,
-        appearance: &Appearance,
         app: &AppContext,
+        appearance: &Appearance,
     ) -> Box<dyn Element> {
         let icon_el = ConstrainedBox::new(
             item.icon
@@ -369,12 +369,12 @@ impl OrchestrationLaunchModal {
             .finish()
     }
 
-    fn render_body(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_body(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let mut features_col = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(12.);
         for item in FEATURE_ITEMS {
-            features_col.add_child(self.render_feature_row(item, appearance, app));
+            features_col.add_child(self.render_feature_row(item, app, appearance));
         }
 
         let footer = Flex::row()
@@ -395,9 +395,9 @@ impl OrchestrationLaunchModal {
                     Flex::column()
                         .with_cross_axis_alignment(CrossAxisAlignment::Start)
                         .with_spacing(8.)
-                        .with_child(Self::render_badge(appearance, app))
-                        .with_child(Self::render_title(appearance, app))
-                        .with_child(Self::render_description(appearance, app))
+                        .with_child(Self::render_badge(app, appearance))
+                        .with_child(Self::render_title(app, appearance))
+                        .with_child(Self::render_description(app, appearance))
                         .finish(),
                 )
                 .with_child(
@@ -438,7 +438,7 @@ impl View for OrchestrationLaunchModal {
                     .with_main_axis_size(MainAxisSize::Min)
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                     .with_child(self.render_hero())
-                    .with_child(self.render_body(appearance, app))
+                    .with_child(self.render_body(app, appearance))
                     .finish(),
             )
             .with_background(modal_background(appearance))

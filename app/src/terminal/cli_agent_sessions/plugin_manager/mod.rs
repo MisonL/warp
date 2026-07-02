@@ -13,11 +13,8 @@ use claude::ClaudeCodePluginManager;
 use codex::CodexPluginManager;
 use gemini::GeminiPluginManager;
 use opencode::OpenCodePluginManager;
-use warp_localization::LocaleId;
-use warpui::AppContext;
 
 use crate::features::FeatureFlag;
-use crate::localization;
 use crate::terminal::model::session::LocalCommandExecutor;
 use crate::terminal::shell::ShellType;
 use crate::terminal::CLIAgent;
@@ -56,66 +53,17 @@ pub(crate) struct PluginInstructions {
 }
 
 /// Error returned when plugin installation fails.
-/// Carries a readable fallback message, optional localized UI message metadata,
-/// and a detailed command log.
+/// Carries both a short user-facing message (for the toast) and a detailed
+/// command log (for the log file the user can inspect).
+#[derive(Debug)]
 pub(crate) struct PluginInstallError {
-    /// Readable fallback used by Display/logs, and by UI paths without a localization key.
+    /// Short description shown in the toast notification.
     pub message: String,
+    /// Optional catalog key for known user-facing errors.
+    pub message_key: Option<&'static str>,
+    pub message_args: Vec<(&'static str, String)>,
     /// Detailed log of every command/step that was attempted.
     pub log: String,
-    message_key: Option<&'static str>,
-    message_args: Vec<(&'static str, String)>,
-}
-
-impl PluginInstallError {
-    pub(crate) fn new(message: impl Into<String>, log: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            log: log.into(),
-            message_key: None,
-            message_args: vec![],
-        }
-    }
-
-    pub(crate) fn localized(
-        message_key: &'static str,
-        message_args: Vec<(&'static str, String)>,
-        log: impl Into<String>,
-    ) -> Self {
-        let message = message_for_locale(LocaleId::EnUs, message_key, &message_args);
-        Self {
-            message,
-            log: log.into(),
-            message_key: Some(message_key),
-            message_args,
-        }
-    }
-
-    pub(crate) fn localized_message(&self, app: &AppContext) -> String {
-        let Some(key) = self.message_key else {
-            return self.message.clone();
-        };
-        if self.message_args.is_empty() {
-            return localization::text_for_app(app, key);
-        }
-        let args = self
-            .message_args
-            .iter()
-            .map(|(key, value)| (*key, value.as_str()))
-            .collect::<Vec<_>>();
-        localization::text_for_app_with_args(app, key, &args)
-    }
-}
-
-fn message_for_locale(locale: LocaleId, key: &str, args: &[(&'static str, String)]) -> String {
-    if args.is_empty() {
-        return localization::text_for_locale(locale, key);
-    }
-    let args = args
-        .iter()
-        .map(|(key, value)| (*key, value.as_str()))
-        .collect::<Vec<_>>();
-    localization::text_for_locale_with_args(locale, key, &args)
 }
 
 impl fmt::Display for PluginInstallError {
@@ -124,10 +72,45 @@ impl fmt::Display for PluginInstallError {
     }
 }
 
+impl PluginInstallError {
+    pub(crate) fn from_key(
+        message_key: &'static str,
+        message_args: Vec<(&'static str, String)>,
+        log: String,
+    ) -> Self {
+        let message = if message_args.is_empty() {
+            crate::localization::text_for_locale(warp_localization::LocaleId::EnUs, message_key)
+        } else {
+            let args = message_args
+                .iter()
+                .map(|(name, value)| (*name, value.as_str()))
+                .collect::<Vec<_>>();
+            crate::localization::text_for_locale_with_args(
+                warp_localization::LocaleId::EnUs,
+                message_key,
+                &args,
+            )
+        };
+        Self {
+            message,
+            message_key: Some(message_key),
+            message_args,
+            log,
+        }
+    }
+}
+
+impl std::error::Error for PluginInstallError {}
+
 impl From<io::Error> for PluginInstallError {
     fn from(err: io::Error) -> Self {
         let msg = err.to_string();
-        Self::new(msg.clone(), msg)
+        Self {
+            message: msg.clone(),
+            message_key: None,
+            message_args: Vec::new(),
+            log: msg,
+        }
     }
 }
 
@@ -176,15 +159,15 @@ pub(crate) async fn run_cli_command_logged(
                 log.push('\n');
                 return Ok(());
             }
-            Err(PluginInstallError::localized(
+            Err(PluginInstallError::from_key(
                 "agent.input_footer.plugin_command_failed",
-                vec![("command", display_cmd.clone())],
+                vec![("command", display_cmd)],
                 log.to_owned(),
             ))
         }
         Err(err) => {
             log.push_str(&format!("error: {err}\n"));
-            Err(PluginInstallError::localized(
+            Err(PluginInstallError::from_key(
                 "agent.input_footer.plugin_command_run_failed",
                 vec![("command", display_cmd)],
                 log.clone(),
@@ -236,13 +219,12 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
     fn has_local_marketplace_override(&self) -> bool {
         false
     }
-
     /// Install the Warp notification plugin.
     /// Default returns an error — only agents with `can_auto_install() == true` should override.
     async fn install(&self) -> Result<(), PluginInstallError> {
-        Err(PluginInstallError::localized(
+        Err(PluginInstallError::from_key(
             "agent.input_footer.plugin_auto_install_unsupported",
-            vec![],
+            Vec::new(),
             String::new(),
         ))
     }
@@ -250,11 +232,19 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
     /// Update the Warp notification plugin to the latest version.
     /// Default returns an error — only agents with `can_auto_install() == true` should override.
     async fn update(&self) -> Result<(), PluginInstallError> {
-        Err(PluginInstallError::localized(
+        Err(PluginInstallError::from_key(
             "agent.input_footer.plugin_auto_update_unsupported",
-            vec![],
+            Vec::new(),
             String::new(),
         ))
+    }
+
+    fn install_success_message_key(&self) -> &'static str {
+        "agent.input_footer.plugin_installed_restart"
+    }
+
+    fn update_success_message_key(&self) -> &'static str {
+        "agent.input_footer.plugin_updated_restart"
     }
 
     /// Manual installation instructions for the modal UI.
@@ -276,6 +266,7 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
     async fn install_platform_plugin(&self) -> Result<(), PluginInstallError> {
         Ok(())
     }
+
     /// Update the Oz platform plugin for this CLI agent, if one exists.
     /// Default reuses the install path because most agents do not have a
     /// platform plugin or need distinct update behavior.

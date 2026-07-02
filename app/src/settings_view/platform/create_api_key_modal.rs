@@ -1,12 +1,13 @@
 use chrono::Utc;
+use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_server_client::auth::AgentIdentity;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Empty, Expanded, Fill, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-    OffsetPositioning, Padding, ParentElement, PositionedElementAnchor,
-    PositionedElementOffsetBounds, Radius, SavePosition, Stack, Text,
+    Empty, Expanded, Fill, Flex, FormattedTextElement, HighlightedHyperlink, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, OffsetPositioning, Padding, ParentElement,
+    PositionedElementAnchor, PositionedElementOffsetBounds, Radius, SavePosition, Stack, Text,
 };
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -22,21 +23,23 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::localization::LocalizationUpdater;
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::dropdown::{DROPDOWN_PADDING, TOP_MENU_BAR_HEIGHT};
-use crate::view_components::{Dropdown as DropdownView, DropdownItem};
+use crate::view_components::{Dropdown as DropdownView, DropdownItem, FilterableDropdown};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const OZ_AGENTS_URL: &str = "https://oz.warp.dev/agents?new=true";
+const API_KEY_DOCS_URL: &str =
+    "https://docs.warp.dev/reference/cli/api-keys/#personal-vs-agent-keys";
 
 const LABEL_FONT_SIZE: f32 = 14.;
 const INPUT_WIDTH: f32 = 428.; // 460px - (2 * 16px) padding
 const AGENT_DROPDOWN_POSITION_ID: &str = "create_api_key_modal_agent_dropdown";
 
-fn api_key_modal_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
+fn api_key_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,27 +50,19 @@ pub(crate) enum ApiKeyType {
 }
 
 impl ApiKeyType {
-    fn description(&self, app: &AppContext) -> String {
+    fn description_key(&self) -> &'static str {
         match self {
-            ApiKeyType::Personal => {
-                api_key_modal_text(app, "settings.platform.api_keys.description.personal")
-            }
-            ApiKeyType::Team => {
-                api_key_modal_text(app, "settings.platform.api_keys.description.team")
-            }
-            ApiKeyType::Agent => {
-                api_key_modal_text(app, "settings.platform.api_keys.description.agent")
-            }
+            ApiKeyType::Personal => "settings.platform.api_keys.description.personal",
+            ApiKeyType::Team => "settings.platform.api_keys.description.team",
+            ApiKeyType::Agent => "settings.platform.api_keys.description.agent",
         }
     }
 
-    fn label(&self, app: &AppContext) -> String {
+    fn label_key(&self) -> &'static str {
         match self {
-            ApiKeyType::Personal => {
-                api_key_modal_text(app, "settings.platform.api_keys.type.personal")
-            }
-            ApiKeyType::Team => api_key_modal_text(app, "settings.platform.api_keys.type.team"),
-            ApiKeyType::Agent => api_key_modal_text(app, "settings.platform.api_keys.type.agent"),
+            ApiKeyType::Personal => "settings.platform.api_keys.type.personal",
+            ApiKeyType::Team => "settings.platform.api_keys.type.team",
+            ApiKeyType::Agent => "settings.platform.api_keys.type.agent",
         }
     }
 }
@@ -75,7 +70,7 @@ impl ApiKeyType {
 pub struct CreateApiKeyModal {
     name_editor: ViewHandle<EditorView>,
     expiration_dropdown: ViewHandle<DropdownView<CreateApiKeyModalAction>>,
-    agent_dropdown: ViewHandle<DropdownView<CreateApiKeyModalAction>>,
+    agent_dropdown: ViewHandle<FilterableDropdown<CreateApiKeyModalAction>>,
     api_key_type_control: ViewHandle<SegmentedControl<ApiKeyType>>,
     expiration: ExpirationOption,
     cancel_button_mouse_state: MouseStateHandle,
@@ -103,16 +98,16 @@ impl ExpirationOption {
     fn display_text(&self, app: &AppContext) -> String {
         match self {
             ExpirationOption::OneDay => {
-                api_key_modal_text(app, "settings.platform.api_keys.expiration.one_day")
+                api_key_text(app, "settings.platform.api_keys.expiration.one_day")
             }
             ExpirationOption::ThirtyDays => {
-                api_key_modal_text(app, "settings.platform.api_keys.expiration.thirty_days")
+                api_key_text(app, "settings.platform.api_keys.expiration.thirty_days")
             }
             ExpirationOption::NinetyDays => {
-                api_key_modal_text(app, "settings.platform.api_keys.expiration.ninety_days")
+                api_key_text(app, "settings.platform.api_keys.expiration.ninety_days")
             }
             ExpirationOption::Never => {
-                api_key_modal_text(app, "settings.platform.api_keys.expiration.never")
+                api_key_text(app, "settings.platform.api_keys.expiration.never")
             }
         }
     }
@@ -183,7 +178,7 @@ impl CreateApiKeyModal {
             };
             let mut editor = EditorView::single_line(options, ctx);
             editor.set_placeholder_text(
-                api_key_modal_text(ctx, "settings.platform.api_keys.default_name"),
+                localization::text_for_app(ctx, "settings.platform.api_keys.default_name"),
                 ctx,
             );
             editor
@@ -193,9 +188,11 @@ impl CreateApiKeyModal {
             ctx.add_typed_action_view(DropdownView::<CreateApiKeyModalAction>::new);
 
         let agent_dropdown =
-            ctx.add_typed_action_view(DropdownView::<CreateApiKeyModalAction>::new);
+            ctx.add_typed_action_view(FilterableDropdown::<CreateApiKeyModalAction>::new);
         agent_dropdown.update(ctx, |dropdown, ctx| {
             dropdown.set_top_bar_max_width(INPUT_WIDTH);
+            // Match the open menu width to the rendered top-bar (input) width so
+            // the dropdown doesn't overhang the search field.
             dropdown.set_match_menu_width_to_top_bar(true, ctx);
         });
 
@@ -217,7 +214,7 @@ impl CreateApiKeyModal {
                         icon_path: "",
                         icon_color: theme.active_ui_text_color().into(),
                         label: Some(LabelConfig {
-                            label: key_type.label(app).into(),
+                            label: api_key_text(app, key_type.label_key()).into(),
                             width_override: Some(55.0),
                             color: if is_selected {
                                 theme.active_ui_text_color().into()
@@ -254,12 +251,9 @@ impl CreateApiKeyModal {
         ctx.subscribe_to_view(&name_editor, |me, _, event, ctx| {
             me.handle_name_editor_event(event, ctx);
         });
-        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
-            me.refresh_localized_static_controls(ctx);
-        });
 
         let default_expiration = ExpirationOption::NinetyDays;
-        let items = expiration_dropdown_items(ctx);
+        let items = Self::localized_expiration_items(ctx);
         expiration_dropdown.update(ctx, |dropdown, ctx| {
             dropdown.set_items(items, ctx);
             dropdown.set_top_bar_max_width(INPUT_WIDTH);
@@ -308,7 +302,7 @@ impl CreateApiKeyModal {
                     Err(err) => {
                         log::error!("Failed to load agent identities: {err}");
                         ctx.emit(CreateApiKeyModalEvent::Error {
-                            message: api_key_modal_text(
+                            message: localization::text_for_app(
                                 ctx,
                                 "settings.platform.api_keys.error.load_agents_failed",
                             ),
@@ -337,22 +331,14 @@ impl CreateApiKeyModal {
         });
     }
 
-    fn refresh_localized_static_controls(&mut self, ctx: &mut ViewContext<Self>) {
-        self.name_editor.update(ctx, |editor, ctx| {
-            editor.set_placeholder_text(
-                api_key_modal_text(ctx, "settings.platform.api_keys.default_name"),
-                ctx,
-            );
-        });
-
-        let expiration = self.expiration;
-        let items = expiration_dropdown_items(ctx);
-        self.expiration_dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_items(items, ctx);
-            dropdown
-                .set_selected_by_action(CreateApiKeyModalAction::SetExpiration(expiration), ctx);
-        });
-        ctx.notify();
+    #[cfg(test)]
+    pub(crate) fn set_agents_for_test(
+        &mut self,
+        agents: Vec<AgentIdentity>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.agents = agents;
+        self.populate_agent_dropdown(ctx);
     }
 
     fn create(&mut self, ctx: &mut ViewContext<Self>) {
@@ -362,7 +348,7 @@ impl CreateApiKeyModal {
         let name = self.name_editor.as_ref(ctx).buffer_text(ctx);
 
         let final_name = if name.trim().is_empty() {
-            api_key_modal_text(ctx, "settings.platform.api_keys.default_name")
+            localization::text_for_app(ctx, "settings.platform.api_keys.default_name")
         } else {
             name.trim().to_string()
         };
@@ -386,7 +372,7 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message: api_key_modal_text(
+                        message: localization::text_for_app(
                             ctx,
                             "settings.platform.api_keys.error.no_agent_selected",
                         ),
@@ -406,7 +392,7 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message: api_key_modal_text(
+                        message: localization::text_for_app(
                             ctx,
                             "settings.platform.api_keys.error.no_current_team",
                         ),
@@ -441,7 +427,7 @@ impl CreateApiKeyModal {
                     Ok(warp_graphql::mutations::generate_api_key::GenerateApiKeyResult::Unknown) | Err(_) => {
                         me.request_state = RequestState::Idle;
                         ctx.emit(CreateApiKeyModalEvent::Error {
-                            message: api_key_modal_text(
+                            message: localization::text_for_app(
                                 ctx,
                                 "settings.platform.api_keys.error.create_failed",
                             ),
@@ -465,6 +451,45 @@ impl CreateApiKeyModal {
         self.name_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
         });
+    }
+
+    fn title_key(&self) -> &'static str {
+        match self.request_state {
+            RequestState::Idle => "settings.platform.api_keys.modal_title.new",
+            RequestState::Pending => "settings.platform.api_keys.modal_title.new",
+            RequestState::Succeeded => "settings.platform.api_keys.modal_title.save",
+        }
+    }
+
+    pub fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.name_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.platform.api_keys.default_name"),
+                ctx,
+            );
+        });
+        let selected_expiration = self.expiration;
+        self.expiration_dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(Self::localized_expiration_items(ctx), ctx);
+            dropdown.set_selected_by_action(
+                CreateApiKeyModalAction::SetExpiration(selected_expiration),
+                ctx,
+            );
+        });
+        self.api_key_type_control.update(ctx, |_, ctx| ctx.notify());
+        ctx.notify();
+    }
+
+    fn localized_expiration_items(ctx: &AppContext) -> Vec<DropdownItem<CreateApiKeyModalAction>> {
+        ExpirationOption::all()
+            .into_iter()
+            .map(|opt| {
+                DropdownItem::new(
+                    opt.display_text(ctx),
+                    CreateApiKeyModalAction::SetExpiration(opt),
+                )
+            })
+            .collect()
     }
 
     pub fn on_open(&mut self, ctx: &mut ViewContext<Self>) {
@@ -521,7 +546,7 @@ impl CreateApiKeyModal {
         };
 
         let info = Text::new(
-            api_key_modal_text(app, "settings.platform.api_keys.secret_once"),
+            localization::text_for_app(app, "settings.platform.api_keys.secret_once"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -543,9 +568,9 @@ impl CreateApiKeyModal {
         .finish();
 
         let copy_label = if self.raw_key_copied {
-            api_key_modal_text(app, "settings.action.copied")
+            localization::text_for_app(app, "settings.action.copied")
         } else {
-            api_key_modal_text(app, "settings.action.copy")
+            localization::text_for_app(app, "settings.action.copy")
         };
         let copy_icon = if self.raw_key_copied {
             warp_core::ui::icons::Icon::Check.to_warpui_icon(appearance.theme().background())
@@ -594,7 +619,7 @@ impl CreateApiKeyModal {
                 ButtonVariant::Accent,
                 self.cancel_button_mouse_state.clone(),
             )
-            .with_text_label(api_key_modal_text(app, "settings.action.done"))
+            .with_text_label(localization::text_for_app(app, "settings.action.done"))
             .with_style(button_style)
             .build()
             .on_click(|ctx, _, _| ctx.dispatch_typed_action(CreateApiKeyModalAction::Cancel))
@@ -649,16 +674,42 @@ impl View for CreateApiKeyModal {
             RequestState::Succeeded => self.render_success_content(app),
             _ => {
                 let selected_key_type = self.api_key_type_control.as_ref(app).selected_option();
-                let description_text = Text::new(
-                    selected_key_type.description(app),
-                    appearance.ui_font_family(),
-                    LABEL_FONT_SIZE,
-                )
-                .with_color(theme.nonactive_ui_text_color().into())
-                .finish();
+                let description_text = if selected_key_type == ApiKeyType::Agent {
+                    FormattedTextElement::new(
+                        FormattedText::new([FormattedTextLine::Line(vec![
+                            FormattedTextFragment::plain_text(api_key_text(
+                                app,
+                                selected_key_type.description_key(),
+                            )),
+                            FormattedTextFragment::plain_text(" "),
+                            FormattedTextFragment::hyperlink(
+                                api_key_text(app, "settings.action.learn_more"),
+                                API_KEY_DOCS_URL,
+                            ),
+                        ])]),
+                        LABEL_FONT_SIZE,
+                        appearance.ui_font_family(),
+                        appearance.ui_font_family(),
+                        theme.nonactive_ui_text_color().into(),
+                        HighlightedHyperlink::default(),
+                    )
+                    .with_hyperlink_font_color(theme.accent().into_solid())
+                    .register_default_click_handlers(|url, _, ctx| {
+                        ctx.open_url(&url.url);
+                    })
+                    .finish()
+                } else {
+                    Text::new(
+                        api_key_text(app, selected_key_type.description_key()),
+                        appearance.ui_font_family(),
+                        LABEL_FONT_SIZE,
+                    )
+                    .with_color(theme.nonactive_ui_text_color().into())
+                    .finish()
+                };
 
                 let name_label = Text::new(
-                    api_key_modal_text(app, "settings.platform.api_keys.name"),
+                    api_key_text(app, "settings.platform.api_keys.name"),
                     appearance.ui_font_family(),
                     LABEL_FONT_SIZE,
                 )
@@ -677,7 +728,7 @@ impl View for CreateApiKeyModal {
                         ButtonVariant::Secondary,
                         self.cancel_button_mouse_state.clone(),
                     )
-                    .with_text_label(api_key_modal_text(app, "settings.action.cancel"))
+                    .with_text_label(api_key_text(app, "settings.action.cancel"))
                     .with_style(button_style)
                     .build()
                     .on_click(move |ctx, _, _| {
@@ -695,9 +746,9 @@ impl View for CreateApiKeyModal {
                         self.create_button_mouse_state.clone(),
                     )
                     .with_text_label(if is_pending {
-                        api_key_modal_text(app, "settings.platform.api_keys.creating")
+                        api_key_text(app, "settings.platform.api_keys.creating")
                     } else {
-                        api_key_modal_text(app, "settings.platform.api_keys.create")
+                        api_key_text(app, "settings.platform.api_keys.create")
                     })
                     .with_style(button_style)
                     .build()
@@ -726,7 +777,7 @@ impl View for CreateApiKeyModal {
 
                 if self.has_team || self.has_named_agents {
                     let type_label = Text::new(
-                        api_key_modal_text(app, "settings.platform.api_keys.type"),
+                        api_key_text(app, "settings.platform.api_keys.type"),
                         appearance.ui_font_family(),
                         LABEL_FONT_SIZE,
                     )
@@ -748,7 +799,7 @@ impl View for CreateApiKeyModal {
 
                 if selected_key_type == ApiKeyType::Agent {
                     let agent_label = Text::new(
-                        api_key_modal_text(app, "settings.platform.api_keys.type.agent"),
+                        api_key_text(app, "settings.platform.api_keys.type.agent"),
                         appearance.ui_font_family(),
                         LABEL_FONT_SIZE,
                     )
@@ -761,10 +812,7 @@ impl View for CreateApiKeyModal {
 
                     if !self.is_loading_agents && available_agents.is_empty() {
                         let empty_text = Text::new(
-                            api_key_modal_text(
-                                app,
-                                "settings.platform.api_keys.agent.none_available",
-                            ),
+                            api_key_text(app, "settings.platform.api_keys.agent.none_available"),
                             appearance.ui_font_family(),
                             LABEL_FONT_SIZE,
                         )
@@ -777,7 +825,7 @@ impl View for CreateApiKeyModal {
                                 ButtonVariant::Secondary,
                                 self.create_agent_button_mouse_state.clone(),
                             )
-                            .with_text_label(api_key_modal_text(
+                            .with_text_label(api_key_text(
                                 app,
                                 "settings.platform.api_keys.agent.create",
                             ))
@@ -806,6 +854,13 @@ impl View for CreateApiKeyModal {
                             .finish(),
                         );
                     } else {
+                        // The agent list can grow long, so use a FilterableDropdown
+                        // (search input + substring filtering). Its open menu must
+                        // paint above the fields below it (Name/Expiration), so the
+                        // dropdown is hoisted into the modal's outermost Stack as a
+                        // positioned overlay child anchored to this placeholder,
+                        // rather than rendered inline in the column (which would let
+                        // later siblings paint over the open menu).
                         render_agent_dropdown = true;
                         col.add_child(
                             Container::new(
@@ -839,7 +894,7 @@ impl View for CreateApiKeyModal {
                 );
 
                 let expiration_label = Text::new(
-                    api_key_modal_text(app, "settings.platform.api_keys.expiration.label"),
+                    api_key_text(app, "settings.platform.api_keys.expiration.label"),
                     appearance.ui_font_family(),
                     LABEL_FONT_SIZE,
                 )
@@ -902,7 +957,7 @@ impl TypedActionView for CreateApiKeyModal {
                 let window_id = ctx.window_id();
                 crate::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     let toast = crate::view_components::DismissibleToast::success(
-                        api_key_modal_text(ctx, "settings.platform.api_keys.secret_copied"),
+                        localization::text_for_app(ctx, "settings.platform.api_keys.secret_copied"),
                     );
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -942,14 +997,6 @@ impl CreateApiKeyModalViewState {
         self.state.render()
     }
 
-    pub fn is_succeeded<T: View>(&self, ctx: &mut ViewContext<T>) -> bool {
-        self.state.view.read(ctx, |modal, ctx| {
-            modal
-                .body()
-                .read(ctx, |body, _| body.request_state == RequestState::Succeeded)
-        })
-    }
-
     pub fn open<T: View>(&mut self, ctx: &mut ViewContext<T>) {
         self.state.open();
         self.state.view.update(ctx, |modal, ctx| {
@@ -967,6 +1014,18 @@ impl CreateApiKeyModalViewState {
         ctx.notify();
     }
 
+    pub fn refresh_localized_text<T: View>(&mut self, ctx: &mut ViewContext<T>) {
+        self.state.view.update(ctx, |modal, ctx| {
+            let title_key = modal.body().read(ctx, |body, _| body.title_key());
+            modal.set_title(Some(localization::text_for_app(ctx, title_key)));
+            modal.body().update(ctx, |body, ctx| {
+                body.refresh_localized_text(ctx);
+            });
+            ctx.notify();
+        });
+        ctx.notify();
+    }
+
     pub fn close<T: View>(&mut self, ctx: &mut ViewContext<T>) {
         self.state.close();
         self.state.view.update(ctx, |modal, ctx| {
@@ -975,18 +1034,6 @@ impl CreateApiKeyModalViewState {
             });
         });
     }
-}
-
-fn expiration_dropdown_items(app: &AppContext) -> Vec<DropdownItem<CreateApiKeyModalAction>> {
-    ExpirationOption::all()
-        .into_iter()
-        .map(|opt| {
-            DropdownItem::new(
-                opt.display_text(app),
-                CreateApiKeyModalAction::SetExpiration(opt),
-            )
-        })
-        .collect()
 }
 
 fn api_key_type_control_styles(app: &AppContext) -> UiComponentStyles {
@@ -1005,3 +1052,7 @@ fn api_key_type_control_styles(app: &AppContext) -> UiComponentStyles {
         ..Default::default()
     }
 }
+
+#[cfg(test)]
+#[path = "create_api_key_modal_tests.rs"]
+mod tests;

@@ -43,18 +43,12 @@ impl InlineMenuAction for AcceptSkill {
         // If no item is selected, show "No skills found" message with escape hint
         if args.inline_menu_model.selected_item().is_none() {
             return Some(Message::new(vec![
-                MessageItem::text(localization::text_for_app(
-                    args.app,
-                    "terminal.skills.no_skills_found",
-                )),
+                MessageItem::text("No skills found"),
                 MessageItem::keystroke(Keystroke {
                     key: "escape".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(localization::text_for_app(
-                    args.app,
-                    "terminal.inline_menu.navigation.to_dismiss",
-                )),
+                MessageItem::text(" to dismiss"),
             ]));
         }
 
@@ -83,7 +77,7 @@ impl SkillSelectorDataSource {
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(&active_session, |_, event, ctx| match event {
+        ctx.subscribe_to_model(&active_session, |_, _, event, ctx| match event {
             // Emit event so the mixer can re-run its query with the new pwd
             ActiveSessionEvent::UpdatedPwd | ActiveSessionEvent::Bootstrapped => {
                 ctx.emit(UpdatedAvailableSkills);
@@ -131,6 +125,9 @@ impl SyncDataSource for SkillSelectorDataSource {
         let skills = SkillManager::as_ref(app).get_skills_for_working_directory(cwd.as_ref(), app);
 
         // Filter out bundled skills when in open mode, since they cannot be opened.
+        // Bundled skills are identified by scope rather than reference: local
+        // catalog entries are `BundledSkillId`-referenced, but remote catalog
+        // entries are path-referenced, and both must be excluded here.
         // When CLI agent input is open, filter to skills that exist in a supported
         // provider folder. We check all paths for the skill name (not just the
         // deduplicated provider) because deduplication may pick a higher-priority
@@ -142,8 +139,7 @@ impl SyncDataSource for SkillSelectorDataSource {
                 if let Some(providers) = &cli_agent_providers {
                     skill_manager.skill_exists_for_any_provider(skill, providers)
                 } else {
-                    self.include_bundled
-                        || !matches!(skill.reference, SkillReference::BundledSkillId(_))
+                    self.include_bundled || skill.scope != SkillScope::Bundled
                 }
             })
             .map(|mut skill| {
@@ -353,7 +349,7 @@ impl SearchItem for SkillSearchItem {
             let badge_text_color =
                 inline_styles::disabled_text_color(theme, background_color.into());
             let badge_text = Text::new_inline(
-                localization::text_for_app(app, "terminal.skills.project_skill"),
+                "Project Skill".to_string(),
                 appearance.ui_font_family(),
                 badge_font_size,
             )
@@ -405,15 +401,15 @@ impl SearchItem for SkillSearchItem {
         self.accept_result()
     }
 
-    fn accessibility_label(&self) -> String {
-        format!("Skill: {}", self.skill_name)
-    }
-
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
         localization::text_for_app_with_args(
             app,
             "terminal.input.skills.a11y.label",
             &[("name", &self.skill_name)],
         )
+    }
+
+    fn accessibility_label(&self) -> String {
+        format!("Skill: {}", self.skill_name)
     }
 }

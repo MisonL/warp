@@ -16,16 +16,15 @@ use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId,
 };
 use crate::ai::execution_profiles::{
-    AIExecutionProfileAppExt, ActionPermission, AskUserQuestionPermission, RunAgentsPermission,
-    WriteToPtyPermission,
+    ActionPermission, AskUserQuestionPermission, RunAgentsPermission, WriteToPtyPermission,
 };
 use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
-use crate::localization::{self, LocalizationUpdater};
+use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
-use crate::TemplatableMCPServerManager;
+use crate::{localization, TemplatableMCPServerManager};
 
 #[derive(Debug, Clone)]
 pub enum ExecutionProfileViewAction {
@@ -79,16 +78,6 @@ impl ExecutionProfileView {
             ctx.notify();
         });
 
-        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
-            me.edit_button.update(ctx, |button, ctx| {
-                button.set_label(
-                    localization::text_for_app(ctx, "settings.execution_profile.edit"),
-                    ctx,
-                );
-            });
-            ctx.notify();
-        });
-
         Self {
             profile_id,
             edit_button,
@@ -131,14 +120,14 @@ impl View for ExecutionProfileView {
             .as_ref()
             .and_then(|id| llm_preferences.get_llm_info(id))
             .map(|info| info.display_name.clone())
-            .unwrap_or_else(|| localization::text_for_app(app, "settings.execution_profile.auto"));
+            .unwrap_or_else(|| "Auto".to_string());
 
         let computer_use_model = profile
             .computer_use_model
             .as_ref()
             .and_then(|id| llm_preferences.get_llm_info(id))
             .map(|info| info.display_name.clone())
-            .unwrap_or_else(|| localization::text_for_app(app, "settings.execution_profile.auto"));
+            .unwrap_or_else(|| "Auto".to_string());
 
         Container::new(
             Flex::column()
@@ -148,18 +137,14 @@ impl View for ExecutionProfileView {
                         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
                         .with_child(
-                            Text::new(
-                                profile.display_name_for_app(app),
-                                appearance.ui_font_family(),
-                                14.,
-                            )
-                            .with_style(Properties::default().weight(Weight::Medium))
-                            .with_color(if is_any_ai_enabled {
-                                appearance.theme().active_ui_text_color().into()
-                            } else {
-                                appearance.theme().disabled_ui_text_color().into()
-                            })
-                            .finish(),
+                            Text::new(profile.display_name(), appearance.ui_font_family(), 14.)
+                                .with_style(Properties::default().weight(Weight::Medium))
+                                .with_color(if is_any_ai_enabled {
+                                    appearance.theme().active_ui_text_color().into()
+                                } else {
+                                    appearance.theme().disabled_ui_text_color().into()
+                                })
+                                .finish(),
                         )
                         .with_child(self.edit_button.as_ref(app).render(app))
                         .finish(),
@@ -888,11 +873,12 @@ fn render_bool_permission_line_with_icon(
     appearance: &Appearance,
     is_ai_enabled: bool,
 ) -> Box<dyn Element> {
-    let permission_text = if enabled {
-        localization::text_for_app(app, "settings.execution_profile.permission.on")
+    let key = if enabled {
+        "settings.execution_profile.permission.on"
     } else {
-        localization::text_for_app(app, "settings.execution_profile.permission.off")
+        "settings.execution_profile.permission.off"
     };
+    let permission_text = localization::text_for_app(app, key);
     render_permission_line_with_icon(icon, label, permission_text, appearance, is_ai_enabled)
 }
 

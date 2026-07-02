@@ -239,7 +239,7 @@ impl DataSourceStore {
             ItemSummary::NewSession { id } => self
                 .new_session_data_source
                 .as_ref()
-                .and_then(|source| source.as_ref(app).query_result(id, app)),
+                .and_then(|source| source.as_ref(app).query_result(id)),
             ItemSummary::File {
                 path,
                 project_directory,
@@ -248,9 +248,7 @@ impl DataSourceStore {
                 // Create a file search item from the summary
                 use fuzzy_match::FuzzyMatchResult;
 
-                use crate::search::command_palette::files::search_item::{
-                    FileSearchItem, FileSearchItemAccessibilityCopy,
-                };
+                use crate::search::command_palette::files::search_item::FileSearchItem;
 
                 let search_item = FileSearchItem {
                     path: PathBuf::from(path),
@@ -258,7 +256,6 @@ impl DataSourceStore {
                     match_result: FuzzyMatchResult::no_match(),
                     line_and_column_arg: *line_and_column_arg,
                     is_directory: false,
-                    accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
                 };
                 Some(QueryResult::from(search_item))
             }
@@ -269,9 +266,7 @@ impl DataSourceStore {
                 // Create a directory search item from the summary
                 use fuzzy_match::FuzzyMatchResult;
 
-                use crate::search::command_palette::files::search_item::{
-                    FileSearchItem, FileSearchItemAccessibilityCopy,
-                };
+                use crate::search::command_palette::files::search_item::FileSearchItem;
 
                 let search_item = FileSearchItem {
                     path: PathBuf::from(path),
@@ -279,7 +274,6 @@ impl DataSourceStore {
                     match_result: FuzzyMatchResult::no_match(),
                     line_and_column_arg: None,
                     is_directory: true,
-                    accessibility_copy: FileSearchItemAccessibilityCopy::new(app),
                 };
                 Some(QueryResult::from(search_item))
             }

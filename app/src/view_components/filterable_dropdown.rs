@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::marker::PhantomData;
 
 use warp_editor::editor::NavigationKey;
@@ -27,7 +26,6 @@ use crate::editor::{
     TextOptions,
 };
 use crate::localization;
-use crate::localization::LocalizationUpdater;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuVariant};
 use crate::ui_components::icons;
 
@@ -57,7 +55,7 @@ pub struct FilterableDropdown<A: DropdownItemAction = ()> {
     selected_item: Option<MenuItem<DropdownAction>>,
     items: Vec<MenuItem<DropdownAction>>,
     orientation: FilterableDropdownOrientation,
-    static_menu_header: Option<Cow<'static, str>>,
+    static_menu_header: Option<&'static str>,
     button_variant: ButtonVariant,
     style_override: Option<UiComponentStyles>,
     hovered_style_override: Option<UiComponentStyles>,
@@ -109,25 +107,11 @@ where
                 },
                 ctx,
             );
-            editor.set_placeholder_text(
-                localization::text_for_app(ctx, "settings.search.placeholder"),
-                ctx,
-            );
+            editor.set_placeholder_text(localization::text_for_app(ctx, "common.search"), ctx);
             editor
         });
         ctx.subscribe_to_view(&filter_editor, |me, _, event, ctx| {
             me.handle_filter_editor_event(event, ctx);
-        });
-        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), {
-            let filter_editor = filter_editor.clone();
-            move |_me, _, _, ctx| {
-                filter_editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(
-                        localization::text_for_app(ctx, "settings.search.placeholder"),
-                        ctx,
-                    );
-                });
-            }
         });
 
         FilterableDropdown {
@@ -444,7 +428,7 @@ where
     }
 
     fn render_closed_top_bar(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let (selected_item_text, font_family_id) = match self.static_menu_header.as_ref() {
+        let (selected_item_text, font_family_id) = match self.static_menu_header {
             Some(header) => (header.to_string(), None),
             None => match self.selected_item.clone() {
                 Some(MenuItem::Item(fields)) => {
@@ -592,10 +576,7 @@ where
         let background_fill = appearance.theme().surface_2();
         let empty_text = appearance
             .ui_builder()
-            .span(localization::text_for_app(
-                app,
-                "settings.search.no_matches_found",
-            ))
+            .span(localization::text_for_app(app, "common.no_matches_found"))
             .with_style(UiComponentStyles {
                 font_color: Some(appearance.theme().sub_text_color(background_fill).into()),
                 ..Default::default()
@@ -747,8 +728,25 @@ where
         });
     }
 
-    pub fn set_menu_header(&mut self, header: impl Into<Cow<'static, str>>) {
-        self.static_menu_header = Some(header.into());
+    pub fn set_menu_header_to_static(&mut self, header: &'static str) {
+        self.static_menu_header = Some(header);
+    }
+
+    /// Test-only: drive the filter input with `query` and re-filter the list,
+    /// mirroring what happens when a user types into the search field.
+    #[cfg(test)]
+    pub(crate) fn set_filter_query_for_test(&mut self, query: &str, ctx: &mut ViewContext<Self>) {
+        self.filter_editor.update(ctx, |editor, ctx| {
+            editor.select_all(ctx);
+            editor.insert_selected_text(query, ctx);
+        });
+        self.set_filtered_items(ctx);
+    }
+
+    /// Test-only: the number of items currently visible after filtering.
+    #[cfg(test)]
+    pub(crate) fn visible_items_len_for_test(&self, ctx: &AppContext) -> usize {
+        self.dropdown_items_len(ctx)
     }
 }
 

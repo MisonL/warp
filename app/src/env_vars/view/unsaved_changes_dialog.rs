@@ -4,20 +4,18 @@ use warpui::fonts::Weight;
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element};
+use warpui::Element;
 
 use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView};
-use crate::localization;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 
+const UNSAVED_CHANGES_TEXT: &str = "You have unsaved changes.";
+const KEEP_EDITING_TEXT: &str = "Keep editing";
+const DISCARD_CHANGES_TEXT: &str = "Discard changes";
 const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_PADDING: f32 = 12.;
 const MODAL_HORIZONTAL_MARGIN: f32 = 28.;
 const DIALOG_WIDTH: f32 = 460.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 impl EnvVarCollectionView {
     pub fn render_unsaved_changes_dialog_button(
@@ -43,28 +41,24 @@ impl EnvVarCollectionView {
             .finish()
     }
 
-    pub fn render_unsaved_changes_dialog(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    pub fn render_unsaved_changes_dialog(&self, appearance: &Appearance) -> Box<dyn Element> {
         let keep_editing_button = self.render_unsaved_changes_dialog_button(
             appearance,
             self.button_mouse_states.keep_editing_state.clone(),
             EnvVarCollectionAction::CloseUnsavedChangesDialog,
-            &text(app, "workflow.unsaved_changes.keep_editing"),
+            KEEP_EDITING_TEXT,
         );
 
         let discard_changes_button = self.render_unsaved_changes_dialog_button(
             appearance,
             self.button_mouse_states.discard_changes_state.clone(),
             EnvVarCollectionAction::ForceClose,
-            &text(app, "workflow.unsaved_changes.discard"),
+            DISCARD_CHANGES_TEXT,
         );
 
         Container::new(
             Dialog::new(
-                text(app, "workflow.unsaved_changes.message"),
+                UNSAVED_CHANGES_TEXT.to_string(),
                 None,
                 dialog_styles(appearance),
             )

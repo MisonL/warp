@@ -1,48 +1,44 @@
-# MacOS 用户通知
+# MacOS User Notifcations
 
-我们用于支持通知的 Apple framework 是 `UNUserNotifications`：https://developer.apple.com/documentation/usernotifications?language=objc
+The Apple framework we use to support notifications is `UNUserNotifications`: https://developer.apple.com/documentation/usernotifications?language=objc
 
-## 本地开发通知
+## Developing notifications locally
+The framework needs a signed app to be able to request authorization and schedule notifications to Apple's Notification Center. For this reason, it is not enough to `cargo build && cargo run`. Instead, there are a couple of options:
 
-该 framework 需要 signed app，才能向 Apple Notification Center 请求授权并安排通知。因此，只执行 `cargo build && cargo run` 并不够。可选方式有以下几种：
+### 1. Bundle the app
+This takes a longer time than option 2, but it is more stable, and it is what the user will ultimately experience.
 
-### 1. Bundle 应用
+1. Run `script/user_notifications --nouniversal --open`
 
-这比选项 2 更耗时，但更稳定，也更接近用户最终体验。
+If you want to test the authorization flow specifically, you will have to:
+1. Delete all the `WarpDev` apps you have installed locally
+2. Ensure that `WarpDev` isn't an app in your Notification Center by checking which apps show up in `Notifications` in your System Preferences.
+3. Log out*
+4. Log back in and bundle&run the app again.
 
-1. 运行 `script/user_notifications --nouniversal --open`
+### 2. Nosign the local build (script)
+This is less stable than option 1 and is not recommended if you're testing the authorization flow.
 
-如果要专门测试授权流程，需要：
-1. 删除本地安装的所有 `WarpDev` app
-2. 在 System Preferences 的 `Notifications` 中检查显示的 app，确保 `WarpDev` 不是 Notification Center 中的 app。
-3. 登出*
-4. 重新登录，并再次 bundle&run 应用。
+1. Ensure that you have a WarpDev app installed, _and in your Applications folder_. It's important to have the app in your Applications, or Apple won't be able to find the app while testing notifications.
+2. Run `script/local_build_and_sign`
 
-### 2. 对本地 build 做 nosign（script）
+If you want to test the authorization flow specifically, you will have to:
+1. Delete all the `WarpDev` apps you have installed locally, including the one in your Applications folder.
+2. Ensure that `WarpDev` isn't an app in your Notification Center by checking which apps show up in `Notifications` in your System Preferences.
+3. Log out* and log back in.
+4. Move the `WarpDev` from `Bin` to `Applications` (i.e. install `WarpDev`).
+5. Run the script to nosign and run the app again: `script/local_build_and_sign`.
 
-这比选项 1 不稳定，如果要测试授权流程，不建议使用。
+*NB: If you already have all the permissions to send notifications, and you're not testing the authorization flow, you should be able to do the following instead of logging out & in:
+1. Delete all `WarpDev` apps.
+2. Run `sudo lsof | grep usernoted | grep db2` to find the path to a database that Notification Center uses.
+3. Run `killall usernoted && killall NotificationCenter`
+4. Run `rm <path-to-notification-center-db>`
+5. Build and run the app again (if you're not bundling, you still have to move `WarpDev` back to your `Applications` folder).
 
-1. 确保已经安装 WarpDev app，且它位于 Applications folder 中。该 app 必须位于 Applications 中，否则 Apple 在测试通知时找不到该 app。
-2. 运行 `script/local_build_and_sign`
-
-如果要专门测试授权流程，需要：
-1. 删除本地安装的所有 `WarpDev` app，包括 Applications folder 中的那个。
-2. 在 System Preferences 的 `Notifications` 中检查显示的 app，确保 `WarpDev` 不是 Notification Center 中的 app。
-3. 登出*并重新登录。
-4. 将 `WarpDev` 从 `Bin` 移到 `Applications`（也就是安装 `WarpDev`）。
-5. 再次运行脚本以 nosign 并运行 app：`script/local_build_and_sign`。
-
-*注意：如果你已经拥有发送通知的全部权限，且不是在测试授权流程，可以执行以下步骤替代登出再登录：
-1. 删除所有 `WarpDev` app。
-2. 运行 `sudo lsof | grep usernoted | grep db2`，找到 Notification Center 使用的 database 路径。
-3. 运行 `killall usernoted && killall NotificationCenter`
-4. 运行 `rm <path-to-notification-center-db>`
-5. 重新构建并运行 app（如果不 bundle，仍然必须将 `WarpDev` 移回 `Applications` folder）。
-
-## 调试通知
-
-调试错误或行为不符合预期时，一些有用方法包括：
-- 检查 Notification Center，确认 `WarpDev` 是否为已注册 app，并尝试不同设置（例如打开/关闭、启用声音等）
-- 在本地 build 中使用 `NSLog` 打印 debug statement
-- 使用 Console app 查看更有帮助的 framework error。当你自己的日志中看不到任何 error 时，这尤其有用。用 `NotificationCenter`、`usernoted` 或 `dev` 过滤消息
-- 如果不确定，删除所有 `WarpDev` app 并重启电脑。有时 Notification Center 需要轻推一下
+## Debugging notifications
+Some useful methods for debugging errors / if things aren't working as expected:
+- Check Notification Center to figure out if `WarpDev` is a registered app and to play around with the settings (e.g. turning on/off, enabling sound, etc)
+- Use `NSLog` to print debug statements in local builds
+- Use the Console app for more helpful framework errors - this is particularly helpful when you don't see any error from your own logs. Filter the messages by `NotificationCenter` or `usernoted` or `dev`
+- When in doubt, delete all `WarpDev` apps and restart your laptop. Sometimes Notification Center needs a gentle nudge.

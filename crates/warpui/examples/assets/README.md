@@ -1,1 +1,1 @@
-本目录用于存放我们希望在应用中加载的任何静态 asset（例如 svg icon、图片、字体等）。
+This directory is used for any static assets we want to load in the app (e.g. svg icons, images, fonts, etc.)

@@ -30,7 +30,7 @@ use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::SizeInfo;
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::{report_if_error, send_telemetry_from_ctx, Appearance};
+use crate::{localization, report_if_error, send_telemetry_from_ctx, Appearance};
 
 const MODAL_WIDTH: f32 = 700.;
 const BORDER_WIDTH: f32 = 1.;
@@ -50,10 +50,6 @@ const DROPDOWN_WIDTH: f32 = 72.;
 
 const MODAL_CONTENT_FONT_SIZE: f32 = 14.;
 const CHECKBOX_SIZE: f32 = 16.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -479,7 +475,7 @@ impl EditorModal {
     fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .span(text(app, "prompt.editor.title"))
+            .span(localization::text_for_app(app, "prompt.editor.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_TITLE_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Bold),
@@ -489,21 +485,19 @@ impl EditorModal {
             .finish()
     }
 
-    fn render_unused_chips(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_unused_chips(&self, appearance: &Appearance) -> Box<dyn Element> {
         self.chip_configurator.render_unused_chips_bank(
             EditorModalAction::UseWarpPrompt,
             EditorModalAction::Chip,
             appearance,
-            app,
         )
     }
 
-    fn render_used_chips(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_used_chips(&self, appearance: &Appearance) -> Box<dyn Element> {
         self.chip_configurator.render_used_drop_zone(
             EditorModalAction::UseWarpPrompt,
             EditorModalAction::Chip,
             appearance,
-            app,
         )
     }
 
@@ -566,14 +560,16 @@ impl EditorModal {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
+        let restore_default_label =
+            localization::text_for_app(app, "prompt.editor.restore_default");
         let button = Hoverable::new(
             self.mouse_state_handles
                 .restore_default_warp_prompt_handle
                 .clone(),
-            |_state| {
+            move |_state| {
                 appearance
                     .ui_builder()
-                    .span(text(app, "prompt.editor.restore_default"))
+                    .span(restore_default_label.clone())
                     .with_style(UiComponentStyles {
                         font_size: Some(MODAL_CONTENT_FONT_SIZE),
                         ..Default::default()
@@ -601,7 +597,10 @@ impl EditorModal {
     ) -> Box<dyn Element> {
         let label = appearance
             .ui_builder()
-            .span(text(app, "prompt.editor.same_line_prompt"))
+            .span(localization::text_for_app(
+                app,
+                "prompt.editor.same_line_prompt",
+            ))
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 ..Default::default()
@@ -639,7 +638,7 @@ impl EditorModal {
                 Container::new(
                     appearance
                         .ui_builder()
-                        .span(text(app, "prompt.editor.separator"))
+                        .span(localization::text_for_app(app, "prompt.editor.separator"))
                         .with_style(UiComponentStyles {
                             font_size: Some(MODAL_CONTENT_FONT_SIZE),
                             ..Default::default()
@@ -666,12 +665,12 @@ impl EditorModal {
     ) -> Box<dyn Element> {
         let body = Flex::column()
             .with_child(
-                Container::new(self.render_unused_chips(appearance, app))
+                Container::new(self.render_unused_chips(appearance))
                     .with_margin_top(10.)
                     .finish(),
             )
             .with_child(
-                Container::new(self.render_used_chips(appearance, app))
+                Container::new(self.render_used_chips(appearance))
                     .with_margin_top(10.)
                     .finish(),
             )
@@ -681,7 +680,10 @@ impl EditorModal {
             .with_child(
                 appearance
                     .ui_builder()
-                    .span(text(app, "prompt.editor.warp_prompt_section"))
+                    .span(localization::text_for_app(
+                        app,
+                        "prompt.editor.warp_prompt_section",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(MODAL_CONTENT_FONT_SIZE),
                         font_weight: Some(warpui::fonts::Weight::Semibold),
@@ -730,7 +732,10 @@ impl EditorModal {
 
         let header = appearance
             .ui_builder()
-            .span(text(app, "prompt.editor.shell_prompt_section"))
+            .span(localization::text_for_app(
+                app,
+                "prompt.editor.shell_prompt_section",
+            ))
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Semibold),
@@ -790,7 +795,7 @@ impl EditorModal {
 
     fn render_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let cancel_button = self.render_primary_button(
-            text(app, "prompt.editor.cancel"),
+            localization::text_for_app(app, "prompt.editor.cancel"),
             ButtonVariant::Outlined,
             false,
             self.mouse_state_handles.cancel_button_handle.clone(),
@@ -805,7 +810,7 @@ impl EditorModal {
             || (matches!(self.prompt_type, PromptType::Warp)
                 && self.chip_configurator.used_chips.is_empty());
         let save_button = self.render_primary_button(
-            text(app, "prompt.editor.save_changes"),
+            localization::text_for_app(app, "prompt.editor.save_changes"),
             ButtonVariant::Accent,
             save_disabled,
             self.mouse_state_handles.save_button_handle.clone(),

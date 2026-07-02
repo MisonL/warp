@@ -1,19 +1,20 @@
-use chrono::{DateTime, Utc};
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warp_util::path::user_friendly_path;
 use warpui::elements::{
     AnchorPair, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Flex, Highlight, Hoverable,
-    MainAxisAlignment, MainAxisSize, MouseInBehavior, MouseStateHandle, OffsetPositioning,
-    OffsetType, ParentAnchor, ParentElement, ParentOffsetBounds, PositionedElementOffsetBounds,
-    PositioningAxis, Radius, SavePosition, Shrinkable, Stack, Text, XAxisAnchor, YAxisAnchor,
+    CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Fill as ElementFill, Flex,
+    Highlight, Hoverable, MainAxisAlignment, MainAxisSize, MouseInBehavior, MouseStateHandle,
+    OffsetPositioning, OffsetType, ParentAnchor, ParentElement, ParentOffsetBounds,
+    PositionedElementOffsetBounds, PositioningAxis, Radius, SavePosition, Shrinkable, Stack, Text,
+    XAxisAnchor, YAxisAnchor,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::text_layout::TextStyle;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::ui_components::text_input::TextInput;
 use warpui::{AppContext, SingletonEntity, ViewHandle};
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
@@ -23,12 +24,13 @@ use crate::ai::agent_conversations_model::{
 use crate::ai::conversation_status_ui::STATUS_ELEMENT_PADDING;
 use crate::appearance::Appearance;
 use crate::drive::sharing::dialog::SharingDialog;
-use crate::localization;
+use crate::editor::EditorView;
 use crate::menu::Menu;
 use crate::ui_components::agent_icon::agent_conversation_entry_icon_variant;
 use crate::ui_components::icon_with_status::render_icon_with_status;
 use crate::ui_components::icons::Icon;
 use crate::ui_components::menu_button::{icon_button_with_context_menu, MenuDirection};
+use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::util::truncation::truncate_from_end;
 use crate::workspace::view::conversation_list::view::ConversationListViewAction;
 
@@ -69,6 +71,7 @@ pub const STATIC_ITEM_MIN_HEIGHT: f32 = 42.;
 #[derive(Clone, Default)]
 pub struct ItemState {
     pub mouse_state: MouseStateHandle,
+    pub title_mouse_state: MouseStateHandle,
     pub overflow_button_state: MouseStateHandle,
 }
 
@@ -91,6 +94,9 @@ pub struct ItemProps<'a> {
     pub overflow_menu: &'a ViewHandle<Menu<ConversationListViewAction>>,
     pub overflow_menu_display: OverflowMenuDisplay,
     pub conversation_id: AgentConversationEntryId,
+    pub is_renaming: bool,
+    pub can_rename: bool,
+    pub rename_editor: Option<&'a ViewHandle<EditorView>>,
     pub sharing_dialog: &'a ViewHandle<SharingDialog>,
     pub is_share_dialog_open: bool,
     pub list_position_id: &'a str,
@@ -125,7 +131,7 @@ pub fn render_static_item(props: StaticItemProps<'_>, app: &AppContext) -> Box<d
     .finish();
 
     let title_text = Text::new_inline(
-        localization::text_for_app(app, "workspace.conversation.new"),
+        "New conversation",
         appearance.ui_font_family(),
         appearance.ui_font_size() + 2.,
     )
@@ -180,6 +186,9 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         overflow_menu,
         overflow_menu_display,
         conversation_id,
+        is_renaming,
+        can_rename,
+        rename_editor,
         sharing_dialog,
         is_share_dialog_open,
         list_position_id,
@@ -214,6 +223,26 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         }
     }
 
+    let title_element: Box<dyn Element> =
+        if let Some(rename_editor) = rename_editor.filter(|_| is_renaming) {
+            render_inline_rename_editor(rename_editor, appearance)
+        } else {
+            title_text.finish()
+        };
+    let title_element = if can_rename && !is_renaming {
+        let title_mouse_state = state.title_mouse_state.clone();
+        Hoverable::new(title_mouse_state, move |_| title_element)
+            .on_double_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(ConversationListViewAction::StartRename {
+                    id: conversation_id,
+                });
+            })
+            .with_cursor(Cursor::PointingHand)
+            .finish()
+    } else {
+        title_element
+    };
+
     let status_element_size = font_size + STATUS_ELEMENT_PADDING * 2.;
     let icon_element = render_icon_with_status(
         agent_conversation_entry_icon_variant(conversation),
@@ -229,13 +258,13 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(ICON_SPACING)
             .with_child(icon_element)
-            .with_child(Shrinkable::new(1.0, title_text.finish()).finish())
+            .with_child(Shrinkable::new(1.0, title_element).finish())
             .finish(),
     )
     .finish();
 
     let timestamp = Text::new_inline(
-        format_conversation_timestamp(app, conversation.display.last_updated),
+        format_approx_duration_from_now_utc(conversation.display.last_updated),
         font_family,
         font_size - 2.,
     )
@@ -300,7 +329,9 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         let mut stack = Stack::new().with_child(container.finish());
 
         // We show the overflow menu button when the item is selected, or the overflow menu is already open.
-        if is_selected || !matches!(overflow_menu_display, OverflowMenuDisplay::Closed) {
+        if !is_renaming
+            && (is_selected || !matches!(overflow_menu_display, OverflowMenuDisplay::Closed))
+        {
             let button_style = UiComponentStyles::default()
                 .set_background(theme.surface_2().into())
                 .set_border_color(theme.surface_3().into());
@@ -339,7 +370,10 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         }
 
         // Hide the tooltip when the overflow menu is being shown so that they don't overlap.
-        if is_selected && matches!(overflow_menu_display, OverflowMenuDisplay::Closed) {
+        if !is_renaming
+            && is_selected
+            && matches!(overflow_menu_display, OverflowMenuDisplay::Closed)
+        {
             let tooltip = ui_builder.tool_tip(tooltip_text).build().finish();
             let (parent_anchor, child_anchor, offset_x) = if tooltip_opens_right {
                 (ParentAnchor::MiddleRight, ChildAnchor::MiddleLeft, 4.)
@@ -373,7 +407,7 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
     })
     .with_defer_events_to_children();
 
-    let hoverable_element = if can_open {
+    let hoverable_element = if can_open && !is_renaming {
         hoverable
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -428,53 +462,21 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
     SavePosition::new(item_stack.finish(), &position_id).finish()
 }
 
-fn format_conversation_timestamp(app: &AppContext, datetime: DateTime<Utc>) -> String {
-    const MIN_TO_MS: f64 = 60_000.;
-    const HOUR_TO_MS: f64 = 60. * MIN_TO_MS;
-    const DAY_TO_MS: f64 = 24. * HOUR_TO_MS;
-    const WEEK_TO_MS: f64 = 7. * DAY_TO_MS;
-    const MONTH_TO_MS: f64 = 30.44 * DAY_TO_MS;
-    const YEAR_TO_MS: f64 = 365.25 * DAY_TO_MS;
-
-    let ms = Utc::now()
-        .signed_duration_since(datetime)
-        .num_milliseconds()
-        .max(0) as f64;
-
-    if ms >= YEAR_TO_MS {
-        return format_quantity_time(app, "year", ms / YEAR_TO_MS);
-    }
-    if ms >= MONTH_TO_MS {
-        return format_quantity_time(app, "month", ms / MONTH_TO_MS);
-    }
-    if ms >= WEEK_TO_MS {
-        return format_quantity_time(app, "week", ms / WEEK_TO_MS);
-    }
-    if ms >= DAY_TO_MS {
-        return format_quantity_time(app, "day", ms / DAY_TO_MS);
-    }
-    if ms >= HOUR_TO_MS {
-        return format_quantity_time(app, "hour", ms / HOUR_TO_MS);
-    }
-    if ms >= MIN_TO_MS {
-        let count = (ms / MIN_TO_MS) as i32;
-        return localization::text_for_app_with_args(
-            app,
-            "workspace.conversation_list.time.minute",
-            &[("count", &count.to_string())],
-        );
-    }
-
-    localization::text_for_app(app, "workspace.conversation_list.time.just_now")
+fn render_inline_rename_editor(
+    rename_editor: &ViewHandle<EditorView>,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    TextInput::new(
+        rename_editor.clone(),
+        UiComponentStyles::default()
+            .set_background(ElementFill::None)
+            .set_border_radius(CornerRadius::with_all(Radius::Pixels(0.)))
+            .set_border_width(0.)
+            .set_font_size(appearance.ui_font_size() + 2.),
+    )
+    .build()
+    .finish()
 }
-
-fn format_quantity_time(app: &AppContext, unit: &str, quantity: f64) -> String {
-    let count = quantity as i32;
-    let key_suffix = if count == 1 { "one" } else { "many" };
-    let key = format!("workspace.conversation_list.time.{unit}_{key_suffix}");
-    localization::text_for_app_with_args(app, &key, &[("count", &count.to_string())])
-}
-
 /// Returns the secondary label for a conversation list item:
 /// - For local conversations: the working directory.
 /// - For tasks: the source (Linear, Slack, CLI, etc.)

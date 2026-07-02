@@ -14,45 +14,11 @@ use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::ui_components::render_file_search_row::{render_file_search_row, FileSearchRowOptions};
 
-#[derive(Clone, Debug)]
-pub struct FileSearchItemAccessibilityCopy {
-    directory_label: String,
-    file_label: String,
-}
-
-impl FileSearchItemAccessibilityCopy {
-    pub fn new(app: &AppContext) -> Self {
-        Self {
-            directory_label: crate::localization::text_for_app(app, "search.files.a11y.directory"),
-            file_label: crate::localization::text_for_app(app, "search.files.a11y.file"),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn for_test() -> Self {
-        Self {
-            directory_label: "Directory: {path}".to_string(),
-            file_label: "File: {path}".to_string(),
-        }
-    }
-
-    fn label(&self, is_directory: bool, path: &std::path::Path) -> String {
-        let template = if is_directory {
-            &self.directory_label
-        } else {
-            &self.file_label
-        };
-
-        template.replace("{path}", &path.display().to_string())
-    }
-}
-
 #[derive(Debug)]
 pub struct FileSearchItem {
     pub path: PathBuf,
     pub match_result: FuzzyMatchResult,
     pub is_directory: bool,
-    pub accessibility_copy: FileSearchItemAccessibilityCopy,
 }
 
 impl SearchItem for FileSearchItem {
@@ -112,7 +78,28 @@ impl SearchItem for FileSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        self.accessibility_copy
-            .label(self.is_directory, self.path.as_path())
+        let key = if self.is_directory {
+            "search.files.a11y.directory"
+        } else {
+            "search.files.a11y.file"
+        };
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            key,
+            &[("path", &self.path.display().to_string())],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let key = if self.is_directory {
+            "search.files.a11y.directory"
+        } else {
+            "search.files.a11y.file"
+        };
+        crate::localization::text_for_app_with_args(
+            app,
+            key,
+            &[("path", &self.path.display().to_string())],
+        )
     }
 }

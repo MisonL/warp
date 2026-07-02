@@ -247,37 +247,37 @@ Collection: "Spacing"       modes: ["Value"]
 ## 9. Per-Phase Anti-Patterns
 
 **Phase 0 anti-patterns:**
-- Do not: Start to create anything before scope is locked with user
-- Do not: Ignore existing file conventions and impose new ones
-- Do not: Skip `search_design_system` before planning component creation
+- ❌ Starting to create anything before scope is locked with user
+- ❌ Ignoring existing file conventions and imposing new ones
+- ❌ Skipping `search_design_system` before planning component creation
 
 **Phase 1 anti-patterns:**
-- Do not: Use `ALL_SCOPES` on any variable
-- Do not: Duplicate raw values in semantic layer instead of aliasing
-- Do not: Omit code syntax (breaks Dev Mode and round-tripping)
-- Do not: Create component tokens before agreeing on token taxonomy
+- ❌ Using `ALL_SCOPES` on any variable
+- ❌ Duplicating raw values in semantic layer instead of aliasing
+- ❌ Not setting code syntax (breaks Dev Mode and round-tripping)
+- ❌ Creating component tokens before agreeing on token taxonomy
 
 **Phase 2 anti-patterns:**
-- Do not: Skip the cover page or foundations docs
-- Do not: Put multiple unrelated components on one page
+- ❌ Skipping the cover page or foundations docs
+- ❌ Putting multiple unrelated components on one page
 
 **Phase 3 anti-patterns:**
-- Do not: Create components before foundations exist
-- Do not: Hardcode any fill/stroke/spacing/radius value in a component
-- Do not: Create a variant per icon (use INSTANCE_SWAP instead)
-- Do not: Leave variants unpositioned after combineAsVariants (they all stack at 0,0)
-- Do not: Build variant matrix > 30 without splitting (variant explosion)
-- Do not: Import remote components then immediately detach them
+- ❌ Creating components before foundations exist
+- ❌ Hardcoding any fill/stroke/spacing/radius value in a component
+- ❌ Creating a variant per icon (use INSTANCE_SWAP instead)
+- ❌ Not positioning variants after combineAsVariants (they all stack at 0,0)
+- ❌ Building variant matrix > 30 without splitting (variant explosion)
+- ❌ Importing remote components then immediately detaching them
 
 **General anti-patterns:**
-- Do not: Retry a failed script without understanding the error first
-- Do not: Use name-prefix matching for cleanup (deletes user-owned nodes)
-- Do not: Build on unvalidated work from the previous step
-- Do not: Skip user checkpoints to "save time"
-- Do not: Parallelize use_figma calls (always sequential)
-- Do not: Guess or hallucinate node IDs from memory (always read from state ledger)
-- Do not: Write massive inline scripts instead of using the provided helper scripts
-- Do not: Start Phase 3 because the user said "build the button" without completing Phases 0-2
+- ❌ Retrying a failed script without understanding the error first
+- ❌ Using name-prefix matching for cleanup (deletes user-owned nodes)
+- ❌ Building on unvalidated work from the previous step
+- ❌ Skipping user checkpoints to "save time"
+- ❌ Parallelizing use_figma calls (always sequential)
+- ❌ Guessing/hallucinating node IDs from memory (always read from state ledger)
+- ❌ Writing massive inline scripts instead of using the provided helper scripts
+- ❌ Starting Phase 3 because the user said "build the button" without completing Phases 0-2
 
 ---
 

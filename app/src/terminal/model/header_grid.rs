@@ -835,9 +835,7 @@ impl HeaderGrid {
 
 impl ansi::Handler for HeaderGrid {
     fn set_title(&mut self, _: Option<String>) {
-        log::error!(
-            "Handler method HeaderGrid::set_title should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method HeaderGrid::set_title should never be called. This should be handled by TerminalModel.");
     }
 
     fn set_cursor_style(&mut self, style: Option<ansi::CursorStyle>) {
@@ -1064,15 +1062,11 @@ impl ansi::Handler for HeaderGrid {
     }
 
     fn push_title(&mut self) {
-        log::error!(
-            "Handler method HeaderGrid::push_title should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method HeaderGrid::push_title should never be called. This should be handled by TerminalModel.");
     }
 
     fn pop_title(&mut self) {
-        log::error!(
-            "Handler method HeaderGrid::pop_title should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method HeaderGrid::pop_title should never be called. This should be handled by TerminalModel.");
     }
 
     fn prompt_marker(&mut self, marker: ansi::PromptMarker) {

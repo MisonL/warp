@@ -39,6 +39,7 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMPreferences;
 use crate::ai::AIRequestUsageModel;
 use crate::cloud_object::model::generic_string_model::StringModel;
+use crate::localization::LocalizationUpdater;
 use crate::network::NetworkStatus;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::view::AIContextMenu;
@@ -141,15 +142,15 @@ impl AtContextMenuDisabledReason {
                 // - WarpifiedRemote sessions with a connected remote server (host_id is Some)
                 //
                 // Block when:
-                // - Legacy SSH without a remote server upgrade
+                // - SSH wrapper session without a remote server upgrade
                 // - WarpifiedRemote still connecting (host_id is None)
                 //
-                // Note: is_legacy_ssh_session() is set at bootstrap time and stays true
+                // Note: is_ssh_wrapper_session() is set at bootstrap time and stays true
                 // even after the session transitions to WarpifiedRemote with a host_id.
                 // So we must check has_connected_remote_server first to avoid
                 // incorrectly blocking upgraded sessions.
                 let is_ssh_without_remote_server = !has_connected_remote_server
-                    && (session.is_legacy_ssh_session()
+                    && (session.is_ssh_wrapper_session()
                         || matches!(session_type, SessionType::WarpifiedRemote { host_id: None }));
                 let is_subshell = session.subshell_info().is_some();
                 (is_ssh_without_remote_server, is_subshell)
@@ -193,6 +194,8 @@ impl AtContextMenuDisabledReason {
         None
     }
 }
+
+const AT_CONTEXT_TOOLTIP_KEY: &str = "terminal.universal_developer_input.tooltip.attach_context";
 
 const BLURRED_OPACITY: Opacity = 50;
 
@@ -369,10 +372,7 @@ impl UniversalDeveloperInputButtonBar {
         let at_button_view = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::AtSign)
-                .with_tooltip(localization::text_for_app(
-                    _ctx,
-                    "terminal.universal_developer_input.tooltip.attach_context",
-                ))
+                .with_tooltip(localization::text_for_app(_ctx, AT_CONTEXT_TOOLTIP_KEY))
                 .with_size(button_size)
                 .with_disabled_theme(UDIDisabledButtonTheme)
                 .with_tooltip_alignment(TooltipAlignment::Left)
@@ -553,6 +553,9 @@ impl UniversalDeveloperInputButtonBar {
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
@@ -631,6 +634,44 @@ impl UniversalDeveloperInputButtonBar {
         me.update_segmented_control_disabled_state(ctx);
 
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.mic_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.voice_input",
+                )),
+                ctx,
+            );
+        });
+        self.at_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(ctx, AT_CONTEXT_TOOLTIP_KEY)),
+                ctx,
+            );
+        });
+        self.file_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.attach_file",
+                )),
+                ctx,
+            );
+        });
+        self.slash_command_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.slash_commands",
+                )),
+                ctx,
+            );
+        });
+        self.update_segmented_control_disabled_state(ctx);
+        self.notify_and_notify_children(ctx);
     }
 
     pub fn set_voice_is_listening(&mut self, is_listening: bool, ctx: &mut ViewContext<Self>) {
@@ -725,12 +766,10 @@ impl UniversalDeveloperInputButtonBar {
             button.set_tooltip(
                 disable_reason
                     .map(|reason| reason.tooltip_text(ctx))
-                    .or_else(|| {
-                        Some(localization::text_for_app(
-                            ctx,
-                            "terminal.universal_developer_input.tooltip.attach_context",
-                        ))
-                    }),
+                    .or(Some(localization::text_for_app(
+                        ctx,
+                        AT_CONTEXT_TOOLTIP_KEY,
+                    ))),
                 ctx,
             );
             ctx.notify();
@@ -1014,7 +1053,10 @@ fn build_renderable_option_config(
                 icon_color: fg_color,
                 label: None,
                 tooltip: Some(tooltip_config(
-                    "Terminal",
+                    localization::text_for_app(
+                        app,
+                        "terminal.universal_developer_input.mode.terminal",
+                    ),
                     Some(terminal_mode_tooltip_subtext(terminal_keybindings)),
                     app,
                 )),
@@ -1030,7 +1072,10 @@ fn build_renderable_option_config(
                 icon_color: fg_color,
                 label: None,
                 tooltip: Some(tooltip_config(
-                    "Agent Mode",
+                    localization::text_for_app(
+                        app,
+                        "terminal.universal_developer_input.mode.agent",
+                    ),
                     Some(agent_mode_tooltip_subtext(terminal_keybindings)),
                     app,
                 )),

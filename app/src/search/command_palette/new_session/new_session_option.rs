@@ -1,11 +1,12 @@
 use std::borrow::Cow;
+use std::fmt;
 
 use warpui::{Action, AppContext};
 
 use crate::server::telemetry::AddTabWithShellSource;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::view::TerminalAction;
-use crate::{localization, WorkspaceAction};
+use crate::WorkspaceAction;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NewSessionOptionId(pub(crate) String);
@@ -24,13 +25,28 @@ pub(super) enum Direction {
     Left,
 }
 
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Direction::Down => "Down",
+                Direction::Right => "Right",
+                Direction::Up => "Up",
+                Direction::Left => "Left",
+            }
+        )
+    }
+}
+
 impl Direction {
-    fn localization_key(&self) -> &'static str {
+    fn new_session_translation_key(&self) -> &'static str {
         match self {
-            Self::Down => "search.command_palette.new_session.split_down",
-            Self::Right => "search.command_palette.new_session.split_right",
-            Self::Up => "search.command_palette.new_session.split_up",
-            Self::Left => "search.command_palette.new_session.split_left",
+            Direction::Down => "search.command_palette.new_session.split_down",
+            Direction::Right => "search.command_palette.new_session.split_right",
+            Direction::Up => "search.command_palette.new_session.split_up",
+            Direction::Left => "search.command_palette.new_session.split_left",
         }
     }
 }
@@ -73,24 +89,36 @@ impl NewSessionOption {
     pub fn description(&self) -> &str {
         self.description.as_str()
     }
+
+    pub fn localized_description(&self, app: &AppContext) -> String {
+        let (key, shell) = match &self.config {
+            NewSessionConfig::NewTab(shell) => (
+                "search.command_palette.new_session.new_tab",
+                shell.short_name_for_app(app),
+            ),
+            NewSessionConfig::NewWindow(shell) => (
+                "search.command_palette.new_session.new_window",
+                shell.short_name_for_app(app),
+            ),
+            NewSessionConfig::Split(direction, shell) => (
+                direction.new_session_translation_key(),
+                shell.short_name_for_app(app),
+            ),
+        };
+
+        crate::localization::text_for_app_with_args(app, key, &[("shell", shell.as_ref())])
+    }
 }
 
 impl NewSessionOption {
-    pub(super) fn new(id: NewSessionOptionId, config: NewSessionConfig, app: &AppContext) -> Self {
-        let shell_name = config.shell().short_name_for_app(app);
+    pub(super) fn new(id: NewSessionOptionId, config: NewSessionConfig) -> Self {
         let description = match &config {
-            NewSessionConfig::NewTab(_) => localized_description(
-                app,
-                "search.command_palette.new_session.new_tab",
-                &shell_name,
-            ),
-            NewSessionConfig::NewWindow(_) => localized_description(
-                app,
-                "search.command_palette.new_session.new_window",
-                &shell_name,
-            ),
-            NewSessionConfig::Split(direction, _) => {
-                localized_description(app, direction.localization_key(), &shell_name)
+            NewSessionConfig::NewTab(shell) => format!("Create New Tab: {}", shell.short_name()),
+            NewSessionConfig::NewWindow(shell) => {
+                format!("Create New Window: {}", shell.short_name())
+            }
+            NewSessionConfig::Split(direction, shell) => {
+                format!("Split Pane {direction}: {}", shell.short_name())
             }
         };
         Self {
@@ -130,11 +158,7 @@ impl NewSessionOption {
         self.config.shell().details()
     }
 
-    pub fn details_for_app(&self, app: &AppContext) -> Cow<'_, str> {
+    pub fn localized_details<'a>(&'a self, app: &'a AppContext) -> Cow<'a, str> {
         self.config.shell().details_for_app(app)
     }
-}
-
-fn localized_description(app: &AppContext, key: &str, shell: &str) -> String {
-    localization::text_for_app_with_args(app, key, &[("shell", shell)])
 }

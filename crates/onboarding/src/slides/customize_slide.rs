@@ -21,7 +21,7 @@ use super::OnboardingSlide;
 use crate::model::{OnboardingStateEvent, OnboardingStateModel, UICustomizationSettings};
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::visuals::{intention_terminal_visual, intention_visual};
-use crate::OnboardingIntention;
+use crate::{OnboardingCopy, OnboardingIntention};
 
 /// Which setting card is currently selected (expanded).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,11 +78,13 @@ pub struct CustomizeUISlide {
     back_button: button::Button,
     next_button: button::Button,
     scroll_state: ClippedScrollStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl CustomizeUISlide {
     pub(crate) fn new(
         onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&onboarding_state, |me, _model, event, ctx| {
@@ -113,6 +115,7 @@ impl CustomizeUISlide {
             back_button: button::Button::default(),
             next_button: button::Button::default(),
             scroll_state: ClippedScrollStateHandle::new(),
+            copy,
         }
     }
 
@@ -131,14 +134,12 @@ impl CustomizeUISlide {
         ui: &UICustomizationSettings,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let bottom_nav = Align::new(self.render_bottom_nav(appearance, intention, app)).finish();
+        let bottom_nav = Align::new(self.render_bottom_nav(appearance, app)).finish();
 
         slide_content::onboarding_slide_content(
             vec![
-                Align::new(self.render_header(appearance, app))
-                    .left()
-                    .finish(),
-                self.render_setting_cards(appearance, intention, ui, app),
+                Align::new(self.render_header(appearance)).left().finish(),
+                self.render_setting_cards(appearance, intention, ui),
             ],
             bottom_nav,
             self.scroll_state.clone(),
@@ -146,11 +147,10 @@ impl CustomizeUISlide {
         )
     }
 
-    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
-        let copy = self.onboarding_state.as_ref(app).copy();
+    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let title = appearance
             .ui_builder()
-            .paragraph(copy.text_owned("onboarding.customize.title"))
+            .paragraph(self.copy.text_owned("onboarding.customize.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -160,7 +160,7 @@ impl CustomizeUISlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            copy.text_owned("onboarding.customize.subtitle"),
+            self.copy.text_owned("onboarding.customize.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -193,11 +193,10 @@ impl CustomizeUISlide {
         appearance: &Appearance,
         intention: OnboardingIntention,
         ui: &UICustomizationSettings,
-        app: &AppContext,
     ) -> Box<dyn Element> {
-        let tab_card = self.render_tab_styling_card(appearance, ui, app);
-        let tools_card = self.render_tools_panel_card(appearance, intention, ui, app);
-        let code_card = self.render_code_review_card(appearance, ui, app);
+        let tab_card = self.render_tab_styling_card(appearance, ui);
+        let tools_card = self.render_tools_panel_card(appearance, intention, ui);
+        let code_card = self.render_code_review_card(appearance, ui);
 
         Container::new(
             Flex::column()
@@ -217,19 +216,17 @@ impl CustomizeUISlide {
         &self,
         appearance: &Appearance,
         ui: &UICustomizationSettings,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let is_selected = self.selected_setting == Some(SettingCard::TabStyling);
-        let copy = self.onboarding_state.as_ref(app).copy();
 
         render_toggle_card(
             appearance,
             ToggleCardSpec {
-                title: copy.text_owned("onboarding.customize.tab_styling"),
+                title: self.copy.text_owned("onboarding.customize.tab_styling"),
                 is_expanded: is_selected,
                 is_left_selected: ui.use_vertical_tabs,
-                left_label: copy.text_owned("onboarding.customize.vertical"),
-                right_label: copy.text_owned("onboarding.customize.horizontal"),
+                left_label: self.copy.text_owned("onboarding.customize.vertical"),
+                right_label: self.copy.text_owned("onboarding.customize.horizontal"),
                 card_mouse_state: self.tab_styling_mouse_state.clone(),
                 on_expand: Box::new(|ctx, _, _| {
                     ctx.dispatch_typed_action(CustomizeSlideAction::SelectSettingCard {
@@ -257,17 +254,15 @@ impl CustomizeUISlide {
         appearance: &Appearance,
         intention: OnboardingIntention,
         ui: &UICustomizationSettings,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let is_selected = self.selected_setting == Some(SettingCard::ToolsPanel);
         let is_agent = matches!(intention, OnboardingIntention::AgentDrivenDevelopment);
-        let copy = self.onboarding_state.as_ref(app).copy();
 
         let mut chips = vec![];
 
         if ui.tools_panel_enabled(&intention) {
             chips.push(ChipSpec {
-                label: copy.text_owned("onboarding.customize.file_explorer"),
+                label: self.copy.text_owned("onboarding.customize.file_explorer"),
                 is_enabled: ui.show_project_explorer,
                 mouse_state: self.chip_file_explorer_mouse.clone(),
                 on_click: Box::new(|ctx, _, _| {
@@ -287,7 +282,9 @@ impl CustomizeUISlide {
             // Conversation history chip is only shown for the agent intention.
             if is_agent {
                 chips.push(ChipSpec {
-                    label: copy.text_owned("onboarding.customize.conversation_history"),
+                    label: self
+                        .copy
+                        .text_owned("onboarding.customize.conversation_history"),
                     is_enabled: ui.show_conversation_history,
                     mouse_state: self.chip_conversation_mouse.clone(),
                     on_click: Box::new(|ctx, _, _| {
@@ -306,7 +303,9 @@ impl CustomizeUISlide {
             }
 
             chips.push(ChipSpec {
-                label: copy.text_owned("onboarding.customize.global_file_search"),
+                label: self
+                    .copy
+                    .text_owned("onboarding.customize.global_file_search"),
                 is_enabled: ui.show_global_search,
                 mouse_state: self.chip_global_search_mouse.clone(),
                 on_click: Box::new(|ctx, _, _| {
@@ -324,7 +323,7 @@ impl CustomizeUISlide {
             });
 
             chips.push(ChipSpec {
-                label: copy.text_owned("onboarding.customize.warp_drive"),
+                label: self.copy.text_owned("onboarding.customize.warp_drive"),
                 is_enabled: ui.show_warp_drive,
                 mouse_state: self.chip_warp_drive_mouse.clone(),
                 on_click: Box::new(|ctx, _, _| {
@@ -345,11 +344,11 @@ impl CustomizeUISlide {
         render_toggle_card(
             appearance,
             ToggleCardSpec {
-                title: copy.text_owned("onboarding.customize.tools_panel"),
+                title: self.copy.text_owned("onboarding.customize.tools_panel"),
                 is_expanded: is_selected,
                 is_left_selected: ui.tools_panel_enabled(&intention),
-                left_label: copy.text_owned("onboarding.common.enabled"),
-                right_label: copy.text_owned("onboarding.common.disabled"),
+                left_label: self.copy.text_owned("onboarding.common.enabled"),
+                right_label: self.copy.text_owned("onboarding.common.disabled"),
                 card_mouse_state: self.tools_panel_mouse_state.clone(),
                 on_expand: Box::new(|ctx, _, _| {
                     ctx.dispatch_typed_action(CustomizeSlideAction::SelectSettingCard {
@@ -377,19 +376,17 @@ impl CustomizeUISlide {
         &self,
         appearance: &Appearance,
         ui: &UICustomizationSettings,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let is_selected = self.selected_setting == Some(SettingCard::CodeReview);
-        let copy = self.onboarding_state.as_ref(app).copy();
 
         render_toggle_card(
             appearance,
             ToggleCardSpec {
-                title: copy.text_owned("onboarding.customize.code_review"),
+                title: self.copy.text_owned("onboarding.customize.code_review"),
                 is_expanded: is_selected,
                 is_left_selected: ui.show_code_review_button,
-                left_label: copy.text_owned("onboarding.common.enabled"),
-                right_label: copy.text_owned("onboarding.common.disabled"),
+                left_label: self.copy.text_owned("onboarding.common.enabled"),
+                right_label: self.copy.text_owned("onboarding.common.disabled"),
                 card_mouse_state: self.code_review_mouse_state.clone(),
                 on_expand: Box::new(|ctx, _, _| {
                     ctx.dispatch_typed_action(CustomizeSlideAction::SelectSettingCard {
@@ -415,17 +412,11 @@ impl CustomizeUISlide {
 
     // --- Bottom nav ---
 
-    fn render_bottom_nav(
-        &self,
-        appearance: &Appearance,
-        intention: OnboardingIntention,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let copy = self.onboarding_state.as_ref(app).copy();
+    fn render_bottom_nav(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(copy.text_owned("onboarding.common.back").into()),
+                content: button::Content::Label("Back".into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -440,7 +431,7 @@ impl CustomizeUISlide {
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(copy.text_owned("onboarding.common.next").into()),
+                content: button::Content::Label("Next".into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),
@@ -452,8 +443,7 @@ impl CustomizeUISlide {
             },
         );
 
-        let is_terminal = matches!(intention, OnboardingIntention::Terminal);
-        let (step_index, step_count) = if is_terminal { (1, 4) } else { (1, 5) };
+        let (step_index, step_count) = self.onboarding_state.as_ref(app).progress();
         bottom_nav::onboarding_bottom_nav(
             appearance,
             step_index,

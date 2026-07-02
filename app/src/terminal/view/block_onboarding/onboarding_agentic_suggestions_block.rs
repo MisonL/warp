@@ -48,10 +48,6 @@ lazy_static! {
             .expect("command line path regex invalid");
 }
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 pub struct OnboardingAgenticSuggestionsBlock {
     agent_suggestions: Vec<(AgenticSuggestionsContent, MouseStateHandle)>,
     block_completed: bool,
@@ -174,11 +170,11 @@ impl OnboardingAgenticSuggestionsBlock {
             ),
             (
                 AgenticSuggestionsContent {
-                    title: localization::text_for_app(
+                    title: localization::text_for_app_with_args(
                         ctx,
                         "terminal.onboarding.agentic_suggestions.git_history.title",
-                    )
-                    .replace("{repo}", &git_repo_trimmed),
+                        &[("repo", &git_repo_trimmed)],
+                    ),
                     description: localization::text_for_app(
                         ctx,
                         "terminal.onboarding.agentic_suggestions.git_history.description",
@@ -619,7 +615,7 @@ impl OnboardingAgenticSuggestionsBlock {
             .finish()
     }
 
-    fn render_text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_text(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
         let current_theme = appearance.theme();
         let font_family = appearance.ui_font_family();
         let font_size = appearance.monospace_font_size();
@@ -629,7 +625,10 @@ impl OnboardingAgenticSuggestionsBlock {
             .with_children(vec![
                 Container::new(
                     Text::new(
-                        text(app, "terminal.block_onboarding.agentic.welcome"),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.block_onboarding.agentic.welcome",
+                        ),
                         font_family,
                         font_size,
                     )
@@ -640,12 +639,15 @@ impl OnboardingAgenticSuggestionsBlock {
                 .finish(),
                 FormattedTextElement::new(
                     FormattedText::new([FormattedTextLine::Line(vec![
-                        FormattedTextFragment::plain_text(text(
-                            app,
+                        FormattedTextFragment::plain_text(localization::text_for_app(
+                            ctx,
                             "terminal.block_onboarding.agentic.description_prefix",
                         )),
                         FormattedTextFragment::weighted(
-                            text(app, "terminal.block_onboarding.agentic.description_suffix"),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.block_onboarding.agentic.description_suffix",
+                            ),
                             Some(CustomWeight::Bold),
                         ),
                     ])]),
@@ -688,7 +690,10 @@ impl OnboardingAgenticSuggestionsBlock {
                     )
                     .with_child(
                         Text::new(
-                            text(ctx, "terminal.block_onboarding.agentic.thinking"),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.block_onboarding.agentic.thinking",
+                            ),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size(),
                         )

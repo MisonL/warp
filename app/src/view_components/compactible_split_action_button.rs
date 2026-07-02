@@ -106,10 +106,6 @@ impl CompactibleSplitActionButton {
         self.primary_button.set_keybinding(keybinding, ctx);
     }
 
-    pub fn set_label<T: View>(&mut self, label: String, ctx: &mut ViewContext<T>) {
-        self.primary_button.set_label(label, ctx);
-    }
-
     /// Sets the disabled state on both the primary and menu buttons.
     pub fn set_disabled<T: View>(&mut self, disabled: bool, ctx: &mut ViewContext<T>) {
         self.primary_button.set_disabled(disabled, ctx);

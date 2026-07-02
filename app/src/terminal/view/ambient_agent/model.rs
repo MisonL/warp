@@ -18,8 +18,8 @@ use crate::ai::ambient_agents::spawn::{spawn_task, submit_run_followup, AmbientA
 use crate::ai::ambient_agents::task::{HarnessAuthSecretsConfig, HarnessConfig};
 use crate::ai::ambient_agents::telemetry::CloudAgentTelemetryEvent;
 use crate::ai::ambient_agents::{
-    github_auth_url, localized_task_status_message, AgentSource, AmbientAgentTaskId,
-    OUT_OF_CREDITS_TASK_FAILURE_MESSAGE, SERVER_OVERLOADED_TASK_FAILURE_MESSAGE,
+    github_auth_url, AgentSource, AmbientAgentTaskId, OUT_OF_CREDITS_TASK_FAILURE_MESSAGE,
+    SERVER_OVERLOADED_TASK_FAILURE_MESSAGE,
 };
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::ai::blocklist::handoff::touched_repos::TouchedWorkspace;
@@ -34,6 +34,7 @@ use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::CloudObjectLookup as _;
+use crate::localization;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
@@ -87,13 +88,13 @@ impl AgentProgress {
         }
     }
 
-    pub fn setup_status_text_key(&self) -> &'static str {
+    pub fn setup_status_text(&self, app: &AppContext) -> String {
         if self.harness_started_at.is_some() {
-            "terminal.ambient_agent.loading.starting"
+            localization::text_for_app(app, "terminal.ambient_agent.loading.starting")
         } else if self.claimed_at.is_some() {
-            "terminal.ambient_agent.loading.creating"
+            localization::text_for_app(app, "terminal.ambient_agent.loading.creating")
         } else {
-            "terminal.ambient_agent.loading.connecting"
+            localization::text_for_app(app, "terminal.ambient_agent.loading.connecting")
         }
     }
 }
@@ -284,15 +285,18 @@ pub struct AmbientAgentViewModel {
 
 impl AmbientAgentViewModel {
     pub fn new(terminal_view_id: EntityId, ctx: &mut ModelContext<Self>) -> Self {
-        ctx.subscribe_to_model(&CloudModel::handle(ctx), |me, event, ctx| {
+        ctx.subscribe_to_model(&CloudModel::handle(ctx), |me, _, event, ctx| {
             me.handle_cloud_model_event(event, ctx);
         });
 
-        ctx.subscribe_to_model(&HarnessAvailabilityModel::handle(ctx), |me, _event, ctx| {
-            me.validate_selected_harness(ctx);
-        });
+        ctx.subscribe_to_model(
+            &HarnessAvailabilityModel::handle(ctx),
+            |me, _, _event, ctx| {
+                me.validate_selected_harness(ctx);
+            },
+        );
 
-        ctx.subscribe_to_model(&GitHubAuthNotifier::handle(ctx), |me, event, ctx| {
+        ctx.subscribe_to_model(&GitHubAuthNotifier::handle(ctx), |me, _, event, ctx| {
             if matches!(event, GitHubAuthEvent::AuthCompleted) {
                 me.handle_github_auth_completed(ctx);
             }
@@ -1409,10 +1413,9 @@ impl AmbientAgentViewModel {
                         | AmbientAgentTaskState::Error
                         | AmbientAgentTaskState::Blocked
                         | AmbientAgentTaskState::Unknown => {
-                            let error = status_message
-                                .map(|msg| localized_task_status_message(ctx, &msg.message))
-                                .unwrap_or_else(|| {
-                                    crate::localization::text_for_app(
+                            let error =
+                                status_message.map(|msg| msg.message).unwrap_or_else(|| {
+                                    localization::text_for_app(
                                         ctx,
                                         "terminal.ambient_agent.error.default",
                                     )

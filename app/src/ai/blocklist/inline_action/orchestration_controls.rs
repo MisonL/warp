@@ -7,6 +7,7 @@
 //! from field-change events to their own action enum.
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use ai::agent::action::RunAgentsExecutionMode;
 use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationExecutionMode};
@@ -15,6 +16,7 @@ use pathfinder_geometry::vector::{vec2f, Vector2F};
 use settings::Setting;
 use warp_cli::agent::Harness;
 use warp_core::ui::theme::Fill;
+use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
@@ -57,48 +59,23 @@ use crate::{localization, report_if_error, LLMPreferences};
 /// Env var override for the workspace default host (developer testing).
 /// Mirrors the single-agent ambient flow.
 const DEFAULT_HOST_ENV_VAR: &str = "WARP_CLOUD_MODE_DEFAULT_HOST";
+static OPENCODE_CLOUD_UNSUPPORTED_EN: LazyLock<String> = LazyLock::new(|| {
+    localization::text_for_locale(
+        LocaleId::EnUs,
+        "agent.orchestration.controls.opencode_cloud_unsupported",
+    )
+});
+static DISABLED_BY_ADMIN_EN: LazyLock<String> = LazyLock::new(|| {
+    localization::text_for_locale(
+        LocaleId::EnUs,
+        "agent.orchestration.controls.disabled_by_admin",
+    )
+});
 
 // ── Shared constants ────────────────────────────────────────────────
 
 pub const ORCHESTRATION_WARP_WORKER_HOST: &str = WARP_WORKER_HOST;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn default_model_label(app: &AppContext) -> String {
-    text(app, "agent.orchestration.controls.default_model")
-}
-
-fn empty_environment_label(app: &AppContext) -> String {
-    text(app, "agent.orchestration.controls.empty_environment")
-}
-
-fn auth_secret_inherit_label(app: &AppContext) -> String {
-    text(app, "agent.orchestration.controls.auth_secret_inherit")
-}
-
-fn auth_secret_create_new_label(app: &AppContext) -> String {
-    text(app, "agent.orchestration.controls.auth_secret_create_new")
-}
-
-fn local_harness_product_disabled_key(harness: Harness) -> Option<&'static str> {
-    match harness {
-        Harness::Codex => Some("agent.orchestration.controls.local_codex_disabled"),
-        Harness::Oz | Harness::Claude | Harness::OpenCode | Harness::Gemini | Harness::Unknown => {
-            None
-        }
-    }
-}
-
-fn local_harness_missing_key(harness: Harness) -> Option<&'static str> {
-    match harness {
-        Harness::Claude => Some("agent.orchestration.controls.local_claude_install_required"),
-        Harness::Oz | Harness::Codex | Harness::OpenCode | Harness::Gemini | Harness::Unknown => {
-            None
-        }
-    }
-}
+pub const ORCHESTRATION_ENV_NONE_LABEL: &str = "Empty environment";
 
 pub const ORCHESTRATION_PICKER_HEIGHT: f32 = 36.;
 pub const ORCHESTRATION_PICKER_BORDER_WIDTH: f32 = 1.;
@@ -106,8 +83,16 @@ pub const ORCHESTRATION_PICKER_FONT_SIZE: f32 = 14.;
 pub const ORCHESTRATION_PICKER_RADIUS: f32 = 4.;
 pub const ORCHESTRATION_PICKER_MAX_WIDTH: f32 = 205.;
 
+const DEFAULT_MODEL_LABEL: &str = "Default model";
 const ORCHESTRATION_SEGMENTED_CONTROL_PADDING: f32 = 4.;
 const ORCHESTRATION_SEGMENT_VERTICAL_PADDING: f32 = 4.;
+
+/// Label shown in the auth secret picker when no secret is selected
+/// (the child agent will inherit credentials from its environment).
+const AUTH_SECRET_INHERIT_LABEL: &str = "Skip (advanced)";
+/// Label for the auth secret column.
+pub const AUTH_SECRET_COLUMN_LABEL: &str = "API key";
+const AUTH_SECRET_CREATE_NEW_LABEL: &str = "New API key…";
 
 // ── Action trait ────────────────────────────────────────────────────
 
@@ -122,7 +107,7 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
     fn create_environment_requested() -> Self;
     /// `None` means Inherit; `Some(name)` means a named managed secret.
     fn auth_secret_changed(name: Option<String>) -> Self;
-    /// User picked the "New API key..." item; opens the workspace create modal.
+    /// User picked the "New API key…" item; opens the workspace create modal.
     fn create_new_auth_secret_requested() -> Self;
 }
 
@@ -132,7 +117,7 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
 /// is persisted across sessions; the other variants are per-session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthSecretSelection {
-    /// No choice yet. Picker shows "+ New API key..." and Accept is blocked.
+    /// No choice yet; re-seeded from persisted settings. Blocks Accept.
     Unset,
     /// User explicitly chose to inherit credentials from the worker env.
     Inherit,
@@ -279,16 +264,16 @@ impl OrchestrationEditState {
         }
     }
 
-    /// Returns `Some(localization_key)` if Accept / Apply must be disabled.
+    /// Returns `Some(reason)` if Accept / Apply must be disabled.
     /// Hard blocks: OpenCode + Cloud, and product-disabled local harnesses.
     pub fn accept_disabled_reason(&self) -> Option<&'static str> {
         match &self.execution_mode {
             RunAgentsExecutionMode::Local => Harness::parse_local_child_harness(&self.harness_type)
-                .and_then(local_harness_product_disabled_key),
+                .and_then(local_harness_product_disabled_message),
             RunAgentsExecutionMode::Remote { .. }
                 if self.harness_type.eq_ignore_ascii_case("opencode") =>
             {
-                Some("agent.orchestration.controls.opencode_cloud_unsupported")
+                Some(OPENCODE_CLOUD_UNSUPPORTED_EN.as_str())
             }
             RunAgentsExecutionMode::Remote { .. } => None,
         }
@@ -569,17 +554,14 @@ pub fn populate_model_picker_for_harness<A: OrchestrationControlAction, V: View>
             }
             Some(Harness::Codex) if is_local => {
                 // Local Codex: only "Default model" entry.
-                let default_model_label = default_model_label(ctx_dropdown);
-                let items = vec![default_model_menu_item::<A>(&default_model_label)];
+                let items = vec![default_model_menu_item::<A>()];
                 dropdown.set_rich_items(items, ctx_dropdown);
-                dropdown.set_selected_by_name(&default_model_label, ctx_dropdown);
+                dropdown.set_selected_by_name(DEFAULT_MODEL_LABEL, ctx_dropdown);
             }
             Some(harness) => {
                 // Non-Oz harness: "Default model" at top, then server-provided
                 // harness models.
-                let default_model_label = default_model_label(ctx_dropdown);
-                let mut items: Vec<MenuItem<DropdownAction>> =
-                    vec![default_model_menu_item::<A>(&default_model_label)];
+                let mut items: Vec<MenuItem<DropdownAction>> = vec![default_model_menu_item::<A>()];
                 let availability = HarnessAvailabilityModel::as_ref(ctx_dropdown);
                 if let Some(models) = availability.models_for(harness) {
                     for model in models {
@@ -593,7 +575,7 @@ pub fn populate_model_picker_for_harness<A: OrchestrationControlAction, V: View>
                 }
                 // Find display name before set_rich_items borrows ctx_dropdown mutably.
                 let selected_display_name = if initial_model_id.is_empty() {
-                    Some(default_model_label.clone())
+                    Some(DEFAULT_MODEL_LABEL.to_string())
                 } else {
                     availability
                         .models_for(harness)
@@ -603,7 +585,7 @@ pub fn populate_model_picker_for_harness<A: OrchestrationControlAction, V: View>
                                 .find(|m| m.id == initial_model_id)
                                 .map(|m| m.display_name.clone())
                         })
-                        .or_else(|| Some(default_model_label.clone()))
+                        .or_else(|| Some(DEFAULT_MODEL_LABEL.to_string()))
                 };
                 dropdown.set_rich_items(items, ctx_dropdown);
                 if let Some(name) = &selected_display_name {
@@ -615,10 +597,12 @@ pub fn populate_model_picker_for_harness<A: OrchestrationControlAction, V: View>
 }
 
 /// Creates a "Default model" menu item that emits an empty model_id.
-fn default_model_menu_item<A: OrchestrationControlAction>(label: &str) -> MenuItem<DropdownAction> {
-    MenuItem::Item(MenuItemFields::new(label).with_on_select_action(
-        DropdownAction::select_action_and_close(A::model_changed(String::new())),
-    ))
+fn default_model_menu_item<A: OrchestrationControlAction>() -> MenuItem<DropdownAction> {
+    MenuItem::Item(
+        MenuItemFields::new(DEFAULT_MODEL_LABEL).with_on_select_action(
+            DropdownAction::select_action_and_close(A::model_changed(String::new())),
+        ),
+    )
 }
 
 /// Returns whether the given model_id is present in the harness-filtered
@@ -754,20 +738,17 @@ pub fn populate_harness_picker<A: OrchestrationControlAction, V: View>(
                 ));
             } else {
                 fields = fields.with_disabled(true);
-                let tooltip_key = match local_setup_state {
-                    Some(LocalHarnessSetupState::MissingHarness { .. }) => {
-                        local_harness_missing_key(harness)
+                let tooltip = match local_setup_state {
+                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip.to_string(),
+                    Some(LocalHarnessSetupState::ProductDisabled { message }) => {
+                        message.to_string()
                     }
-                    Some(LocalHarnessSetupState::ProductDisabled { .. }) => {
-                        local_harness_product_disabled_key(harness)
-                    }
-                    Some(LocalHarnessSetupState::Ready) | None => {
-                        Some("agent.orchestration.controls.disabled_by_admin")
-                    }
+                    Some(LocalHarnessSetupState::Ready) | None => localization::text_for_app(
+                        ctx_dropdown,
+                        "agent.orchestration.controls.disabled_by_admin",
+                    ),
                 };
-                if let Some(tooltip_key) = tooltip_key {
-                    fields = fields.with_tooltip(text(ctx_dropdown, tooltip_key));
-                }
+                fields = fields.with_tooltip(tooltip);
             }
             // Match by harness string first, then fall back to matching
             // the display_name against the client-side name for the target
@@ -823,16 +804,15 @@ pub fn create_environment_picker<A: OrchestrationControlAction, V: View>(
             .collect();
         sorted_envs.sort_by(|a, b| a.1.cmp(&b.1));
 
-        let empty_env_label = empty_environment_label(ctx_dropdown);
         let mut items: Vec<MenuItem<DropdownAction>> = Vec::new();
         let mut selected_name: Option<String> = None;
         items.push(MenuItem::Item(
-            MenuItemFields::new(&empty_env_label).with_on_select_action(
+            MenuItemFields::new(ORCHESTRATION_ENV_NONE_LABEL).with_on_select_action(
                 DropdownAction::select_action_and_close(A::environment_changed(String::new())),
             ),
         ));
         if initial_env.is_empty() {
-            selected_name = Some(empty_env_label.clone());
+            selected_name = Some(ORCHESTRATION_ENV_NONE_LABEL.to_string());
         }
         for (env_id, env_name) in &sorted_envs {
             if env_id == &initial_env {
@@ -869,16 +849,15 @@ pub fn populate_environment_picker<A: OrchestrationControlAction, V: View>(
             .collect();
         sorted_envs.sort_by(|a, b| a.1.cmp(&b.1));
 
-        let empty_env_label = empty_environment_label(ctx_dropdown);
         let mut items: Vec<MenuItem<DropdownAction>> = Vec::new();
         let mut selected_name: Option<String> = None;
         items.push(MenuItem::Item(
-            MenuItemFields::new(&empty_env_label).with_on_select_action(
+            MenuItemFields::new(ORCHESTRATION_ENV_NONE_LABEL).with_on_select_action(
                 DropdownAction::select_action_and_close(A::environment_changed(String::new())),
             ),
         ));
         if initial_env.is_empty() {
-            selected_name = Some(empty_env_label.clone());
+            selected_name = Some(ORCHESTRATION_ENV_NONE_LABEL.to_string());
         }
         for (env_id, env_name) in &sorted_envs {
             if env_id == &initial_env {
@@ -932,7 +911,10 @@ fn render_new_environment_footer<A: OrchestrationControlAction>(
                 )
                 .with_child(
                     Text::new_inline(
-                        text(app, "agent.orchestration.controls.new_environment"),
+                        localization::text_for_app(
+                            app,
+                            "agent.orchestration.controls.new_environment",
+                        ),
                         font_family,
                         font_size,
                     )
@@ -970,11 +952,6 @@ pub fn populate_host_picker<V: View>(
     };
     let mut connected_hosts = ConnectedSelfHostedWorkersModel::as_ref(ctx)
         .worker_hosts_excluding(default_host.as_deref());
-    if !initial.eq_ignore_ascii_case(ORCHESTRATION_WARP_WORKER_HOST)
-        && default_host.as_deref() != Some(initial.as_str())
-    {
-        connected_hosts.push(initial.clone());
-    }
     connected_hosts.sort();
     connected_hosts.dedup();
     picker.update(ctx, |picker, picker_ctx| {
@@ -1202,27 +1179,23 @@ pub fn accept_disabled_reason_with_auth(
     ctx: &AppContext,
 ) -> Option<String> {
     if let Some(reason) = state.accept_disabled_reason() {
-        return Some(text(ctx, reason));
+        return Some(localized_accept_disabled_reason(reason, ctx));
     }
     if matches!(state.execution_mode, RunAgentsExecutionMode::Local) {
         if let Some(harness) = Harness::parse_local_child_harness(&state.harness_type) {
             match local_harness_setup_state(harness) {
-                LocalHarnessSetupState::MissingHarness { .. } => {
-                    if let Some(key) = local_harness_missing_key(harness) {
-                        return Some(text(ctx, key));
-                    }
+                LocalHarnessSetupState::MissingHarness { tooltip } => {
+                    return Some(tooltip.to_string());
                 }
-                LocalHarnessSetupState::ProductDisabled { .. } => {
-                    if let Some(key) = local_harness_product_disabled_key(harness) {
-                        return Some(text(ctx, key));
-                    }
+                LocalHarnessSetupState::ProductDisabled { message } => {
+                    return Some(message.to_string());
                 }
                 LocalHarnessSetupState::Ready => {}
             }
         }
     }
     if auth_secret_selection_required(state, ctx) {
-        return Some(text(
+        return Some(localization::text_for_app(
             ctx,
             "agent.orchestration.controls.select_api_key_required",
         ));
@@ -1230,9 +1203,22 @@ pub fn accept_disabled_reason_with_auth(
     None
 }
 
+fn localized_accept_disabled_reason(reason: &str, app: &AppContext) -> String {
+    match reason {
+        value if value == OPENCODE_CLOUD_UNSUPPORTED_EN.as_str() => localization::text_for_app(
+            app,
+            "agent.orchestration.controls.opencode_cloud_unsupported",
+        ),
+        value if value == DISABLED_BY_ADMIN_EN.as_str() => {
+            localization::text_for_app(app, "agent.orchestration.controls.disabled_by_admin")
+        }
+        _ => reason.to_string(),
+    }
+}
+
 /// Populates the auth secret picker: Inherit, loaded managed secrets, then
-/// a "+ New API key..." entry for harnesses with managed-secret types. Also
-/// kicks off a lazy fetch so subsequent paints replace "Loading..." with
+/// a "+ New API key…" entry for harnesses with managed-secret types. Also
+/// kicks off a lazy fetch so subsequent paints replace "Loading…" with
 /// real entries.
 pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V: View>(
     dropdown: &ViewHandle<Dropdown<A>>,
@@ -1261,10 +1247,8 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
         let availability = HarnessAvailabilityModel::as_ref(ctx_dropdown);
         let mut items: Vec<MenuItem<DropdownAction>> = Vec::new();
 
-        let inherit_label = auth_secret_inherit_label(ctx_dropdown);
-        let create_new_label = auth_secret_create_new_label(ctx_dropdown);
         items.push(MenuItem::Item(
-            MenuItemFields::new(&inherit_label).with_on_select_action(
+            MenuItemFields::new(AUTH_SECRET_INHERIT_LABEL).with_on_select_action(
                 DropdownAction::select_action_and_close(A::auth_secret_changed(None)),
             ),
         ));
@@ -1288,13 +1272,16 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
             }
             AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
                 items.push(MenuItem::Item(
-                    MenuItemFields::new(text(ctx_dropdown, "agent.orchestration.controls.loading"))
-                        .with_disabled(true),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx_dropdown,
+                        "agent.orchestration.controls.loading",
+                    ))
+                    .with_disabled(true),
                 ));
             }
             AuthSecretFetchState::Failed(_) => {
                 items.push(MenuItem::Item(
-                    MenuItemFields::new(text(
+                    MenuItemFields::new(localization::text_for_app(
                         ctx_dropdown,
                         "agent.orchestration.controls.unable_to_load_secrets",
                     ))
@@ -1306,21 +1293,23 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
         if supports_create_new {
             items.push(MenuItem::Separator);
             items.push(MenuItem::Item(
-                MenuItemFields::new(&create_new_label).with_on_select_action(
+                MenuItemFields::new(AUTH_SECRET_CREATE_NEW_LABEL).with_on_select_action(
                     DropdownAction::select_action_and_close(A::create_new_auth_secret_requested()),
                 ),
             ));
         }
 
         // Trigger label derives directly from the selection. `Unset` falls
-        // back to "+ New API key..." rather than auto-picking the first
+        // back to "+ New API key…" rather than auto-picking the first
         // loaded key.
         let final_selection = match &selection {
             AuthSecretSelection::Named(name) => name.clone(),
-            AuthSecretSelection::Inherit => inherit_label.clone(),
-            AuthSecretSelection::CreatingNew => create_new_label.clone(),
-            AuthSecretSelection::Unset if supports_create_new => create_new_label.clone(),
-            AuthSecretSelection::Unset => inherit_label.clone(),
+            AuthSecretSelection::Inherit => AUTH_SECRET_INHERIT_LABEL.to_string(),
+            AuthSecretSelection::CreatingNew => AUTH_SECRET_CREATE_NEW_LABEL.to_string(),
+            AuthSecretSelection::Unset if supports_create_new => {
+                AUTH_SECRET_CREATE_NEW_LABEL.to_string()
+            }
+            AuthSecretSelection::Unset => AUTH_SECRET_INHERIT_LABEL.to_string(),
         };
         let _ = selected_display_name;
         let _ = &availability;
@@ -1637,7 +1626,7 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
                 }
                 Some(harness) => {
                     if target_model_id.is_empty() {
-                        Some(default_model_label(ctx_dropdown))
+                        Some(DEFAULT_MODEL_LABEL.to_string())
                     } else {
                         let availability = HarnessAvailabilityModel::as_ref(ctx_dropdown);
                         availability.models_for(harness).and_then(|models| {
@@ -1679,7 +1668,7 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
         };
         environment_picker.update(ctx, |dropdown, ctx_dropdown| {
             if env_id.is_empty() {
-                dropdown.set_selected_by_name(empty_environment_label(ctx_dropdown), ctx_dropdown);
+                dropdown.set_selected_by_name(ORCHESTRATION_ENV_NONE_LABEL, ctx_dropdown);
                 return;
             }
             let all_envs = CloudAmbientAgentEnvironment::get_all(ctx_dropdown);
@@ -1706,12 +1695,12 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
         auth_secret_picker.update(ctx, |dropdown, ctx_dropdown| {
             let label = match &selection {
                 AuthSecretSelection::Named(name) => name.clone(),
-                AuthSecretSelection::Inherit => auth_secret_inherit_label(ctx_dropdown),
-                AuthSecretSelection::CreatingNew => auth_secret_create_new_label(ctx_dropdown),
+                AuthSecretSelection::Inherit => AUTH_SECRET_INHERIT_LABEL.to_string(),
+                AuthSecretSelection::CreatingNew => AUTH_SECRET_CREATE_NEW_LABEL.to_string(),
                 AuthSecretSelection::Unset if supports_create_new => {
-                    auth_secret_create_new_label(ctx_dropdown)
+                    AUTH_SECRET_CREATE_NEW_LABEL.to_string()
                 }
-                AuthSecretSelection::Unset => auth_secret_inherit_label(ctx_dropdown),
+                AuthSecretSelection::Unset => AUTH_SECRET_INHERIT_LABEL.to_string(),
             };
             dropdown.set_selected_by_name(&label, ctx_dropdown);
         });
@@ -1867,13 +1856,12 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
     is_remote: bool,
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
-    app: &AppContext,
     active_segment_bg: Option<Fill>,
     full_width: bool,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let label = Text::new(
-        text(app, "agent.orchestration.controls.agent_location"),
+        "Agent location".to_string(),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 1.,
     )
@@ -1881,7 +1869,7 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
     .finish();
 
     let local_segment = render_segment_button::<A>(
-        text(app, "agent.orchestration.controls.local"),
+        "Local",
         !is_remote,
         A::execution_mode_toggled(false),
         handles.local_toggle.clone(),
@@ -1889,7 +1877,7 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
         active_segment_bg,
     );
     let cloud_segment = render_segment_button::<A>(
-        text(app, "agent.orchestration.controls.cloud"),
+        "Cloud",
         is_remote,
         A::execution_mode_toggled(true),
         handles.cloud_toggle.clone(),
@@ -1936,7 +1924,7 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
 }
 
 fn render_segment_button<A: OrchestrationControlAction>(
-    label: String,
+    label: &str,
     is_active: bool,
     on_click: A,
     mouse_state: MouseStateHandle,
@@ -1944,7 +1932,7 @@ fn render_segment_button<A: OrchestrationControlAction>(
     active_bg_override: Option<Fill>,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let label_owned = label;
+    let label_owned = label.to_string();
     let font_family = appearance.ui_font_family();
     let font_size = ORCHESTRATION_PICKER_FONT_SIZE;
     let active_text_color = blended_colors::text_main(theme, theme.surface_1());
@@ -1979,9 +1967,8 @@ pub fn render_picker_row<A: OrchestrationControlAction>(
     state: &OrchestrationEditState,
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
-    render_picker_row_with_layout(state, handles, appearance, app, false)
+    render_picker_row_with_layout(state, handles, appearance, false)
 }
 
 /// Renders pickers vertically at full width when `vertical` is true,
@@ -1990,7 +1977,6 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
     state: &OrchestrationEditState,
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
-    app: &AppContext,
     vertical: bool,
 ) -> Box<dyn Element> {
     let is_remote = state.execution_mode.is_remote();
@@ -2003,8 +1989,8 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_spacing(12.);
 
-        let add = |col: &mut Flex, label: String, picker: Option<Box<dyn Element>>| {
-            col.add_child(render_picker_column(&label, picker, appearance));
+        let add = |col: &mut Flex, label: &str, picker: Option<Box<dyn Element>>| {
+            col.add_child(render_picker_column(label, picker, appearance));
         };
 
         // Plan-card ordering groups harness-scoped pickers (harness + API
@@ -2014,7 +2000,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_harness_picker {
             add(
                 &mut column,
-                text(app, "agent.orchestration.controls.agent_harness"),
+                "Agent harness",
                 handles
                     .harness_picker
                     .as_ref()
@@ -2024,7 +2010,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_auth_picker {
             add(
                 &mut column,
-                text(app, "agent.orchestration.controls.api_key"),
+                AUTH_SECRET_COLUMN_LABEL,
                 handles
                     .auth_secret_picker
                     .as_ref()
@@ -2034,7 +2020,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if is_remote {
             add(
                 &mut column,
-                text(app, "agent.orchestration.controls.host"),
+                "Host",
                 handles
                     .host_picker
                     .as_ref()
@@ -2042,7 +2028,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             );
             add(
                 &mut column,
-                text(app, "agent.orchestration.controls.environment"),
+                "Environment",
                 handles
                     .environment_picker
                     .as_ref()
@@ -2051,7 +2037,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         }
         add(
             &mut column,
-            text(app, "agent.orchestration.controls.base_model"),
+            "Base model",
             handles
                 .model_picker
                 .as_ref()
@@ -2065,15 +2051,15 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         let mut row = AdaptivePickerRow::new(ORCHESTRATION_PICKER_MAX_WIDTH, 12.);
 
         let add_picker =
-            |row: &mut AdaptivePickerRow, label: String, picker: Option<Box<dyn Element>>| {
-                let col = render_picker_column(&label, picker, appearance);
+            |row: &mut AdaptivePickerRow, label: &str, picker: Option<Box<dyn Element>>| {
+                let col = render_picker_column(label, picker, appearance);
                 row.add_child(col);
             };
 
         if show_harness_picker {
             add_picker(
                 &mut row,
-                text(app, "agent.orchestration.controls.agent_harness"),
+                "Agent harness",
                 handles
                     .harness_picker
                     .as_ref()
@@ -2083,7 +2069,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if is_remote {
             add_picker(
                 &mut row,
-                text(app, "agent.orchestration.controls.host"),
+                "Host",
                 handles
                     .host_picker
                     .as_ref()
@@ -2091,7 +2077,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             );
             add_picker(
                 &mut row,
-                text(app, "agent.orchestration.controls.environment"),
+                "Environment",
                 handles
                     .environment_picker
                     .as_ref()
@@ -2100,7 +2086,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         }
         add_picker(
             &mut row,
-            text(app, "agent.orchestration.controls.base_model"),
+            "Base model",
             handles
                 .model_picker
                 .as_ref()
@@ -2109,7 +2095,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_auth_picker {
             add_picker(
                 &mut row,
-                text(app, "agent.orchestration.controls.api_key"),
+                AUTH_SECRET_COLUMN_LABEL,
                 handles
                     .auth_secret_picker
                     .as_ref()
@@ -2181,12 +2167,12 @@ pub fn empty_env_recommendation_message(
     }
     let env_count = CloudAmbientAgentEnvironment::get_all(app).len();
     Some(if env_count > 0 {
-        text(
+        localization::text_for_app(
             app,
             "agent.orchestration.controls.recommend_select_environment",
         )
     } else {
-        text(
+        localization::text_for_app(
             app,
             "agent.orchestration.controls.recommend_create_environment",
         )

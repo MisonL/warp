@@ -8,7 +8,6 @@ use warpui::{
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{CloudObject as _, GenericStringObjectFormat, JsonObjectType};
 use crate::drive::CloudObjectTypeAndId;
-use crate::localization;
 use crate::server::ids::SyncId;
 use crate::view_components::{DropdownItem, FilterableDropdown, FilterableDropdownOrientation};
 
@@ -86,7 +85,7 @@ impl EnvVarSelector {
         env_vars.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
         let remove_item = std::iter::once(DropdownItem::new(
-            localization::text_for_app(ctx, "workflow.env_vars.selector.none"),
+            crate::localization::text_for_app(ctx, "workflow.env_vars.selector.none"),
             EnvVarSelectorAction::Select(None),
         ));
 

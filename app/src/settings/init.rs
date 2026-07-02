@@ -16,7 +16,7 @@ use super::{
     AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
     BlockVisibilitySettings, ChangelogSettings, CodeSettings, DebugSettings, EmacsBindingsSettings,
     FontSettings, FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings,
-    InputSettings, LanguageSettings, PaneSettings, SameLinePromptBlockSettings, ScrollSettings,
+    InputSettings, LocalControlSettings, PaneSettings, SameLinePromptBlockSettings, ScrollSettings,
     SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings, WarpDrivePrivacySettings,
 };
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
@@ -76,7 +76,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     ScrollSettings::register(ctx);
     SelectionSettings::register(ctx);
     InputModeSettings::register(ctx);
-    LanguageSettings::register(ctx);
     ThemeSettings::register(ctx);
     AccessibilitySettings::register(ctx);
     NativePreferenceSettings::register(ctx);
@@ -97,6 +96,9 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     EmacsBindingsSettings::register(ctx);
     SameLinePromptBlockSettings::register(ctx);
     SemanticSelection::register(ctx);
+    if FeatureFlag::WarpControlCli.is_enabled() {
+        LocalControlSettings::register(ctx);
+    }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     super::LinuxAppConfiguration::register(ctx);
@@ -407,9 +409,7 @@ fn migrate_native_settings_to_settings_file(ctx: &mut AppContext) {
         ))));
     }
 
-    log::info!(
-        "Settings file migration complete — migrated {migrated_count} settings, {failed_count} failed"
-    );
+    log::info!("Settings file migration complete — migrated {migrated_count} settings, {failed_count} failed");
 
     // Record the migration so it won't re-run if the user deletes the TOML
     // file. This marker is written unconditionally — for new users the native

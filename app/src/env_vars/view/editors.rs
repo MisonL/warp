@@ -17,10 +17,6 @@ use crate::env_vars::view::env_var_collection::{
 use crate::env_vars::EnvVarValue;
 use crate::Appearance;
 
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
-
 // Metadata labels (name and description)
 const LABEL_FONT_SIZE: f32 = 12.;
 const METADATA_SPACING: f32 = 8.;
@@ -34,7 +30,7 @@ impl EnvVarCollectionView {
         ctx: &mut ViewContext<Self>,
         font_size_override: Option<f32>,
         font_family_override: Option<FamilyId>,
-        placeholder_text: Option<&str>,
+        placeholder_text: Option<String>,
         single_line: bool,
     ) -> ViewHandle<EditorView> {
         let text = TextOptions {
@@ -42,7 +38,7 @@ impl EnvVarCollectionView {
             font_family_override,
             ..Default::default()
         };
-        ctx.add_typed_action_view(|ctx| {
+        ctx.add_typed_action_view(move |ctx| {
             let mut editor = if single_line {
                 EditorView::single_line(
                     SingleLineEditorOptions {
@@ -368,9 +364,10 @@ impl EnvVarCollectionView {
 
         Flex::column()
             .with_child(
-                Container::new(
-                    self.render_metadata_label(text(app, "env_vars.metadata.title"), appearance),
-                )
+                Container::new(self.render_metadata_label(
+                    crate::localization::text_for_app(app, "env_vars.metadata.title"),
+                    appearance,
+                ))
                 .with_margin_bottom(METADATA_SPACING)
                 .finish(),
             )
@@ -386,7 +383,7 @@ impl EnvVarCollectionView {
             .with_child(
                 SavePosition::new(
                     Container::new(self.render_metadata_label(
-                        text(app, "env_vars.metadata.description"),
+                        crate::localization::text_for_app(app, "env_vars.metadata.description"),
                         appearance,
                     ))
                     .with_margin_bottom(METADATA_SPACING)

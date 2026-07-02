@@ -233,8 +233,8 @@ impl InstallationModalBody {
     fn render_title(
         name: String,
         appearance: &Appearance,
-        close_button_mouse_state: MouseStateHandle,
         app: &AppContext,
+        close_button_mouse_state: MouseStateHandle,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
@@ -535,8 +535,8 @@ impl View for InstallationModalBody {
             form_column.add_child(Self::render_title(
                 templatable_mcp_server.name.clone(),
                 appearance,
-                self.close_button_mouse_state.clone(),
                 ctx,
+                self.close_button_mouse_state.clone(),
             ));
 
             if let Some(instructions) = &self.instructions_in_markdown {

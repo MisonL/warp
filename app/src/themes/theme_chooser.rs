@@ -45,6 +45,7 @@ use crate::workspace::PANEL_HEADER_HEIGHT;
 use crate::{report_if_error, send_telemetry_from_ctx};
 
 // All units in px
+const THEME_CHOOSER_TITLE: &str = "Themes";
 const CLOSE_BUTTON_MARGIN_RIGHT: f32 = 6.;
 const TITLE_FONT_SIZE: f32 = 16.;
 const TITLE_MARGIN: f32 = 12.;
@@ -56,10 +57,6 @@ const DELETE_BUTTON_LINE_HEIGHT: f32 = 1.33;
 const DELETE_BUTTON_SIZE: f32 = 16.;
 const DELETE_BUTTON_MARGIN_RIGHT: f32 = 16.;
 const THEME_CHOOSER_ITEM_PADDING: f32 = 16.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -116,15 +113,30 @@ impl ThemeChooserMode {
 
     fn render_hint_text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let hint_text = match self {
-            ThemeChooserMode::SystemAgnostic => appearance
-                .ui_builder()
-                .paragraph(text(app, "theme_chooser.hint.current")),
-            ThemeChooserMode::SystemLight => appearance
-                .ui_builder()
-                .paragraph(text(app, "theme_chooser.hint.light")),
-            ThemeChooserMode::SystemDark => appearance
-                .ui_builder()
-                .paragraph(text(app, "theme_chooser.hint.dark")),
+            ThemeChooserMode::SystemAgnostic => {
+                appearance
+                    .ui_builder()
+                    .paragraph(crate::localization::text_for_app(
+                        app,
+                        "themes.chooser.hint.current",
+                    ))
+            }
+            ThemeChooserMode::SystemLight => {
+                appearance
+                    .ui_builder()
+                    .paragraph(crate::localization::text_for_app(
+                        app,
+                        "themes.chooser.hint.light",
+                    ))
+            }
+            ThemeChooserMode::SystemDark => {
+                appearance
+                    .ui_builder()
+                    .paragraph(crate::localization::text_for_app(
+                        app,
+                        "themes.chooser.hint.dark",
+                    ))
+            }
         };
         hint_text
             .build()
@@ -630,7 +642,7 @@ impl ThemeChooser {
         )
     }
 
-    fn render_title_row(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_title_row(&self, appearance: &Appearance) -> Box<dyn Element> {
         let mut title_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
@@ -639,7 +651,7 @@ impl ThemeChooser {
                     Align::new(
                         appearance
                             .ui_builder()
-                            .span(text(app, "theme_chooser.title"))
+                            .span(THEME_CHOOSER_TITLE.to_string())
                             .with_style(UiComponentStyles {
                                 font_family_id: Some(appearance.ui_font_family()),
                                 font_size: Some(TITLE_FONT_SIZE),
@@ -745,7 +757,10 @@ impl ThemeChooser {
                 .with_child(
                     appearance
                         .ui_builder()
-                        .span(text(app, "theme_chooser.no_matching_themes"))
+                        .span(crate::localization::text_for_app(
+                            app,
+                            "themes.chooser.no_matching",
+                        ))
                         .build()
                         .finish(),
                 )
@@ -840,11 +855,11 @@ impl View for ThemeChooser {
         "ThemeChooser"
     }
 
-    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            text(app, "theme_chooser.a11y.description"),
-            text(app, "theme_chooser.a11y.help"),
-            WarpA11yRole::WindowRole,
+                "Theme chooser. Unfortunately, theme chooser window isn't compatible with screen readers yet.",
+                "Press escape to close.",
+                WarpA11yRole::WindowRole,
         ))
     }
 
@@ -855,7 +870,7 @@ impl View for ThemeChooser {
         Container::new(
             Flex::column()
                 .with_child(self.render_header(traffic_light_data.as_ref(), appearance, app))
-                .with_child(self.render_title_row(appearance, app))
+                .with_child(self.render_title_row(appearance))
                 .with_child(self.mode.render_hint_text(appearance, app))
                 .with_child(self.render_search_bar(appearance))
                 .with_child(self.render_list(appearance, app))

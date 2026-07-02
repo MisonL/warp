@@ -10,7 +10,6 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, EventContext, SingletonEntity};
 
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::settings::PrivacySettings;
 use crate::terminal::model::secrets::SecretLevel;
 use crate::ui_components::blended_colors;
@@ -136,19 +135,18 @@ where
                 redaction,
                 TooltipRedaction::SecretNotSentToLLMMessaging { .. }
             ) {
-                localization::text_for_app(app, "tooltip.secret_redaction.not_included")
+                "This wasn't included in the AI conversation."
             } else {
-                localization::text_for_app(app, "tooltip.secret_redaction.will_not_include")
+                "This won't be included in any AI conversations or shared blocks."
             };
 
+            // Generate the appropriate message based on secret level
             let secret_message = match secret_level {
                 Some(SecretLevel::Enterprise) => {
-                    localization::text_for_app(app, "tooltip.secret_redaction.pattern.enterprise")
+                    "Pattern matched your organization's secret redaction regex list."
                 }
-                Some(SecretLevel::User) => {
-                    localization::text_for_app(app, "tooltip.secret_redaction.pattern.user")
-                }
-                None => localization::text_for_app(app, "tooltip.secret_redaction.pattern.default"),
+                Some(SecretLevel::User) => "Pattern matched your secret redaction regex list.",
+                None => "Pattern matched the secret redaction regex list.",
             };
 
             tooltip.add_child(
@@ -203,10 +201,7 @@ where
             .with_child(
                 appearance
                     .ui_builder()
-                    .span(localization::text_for_app(
-                        app,
-                        "tooltip.secrets_not_sent_to_server",
-                    ))
+                    .span("*Secrets are not sent to Warp's server.")
                     .with_style(UiComponentStyles {
                         font_size: Some(12.),
                         margin: Some(Coords::default().top(4.)),

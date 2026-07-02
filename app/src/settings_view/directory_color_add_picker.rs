@@ -17,18 +17,18 @@ use warpui::{
 
 use crate::ai::persisted_workspace::{PersistedWorkspace, PersistedWorkspaceEvent};
 use crate::appearance::Appearance;
+use crate::localization::LocalizationUpdater;
 use crate::ui_components::icons;
 use crate::view_components::action_button::{ActionButton, SecondaryTheme};
 use crate::view_components::{DropdownItem, FilterableDropdown};
 use crate::workspace::tab_settings::{
-    DirectoryTabColor, DirectoryTabColors, TabSettings, TabSettingsChangedEvent,
+    canonical_directory_key, DirectoryTabColor, DirectoryTabColors, TabSettings,
+    TabSettingsChangedEvent,
 };
 
+const ADD_DIRECTORY_LABEL_KEY: &str = "settings.appearance.tabs.directory_colors.add_directory";
+const BUTTON_LABEL_KEY: &str = "settings.appearance.tabs.directory_colors.add_button";
 const MENU_WIDTH: f32 = 340.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
 
 /// A dropdown used by the Directory tab colors settings widget, with a button fallback
 /// when there are no known repos left to show in the dropdown.
@@ -108,10 +108,13 @@ impl DirectoryColorAddPicker {
                 me.refresh_items(ctx);
             }
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
-        let button = ctx.add_typed_action_view(|ctx| {
+        let button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new(
-                text(ctx, "settings.appearance.tabs.directory_colors.add_button"),
+                crate::localization::text_for_app(_ctx, BUTTON_LABEL_KEY),
                 SecondaryTheme,
             )
             .with_icon(icons::Icon::Plus)
@@ -124,10 +127,8 @@ impl DirectoryColorAddPicker {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_top_bar_max_width(MENU_WIDTH);
             dropdown.set_menu_width(MENU_WIDTH, ctx);
-            dropdown.set_menu_header(text(
-                ctx,
-                "settings.appearance.tabs.directory_colors.add_button",
-            ));
+            let header = crate::localization::text_for_app(ctx, BUTTON_LABEL_KEY);
+            dropdown.set_menu_header_text_override(move |_| header.clone());
             dropdown
         });
 
@@ -164,9 +165,9 @@ impl DirectoryColorAddPicker {
                                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                                     .with_child(
                                         Text::new_inline(
-                                            text(
+                                            crate::localization::text_for_app(
                                                 app,
-                                                "settings.appearance.tabs.directory_colors.add_directory",
+                                                ADD_DIRECTORY_LABEL_KEY,
                                             ),
                                             font_family,
                                             font_size,
@@ -197,6 +198,21 @@ impl DirectoryColorAddPicker {
 
         picker.refresh_items(ctx);
         picker
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.button.update(ctx, |button, ctx| {
+            button.set_label(
+                crate::localization::text_for_app(ctx, BUTTON_LABEL_KEY),
+                ctx,
+            );
+        });
+        self.dropdown.update(ctx, |dropdown, ctx| {
+            let header = crate::localization::text_for_app(ctx, BUTTON_LABEL_KEY);
+            dropdown.set_menu_header_text_override(move |_| header.clone());
+            ctx.notify();
+        });
+        ctx.notify();
     }
 
     fn refresh_items(&mut self, ctx: &mut ViewContext<Self>) {
@@ -294,15 +310,6 @@ impl TypedActionView for DirectoryColorAddPicker {
     }
 }
 
-/// Canonicalizes `path` using the same fallback logic that [`DirectoryTabColors::with_color`]
-/// uses, so candidate keys line up with the keys stored in the setting.
-fn canonical_key(path: &Path) -> String {
-    path.canonicalize()
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string()
-}
-
 /// Computes the set of directory paths that should be offered in the add-directory dropdown.
 ///
 /// Candidates are the union of indexed codebase paths and persisted workspace
@@ -330,7 +337,7 @@ fn compute_candidate_paths(
             continue;
         }
 
-        let key = canonical_key(&path);
+        let key = canonical_directory_key(&path);
 
         if let Some(existing_color) = existing.0.get(&key) {
             if !matches!(existing_color, DirectoryTabColor::Suppressed) {

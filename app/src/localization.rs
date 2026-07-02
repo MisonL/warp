@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use anyhow::Context as _;
@@ -23,6 +24,15 @@ static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {
 
     CatalogBundle::new(LocaleId::EnUs, catalogs)
         .expect("default localization catalog must be bundled")
+});
+
+static ENGLISH_TEXT_TO_KEY: LazyLock<HashMap<String, &'static str>> = LazyLock::new(|| {
+    CATALOGS
+        .catalog(LocaleId::EnUs)
+        .expect("default localization catalog must be bundled")
+        .entries()
+        .map(|(key, value)| (value.to_owned(), key))
+        .collect()
 });
 
 static SYSTEM_LOCALE_CANDIDATES: LazyLock<RwLock<Vec<String>>> =
@@ -52,10 +62,6 @@ pub(crate) fn refresh_system_locale_candidates_if_needed(app: &AppContext) -> bo
     }
 }
 
-pub(crate) fn notify_locale_changed(ctx: &mut AppContext) {
-    LocalizationUpdater::handle(ctx).update(ctx, |_, ctx| notify_locale_changed_from_model(ctx));
-}
-
 pub(crate) fn text_for_app(app: &AppContext, key: &str) -> String {
     text(current_locale(app), key)
 }
@@ -74,8 +80,8 @@ pub(crate) fn text_for_app_or(app: &AppContext, key: &str, fallback: &str) -> St
     }
 }
 
-pub(crate) fn language_option_label(locale: LocaleId, language: AppLanguage) -> String {
-    text(locale, language.translation_key())
+pub(crate) fn binding_description_key_for_english_text(text: &str) -> Option<&'static str> {
+    ENGLISH_TEXT_TO_KEY.get(text).copied()
 }
 
 pub(crate) fn text_for_locale(locale: LocaleId, key: &str) -> String {
@@ -232,7 +238,7 @@ pub(crate) struct LocalizationUpdater;
 
 impl LocalizationUpdater {
     fn new(ctx: &mut ModelContext<Self>) -> Self {
-        ctx.subscribe_to_model(&LanguageSettings::handle(ctx), |_, event, ctx| {
+        ctx.subscribe_to_model(&LanguageSettings::handle(ctx), |_, _, event, ctx| {
             let LanguageSettingsChangedEvent::AppLanguageSetting { .. } = event;
             let _ = refresh_system_locale_candidates_if_needed(ctx);
             notify_locale_changed_from_model(ctx);
@@ -251,9 +257,10 @@ impl warpui::SingletonEntity for LocalizationUpdater {}
 fn notify_locale_changed_from_model(ctx: &mut ModelContext<LocalizationUpdater>) {
     ctx.emit(LocalizationEvent::LocaleChanged);
     ctx.invalidate_all_views();
-
-    #[cfg(all(target_os = "macos", not(test)))]
-    warpui::platform::mac::rebuild_native_menus(ctx);
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::refresh_localized_menus();
+    }
 }
 
 #[cfg(test)]

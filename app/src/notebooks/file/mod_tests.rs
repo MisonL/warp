@@ -93,7 +93,7 @@ fn test_load_local() {
             .await;
 
         app.read(|ctx| {
-            assert_eq!(handle.as_ref(ctx).title(ctx), "README.md");
+            assert_eq!(&handle.as_ref(ctx).title(), "README.md");
             let location = handle
                 .as_ref(ctx)
                 .location
@@ -144,10 +144,10 @@ fn test_load_before_session() {
             })
             .await;
 
-        handle.read(&app, |view, ctx| {
+        handle.read(&app, |view, _| {
             let expected_path = dunce::canonicalize("../README.md").expect("Path exists");
 
-            assert_eq!(view.title(ctx), expected_path.display().to_string());
+            assert_eq!(view.title(), expected_path.display().to_string());
             assert!(view.location.is_none());
 
             match &view.file_state {
@@ -164,8 +164,8 @@ fn test_load_before_session() {
             active_session.set_session_for_test(window_id, session.clone(), Some("."), None, ctx);
         });
 
-        handle.read(&app, |view, ctx| {
-            assert_eq!(view.title(ctx), "README.md");
+        handle.read(&app, |view, _| {
+            assert_eq!(&view.title(), "README.md");
             // The location should be set, but the exact breadcrumbs depend on where the repo
             // is located.
             assert!(view.location.is_some());
@@ -184,7 +184,7 @@ fn test_load_static() {
             assert!(file_notebook.file_id.is_none());
 
             assert!(matches!(file_notebook.file_state, FileState::Loaded(_)));
-            assert_eq!(file_notebook.title(ctx), "Test Title");
+            assert_eq!(file_notebook.title(), "Test Title");
             assert!(file_notebook.location.is_none());
 
             let editor = file_notebook.editor.as_ref(ctx);

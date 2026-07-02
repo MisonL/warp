@@ -13,9 +13,7 @@ use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::SyncDataSource;
-use crate::terminal::input::rewind::search_item::{
-    RewindSearchItem, RewindSearchItemAccessibilityCopy,
-};
+use crate::terminal::input::rewind::search_item::RewindSearchItem;
 
 /// Action emitted when a rewind point is selected.
 #[derive(Clone, Debug)]
@@ -109,7 +107,6 @@ impl SyncDataSource for RewindDataSource {
             .collect();
 
         let search_query = query.text.trim().to_lowercase();
-        let accessibility_copy = RewindSearchItemAccessibilityCopy::new(app);
 
         // Build rewind points in chronological order (oldest first)
         let mut results = Vec::new();
@@ -119,7 +116,7 @@ impl SyncDataSource for RewindDataSource {
             let query_text = exchange
                 .input
                 .iter()
-                .find_map(AIAgentInput::user_query)
+                .find_map(AIAgentInput::display_query)
                 .unwrap_or_default();
 
             // Find the end of this "block" - either the next user query or end of exchanges
@@ -139,14 +136,9 @@ impl SyncDataSource for RewindDataSource {
                     fuzzy_match::match_indices_case_insensitive(&query_text, &search_query);
                 if let Some(match_result) = match_result {
                     results.push(QueryResult::from(
-                        RewindSearchItem::new_rewind_point(
-                            exchange.id,
-                            query_text,
-                            file_changes,
-                            accessibility_copy.clone(),
-                        )
-                        .with_query_match_result(Some(match_result.clone()))
-                        .with_score(OrderedFloat(match_result.score as f64)),
+                        RewindSearchItem::new_rewind_point(exchange.id, query_text, file_changes)
+                            .with_query_match_result(Some(match_result.clone()))
+                            .with_score(OrderedFloat(match_result.score as f64)),
                     ));
                 }
             } else {
@@ -154,7 +146,6 @@ impl SyncDataSource for RewindDataSource {
                     exchange.id,
                     query_text,
                     file_changes,
-                    accessibility_copy.clone(),
                 )));
             }
         }
@@ -164,9 +155,7 @@ impl SyncDataSource for RewindDataSource {
             results.sort_by_key(|b| std::cmp::Reverse(b.score()));
         } else {
             // Add "Current" as the last item (appears at bottom, closest to input)
-            results.push(QueryResult::from(RewindSearchItem::new_current(
-                accessibility_copy,
-            )));
+            results.push(QueryResult::from(RewindSearchItem::new_current()));
         }
 
         Ok(results)

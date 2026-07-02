@@ -218,7 +218,6 @@ fn test_migration_handles_string_setting() {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_migration_does_not_rerun_when_marker_present() {
     warpui::App::test((), |mut app| async move {
         let _guard = FeatureFlag::SettingsFile.override_enabled(true);

@@ -23,7 +23,6 @@ use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
 use crate::ai::mcp::{MCPServerState, TemplatableMCPServerManager};
 use crate::appearance::Appearance;
 use crate::cloud_object::{CloudObject, CloudObjectUuidLookup as _};
-use crate::localization;
 use crate::settings_view::mcp_servers::{style, ServerCardItemId};
 use crate::ui_components::avatar::{Avatar, AvatarContent, StatusElementTypes};
 use crate::ui_components::blended_colors;
@@ -140,7 +139,7 @@ pub struct ServerCardOptions {
     pub full_card_clickable: bool,
     pub server_running_switch_state: Option<bool>,
     pub status_indicator: Option<StatusElement>,
-    pub status_line_key: Option<&'static str>,
+    pub status_line: Option<String>,
     pub background: Background,
 }
 
@@ -186,7 +185,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
 
                 server_running_switch_state: None,
                 status_indicator: None,
-                status_line_key: None,
+                status_line: None,
                 background: Background::Transparent,
                 full_card_clickable: true,
             },
@@ -203,7 +202,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
 
                 server_running_switch_state: None,
                 status_indicator: None,
-                status_line_key: None,
+                status_line: None,
                 background: Background::Filled,
                 full_card_clickable: false,
             },
@@ -223,7 +222,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
                     indicator_type: StatusElementTypes::Circle,
                     color: StatusColor::Neutral,
                 }),
-                status_line_key: Some("settings.mcp.card.status.offline"),
+                status_line: Some("Offline".to_string()),
                 background: Background::Filled,
                 full_card_clickable: false,
             },
@@ -243,7 +242,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
                     indicator_type: StatusElementTypes::Circle,
                     color: StatusColor::Yellow,
                 }),
-                status_line_key: Some("settings.mcp.card.status.starting_server"),
+                status_line: Some("Starting server...".to_string()),
                 background: Background::Filled,
                 full_card_clickable: false,
             },
@@ -263,7 +262,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
                     indicator_type: StatusElementTypes::Circle,
                     color: StatusColor::Yellow,
                 }),
-                status_line_key: Some("settings.mcp.card.status.authenticating"),
+                status_line: Some("Authenticating...".to_string()),
                 background: Background::Filled,
                 full_card_clickable: false,
             },
@@ -283,7 +282,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
                     indicator_type: StatusElementTypes::Circle,
                     color: StatusColor::Green,
                 }),
-                status_line_key: None,
+                status_line: None,
                 background: Background::Filled,
                 full_card_clickable: false,
             },
@@ -303,7 +302,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
                     indicator_type: StatusElementTypes::Circle,
                     color: StatusColor::Neutral,
                 }),
-                status_line_key: Some("settings.mcp.card.status.shutting_down"),
+                status_line: Some("Shutting down...".to_string()),
                 background: Background::Filled,
                 full_card_clickable: false,
             },
@@ -323,7 +322,7 @@ impl From<ServerCardStatus> for ServerCardOptions {
                     indicator_type: StatusElementTypes::Icon(Icon::AlertTriangle),
                     color: StatusColor::Red,
                 }),
-                status_line_key: None,
+                status_line: None,
                 background: Background::Filled,
                 full_card_clickable: false,
             },
@@ -380,6 +379,18 @@ impl ServerCardView {
 
     pub fn render_options(&self) -> &ServerCardOptions {
         &self.render_options
+    }
+
+    fn localized_status_line(&self, app: &AppContext) -> Option<String> {
+        let status_line = self.render_options.status_line.as_deref()?;
+        let key = match status_line {
+            "Offline" => "settings.mcp.card.status.offline",
+            "Starting server..." => "settings.mcp.card.status.starting_server",
+            "Authenticating..." => "settings.mcp.card.status.authenticating",
+            "Shutting down..." => "settings.mcp.card.status.shutting_down",
+            _ => return Some(status_line.to_owned()),
+        };
+        Some(crate::localization::text_for_app(app, key))
     }
 
     fn render_server_icon_and_status(&self, appearance: &Appearance) -> Box<dyn Element> {
@@ -481,7 +492,7 @@ impl ServerCardView {
 
         if tools.is_empty() {
             return Text::new(
-                localization::text_for_app(app, "settings.mcp.card.tools.none_available"),
+                crate::localization::text_for_app(app, "settings.mcp.card.tools.none_available"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -503,8 +514,7 @@ impl ServerCardView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
                     Text::new(
-                        localization::text_for_app(app, "settings.mcp.card.tools.available_count")
-                            .replace("{count}", &tools.len().to_string()),
+                        format!("{} tools available", tools.len()),
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
@@ -611,10 +621,7 @@ impl ServerCardView {
             ServerCardItemId::TemplatableMCP(template_uuid) => {
                 let cloud_server = CloudTemplatableMCPServer::get_by_uuid(&template_uuid, app);
                 if let Some(cloud_server) = cloud_server {
-                    lines.push(
-                        localization::text_for_app(app, "settings.mcp.card.debug.template_sync_id")
-                            .replace("{id}", &cloud_server.sync_id().to_string()),
-                    );
+                    lines.push(format!("Template sync id: {}", cloud_server.sync_id()));
                 }
             }
             ServerCardItemId::TemplatableMCPInstallation(installation_uuid) => {
@@ -624,32 +631,15 @@ impl ServerCardView {
                     let template_uuid = installation.template_uuid();
                     let gallery_uuid = installation.gallery_uuid();
                     let gallery_uuid_text = match gallery_uuid {
-                        Some(uuid) => {
-                            localization::text_for_app(app, "settings.mcp.card.debug.gallery_id")
-                                .replace("{id}", &uuid.to_string())
-                        }
-                        None => {
-                            localization::text_for_app(app, "settings.mcp.card.debug.gallery_id")
-                                .replace(
-                                    "{id}",
-                                    &localization::text_for_app(
-                                        app,
-                                        "settings.mcp.card.debug.none",
-                                    ),
-                                )
-                        }
+                        Some(uuid) => format!("Gallery Id: {uuid}"),
+                        None => "Gallery Id: None".to_string(),
                     };
                     let cloud_server = CloudTemplatableMCPServer::get_by_uuid(&template_uuid, app);
                     let template_sync_id_text = match cloud_server {
-                        Some(cloud_server) => localization::text_for_app(
-                            app,
-                            "settings.mcp.card.debug.template_sync_id",
-                        )
-                        .replace("{id}", &cloud_server.sync_id().to_string()),
-                        None => localization::text_for_app(
-                            app,
-                            "settings.mcp.card.debug.cloud_template_missing",
-                        ),
+                        Some(cloud_server) => {
+                            format!("Template sync id: {}", cloud_server.sync_id())
+                        }
+                        None => "Could not find cloud template".to_string(),
                     };
                     lines.push(format!(
                         "{}",
@@ -706,14 +696,11 @@ impl ServerCardView {
             );
         }
 
-        if let Some(status_line_key) = self.render_options.status_line_key {
+        if let Some(status_line) = self.localized_status_line(app) {
             info_column = info_column.with_child(
                 FormattedTextElement::new(
                     FormattedText::new([FormattedTextLine::Line(vec![
-                        FormattedTextFragment::plain_text(localization::text_for_app(
-                            app,
-                            status_line_key,
-                        )),
+                        FormattedTextFragment::plain_text(status_line),
                     ])]),
                     appearance.ui_builder().ui_font_size(),
                     appearance.ui_font_family(),
@@ -781,7 +768,10 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::Code1,
-                        localization::text_for_app(app, "settings.mcp.card.action.show_logs"),
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.mcp.card.action.show_logs",
+                        ),
                         self.mouse_handles.show_logs_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -796,7 +786,7 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::LogOut,
-                        localization::text_for_app(app, "settings.mcp.card.action.log_out"),
+                        crate::localization::text_for_app(app, "settings.mcp.card.action.log_out"),
                         self.mouse_handles.logout_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -811,7 +801,10 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::Share,
-                        localization::text_for_app(app, "settings.mcp.card.action.share_server"),
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.mcp.card.action.share_server",
+                        ),
                         self.mouse_handles.share_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -826,7 +819,7 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::Pencil,
-                        localization::text_for_app(app, "settings.mcp.card.action.edit"),
+                        crate::localization::text_for_app(app, "settings.mcp.card.action.edit"),
                         self.mouse_handles.edit_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -849,7 +842,7 @@ impl ServerCardView {
                     ButtonVariant::Secondary,
                     self.mouse_handles.view_logs_button.clone(),
                 )
-                .with_centered_text_label(localization::text_for_app(
+                .with_centered_text_label(crate::localization::text_for_app(
                     app,
                     "settings.mcp.card.action.view_logs",
                 ))
@@ -868,7 +861,7 @@ impl ServerCardView {
                     ButtonVariant::Accent,
                     self.mouse_handles.edit_config_button.clone(),
                 )
-                .with_centered_text_label(localization::text_for_app(
+                .with_centered_text_label(crate::localization::text_for_app(
                     app,
                     "settings.mcp.card.action.edit_config",
                 ))
@@ -887,7 +880,7 @@ impl ServerCardView {
                     ButtonVariant::Accent,
                     self.mouse_handles.setup_button.clone(),
                 )
-                .with_centered_text_label(localization::text_for_app(
+                .with_centered_text_label(crate::localization::text_for_app(
                     app,
                     "settings.mcp.card.action.set_up",
                 ))
@@ -942,7 +935,7 @@ impl ServerCardView {
             .build_icon_button(
                 appearance,
                 Icon::Refresh,
-                localization::text_for_app(app, "settings.mcp.card.action.update_available"),
+                crate::localization::text_for_app(app, "settings.mcp.card.action.update_available"),
                 self.mouse_handles.update_icon_button.clone(),
             )
             .on_click(move |ctx, _, _| {

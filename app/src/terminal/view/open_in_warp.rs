@@ -225,8 +225,11 @@ impl TerminalView {
                 match &self.inline_banners_state.open_in_warp_banner {
                     Some(banner_state) => {
                         ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                            localization::text_for_app(app, "terminal.open_in_warp.a11y.open_file")
-                                .replace("{path}", &banner_state.target.path.display().to_string()),
+                            localization::text_for_app_with_args(
+                                app,
+                                "terminal.open_in_warp.a11y.open_file",
+                                &[("path", &banner_state.target.path.display().to_string())],
+                            ),
                             WarpA11yRole::UserAction,
                         ))
                     }
@@ -241,7 +244,7 @@ impl TerminalView {
             }
             OpenInWarpBannerAction::LearnMore => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new(
-                    localization::text_for_app(app, "auth.learn_more"),
+                    localization::text_for_app(app, "common.learn_more"),
                     localization::text_for_app(app, "terminal.open_in_warp.a11y.learn_more"),
                     WarpA11yRole::UserAction,
                 ))

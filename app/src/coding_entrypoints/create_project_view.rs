@@ -29,22 +29,13 @@ pub struct CreateProjectView {
 
 struct BuildSuggestion {
     prompt_key: &'static str,
-    label_key: &'static str,
     mouse_state: MouseStateHandle,
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }
 
 impl CreateProjectView {
     pub fn new(is_ftux: bool, ctx: &mut ViewContext<Self>) -> Self {
-        let editor = ctx.add_typed_action_view(|ctx| {
-            GlowingEditor::new(
-                text(ctx, "coding_entrypoints.create_project.placeholder"),
-                ctx,
-            )
-        });
+        let editor =
+            ctx.add_typed_action_view(|ctx| GlowingEditor::new("What do you want to build?", ctx));
 
         ctx.subscribe_to_view(&editor, move |me, _, event, ctx| {
             me.handle_editor_event(event, ctx);
@@ -53,27 +44,22 @@ impl CreateProjectView {
         let suggestions = vec![
             BuildSuggestion {
                 prompt_key: "coding_entrypoints.create_project.suggestion.minesweeper.prompt",
-                label_key: "coding_entrypoints.create_project.suggestion.minesweeper",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
                 prompt_key: "coding_entrypoints.create_project.suggestion.node_quotes.prompt",
-                label_key: "coding_entrypoints.create_project.suggestion.node_quotes",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
                 prompt_key: "coding_entrypoints.create_project.suggestion.csv_to_json.prompt",
-                label_key: "coding_entrypoints.create_project.suggestion.csv_to_json",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
                 prompt_key: "coding_entrypoints.create_project.suggestion.resume_page.prompt",
-                label_key: "coding_entrypoints.create_project.suggestion.resume_page",
                 mouse_state: Default::default(),
             },
             BuildSuggestion {
                 prompt_key: "coding_entrypoints.create_project.suggestion.game_of_life.prompt",
-                label_key: "coding_entrypoints.create_project.suggestion.game_of_life",
                 mouse_state: Default::default(),
             },
         ];
@@ -137,8 +123,8 @@ impl CreateProjectView {
         let font_color = theme.sub_text_color(theme.background()).into_solid();
 
         let mouse_state = suggestion.mouse_state.clone();
-        let prompt = text(app, suggestion.prompt_key);
-        let label = text(app, suggestion.label_key);
+        let prompt = localization::text_for_app(app, suggestion.prompt_key);
+        let selected_prompt = prompt.clone();
 
         let row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -156,7 +142,7 @@ impl CreateProjectView {
                 .finish(),
                 Expanded::new(
                     1.,
-                    Text::new(label, font_family, font_size)
+                    Text::new(prompt, font_family, font_size)
                         .with_color(font_color)
                         .with_style(Properties::default().weight(Weight::Medium))
                         .soft_wrap(false)
@@ -179,7 +165,7 @@ impl CreateProjectView {
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| {
             ctx.dispatch_typed_action(CreateProjectAction::SuggestionSelected {
-                prompt: prompt.clone(),
+                prompt: selected_prompt.clone(),
             });
         })
         .finish()

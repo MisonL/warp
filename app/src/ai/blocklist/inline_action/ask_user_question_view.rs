@@ -10,16 +10,19 @@ use warp_core::ui::theme::WarpTheme;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
     Border, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, Expanded, Fill, Flex, FormattedTextElement, MainAxisAlignment,
-    MainAxisSize, MouseStateHandle, ParentElement, Radius, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
+    CrossAxisAlignment, Fill, Flex, FormattedTextElement, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, ParentElement, Point, Radius, Stack, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
 };
+use warpui::event::DispatchedEvent;
+use warpui::geometry::vector::Vector2F;
 use warpui::keymap::{FixedBinding, Keystroke};
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::ui_components::components::Coords;
 use warpui::units::Pixels;
 use warpui::{
-    AppContext, Element, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity,
-    TypedActionView, View, ViewContext, ViewHandle,
+    AfterLayoutContext, AppContext, Element, Entity, EntityId, EventContext, FocusContext,
+    LayoutContext, ModelHandle, PaintContext, SingletonEntity, SizeConstraint, TypedActionView,
+    View, ViewContext, ViewHandle,
 };
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -62,50 +65,14 @@ use crate::{localization, Appearance};
 const ASK_USER_QUESTION_ACTIVE: &str = "AskUserQuestionActive";
 
 pub(crate) const ASK_USER_QUESTION_AUTO_ADVANCE_DELAY: Duration = Duration::from_millis(300);
-pub(crate) const ASK_USER_QUESTION_MAX_CONTAINER_HEIGHT: f32 = 320.;
-pub(crate) const ASK_USER_QUESTION_OPTION_BUTTON_VERTICAL_SPACING: f32 = 4.;
+pub(crate) const ASK_USER_QUESTION_MAX_CONTAINER_HEIGHT: f32 = 520.;
+pub(crate) const ASK_USER_QUESTION_SINGLE_MAX_CONTAINER_HEIGHT: f32 = 800.;
+// Must match `MARGIN_BETWEEN_BUTTONS` in number_shortcut_buttons.rs so off-screen measurement
+// copies match the interactive option list's height.
+const ASK_USER_QUESTION_OPTION_BUTTON_VERTICAL_SPACING: f32 = 4.;
 pub(crate) const ASK_USER_QUESTION_TEXT_TOP_PADDING: f32 = 16.;
 pub(crate) const ASK_USER_QUESTION_TEXT_BOTTOM_PADDING: f32 = 8.;
 pub(crate) const ASK_USER_QUESTION_OPTIONS_BOTTOM_PADDING: f32 = 16.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
-
-fn ask_user_question_permission_label(
-    permission: &AskUserQuestionPermission,
-    app: &AppContext,
-) -> String {
-    let key = match permission {
-        AskUserQuestionPermission::Never => "settings.execution_profile.permission.never_ask",
-        AskUserQuestionPermission::AskExceptInAutoApprove | AskUserQuestionPermission::Unknown => {
-            "settings.execution_profile.permission.ask_unless_auto_approve"
-        }
-        AskUserQuestionPermission::AlwaysAsk => "settings.execution_profile.permission.always_ask",
-    };
-    text(app, key)
-}
-
-// Assumes single-line labels; wrapped text will be taller but the container
-// caps at ASK_USER_QUESTION_MAX_CONTAINER_HEIGHT and scrolls on overflow.
-fn estimated_min_height_for_all_options(max_option_count: usize, monospace_font_size: f32) -> f32 {
-    (max_option_count as f32 * (monospace_font_size + 16.))
-        + (max_option_count.saturating_sub(1) as f32
-            * ASK_USER_QUESTION_OPTION_BUTTON_VERTICAL_SPACING)
-        + ASK_USER_QUESTION_OPTIONS_BOTTOM_PADDING
-}
-
-fn ask_user_question_text_height(appearance: &Appearance, app: &AppContext) -> f32 {
-    app.font_cache().line_height(
-        appearance.monospace_font_size(),
-        appearance.line_height_ratio(),
-    ) + ASK_USER_QUESTION_TEXT_TOP_PADDING
-        + ASK_USER_QUESTION_TEXT_BOTTOM_PADDING
-}
 
 fn ask_user_question_header_height(appearance: &Appearance, app: &AppContext) -> f32 {
     let title_line_height = app.font_cache().line_height(
@@ -116,21 +83,6 @@ fn ask_user_question_header_height(appearance: &Appearance, app: &AppContext) ->
         .max(icon_size(app))
         .max(ButtonSize::InlineActionHeader.button_height(appearance, app))
         + (2. * INLINE_ACTION_HEADER_VERTICAL_PADDING)
-}
-
-fn ask_user_question_container_height(
-    max_option_count: usize,
-    appearance: &Appearance,
-    has_nav_footer: bool,
-    app: &AppContext,
-) -> f32 {
-    let mut natural_height = ask_user_question_header_height(appearance, app)
-        + ask_user_question_text_height(appearance, app)
-        + estimated_min_height_for_all_options(max_option_count, appearance.monospace_font_size());
-    if has_nav_footer {
-        natural_height += standard_message_bar_height(app) + 1.;
-    }
-    natural_height.min(ASK_USER_QUESTION_MAX_CONTAINER_HEIGHT)
 }
 
 fn ask_user_question_auto_advance_enabled(is_multiselect: bool, is_last_question: bool) -> bool {
@@ -425,6 +377,17 @@ impl AskUserQuestionSession {
         })
     }
 
+    /// Saved draft for the question at `index` (None when unanswered or not editing). Lets the
+    /// off-screen measurement copies reflect each question's real answer state, so a long saved
+    /// "Other..." answer is accounted for in the reserved height instead of resizing the card when
+    /// the user navigates back to that question.
+    fn draft_for_question(&self, index: usize) -> Option<&QuestionDraft> {
+        let AskUserQuestionState::Editing(editing) = &self.state else {
+            return None;
+        };
+        editing.draft_for_question(index)
+    }
+
     fn current_question_index(&self) -> usize {
         match &self.state {
             AskUserQuestionState::Editing(editing) => editing.current_question_index(),
@@ -439,14 +402,6 @@ impl AskUserQuestionSession {
             }
             AskUserQuestionState::Completed { .. } => false,
         }
-    }
-
-    fn max_option_count(&self) -> usize {
-        self.questions
-            .iter()
-            .map(AskUserQuestionItem::numbered_option_count)
-            .max()
-            .unwrap_or(1)
     }
 
     // Centralize all state transitions so the view layer only maps UI events to actions and then
@@ -786,7 +741,7 @@ impl AskUserQuestionView {
             ctx,
         );
         let skip_button = CompactibleActionButton::new(
-            localization::text_for_app(ctx, "agent.ask_user_question.action.skip_all"),
+            "Skip all".to_string(),
             Some(KeystrokeSource::Fixed(CTRL_C_KEYSTROKE.clone())),
             ButtonSize::InlineActionHeader,
             AskUserQuestionViewAction::SkipAll,
@@ -795,7 +750,7 @@ impl AskUserQuestionView {
             ctx,
         );
         let next_button = CompactibleActionButton::new(
-            localization::text_for_app(ctx, "agent.ask_user_question.action.next"),
+            "Next".to_string(),
             Some(KeystrokeSource::Fixed(
                 Keystroke::parse("enter").expect("keystroke should parse"),
             )),
@@ -892,10 +847,7 @@ impl AskUserQuestionView {
                 permissions
                     .into_iter()
                     .map(|p| {
-                        DropdownItem::new(
-                            ask_user_question_permission_label(&p, ctx),
-                            AskUserQuestionViewAction::SetPermission(p),
-                        )
+                        DropdownItem::new(p.label(), AskUserQuestionViewAction::SetPermission(p))
                     })
                     .collect(),
                 ctx,
@@ -919,8 +871,7 @@ impl AskUserQuestionView {
             .data()
             .ask_user_question;
         dropdown.update(ctx, |dropdown, ctx| {
-            dropdown
-                .set_selected_by_name(ask_user_question_permission_label(&permission, ctx), ctx);
+            dropdown.set_selected_by_name(permission.label(), ctx);
         });
     }
 
@@ -1008,7 +959,7 @@ impl AskUserQuestionView {
     fn build_question_buttons(
         current: Option<AskUserQuestionCurrent<'_>>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
-        ctx: &AppContext,
+        app: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let Some(current) = current else {
             return Vec::new();
@@ -1024,7 +975,7 @@ impl AskUserQuestionView {
                 *supports_other,
                 current.draft,
                 other_text_input,
-                ctx,
+                app,
             ),
         }
     }
@@ -1034,7 +985,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
-        ctx: &AppContext,
+        app: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let mut buttons = options
             .iter()
@@ -1061,7 +1012,7 @@ impl AskUserQuestionView {
             supports_other,
             draft,
             other_text_input,
-            ctx,
+            app,
         ) {
             buttons.push(other_button);
         }
@@ -1074,7 +1025,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
-        ctx: &AppContext,
+        app: &AppContext,
     ) -> Option<NumberShortcutButtonBuilder> {
         if !supports_other {
             return None;
@@ -1097,9 +1048,9 @@ impl AskUserQuestionView {
 
         Some(number_shortcut_buttons::numbered_shortcut_button(
             number,
-            accepted_text
-                .clone()
-                .unwrap_or_else(|| text(ctx, "agent.ask_user_question.other")),
+            accepted_text.clone().unwrap_or_else(|| {
+                localization::text_for_app(app, "agent.ask_user_question.other")
+            }),
             accepted_text.is_some(),
             false,
             true,
@@ -1297,20 +1248,23 @@ impl AskUserQuestionView {
     fn render_active(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>> {
         let theme = appearance.theme();
         let current = self.session.current()?;
-        let mut question_text = current.question.question.clone();
-        if current.question.is_multiselect() {
-            question_text.push_str(&text(app, "agent.ask_user_question.select_all_suffix"));
+        let question_text = Self::question_display_text(current.question, app);
+        let is_single_question = !self.session.has_multiple_questions();
+        let has_nav_footer = !is_single_question;
+
+        let max_height = if is_single_question {
+            ASK_USER_QUESTION_SINGLE_MAX_CONTAINER_HEIGHT
+        } else {
+            ASK_USER_QUESTION_MAX_CONTAINER_HEIGHT
+        };
+        let mut non_body_height = ask_user_question_header_height(appearance, app);
+        if has_nav_footer {
+            non_body_height += standard_message_bar_height(app) + 1.;
         }
-        let has_nav_footer = self.session.has_multiple_questions();
-        let container_height = ask_user_question_container_height(
-            self.session.max_option_count(),
-            appearance,
-            has_nav_footer,
-            app,
-        );
+        let body_max_height = (max_height - non_body_height).max(0.);
 
         let mut content = Flex::column()
-            .with_main_axis_size(MainAxisSize::Max)
+            .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
         let mut header_right = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
@@ -1329,12 +1283,33 @@ impl AskUserQuestionView {
             .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
             .render_header(app, Some(header_right.finish())),
         );
+
+        // The body sizes to its content, capped at `body_max_height` (scrolling beyond that). For
+        // multi-question cards we stack an off-screen, non-interactive measurement copy of every
+        // question behind the visible one. `Stack` sizes to its tallest child, so the card collapses
+        // to the height of the tallest question and stays fixed as the user navigates, rather than
+        // resizing per question (only the visible question can be measured directly otherwise).
+        let visible_body = self.render_question_body(&question_text, appearance, theme);
+        let body: Box<dyn Element> = if is_single_question {
+            visible_body
+        } else {
+            let mut stack = Stack::new();
+            for (index, question) in self.session.questions().iter().enumerate() {
+                stack.add_child(Self::render_measurement_body(
+                    question,
+                    self.session.draft_for_question(index),
+                    appearance,
+                    theme,
+                    app,
+                ));
+            }
+            stack.add_child(visible_body);
+            stack.finish()
+        };
         content.add_child(
-            Expanded::new(
-                1.,
-                self.render_question_body(&question_text, appearance, theme),
-            )
-            .finish(),
+            ConstrainedBox::new(body)
+                .with_max_height(body_max_height)
+                .finish(),
         );
 
         if has_nav_footer {
@@ -1345,7 +1320,7 @@ impl AskUserQuestionView {
         Some(
             wrap_with_content_item_spacing(
                 ConstrainedBox::new(content.finish())
-                    .with_height(container_height)
+                    .with_max_height(max_height)
                     .finish(),
             )
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
@@ -1473,8 +1448,8 @@ impl AskUserQuestionView {
             questions,
             answers,
             appearance,
-            has_speedbump_footer,
             app,
+            has_speedbump_footer,
         ));
         if let Some(footer) = speedbump_footer {
             wrapper.add_child(footer);
@@ -1494,7 +1469,7 @@ impl AskUserQuestionView {
         let theme = appearance.theme();
         let dropdown = self.speedbump_dropdown.as_ref()?;
         let row = render_autonomy_dropdown_setting_speedbump_footer(
-            text(app, "agent.ask_user_question.speedbump.allow_questions"),
+            localization::text_for_app(app, "agent.ask_user_question.speedbump.allow_questions"),
             dropdown,
             settings_link_handle,
             app,
@@ -1507,6 +1482,19 @@ impl AskUserQuestionView {
                 .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
                 .finish(),
         )
+    }
+
+    /// The question prompt as shown to the user, with the multiselect hint appended. Shared by the
+    /// live body and its measurement copies so both wrap at the same height.
+    fn question_display_text(question: &AskUserQuestionItem, app: &AppContext) -> String {
+        let mut text = question.question.clone();
+        if question.is_multiselect() {
+            text.push_str(&localization::text_for_app(
+                app,
+                "agent.ask_user_question.select_all_suffix",
+            ));
+        }
+        text
     }
 
     fn render_question_text(
@@ -1538,16 +1526,45 @@ impl AskUserQuestionView {
         appearance: &Appearance,
         theme: &WarpTheme,
     ) -> Box<dyn Element> {
-        let body = Flex::column()
-            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(Self::render_question_text(question_text, appearance, theme))
-            .with_child(self.render_options_list())
-            .finish();
+        Self::wrap_scrollable_body(
+            Self::render_question_text(question_text, appearance, theme),
+            self.render_options_list(),
+            self.options_scroll_state.clone(),
+            theme,
+        )
+    }
 
+    /// Stacks the question text above its options. Shared by the live body and its measurement
+    /// copies. `MainAxisSize::Min` keeps the column content-sized so the surrounding scrollable
+    /// reports the natural height (clamped to the cap) instead of filling the available space.
+    fn body_column(question_text: Box<dyn Element>, options: Box<dyn Element>) -> Box<dyn Element> {
+        Flex::column()
+            .with_main_axis_size(MainAxisSize::Min)
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(question_text)
+            .with_child(options)
+            .finish()
+    }
+
+    /// Applies the body's horizontal insets. Shared so the live body and its measurement copies
+    /// wrap text at exactly the same width.
+    fn with_body_insets(content: Box<dyn Element>) -> Box<dyn Element> {
+        Container::new(content)
+            .with_margin_left(INLINE_ACTION_HORIZONTAL_PADDING)
+            .with_margin_right(12.)
+            .finish()
+    }
+
+    fn wrap_scrollable_body(
+        question_text: Box<dyn Element>,
+        options: Box<dyn Element>,
+        scroll_state: ClippedScrollStateHandle,
+        theme: &WarpTheme,
+    ) -> Box<dyn Element> {
         let scrollable = warpui::elements::NewScrollable::vertical(
             SingleAxisConfig::Clipped {
-                handle: self.options_scroll_state.clone(),
-                child: body,
+                handle: scroll_state,
+                child: Self::body_column(question_text, options),
             },
             theme.nonactive_ui_detail().into(),
             theme.active_ui_detail().into(),
@@ -1555,9 +1572,59 @@ impl AskUserQuestionView {
         )
         .finish();
 
-        Container::new(Clipped::new(scrollable).finish())
-            .with_margin_left(INLINE_ACTION_HORIZONTAL_PADDING)
-            .with_margin_right(12.)
+        Self::with_body_insets(Clipped::new(scrollable).finish())
+    }
+
+    /// Builds a non-interactive, non-painted copy of a question's body purely for layout
+    /// measurement. It goes through the same `wrap_scrollable_body` wrapper as the live body so the
+    /// two measure identically once a question overflows (the scrollable affects wrapping and
+    /// clamping); `MeasureOnly` keeps it off-screen and inert. The question's saved `draft` is
+    /// passed through so the copy reflects its real answer state (e.g. a long custom "Other..."
+    /// answer) and the card stays a fixed height across navigation.
+    fn render_measurement_body(
+        question: &AskUserQuestionItem,
+        draft: Option<&QuestionDraft>,
+        appearance: &Appearance,
+        theme: &WarpTheme,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let current = AskUserQuestionCurrent { question, draft };
+        let body = Self::wrap_scrollable_body(
+            Self::render_question_text(
+                &Self::question_display_text(question, app),
+                appearance,
+                theme,
+            ),
+            Self::render_static_options(current, app),
+            ClippedScrollStateHandle::new(),
+            theme,
+        );
+        MeasureOnly::new(body).finish()
+    }
+
+    /// Renders a question's option buttons as static, non-interactive elements matching the live
+    /// `NumberShortcutButtons` layout. Used only for measurement copies.
+    fn render_static_options(
+        current: AskUserQuestionCurrent<'_>,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let builders = Self::build_question_buttons(Some(current), None, app);
+        let button_count = builders.len();
+        let mut options = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+        for (index, builder) in builders.iter().enumerate() {
+            let margin_bottom = if index + 1 == button_count {
+                0.
+            } else {
+                ASK_USER_QUESTION_OPTION_BUTTON_VERTICAL_SPACING
+            };
+            options.add_child(
+                Container::new(builder.build_measurement_element(app))
+                    .with_margin_bottom(margin_bottom)
+                    .finish(),
+            );
+        }
+        Container::new(options.finish())
+            .with_padding_bottom(ASK_USER_QUESTION_OPTIONS_BOTTOM_PADDING)
             .finish()
     }
 
@@ -1581,13 +1648,7 @@ impl AskUserQuestionView {
 
         let nav_message = Message::new(vec![
             MessageItem::clickable(
-                vec![
-                    MessageItem::keystroke(left_key),
-                    MessageItem::text(localization::text_for_app(
-                        app,
-                        "agent.ask_user_question.nav.prev",
-                    )),
-                ],
+                vec![MessageItem::keystroke(left_key), MessageItem::text("prev")],
                 |ctx| {
                     ctx.dispatch_typed_action(AskUserQuestionViewAction::NavigatePrev);
                 },
@@ -1595,13 +1656,7 @@ impl AskUserQuestionView {
             ),
             MessageItem::text(" / "),
             MessageItem::clickable(
-                vec![
-                    MessageItem::keystroke(right_key),
-                    MessageItem::text(localization::text_for_app(
-                        app,
-                        "agent.ask_user_question.nav.next",
-                    )),
-                ],
+                vec![MessageItem::keystroke(right_key), MessageItem::text("next")],
                 |ctx| {
                     ctx.dispatch_typed_action(AskUserQuestionViewAction::NavigateNext);
                 },
@@ -1794,23 +1849,27 @@ fn ask_user_question_completion_state(
     } else {
         let label = if answered_count == total {
             if total == 1 {
-                text(app, "agent.ask_user_question.status.answered_one")
+                localization::text_for_app(app, "agent.ask_user_question.status.answered_one")
             } else {
-                text_with_args(
+                localization::text_for_app_with_args(
                     app,
                     "agent.ask_user_question.status.answered_all",
                     &[("total", &total.to_string())],
                 )
             }
-        } else {
-            let key = if total == 1 {
-                "agent.ask_user_question.status.answered_count_singular"
-            } else {
-                "agent.ask_user_question.status.answered_count_plural"
-            };
-            text_with_args(
+        } else if total == 1 {
+            localization::text_for_app_with_args(
                 app,
-                key,
+                "agent.ask_user_question.status.answered_count_singular",
+                &[
+                    ("answered_count", &answered_count.to_string()),
+                    ("total", &total.to_string()),
+                ],
+            )
+        } else {
+            localization::text_for_app_with_args(
+                app,
+                "agent.ask_user_question.status.answered_count_plural",
                 &[
                     ("answered_count", &answered_count.to_string()),
                     ("total", &total.to_string()),
@@ -1828,8 +1887,8 @@ fn render_answers(
     questions: &[AskUserQuestionItem],
     answers: Option<&[AskUserQuestionAnswerItem]>,
     appearance: &Appearance,
-    flatten_bottom: bool,
     app: &AppContext,
+    flatten_bottom: bool,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let font_size = appearance.monospace_font_size();
@@ -1839,25 +1898,21 @@ fn render_answers(
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     for (index, question) in questions.iter().enumerate() {
         let answer = answers.and_then(|answers| answers.get(index));
-        let question_text = format!(
-            "{} {}",
-            text(app, "agent.ask_user_question.summary.question_prefix"),
-            question.question
-        );
+        let question_prefix =
+            localization::text_for_app(app, "agent.ask_user_question.summary.question_prefix");
+        let question_text = format!("{question_prefix} {}", question.question);
         let question_label =
             render_text_with_markdown_support(&question_text, font_size, text_color, appearance);
-        let answer_display = answer
-            .map(|answer| {
-                answer.display_text_with_labels(
-                    &text(app, "agent.ask_user_question.summary.other"),
-                    &text(app, "agent.ask_user_question.summary.skipped"),
-                )
-            })
-            .unwrap_or_else(|| text(app, "agent.ask_user_question.summary.skipped"));
+        let answer_prefix =
+            localization::text_for_app(app, "agent.ask_user_question.summary.answer_prefix");
+        let other_label = localization::text_for_app(app, "agent.ask_user_question.summary.other");
+        let skipped_label =
+            localization::text_for_app(app, "agent.ask_user_question.summary.skipped");
         let answer_text = format!(
-            "{} {}",
-            text(app, "agent.ask_user_question.summary.answer_prefix"),
-            answer_display
+            "{answer_prefix} {}",
+            answer
+                .map(|answer| answer.display_text_with_labels(&other_label, &skipped_label))
+                .unwrap_or(skipped_label)
         );
         let answer_label =
             render_text_with_markdown_support(&answer_text, font_size, muted_color, appearance);
@@ -1922,6 +1977,58 @@ pub(crate) fn render_text_with_markdown_support(
             .soft_wrap(true)
             .with_color(text_color)
             .finish()
+    }
+}
+
+/// An element that lays out its child—so the child contributes to sizing—but never paints it or
+/// routes events to it, clamping the reported size to the incoming constraint. Combined with
+/// `Stack`, this lets a multi-question card measure off-screen copies of every question and size to
+/// the tallest one, without showing or interacting with them.
+struct MeasureOnly {
+    child: Box<dyn Element>,
+}
+
+impl MeasureOnly {
+    fn new(child: Box<dyn Element>) -> Self {
+        Self { child }
+    }
+}
+
+impl Element for MeasureOnly {
+    fn layout(
+        &mut self,
+        constraint: SizeConstraint,
+        ctx: &mut LayoutContext,
+        app: &AppContext,
+    ) -> Vector2F {
+        // Clamp to the incoming constraint so an over-tall copy can't push the `Stack` past the
+        // available height (the copy has no scrollable of its own to do this clamping).
+        self.child.layout(constraint, ctx, app).min(constraint.max)
+    }
+
+    fn after_layout(&mut self, _ctx: &mut AfterLayoutContext, _app: &AppContext) {
+        // Measurement-only: the child is never painted, so there is nothing to register here.
+    }
+
+    fn paint(&mut self, _origin: Vector2F, _ctx: &mut PaintContext, _app: &AppContext) {
+        // Intentionally not painted.
+    }
+
+    fn size(&self) -> Option<Vector2F> {
+        self.child.size()
+    }
+
+    fn origin(&self) -> Option<Point> {
+        None
+    }
+
+    fn dispatch_event(
+        &mut self,
+        _event: &DispatchedEvent,
+        _ctx: &mut EventContext,
+        _app: &AppContext,
+    ) -> bool {
+        false
     }
 }
 

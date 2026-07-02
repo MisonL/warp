@@ -1,6 +1,5 @@
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
-use warp_localization::replace_placeholders;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, Highlight, Icon, MainAxisAlignment,
     MainAxisSize, ParentElement, Text,
@@ -23,24 +22,31 @@ const ENV_VAR_COLLECTION_ICON_PATH: &str = "bundled/svg/env-var-collection.svg";
 pub struct EnvVarCollectionSearchItem {
     pub env_var_collection: CloudEnvVarCollection,
     pub fuzzy_matched_env_var_collection: FuzzyMatchEnvVarCollectionResult,
-    pub untitled_fallback: String,
-    pub accessibility_label_template: String,
 }
 
 impl EnvVarCollectionSearchItem {
-    fn title(&self) -> String {
-        self.env_var_collection
-            .model()
-            .string_model
+    fn title_for_app(&self, app: &AppContext) -> String {
+        let env_var_collection = self.env_var_collection.model().string_model.clone();
+        env_var_collection
             .title
             .clone()
-            .unwrap_or_else(|| self.untitled_fallback.clone())
+            .unwrap_or_else(|| crate::localization::text_for_app(app, "env_vars.title.untitled"))
     }
 
-    fn render_name(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn title_fallback(&self) -> String {
+        let env_var_collection = self.env_var_collection.model().string_model.clone();
+        env_var_collection.title.clone().unwrap_or_else(|| {
+            crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "env_vars.title.untitled",
+            )
+        })
+    }
+
+    fn render_name(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .wrappable_text(self.title(), true)
+            .wrappable_text(self.title_for_app(app), true)
             .with_style(UiComponentStyles {
                 font_family_id: Some(appearance.ui_font_family()),
                 font_color: Some(
@@ -92,7 +98,7 @@ impl SearchItem for EnvVarCollectionSearchItem {
         let appearance = Appearance::as_ref(app);
 
         let mut title_text = Text::new_inline(
-            self.title(),
+            self.title_for_app(app),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -148,7 +154,7 @@ impl SearchItem for EnvVarCollectionSearchItem {
         let mut flex_column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(
-                Container::new(self.render_name(appearance))
+                Container::new(self.render_name(appearance, ctx))
                     .with_margin_bottom(16.)
                     .finish(),
             );
@@ -213,11 +219,19 @@ impl SearchItem for EnvVarCollectionSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        replace_placeholders(
-            &self.accessibility_label_template,
-            &[("title", &self.title())],
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.env_var_collection.a11y.label",
+            &[("title", &self.title_fallback())],
         )
-        .expect("env var collection accessibility label template must use title")
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.env_var_collection.a11y.label",
+            &[("title", &self.title_for_app(app))],
+        )
     }
 }
 

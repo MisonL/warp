@@ -79,7 +79,7 @@ fn test_random() {
             if rng.gen_ratio(1, 5) {
                 string.push('\n');
             } else {
-                string.push(rng.r#gen());
+                string.push(rng.gen());
             }
         }
         let text = Text::from(string.clone());

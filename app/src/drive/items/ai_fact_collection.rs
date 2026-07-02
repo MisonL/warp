@@ -48,7 +48,7 @@ impl WarpDriveItem for WarpDriveAIFactCollection {
         Some(DriveIndexAction::OpenAIFactCollection)
     }
 
-    fn preview(&self, _appearance: &Appearance, _app: &AppContext) -> Option<Box<dyn Element>> {
+    fn preview(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
         None
     }
 

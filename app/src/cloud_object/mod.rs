@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use derivative::Derivative;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -33,6 +33,7 @@ use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId};
 use crate::server::server_api::object::ObjectClient;
 use crate::server::sync_queue::{QueueItem, SerializedModel};
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 use crate::workflows::{CloudWorkflow, WorkflowSource};
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -916,20 +917,22 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
             .map(|r| localized_approx_duration_from_now_utc(app, r.utc()));
 
         let full_string = match (editor_string, time_ago_string) {
-            (Some(name), Some(time)) if name.is_empty() => localization::text_for_app_with_args(
-                app,
-                "cloud_object.semantic.edited",
-                &[("time", &time)],
-            ),
-            (Some(name), Some(time)) => localization::text_for_app_with_args(
+            (Some(name), Some(time_ago)) if name.is_empty() => {
+                localization::text_for_app_with_args(
+                    app,
+                    "cloud_object.semantic.edited",
+                    &[("time", &time_ago)],
+                )
+            }
+            (Some(name), Some(time_ago)) => localization::text_for_app_with_args(
                 app,
                 "cloud_object.semantic.edited_by",
-                &[("name", &name), ("time", &time)],
+                &[("name", &name), ("time", &time_ago)],
             ),
-            (None, Some(time)) => localization::text_for_app_with_args(
+            (None, Some(time_ago)) => localization::text_for_app_with_args(
                 app,
                 "cloud_object.semantic.edited",
-                &[("time", &time)],
+                &[("time", &time_ago)],
             ),
             (Some(name), None) => localization::text_for_app_with_args(
                 app,
@@ -977,50 +980,6 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
             None
         }
     }
-}
-
-const SEC_TO_MS: f64 = 1000.;
-const MIN_TO_MS: f64 = 60. * SEC_TO_MS;
-const HOUR_TO_MS: f64 = 60. * MIN_TO_MS;
-const DAY_TO_MS: f64 = 24. * HOUR_TO_MS;
-const WEEK_TO_MS: f64 = 7. * DAY_TO_MS;
-const MONTH_TO_MS: f64 = 30.44 * DAY_TO_MS;
-const YEAR_TO_MS: f64 = 365.25 * DAY_TO_MS;
-
-fn localized_approx_duration_from_now_utc(app: &AppContext, datetime: DateTime<Utc>) -> String {
-    let ms = Utc::now()
-        .signed_duration_since(datetime)
-        .num_milliseconds() as f64;
-
-    for (threshold, unit) in [
-        (YEAR_TO_MS, "year"),
-        (MONTH_TO_MS, "month"),
-        (WEEK_TO_MS, "week"),
-        (DAY_TO_MS, "day"),
-        (HOUR_TO_MS, "hour"),
-    ] {
-        let value = ms / threshold;
-        if value >= 1. {
-            return localized_time_quantity(app, value as i32, unit);
-        }
-    }
-
-    let minutes = ms / MIN_TO_MS;
-    if minutes >= 1. {
-        return localization::text_for_app_with_args(
-            app,
-            "cloud_object.time.minute",
-            &[("count", &(minutes as i32).to_string())],
-        );
-    }
-
-    localization::text_for_app(app, "cloud_object.time.just_now")
-}
-
-fn localized_time_quantity(app: &AppContext, count: i32, unit: &str) -> String {
-    let suffix = if count == 1 { "one" } else { "many" };
-    let key = format!("cloud_object.time.{unit}_{suffix}");
-    localization::text_for_app_with_args(app, &key, &[("count", &count.to_string())])
 }
 
 /// Helper function to retrieve trashed_ts of top level folder given a folder_id of an object.

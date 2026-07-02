@@ -13,6 +13,7 @@ pub(crate) use driver::harness::{task_env_vars, validate_cli_installed, ClaudeHa
 pub use driver::AgentDriver;
 use driver::AgentDriverError;
 use telemetry::CliTelemetryEvent;
+use tracing::Instrument as _;
 use warp_cli::agent::{
     AgentCommand, AgentProfileCommand, Harness, OutputFormat, Prompt, RunAgentArgs,
 };
@@ -67,7 +68,7 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::CloudObjectLookup as _;
 use crate::send_telemetry_sync_from_app_ctx;
 use crate::server::ids::{ServerId, SyncId};
-use crate::server::server_api::ai::{AIClient, AgentConfigSnapshot};
+use crate::server::server_api::ai::{AIClient, AgentConfigSnapshot, GitCredential};
 use crate::server::server_api::ServerApiProvider;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::workflows::workflow::Workflow;
@@ -105,6 +106,19 @@ mod telemetry;
 mod test_support;
 mod text_layout;
 
+fn default_text(key: &str) -> String {
+    crate::localization::text_for_locale(LocaleId::EnUs, key)
+}
+
+fn default_text_with_args(key: &str, args: &[(&str, &str)]) -> String {
+    replace_placeholders(&default_text(key), args)
+        .expect("localized text template arguments must match the catalog")
+}
+
+fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    crate::localization::text_for_app_with_args(app, key, args)
+}
+
 /// Prints a non-blocking warning to stderr when the CLI is invoked with a team-scoped API key.
 fn maybe_warn_team_api_key(ctx: &AppContext) {
     let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
@@ -114,12 +128,13 @@ fn maybe_warn_team_api_key(ctx: &AppContext) {
     }
 
     eprintln!(
-        "\x1b[33m{}\x1b[0m",
-        text(ctx, "agent_sdk.cli.warning.team_api_key_free_credits")
+        "\x1b[33mWarning: Free cloud credits apply to personal runs only but this run uses \
+         a team API key. If you want to use free cloud credits, consider using a personal API key instead.\x1b[0m"
     );
 }
 
 /// Run a Warp CLI command.
+#[tracing::instrument(name = "agent_sdk::run", skip_all, err, fields(tags.cloud_agent = true))]
 pub fn run(
     ctx: &mut AppContext,
     command: CliCommand,
@@ -141,7 +156,7 @@ fn dispatch_command(
         CliCommand::Agent(agent_cmd) => run_agent(ctx, global_options, agent_cmd),
         CliCommand::Environment(environment_cmd) => {
             if !FeatureFlag::CloudEnvironments.is_enabled() {
-                return Err(invalid_value_error("environment"));
+                return Err(anyhow::anyhow!("invalid value 'environment'"));
             }
             environment::run(ctx, global_options, environment_cmd)
         }
@@ -153,108 +168,90 @@ fn dispatch_command(
         CliCommand::Whoami => admin::whoami(ctx, global_options.output_format),
         CliCommand::Provider(provider_cmd) => {
             if !FeatureFlag::ProviderCommand.is_enabled() {
-                return Err(invalid_value_error("provider"));
+                return Err(anyhow::anyhow!("invalid value 'provider'"));
             }
             provider::run(ctx, global_options, provider_cmd)
         }
         #[cfg(not(target_family = "wasm"))]
         CliCommand::Integration(integration_cmd) => {
             if !FeatureFlag::IntegrationCommand.is_enabled() {
-                return Err(invalid_value_error("integration"));
+                return Err(anyhow::anyhow!("invalid value 'integration'"));
             }
             integration::run(ctx, global_options, integration_cmd)
         }
         #[cfg(target_family = "wasm")]
         CliCommand::Integration(_) => {
-            return Err(invalid_value_error("integration"));
+            return Err(anyhow::anyhow!("invalid value 'integration'"));
         }
         CliCommand::Schedule(schedule_cmd) => {
             if !FeatureFlag::ScheduledAmbientAgents.is_enabled() {
-                return Err(invalid_value_error("schedule"));
+                return Err(anyhow::anyhow!("invalid value 'schedule'"));
             }
             schedule::run(ctx, global_options, schedule_cmd)
         }
         CliCommand::Secret(secret_cmd) => {
             if !FeatureFlag::WarpManagedSecrets.is_enabled() {
-                return Err(invalid_value_error("secret"));
+                return Err(anyhow::anyhow!("invalid value 'secret'"));
             }
             secret::run(ctx, global_options, secret_cmd)
         }
         CliCommand::Federate(federate_cmd) => {
             if !FeatureFlag::OzIdentityFederation.is_enabled() {
-                return Err(invalid_value_error("federate"));
+                return Err(anyhow::anyhow!("invalid value 'federate'"));
             }
             federate::run(ctx, global_options, federate_cmd)
         }
         CliCommand::HarnessSupport(args) => {
             if !FeatureFlag::AgentHarness.is_enabled() {
-                return Err(invalid_value_error("harness-support"));
+                return Err(anyhow::anyhow!("invalid value 'harness-support'"));
             }
             harness_support::run(ctx, global_options, args)
         }
         CliCommand::Artifact(artifact_cmd) => {
             if !FeatureFlag::ArtifactCommand.is_enabled() {
-                return Err(invalid_value_error("artifact"));
+                return Err(anyhow::anyhow!("invalid value 'artifact'"));
             }
             artifact::run(ctx, global_options, artifact_cmd)
         }
         CliCommand::ApiKey(api_key_cmd) => {
             if !FeatureFlag::APIKeyManagement.is_enabled() {
-                return Err(invalid_value_error("api-key"));
+                return Err(anyhow::anyhow!("invalid value 'api-key'"));
             }
             api_key::run(ctx, global_options, api_key_cmd)
         }
     }
 }
 
-fn invalid_value_error(value: &str) -> anyhow::Error {
-    anyhow::anyhow!(default_text_with_args(
-        "agent_sdk.cli.error.invalid_value",
-        &[("value", value)]
-    ))
-}
-
-fn unexpected_argument_error(argument: &str) -> anyhow::Error {
-    anyhow::anyhow!(default_text_with_args(
-        "agent_sdk.cli.error.unexpected_argument",
-        &[("argument", argument)]
-    ))
-}
-
 fn format_skill_resolution_error(err: ResolveSkillError) -> String {
     match err {
         ResolveSkillError::NotFound { skill } => {
-            default_text_with_args("agent_sdk.skill.error.not_found", &[("skill", &skill)])
+            format!("Skill '{skill}' not found")
         }
         ResolveSkillError::RepoNotFound { repo } => {
-            default_text_with_args("agent_sdk.skill.error.repo_not_found", &[("repo", &repo)])
+            format!("Repository '{repo}' not found")
         }
         ResolveSkillError::Ambiguous { skill, candidates } => {
-            let mut candidate_text = String::new();
+            let mut msg = format!(
+                "Skill '{skill}' is ambiguous; specify as repo:skill_name\n\nCandidates:\n"
+            );
             for path in candidates {
-                candidate_text.push_str(&format!("- {}\n", path.display()));
+                msg.push_str(&format!("- {}\n", path.display()));
             }
-            default_text_with_args(
-                "agent_sdk.skill.error.ambiguous",
-                &[("skill", &skill), ("candidates", &candidate_text)],
-            )
+            msg
         }
         ResolveSkillError::OrgMismatch {
             repo,
             expected,
             found,
-        } => default_text_with_args(
-            "agent_sdk.skill.error.org_mismatch",
-            &[("repo", &repo), ("found", &found), ("expected", &expected)],
-        ),
-        ResolveSkillError::ParseFailed { path, message } => default_text_with_args(
-            "agent_sdk.skill.error.parse_failed",
-            &[("path", &path.display().to_string()), ("message", &message)],
-        ),
-        ResolveSkillError::CloneFailed { org, repo, message } => default_text_with_args(
-            "agent_sdk.skill.error.clone_failed",
-            &[("org", &org), ("repo", &repo), ("message", &message)],
-        ),
+        } => {
+            format!("Repository '{repo}' found but belongs to org '{found}', expected '{expected}'")
+        }
+        ResolveSkillError::ParseFailed { path, message } => {
+            format!("Failed to parse skill file {}: {message}", path.display())
+        }
+        ResolveSkillError::CloneFailed { org, repo, message } => {
+            format!("Failed to clone repository '{org}/{repo}': {message}")
+        }
     }
 }
 
@@ -267,21 +264,23 @@ fn run_agent(
     match command {
         AgentCommand::Run(args) => {
             if args.environment.is_some() && !FeatureFlag::CloudEnvironments.is_enabled() {
-                return Err(unexpected_argument_error("--environment"));
+                return Err(anyhow::anyhow!("unexpected argument '--environment' found"));
             }
             if args.conversation.is_some() && !FeatureFlag::CloudConversations.is_enabled() {
-                return Err(unexpected_argument_error("--conversation"));
+                return Err(anyhow::anyhow!(
+                    "unexpected argument '--conversation' found"
+                ));
             }
             if args.skill.is_some() && !FeatureFlag::OzPlatformSkills.is_enabled() {
-                return Err(unexpected_argument_error("--skill"));
+                return Err(anyhow::anyhow!("unexpected argument '--skill' found"));
             }
             if args.harness != Harness::Oz && !FeatureFlag::AgentHarness.is_enabled() {
-                return Err(unexpected_argument_error("--harness"));
+                return Err(anyhow::anyhow!("unexpected argument '--harness' found"));
             }
             if args.harness == Harness::OpenCode {
-                return Err(anyhow::anyhow!(default_text(
-                    "agent_sdk.cli.error.opencode_local_only"
-                )));
+                return Err(anyhow::anyhow!(
+                    "The opencode harness is only supported for local child agent launches."
+                ));
             }
 
             let server_api = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
@@ -314,18 +313,20 @@ fn run_agent(
             if args.environment.environment.is_some()
                 && !FeatureFlag::CloudEnvironments.is_enabled()
             {
-                return Err(unexpected_argument_error("--environment"));
+                return Err(anyhow::anyhow!("unexpected argument '--environment' found"));
             }
             if args.conversation.is_some() && !FeatureFlag::CloudConversations.is_enabled() {
-                return Err(unexpected_argument_error("--conversation"));
+                return Err(anyhow::anyhow!(
+                    "unexpected argument '--conversation' found"
+                ));
             }
             if args.harness != Harness::Oz && !FeatureFlag::AgentHarness.is_enabled() {
-                return Err(unexpected_argument_error("--harness"));
+                return Err(anyhow::anyhow!("unexpected argument '--harness' found"));
             }
             if args.claude_auth_secret.is_some() && args.harness != Harness::Claude {
-                return Err(anyhow::anyhow!(default_text(
-                    "agent_sdk.cli.error.claude_auth_secret_requires_claude"
-                )));
+                return Err(anyhow::anyhow!(
+                    "--claude-auth-secret is only valid with --harness claude."
+                ));
             }
             ambient::run_ambient_agent(ctx, args)
         }
@@ -611,12 +612,18 @@ impl warpui::Entity for AgentDriverRunner {
 impl warpui::SingletonEntity for AgentDriverRunner {}
 
 impl AgentDriverRunner {
+    #[tracing::instrument(skip_all, err, fields(
+        tags.cloud_agent = true,
+        args.sandboxed = args.sandboxed,
+        args.computer_use = args.computer_use.computer_use,
+        args.no_computer_use = args.computer_use.no_computer_use
+    ))]
     async fn setup_and_run_driver(
         foreground: ModelSpawner<Self>,
         args: RunAgentArgs,
         server_api: Arc<dyn AIClient>,
         output_format: OutputFormat,
-        locale: LocaleId,
+        _locale: LocaleId,
     ) -> Result<(), AgentDriverError> {
         // Extract the task ID as early as possible for best-effort setup observability.
         // Local CLI-created runs may not have a task yet, so those setup events explicitly no-op.
@@ -756,7 +763,7 @@ impl AgentDriverRunner {
             }
 
             if let Some(task_id) = driver_options.task_id {
-                driver::write_run_started(&task_id.to_string(), output_format, locale);
+                driver::write_run_started(&task_id.to_string(), output_format);
             }
 
             // Pull conversation information, if we have it
@@ -827,6 +834,99 @@ impl AgentDriverRunner {
         Ok(())
     }
 
+    async fn fetch_task_git_credentials(
+        task_id_str: String,
+        ai_client: Arc<dyn AIClient>,
+    ) -> anyhow::Result<Vec<GitCredential>> {
+        let workload_token = warp_isolation_platform::issue_workload_token(Some(
+            std::time::Duration::from_secs(5 * 60),
+        ))
+        .await?
+        .token;
+        ai_client
+            .get_task_git_credentials(task_id_str, workload_token)
+            .await
+    }
+
+    async fn bootstrap_git_credentials_for_task(
+        foreground: &ModelSpawner<Self>,
+        task_id_str: &str,
+        args: &RunAgentArgs,
+    ) -> Result<(), AgentDriverError> {
+        if warp_isolation_platform::detect().is_none() && args.configure_git_credentials_with_github
+        {
+            foreground
+                .spawn(|_, _| {
+                    command::blocking::Command::new("gh")
+                        .args(["auth", "setup-git"])
+                        .spawn()
+                        .map_err(|err| {
+                            AgentDriverError::ConfigBuildFailed(anyhow::anyhow!(
+                                "gh auth setup-git failed: {err:?}"
+                            ))
+                        })
+                })
+                .await?
+                .map(|_| ())?;
+            return Ok(());
+        }
+
+        if !FeatureFlag::GitCredentialRefresh.is_enabled() {
+            return Ok(());
+        }
+
+        if task_id_str.parse::<AmbientAgentTaskId>().is_err() {
+            log::debug!(
+                "Skipping git credentials bootstrap: could not parse task ID '{task_id_str}'"
+            );
+            return Ok(());
+        }
+
+        let (ai_client, task_id_str) = foreground
+            .spawn({
+                let task_id_str = task_id_str.to_string();
+                move |_, ctx| {
+                    let ai_client = ServerApiProvider::handle(ctx)
+                        .as_ref(ctx)
+                        .get_ai_client()
+                        .clone();
+                    (ai_client, task_id_str)
+                }
+            })
+            .await?;
+
+        let credentials = match Self::fetch_task_git_credentials(task_id_str, ai_client).await {
+            Ok(credentials) => credentials,
+            Err(err)
+                if err
+                    .downcast_ref::<IsolationPlatformError>()
+                    .is_some_and(|err| {
+                        matches!(err, IsolationPlatformError::NoIsolationPlatformDetected)
+                    }) =>
+            {
+                log::debug!("Skipping git credentials bootstrap: {err}");
+                return Ok(());
+            }
+            Err(err) => {
+                return Err(AgentDriverError::SkillResolutionFailed(format!(
+                    "Failed to fetch git credentials before skill resolution: {err:#}"
+                )));
+            }
+        };
+        if credentials.is_empty() {
+            log::debug!("No git credentials returned before skill resolution");
+            return Ok(());
+        }
+
+        driver::git_credentials::configure_git_credentials(&credentials).map_err(|err| {
+            AgentDriverError::SkillResolutionFailed(format!(
+                "Failed to write git credentials before skill resolution: {err:#}"
+            ))
+        })?;
+        log::info!("Git credentials configured before task setup");
+        Ok(())
+    }
+
     /// Resolve the skill spec from args, if one was provided.
     ///
     /// In sandboxed mode with a fully-qualified spec (org + repo), the repo is
@@ -893,18 +993,15 @@ impl AgentDriverRunner {
     ) -> Result<(AgentDriverOptions, Task, Option<String>), AgentDriverError> {
         // Get the working directory
         let working_dir = match args.cwd.as_ref() {
-            Some(dir) => dunce::canonicalize(dir).with_context(|| {
-                default_text_with_args(
-                    "agent_sdk.cli.error.resolve_working_directory",
-                    &[("path", &dir.display().to_string())],
-                )
-            }),
-            None => std::env::current_dir().context(default_text(
-                "agent_sdk.cli.error.determine_working_directory",
-            )),
+            Some(dir) => dunce::canonicalize(dir)
+                .with_context(|| format!("Unable to resolve {}", dir.display())),
+            None => std::env::current_dir().context("Unable to determine working directory"),
         }
         .map_err(AgentDriverError::ConfigBuildFailed)?;
 
+        if let Some(task_id_str) = args.task_id.as_ref() {
+            Self::bootstrap_git_credentials_for_task(foreground, task_id_str, &args).await?;
+        }
         // Resolve the skill, if we have one
         let resolved_skill =
             Self::resolve_skill(foreground, &args, &working_dir, setup_events).await?;
@@ -951,6 +1048,8 @@ impl AgentDriverRunner {
                         .snapshot_script_timeout
                         .map(|duration| duration.into()),
                     skip_initial_turn: args.skip_initial_turn,
+                    strict_mcp_startup: args.strict_mcp_startup,
+                    mcp_startup_timeout: args.mcp_startup_timeout.map(|duration| duration.into()),
                 };
 
                 Ok((merged_config, task, driver_options))
@@ -1130,38 +1229,7 @@ impl AgentDriverRunner {
             .await
         };
 
-        // Fetch a fresh GitHub token from the server so the driver can configure git
-        // and gh credentials without relying on environment variable injection.
-        let git_creds_ai_client = ai_client.clone();
-        let git_creds_task_id = task_id_str.clone();
-        let git_credentials = async move {
-            if !FeatureFlag::GitCredentialRefresh.is_enabled() {
-                return Ok(vec![]);
-            }
-            let workload_token = match warp_isolation_platform::issue_workload_token(Some(
-                std::time::Duration::from_secs(5 * 60),
-            ))
-            .await
-            {
-                Ok(token) => token.token,
-                Err(e) => {
-                    // Not in an isolated environment — no workload token available.
-                    log::debug!("Skipping git credentials fetch: {e}");
-                    return Ok(vec![]);
-                }
-            };
-            git_creds_ai_client
-                .get_task_git_credentials(git_creds_task_id, workload_token)
-                .await
-        };
-
-        let (
-            secrets_result,
-            attachments_result,
-            task_metadata_result,
-            handoff_snapshot_result,
-            git_credentials_result,
-        ) = futures::join!(
+        let (secrets_result, attachments_result, task_metadata_result, handoff_snapshot_result) = futures::join!(
             task_secrets,
             driver::attachments::fetch_and_download_attachments(
                 ai_client.clone(),
@@ -1171,7 +1239,6 @@ impl AgentDriverRunner {
             ),
             task_metadata,
             handoff_snapshot,
-            git_credentials,
         );
 
         // Extract attachments_dir from successful result, log errors
@@ -1192,26 +1259,6 @@ impl AgentDriverRunner {
             Ok(None) => {}
             Err(e) => {
                 log::warn!("Failed to fetch handoff snapshot attachments: {e:#}");
-            }
-        }
-
-        if FeatureFlag::GitCredentialRefresh.is_enabled() {
-            match git_credentials_result {
-                Ok(credentials) if !credentials.is_empty() => {
-                    driver::git_credentials::setup_git_config(&credentials);
-                    driver::git_credentials::configure_git_identity(&credentials);
-                    if let Err(e) = driver::git_credentials::write_git_credentials(&credentials) {
-                        log::warn!("Failed to write git credentials: {e:#}");
-                    } else {
-                        log::info!("Git credentials configured from taskGitCredentials");
-                    }
-                }
-                Ok(_) => {
-                    log::debug!("No git credentials returned; skipping credential file setup");
-                }
-                Err(e) => {
-                    log::warn!("Failed to fetch git credentials: {e:#}");
-                }
             }
         }
 
@@ -1304,6 +1351,7 @@ impl AgentDriverRunner {
     /// wraps the returned payload (if any) in [`driver::ResumeOptions::ThirdParty`]; each harness
     /// owns its server call and error mapping. Returns `None` if a third-party harness has no
     /// resume payload to surface.
+    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true, conversation_id = conversation_id))]
     async fn load_conversation_information(
         foreground: &ModelSpawner<Self>,
         conversation_id: String,
@@ -1365,6 +1413,7 @@ impl AgentDriverRunner {
     }
 
     /// Resolve the environment and store into `driver_options`.
+    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true, ?environment_id))]
     async fn resolve_environment(
         foreground: &ModelSpawner<Self>,
         environment_id: Option<String>,
@@ -1408,6 +1457,7 @@ impl AgentDriverRunner {
     }
 
     /// Create the AgentDriver and start running the task.
+    #[tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
     fn create_and_run_driver(
         ctx: &mut AppContext,
         driver_options: driver::AgentDriverOptions,
@@ -1428,7 +1478,9 @@ impl AgentDriverRunner {
             if let Some(share_requests) = share_requests {
                 driver.add_share_requests(share_requests, ctx);
             }
-            let agent_future = driver.run(task, ctx);
+            let span =
+                tracing::info_span!("AgentDriver::run", tags.cloud_agent = true, ?task.model, ?task.harness);
+            let agent_future = driver.run(task, ctx).instrument(span);
 
             ctx.spawn(agent_future, |_, result, ctx| match result {
                 Ok(()) => {
@@ -1512,11 +1564,9 @@ fn launch_command(
 
     let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
     if !auth_state.is_logged_in() {
-        return Err(anyhow::anyhow!(text_with_args(
-            ctx,
-            "agent_sdk.auth.error.not_logged_in",
-            &[("cli_name", &cli_name)]
-        )));
+        return Err(anyhow::anyhow!(
+            "You are not logged in - please log in with `{cli_name} login` to continue."
+        ));
     }
 
     // User is logged in — subscribe to auth events, trigger a refresh, and wait
@@ -1537,25 +1587,15 @@ fn launch_command(
                 dispatched = true;
                 let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
                 let message = if auth_state.is_api_key_authenticated() {
-                    text(ctx, "agent_sdk.auth.error.invalid_api_key")
+                    "Your API key is invalid. Please provide a valid key via '--api-key' or the WARP_API_KEY environment variable.".to_string()
                 } else {
-                    text_with_args(
-                        ctx,
-                        "agent_sdk.auth.error.invalid_credentials",
-                        &[("cli_name", &cli_name)],
-                    )
+                    format!("Your credentials are invalid. Please log in again with `{cli_name} login`.")
                 };
                 report_fatal_error(anyhow::anyhow!(message), ctx);
             }
             AuthManagerEvent::AuthFailed(err) => {
                 dispatched = true;
-                let error = format!("{err:#}");
-                let message = text_with_args(
-                    ctx,
-                    "agent_sdk.auth.error.auth_failed",
-                    &[("error", &error)],
-                );
-                report_fatal_error(anyhow::anyhow!(message), ctx);
+                report_fatal_error(anyhow::anyhow!("Authentication failed: {err:#}"), ctx);
             }
             _ => {}
         }
@@ -1583,6 +1623,8 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
     for cause in err.chain().skip(1) {
         let _ = write!(&mut message, "\n=> {cause}");
     }
+
+    tracing::event!(tracing::Level::ERROR, tags.cloud_agent = true, message);
 
     #[cfg(not(target_family = "wasm"))]
     {
@@ -1746,20 +1788,3 @@ fn command_to_telemetry_event(command: &CliCommand) -> CliTelemetryEvent {
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;
-
-fn text(ctx: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(ctx, key)
-}
-
-fn default_text_with_args(key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&default_text(key), args)
-        .expect("localized text template arguments must match the catalog")
-}
-
-fn default_text(key: &str) -> String {
-    crate::localization::text_for_locale(LocaleId::EnUs, key)
-}
-
-fn text_with_args(ctx: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    crate::localization::text_for_app_with_args(ctx, key, args)
-}

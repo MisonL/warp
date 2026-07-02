@@ -20,7 +20,7 @@ use warpui::elements::{
 use warpui::fonts::Properties;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
-use warpui::{Action, AppContext, View, ViewContext};
+use warpui::{Action, View, ViewContext};
 
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::appearance::Appearance;
@@ -45,14 +45,16 @@ impl ConfigurableItem {
     pub fn from_toolbar_item(kind: AgentToolbarItemKind, appearance: &Appearance) -> Option<Self> {
         match kind {
             AgentToolbarItemKind::ContextChip(chip_kind) => {
-                ContextChipRenderer::default_from_kind_with_agent_view(
+                let chip = chip_kind.to_chip()?;
+                let placeholder_value = chip_kind.placeholder_value();
+                let styles = chip_kind.default_styles(appearance, true);
+                Some(Self::ContextChip(Box::new(ContextChipRenderer::new(
                     chip_kind,
+                    chip,
+                    placeholder_value,
+                    styles,
                     ChipAvailability::Enabled,
-                    true,
-                    appearance,
-                )
-                .map(Box::new)
-                .map(Self::ContextChip)
+                ))))
             }
             control => Some(Self::Control(ControlItemRenderer::new(control))),
         }
@@ -90,11 +92,10 @@ impl ConfigurableItem {
         &self,
         drag_state: ChipDragState,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         match self {
             Self::ContextChip(r) => r.render_unused(drag_state, appearance),
-            Self::Control(r) => r.render_internal(drag_state, None, appearance, app),
+            Self::Control(r) => r.render_internal(drag_state, None, appearance),
         }
     }
 
@@ -103,7 +104,6 @@ impl ConfigurableItem {
         drag_state: ChipDragState,
         on_remove_action: A,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         match self {
             Self::ContextChip(r) => r.render_used(drag_state, on_remove_action, appearance),
@@ -113,7 +113,7 @@ impl ConfigurableItem {
                 } else {
                     None
                 };
-                r.render_internal(drag_state, remove_button, appearance, app)
+                r.render_internal(drag_state, remove_button, appearance)
             }
         }
     }
@@ -198,13 +198,13 @@ impl ControlItemRenderer {
             .finish()
     }
 
-    pub(crate) fn display_label(&self, app: &AppContext) -> String {
+    pub(crate) fn display_label(&self) -> &str {
         if let Some(label) = &self.custom_label {
-            label.clone()
+            label
         } else if let Some(kind) = &self.kind {
-            kind.display_label(app)
+            kind.display_label()
         } else {
-            "Unknown".to_owned()
+            "Unknown"
         }
     }
 
@@ -221,10 +221,9 @@ impl ControlItemRenderer {
         drag_state: ChipDragState,
         remove_button: Option<Box<dyn Element>>,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let font_size = udi_font_size(appearance);
-        let label = self.display_label(app);
+        let label = self.display_label().to_string();
         let icon = self.display_icon();
         let is_dragging = matches!(drag_state, ChipDragState::Draggable { is_dragging: true });
         let mut hoverable = Hoverable::new(self.tooltip_state_handle.clone(), move |mouse_state| {
@@ -836,7 +835,6 @@ impl ChipConfigurator {
         on_remove_action_fn: impl Fn(usize) -> A,
         wrap_chip_action: fn(ChipConfiguratorAction) -> A,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let drag_state = ChipDragState::Draggable {
             is_dragging: self.current_dragging_state.is_some(),
@@ -845,9 +843,9 @@ impl ChipConfigurator {
             .with_children(chips.enumerate().map(|(index, item)| {
                 let location = location_fn(index);
                 let rendered_chip = if is_used {
-                    item.render_used(drag_state, on_remove_action_fn(index), appearance, app)
+                    item.render_used(drag_state, on_remove_action_fn(index), appearance)
                 } else {
-                    item.render_unused(drag_state, appearance, app)
+                    item.render_unused(drag_state, appearance)
                 };
                 Container::new(self.render_draggable_chip(
                     location,
@@ -868,7 +866,6 @@ impl ChipConfigurator {
         on_click_action: A,
         wrap_chip_action: fn(ChipConfiguratorAction) -> A,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let dummy = on_click_action.clone();
         SavePosition::new(
@@ -880,7 +877,6 @@ impl ChipConfigurator {
                 move |_| dummy.clone(),
                 wrap_chip_action,
                 appearance,
-                app,
             ),
             UNUSED_CHIPS_POSITION_ID,
         )
@@ -897,7 +893,6 @@ impl ChipConfigurator {
         on_click_action: A,
         wrap_chip_action: fn(ChipConfiguratorAction) -> A,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let drag_state = ChipDragState::Draggable {
             is_dragging: self.current_dragging_state.is_some(),
@@ -916,7 +911,6 @@ impl ChipConfigurator {
                             location: remove_loc,
                         }),
                         appearance,
-                        app,
                     );
                     Container::new(self.render_draggable_chip(
                         location,
@@ -960,7 +954,6 @@ impl ChipConfigurator {
         on_click_action: A,
         wrap_chip_action: fn(ChipConfiguratorAction) -> A,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         self.render_drop_zone(
             &self.used_chips,
@@ -970,7 +963,6 @@ impl ChipConfigurator {
             on_click_action,
             wrap_chip_action,
             appearance,
-            app,
         )
     }
 
@@ -979,7 +971,6 @@ impl ChipConfigurator {
         on_click_action: A,
         wrap_chip_action: fn(ChipConfiguratorAction) -> A,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         self.render_drop_zone(
             &self.left_chips,
@@ -989,7 +980,6 @@ impl ChipConfigurator {
             on_click_action,
             wrap_chip_action,
             appearance,
-            app,
         )
     }
 
@@ -998,7 +988,6 @@ impl ChipConfigurator {
         on_click_action: A,
         wrap_chip_action: fn(ChipConfiguratorAction) -> A,
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         self.render_drop_zone(
             &self.right_chips,
@@ -1008,7 +997,6 @@ impl ChipConfigurator {
             on_click_action,
             wrap_chip_action,
             appearance,
-            app,
         )
     }
 }

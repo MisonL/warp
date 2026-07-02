@@ -144,14 +144,7 @@ pub struct AuthSecretFtuxView {
 
 impl AuthSecretFtuxView {
     pub fn new(harness: Harness, ctx: &mut ViewContext<Self>) -> Self {
-        let name_editor = make_single_line_editor(
-            Some(localization::text_for_app(
-                ctx,
-                "terminal.auth_secret.placeholder.name",
-            )),
-            false,
-            ctx,
-        );
+        let name_editor = make_single_line_editor(Some("e.g. My API Key"), false, ctx);
 
         ctx.subscribe_to_view(&name_editor, |me, _, event, ctx| {
             me.handle_form_editor_event(0, event, ctx);
@@ -229,7 +222,7 @@ impl AuthSecretFtuxView {
                         let message = localization::text_for_app_with_args(
                             ctx,
                             "terminal.auth_secret.save_failed",
-                            &[("error", error)],
+                            &[("error", &error.to_string())],
                         );
                         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                             ts.add_ephemeral_toast(
@@ -566,8 +559,7 @@ impl AuthSecretFtuxView {
         let mut editors = Vec::with_capacity(info.fields.len());
         for (field_idx, field) in info.fields.iter().enumerate() {
             let placeholder = field.placeholder.unwrap_or(field.label);
-            let editor =
-                make_single_line_editor(Some(placeholder.to_string()), field.sensitive, ctx);
+            let editor = make_single_line_editor(Some(placeholder), field.sensitive, ctx);
             let editor_index = field_idx + 1;
             ctx.subscribe_to_view(&editor, move |me, _, event, ctx| {
                 me.handle_form_editor_event(editor_index, event, ctx);
@@ -924,9 +916,8 @@ impl AuthSecretFtuxView {
             .with_main_axis_size(MainAxisSize::Min)
             .with_spacing(FORM_FIELD_SPACING);
 
-        let name_label = localization::text_for_app(app, "terminal.auth_secret.field.name");
         column.add_child(
-            Container::new(self.render_field_label(&name_label, app))
+            Container::new(self.render_field_label("NAME", app))
                 .with_padding_top(CONTENT_SECTION_SPACING)
                 .finish(),
         );
@@ -934,11 +925,7 @@ impl AuthSecretFtuxView {
 
         for (idx, field) in info.fields.iter().enumerate() {
             let label = if field.optional {
-                localization::text_for_app_with_args(
-                    app,
-                    "terminal.auth_secret.optional_label",
-                    &[("label", field.label)],
-                )
+                format!("{} (optional)", field.label)
             } else {
                 field.label.to_string()
             };
@@ -1050,10 +1037,11 @@ impl AuthSecretFtuxView {
 }
 
 fn make_single_line_editor(
-    placeholder: Option<String>,
+    placeholder: Option<&str>,
     is_password: bool,
     ctx: &mut ViewContext<AuthSecretFtuxView>,
 ) -> ViewHandle<EditorView> {
+    let placeholder = placeholder.map(str::to_owned);
     ctx.add_typed_action_view(move |ctx| {
         let appearance = Appearance::as_ref(ctx);
         let mut editor = EditorView::single_line(
@@ -1069,8 +1057,8 @@ fn make_single_line_editor(
             },
             ctx,
         );
-        if let Some(placeholder) = placeholder.as_deref() {
-            editor.set_placeholder_text(placeholder, ctx);
+        if let Some(placeholder) = placeholder {
+            editor.set_placeholder_text(&placeholder, ctx);
         }
         editor
     })

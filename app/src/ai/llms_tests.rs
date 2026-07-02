@@ -242,24 +242,22 @@ fn custom_endpoint_usage_display_label_resolves_alias_name_and_generic_fallback(
             custom_llms: build_custom_llm_infos(&keys),
         };
 
-        app.read(|ctx| {
-            assert_eq!(
-                preferences.custom_endpoint_usage_display_label("uuid-alias", ctx),
-                "Alias"
-            );
-            assert_eq!(
-                preferences.custom_endpoint_usage_display_label("uuid-name", ctx),
-                "raw-name"
-            );
-            assert_eq!(
-                preferences.custom_endpoint_usage_display_label("uuid-tilde-name", ctx),
-                "raw~name"
-            );
-            assert_eq!(
-                preferences.custom_endpoint_usage_display_label("unknown", ctx),
-                localization::text_for_app(ctx, "settings.ai.custom_endpoint.usage_fallback")
-            );
-        });
+        assert_eq!(
+            preferences.custom_endpoint_usage_display_label("uuid-alias"),
+            "Alias"
+        );
+        assert_eq!(
+            preferences.custom_endpoint_usage_display_label("uuid-name"),
+            "raw-name"
+        );
+        assert_eq!(
+            preferences.custom_endpoint_usage_display_label("uuid-tilde-name"),
+            "raw~name"
+        );
+        assert_eq!(
+            preferences.custom_endpoint_usage_display_label("unknown"),
+            "Custom endpoint"
+        );
     });
 }
 

@@ -41,7 +41,7 @@ impl WarpDriveItem for WarpDriveMCPServer {
         Some(DriveIndexAction::OpenMCPServerCollection)
     }
 
-    fn preview(&self, _appearance: &Appearance, _app: &AppContext) -> Option<Box<dyn Element>> {
+    fn preview(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
         // TODO
         None
     }

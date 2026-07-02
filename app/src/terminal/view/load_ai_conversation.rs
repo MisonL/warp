@@ -21,6 +21,7 @@ use crate::ai::agent::{
     AIAgentOutput, AIAgentOutputMessage, AIAgentOutputMessageType, CreateDocumentsRequest,
     CreateDocumentsResult, EditDocumentsResult,
 };
+use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryBlockParams, AgentViewEntryOrigin, DismissalStrategy, EphemeralMessage,
 };
@@ -35,7 +36,6 @@ use crate::ai::blocklist::{
 };
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
-use crate::localization;
 use crate::persistence::model::AgentConversationData;
 use crate::server::server_api::ServerApiProvider;
 use crate::terminal::find::TerminalFindModel;
@@ -62,6 +62,8 @@ pub(crate) enum RestorationDirState {
     MissingOriginalDir,
     /// The terminal needs to cd into the conversation's directory.
     NeedsCd { path: String },
+    /// Skipped auto-cd because this conversation wasn't started on this machine.
+    SkippedNonLocalConversation,
 }
 
 /// Specifies how AI conversations should be restored when creating a TerminalView.
@@ -217,7 +219,12 @@ impl TerminalView {
     fn resolve_dir_restoration_state(
         &self,
         cloud_conversation: &CloudConversationData,
+        is_local_conversation: bool,
     ) -> RestorationDirState {
+        if !is_local_conversation {
+            return RestorationDirState::SkippedNonLocalConversation;
+        }
+
         let target_dir = match cloud_conversation {
             CloudConversationData::Oz(conversation) => {
                 conversation.initial_working_directory().or_else(|| {
@@ -254,12 +261,14 @@ impl TerminalView {
         cloud_conversation: CloudConversationData,
         use_live_appearance: bool,
         entry_behavior: RestoreConversationEntryBehavior,
+        is_local_conversation: bool,
         on_restored: F,
         ctx: &mut ViewContext<Self>,
     ) where
         F: FnOnce(&mut Self, &mut ViewContext<Self>) + 'static,
     {
-        let restore_context_state = self.resolve_dir_restoration_state(&cloud_conversation);
+        let restore_context_state =
+            self.resolve_dir_restoration_state(&cloud_conversation, is_local_conversation);
 
         let restore_and_continue =
             move |me: &mut TerminalView,
@@ -293,8 +302,9 @@ impl TerminalView {
         match restore_context_state {
             RestorationDirState::NeedsCd { path } => {
                 let path_for_hint = path.clone();
+                let escaped = self.shell_family(ctx).shell_escape(&path);
                 let did_execute_cd = self.input.update(ctx, |input, ctx| {
-                    input.try_execute_command(&format!("cd \"{path}\""), ctx)
+                    input.try_execute_command(&format!("cd {escaped}"), ctx)
                 });
                 if did_execute_cd {
                     self.on_next_block_completed(move |me, ctx| {
@@ -310,7 +320,9 @@ impl TerminalView {
                     restore_and_continue(self, RestorationDirState::Unchanged, ctx);
                 }
             }
-            RestorationDirState::Unchanged | RestorationDirState::MissingOriginalDir => {
+            RestorationDirState::Unchanged
+            | RestorationDirState::MissingOriginalDir
+            | RestorationDirState::SkippedNonLocalConversation => {
                 restore_and_continue(self, restore_context_state, ctx);
             }
         }
@@ -362,10 +374,6 @@ impl TerminalView {
                                         // Create a mapping from document index to title
                                         let document_titles: Vec<String> =
                                             documents.iter().map(|doc| doc.title.clone()).collect();
-                                        let default_title = crate::localization::text_for_app(
-                                            ctx,
-                                            "ai_document.title.default",
-                                        );
 
                                         document_model.update(ctx, |doc_model, doc_ctx| {
                                             for (index, doc_context) in
@@ -374,7 +382,9 @@ impl TerminalView {
                                                 let title = document_titles
                                                     .get(index)
                                                     .cloned()
-                                                    .unwrap_or_else(|| default_title.clone());
+                                                    .unwrap_or_else(|| {
+                                                        DEFAULT_PLANNING_DOCUMENT_TITLE.to_string()
+                                                    });
 
                                                 doc_model.restore_document(
                                                     doc_context.document_id,
@@ -857,28 +867,20 @@ impl TerminalView {
 
         match &restore_context_state {
             RestorationDirState::MissingOriginalDir => {
-                items.push(MessageItem::text(localization::text_for_app(
-                    ctx,
-                    "terminal.restore_context.missing_original_dir_prefix",
-                )));
+                items.push(MessageItem::text(
+                    "couldn't find original conversation directory ",
+                ));
                 items.push(open_repo_hint.clone());
-                items.push(MessageItem::text(localization::text_for_app(
-                    ctx,
-                    "terminal.restore_context.change_repos",
-                )));
+                items.push(MessageItem::text(" change repos"));
             }
             RestorationDirState::NeedsCd { .. } => {
-                items.push(MessageItem::text(localization::text_for_app(
-                    ctx,
-                    "terminal.restore_context.changed_directory_prefix",
-                )));
+                items.push(MessageItem::text(
+                    "changed directory to continue conversation ",
+                ));
                 items.push(open_repo_hint.clone());
-                items.push(MessageItem::text(localization::text_for_app(
-                    ctx,
-                    "terminal.restore_context.change_repos",
-                )));
+                items.push(MessageItem::text(" change repos"));
             }
-            RestorationDirState::Unchanged => {}
+            RestorationDirState::Unchanged | RestorationDirState::SkippedNonLocalConversation => {}
         }
 
         if !items.is_empty() {

@@ -77,7 +77,6 @@ use crate::code::{
 use crate::code_review::comments::{CommentId, CommentOrigin};
 use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
-use crate::localization;
 use crate::notebooks::editor::rich_text_styles;
 use crate::settings::{AppEditorSettings, CodeEditorLineNumberMode, FontSettings};
 use crate::view_components::find::FindDirection;
@@ -87,10 +86,6 @@ pub use actions::init;
 pub(super) use actions::CodeEditorViewAction;
 
 mod vim_handler;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 /// Limit the keybindings that conflict with the Agent Mode embedded editor.
 const NON_EDITABLE_KEYMAP_CONTEXT: &str = "NonEditableKeymapContext";
@@ -665,7 +660,7 @@ impl CodeEditorView {
                 let trimmed = input.trim().to_string();
                 if trimmed.is_empty() {
                     self.goto_line_dialog.update(ctx, |dialog, ctx| {
-                        dialog.set_error(text(ctx, "code.goto_line.error.empty_line"), ctx);
+                        dialog.set_error("Please enter a line number".to_string(), ctx);
                     });
                     return;
                 }
@@ -677,7 +672,7 @@ impl CodeEditorView {
                     Ok(n) if n >= 1 => n,
                     _ => {
                         self.goto_line_dialog.update(ctx, |dialog, ctx| {
-                            dialog.set_error(text(ctx, "code.goto_line.error.invalid_line"), ctx);
+                            dialog.set_error("Please enter a valid line number".to_string(), ctx);
                         });
                         return;
                     }
@@ -688,7 +683,7 @@ impl CodeEditorView {
                         Err(_) => {
                             self.goto_line_dialog.update(ctx, |dialog, ctx| {
                                 dialog.set_error(
-                                    text(ctx, "code.goto_line.error.invalid_column"),
+                                    "Please enter a valid column number".to_string(),
                                     ctx,
                                 );
                             });
@@ -1836,7 +1831,9 @@ impl CodeEditorView {
                     first_replace = if first_replace.is_uppercase() {
                         first_replace
                     } else {
-                        first_replace.to_uppercase().next().unwrap_or(first_replace)
+                        {
+                            first_replace.to_uppercase().next().unwrap_or(first_replace)
+                        }
                     };
                     result.push(first_replace);
                     result.push_str(&replace_chars.collect::<String>().to_lowercase());

@@ -4,15 +4,11 @@ use serde::Serialize;
 use warp_cli::provider::{ProviderCommand, ProviderType};
 use warp_cli::GlobalOptions;
 use warp_core::channel::ChannelState;
-use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
-use crate::localization;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-
-const PROVIDER_STATUS_NOT_CONNECTED: &str = "Not Connected";
 
 /// Handle provider-related CLI commands.
 pub fn run(
@@ -45,16 +41,14 @@ impl ProviderCommandRunner {
         let server_url = ChannelState::server_root_url();
 
         let mut use_team_auth = team;
-        let provider_slug = provider_type.slug();
         if !team && !personal {
             if provider_type.allowed_in_team_context()
                 && provider_type.allowed_in_personal_context()
             {
-                return Err(anyhow::anyhow!(text_with_args(
-                    ctx,
-                    "agent_sdk.provider.error.scope_required",
-                    &[("provider", &provider_slug)]
-                )));
+                return Err(anyhow::anyhow!(
+                    "Provider '{}' must be setup for either a team or personal account",
+                    provider_type.slug()
+                ));
             }
             use_team_auth = provider_type.allowed_in_team_context();
         } else if personal {
@@ -62,31 +56,20 @@ impl ProviderCommandRunner {
         }
 
         // TODO(bens): initiate the OAuth flow and use the login-less auth URL
+        let slug = provider_type.slug();
         let url = if use_team_auth {
             let team_uid = match UserWorkspaces::as_ref(ctx).current_team_uid() {
                 Some(uid) => uid,
                 None => {
-                    return Err(anyhow::anyhow!(text(
-                        ctx,
-                        "agent_sdk.common.error.user_not_on_team"
-                    )));
+                    return Err(anyhow::anyhow!("User is not on a team"));
                 }
             };
-            format!(
-                "{server_url}/oauth/connect/{provider_slug}?principalType=team&principalId={team_uid}"
-            )
+            format!("{server_url}/oauth/connect/{slug}?principalType=team&principalId={team_uid}")
         } else {
-            format!("{server_url}/oauth/connect/{provider_slug}")
+            format!("{server_url}/oauth/connect/{slug}")
         };
 
-        println!(
-            "{}",
-            text_with_args(
-                ctx,
-                "agent_sdk.provider.output.authenticate_url",
-                &[("provider", &provider_slug), ("url", &url)]
-            )
-        );
+        println!("To authenticate {slug}, open this URL in your browser: {url}");
 
         // Open the URL in the default browser
         ctx.open_url(&url);
@@ -113,14 +96,14 @@ impl ProviderCommandRunner {
                 let mut allowed_for = Vec::new();
 
                 if provider.allowed_in_personal_context() {
-                    allowed_for.push(super::common::OWNER_SCOPE_PERSONAL);
+                    allowed_for.push("personal");
                 }
                 if provider.allowed_in_team_context() {
-                    allowed_for.push(super::common::OWNER_SCOPE_TEAM);
+                    allowed_for.push("team");
                 }
 
                 let allowed_str = allowed_for.join(", ");
-                let status = PROVIDER_STATUS_NOT_CONNECTED.to_string();
+                let status = "❌ Not Connected".to_string(); // TODO(bens): get this from gql
 
                 ProviderInfo {
                     name,
@@ -131,7 +114,7 @@ impl ProviderCommandRunner {
             })
             .collect();
 
-        output::print_list_for_app(provider_infos, global_options.output_format, ctx);
+        output::print_list(provider_infos, global_options.output_format);
 
         ctx.terminate_app(TerminationMode::ForceTerminate, None);
 
@@ -156,31 +139,10 @@ struct ProviderInfo {
 impl TableFormat for ProviderInfo {
     fn header() -> Vec<Cell> {
         vec![
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.provider.table.name",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.provider.table.slug",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.provider.table.allowed_for",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.provider.table.status",
-            )),
-        ]
-    }
-
-    fn header_for_app(app: &AppContext) -> Vec<Cell> {
-        vec![
-            Cell::new(text(app, "agent_sdk.provider.table.name")),
-            Cell::new(text(app, "agent_sdk.provider.table.slug")),
-            Cell::new(text(app, "agent_sdk.provider.table.allowed_for")),
-            Cell::new(text(app, "agent_sdk.provider.table.status")),
+            Cell::new("NAME"),
+            Cell::new("SLUG"),
+            Cell::new("ALLOWED FOR"),
+            Cell::new("STATUS"),
         ]
     }
 
@@ -191,41 +153,5 @@ impl TableFormat for ProviderInfo {
             Cell::new(&self.allowed_for),
             Cell::new(&self.status),
         ]
-    }
-
-    fn row_for_app(&self, app: &AppContext) -> Vec<Cell> {
-        vec![
-            Cell::new(&self.name),
-            Cell::new(&self.slug),
-            Cell::new(localize_allowed_for(&self.allowed_for, app)),
-            Cell::new(localize_provider_status(&self.status, app)),
-        ]
-    }
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_for_locale(locale: LocaleId, key: &str) -> String {
-    localization::text_for_locale(locale, key)
-}
-
-fn localize_allowed_for(allowed_for: &str, app: &AppContext) -> String {
-    allowed_for
-        .split(", ")
-        .map(|scope| super::common::format_owner_scope_for_app(scope, app))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-fn localize_provider_status(status: &str, app: &AppContext) -> String {
-    match status {
-        PROVIDER_STATUS_NOT_CONNECTED => text(app, "agent_sdk.provider.status.not_connected"),
-        other => other.to_string(),
     }
 }

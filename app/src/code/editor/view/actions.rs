@@ -24,6 +24,7 @@ use warpui::keymap::{
 use warpui::units::Pixels;
 use warpui::{AppContext, TypedActionView, ViewContext, WeakViewHandle};
 
+use crate::cmd_or_ctrl_shift;
 use crate::code::editor::line::EditorLineLocation;
 use crate::code::editor::model::CodeEditorModel;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorView, VimMode};
@@ -32,7 +33,11 @@ use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
 use crate::notebooks::editor::model::word_unit;
 use crate::util::bindings::CustomAction;
-use crate::{cmd_or_ctrl_shift, localization};
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
 
 /// Limit the keybindings that conflict with the Agent Mode embedded editor.
 const NON_EDITABLE_KEYMAP_CONTEXT: &str = "NonEditableKeymapContext";
@@ -270,19 +275,19 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Cut,
             CodeEditorViewAction::Cut,
-            binding_description("Cut", "terminal.menu.cut"),
+            "Cut",
             text_entry.clone(),
         ),
         FixedBinding::custom(
             CustomAction::Undo,
             CodeEditorViewAction::Undo,
-            binding_description("Undo", "notebook.editor.binding.undo"),
+            "Undo",
             text_entry.clone(),
         ),
         FixedBinding::custom(
             CustomAction::Redo,
             CodeEditorViewAction::Redo,
-            binding_description("Redo", "notebook.editor.binding.redo"),
+            "Redo",
             text_entry.clone(),
         ),
         FixedBinding::new("escape", CodeEditorViewAction::Escape, text_entry.clone()),
@@ -668,17 +673,12 @@ pub fn init(app: &mut AppContext) {
     // Editable Go to Line keybinding
     app.register_editable_bindings([EditableBinding::new(
         "editor_view:go_to_line",
-        binding_description("Go to line", "code.binding.go_to_line"),
+        "Go to line",
         CodeEditorViewAction::ShowGoToLine,
     )
     .with_key_binding("ctrl-g") // Matches VSCode; editor-scoped via text_entry predicate
     .with_custom_action(CustomAction::GoToLine)
     .with_context_predicate(text_entry.clone())]);
-}
-
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback)
-        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }
 
 #[derive(Debug, Clone)]

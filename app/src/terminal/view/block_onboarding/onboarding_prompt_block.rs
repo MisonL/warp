@@ -24,10 +24,6 @@ use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 const CONFIRM_MARGIN_TOP: f32 = 16.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 pub struct OnboardingPromptBlock {
     learn_more_highlight_index: HighlightedHyperlink,
     mouse_state_handle_look_incorrect: MouseStateHandle,
@@ -71,7 +67,10 @@ impl OnboardingPromptBlock {
             .with_children([
                 Container::new(
                     Text::new(
-                        text(app, "terminal.block_onboarding.prompt.line_one"),
+                        localization::text_for_app(
+                            app,
+                            "terminal.block_onboarding.prompt.line_one",
+                        ),
                         font_family,
                         font_size,
                     )
@@ -83,12 +82,15 @@ impl OnboardingPromptBlock {
                 Container::new(
                     FormattedTextElement::new(
                         FormattedText::new([FormattedTextLine::Line(vec![
-                            FormattedTextFragment::plain_text(text(
+                            FormattedTextFragment::plain_text(localization::text_for_app(
                                 app,
                                 "terminal.block_onboarding.prompt.line_two",
                             )),
                             FormattedTextFragment::hyperlink(
-                                text(app, "terminal.block_onboarding.prompt.learn_more"),
+                                localization::text_for_app(
+                                    app,
+                                    "terminal.block_onboarding.prompt.learn_more",
+                                ),
                                 LINK_DESTINATION,
                             ),
                         ])]),
@@ -113,8 +115,8 @@ impl OnboardingPromptBlock {
 
     fn render_confirm_skip_buttons(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut confirm_button = appearance
             .ui_builder()
@@ -129,7 +131,10 @@ impl OnboardingPromptBlock {
                 font_size: Some(14.),
                 ..Default::default()
             })
-            .with_centered_text_label(text(app, "terminal.block_onboarding.confirm"));
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "terminal.block_onboarding.confirm",
+            ));
         if self.selected_prompt.is_none() {
             confirm_button = confirm_button.disabled();
         }
@@ -278,7 +283,7 @@ impl OnboardingPromptBlock {
                 .finish()
         } else {
             Text::new_inline(
-                text(app, "terminal.block_onboarding.prompt.no_existing_ps1"),
+                localization::text_for_app(app, "terminal.block_onboarding.prompt.no_existing_ps1"),
                 font_family,
                 font_size,
             )
@@ -296,7 +301,10 @@ impl OnboardingPromptBlock {
             .with_child(
                 Container::new(
                     Text::new_inline(
-                        text(app, "terminal.block_onboarding.prompt.shell_prompt"),
+                        localization::text_for_app(
+                            app,
+                            "terminal.block_onboarding.prompt.shell_prompt",
+                        ),
                         font_family,
                         font_size,
                     )
@@ -314,7 +322,10 @@ impl OnboardingPromptBlock {
                         Flex::row()
                             .with_children([
                                 Text::new_inline(
-                                    text(app, "terminal.block_onboarding.prompt.look_incorrect"),
+                                    localization::text_for_app(
+                                        app,
+                                        "terminal.block_onboarding.prompt.look_incorrect",
+                                    ),
                                     font_family,
                                     font_size,
                                 )
@@ -325,7 +336,10 @@ impl OnboardingPromptBlock {
                                 appearance
                                     .ui_builder()
                                     .link(
-                                        text(app, "terminal.block_onboarding.prompt.let_us_know"),
+                                        localization::text_for_app(
+                                            app,
+                                            "terminal.block_onboarding.prompt.let_us_know",
+                                        ),
                                         Some(LINK_DESTINATION.to_string()),
                                         None,
                                         self.mouse_state_handle_look_incorrect.clone(),
@@ -405,7 +419,10 @@ impl OnboardingPromptBlock {
             .with_child(
                 Container::new(
                     Text::new_inline(
-                        text(app, "terminal.block_onboarding.prompt.warp_prompt"),
+                        localization::text_for_app(
+                            app,
+                            "terminal.block_onboarding.prompt.warp_prompt",
+                        ),
                         font_family,
                         appearance.ui_font_size(),
                     )
@@ -421,7 +438,7 @@ impl OnboardingPromptBlock {
                     1.,
                     Align::new(
                         Text::new_inline(
-                            text(
+                            localization::text_for_app(
                                 app,
                                 "terminal.block_onboarding.prompt.customizable_settings",
                             ),
@@ -487,7 +504,7 @@ impl View for OnboardingPromptBlock {
                     .finish(),
             );
         if !self.block_completed {
-            col.add_child(self.render_confirm_skip_buttons(ctx, appearance));
+            col.add_child(self.render_confirm_skip_buttons(appearance, ctx));
         }
 
         Container::new(col.finish())

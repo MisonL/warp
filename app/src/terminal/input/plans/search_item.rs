@@ -160,15 +160,15 @@ impl SearchItem for PlanSearchItem {
         self.accept_result()
     }
 
-    fn accessibility_label(&self) -> String {
-        format!("Plan: {}", self.title)
-    }
-
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
         localization::text_for_app_with_args(
             app,
             "terminal.input.plans.a11y.label",
             &[("title", &self.title)],
         )
+    }
+
+    fn accessibility_label(&self) -> String {
+        format!("Plan: {}", self.title)
     }
 }

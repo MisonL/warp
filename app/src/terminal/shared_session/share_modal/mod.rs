@@ -28,10 +28,6 @@ use denied_body::{DeniedBody, DeniedBodyEvent};
 use self::body::BodyEvent;
 use super::{SharedSessionActionSource, SharedSessionScrollbackType};
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 pub struct ShareSessionModal {
     modal: ViewHandle<Modal<Body>>,
     denied_modal: ViewHandle<Modal<DeniedBody>>,
@@ -75,7 +71,10 @@ impl ShareSessionModal {
 
         let modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(text(ctx, "shared_session.share_modal.title")),
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.shared_session.share_modal.title",
+                )),
                 body,
                 ctx,
             )
@@ -97,7 +96,10 @@ impl ShareSessionModal {
         });
         let denied_modal = ctx.add_typed_action_view(|ctx| {
             let mut denied_modal = Modal::new(
-                Some(text(ctx, "shared_session.share_modal.denied.title")),
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.shared_session.share_modal.limit_reached_title",
+                )),
                 denied_body,
                 ctx,
             )

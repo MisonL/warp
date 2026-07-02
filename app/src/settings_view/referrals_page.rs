@@ -36,6 +36,8 @@ use crate::{localization, safe_info, send_telemetry_from_ctx};
 
 const HEADER_FONT_SIZE: f32 = 18.;
 const HEADER_MARGIN_BOTTOM: f32 = 32.;
+const HEADER_TEXT: &str = "Invite a friend to Warp";
+
 const INVITE_FIELD_LABEL_BOTTOM_MARGIN: f32 = 8.;
 
 const LINK_BOTTOM_MARGIN: f32 = 12.;
@@ -75,7 +77,8 @@ const CLAIMED_REFERRAL_COUNT_LEFT_MARGIN: f32 = 40.;
 
 const CLAIMED_REFERRAL_CLIP: usize = 999;
 
-const TERMS_URL: &str = "https://docs.warp.dev/support-and-community/community/refer-a-friend#referral-program-terms-and-conditions";
+const TERMS_URL: &str =
+    "https://docs.warp.dev/support-and-community/community/refer-a-friend#referral-program-terms-and-conditions";
 
 enum ApiState {
     Loading,
@@ -198,11 +201,7 @@ impl ReferralsPageView {
             me.handle_editor_event(event, ctx);
         });
 
-        let page = PageType::new_monolith_localized(
-            ReferralsWidget::default(),
-            Some("settings.referrals.header"),
-            true,
-        );
+        let page = PageType::new_monolith(ReferralsWidget::default(), Some(HEADER_TEXT), true);
         Self {
             page,
             referrals_client,
@@ -453,10 +452,11 @@ impl EmailValidationError {
             EmailValidationError::Empty => {
                 localization::text_for_app(app, "settings.referrals.error.email_empty")
             }
-            EmailValidationError::Invalid(invalid_email) => {
-                localization::text_for_app(app, "settings.referrals.error.email_invalid")
-                    .replace("{email}", invalid_email)
-            }
+            EmailValidationError::Invalid(invalid_email) => localization::text_for_app_with_args(
+                app,
+                "settings.referrals.error.email_invalid",
+                &[("email", invalid_email)],
+            ),
         }
     }
 }
@@ -491,7 +491,7 @@ impl ReferralsWidget {
             .is_anonymous_or_logged_out();
 
         let invite_or_signup_section = if is_anonymous {
-            self.render_signup_section(app, appearance)
+            self.render_signup_section(appearance, app)
         } else {
             self.render_send_invite_section(view, appearance, app)
         };
@@ -651,7 +651,7 @@ impl ReferralsWidget {
             .finish()
     }
 
-    fn render_signup_section(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_signup_section(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let button_styles = UiComponentStyles {
             font_size: Some(14.),
             font_weight: Some(Weight::Semibold),
@@ -674,7 +674,7 @@ impl ReferralsWidget {
             .with_style(button_styles)
             .with_text_label(crate::localization::text_for_app(
                 app,
-                "settings.warp_drive.sign_up",
+                "settings.billing.action.sign_up",
             ))
             .build()
             .on_click(move |ctx, _, _| {

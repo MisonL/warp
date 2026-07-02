@@ -7,13 +7,11 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Context, Result};
 use blocking::unblock;
 use warp_cli::artifact::UploadArtifactArgs;
-use warp_localization::{replace_placeholders, LocaleId};
 
 use super::common::parse_ambient_task_id;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::ServerAIConversationMetadata;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::localization;
 use crate::server::server_api::ai::{
     AIClient, CreateFileArtifactUploadRequest, CreateFileArtifactUploadResponse,
     FileArtifactRecord, FileArtifactUploadTargetInfo,
@@ -24,15 +22,6 @@ use crate::server::server_api::ServerApi;
 use crate::util::image::{infer_mime_type, MIME_SNIFF_BYTES};
 
 const OZ_RUN_ID_ENV_VAR: &str = "OZ_RUN_ID";
-
-fn text(key: &str) -> String {
-    localization::text_for_locale(LocaleId::EnUs, key)
-}
-
-fn text_with_args(key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&text(key), args)
-        .expect("localized text template arguments must match the catalog")
-}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) struct FileArtifactUploadRequest {
@@ -47,10 +36,7 @@ impl TryFrom<UploadArtifactArgs> for FileArtifactUploadRequest {
 
     fn try_from(value: UploadArtifactArgs) -> Result<Self> {
         let run_id = match value.run_id {
-            Some(run_id) => Some(parse_run_id(
-                &run_id,
-                &text("agent_sdk.artifact_upload.error.invalid_run_id"),
-            )?),
+            Some(run_id) => Some(parse_run_id(&run_id, "Invalid run ID")?),
             None => None,
         };
 
@@ -136,9 +122,8 @@ impl FileArtifactUploader {
         let uploaded_artifact = self
             .confirm_upload(create_response.artifact.artifact_uid, checksum)
             .await?;
-        let size_bytes = i64::try_from(artifact.file_size).context(text(
-            "agent_sdk.artifact_upload.error.file_size_supported_range",
-        ))?;
+        let size_bytes = i64::try_from(artifact.file_size)
+            .context("Artifact file size exceeds supported range")?;
 
         Ok(CompletedFileArtifactUpload {
             artifact: uploaded_artifact,
@@ -169,9 +154,7 @@ impl FileArtifactUploader {
                 size_bytes: artifact.graphql_size_bytes(),
             })
             .await
-            .context(text(
-                "agent_sdk.artifact_upload.error.create_upload_target_failed",
-            ))
+            .context("Failed to create file artifact upload target")
     }
 
     async fn upload_artifact_bytes(
@@ -195,9 +178,7 @@ impl FileArtifactUploader {
         self.ai_client
             .confirm_file_artifact_upload(artifact_uid, checksum)
             .await
-            .context(text(
-                "agent_sdk.artifact_upload.error.confirm_upload_failed",
-            ))
+            .context("Failed to confirm file artifact upload")
     }
 
     pub(crate) async fn resolve_upload_association(
@@ -230,17 +211,17 @@ impl FileArtifactUploader {
             .list_ai_conversation_metadata(Some(vec![conversation_id.as_str().to_string()]))
             .await
             .with_context(|| {
-                text_with_args(
-                    "agent_sdk.artifact_upload.error.load_conversation_for_headers",
-                    &[("conversation_id", conversation_id.as_str())],
+                format!(
+                    "Failed to load conversation '{}' to resolve artifact upload headers",
+                    conversation_id.as_str()
                 )
             })?;
 
         let metadata = single_conversation_metadata(conversation_id.as_str(), metadata)
             .with_context(|| {
-                text_with_args(
-                    "agent_sdk.artifact_upload.error.load_conversation_for_headers",
-                    &[("conversation_id", conversation_id.as_str())],
+                format!(
+                    "Failed to load conversation '{}' to resolve artifact upload headers",
+                    conversation_id.as_str()
                 )
             })?;
 
@@ -253,29 +234,16 @@ fn normalize_artifact_filepath(path: &Path) -> String {
 }
 
 fn file_size_and_prefix_for_path(path: &Path, max_bytes: usize) -> Result<(u64, Vec<u8>)> {
-    let path_display = path.display().to_string();
-    let mut file = File::open(path).with_context(|| {
-        text_with_args(
-            "agent_sdk.artifact_upload.error.open_artifact_file",
-            &[("path", &path_display)],
-        )
-    })?;
+    let mut file = File::open(path)
+        .with_context(|| format!("Failed to open artifact file '{}'", path.display()))?;
     let file_size = file
         .metadata()
-        .with_context(|| {
-            text_with_args(
-                "agent_sdk.artifact_upload.error.stat_artifact_file",
-                &[("path", &path_display)],
-            )
-        })?
+        .with_context(|| format!("Failed to stat artifact file '{}'", path.display()))?
         .len();
     let mut bytes = vec![0; max_bytes];
-    let bytes_read = file.read(&mut bytes).with_context(|| {
-        text_with_args(
-            "agent_sdk.artifact_upload.error.read_artifact_file",
-            &[("path", &path_display)],
-        )
-    })?;
+    let bytes_read = file
+        .read(&mut bytes)
+        .with_context(|| format!("Failed to read artifact file '{}'", path.display()))?;
     bytes.truncate(bytes_read);
     Ok((file_size, bytes))
 }
@@ -301,14 +269,9 @@ fn single_conversation_metadata(
     mut metadata: Vec<ServerAIConversationMetadata>,
 ) -> Result<ServerAIConversationMetadata> {
     match metadata.len() {
-        0 => bail!(text(
-            "agent_sdk.artifact_upload.error.conversation_not_found"
-        )),
+        0 => bail!("Conversation not found"),
         1 => Ok(metadata.pop().expect("metadata length checked")),
-        _ => bail!(text_with_args(
-            "agent_sdk.artifact_upload.error.multiple_conversations",
-            &[("conversation_id", conversation_id)]
-        )),
+        _ => bail!("Multiple conversations found for '{conversation_id}'"),
     }
 }
 
@@ -317,10 +280,7 @@ fn ambient_task_id_from_conversation_metadata(
     metadata: ServerAIConversationMetadata,
 ) -> Result<AmbientAgentTaskId> {
     metadata.ambient_agent_task_id.ok_or_else(|| {
-        anyhow!(text_with_args(
-            "agent_sdk.artifact_upload.error.conversation_not_cloud_task",
-            &[("conversation_id", conversation_id)]
-        ))
+        anyhow!("Conversation '{conversation_id}' is not backed by a cloud agent task")
     })
 }
 
@@ -332,25 +292,18 @@ fn load_env_run_id() -> Result<Option<String>> {
     match env::var(OZ_RUN_ID_ENV_VAR) {
         Ok(run_id) => Ok(Some(run_id)),
         Err(env::VarError::NotPresent) => Ok(None),
-        Err(env::VarError::NotUnicode(_)) => Err(anyhow!(text_with_args(
-            "agent_sdk.artifact_upload.error.env_run_id_not_unicode",
-            &[("env_var", OZ_RUN_ID_ENV_VAR)]
-        ))),
+        Err(env::VarError::NotUnicode(_)) => Err(anyhow!(
+            "{OZ_RUN_ID_ENV_VAR} is set but is not valid Unicode"
+        )),
     }
 }
 
 fn resolve_env_run_id(env_run_id: Option<String>) -> Result<AmbientAgentTaskId> {
     let Some(run_id) = env_run_id else {
-        bail!(text_with_args(
-            "agent_sdk.artifact_upload.error.env_run_id_missing",
-            &[("env_var", OZ_RUN_ID_ENV_VAR)]
-        ));
+        bail!("{OZ_RUN_ID_ENV_VAR} is not set");
     };
 
-    parse_run_id(
-        &run_id,
-        &text("agent_sdk.artifact_upload.error.invalid_oz_run_id"),
-    )
+    parse_run_id(&run_id, "Invalid OZ_RUN_ID")
 }
 
 fn resolve_upload_association_from_sources(
@@ -374,11 +327,9 @@ fn resolve_upload_association_from_sources(
     }
 
     if let Some(conversation_id) = explicit_conversation_id {
-        match conversation_task_id.ok_or_else(|| {
-            anyhow!(text(
-                "agent_sdk.artifact_upload.error.conversation_resolution_required"
-            ))
-        })? {
+        match conversation_task_id
+            .ok_or_else(|| anyhow!("conversation resolution should be provided"))?
+        {
             Ok(ambient_task_id) => {
                 return Ok(ResolvedUploadAssociation {
                     conversation_id: Some(conversation_id),
@@ -402,27 +353,18 @@ fn resolve_upload_association_from_sources(
                     Err(env_err) => env_err,
                 };
 
-                return Err(anyhow!(text_with_args(
-                    "agent_sdk.artifact_upload.error.resolve_association_for_conversation_failed",
-                    &[
-                        ("conversation_id", conversation_id.as_str()),
-                        ("conversation_error", &conversation_err.to_string()),
-                        ("env_var", OZ_RUN_ID_ENV_VAR),
-                        ("env_error", &env_err.to_string())
-                    ]
-                )));
+                return Err(anyhow!(
+                    "Failed to resolve artifact upload association for conversation '{}': {conversation_err}; also failed to use {OZ_RUN_ID_ENV_VAR}: {env_err}",
+                    conversation_id.as_str()
+                ));
             }
         }
     }
 
     let ambient_task_id = resolve_env_run_id(env_run_id).map_err(|env_err| {
-        anyhow!(text_with_args(
-            "agent_sdk.artifact_upload.error.resolve_association_missing_source",
-            &[
-                ("env_var", OZ_RUN_ID_ENV_VAR),
-                ("env_error", &env_err.to_string())
-            ]
-        ))
+        anyhow!(
+            "Failed to resolve artifact upload association: no usable --run-id or --conversation-id was provided, and {OZ_RUN_ID_ENV_VAR}: {env_err}"
+        )
     })?;
 
     Ok(ResolvedUploadAssociation {

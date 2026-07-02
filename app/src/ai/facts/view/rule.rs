@@ -46,9 +46,16 @@ use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-fn rule_text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
+pub const HEADER_TEXT: &str = "ai.facts.rules.title";
+const DESCRIPTION_TEXT: &str = "ai.facts.rules.description";
+
+const SEARCH_PLACEHOLDER_TEXT: &str = "ai.facts.rules.search_placeholder";
+const ZERO_STATE_TEXT: &str = "ai.facts.rules.zero_state.global";
+const ZERO_STATE_TEXT_PROJECT: &str = "ai.facts.rules.zero_state.project";
+
+const DISABLED_BANNER_TEXT: &str = "ai.facts.rules.disabled_banner.prefix";
+const DISABLED_BANNER_LINK_TEXT: &str = "ai.facts.rules.disabled_banner.link";
+const DISABLED_BANNER_TEXT_2: &str = "ai.facts.rules.disabled_banner.suffix";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleScope {
@@ -279,19 +286,25 @@ impl RuleView {
 
         search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
-            editor.set_placeholder_text(rule_text(ctx, "ai.facts.rules.search_placeholder"), ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, SEARCH_PLACEHOLDER_TEXT),
+                ctx,
+            );
         });
         let search_bar = ctx.add_typed_action_view(|_| SearchBar::new(search_editor.clone()));
 
         let add_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(rule_text(ctx, "ai.facts.rules.action.add"), NakedTheme)
-                .with_icon(Icon::Plus)
-                .on_click(|ctx| ctx.dispatch_typed_action(RuleViewAction::AddRule))
+            ActionButton::new(
+                localization::text_for_app(ctx, "ai.facts.rules.action.add"),
+                NakedTheme,
+            )
+            .with_icon(Icon::Plus)
+            .on_click(|ctx| ctx.dispatch_typed_action(RuleViewAction::AddRule))
         });
 
         let initialize_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                rule_text(ctx, "ai.facts.rules.action.initialize_project"),
+                localization::text_for_app(ctx, "ai.facts.rules.action.initialize_project"),
                 NakedTheme,
             )
             .with_icon(Icon::Plus)
@@ -452,7 +465,8 @@ impl RuleView {
         });
     }
 
-    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
@@ -476,7 +490,7 @@ impl RuleView {
             .with_child(
                 appearance
                     .ui_builder()
-                    .wrappable_text(rule_text(app, "ai.facts.rules.title"), true)
+                    .wrappable_text(localization::text_for_app(app, HEADER_TEXT), true)
                     .with_style(style::header_text())
                     .build()
                     .finish(),
@@ -484,11 +498,12 @@ impl RuleView {
             .finish()
     }
 
-    fn render_description(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_description(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         Container::new(
             appearance
                 .ui_builder()
-                .wrappable_text(rule_text(app, "ai.facts.rules.description"), true)
+                .wrappable_text(localization::text_for_app(app, DESCRIPTION_TEXT), true)
                 .with_style(style::description_text(appearance))
                 .build()
                 .finish(),
@@ -497,9 +512,10 @@ impl RuleView {
         .finish()
     }
 
-    fn render_scope_tabs(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_scope_tabs(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let global_tab = Container::new(self.render_scope_tab(
-            rule_text(app, "ai.facts.rules.scope.global"),
+            localization::text_for_app(app, "ai.facts.rules.scope.global"),
             RuleScope::Global,
             appearance,
             self.global_tab_mouse_state.clone(),
@@ -507,7 +523,7 @@ impl RuleView {
         .with_padding_right(4.)
         .finish();
         let project_tab = self.render_scope_tab(
-            rule_text(app, "ai.facts.rules.scope.project_based"),
+            localization::text_for_app(app, "ai.facts.rules.scope.project_based"),
             RuleScope::ProjectBased,
             appearance,
             self.project_tab_mouse_state.clone(),
@@ -592,27 +608,21 @@ impl RuleView {
         .finish()
     }
 
-    fn render_disabled_banner(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_disabled_banner(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let mut link = FormattedTextFragment::hyperlink(
-            rule_text(app, "ai.facts.rules.disabled_banner.link"),
+            localization::text_for_app(app, DISABLED_BANNER_LINK_TEXT),
             "Settings > AI",
         );
         link.styles.weight = Some(CustomWeight::Bold);
 
         let formatted_text = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::bold(rule_text(
-                    app,
-                    "ai.facts.rules.disabled_banner.prefix",
-                )),
+                FormattedTextFragment::bold(localization::text_for_app(app, DISABLED_BANNER_TEXT)),
                 link,
-                FormattedTextFragment::bold(rule_text(
+                FormattedTextFragment::bold(localization::text_for_app(
                     app,
-                    "ai.facts.rules.disabled_banner.suffix",
+                    DISABLED_BANNER_TEXT_2,
                 )),
             ])]),
             style::SUBTEXT_FONT_SIZE,
@@ -739,7 +749,10 @@ impl RuleView {
             appearance
                 .ui_builder()
                 .button(ButtonVariant::Outlined, project_row.mouse_state.clone())
-                .with_text_label(rule_text(app, "ai.facts.rules.action.open_file"))
+                .with_text_label(localization::text_for_app(
+                    app,
+                    "ai.facts.rules.action.open_file",
+                ))
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(RuleViewAction::OpenFile(file_path.clone()));
@@ -773,12 +786,12 @@ impl RuleView {
         let formatted_name = match name {
             Some(name) => {
                 if name.is_empty() {
-                    rule_text(app, "ai.facts.rules.untitled")
+                    localization::text_for_app(app, "ai.facts.rules.untitled")
                 } else {
                     name
                 }
             }
-            None => rule_text(app, "ai.facts.rules.untitled"),
+            None => localization::text_for_app(app, "ai.facts.rules.untitled"),
         };
         // Truncate content to 3 lines
         let formatted_content = if content.split("\n").count() > 3 {
@@ -890,15 +903,16 @@ impl RuleView {
         col.finish()
     }
 
-    fn render_zero_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
-        let key = match self.current_scope {
-            RuleScope::Global => "ai.facts.rules.zero_state.global",
-            RuleScope::ProjectBased => "ai.facts.rules.zero_state.project",
+    fn render_zero_state(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
+        let text_key = match self.current_scope {
+            RuleScope::Global => ZERO_STATE_TEXT,
+            RuleScope::ProjectBased => ZERO_STATE_TEXT_PROJECT,
         };
 
         let centered_text = appearance
             .ui_builder()
-            .wrappable_text(rule_text(app, key), true)
+            .wrappable_text(localization::text_for_app(app, text_key), true)
             .with_style(style::description_text(appearance))
             .build()
             .finish();
@@ -962,19 +976,19 @@ impl View for RuleView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut col = Flex::column()
-            .with_child(self.render_header(appearance, app))
-            .with_child(self.render_description(appearance, app));
+            .with_child(self.render_header(app))
+            .with_child(self.render_description(app));
 
-        col.add_child(self.render_scope_tabs(appearance, app));
+        col.add_child(self.render_scope_tabs(app));
 
         let ai_settings = AISettings::as_ref(app);
         if !ai_settings.is_memory_enabled(app) {
-            col.add_child(self.render_disabled_banner(appearance, app));
+            col.add_child(self.render_disabled_banner(app));
         }
 
         let filtered_rules = self.get_filtered_rules();
         if filtered_rules.is_empty() {
-            col.add_child(self.render_zero_state(appearance, app));
+            col.add_child(self.render_zero_state(app));
         } else {
             col.add_child(self.render_body(appearance, filtered_rules, app));
         };

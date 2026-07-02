@@ -51,7 +51,8 @@ use crate::ai::blocklist::agent_view::{
     agent_view_bg_color, AgentViewController, AgentViewControllerEvent,
 };
 use crate::ai::blocklist::orchestration_topology::{
-    aggregated_orchestrator_status, descendant_conversation_ids_in_spawn_order,
+    aggregated_orchestrator_status, descendant_conversation_ids_in_pill_order,
+    descendant_conversation_ids_in_spawn_order,
 };
 use crate::ai::blocklist::telemetry::{
     BlocklistOrchestrationTelemetryEvent, PillBarActionKind, PillBarInteractionEvent,
@@ -124,40 +125,6 @@ pub(crate) fn pill_initial(name: &str) -> char {
         .unwrap_or('A')
 }
 
-/// Status key for the trailing "done" bucket (Cancelled + Success).
-/// Named so render code and tests don't have to chase a literal `3`.
-pub(super) const DONE_STATUS_KEY: u8 = 3;
-
-/// Sort priority within a pill section. Lower sorts leftmost. Cancelled
-/// and Success share one "done" bucket; recency decides their order.
-fn pill_status_sort_key(status: Option<&ConversationStatus>) -> u8 {
-    match status {
-        Some(ConversationStatus::Blocked { .. }) => 0,
-        Some(ConversationStatus::Error) => 1,
-        Some(ConversationStatus::InProgress) => 2,
-        Some(ConversationStatus::Cancelled) | Some(ConversationStatus::Success) => DONE_STATUS_KEY,
-        None => 2,
-    }
-}
-
-/// Recency tiebreaker for done pills, sorted ascending: newer finish
-/// times sort first; unknown sorts last. `saturating_neg` so a wild
-/// `i64::MIN` (impossible for real timestamps) couldn't panic.
-fn pill_done_recency_key(last_modified_ms: Option<i64>) -> i64 {
-    last_modified_ms.unwrap_or(0).saturating_neg()
-}
-
-/// Combines status key + recency into the secondary sort key. Recency
-/// wins inside the done bucket; everything else collapses to 0 so the
-/// spawn-index tiebreaker decides. Shared so render and tests can't drift.
-pub(super) fn pill_secondary_sort_key(status_key: u8, last_modified_ms: Option<i64>) -> i64 {
-    if status_key == DONE_STATUS_KEY {
-        pill_done_recency_key(last_modified_ms)
-    } else {
-        0
-    }
-}
-
 /// Renders the orchestrator avatar disc shared by pill, breadcrumb, and transcript
 /// surfaces.
 pub(crate) fn render_orchestrator_avatar_disc(
@@ -226,9 +193,6 @@ struct PillSpec {
     pin_state: PillPinState,
     /// Child running on a remote worker; drives the cloud-shaped badge variant.
     is_remote_child: bool,
-    /// Epoch ms of the conversation's last activity; recency tiebreaker
-    /// within the done bucket.
-    last_modified_ms: Option<i64>,
 }
 
 #[derive(Clone, Copy)]
@@ -473,14 +437,13 @@ impl OrchestrationPillBar {
         let appearance = Appearance::as_ref(ctx);
         let theme = appearance.theme();
         let hover_background: Fill = internal_colors::neutral_4(theme).into();
-        let label = |key| localization::text_for_app(ctx, key);
         let item = |key, icon, action| {
-            Self::overflow_menu_item(label(key), icon, action, hover_background, None)
+            Self::overflow_menu_item(text_for_app(ctx, key), icon, action, hover_background, None)
         };
         let destructive_color: Fill = theme.ansi_fg_red().into();
         let destructive_item = |key, icon, action| {
             Self::overflow_menu_item(
-                label(key),
+                text_for_app(ctx, key),
                 icon,
                 action,
                 hover_background,
@@ -543,13 +506,13 @@ impl OrchestrationPillBar {
                 OrchestrationPillBarAction::Stop(conversation_id),
             ));
         }
-        let (kill_label_key, kill_icon) = if is_in_finished_state {
+        let (kill_key, kill_icon) = if is_in_finished_state {
             ("agent.orchestration.menu.delete_agent", Icon::Trash)
         } else {
             ("agent.orchestration.menu.kill_agent", Icon::X)
         };
         items.push(destructive_item(
-            kill_label_key,
+            kill_key,
             kill_icon,
             OrchestrationPillBarAction::Kill(conversation_id),
         ));
@@ -651,10 +614,9 @@ impl OrchestrationPillBar {
         let orchestrator_id = parent_conversation_id(active_conversation, app).unwrap_or(active_id);
         let orchestrator = history.conversation(&orchestrator_id)?;
 
-        // Walk the full descendant tree in pre-order, preserving each
-        // parent's child registration order so nested branches stay
-        // contiguous and grandchildren remain visible in the row.
-        let children: Vec<_> = descendant_conversation_ids_in_spawn_order(history, orchestrator_id)
+        // Use the shared canonical pill ordering so the visible row and
+        // keyboard navigation cannot drift.
+        let children: Vec<_> = descendant_conversation_ids_in_pill_order(history, orchestrator_id)
             .into_iter()
             .filter_map(|id| history.conversation(&id))
             .collect();
@@ -680,18 +642,16 @@ impl OrchestrationPillBar {
             kind: PillKind::Orchestrator,
             pin_state: PillPinState::Unpinned,
             is_remote_child: false,
-            // Unused: orchestrator pills aren't sorted (they render first).
-            last_modified_ms: None,
         });
 
         // Stamp each child's current pin state; partitioning happens at render.
         let pill_bar_model = OrchestrationPillBarModel::as_ref(app);
-        let child_agent_fallback = localization::text_for_app(app, "agent.child_agent.name");
         for child in children {
             let name = child
                 .agent_name()
                 .filter(|n| !n.is_empty())
-                .unwrap_or(&child_agent_fallback);
+                .map(str::to_string)
+                .unwrap_or_else(|| text_for_app(app, "agent.orchestration.agent"));
             let pin_state = if pill_bar_model.is_pinned(&child.id()) {
                 PillPinState::Pinned
             } else {
@@ -699,15 +659,14 @@ impl OrchestrationPillBar {
             };
             specs.push(PillSpec {
                 conversation_id: child.id(),
-                label: name.to_string(),
-                avatar_color: pill_avatar_color(name, theme),
-                avatar_glyph: AvatarGlyph::Letter(pill_initial(name)),
+                label: name.clone(),
+                avatar_color: pill_avatar_color(&name, theme),
+                avatar_glyph: AvatarGlyph::Letter(pill_initial(&name)),
                 status: Some(child.status().clone()),
                 is_selected: child.id() == active_id,
                 kind: PillKind::Child,
                 pin_state,
                 is_remote_child: child.is_remote_child(),
-                last_modified_ms: child.last_modified_at().map(|t| t.timestamp_millis()),
             });
         }
 
@@ -754,14 +713,14 @@ pub fn render_static_agent_pill(name: &str, app: &AppContext) -> Box<dyn Element
 }
 
 /// Returns the label to use for the orchestrator pill. Prefers the explicitly
-/// set agent name, falling back to localized orchestrator copy so the pill is
-/// meaningful even before any naming has happened.
+/// set agent name, falling back to "Orchestrator" so the pill is meaningful
+/// even before any naming has happened.
 fn orchestrator_label(orchestrator: &AIConversation, app: &AppContext) -> String {
     orchestrator
         .agent_name()
         .filter(|n| !n.is_empty())
         .map(|n| n.to_string())
-        .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.orchestrator"))
+        .unwrap_or_else(|| text_for_app(app, "agent.orchestration.orchestrator"))
 }
 
 impl OrchestrationPillBar {
@@ -1125,13 +1084,13 @@ impl View for OrchestrationPillBar {
         // the orchestrator pane, so any child whose owner differs from
         // this id has been split off into another pane/tab.
         let self_terminal_view_id = self.agent_view_controller.as_ref(app).terminal_view_id();
-        // Row layout: orchestrator, pinned, divider, unpinned. Each
-        // child bucket is sorted by status priority, then recency for
-        // done pills and spawn order otherwise.
+        // Row layout: orchestrator, pinned, divider, unpinned. `pill_specs`
+        // already follows the canonical pill order, so partitioning preserves
+        // the exact order used by keyboard navigation.
         let mut orchestrator_pill: Option<Box<dyn Element>> = None;
-        let mut pinned_pills: Vec<(u8, i64, usize, Box<dyn Element>)> = Vec::new();
-        let mut unpinned_pills: Vec<(u8, i64, usize, Box<dyn Element>)> = Vec::new();
-        for (spawn_index, spec) in specs.into_iter().enumerate() {
+        let mut pinned_pills: Vec<Box<dyn Element>> = Vec::new();
+        let mut unpinned_pills: Vec<Box<dyn Element>> = Vec::new();
+        for spec in specs {
             let mouse_state = mouse_states
                 .entry(spec.conversation_id)
                 .or_default()
@@ -1151,8 +1110,6 @@ impl View for OrchestrationPillBar {
             let menu_is_open_for_this = menu_open_for == Some(spec.conversation_id);
             let kind = spec.kind;
             let pin_state = spec.pin_state;
-            let status_key = pill_status_sort_key(spec.status.as_ref());
-            let secondary_key = pill_secondary_sort_key(status_key, spec.last_modified_ms);
             let pill = render_pill(
                 spec,
                 mouse_state,
@@ -1165,10 +1122,10 @@ impl View for OrchestrationPillBar {
             match (kind, pin_state) {
                 (PillKind::Orchestrator, _) => orchestrator_pill = Some(pill),
                 (PillKind::Child, PillPinState::Pinned) => {
-                    pinned_pills.push((status_key, secondary_key, spawn_index, pill));
+                    pinned_pills.push(pill);
                 }
                 (PillKind::Child, PillPinState::Unpinned) => {
-                    unpinned_pills.push((status_key, secondary_key, spawn_index, pill));
+                    unpinned_pills.push(pill);
                 }
             }
         }
@@ -1176,23 +1133,18 @@ impl View for OrchestrationPillBar {
         drop(overflow_states);
         drop(pin_states);
 
-        // Explicit spawn-index tiebreaker keeps ordering deterministic.
-        let sort_key = |(k, s, idx, _): &(u8, i64, usize, _)| (*k, *s, *idx);
-        pinned_pills.sort_by_key(sort_key);
-        unpinned_pills.sort_by_key(sort_key);
-
         if let Some(pill) = orchestrator_pill {
             row.add_child(pill);
         }
         let has_unpinned = !unpinned_pills.is_empty();
-        for (.., pill) in pinned_pills {
+        for pill in pinned_pills {
             row.add_child(pill);
         }
         // Divider between leading section (orchestrator + pinned) and unpinned.
         if has_unpinned {
             row.add_child(render_pinned_divider(app));
         }
-        for (.., pill) in unpinned_pills {
+        for pill in unpinned_pills {
             row.add_child(pill);
         }
 
@@ -1376,7 +1328,7 @@ fn render_hover_card(
         .filter(|n| !n.is_empty())
         .map(|n| n.to_string())
         .or_else(|| conversation.title())
-        .unwrap_or_else(|| localization::text_for_app(app, "agent.child_agent.name"));
+        .unwrap_or_else(|| "Agent".to_string());
 
     // Header: small avatar disc + bold agent name on the left, status
     // badge right-aligned. We use the conversation's `ConversationStatus`
@@ -1645,10 +1597,16 @@ fn conversation_status_label(status: &ConversationStatus, app: &AppContext) -> S
         ConversationStatus::InProgress => "conversation_details.status.in_progress",
         ConversationStatus::Success => "conversation_details.status.done",
         ConversationStatus::Error => "conversation_details.status.error",
+        ConversationStatus::TransientError => "conversation_details.status.error",
         ConversationStatus::Cancelled => "conversation_details.status.cancelled",
+        ConversationStatus::WaitingForEvents => "conversation_details.status.in_progress",
         ConversationStatus::Blocked { .. } => "conversation_details.status.blocked",
     };
-    crate::localization::text_for_app(app, key)
+    localization::text_for_app(app, key)
+}
+
+fn text_for_app(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
 }
 
 fn render_avatar_slot(avatar: Box<dyn Element>) -> Box<dyn Element> {
@@ -2329,19 +2287,19 @@ pub fn render_orchestration_breadcrumbs(
                 .filter(|t| !t.is_empty())
                 .or_else(|| p.agent_name().map(str::to_string))
         })
-        .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.orchestrator"));
+        .unwrap_or_else(|| text_for_app(app, "agent.orchestration.orchestrator"));
 
     // Treat empty `agent_name` as missing so the label, avatar color, and
     // initial all consistently fall back to "Agent". Without the
     // `.filter(|n| !n.is_empty())` on `child_name`, an unnamed agent would
     // show "Agent" as the label but be hashed/initialed against the empty
     // string, producing a different color/letter from a real "Agent".
-    let child_agent_fallback = localization::text_for_app(app, "agent.child_agent.name");
     let child_name = active
         .agent_name()
         .filter(|n| !n.is_empty())
-        .unwrap_or(&child_agent_fallback);
-    let child_label = child_name.to_string();
+        .map(str::to_string)
+        .unwrap_or_else(|| text_for_app(app, "agent.orchestration.agent"));
+    let child_label = child_name.clone();
 
     // Parent crumb uses the Oz glyph on a neutral disc to match the
     // orchestrator pill in the pill bar.
@@ -2358,8 +2316,8 @@ pub fn render_orchestration_breadcrumbs(
     let child_spec = CrumbSpec {
         conversation_id: active_id,
         label: child_label,
-        avatar_color: pill_avatar_color(child_name, theme),
-        avatar_glyph: AvatarGlyph::Letter(pill_initial(child_name)),
+        avatar_color: pill_avatar_color(&child_name, theme),
+        avatar_glyph: AvatarGlyph::Letter(pill_initial(&child_name)),
         is_active: true,
     };
 

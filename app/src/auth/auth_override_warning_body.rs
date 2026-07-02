@@ -29,16 +29,6 @@ const ACTION_BUTTON_BORDER_WIDTH: f32 = 2.;
 const ACTION_BUTTON_HORIZONTAL_PADDING: f32 = 8.;
 const ACTION_BUTTON_FONT_SIZE: f32 = 14.;
 
-const AUTH_OVERRIDE_DESCRIPTION_KEY: &str = "auth.override.description";
-const AUTH_OVERRIDE_CONFIRMATION_WARNING_KEY: &str = "auth.override.confirmation_warning";
-const AUTH_OVERRIDE_INITIAL_STEP_HEADER_KEY: &str = "auth.override.header.initial";
-const AUTH_OVERRIDE_CONFIRM_CONFIRMATION_STEP_HEADER_KEY: &str =
-    "auth.override.header.confirm_change_user";
-const AUTH_OVERRIDE_BULK_EXPORT_BUTTON_LABEL_KEY: &str = "auth.override.export_data";
-const AUTH_OVERRIDE_BULK_EXPORT_DESCRIPTION_KEY: &str = "auth.override.export_description";
-const AUTH_OVERRIDE_CANCEL_BUTTON_LABEL_KEY: &str = "auth.override.cancel";
-const AUTH_OVERRIDE_CONTINUE_BUTTON_LABEL_KEY: &str = "auth.override.continue";
-
 #[derive(Clone, Copy, Debug)]
 pub enum AuthOverrideWarningBodyAction {
     Close,
@@ -93,9 +83,9 @@ impl AuthOverrideWarningBody {
 
     fn render_header(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let header_styles = UiComponentStyles {
             font_family_id: Some(appearance.header_font_family()),
@@ -106,14 +96,16 @@ impl AuthOverrideWarningBody {
         };
 
         let text = match self.confirmation_step {
-            AuthOverrideConfirmationStep::Initial => AUTH_OVERRIDE_INITIAL_STEP_HEADER_KEY,
+            AuthOverrideConfirmationStep::Initial => {
+                localization::text_for_app(app, "auth.override.header.initial")
+            }
             AuthOverrideConfirmationStep::ConfirmChangeUser => {
-                AUTH_OVERRIDE_CONFIRM_CONFIRMATION_STEP_HEADER_KEY
+                localization::text_for_app(app, "auth.override.header.confirm_change_user")
             }
         };
 
         ui_builder
-            .span(localization::text_for_app(app, text))
+            .span(text)
             .with_soft_wrap()
             .with_style(header_styles)
             .build()
@@ -143,9 +135,9 @@ impl AuthOverrideWarningBody {
 
     fn render_warning_description(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
+        app: &AppContext,
     ) -> Vec<Box<dyn Element>> {
         let muted_styles = UiComponentStyles {
             font_color: Some(
@@ -161,10 +153,7 @@ impl AuthOverrideWarningBody {
             AuthOverrideConfirmationStep::Initial => {
                 let description = Container::new(
                     ui_builder
-                        .paragraph(localization::text_for_app(
-                            app,
-                            AUTH_OVERRIDE_DESCRIPTION_KEY,
-                        ))
+                        .paragraph(localization::text_for_app(app, "auth.override.description"))
                         .with_style(muted_styles)
                         .build()
                         .finish(),
@@ -177,10 +166,7 @@ impl AuthOverrideWarningBody {
                         .with_child(
                             ui_builder
                                 .link(
-                                    localization::text_for_app(
-                                        app,
-                                        AUTH_OVERRIDE_BULK_EXPORT_BUTTON_LABEL_KEY,
-                                    ),
+                                    localization::text_for_app(app, "auth.override.export_data"),
                                     None,
                                     Some(Box::new(|ctx| {
                                         ctx.dispatch_typed_action(
@@ -199,7 +185,7 @@ impl AuthOverrideWarningBody {
                             ui_builder
                                 .span(localization::text_for_app(
                                     app,
-                                    AUTH_OVERRIDE_BULK_EXPORT_DESCRIPTION_KEY,
+                                    "auth.override.export_description",
                                 ))
                                 .with_style(muted_styles)
                                 .build()
@@ -218,7 +204,7 @@ impl AuthOverrideWarningBody {
                     ui_builder
                         .paragraph(localization::text_for_app(
                             app,
-                            AUTH_OVERRIDE_CONFIRMATION_WARNING_KEY,
+                            "auth.override.confirmation_warning",
                         ))
                         .with_style(muted_styles)
                         .build()
@@ -235,9 +221,9 @@ impl AuthOverrideWarningBody {
 
     fn render_buttons(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let button_color = appearance.theme().accent().into();
 
@@ -309,10 +295,7 @@ impl AuthOverrideWarningBody {
                 Some(click_button_style),
                 None,
             )
-            .with_centered_text_label(localization::text_for_app(
-                app,
-                AUTH_OVERRIDE_CANCEL_BUTTON_LABEL_KEY,
-            ))
+            .with_centered_text_label(localization::text_for_app(app, "auth.override.cancel"))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(AuthOverrideWarningBodyAction::Close);
@@ -338,10 +321,7 @@ impl AuthOverrideWarningBody {
                 Some(outline_click_button_style),
                 None,
             )
-            .with_centered_text_label(localization::text_for_app(
-                app,
-                AUTH_OVERRIDE_CONTINUE_BUTTON_LABEL_KEY,
-            ))
+            .with_centered_text_label(localization::text_for_app(app, "auth.override.continue"))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(continue_action);
@@ -406,7 +386,7 @@ impl View for AuthOverrideWarningBody {
 
     fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            localization::text_for_app(app, AUTH_OVERRIDE_INITIAL_STEP_HEADER_KEY),
+            localization::text_for_app(app, "auth.override.header.initial"),
             localization::text_for_app(app, "auth.override.a11y.description"),
             WarpA11yRole::HelpRole,
         ))
@@ -430,9 +410,9 @@ impl View for AuthOverrideWarningBody {
         let content = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(logo_row)
-            .with_child(self.render_header(app, appearance, ui_builder))
-            .with_children(self.render_warning_description(app, appearance, ui_builder))
-            .with_child(self.render_buttons(app, appearance, ui_builder))
+            .with_child(self.render_header(appearance, ui_builder, app))
+            .with_children(self.render_warning_description(appearance, ui_builder, app))
+            .with_child(self.render_buttons(appearance, ui_builder, app))
             .finish();
 
         Container::new(content)

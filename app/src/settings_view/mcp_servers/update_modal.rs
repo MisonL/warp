@@ -131,16 +131,17 @@ impl UpdateModalBody {
 
     fn render_title(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
+        let fallback_name = localization::text_for_app(app, "settings.mcp.update.server");
         let name = self
             .server_name
-            .clone()
-            .unwrap_or_else(|| localization::text_for_app(app, "settings.mcp.update.server"));
+            .as_deref()
+            .unwrap_or(fallback_name.as_str());
 
         // Renders MCP avatar icon
-        let avatar_content = if let Some(icon) = ExternalProductIcon::from_string(&name) {
+        let avatar_content = if let Some(icon) = ExternalProductIcon::from_string(name) {
             AvatarContent::ExternalProductIcon(icon)
         } else {
-            AvatarContent::DisplayName(name.clone())
+            AvatarContent::DisplayName(name.to_string())
         };
         let avatar = Avatar::new(
             avatar_content,
@@ -167,7 +168,7 @@ impl UpdateModalBody {
             localization::text_for_app_with_args(
                 app,
                 "settings.mcp.update.title",
-                &[("name", &name)],
+                &[("name", name)],
             ),
             appearance.ui_font_family(),
             appearance.header_font_size(),
@@ -256,8 +257,8 @@ impl UpdateModalBody {
         index: usize,
         option: &MCPServerUpdate,
         is_selected: bool,
-        appearance: &Appearance,
         app: &AppContext,
+        appearance: &Appearance,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
@@ -301,7 +302,7 @@ impl UpdateModalBody {
             MCPServerUpdate::Gallery {
                 name, new_version, ..
             } => {
-                let new_version = new_version.to_string();
+                let version = new_version.to_string();
                 (
                     localization::text_for_app_with_args(
                         app,
@@ -311,7 +312,7 @@ impl UpdateModalBody {
                     localization::text_for_app_with_args(
                         app,
                         "settings.mcp.update.version",
-                        &[("version", &new_version)],
+                        &[("version", &version)],
                     ),
                 )
             }
@@ -442,8 +443,8 @@ impl View for UpdateModalBody {
                     index,
                     option,
                     is_selected,
-                    appearance,
                     ctx,
+                    appearance,
                 ));
             }
         }

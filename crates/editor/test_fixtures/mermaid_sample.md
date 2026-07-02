@@ -1,9 +1,8 @@
-# Mermaid 渲染测试
+# Mermaid Render Test
+This file is meant to exercise a broad variety of Mermaid diagram types in Warp.
+Most of the examples below are adapted from `crates/mermaid_to_svg/samples`.
 
-此文件用于在 Warp 中覆盖多种 Mermaid 图表类型。
-下面大多数示例都改编自 `crates/mermaid_to_svg/samples`。
-
-## Flowchart：形状
+## Flowchart: shapes
 ```mermaid
 graph TD
     A[Rect] --> B(Rounded)
@@ -16,7 +15,7 @@ graph TD
     H --> I>Asymmetric]
 ```
 
-## Flowchart：样式
+## Flowchart: styles
 ```mermaid
 graph TD
     A[Start] --> B[Process]
@@ -294,8 +293,7 @@ curve Series1 { 1, 2, 3 }
 info
 ```
 
-## 备注
-
-- 验证每个代码围栏都以可视化方式渲染，而不是显示为纯文本。
-- 检查哪些图表类型可以完整渲染，哪些只部分渲染或走 fallback。
-- 如有帮助，可比较 editor view、preview view 以及重新打开/调整大小流程之间的行为差异。
+## Notes
+- Verify that each code fence renders visually instead of as plain text.
+- Check which diagram types fully render versus partially render or fall back.
+- If useful, compare behavior between editor view, preview view, and reopen/resizing flows.

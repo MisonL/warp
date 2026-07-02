@@ -161,7 +161,7 @@ impl GenericMenuItem for EnvironmentMenuItem {
 /// Menu item for the "New Environment" footer option.
 #[derive(Debug, Clone)]
 struct NewEnvironmentMenuItem {
-    name: String,
+    label: String,
 }
 
 impl GenericMenuItem for NewEnvironmentMenuItem {
@@ -170,7 +170,7 @@ impl GenericMenuItem for NewEnvironmentMenuItem {
     }
 
     fn name(&self) -> String {
-        self.name.clone()
+        self.label.clone()
     }
 
     fn icon(&self, _app: &AppContext) -> Option<Icon> {
@@ -204,12 +204,13 @@ impl EnvironmentSelector {
         target: EnvironmentSelectorTarget,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let choose_environment_tooltip =
-            crate::localization::text_for_app(ctx, "agent.input_footer.choose_environment");
-        let button = ctx.add_typed_action_view(move |_ctx| {
+        let button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_icon(Icon::Globe4)
-                .with_tooltip(choose_environment_tooltip.clone())
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.choose_environment",
+                ))
                 .with_size(ButtonSize::AgentInputButton)
                 .with_disabled_theme(DisabledTheme)
                 .on_click(|ctx| {
@@ -218,10 +219,12 @@ impl EnvironmentSelector {
         });
 
         let dropdown = ctx.add_typed_action_view(move |ctx| {
+            let new_environment_label =
+                localization::text_for_app(ctx, "agent.input_footer.new_environment");
             DisplayChipMenu::new(
                 Vec::<EnvironmentMenuItem>::new(),
                 Some(FixedFooter::new(Arc::new(NewEnvironmentMenuItem {
-                    name: localization::text_for_app(ctx, "agent.input_footer.new_environment"),
+                    label: new_environment_label,
                 }))),
                 ChipMenuType::Environments,
                 ctx,
@@ -449,15 +452,9 @@ impl EnvironmentSelector {
             button.set_label(label, ctx);
             button.set_tooltip(
                 if is_configuring {
-                    Some(localization::text_for_app(
-                        ctx,
-                        "agent.input_footer.choose_environment",
-                    ))
+                    Some("Choose an environment")
                 } else {
-                    Some(localization::text_for_app(
-                        ctx,
-                        "agent.input_footer.agent_environment",
-                    ))
+                    Some("Agent environment")
                 },
                 ctx,
             );

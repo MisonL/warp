@@ -43,6 +43,7 @@ use crate::code::active_file::{ActiveFileEvent, ActiveFileModel};
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::{EditorOptions, EditorView, TextOptions};
+use crate::localization;
 use crate::menu::{Menu, MenuItem, MenuItemFields};
 #[cfg(feature = "local_fs")]
 use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
@@ -66,12 +67,8 @@ mod render;
 
 use crate::settings::{CodeSettings, CodeSettingsChangedEvent};
 
-const REMOTE_TEXT_KEY: &str = "code.file_tree.error.remote";
-const DISABLED_TEXT_KEY: &str = "code.file_tree.error.disabled";
-const WSL_TEXT_KEY: &str = "code.file_tree.error.wsl";
-
 fn file_tree_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
+    localization::text_for_app(app, key)
 }
 
 /// Stable identifier for an item in the file tree.
@@ -2960,13 +2957,14 @@ impl View for FileTreeView {
 
     #[cfg(not(feature = "local_fs"))]
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        self.render_error_state(file_tree_text(app, REMOTE_TEXT_KEY), app)
+        self.render_error_state(file_tree_text(app, "code.file_tree.error.remote"), app)
     }
 
     #[cfg(feature = "local_fs")]
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         if matches!(self.enablement, CodingPanelEnablementState::Disabled) {
-            return self.render_error_state(file_tree_text(app, DISABLED_TEXT_KEY), app);
+            return self
+                .render_error_state(file_tree_text(app, "code.file_tree.error.disabled"), app);
         }
 
         if matches!(
@@ -2987,7 +2985,7 @@ impl View for FileTreeView {
                 return if has_remote_server {
                     self.render_loading_state(app)
                 } else {
-                    self.render_error_state(file_tree_text(app, REMOTE_TEXT_KEY), app)
+                    self.render_error_state(file_tree_text(app, "code.file_tree.error.remote"), app)
                 };
             }
 
@@ -2995,7 +2993,8 @@ impl View for FileTreeView {
                 self.enablement,
                 CodingPanelEnablementState::UnsupportedSession
             ) {
-                return self.render_error_state(file_tree_text(app, WSL_TEXT_KEY), app);
+                return self
+                    .render_error_state(file_tree_text(app, "code.file_tree.error.wsl"), app);
             }
 
             return self.render_loading_state(app);

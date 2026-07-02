@@ -17,11 +17,10 @@ use crate::terminal::session_settings::{
     AgentToolbarChipSelection, CLIAgentToolbarChipSelection, SessionSettings,
     SessionSettingsChangedEvent, ToolbarChipSelection,
 };
-use crate::{localization, report_if_error, Appearance};
+use crate::{report_if_error, Appearance};
 
-const AGENT_MODAL_TITLE_KEY: &str = "terminal.menu.edit_agent_toolbelt";
-const CLI_MODAL_TITLE_KEY: &str = "agent.input_footer.edit_cli_agent_toolbelt";
-const AVAILABLE_CHIPS_KEY: &str = "agent.input_footer.available_chips";
+const AGENT_MODAL_TITLE: &str = "Edit agent toolbelt";
+const CLI_MODAL_TITLE: &str = "Edit CLI agent toolbelt";
 
 /// Controls which set of items and settings the editor modal operates on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -234,11 +233,10 @@ impl View for AgentToolbarInlineEditor {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let available_section_label = localization::text_for_app(app, AVAILABLE_CHIPS_KEY);
         render_chip_editor_sections(
             &self.chip_configurator,
             ChipEditorSectionsConfig {
-                available_section_label: &available_section_label,
+                available_section_label: "Available chips",
                 is_at_defaults: self.is_at_defaults(),
                 reset_action: AgentToolbarInlineEditorAction::ResetDefault,
                 activate_action: AgentToolbarInlineEditorAction::Activate,
@@ -246,7 +244,6 @@ impl View for AgentToolbarInlineEditor {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
-            app,
         )
     }
 }
@@ -328,10 +325,10 @@ impl AgentToolbarEditorModal {
         self.is_dirty = false;
     }
 
-    fn modal_title_key(&self) -> &'static str {
+    fn modal_title(&self) -> &'static str {
         match self.mode {
-            AgentToolbarEditorMode::AgentView => AGENT_MODAL_TITLE_KEY,
-            AgentToolbarEditorMode::CLIAgent => CLI_MODAL_TITLE_KEY,
+            AgentToolbarEditorMode::AgentView => AGENT_MODAL_TITLE,
+            AgentToolbarEditorMode::CLIAgent => CLI_MODAL_TITLE,
         }
     }
 }
@@ -385,13 +382,11 @@ impl View for AgentToolbarEditorModal {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let title = localization::text_for_app(app, self.modal_title_key());
-        let available_section_label = localization::text_for_app(app, AVAILABLE_CHIPS_KEY);
         render_chip_editor_modal(
             &self.chip_configurator,
             ChipEditorModalConfig {
-                title: &title,
-                available_section_label: &available_section_label,
+                title: self.modal_title(),
+                available_section_label: "Available chips",
                 is_at_defaults: self.is_at_defaults(),
                 is_dirty: self.is_dirty,
                 cancel_action: AgentToolbarEditorAction::Cancel,

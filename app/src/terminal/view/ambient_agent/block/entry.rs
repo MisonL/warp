@@ -215,10 +215,7 @@ impl AmbientAgentEntryBlock {
             }
             Status::Failed { .. } => Some(ConversationStatus::Error),
             Status::NeedsGithubAuth { .. } => Some(ConversationStatus::Blocked {
-                blocked_action: localization::text_for_app(
-                    app,
-                    "terminal.ambient_agent.detail.github_auth_required",
-                ),
+                blocked_action: "GitHub authentication required".to_owned(),
             }),
             Status::Cancelled { .. } => Some(ConversationStatus::Cancelled),
         }

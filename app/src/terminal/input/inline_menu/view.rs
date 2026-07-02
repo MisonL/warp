@@ -1043,7 +1043,7 @@ impl<A: InlineMenuAction, T: 'static + Send + Sync> View for InlineMenuView<A, T
                 )
             } else {
                 self.render_no_results_state(
-                    crate::localization::text_for_app(app, "search.no_results"),
+                    crate::localization::text_for_app(app, "terminal.input.inline_menu.no_results"),
                     app,
                 )
             };

@@ -28,7 +28,6 @@ use crate::ai::blocklist::inline_action::inline_action_header::{
 };
 use crate::ai::blocklist::inline_action::inline_action_icons::{self};
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::settings::InputModeSettings;
 use crate::terminal::block_list_element::BlockListMenuSource;
 use crate::terminal::block_list_viewport::InputMode;
@@ -44,6 +43,9 @@ use crate::view_components::compactible_action_button::{
 /// The vertical padding applied to the env var collection block's content body.
 /// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.
 const ENV_VAR_COLLECTION_BODY_VERTICAL_PADDING: f32 = 16.;
+
+const ENV_VAR_COLLECTION_CANCEL_LABEL_KEY: &str = "agent.block.action.cancel";
+const ENV_VAR_COLLECTION_ACCEPT_LABEL_KEY: &str = "agent.block.action.run";
 
 lazy_static! {
     static ref CANCEL_ENV_VAR_COLLECTION_KEYSTROKE: Keystroke = Keystroke {
@@ -145,7 +147,10 @@ impl EnvVarCollectionBlock {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let cancel_button = CompactibleActionButton::new(
-            localization::text_for_app(ctx, "agent.block.action.cancel"),
+            crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                ENV_VAR_COLLECTION_CANCEL_LABEL_KEY,
+            ),
             Some(KeystrokeSource::Fixed(
                 CANCEL_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),
@@ -157,7 +162,10 @@ impl EnvVarCollectionBlock {
         );
 
         let accept_button = CompactibleActionButton::new(
-            localization::text_for_app(ctx, "agent.block.action.run"),
+            crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                ENV_VAR_COLLECTION_ACCEPT_LABEL_KEY,
+            ),
             Some(KeystrokeSource::Fixed(
                 ACCEPT_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),
@@ -254,7 +262,8 @@ impl EnvVarCollectionBlock {
 
     fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
         let title: Cow<'static, str> = if self.state == EnvVarCollectionState::WaitingForUser {
-            localization::text_for_app(app, "agent.requested_command.status.waiting_command").into()
+            crate::localization::text_for_app(app, "agent.requested_command.status.waiting_command")
+                .into()
         } else {
             self.command.clone().into()
         };

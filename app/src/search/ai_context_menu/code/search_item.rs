@@ -9,7 +9,6 @@ use warpui::{AppContext, Element, SingletonEntity};
 // Import CodeSymbol from the data_source module
 use super::data_source::CodeSymbol;
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::{safe_truncate, styles};
 use crate::search::item::{IconLocation, SearchItem};
@@ -266,20 +265,6 @@ impl SearchItem for CodeSearchItem {
             self.code_symbol.symbol.name,
             self.code_symbol.file_path.to_string_lossy(),
             self.code_symbol.symbol.line_number
-        )
-    }
-
-    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
-        let path = self.code_symbol.file_path.to_string_lossy();
-        let line = self.code_symbol.symbol.line_number.to_string();
-        localization::text_for_app_with_args(
-            app,
-            "search.a11y.type.code_symbol",
-            &[
-                ("name", &self.code_symbol.symbol.name),
-                ("path", path.as_ref()),
-                ("line", &line),
-            ],
         )
     }
 }

@@ -12,10 +12,6 @@ pub(crate) mod orchestration_event_streamer;
 pub(crate) mod orchestration_events;
 pub(crate) mod orchestration_topology;
 mod passive_suggestions;
-#[cfg(feature = "integration_tests")]
-pub(crate) use passive_suggestions::{
-    apply_static_prompt_captures_for_integration_test, static_suggested_query_for_integration_test,
-};
 pub(crate) mod queued_query;
 pub(super) use controller::RequestInput;
 pub mod history_model;
@@ -53,14 +49,17 @@ pub(crate) use context_model::{
 pub use controller::input_context::{
     BLOCK_CONTEXT_ATTACHMENT_REGEX, DIFF_HUNK_ATTACHMENT_REGEX, DRIVE_OBJECT_ATTACHMENT_REGEX,
 };
+#[cfg(test)]
+pub(crate) use controller::response_stream::ResponseStream;
 pub(crate) use controller::response_stream::ResponseStreamId;
 pub(crate) use controller::{
     BlocklistAIController, BlocklistAIControllerEvent, ClientIdentifiers, SessionContext,
     SlashCommandRequest,
 };
 pub(crate) use history_model::{
-    AIQueryHistory, AIQueryHistoryOutputStatus, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
-    ConversationStatusUpdate, FORK_PREFIX, PRE_REWIND_PREFIX,
+    AIQueryHistory, AIQueryHistoryOutputStatus, BeginConversationRenameError,
+    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate, FORK_PREFIX,
+    PRE_REWIND_PREFIX,
 };
 pub(crate) use input_model::{
     BlocklistAIInputEvent, BlocklistAIInputModel, InputConfig, InputType,
@@ -75,15 +74,16 @@ pub use permissions::{BlocklistAIPermissions, CommandExecutionPermissionAllowedR
 pub(crate) use persistence::PersistedAIInputType;
 pub(crate) use persistence::{PersistedAIInput, SerializedBlockListItem};
 pub(crate) use queued_query::{
-    AutofireAction, QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel,
-    QueuedQueryOrigin,
+    is_lrc_auto_queue_active, AutofireAction, QueuedQuery, QueuedQueryEvent, QueuedQueryId,
+    QueuedQueryModel, QueuedQueryOrigin,
 };
 pub use suggestion_chip_view::*;
 pub use view_util::error_color;
 pub(crate) use view_util::{
-    ai_brand_color, ai_indicator_height, format_credits, format_credits_for_locale,
+    ai_brand_color, ai_indicator_height, format_credits,
     get_ai_block_overflow_menu_element_position_id, get_attached_blocks_chip_element_position_id,
-    render_ai_agent_mode_icon, render_ai_follow_up_icon, CLAUDE_ORANGE,
+    render_ai_agent_mode_icon, render_ai_follow_up_icon, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT,
+    CLAUDE_ORANGE, NEW_AGENT_PANE_LABEL,
 };
 
 pub use crate::ai::blocklist::block::{secret_redaction, AIBlockResponseRating, TextLocation};

@@ -14,7 +14,7 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::appearance::Appearance;
+use crate::appearance::{Appearance, AppearanceEvent};
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
@@ -87,6 +87,13 @@ impl CustomEndpointModal {
         editing_index: Option<usize>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
+        // Editor text colors are snapshotted at construction via
+        // `text_colors_override`, so refresh them whenever the theme changes.
+        ctx.subscribe_to_model(&Appearance::handle(ctx), |me, _, event, ctx| {
+            if let AppearanceEvent::ThemeChanged = event {
+                me.update_editor_text_colors(ctx);
+            }
+        });
         let font_family = Appearance::as_ref(ctx).ui_font_family();
         let text_colors = crate::settings_view::editor_text_colors(Appearance::as_ref(ctx));
 
@@ -381,6 +388,28 @@ impl CustomEndpointModal {
         }
     }
 
+    /// Re-applies theme-derived text colors to every editor in the modal.
+    /// Called on appearance changes since editors only snapshot their text
+    /// colors at construction.
+    fn update_editor_text_colors(&mut self, ctx: &mut ViewContext<Self>) {
+        let text_colors = crate::settings_view::editor_text_colors(Appearance::as_ref(ctx));
+        let mut editors = vec![
+            self.endpoint_name_editor.clone(),
+            self.endpoint_url_editor.clone(),
+            self.api_key_editor.clone(),
+        ];
+        for row in &self.model_rows {
+            editors.push(row.name_editor.clone());
+            editors.push(row.alias_editor.clone());
+        }
+        for editor in editors {
+            let colors = text_colors.clone();
+            editor.update(ctx, move |editor, ctx| {
+                editor.set_text_colors(colors, ctx);
+            });
+        }
+    }
+
     fn save(&mut self, ctx: &mut ViewContext<Self>) {
         self.validate_url_field(ctx);
         if !self.is_valid(ctx) {
@@ -621,7 +650,7 @@ impl View for CustomEndpointModal {
 
         let label_font_family = appearance.ui_font_family();
         let label_text_color = theme.active_ui_text_color().into();
-        let label = move |text: String| {
+        let label = move |text: &'static str| {
             Text::new(text, label_font_family, LABEL_FONT_SIZE)
                 .with_color(label_text_color)
                 .finish()
@@ -643,7 +672,7 @@ impl View for CustomEndpointModal {
         column.add_child(
             Container::new(
                 Text::new(
-                    localization::text_for_app(app, "settings.ai.custom_endpoint.description"),
+                    "Provide your endpoint details below. You can add as many models from the endpoint as you'd like and can also provide aliases for the model picker in your input.",
                     appearance.ui_font_family(),
                     LABEL_FONT_SIZE,
                 )
@@ -657,12 +686,9 @@ impl View for CustomEndpointModal {
 
         // Endpoint name
         column.add_child(
-            Container::new(label(localization::text_for_app(
-                app,
-                "settings.ai.custom_endpoint.name",
-            )))
-            .with_margin_bottom(4.)
-            .finish(),
+            Container::new(label("Endpoint name"))
+                .with_margin_bottom(4.)
+                .finish(),
         );
         column.add_child(
             Container::new(
@@ -679,12 +705,9 @@ impl View for CustomEndpointModal {
 
         // Endpoint URL
         column.add_child(
-            Container::new(label(localization::text_for_app(
-                app,
-                "settings.ai.custom_endpoint.url",
-            )))
-            .with_margin_bottom(4.)
-            .finish(),
+            Container::new(label("Endpoint URL"))
+                .with_margin_bottom(4.)
+                .finish(),
         );
         let url_border_fill = if self.url_has_error {
             theme.ui_error_color().into()
@@ -708,12 +731,9 @@ impl View for CustomEndpointModal {
 
         // API key
         column.add_child(
-            Container::new(label(localization::text_for_app(
-                app,
-                "settings.ai.custom_endpoint.api_key",
-            )))
-            .with_margin_bottom(4.)
-            .finish(),
+            Container::new(label("API key"))
+                .with_margin_bottom(4.)
+                .finish(),
         );
         column.add_child(
             Container::new(
@@ -735,20 +755,14 @@ impl View for CustomEndpointModal {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(MODEL_ROW_SPACING)
             .with_child(
-                ConstrainedBox::new(label(localization::text_for_app(
-                    app,
-                    "settings.ai.custom_endpoint.model_name",
-                )))
-                .with_width(MODEL_INPUT_WIDTH)
-                .finish(),
+                ConstrainedBox::new(label("Model name"))
+                    .with_width(MODEL_INPUT_WIDTH)
+                    .finish(),
             )
             .with_child(
-                ConstrainedBox::new(label(localization::text_for_app(
-                    app,
-                    "settings.ai.custom_endpoint.model_alias_optional",
-                )))
-                .with_width(MODEL_INPUT_WIDTH)
-                .finish(),
+                ConstrainedBox::new(label("Model alias (optional)"))
+                    .with_width(MODEL_INPUT_WIDTH)
+                    .finish(),
             );
         if has_remove_model_button {
             model_labels.add_child(

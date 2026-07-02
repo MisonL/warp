@@ -108,6 +108,13 @@ impl CodeEditorLineNumberMode {
             Self::Relative => "Relative",
         }
     }
+
+    pub fn dropdown_item_label_key(&self) -> &'static str {
+        match self {
+            Self::Absolute => "settings.features.code_editor_line_numbers.absolute",
+            Self::Relative => "settings.features.code_editor_line_numbers.relative",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default, Debug, Serialize, Deserialize, PartialEq)]

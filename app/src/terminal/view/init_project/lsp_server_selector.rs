@@ -127,13 +127,10 @@ pub fn render_lsp_selector_block(
     );
 
     let title_element = Span::new(
-        localization::text_for_app(ctx, "terminal.init_project.lsp.multiple_prompt"),
+        "Would you like to enable available language support for this codebase? This will give you smarter code navigation and inline error checking.",
         UiComponentStyles {
             font_family_id: Some(appearance.ui_font_family()),
-            font_color: Some(blended_colors::text_main(
-                appearance.theme(),
-                header_background,
-            )),
+            font_color: Some(blended_colors::text_main(appearance.theme(), header_background)),
             font_size: Some(appearance.monospace_font_size()),
             ..Default::default()
         },
@@ -179,9 +176,9 @@ pub fn render_lsp_selector_block(
     let any_needs_download = selected_items.iter().any(|info| !info.is_installed);
 
     let enable_label = if any_needs_download {
-        localization::text_for_app(ctx, "terminal.init_project.action.install_and_enable")
+        "Install and enable"
     } else {
-        localization::text_for_app(ctx, "terminal.init_project.action.enable_language_support")
+        "Enable language support"
     };
 
     // Create keyboard shortcut for Enter

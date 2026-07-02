@@ -4,7 +4,7 @@ use std::ops::Range;
 use std::{cmp, vec};
 
 use async_channel::Sender;
-use chrono::{DateTime, Duration, Local};
+use chrono::{DateTime, Local};
 use fuzzy_match::match_indices;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
@@ -38,80 +38,7 @@ use crate::terminal::model::session::SessionId;
 use crate::terminal::rich_history::{render_ai_query_rich_history, render_rich_history};
 use crate::terminal::HistoryEntry;
 use crate::ui_components::icons::Icon as UIComponentsIcon;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
-
-fn localized_approx_duration_from_now(app: &AppContext, datetime: DateTime<Local>) -> String {
-    let duration = Local::now().signed_duration_since(datetime);
-    let count = |value: i64| value.to_string();
-
-    if duration >= Duration::days(365) {
-        let value = duration.num_days() / 365;
-        let key = if value == 1 {
-            "input_suggestions.time.year_one"
-        } else {
-            "input_suggestions.time.year_many"
-        };
-        return text_with_args(app, key, &[("count", &count(value))]);
-    }
-
-    if duration >= Duration::days(30) {
-        let value = duration.num_days() / 30;
-        let key = if value == 1 {
-            "input_suggestions.time.month_one"
-        } else {
-            "input_suggestions.time.month_many"
-        };
-        return text_with_args(app, key, &[("count", &count(value))]);
-    }
-
-    if duration >= Duration::weeks(1) {
-        let value = duration.num_weeks();
-        let key = if value == 1 {
-            "input_suggestions.time.week_one"
-        } else {
-            "input_suggestions.time.week_many"
-        };
-        return text_with_args(app, key, &[("count", &count(value))]);
-    }
-
-    if duration >= Duration::days(1) {
-        let value = duration.num_days();
-        let key = if value == 1 {
-            "input_suggestions.time.day_one"
-        } else {
-            "input_suggestions.time.day_many"
-        };
-        return text_with_args(app, key, &[("count", &count(value))]);
-    }
-
-    if duration >= Duration::hours(1) {
-        let value = duration.num_hours();
-        let key = if value == 1 {
-            "input_suggestions.time.hour_one"
-        } else {
-            "input_suggestions.time.hour_many"
-        };
-        return text_with_args(app, key, &[("count", &count(value))]);
-    }
-
-    if duration >= Duration::minutes(1) {
-        let value = duration.num_minutes();
-        return text_with_args(
-            app,
-            "input_suggestions.time.minute",
-            &[("count", &count(value))],
-        );
-    }
-
-    text(app, "input_suggestions.time.just_now")
-}
+use crate::util::time_format::localized_approx_duration_from_now;
 
 /// This enum allows the parent view to indicate which type of details panel is shown.
 #[derive(Clone, Debug)]
@@ -612,14 +539,20 @@ impl InputSuggestions {
             .and_then(|item| item.details.as_ref())
             .and_then(|details| match details {
                 DetailContent::RichHistory(entry) => entry.start_ts.map(|ts| {
-                    text(app, "input_suggestions.a11y.last_ran")
-                        .replace("{time}", &localized_approx_duration_from_now(app, ts))
+                    let time = localized_approx_duration_from_now(app, ts);
+                    localization::text_for_app_with_args(
+                        app,
+                        "input_suggestions.a11y.last_ran",
+                        &[("time", &time)],
+                    )
                 }),
                 DetailContent::Description(desc) => Some(desc.clone()),
                 DetailContent::AIQueryHistory(entry) => {
-                    Some(text(app, "input_suggestions.a11y.last_ran").replace(
-                        "{time}",
-                        &localized_approx_duration_from_now(app, entry.start_time),
+                    let time = localized_approx_duration_from_now(app, entry.start_time);
+                    Some(localization::text_for_app_with_args(
+                        app,
+                        "input_suggestions.a11y.last_ran",
+                        &[("time", &time)],
                     ))
                 }
             })
@@ -664,25 +597,31 @@ impl InputSuggestions {
             self.get_selected_item_a11y_description(ctx),
         ) {
             (Some(text), Some(desc)) => {
+                let suggestion = localization::text_for_app_with_args(
+                    ctx,
+                    "input_suggestions.a11y.suggestion",
+                    &[("text", text)],
+                );
                 ctx.emit_a11y_content(AccessibilityContent::new(
-                    self.suggestion_a11y_text(ctx, text),
+                    suggestion,
                     desc,
                     WarpA11yRole::MenuItemRole,
                 ));
             }
             (Some(text), None) => {
+                let suggestion = localization::text_for_app_with_args(
+                    ctx,
+                    "input_suggestions.a11y.suggestion",
+                    &[("text", text)],
+                );
                 ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                    self.suggestion_a11y_text(ctx, text),
+                    suggestion,
                     WarpA11yRole::MenuItemRole,
                 ));
             }
             _ => {}
         }
         ctx.notify();
-    }
-
-    fn suggestion_a11y_text(&self, app: &AppContext, suggestion: &str) -> String {
-        text(app, "input_suggestions.a11y.suggestion").replace("{text}", suggestion)
     }
 
     pub fn confirm(&mut self, ctx: &mut ViewContext<Self>) {
@@ -698,9 +637,9 @@ impl InputSuggestions {
             return;
         }
 
-        if let Some(selected_text) = self.get_selected_item_text() {
+        if let Some(text) = self.get_selected_item_text() {
             ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                text(ctx, "input_suggestions.a11y.selected").replace("{text}", selected_text),
+                format!("Selected: {text}"),
                 WarpA11yRole::MenuItemRole,
             ));
         }
@@ -725,7 +664,7 @@ impl InputSuggestions {
         ctx: &mut ViewContext<Self>,
     ) {
         ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-            text(ctx, "input_suggestions.a11y.closed"),
+            "Closed suggestions.",
             WarpA11yRole::UserAction,
         ));
         ctx.emit(Event::CloseSuggestion {
@@ -781,7 +720,7 @@ impl InputSuggestions {
                     Align::new(
                         Container::new(
                             Text::new_inline(
-                                text(ctx, "input_suggestions.no_suggestions"),
+                                String::from("No suggestions"),
                                 appearance.monospace_font_family(),
                                 appearance.monospace_font_size(),
                             )
@@ -965,9 +904,9 @@ impl InputSuggestions {
 
                                             let tooltip_element = appearance
                                                 .ui_builder()
-                                                .tool_tip(text(
+                                                .tool_tip(localization::text_for_app(
                                                     app,
-                                                    "input_suggestions.tooltip.ignore",
+                                                    "editor.autosuggestion.ignore",
                                                 ))
                                                 .build()
                                                 .finish();
@@ -1166,11 +1105,12 @@ impl View for InputSuggestions {
             .finish()
     }
 
-    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            text(app, "input_suggestions.a11y.command_suggestions"),
+            "Command suggestions.",
             // TODO use bindings from user settings
-            text(app, "input_suggestions.a11y.help"),
+            "Navigate with tab and shift-tab, and confirm with enter. Execute selected command \
+                with command + enter. Esc leaves the suggestions menu.",
             WarpA11yRole::MenuRole,
         ))
     }

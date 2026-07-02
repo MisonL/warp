@@ -54,7 +54,7 @@ pub fn build_header_row(
     row.add_child(
         Container::new(
             Text::new(
-                text,
+                text.into(),
                 appearance.monospace_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -77,7 +77,7 @@ pub fn apply_spacing_styles(header_row: Container) -> Container {
 
 /// UI helper to render the header of an SSH rich content block.
 pub fn header_row(
-    text: impl Into<std::borrow::Cow<'static, str>>,
+    text: &'static str,
     icon: Icon,
     theme: &WarpTheme,
     appearance: &Appearance,

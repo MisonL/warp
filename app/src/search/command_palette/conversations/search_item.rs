@@ -18,7 +18,6 @@ use warpui::{AppContext, Element, Gradient, SingletonEntity};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::search::command_palette::conversations::search::MatchedConversation;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
@@ -49,15 +48,13 @@ pub enum ConversationAction {
 pub struct ConversationSearchItem {
     action_info: ConversationAction,
     action_button_mouse_state: MouseStateHandle,
-    accessibility_copy: ConversationSearchItemAccessibilityCopy,
 }
 
 impl ConversationSearchItem {
-    pub fn new(action_info: ConversationAction, app: &AppContext) -> Self {
+    pub fn new(action_info: ConversationAction) -> Self {
         Self {
             action_info,
             action_button_mouse_state: MouseStateHandle::default(),
-            accessibility_copy: ConversationSearchItemAccessibilityCopy::new(app),
         }
     }
 
@@ -71,7 +68,7 @@ impl ConversationSearchItem {
         Flex::row()
             .with_child(
                 Text::new_inline(
-                    localization::text_for_app(app, "workspace.conversation.new"),
+                    crate::localization::text_for_app(app, "workspace.conversation.new"),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size(),
                 )
@@ -92,7 +89,7 @@ impl ConversationSearchItem {
         let appearance = Appearance::as_ref(app);
 
         let action_title = Text::new_inline(
-            localization::text_for_app(app, "workspace.conversation.fork_current"),
+            crate::localization::text_for_app(app, "workspace.conversation.fork_current"),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -207,7 +204,8 @@ impl ConversationSearchItem {
             .finish();
 
         // We only want to show the fork button if the conversation is completed
-        // (i.e. the agent has finished responding and there are no blocked commands).
+        // (i.e. the agent has finished responding and there are no blocked commands
+        // and is not yielded waiting for events).
         let conversation_is_done = BlocklistAIHistoryModel::as_ref(app)
             .conversation(&conversation.id())
             .map(|c| c.status().is_done())
@@ -246,7 +244,7 @@ impl ConversationSearchItem {
 
             let fork_button_tool_tip = appearance
                 .ui_builder()
-                .tool_tip(localization::text_for_app(
+                .tool_tip(crate::localization::text_for_app(
                     app,
                     "workspace.conversation.fork",
                 ))
@@ -321,60 +319,6 @@ impl ConversationSearchItem {
                 true
             }
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct ConversationSearchItemAccessibilityCopy {
-    conversation_template: String,
-    fork_current_conversation_template: String,
-    new_conversation: String,
-    resume_help_template: String,
-    fork_help: String,
-    new_help: String,
-}
-
-impl ConversationSearchItemAccessibilityCopy {
-    fn new(app: &AppContext) -> Self {
-        Self {
-            conversation_template: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.conversation",
-            ),
-            fork_current_conversation_template: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.fork_current_conversation",
-            ),
-            new_conversation: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.new_conversation",
-            ),
-            resume_help_template: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.help.resume_conversation",
-            ),
-            fork_help: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.help.fork_conversation",
-            ),
-            new_help: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.help.new_conversation",
-            ),
-        }
-    }
-
-    fn conversation_label(&self, title: &str) -> String {
-        self.conversation_template.replace("{title}", title)
-    }
-
-    fn fork_label(&self, title: &str) -> String {
-        self.fork_current_conversation_template
-            .replace("{title}", title)
-    }
-
-    fn resume_help(&self, title: &str) -> String {
-        self.resume_help_template.replace("{title}", title)
     }
 }
 
@@ -474,22 +418,85 @@ impl SearchItem for ConversationSearchItem {
 
     fn accessibility_label(&self) -> String {
         match &self.action_info {
-            ConversationAction::Resume(matched_conversation) => self
-                .accessibility_copy
-                .conversation_label(matched_conversation.as_ref().conversation.title()),
-            ConversationAction::Fork { title, .. } => self.accessibility_copy.fork_label(title),
-            ConversationAction::New => self.accessibility_copy.new_conversation.clone(),
+            ConversationAction::Resume(matched_conversation) => {
+                crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.command_palette.a11y.conversation",
+                    &[("title", matched_conversation.as_ref().conversation.title())],
+                )
+            }
+            ConversationAction::Fork { title, .. } => {
+                crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.command_palette.a11y.fork_current_conversation",
+                    &[("title", title)],
+                )
+            }
+            ConversationAction::New => crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "search.command_palette.a11y.new_conversation",
+            ),
+        }
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        match &self.action_info {
+            ConversationAction::Resume(matched_conversation) => {
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "search.command_palette.a11y.conversation",
+                    &[("title", matched_conversation.as_ref().conversation.title())],
+                )
+            }
+            ConversationAction::Fork { title, .. } => crate::localization::text_for_app_with_args(
+                app,
+                "search.command_palette.a11y.fork_current_conversation",
+                &[("title", title)],
+            ),
+            ConversationAction::New => crate::localization::text_for_app(
+                app,
+                "search.command_palette.a11y.new_conversation",
+            ),
         }
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
         match &self.action_info {
-            ConversationAction::Resume(matched_conversation) => Some(
-                self.accessibility_copy
-                    .resume_help(matched_conversation.as_ref().conversation.title()),
-            ),
-            ConversationAction::Fork { .. } => Some(self.accessibility_copy.fork_help.clone()),
-            ConversationAction::New => Some(self.accessibility_copy.new_help.clone()),
+            ConversationAction::Resume(matched_conversation) => {
+                Some(crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.command_palette.a11y.help.resume_conversation",
+                    &[("title", matched_conversation.as_ref().conversation.title())],
+                ))
+            }
+            ConversationAction::Fork { .. } => Some(crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "search.command_palette.a11y.help.fork_conversation",
+            )),
+            ConversationAction::New => Some(crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "search.command_palette.a11y.help.new_conversation",
+            )),
+        }
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        match &self.action_info {
+            ConversationAction::Resume(matched_conversation) => {
+                Some(crate::localization::text_for_app_with_args(
+                    app,
+                    "search.command_palette.a11y.help.resume_conversation",
+                    &[("title", matched_conversation.as_ref().conversation.title())],
+                ))
+            }
+            ConversationAction::Fork { .. } => Some(crate::localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.fork_conversation",
+            )),
+            ConversationAction::New => Some(crate::localization::text_for_app(
+                app,
+                "search.command_palette.a11y.help.new_conversation",
+            )),
         }
     }
 }

@@ -1,4 +1,3 @@
-use crate::localization;
 pub mod feature_section;
 pub use feature_section::FeatureSectionView;
 pub mod content_section;
@@ -87,14 +86,12 @@ pub trait SectionView {
         Hoverable::new(top_bar_mouse_state, |state| {
             let mut section_header = Flex::row();
 
-            let section_title_text =
-                localization::text_for_app(ctx, section_name.section_name_key());
             let section_title = Shrinkable::new(
                 1.0,
                 Align::new(
                     appearance
                         .ui_builder()
-                        .wrappable_text(section_title_text, false)
+                        .wrappable_text(section_name.section_name_string(ctx), false)
                         .with_style(UiComponentStyles {
                             font_family_id: Some(appearance.ui_font_family()),
                             font_size: Some(SECTION_HEADER_FONT_SIZE),

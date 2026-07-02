@@ -30,10 +30,6 @@ pub struct AgentTodosPopupView {
 
 const IN_PROGRESS_POSITION_ID: &str = "AgentTodosPopup-in-progress";
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 #[derive(Debug, Clone, Copy)]
 pub enum AgentTodosPopupAction {
     ClosePopup,
@@ -138,7 +134,7 @@ impl AgentTodosPopupView {
 
         let mut header_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
         let mut header = Text::new(
-            text(app, "agent.todos.title"),
+            localization::text_for_app(app, "agent.todos.title"),
             appearance.header_font_family(),
             styles.detail_font_size + 2.,
         )

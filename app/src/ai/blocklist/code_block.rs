@@ -27,10 +27,6 @@ use crate::ui_components::icons::Icon;
 
 const CODE_BLOCK_CORNER_RADIUS: f32 = 8.0;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 #[derive(Default, Clone)]
 pub struct CodeSnippetButtonHandles {
     pub open_button: MouseStateHandle,
@@ -223,7 +219,7 @@ fn render_linked_code_block_internal(
             let insert_button = render_button(
                 appearance,
                 Icon::AtSign,
-                &text(app, "agent.code_block.add_as_context"),
+                &localization::text_for_app(app, "agent.code_block.add_as_context"),
                 mouse_handles.insert_button,
                 insert_text,
                 on_insert,
@@ -242,7 +238,7 @@ fn render_linked_code_block_internal(
             let copy_button = render_button(
                 appearance,
                 Icon::Copy,
-                &text(app, "agent.code_block.copy"),
+                &localization::text_for_app(app, "agent.code_block.copy"),
                 mouse_handles.copy_button,
                 code_clone.clone(),
                 on_copy,
@@ -261,7 +257,7 @@ fn render_linked_code_block_internal(
             let open_button = render_button(
                 appearance,
                 Icon::LinkExternal,
-                &text(app, "agent.code_block.open_in_warp"),
+                &localization::text_for_app(app, "agent.code_block.open_in_warp"),
                 mouse_handles.open_button,
                 code_clone.clone(),
                 on_open,
@@ -331,7 +327,7 @@ fn render_plain_code_block_internal(
             let copy_button = render_button(
                 appearance,
                 Icon::Copy,
-                &text(app, "agent.code_block.copy"),
+                &localization::text_for_app(app, "agent.code_block.copy"),
                 mouse_handles.copy_button,
                 code_clone.clone(),
                 on_copy,
@@ -346,7 +342,7 @@ fn render_plain_code_block_internal(
             let insert_button = render_button(
                 appearance,
                 Icon::TerminalInput,
-                &text(app, "agent.code_block.run_in_terminal"),
+                &localization::text_for_app(app, "agent.code_block.run_in_terminal"),
                 mouse_handles.insert_button,
                 code_clone.clone(),
                 on_execute,

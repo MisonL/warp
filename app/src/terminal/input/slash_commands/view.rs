@@ -3,9 +3,12 @@ use std::collections::HashSet;
 use ai::skills::SkillReference;
 use lazy_static::lazy_static;
 use warpui::elements::ChildView;
-use warpui::{AppContext, Element, Entity, ModelHandle, View, ViewContext, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle,
+};
 
 use crate::ai::blocklist::agent_view::AgentViewController;
+use crate::localization::LocalizationUpdater;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{AddAsyncSourceOptions, SearchMixer};
 use crate::search::slash_command_menu::SlashCommandId;
@@ -98,6 +101,9 @@ impl InlineSlashCommandView {
                 });
             },
         );
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.rerun_current_query(ctx);
+        });
         let zero_state_source =
             ctx.add_model(|_| ZeroStateDataSource::new(&slash_commands_source, false));
         let saved_prompts_source = super::saved_prompts_data_source();
@@ -216,6 +222,14 @@ impl InlineSlashCommandView {
                 return;
             }
             mixer.run_query(slash_command_query(&filter), ctx);
+        });
+    }
+
+    fn rerun_current_query(&mut self, ctx: &mut ViewContext<Self>) {
+        self.mixer.update(ctx, |mixer, ctx| {
+            if let Some(query) = mixer.current_query().cloned() {
+                mixer.run_query(query, ctx);
+            }
         });
     }
 

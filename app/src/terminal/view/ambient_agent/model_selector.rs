@@ -74,10 +74,6 @@ pub enum ModelSelectorEvent {
     MenuVisibilityChanged { open: bool },
 }
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HarnessSelection {
     pub harness: Harness,
@@ -116,7 +112,10 @@ impl ModelSelector {
         let button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_size(ButtonSize::AgentInputButton)
-                .with_tooltip(text(ctx, "terminal.ambient_agent.model_selector.tooltip"))
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "terminal.ambient_agent.model_selector.tooltip",
+                ))
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(ModelSelectorAction::ToggleMenu);
                 })
@@ -137,7 +136,7 @@ impl ModelSelector {
                 ctx,
             );
             editor.set_placeholder_text(
-                text(
+                localization::text_for_app(
                     ctx,
                     "terminal.ambient_agent.model_selector.search_placeholder",
                 ),
@@ -403,7 +402,9 @@ impl ModelSelector {
                                 .map(|info| info.display_name.clone())
                         })
                 })
-                .unwrap_or_else(|| text(ctx, "terminal.ambient_agent.model_selector.default")),
+                .unwrap_or_else(|| {
+                    localization::text_for_app(ctx, "settings.ai.model_selector.default_model")
+                }),
             _ => LLMPreferences::as_ref(ctx)
                 .get_active_base_model(ctx, Some(self.terminal_view_id))
                 .display_name
@@ -437,7 +438,7 @@ impl ModelSelector {
         if items.is_empty() {
             let no_results_text_color = internal_colors::text_sub(theme, theme.surface_2());
             items.push(MenuItem::Item(
-                MenuItemFields::new(text(
+                MenuItemFields::new(localization::text_for_app(
                     ctx,
                     "terminal.ambient_agent.model_selector.no_results",
                 ))
@@ -545,12 +546,10 @@ impl ModelSelector {
             model_id: String::new(),
             reasoning_level: None,
         };
-        let default_label = text(ctx, "terminal.ambient_agent.model_selector.default");
         let mut items: Vec<MenuItem<ModelSelectorAction>> = Vec::new();
-        if query.is_empty()
-            || "default".contains(query)
-            || default_label.to_lowercase().contains(query)
-        {
+        let default_label =
+            localization::text_for_app(ctx, "settings.ai.model_selector.default_model");
+        if query.is_empty() || default_label.to_lowercase().contains(query) {
             items.push(MenuItem::Item(
                 MenuItemFields::new(default_label)
                     .with_icon(icon)

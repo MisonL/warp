@@ -18,21 +18,6 @@ use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
 use crate::{localization, report_if_error, Appearance};
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_model_and_command(
-    app: &AppContext,
-    key: &str,
-    model_name: &str,
-    login_command: &str,
-) -> String {
-    text(app, key)
-        .replace("{model}", model_name)
-        .replace("{command}", login_command)
-}
-
 #[derive(Clone, Debug)]
 pub enum AwsBedrockCredentialsErrorAction {
     RunLoginCommand,
@@ -73,7 +58,7 @@ impl AwsBedrockCredentialsErrorView {
         // Run button
         let run_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                text(ctx, "agent.aws_bedrock_credentials.refresh"),
+                localization::text_for_app(ctx, "agent.aws_bedrock_credentials.refresh"),
                 PrimaryTheme,
             )
             .with_size(ButtonSize::InlineActionHeader)
@@ -85,7 +70,7 @@ impl AwsBedrockCredentialsErrorView {
         // Configure button
         let configure_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                text(ctx, "agent.aws_bedrock_credentials.configure"),
+                localization::text_for_app(ctx, "agent.aws_bedrock_credentials.configure"),
                 NakedTheme,
             )
             .with_size(ButtonSize::InlineActionHeader)
@@ -130,8 +115,7 @@ impl View for AwsBedrockCredentialsErrorView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
                     Text::new(
-                        text(app, "agent.aws_bedrock_credentials.running_command")
-                            .replace("{command}", &self.login_command),
+                        format!("Running `{}`...", self.login_command),
                         appearance.ui_font_family(),
                         14.,
                     )
@@ -158,7 +142,7 @@ impl View for AwsBedrockCredentialsErrorView {
 
         let make_alert_text = || {
             Text::new(
-                text(app, "agent.aws_bedrock_credentials.title"),
+                "AWS credentials expired or missing",
                 appearance.ui_font_family(),
                 14.,
             )
@@ -169,11 +153,10 @@ impl View for AwsBedrockCredentialsErrorView {
 
         let make_detail_text = || {
             Text::new(
-                text_with_model_and_command(
-                    app,
-                    "agent.aws_bedrock_credentials.description",
-                    &self.model_name,
-                    &self.login_command,
+                format!(
+                    "Failed to authenticate with AWS Bedrock when using {}. \
+                     Run `{}` to refresh credentials.",
+                    self.model_name, self.login_command
                 ),
                 appearance.ui_font_family(),
                 14.,
@@ -208,7 +191,7 @@ impl View for AwsBedrockCredentialsErrorView {
             .finish();
 
             let checkbox_label = Text::new(
-                text(app, "agent.aws_bedrock_credentials.auto_login"),
+                "Always run automatically",
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() - 1.,
             )

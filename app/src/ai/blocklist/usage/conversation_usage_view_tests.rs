@@ -1,6 +1,6 @@
 //! Click-handler regression tests for [`ConversationUsageView`].
 //!
-//! The original bug was that clicks on the "View details" / "Show N more"
+//! The original bug was that clicks on the details / show-more controls
 //! affordances did nothing because the view was created via `add_view`
 //! instead of `add_typed_action_view`, so the framework had no handler
 //! registered for `ConversationUsageViewAction::*` and silently logged
@@ -24,20 +24,12 @@
 
 use std::collections::HashMap;
 
-use ai::api_keys::ApiKeyManager;
 use warp_core::ui::appearance::Appearance;
 use warpui::platform::WindowStyle;
 use warpui::App;
 
 use super::*;
-use crate::ai::llms::LLMPreferences;
-use crate::auth::auth_manager::AuthManager;
-use crate::auth::AuthStateProvider;
-use crate::network::NetworkStatus;
 use crate::persistence::model::{ModelTokenUsage, PRIMARY_AGENT_CATEGORY};
-use crate::server::server_api::ServerApiProvider;
-use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 fn placeholder_usage_info() -> ConversationUsageInfo {
     ConversationUsageInfo {
@@ -47,6 +39,7 @@ fn placeholder_usage_info() -> ConversationUsageInfo {
         tool_calls: 0,
         models: Vec::new(),
         context_window_usage: 0.0,
+        context_window_segments: Vec::new(),
         files_changed: 0,
         lines_added: 0,
         lines_removed: 0,
@@ -58,13 +51,7 @@ fn placeholder_usage_info() -> ConversationUsageInfo {
 /// when `ctx.notify()` runs (theme lookups, etc.). Keep this minimal: the
 /// goal is to satisfy the runtime, not to mirror the full production app.
 fn initialize_test_app(app: &mut App) {
-    initialize_settings_for_tests(app);
     app.add_singleton_model(|_| Appearance::mock());
-    app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-    app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(UserWorkspaces::default_mock);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(AuthManager::new_for_test);
 }
 
 fn build_view(_ctx: &mut warpui::ViewContext<ConversationUsageView>) -> ConversationUsageView {
@@ -112,10 +99,10 @@ fn toggle_details_expanded_flips_state_and_resets_show_all_on_collapse() {
             view.handle_action(&ConversationUsageViewAction::ShowAllAgentRows, ctx);
         });
         view.read(&app, |view, _| {
-            assert!(view.details_expanded, "still expanded after Show N more");
+            assert!(view.details_expanded, "still expanded after show-more");
             assert!(
                 view.show_all_clicked,
-                "Show N more should set show_all_clicked"
+                "show-more should set show_all_clicked"
             );
         });
 
@@ -139,89 +126,30 @@ fn toggle_details_expanded_flips_state_and_resets_show_all_on_collapse() {
 }
 
 #[test]
-fn warp_and_byok_models_do_not_require_llm_preferences() {
-    App::test((), |mut app| async move {
-        initialize_test_app(&mut app);
-
-        let view = ConversationUsageView::new(
-            ConversationUsageInfo {
-                models: vec![ModelTokenUsage {
-                    model_id: "gpt-4".to_string(),
-                    warp_token_usage_by_category: HashMap::from([(
-                        PRIMARY_AGENT_CATEGORY.to_string(),
-                        5,
-                    )]),
-                    byok_token_usage_by_category: HashMap::from([(
-                        PRIMARY_AGENT_CATEGORY.to_string(),
-                        7,
-                    )]),
-                    ..Default::default()
-                }],
-                ..placeholder_usage_info()
-            },
-            DisplayMode::Footer,
-            None,
-            MouseStateHandle::default(),
-        );
-
-        app.read(|ctx| {
-            assert_eq!(
-                view.collect_models_by_category(ctx)
-                    .get(PRIMARY_AGENT_CATEGORY),
-                Some(&vec![
-                    ("gpt-4".to_string(), false),
-                    ("gpt-4".to_string(), true),
-                ])
-            );
-        });
-    });
-}
-
-#[test]
 fn custom_endpoint_models_use_the_external_key_icon_bucket() {
-    App::test((), |mut app| async move {
-        initialize_test_app(&mut app);
-        ApiKeyManager::handle(&app).update(&mut app, |manager, ctx| {
-            manager.add_custom_endpoint(
-                "Endpoint".to_string(),
-                "https://custom.example".to_string(),
-                "key".to_string(),
-                vec![(
-                    "raw-model".to_string(),
-                    Some("Friendly alias".to_string()),
-                    Some("config-key".to_string()),
-                )],
-                ctx,
-            );
-        });
-        app.add_singleton_model(LLMPreferences::new);
+    let view = ConversationUsageView::new(
+        ConversationUsageInfo {
+            models: vec![ModelTokenUsage {
+                model_id: "Friendly alias".to_string(),
+                custom_endpoint_tokens: 6,
+                custom_endpoint_token_usage_by_category: HashMap::from([(
+                    PRIMARY_AGENT_CATEGORY.to_string(),
+                    6,
+                )]),
+                ..Default::default()
+            }],
+            ..placeholder_usage_info()
+        },
+        DisplayMode::Footer,
+        None,
+        MouseStateHandle::default(),
+    );
 
-        let view = ConversationUsageView::new(
-            ConversationUsageInfo {
-                models: vec![ModelTokenUsage {
-                    model_id: "config-key".to_string(),
-                    custom_endpoint_tokens: 6,
-                    custom_endpoint_token_usage_by_category: HashMap::from([(
-                        PRIMARY_AGENT_CATEGORY.to_string(),
-                        6,
-                    )]),
-                    ..Default::default()
-                }],
-                ..placeholder_usage_info()
-            },
-            DisplayMode::Footer,
-            None,
-            MouseStateHandle::default(),
-        );
-
-        app.read(|ctx| {
-            assert_eq!(
-                view.collect_models_by_category(ctx)
-                    .get(PRIMARY_AGENT_CATEGORY),
-                Some(&vec![("Friendly alias".to_string(), true)])
-            );
-        });
-    });
+    assert_eq!(
+        view.collect_models_by_category()
+            .get(PRIMARY_AGENT_CATEGORY),
+        Some(&vec![("Friendly alias".to_string(), true)])
+    );
 }
 
 #[test]

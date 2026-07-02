@@ -61,7 +61,7 @@ pub enum TeamDeleteDisabledReason {
 }
 
 impl TeamDeleteDisabledReason {
-    pub fn user_facing_message_key(&self) -> &'static str {
+    pub fn translation_key(&self) -> &'static str {
         match self {
             TeamDeleteDisabledReason::ActivePaidSubscription => {
                 "settings.teams.delete_disabled.active_subscription"

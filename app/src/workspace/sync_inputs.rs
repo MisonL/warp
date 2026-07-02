@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use warpui::keymap::{BindingDescription, EditableBinding};
+use warpui::keymap::EditableBinding;
 use warpui::{AppContext, Entity, EntityId, SingletonEntity, WindowId};
 
 use super::WorkspaceAction;
-use crate::localization;
 use crate::util::bindings::{BindingGroup, CustomAction};
 
 pub fn init(app: &mut AppContext) {
@@ -13,10 +12,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings(vec![
         EditableBinding::new(
             "workspace:disable_terminal_input_syncing",
-            binding_description(
-                "Stop Synchronizing Any Panes",
-                "workspace.sync_inputs.stop_synchronizing_any_panes",
-            ),
+            "Stop Synchronizing Any Panes",
             WorkspaceAction::DisableTerminalInputSync,
         )
         .with_context_predicate(id!("Workspace"))
@@ -25,10 +21,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::DisableSyncTerminalInputs),
         EditableBinding::new(
             "workspace:toggle_sync_terminal_inputs_in_tab",
-            binding_description(
-                "Toggle Synchronizing All Panes in Current Tab",
-                "workspace.sync_inputs.toggle_all_panes_current_tab",
-            ),
+            "Toggle Synchronizing All Panes in Current Tab",
             WorkspaceAction::ToggleSyncTerminalInputsInTab,
         )
         .with_context_predicate(id!("Workspace"))
@@ -36,21 +29,13 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::ToggleSyncTerminalInputsInCurrentTab),
         EditableBinding::new(
             "workspace:toggle_sync_all_terminal_inputs_in_all_tabs",
-            binding_description(
-                "Toggle Synchronizing All Panes in All Tabs",
-                "workspace.sync_inputs.toggle_all_panes_all_tabs",
-            ),
+            "Toggle Synchronizing All Panes in All Tabs",
             WorkspaceAction::ToggleSyncAllTerminalInputsInAllTabs,
         )
         .with_context_predicate(id!("Workspace"))
         .with_group(BindingGroup::Settings.as_str())
         .with_custom_action(CustomAction::ToggleSyncAllTerminalInputsInAllTabs),
     ]);
-}
-
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback)
-        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }
 
 #[derive(Debug, PartialEq)]

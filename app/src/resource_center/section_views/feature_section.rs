@@ -15,6 +15,7 @@ use super::{
     ELLIPSE_SVG_PATH, ICON_PADDING, ITEM_PADDING_BOTTOM, SCROLLBAR_OFFSET, SECTION_SPACING,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::resource_center::main_page::ActionTarget;
 use crate::resource_center::{
     complete_tips_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults, FeatureItem,
@@ -34,12 +35,20 @@ pub enum FeatureSection {
 }
 
 impl FeatureSection {
-    pub fn section_name_key(&self) -> &'static str {
+    pub fn section_name_string(&self, app: &AppContext) -> String {
         match self {
-            FeatureSection::WhatsNew => "resource_center.section.whats_new",
-            FeatureSection::GettingStarted => "resource_center.section.getting_started",
-            FeatureSection::MaximizeWarp => "resource_center.section.maximize_warp",
-            FeatureSection::AdvancedSetup => "resource_center.section.advanced_setup",
+            FeatureSection::WhatsNew => {
+                localization::text_for_app(app, "resource_center.section.whats_new")
+            }
+            FeatureSection::GettingStarted => {
+                localization::text_for_app(app, "resource_center.section.getting_started")
+            }
+            FeatureSection::MaximizeWarp => {
+                localization::text_for_app(app, "resource_center.section.maximize_warp")
+            }
+            FeatureSection::AdvancedSetup => {
+                localization::text_for_app(app, "resource_center.section.advanced_setup")
+            }
         }
     }
 }
@@ -205,8 +214,8 @@ impl FeatureSectionView {
     fn render_item_title(
         &self,
         item: &FeatureItem,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let title_color = appearance.theme().active_ui_text_color();
 
@@ -214,7 +223,7 @@ impl FeatureSectionView {
             Container::new(
                 appearance
                     .ui_builder()
-                    .wrappable_text(item.title(app), true)
+                    .wrappable_text(crate::localization::text_for_app(app, item.title), true)
                     .with_style(UiComponentStyles {
                         font_size: Some(DESCRIPTION_FONT_SIZE),
                         font_color: (Some(title_color.into())),
@@ -232,13 +241,17 @@ impl FeatureSectionView {
 
     fn render_description(
         &self,
-        description: String,
+        item: &FeatureItem,
         appearance: &Appearance,
         color: Fill,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         appearance
             .ui_builder()
-            .wrappable_text(description, true)
+            .wrappable_text(
+                crate::localization::text_for_app(app, item.description),
+                true,
+            )
             .with_style(UiComponentStyles {
                 font_size: Some(DESCRIPTION_FONT_SIZE),
                 font_color: Some(color.into()),
@@ -251,8 +264,8 @@ impl FeatureSectionView {
     pub fn build_feature_item(
         &self,
         item: &FeatureItem,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
         state: Option<&MouseState>,
         is_completed: bool,
         show_gamified: bool,
@@ -264,7 +277,7 @@ impl FeatureSectionView {
 
         // title
         element_title
-            .add_child(Shrinkable::new(1., self.render_item_title(item, app, appearance)).finish());
+            .add_child(Shrinkable::new(1., self.render_item_title(item, appearance, app)).finish());
 
         // keyboard shortcut
         if let Some(keystroke) = &item.shortcut {
@@ -289,11 +302,7 @@ impl FeatureSectionView {
         };
 
         // description
-        element.add_child(self.render_description(
-            item.description(app),
-            appearance,
-            description_color,
-        ));
+        element.add_child(self.render_description(item, appearance, description_color, app));
 
         let mut feature_item = Flex::row();
         if !is_completed && show_gamified {
@@ -315,8 +324,8 @@ impl FeatureSectionView {
     pub fn render_feature_item(
         &self,
         feature_item: FeatureItem,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
         index: usize,
         is_tip_completed: bool,
         show_gamified: bool,
@@ -324,8 +333,8 @@ impl FeatureSectionView {
         match feature_item.feature {
             Tip::Hint(_) => self.build_feature_item(
                 &feature_item,
-                app,
                 appearance,
+                app,
                 None,
                 is_tip_completed,
                 show_gamified,
@@ -336,8 +345,8 @@ impl FeatureSectionView {
                     |state| {
                         self.build_feature_item(
                             &feature_item,
-                            app,
                             appearance,
+                            app,
                             Some(state),
                             is_tip_completed,
                             show_gamified,
@@ -474,8 +483,8 @@ impl View for FeatureSectionView {
                         |(index, feature_item)| {
                             self.render_feature_item(
                                 feature_item.clone(),
-                                app,
                                 appearance,
+                                app,
                                 index,
                                 tips_completed.features_used.contains(&feature_item.feature),
                                 show_gamified,

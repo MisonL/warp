@@ -18,14 +18,6 @@ use crate::view_components::action_button::{
     ActionButton, DangerPrimaryTheme, KeystrokeSource, NakedTheme,
 };
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_value(app: &AppContext, key: &str, placeholder: &str, value: &str) -> String {
-    text(app, key).replace(placeholder, value)
-}
-
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
@@ -61,7 +53,11 @@ pub struct DeleteConversationConfirmationDialog {
 impl DeleteConversationConfirmationDialog {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let cancel_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(text(ctx, "settings.action.cancel"), NakedTheme).on_click(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.cancel"),
+                NakedTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(DeleteConversationConfirmationAction::Cancel);
             })
         });
@@ -69,7 +65,7 @@ impl DeleteConversationConfirmationDialog {
         let enter_keystroke = Keystroke::parse("enter").expect("Valid keystroke");
         let delete_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                text(ctx, "workspace.delete_conversation.confirm"),
+                localization::text_for_app(ctx, "workspace.delete_conversation.confirm"),
                 DangerPrimaryTheme,
             )
             .with_keybinding(KeystrokeSource::Fixed(enter_keystroke), ctx)
@@ -114,18 +110,22 @@ impl View for DeleteConversationConfirmationDialog {
             .source
             .as_ref()
             .map(|s| {
-                text_with_value(
+                localization::text_for_app_with_args(
                     app,
                     "workspace.delete_conversation.title_with_name",
-                    "{title}",
-                    s.conversation_title.as_str(),
+                    &[("title", s.conversation_title.as_str())],
                 )
             })
-            .unwrap_or_else(|| text(app, "workspace.delete_conversation.title"));
+            .unwrap_or_else(|| {
+                localization::text_for_app(app, "workspace.delete_conversation.title")
+            });
 
         let dialog = Dialog::new(
             title,
-            Some(text(app, "workspace.delete_conversation.description")),
+            Some(localization::text_for_app(
+                app,
+                "workspace.delete_conversation.description",
+            )),
             UiComponentStyles {
                 width: Some(DIALOG_WIDTH),
                 ..dialog_styles(appearance)

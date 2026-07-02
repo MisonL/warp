@@ -61,7 +61,6 @@ use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::NetworkStatus;
 use crate::pricing::PricingInfoModel;
-use crate::send_telemetry_from_ctx;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ServerId;
 use crate::server::telemetry::TelemetryEvent;
@@ -79,21 +78,13 @@ use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::{
     BillingMetadata, CustomerType, DelinquencyStatus, WorkspaceSizePolicy,
 };
+use crate::{localization, send_telemetry_from_ctx};
 
 const TEAM_MEMBERS_HEADER_POSITION_ID: &str = "team_settings:team_members_header";
 // Styling for team create page
-const TEAM_NAME_EDITOR_PLACEHOLDER_KEY: &str = "settings.teams.placeholder.team_name";
 const CREATE_TEAM_BUTTON_LEFT_PADDING: f32 = 10.;
-const CREATE_TEAM_DESCRIPTION_KEY: &str = "settings.teams.create.description";
 
 // Styling for team management page
-const LEAVE_TEAM_BUTTON_LABEL_KEY: &str = "settings.teams.action.leave_team";
-const DELETE_TEAM_BUTTON_LABEL_KEY: &str = "settings.teams.action.delete_team";
-const CREATE_TEAM_BUTTON_LABEL_KEY: &str = "settings.teams.action.create";
-const APPROVE_DOMAINS_PLACEHOLDER_KEY: &str = "settings.teams.placeholder.domains";
-const EMAILS_PLACEHOLDER_KEY: &str = "settings.teams.placeholder.emails";
-const APPROVE_DOMAINS_BUTTON_LABEL_KEY: &str = "settings.teams.action.set_domains";
-const SEND_EMAIL_INVITES_BUTTON_LABEL_KEY: &str = "settings.teams.action.invite";
 const BUTTON_WIDTH: f32 = 82.;
 const BUTTON_HEIGHT: f32 = 40.;
 const COPY_LINK_LEFT_PADDING: f32 = 7.;
@@ -108,26 +99,8 @@ const SUBSUBSECTION_HEADER_FONT_SIZE: f32 = 14.;
 const OWNER_STATE_CHIP_ACCENT_OPACITY: u8 = 30;
 
 const INVITE_LINK_PREFIX: &str = "/team/";
-const INVALID_DOMAINS_INSTRUCTIONS_KEY: &str = "settings.teams.invite.link.domain_invalid";
-
-const INVITE_LINK_TOGGLE_INSTRUCTIONS_KEY: &str = "settings.teams.invite.link.toggle";
-const INVITE_LINK_DOMAIN_RESTRICTIONS_INSTRUCTIONS_KEY: &str =
-    "settings.teams.invite.link.domain_restrictions";
-
-const INVITE_BY_EMAIL_EXPIRY_INSTRUCTIONS_KEY: &str = "settings.teams.invite.email.expiry";
-const INVALID_EMAILS_INSTRUCTIONS_KEY: &str = "settings.teams.invite.email.invalid";
-
-const OFFLINE_TEXT_KEY: &str = "settings.teams.offline";
 
 const MAX_CHIP_WIDTH: f32 = 280.;
-
-fn teams_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
-
-fn teams_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    crate::localization::text_for_app_with_args(app, key, args)
-}
 
 lazy_static! {
     static ref DOMAIN_NAME_REGEX: Regex =
@@ -144,6 +117,14 @@ fn owner_state_chip_text_color(theme: &themes::theme::WarpTheme) -> ColorU {
         .background()
         .blend(&theme.accent().with_opacity(OWNER_STATE_CHIP_ACCENT_OPACITY));
     theme.main_text_color(chip_background).into_solid()
+}
+
+fn teams_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
+fn teams_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_app_with_args(app, key, args)
 }
 
 #[derive(Debug, Clone)]
@@ -723,19 +704,17 @@ impl TeamsPageView {
 
         let appearance = Appearance::as_ref(ctx);
         let font_size = appearance.ui_font_size();
-        let team_name_placeholder = teams_text(ctx, TEAM_NAME_EDITOR_PLACEHOLDER_KEY);
         let create_team_editor = Self::editor(
             |me, event, ctx| me.handle_editor_event(event, ctx),
-            &team_name_placeholder,
+            &teams_text(ctx, "settings.teams.placeholder.team_name"),
             font_size,
             ctx,
         );
 
         let approve_domains_block_editor = ctx.add_typed_action_view(|ctx| {
-            let placeholder = teams_text(ctx, APPROVE_DOMAINS_PLACEHOLDER_KEY);
             WordBlockEditorView::new(
                 ctx,
-                &placeholder,
+                &teams_text(ctx, "settings.teams.placeholder.domains"),
                 font_size,
                 vec![',', ' '],
                 MAX_CHIP_WIDTH,
@@ -747,10 +726,9 @@ impl TeamsPageView {
         });
 
         let email_invites_block_editor = ctx.add_typed_action_view(|ctx| {
-            let placeholder = teams_text(ctx, EMAILS_PLACEHOLDER_KEY);
             WordBlockEditorView::new(
                 ctx,
-                &placeholder,
+                &teams_text(ctx, "settings.teams.placeholder.emails"),
                 font_size,
                 vec![',', ' '],
                 MAX_CHIP_WIDTH,
@@ -787,7 +765,7 @@ impl TeamsPageView {
         let rename_team_editor = ctx.add_typed_action_view(|ctx| {
             let mut input = ClickableTextInput::new(team_name, ctx);
             input.set_placeholder_text(
-                crate::localization::text_for_app(ctx, "settings.teams.placeholder.new_team_name"),
+                teams_text(ctx, "settings.teams.placeholder.new_team_name"),
                 ctx,
             );
             input
@@ -1045,8 +1023,8 @@ impl TeamsPageView {
                     update_manager.refresh_updated_objects(ctx);
                 });
 
-                let message = self.user_workspaces.as_ref(ctx).current_team().map_or_else(
-                    || teams_text(ctx, "settings.teams.success.joined_team"),
+                let message = self.user_workspaces.as_ref(ctx).current_team().map_or(
+                    teams_text(ctx, "settings.teams.success.joined_team"),
                     |team| {
                         teams_text_with_args(
                             ctx,
@@ -1219,23 +1197,18 @@ impl TeamsPageView {
     ) {
         match event {
             TeamUpdateManagerEvent::LeaveError => {
-                let error =
-                    crate::localization::text_for_app(ctx, "settings.teams.error.leave_team");
+                let error = teams_text(ctx, "settings.teams.error.leave_team");
                 self.show_error(error, None, ctx);
             }
             TeamUpdateManagerEvent::LeaveSuccess => {
-                self.show_success(
-                    crate::localization::text_for_app(ctx, "settings.teams.success.left_team"),
-                    ctx,
-                );
+                self.show_success(teams_text(ctx, "settings.teams.success.left_team"), ctx);
                 ctx.notify();
             }
-            TeamUpdateManagerEvent::RenameTeamSuccess => self.show_success(
-                crate::localization::text_for_app(ctx, "settings.teams.success.renamed_team"),
-                ctx,
-            ),
+            TeamUpdateManagerEvent::RenameTeamSuccess => {
+                self.show_success(teams_text(ctx, "settings.teams.success.renamed_team"), ctx)
+            }
             TeamUpdateManagerEvent::RenameTeamError => self.show_error(
-                crate::localization::text_for_app(ctx, "settings.teams.error.rename_team"),
+                teams_text(ctx, "settings.teams.error.rename_team"),
                 None,
                 ctx,
             ),
@@ -1590,11 +1563,7 @@ impl TeamsPageView {
         // Verify no invalid domains before continuing
         let invalid_domains = editor.get_list_of_invalid_words(ctx);
         if !invalid_domains.is_empty() {
-            let error = teams_text_with_args(
-                ctx,
-                "settings.teams.error.invalid_domains",
-                &[("count", &invalid_domains.len().to_string())],
-            );
+            let error = format!("Invalid domains: {}", invalid_domains.len());
             self.show_error(error, None, ctx);
             return;
         }
@@ -1614,11 +1583,7 @@ impl TeamsPageView {
             .collect();
 
         self.show_success(
-            teams_text_with_args(
-                ctx,
-                "settings.teams.success.added_domain_restrictions",
-                &[("count", &unique_domains.len().to_string())],
-            ),
+            format!("Domain restrictions added: {}", unique_domains.len()),
             ctx,
         );
         self.user_workspaces
@@ -1645,11 +1610,7 @@ impl TeamsPageView {
         // Verify no invalid emails before continuing
         let invalid_emails = editor.get_list_of_invalid_words(ctx);
         if !invalid_emails.is_empty() {
-            let error = teams_text_with_args(
-                ctx,
-                "settings.teams.error.invalid_emails",
-                &[("count", &invalid_emails.len().to_string())],
-            );
+            let error = format!("Invalid emails: {}", invalid_emails.len());
             self.show_error(error, None, ctx);
             return;
         }
@@ -1668,15 +1629,10 @@ impl TeamsPageView {
             .into_iter()
             .collect();
 
-        let invite_count = unique_emails.len();
-        let message = if invite_count == 1 {
-            teams_text(ctx, "settings.teams.success.invite_one")
+        let message = if unique_emails.len() == 1 {
+            "Your invite is on the way!".to_string()
         } else {
-            teams_text_with_args(
-                ctx,
-                "settings.teams.success.invite_many",
-                &[("count", &invite_count.to_string())],
-            )
+            format!("Your {} invites are on the way!", unique_emails.len())
         };
         self.show_success(message, ctx);
         self.user_workspaces
@@ -2190,7 +2146,7 @@ impl TeamsWidget {
         // mouse state handle is fine because at most one CTA shows at a time.
         if let Some((cta_label, cta_action)) = match cta {
             GrowTeamWarningCta::Upgrade => Some((
-                teams_text(app, "settings.billing.upgrade.generic"),
+                localization::text_for_app(app, "settings.billing.upgrade.generic"),
                 TeamsPageAction::GenerateUpgradeLink { team_uid: team.uid },
             )),
             GrowTeamWarningCta::UpdateBilling => Some((
@@ -2198,7 +2154,7 @@ impl TeamsWidget {
                 TeamsPageAction::GenerateStripeBillingPortalLink { team_uid: team.uid },
             )),
             GrowTeamWarningCta::ContactSupport => Some((
-                teams_text(app, "settings.account.contact_support"),
+                localization::text_for_app(app, "settings.account.contact_support"),
                 TeamsPageAction::ContactSupport,
             )),
             GrowTeamWarningCta::None => None,
@@ -2224,7 +2180,7 @@ impl TeamsWidget {
                 .ui_builder()
                 .button(ButtonVariant::Secondary, cta_mouse_state)
                 .with_style(cta_styles)
-                .with_centered_text_label(cta_label.to_owned())
+                .with_centered_text_label(cta_label)
                 .with_hovered_styles(UiComponentStyles {
                     background: Some(
                         themes::theme::Fill::from(error_color)
@@ -2260,12 +2216,18 @@ impl TeamsWidget {
     ) -> (String, String) {
         if billing_metadata.customer_type == CustomerType::Business {
             (
-                teams_text(app, "settings.billing.upgrade.enterprise"),
+                localization::text_for_app(
+                    app,
+                    "settings.billing.usage_visibility.upgrade_enterprise",
+                ),
                 teams_text(app, "settings.teams.outgrow.unlimited_limit_suffix"),
             )
         } else {
             (
-                teams_text(app, "settings.billing.usage_visibility.upgrade_business"),
+                localization::text_for_app(
+                    app,
+                    "settings.billing.usage_visibility.upgrade_business",
+                ),
                 teams_text(app, "settings.teams.outgrow.higher_limit_suffix"),
             )
         }
@@ -2576,7 +2538,7 @@ impl TeamsWidget {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    teams_text(app, "settings.account.contact_support"),
+                    localization::text_for_app(app, "settings.account.contact_support"),
                     Icon::Phone.to_warpui_icon(appearance.theme().accent()),
                     MainAxisSize::Min,
                     MainAxisAlignment::Center,
@@ -2606,7 +2568,10 @@ impl TeamsWidget {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    teams_text(app, "settings.teams.action.manage_billing"),
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.billing.action.manage_billing",
+                    ),
                     Icon::CoinsStacked.to_warpui_icon(appearance.theme().accent()),
                     MainAxisSize::Min,
                     MainAxisAlignment::Center,
@@ -2638,7 +2603,10 @@ impl TeamsWidget {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    teams_text(app, "settings.teams.action.open_admin_panel"),
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.teams.action.open_admin_panel",
+                    ),
                     Icon::Users.to_warpui_icon(appearance.theme().accent()),
                     MainAxisSize::Min,
                     MainAxisAlignment::Center,
@@ -2677,21 +2645,26 @@ impl TeamsWidget {
             // If the team is upgradeable to self-serve tier, show them the upgrade link.
             if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
                 let description = if team.billing_metadata.can_upgrade_to_build_plan() {
-                    teams_text(app, "settings.teams.action.upgrade_to_build")
+                    crate::localization::text_for_app(app, "settings.teams.action.upgrade_to_build")
                 } else {
                     match team.billing_metadata.customer_type {
-                        CustomerType::Prosumer => {
-                            teams_text(app, "settings.teams.action.upgrade_to_turbo")
-                        }
-                        CustomerType::Turbo => {
-                            teams_text(app, "settings.teams.action.upgrade_to_lightspeed")
-                        }
-                        _ => teams_text(app, "settings.teams.action.compare_plans"),
+                        CustomerType::Prosumer => crate::localization::text_for_app(
+                            app,
+                            "settings.teams.action.upgrade_to_turbo",
+                        ),
+                        CustomerType::Turbo => crate::localization::text_for_app(
+                            app,
+                            "settings.teams.action.upgrade_to_lightspeed",
+                        ),
+                        _ => crate::localization::text_for_app(
+                            app,
+                            "settings.teams.action.compare_plans",
+                        ),
                     }
                 };
                 billing_links.add_child(
                     Container::new(self.render_compare_plans_button(
-                        &description,
+                        description,
                         self.mouse_state_handles.upgrade_link.clone(),
                         team_uid,
                         appearance,
@@ -2907,7 +2880,7 @@ impl TeamsWidget {
                 .with_child(header)
                 .with_child(
                     Container::new(self.render_sub_text(
-                        teams_text(app, INVITE_LINK_TOGGLE_INSTRUCTIONS_KEY),
+                        teams_text(app, "settings.teams.invite.link.toggle"),
                         appearance,
                         Some(Coords::uniform(0.).right(48.)),
                     ))
@@ -3005,7 +2978,7 @@ impl TeamsWidget {
     ) -> Box<dyn Element> {
         let mut section = Flex::column();
 
-        // Email subsection header
+        // "By email" subsection header
         section.add_child(
             Container::new(self.render_subsubsection_header(
                 teams_text(app, "settings.teams.invite.email.header"),
@@ -3022,7 +2995,7 @@ impl TeamsWidget {
         // the invitation section owns the explanation + recovery CTA.
         section.add_child(
             Container::new(self.render_sub_text(
-                teams_text(app, INVITE_BY_EMAIL_EXPIRY_INSTRUCTIONS_KEY),
+                teams_text(app, "settings.teams.invite.email.expiry"),
                 appearance,
                 Some(Coords::uniform(0.).right(48.)),
             ))
@@ -3060,7 +3033,7 @@ impl TeamsWidget {
         {
             section.add_child(
                 Container::new(self.render_error_sub_text(
-                    teams_text(app, INVALID_EMAILS_INSTRUCTIONS_KEY),
+                    teams_text(app, "settings.teams.invite.email.invalid"),
                     appearance,
                 ))
                 .with_padding_top(8.)
@@ -3122,9 +3095,14 @@ impl TeamsWidget {
     ) -> Box<dyn Element> {
         let count = team.members.len();
         let count_label = if count == 1 {
-            "1 team member".to_string()
+            teams_text(app, "settings.teams.members.count.one")
         } else {
-            format!("{count} team members")
+            let count = count.to_string();
+            teams_text_with_args(
+                app,
+                "settings.teams.members.count.many",
+                &[("count", &count)],
+            )
         };
 
         // No capacity tooltip when the plan is unlimited (or workspace size
@@ -3167,10 +3145,11 @@ impl TeamsWidget {
         };
 
         let plan_display = team.billing_metadata.customer_type.to_display_string();
+        let cap = cap.to_string();
         let tooltip_text = teams_text_with_args(
             app,
             "settings.teams.limit.maximum_capacity",
-            &[("plan", &plan_display), ("cap", &cap.to_string())],
+            &[("plan", &plan_display), ("cap", &cap)],
         );
 
         let info_icon = Container::new(
@@ -3271,7 +3250,7 @@ impl TeamsWidget {
         if has_admin_permissions {
             section.add_child(
                 Container::new(self.render_sub_text(
-                    teams_text(app, INVITE_LINK_DOMAIN_RESTRICTIONS_INSTRUCTIONS_KEY),
+                    teams_text(app, "settings.teams.invite.link.domain_restrictions"),
                     appearance,
                     Some(Coords::uniform(0.).right(48.)),
                 ))
@@ -3310,7 +3289,7 @@ impl TeamsWidget {
             {
                 section.add_child(
                     Container::new(self.render_error_sub_text(
-                        teams_text(app, INVALID_DOMAINS_INSTRUCTIONS_KEY),
+                        teams_text(app, "settings.teams.invite.link.domain_invalid"),
                         appearance,
                     ))
                     .with_padding_top(8.)
@@ -3378,7 +3357,7 @@ impl TeamsWidget {
             (None, ButtonVariant::Basic)
         };
         Container::new(self.render_button(
-            &teams_text(app, APPROVE_DOMAINS_BUTTON_LABEL_KEY),
+            teams_text(app, "settings.teams.action.set_domains"),
             variant,
             self.mouse_state_handles.approve_domains_button.clone(),
             action,
@@ -3409,7 +3388,7 @@ impl TeamsWidget {
             (None, ButtonVariant::Basic)
         };
         Container::new(self.render_button(
-            &teams_text(app, SEND_EMAIL_INVITES_BUTTON_LABEL_KEY),
+            teams_text(app, "settings.teams.action.invite"),
             variant,
             self.mouse_state_handles.send_email_invites_button.clone(),
             action,
@@ -3451,11 +3430,11 @@ impl TeamsWidget {
         );
 
         let domain = current_user_email.split('@').nth(1).unwrap_or("");
-        let domain_arg = format!("@{domain}");
+        let domain = format!("@{domain}");
         let team_discoverability_instructions = teams_text_with_args(
             app,
             "settings.teams.create.discoverable_domain",
-            &[("domain", &domain_arg)],
+            &[("domain", &domain)],
         );
         let subtext = self.render_sub_text(
             team_discoverability_instructions,
@@ -3510,12 +3489,12 @@ impl TeamsWidget {
 
         let (label, action) = if is_team_owner {
             (
-                teams_text(app, DELETE_TEAM_BUTTON_LABEL_KEY),
+                teams_text(app, "settings.teams.action.delete_team"),
                 TeamsPageAction::ShowDeleteTeamConfirmationDialog,
             )
         } else {
             (
-                teams_text(app, LEAVE_TEAM_BUTTON_LABEL_KEY),
+                teams_text(app, "settings.teams.action.leave_team"),
                 TeamsPageAction::ShowLeaveTeamConfirmationDialog,
             )
         };
@@ -3584,7 +3563,7 @@ impl TeamsWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let description = self.render_sub_text(
-            teams_text(app, delete_disabled_reason.user_facing_message_key()),
+            crate::localization::text_for_app(app, delete_disabled_reason.translation_key()),
             appearance,
             None,
         );
@@ -4203,9 +4182,10 @@ impl TeamsWidget {
             teams_text(app, "settings.teams.create.header"),
         ));
         page.add_child(
-            Container::new(
-                self.render_description(teams_text(app, CREATE_TEAM_DESCRIPTION_KEY), appearance),
-            )
+            Container::new(self.render_description(
+                teams_text(app, "settings.teams.create.description"),
+                appearance,
+            ))
             .with_padding_top(6.)
             .finish(),
         );
@@ -4227,11 +4207,11 @@ impl TeamsWidget {
             .with_margin_left(-4.)
             .finish();
             let checkbox_row_text = if let Some(domain) = view.auth_state.user_email_domain() {
-                let domain_arg = format!("@{domain}");
+                let domain = format!("@{domain}");
                 teams_text_with_args(
                     app,
                     "settings.teams.create.discoverable_domain",
-                    &[("domain", &domain_arg)],
+                    &[("domain", &domain)],
                 )
             } else {
                 teams_text(app, "settings.teams.create.discoverable_same_domain")
@@ -4348,10 +4328,11 @@ impl TeamsWidget {
         let teammate_string = if team_state.team.num_members == 1 {
             teams_text(app, "settings.teams.discovery.teammates.one")
         } else {
+            let count = team_state.team.num_members.to_string();
             teams_text_with_args(
                 app,
                 "settings.teams.discovery.teammates.many",
-                &[("count", &team_state.team.num_members.to_string())],
+                &[("count", &count)],
             )
         };
         single_team.add_child(self.render_sub_text(teammate_string, appearance, None));
@@ -4411,7 +4392,7 @@ impl TeamsWidget {
 
     fn render_compare_plans_button(
         &self,
-        text: &str,
+        text: String,
         mouse_state_handle: MouseStateHandle,
         team_uid: ServerId,
         appearance: &Appearance,
@@ -4425,7 +4406,7 @@ impl TeamsWidget {
             .with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::IconFirst,
-                    text.to_string(),
+                    text,
                     Icon::CoinsStacked.to_warpui_icon(icon_color),
                     MainAxisSize::Min,
                     MainAxisAlignment::Center,
@@ -4448,7 +4429,7 @@ impl TeamsWidget {
 
     fn render_button(
         &self,
-        label: &str,
+        label: String,
         variant: ButtonVariant,
         mouse_state_handle: MouseStateHandle,
         action: Option<TeamsPageAction>,
@@ -4459,7 +4440,7 @@ impl TeamsWidget {
             .ui_builder()
             .button(variant, mouse_state_handle)
             .with_style(styles)
-            .with_centered_text_label(label.to_owned());
+            .with_centered_text_label(label);
 
         // No action → render as truly disabled, otherwise hover styling still applies.
         if action.is_none() {
@@ -4489,7 +4470,7 @@ impl TeamsWidget {
                 ButtonVariant::Accent,
                 self.mouse_state_handles.create_team_button.clone(),
             )
-            .with_centered_text_label(teams_text(app, CREATE_TEAM_BUTTON_LABEL_KEY))
+            .with_centered_text_label(teams_text(app, "settings.teams.action.create"))
             .with_style(UiComponentStyles {
                 font_color: Some(
                     appearance
@@ -4539,7 +4520,7 @@ impl TeamsWidget {
     ) -> Box<dyn Element> {
         if team_state.team.team_accepting_invites {
             self.render_button(
-                &teams_text(app, "settings.teams.action.join"),
+                teams_text(app, "settings.teams.action.join"),
                 ButtonVariant::Accent,
                 team_state.mouse_state_handle.clone(),
                 Some(TeamsPageAction::JoinTeamWithTeamDiscovery {
@@ -4614,7 +4595,7 @@ impl SettingsWidget for TeamsWidget {
         } else {
             appearance
                 .ui_builder()
-                .span(teams_text(app, OFFLINE_TEXT_KEY))
+                .span(teams_text(app, "settings.teams.offline"))
                 .build()
                 .finish()
         };

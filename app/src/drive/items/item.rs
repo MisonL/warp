@@ -132,8 +132,7 @@ pub struct WarpDriveRow<'a> {
     is_focused: bool,
     overflow_on_left: bool,
     appearance: &'a Appearance,
-    app: &'a AppContext,
-    untitled_fallback: String,
+    untitled_label: String,
 }
 
 impl<'a> WarpDriveRow<'a> {
@@ -153,8 +152,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
-        app: &'a AppContext,
-        untitled_fallback: String,
+        untitled_label: String,
     ) -> Option<Self> {
         let warp_drive_item_id = item.warp_drive_id();
         let overflow_button = match has_menu_items {
@@ -232,8 +230,7 @@ impl<'a> WarpDriveRow<'a> {
             is_focused,
             overflow_on_left: matches!(menu_direction, MenuDirection::Left),
             appearance,
-            app,
-            untitled_fallback,
+            untitled_label,
         })
     }
 
@@ -253,8 +250,7 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
-        app: &'a AppContext,
-        untitled_fallback: String,
+        untitled_label: String,
     ) -> Option<Self> {
         let item = object.to_warp_drive_item(appearance)?;
         Self::new(
@@ -272,8 +268,7 @@ impl<'a> WarpDriveRow<'a> {
             sync_queue_is_dequeueing,
             menu_direction,
             appearance,
-            app,
-            untitled_fallback,
+            untitled_label,
         )
     }
 
@@ -298,7 +293,7 @@ impl<'a> WarpDriveRow<'a> {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        self.item.preview(appearance, app).map(|content_preview| {
+        self.item.preview(appearance).map(|content_preview| {
             let mut stacked_preview_panels: Vec<Box<dyn Element>> =
                 vec![Container::new(content_preview)
                     .with_uniform_padding(16.)
@@ -651,19 +646,14 @@ impl<'a> WarpDriveRow<'a> {
     }
 
     fn render_item_name(&self, style: UiComponentStyles) -> Box<dyn Element> {
-        let name = match self.item.warp_drive_id() {
-            WarpDriveItemId::AIFactCollection => {
-                crate::localization::text_for_app(self.app, "drive.collection.rules")
-            }
-            WarpDriveItemId::MCPServerCollection => {
-                crate::localization::text_for_app(self.app, "drive.collection.mcp_servers")
-            }
-            _ => self
-                .item
+        Span::new(
+            self.item
                 .display_name()
-                .unwrap_or_else(|| self.untitled_fallback.clone()),
-        };
-        Span::new(name, style).build().finish()
+                .unwrap_or_else(|| self.untitled_label.clone()),
+            style,
+        )
+        .build()
+        .finish()
     }
 
     pub fn render_item(&self, style: UiComponentStyles) -> Box<dyn Element> {

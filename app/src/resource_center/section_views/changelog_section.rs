@@ -19,20 +19,17 @@ use crate::appearance::Appearance;
 use crate::changelog_model::{
     ChangelogHeader, ChangelogModel, ChangelogState, Event as ChangelogEvent,
 };
+use crate::localization::{self, LocalizationUpdater};
+use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
-use crate::settings::LanguageSettings;
 use crate::themes::theme::Fill;
 use crate::ui_components::icons;
-use crate::{localization, send_telemetry_from_ctx};
 
 #[derive(Default)]
 struct ChangelogMouseStateHandles {
     top_bar_mouse_state: MouseStateHandle,
     view_changelogs_mouse_state: MouseStateHandle,
 }
-
-const CHANGELOG_FETCH_ERROR_KEY: &str = "resource_center.changelog.fetch_error";
-const CHANGELOG_LOADING_KEY: &str = "resource_center.changelog.loading";
 
 pub struct ChangelogSectionView {
     changelog_model_handle: ModelHandle<ChangelogModel>,
@@ -88,17 +85,8 @@ impl ChangelogSectionView {
         ctx.subscribe_to_model(&changelog_model_handle, |me, _, event, ctx| {
             me.handle_changelog_event(event, ctx);
         });
-
-        let language_settings = LanguageSettings::handle(ctx);
-        ctx.observe(&language_settings, |me, _, ctx| {
-            me.changelog_fetch_error = create_formatted_text_from_string(
-                localization::text_for_app(ctx, CHANGELOG_FETCH_ERROR_KEY),
-            );
-            me.changelog_loading = create_formatted_text_from_string(localization::text_for_app(
-                ctx,
-                CHANGELOG_LOADING_KEY,
-            ));
-            ctx.notify();
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         Self {
@@ -109,15 +97,25 @@ impl ChangelogSectionView {
             new_features_highlighted_link: Default::default(),
             improvements_highlighted_link: Default::default(),
             bug_fixes_highlighted_link: Default::default(),
-            changelog_fetch_error: create_formatted_text_from_string(localization::text_for_app(
-                ctx,
-                CHANGELOG_FETCH_ERROR_KEY,
-            )),
-            changelog_loading: create_formatted_text_from_string(localization::text_for_app(
-                ctx,
-                CHANGELOG_LOADING_KEY,
-            )),
+            changelog_fetch_error: create_formatted_text_from_string(
+                crate::localization::text_for_app(ctx, "resource_center.changelog.fetch_error"),
+            ),
+            changelog_loading: create_formatted_text_from_string(
+                crate::localization::text_for_app(ctx, "resource_center.changelog.loading"),
+            ),
         }
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.changelog_fetch_error = create_formatted_text_from_string(localization::text_for_app(
+            ctx,
+            "resource_center.changelog.fetch_error",
+        ));
+        self.changelog_loading = create_formatted_text_from_string(localization::text_for_app(
+            ctx,
+            "resource_center.changelog.loading",
+        ));
+        ctx.notify();
     }
 
     fn handle_changelog_event(&mut self, _: &ChangelogEvent, ctx: &mut ViewContext<Self>) {
@@ -134,25 +132,26 @@ impl ChangelogSectionView {
         content: &mut Flex,
         model: &ChangelogModel,
         appearance: &Appearance,
-        app: &AppContext,
+        ctx: &AppContext,
     ) {
-        let title = ChangelogHeader::NewFeatures.to_string();
-        let localized_title = localized_changelog_header(app, ChangelogHeader::NewFeatures);
+        let title =
+            localization::text_for_app(ctx, "resource_center.changelog.header.new_features");
+        let markdown_key = ChangelogHeader::NewFeatures.to_string();
         let icon = icons::Icon::Gift;
-        let Some(markdown) = model.parsed_changelog.get(&title) else {
+        let Some(markdown) = model.parsed_changelog.get(&markdown_key) else {
             return;
         };
 
         // Section Title
         if self.show_special_new_features_header {
             content.add_child(render_special_changelog_header(
-                &localized_title,
+                &title,
                 render_icon(icon, appearance.theme().terminal_colors().normal.red.into()),
                 appearance,
             ));
         } else {
             content.add_child(render_basic_changelog_header(
-                &localized_title,
+                &title,
                 render_icon(
                     icon,
                     appearance
@@ -201,9 +200,9 @@ impl ChangelogSectionView {
         content: &mut Flex,
         model: &ChangelogModel,
         appearance: &Appearance,
-        app: &AppContext,
+        ctx: &AppContext,
     ) {
-        self.generate_new_features_section(content, model, appearance, app);
+        self.generate_new_features_section(content, model, appearance, ctx);
 
         let additional_sections = [
             (
@@ -219,15 +218,25 @@ impl ChangelogSectionView {
         ];
 
         for (section, icon, link) in additional_sections {
-            let title = section.to_string();
-            let localized_title = localized_changelog_header(app, section);
-            let Some(markdown) = model.parsed_changelog.get(&title) else {
+            let title = match section {
+                ChangelogHeader::NewFeatures => {
+                    localization::text_for_app(ctx, "resource_center.changelog.header.new_features")
+                }
+                ChangelogHeader::Improvements => {
+                    localization::text_for_app(ctx, "resource_center.changelog.header.improvements")
+                }
+                ChangelogHeader::BugFixes => {
+                    localization::text_for_app(ctx, "resource_center.changelog.header.bug_fixes")
+                }
+            };
+            let markdown_key = section.to_string();
+            let Some(markdown) = model.parsed_changelog.get(&markdown_key) else {
                 continue;
             };
 
             // Title
             content.add_child(render_basic_changelog_header(
-                &localized_title,
+                &title,
                 render_icon(
                     icon,
                     appearance
@@ -241,15 +250,6 @@ impl ChangelogSectionView {
             content.add_child(render_changelog_body(markdown.clone(), link, appearance));
         }
     }
-}
-
-fn localized_changelog_header(app: &AppContext, header: ChangelogHeader) -> String {
-    let key = match header {
-        ChangelogHeader::NewFeatures => "resource_center.changelog.header.new_features",
-        ChangelogHeader::Improvements => "resource_center.changelog.header.improvements",
-        ChangelogHeader::BugFixes => "resource_center.changelog.header.bug_fixes",
-    };
-    localization::text_for_app(app, key)
 }
 
 fn render_icon(icon: icons::Icon, color: Fill) -> ConstrainedBox {
@@ -391,12 +391,12 @@ impl SectionView for ChangelogSectionView {
         None
     }
 
-    fn section_link(&self, appearance: &Appearance, ctx: &AppContext) -> Option<Box<dyn Element>> {
+    fn section_link(&self, appearance: &Appearance, _ctx: &AppContext) -> Option<Box<dyn Element>> {
         Some(
             appearance
                 .ui_builder()
                 .link(
-                    localization::text_for_app(ctx, "resource_center.changelog.read_all"),
+                    localization::text_for_app(_ctx, "resource_center.changelog.read_all"),
                     Some("https://docs.warp.dev/changelog".into()),
                     None,
                     self.changelog_button_mouse_states

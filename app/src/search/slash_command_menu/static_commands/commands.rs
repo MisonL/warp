@@ -148,6 +148,21 @@ pub static RENAME_TAB: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand 
     ),
 });
 
+pub static RENAME_CONVERSATION: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
+    name: "/rename-conversation",
+    description: "Rename the current conversation",
+    icon_path: "bundled/svg/pencil-line.svg",
+    availability: Availability::AGENT_VIEW
+        | Availability::ACTIVE_CONVERSATION
+        | Availability::AI_ENABLED,
+    auto_enter_ai_mode: false,
+    argument: Some(
+        Argument::required()
+            .with_hint_text("<new title>")
+            .with_hint_text_key("terminal.slash.command.rename_conversation.hint"),
+    ),
+});
+
 static SET_TAB_COLOR_HINT: LazyLock<String> = LazyLock::new(|| {
     let mut hint = String::from("<");
     for color in color_dot::TAB_COLOR_OPTIONS {
@@ -176,8 +191,7 @@ pub static FORK: LazyLock<StaticCommand> = LazyLock::new(|| {
         availability: Availability::AGENT_VIEW
             | Availability::ACTIVE_CONVERSATION
             | Availability::NO_LRC_CONTROL
-            | Availability::AI_ENABLED
-            | Availability::NOT_CLOUD_AGENT,
+            | Availability::AI_ENABLED,
         auto_enter_ai_mode: true,
         argument: Some(
             Argument::optional()
@@ -327,7 +341,7 @@ pub static HOST: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     icon_path: "bundled/svg/oz-cloud.svg",
     availability: Availability::AGENT_VIEW
         | Availability::AI_ENABLED
-        | Availability::CLOUD_AGENT_V2,
+        | Availability::CLOUD_MODE_V2_COMPOSER,
     auto_enter_ai_mode: true,
     argument: None,
 });
@@ -338,7 +352,7 @@ pub static HARNESS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     icon_path: "bundled/svg/oz.svg",
     availability: Availability::AGENT_VIEW
         | Availability::AI_ENABLED
-        | Availability::CLOUD_AGENT_V2,
+        | Availability::CLOUD_MODE_V2_COMPOSER,
     auto_enter_ai_mode: true,
     argument: None,
 });
@@ -349,7 +363,7 @@ pub static ENVIRONMENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand
     icon_path: "bundled/svg/globe-04.svg",
     availability: Availability::AGENT_VIEW
         | Availability::AI_ENABLED
-        | Availability::CLOUD_AGENT_V2,
+        | Availability::CLOUD_MODE_V2_COMPOSER,
     auto_enter_ai_mode: true,
     argument: None,
 });
@@ -487,14 +501,15 @@ pub const FORK_FROM: StaticCommand = StaticCommand {
 };
 
 pub static CONTINUE_LOCALLY: LazyLock<StaticCommand> = LazyLock::new(|| {
-    let hint_text = "<optional prompt to send in forked conversation>";
+    let hint_text = "<optional prompt to send in local conversation>";
     StaticCommand {
         name: "/continue-locally",
         description: "Continue this cloud conversation locally",
         icon_path: "bundled/svg/arrow-split.svg",
         availability: Availability::AGENT_VIEW
             | Availability::ACTIVE_CONVERSATION
-            | Availability::AI_ENABLED,
+            | Availability::AI_ENABLED
+            | Availability::CLOUD_AGENT,
         auto_enter_ai_mode: true,
         argument: Some(
             Argument::optional()
@@ -672,6 +687,7 @@ fn all_commands() -> Vec<StaticCommand> {
         AGENT.clone(),
         NEW.clone(),
         PLAN.clone(),
+        RENAME_CONVERSATION.clone(),
         RENAME_TAB.clone(),
         SET_TAB_COLOR.clone(),
         USAGE,

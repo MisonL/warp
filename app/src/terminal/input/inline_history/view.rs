@@ -130,12 +130,12 @@ pub enum HistoryTab {
 
 fn build_tab_configs(
     is_agent_view: bool,
-    app: &AppContext,
+    ctx: &AppContext,
 ) -> Vec<InlineMenuTabConfig<HistoryTab>> {
     if !is_agent_view {
         return vec![InlineMenuTabConfig {
             id: HistoryTab::All,
-            label: localization::text_for_app(app, "terminal.inline_history.tab.all"),
+            label: localization::text_for_app(ctx, "terminal.inline_history.tab.all"),
             filters: HashSet::new(),
         }];
     }
@@ -143,17 +143,17 @@ fn build_tab_configs(
     vec![
         InlineMenuTabConfig {
             id: HistoryTab::All,
-            label: localization::text_for_app(app, "terminal.inline_history.tab.all"),
+            label: localization::text_for_app(ctx, "terminal.inline_history.tab.all"),
             filters: HashSet::new(),
         },
         InlineMenuTabConfig {
             id: HistoryTab::Commands,
-            label: localization::text_for_app(app, "terminal.inline_history.tab.commands"),
+            label: localization::text_for_app(ctx, "terminal.inline_history.tab.commands"),
             filters: HashSet::from([QueryFilter::Commands]),
         },
         InlineMenuTabConfig {
             id: HistoryTab::Prompts,
-            label: localization::text_for_app(app, "terminal.inline_history.tab.prompts"),
+            label: localization::text_for_app(ctx, "terminal.inline_history.tab.prompts"),
             filters: HashSet::from([QueryFilter::PromptHistory]),
         },
     ]
@@ -265,19 +265,18 @@ impl InlineHistoryMenuView {
         });
 
         let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            let configure_button = ctx.add_view(|ctx| {
-                ActionButton::new(
-                    localization::text_for_app(ctx, "terminal.inline_history.configure"),
-                    ConfigureButtonTheme,
-                )
-                .with_icon(Icon::Settings)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                        search_query: "commands history".into(),
-                        section: Some(SettingsSection::WarpAgent),
-                    });
-                })
+            let configure_label =
+                localization::text_for_app(ctx, "terminal.inline_history.configure");
+            let configure_button = ctx.add_view(move |_| {
+                ActionButton::new(configure_label.clone(), ConfigureButtonTheme)
+                    .with_icon(Icon::Settings)
+                    .with_size(ButtonSize::Small)
+                    .on_click(|ctx| {
+                        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
+                            search_query: "commands history".into(),
+                            section: Some(SettingsSection::WarpAgent),
+                        });
+                    })
             });
             let header_config = InlineMenuHeaderConfig {
                 label: localization::text_for_app(ctx, "terminal.inline_history.header"),

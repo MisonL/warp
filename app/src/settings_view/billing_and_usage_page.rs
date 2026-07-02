@@ -44,6 +44,7 @@ use crate::auth::auth_manager::LoginGatedFeature;
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::auth::{AuthManager, AuthStateProvider, UserUid};
+use crate::localization::LocalizationUpdater;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
@@ -63,30 +64,21 @@ use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::{CustomerType, Workspace};
-use crate::{send_telemetry_from_ctx, WorkspaceAction};
+use crate::{localization, send_telemetry_from_ctx, WorkspaceAction};
 
 const HEADER_FONT_SIZE: f32 = 16.;
+const OVERVIEW_TAB_TEXT_KEY: &str = "settings.billing.tab.overview";
+const USAGE_HISTORY_TAB_TEXT_KEY: &str = "settings.billing.tab.usage_history";
+
 /// The threshold below which we only show the "Buy more" button (not "New agent").
 use crate::ai::request_usage_model::AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD;
 
 fn billing_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
+    localization::text_for_app(app, key)
 }
 
 fn billing_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    crate::localization::text_for_app_with_args(app, key, args)
-}
-
-fn localized_credits(app: &AppContext, credits: i32) -> String {
-    match credits {
-        0 => billing_text(app, "settings.billing.credits.zero"),
-        1 => billing_text(app, "settings.billing.credits.one"),
-        _ => billing_text_with_args(
-            app,
-            "settings.billing.credits.many",
-            &[("count", &credits.separate_with_commas())],
-        ),
-    }
+    localization::text_for_app_with_args(app, key, args)
 }
 
 pub fn create_discount_badge(
@@ -103,7 +95,7 @@ pub fn create_discount_badge(
 
     Container::new(
         Text::new_inline(
-            crate::localization::text_for_app_with_args(
+            billing_text_with_args(
                 app,
                 "settings.billing.discount_badge",
                 &[("discount", &discount.to_string())],
@@ -128,25 +120,31 @@ pub enum BillingUsageTab {
 impl BillingUsageTab {
     pub fn get_tab_from_label(label: &str) -> Self {
         match label {
-            "Overview" => BillingUsageTab::Overview,
-            "Usage History" => BillingUsageTab::UsageHistory,
+            _ if label == BillingUsageTab::Overview.label() => BillingUsageTab::Overview,
+            _ if label == BillingUsageTab::UsageHistory.label() => BillingUsageTab::UsageHistory,
             _ => BillingUsageTab::Overview,
         }
     }
 
-    pub fn label(&self) -> &'static str {
+    pub fn label(&self) -> &str {
         match self {
             BillingUsageTab::Overview => "Overview",
             BillingUsageTab::UsageHistory => "Usage History",
         }
     }
 
-    pub fn localized_label(&self, app: &AppContext) -> String {
+    pub fn label_for_app(&self, app: &AppContext) -> String {
         match self {
-            BillingUsageTab::Overview => billing_text(app, "settings.billing.tab.overview"),
-            BillingUsageTab::UsageHistory => {
-                billing_text(app, "settings.billing.tab.usage_history")
-            }
+            BillingUsageTab::Overview => billing_text(app, OVERVIEW_TAB_TEXT_KEY),
+            BillingUsageTab::UsageHistory => billing_text(app, USAGE_HISTORY_TAB_TEXT_KEY),
+        }
+    }
+
+    pub fn get_tab_from_label_for_app(label: &str, app: &AppContext) -> Self {
+        if label == billing_text(app, USAGE_HISTORY_TAB_TEXT_KEY) {
+            BillingUsageTab::UsageHistory
+        } else {
+            BillingUsageTab::Overview
         }
     }
 }
@@ -265,6 +263,9 @@ impl BillingAndUsagePageView {
 
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, _, ctx| {
             ctx.notify()
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         ctx.subscribe_to_model(&PricingInfoModel::handle(ctx), |me, _handle, event, ctx| {
@@ -406,7 +407,36 @@ impl BillingAndUsagePageView {
         me.update_addon_credits_options(ctx);
         me.refresh_addon_credits_settings(ctx);
         me.update_prorated_mouse_states(ctx);
+        me.refresh_localized_text(ctx);
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.overage_limit_modal_state
+            .view
+            .update(ctx, |modal, ctx| {
+                modal.set_title(Some(billing_text(
+                    ctx,
+                    "settings.billing.overage_limit.modal_title",
+                )));
+                ctx.notify();
+            });
+        self.addon_credit_modal_state
+            .view
+            .update(ctx, |modal, ctx| {
+                modal.set_title(Some(billing_text(
+                    ctx,
+                    "settings.billing.addon_credits.modal_title",
+                )));
+                ctx.notify();
+            });
+        self.load_more_button.update(ctx, |button, ctx| {
+            button.set_label(
+                billing_text(ctx, "settings.billing.usage_history.load_more"),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     fn refresh_addon_credits_settings(&mut self, ctx: &mut ViewContext<Self>) {
@@ -459,7 +489,7 @@ impl BillingAndUsagePageView {
             }
             UserWorkspacesEvent::UpdateWorkspaceSettingsRejected(_err) => {
                 self.show_toast(
-                    &billing_text(ctx, "settings.billing.toast.update_workspace_failed"),
+                    billing_text(ctx, "settings.billing.toast.update_workspace_failed"),
                     ToastFlavor::Error,
                     ctx,
                 );
@@ -472,7 +502,7 @@ impl BillingAndUsagePageView {
             UserWorkspacesEvent::PurchaseAddonCreditsSuccess => {
                 self.purchase_addon_credits_loading = false;
                 self.show_toast(
-                    &billing_text(ctx, "settings.billing.toast.addon_credits_purchased"),
+                    billing_text(ctx, "settings.billing.toast.addon_credits_purchased"),
                     ToastFlavor::Success,
                     ctx,
                 );
@@ -482,15 +512,20 @@ impl BillingAndUsagePageView {
             }
             UserWorkspacesEvent::PurchaseAddonCreditsRejected(err) => {
                 self.purchase_addon_credits_loading = false;
-                self.show_toast(&err.to_string(), ToastFlavor::Error, ctx);
+                self.show_toast(err.to_string(), ToastFlavor::Error, ctx);
             }
             _ => {}
         }
     }
 
-    fn show_toast(&self, message: &str, flavor: ToastFlavor, ctx: &mut ViewContext<Self>) {
+    fn show_toast(
+        &self,
+        message: impl Into<String>,
+        flavor: ToastFlavor,
+        ctx: &mut ViewContext<Self>,
+    ) {
         ctx.emit(BillingAndUsagePageEvent::ShowToast {
-            message: message.to_string(),
+            message: message.into(),
             flavor,
         });
     }
@@ -844,22 +879,22 @@ impl TypedActionView for BillingAndUsagePageView {
                 // Build four menu items with checkmark for selected state
                 let sort_options = [
                     (
-                        "settings.billing.sort.display_name_az",
+                        billing_text(ctx, "settings.billing.sort.display_name_az"),
                         SortKey::DisplayName,
                         SortOrder::Asc,
                     ),
                     (
-                        "settings.billing.sort.display_name_za",
+                        billing_text(ctx, "settings.billing.sort.display_name_za"),
                         SortKey::DisplayName,
                         SortOrder::Desc,
                     ),
                     (
-                        "settings.billing.sort.usage_ascending",
+                        billing_text(ctx, "settings.billing.sort.usage_ascending"),
                         SortKey::Requests,
                         SortOrder::Asc,
                     ),
                     (
-                        "settings.billing.sort.usage_descending",
+                        billing_text(ctx, "settings.billing.sort.usage_descending"),
                         SortKey::Requests,
                         SortOrder::Desc,
                     ),
@@ -873,7 +908,7 @@ impl TypedActionView for BillingAndUsagePageView {
                             (Some(k), o) if k == *key && o == *order
                         );
 
-                        let mut menu_item = MenuItemFields::new(billing_text(ctx, label))
+                        let mut menu_item = MenuItemFields::new(label.clone())
                             .with_on_select_action(BillingAndUsagePageAction::ChangeUsageSort {
                                 key: *key,
                                 order: *order,
@@ -1749,34 +1784,38 @@ impl BillingAndUsagePageView {
             // If the team cannot purchase addon credits, and they can't upgrade to Build, that means
             // they're on an Enterprise-like plan. For admins, we show them a message to contact their
             // Account Executive.
-            (false, false, true) => Some(
-                ui_builder
-                    .paragraph(billing_text(
-                        app,
-                        "settings.billing.addon_credits.contact_account_executive",
-                    ))
-                    .with_style(UiComponentStyles {
-                        font_color: Some(theme.sub_text_color(bg).into()),
-                        ..Default::default()
-                    })
-                    .build()
-                    .finish(),
-            ),
+            (false, false, true) => {
+                let paragraph_text = billing_text(
+                    app,
+                    "settings.billing.addon_credits.contact_account_executive",
+                );
+                Some(
+                    ui_builder
+                        .paragraph(paragraph_text)
+                        .with_style(UiComponentStyles {
+                            font_color: Some(theme.sub_text_color(bg).into()),
+                            ..Default::default()
+                        })
+                        .build()
+                        .finish(),
+                )
+            }
             // Every other case relates to not being a team admin. If you aren't an admin, we show
             // a generic message telling you to talk to them.
-            (_, _, false) => Some(
-                ui_builder
-                    .paragraph(billing_text(
-                        app,
-                        "settings.billing.addon_credits.contact_team_admin",
-                    ))
-                    .with_style(UiComponentStyles {
-                        font_color: Some(theme.sub_text_color(bg).into()),
-                        ..Default::default()
-                    })
-                    .build()
-                    .finish(),
-            ),
+            (_, _, false) => {
+                let paragraph_text =
+                    billing_text(app, "settings.billing.addon_credits.contact_team_admin");
+                Some(
+                    ui_builder
+                        .paragraph(paragraph_text)
+                        .with_style(UiComponentStyles {
+                            font_color: Some(theme.sub_text_color(bg).into()),
+                            ..Default::default()
+                        })
+                        .build()
+                        .finish(),
+                )
+            }
         };
 
         // If we have an explanation, render it + return early, since the rest of the content
@@ -1885,7 +1924,16 @@ impl BillingAndUsagePageView {
                 .with_color(appearance.theme().active_ui_text_color().into())
                 .finish();
 
-                let credits_text = localized_credits(app, credits_purchased);
+                let credits_text = if credits_purchased == 1 {
+                    billing_text(app, "settings.billing.credits.one")
+                } else {
+                    let count = credits_purchased.separate_with_commas();
+                    billing_text_with_args(
+                        app,
+                        "settings.billing.credits.many",
+                        &[("count", &count)],
+                    )
+                };
 
                 let credits_component = Container::new(
                     Text::new_inline(credits_text, appearance.ui_font_family(), 12.)
@@ -1941,7 +1989,7 @@ impl BillingAndUsagePageView {
             .auto_reload_enabled;
 
         let auto_reload_amount = selected_option
-            .map(|option| option.credits.to_string())
+            .map(|option| option.credits.separate_with_commas())
             .filter(|_| auto_reload_enabled)
             .unwrap_or_else(|| billing_text(app, "settings.billing.addon_credits.selected_amount"));
         let auto_reload_switch = ui_builder
@@ -1961,7 +2009,6 @@ impl BillingAndUsagePageView {
                 .finish()
         };
 
-        let auto_reload_amount_text = auto_reload_amount.to_string();
         let auto_reload_switch = Container::new(render_body_item::<BillingAndUsagePageAction>(
             billing_text(app, "settings.billing.addon_credits.auto_reload.label"),
             None,
@@ -1972,7 +2019,7 @@ impl BillingAndUsagePageView {
             Some(billing_text_with_args(
                 app,
                 "settings.billing.addon_credits.auto_reload.description",
-                &[("value", &auto_reload_amount_text)],
+                &[("value", &auto_reload_amount)],
             )),
         ))
         .with_padding_right(-TOGGLE_BUTTON_RIGHT_PADDING)
@@ -2228,10 +2275,22 @@ impl BillingAndUsagePageView {
 
         let (request_count_label, cost_label) =
             if let (Some(count), Some(cost)) = (total_overages_count, total_overages_cost) {
-                (
-                    localized_credits(app, count),
-                    format!("${:.2}", cost as f64 / 100.0),
-                )
+                if count == 1 {
+                    (
+                        billing_text(app, "settings.billing.credits.one"),
+                        format!("${:.2}", cost as f64 / 100.0),
+                    )
+                } else {
+                    let count = count.separate_with_commas();
+                    (
+                        billing_text_with_args(
+                            app,
+                            "settings.billing.credits.many",
+                            &[("count", &count)],
+                        ),
+                        format!("${:.2}", cost as f64 / 100.0),
+                    )
+                }
             } else {
                 (
                     billing_text(app, "settings.billing.credits.zero"),
@@ -2536,27 +2595,28 @@ impl BillingAndUsagePageView {
 
         let mut usage = Flex::column();
 
+        let overview_label = BillingUsageTab::Overview.label_for_app(app);
+        let usage_history_label = BillingUsageTab::UsageHistory.label_for_app(app);
         let tabs = vec![
-            SettingsTab::new_with_value(
-                BillingUsageTab::Overview.localized_label(app),
-                BillingUsageTab::Overview.label(),
-                self.overview_tab_mouse_state.clone(),
-            ),
-            SettingsTab::new_with_value(
-                BillingUsageTab::UsageHistory.localized_label(app),
-                BillingUsageTab::UsageHistory.label(),
+            SettingsTab::new(overview_label, self.overview_tab_mouse_state.clone()),
+            SettingsTab::new(
+                usage_history_label.clone(),
                 self.usage_history_tab_mouse_state.clone(),
             ),
         ];
+        let selected_tab_label = self.selected_tab.label_for_app(app);
 
         let tab_selector = tab_selector::render_tab_selector(
             tabs,
-            self.selected_tab.label(),
+            &selected_tab_label,
             // On click, set clicked tab as selected
-            |label, ctx| {
-                ctx.dispatch_typed_action(BillingAndUsagePageAction::SelectTab(
-                    BillingUsageTab::get_tab_from_label(label),
-                ));
+            move |label, ctx| {
+                let tab = if label == usage_history_label {
+                    BillingUsageTab::UsageHistory
+                } else {
+                    BillingUsageTab::Overview
+                };
+                ctx.dispatch_typed_action(BillingAndUsagePageAction::SelectTab(tab));
             },
             appearance,
         );
@@ -2893,7 +2953,7 @@ impl BillingAndUsagePageView {
                     .paragraph(billing_text_with_args(
                         app,
                         "settings.billing.usage.resets",
-                        &[("date", formatted_next_refresh_time)],
+                        &[("date", &formatted_next_refresh_time)],
                     ))
                     .with_style(UiComponentStyles {
                         font_color: Some(blended_colors::text_sub(
@@ -2944,9 +3004,9 @@ impl BillingAndUsagePageView {
                     let hoverable =
                         Hoverable::new(self.sort_icon_mouse_state.clone(), |mouse_state| {
                             if mouse_state.is_hovered() {
-                                let tooltip = appearance
-                                    .ui_builder()
-                                    .tool_tip(billing_text(app, "settings.billing.sort.tooltip"));
+                                let tooltip = appearance.ui_builder().tool_tip(
+                                    localization::text_for_app(app, "settings.billing.sort_by"),
+                                );
 
                                 button.add_positioned_overlay_child(
                                     tooltip.build().finish(),
@@ -3009,7 +3069,7 @@ impl BillingAndUsagePageView {
                 .with_child(
                     build_sub_header(
                         appearance,
-                        billing_text(app, "settings.billing.usage.title"),
+                        billing_text(app, "settings.ai.usage.section"),
                         Some(
                             appearance
                                 .theme()
@@ -3307,7 +3367,7 @@ impl BillingAndUsagePageView {
                         ),
                         FormattedTextFragment::plain_text(billing_text(
                             app,
-                            "settings.billing.upgrade.more_ai_usage_suffix",
+                            "settings.billing.upgrade.more_ai_usage_for_suffix",
                         )),
                     ]
                 } else {

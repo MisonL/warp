@@ -20,7 +20,7 @@ impl NewSessionOption {
             .with_foreground_color(highlight_state.main_text_fill(appearance).into_solid());
 
         let display_text = Text::new_inline(
-            self.description().to_string(),
+            self.localized_description(app),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -30,7 +30,7 @@ impl NewSessionOption {
         .finish();
 
         let details = Text::new_inline(
-            self.details_for_app(app).to_string(),
+            self.localized_details(app).to_string(),
             appearance.monospace_font_family(),
             appearance.monospace_font_size() - 2.,
         )

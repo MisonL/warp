@@ -179,7 +179,7 @@ impl ChipDisabledReason {
             Self::RequiresExecutable { command } => localization::text_for_app_with_args(
                 app,
                 "context_chips.disabled.requires_command",
-                &[("command", command)],
+                &[("command", command.as_str())],
             ),
         }
     }

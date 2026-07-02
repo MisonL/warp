@@ -18,6 +18,7 @@ use nav::{SettingsNavItem, SettingsUmbrella};
 use pathfinder_geometry::vector::Vector2F;
 use privacy_page::{PrivacyPageView, PrivacyPageViewEvent};
 use referrals_page::{ReferralsPageEvent, ReferralsPageView};
+use scripting_page::ScriptingSettingsPageView;
 use settings_file_footer::{render_footer, SettingsFooterKind, SettingsFooterMouseStates};
 use settings_page::{
     MatchData, SettingsPage, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle,
@@ -80,7 +81,7 @@ mod billing_and_usage_dispatch;
 mod billing_and_usage_page;
 mod billing_and_usage_page_v2;
 mod code_page;
-mod custom_inference_modal;
+pub(crate) mod custom_inference_modal;
 mod delete_environment_confirmation_dialog;
 mod directory_color_add_picker;
 pub(crate) mod environments_page;
@@ -100,6 +101,7 @@ mod privacy;
 mod privacy_page;
 mod referrals_page;
 mod remove_custom_endpoint_confirmation_dialog;
+mod scripting_page;
 mod settings_file_footer;
 pub(crate) mod settings_page;
 mod show_blocks_view;
@@ -250,6 +252,7 @@ pub enum SettingsSection {
     Keybindings,
     Privacy,
     Referrals,
+    Scripting,
     SharedBlocks,
     Teams,
     WarpDrive,
@@ -289,6 +292,7 @@ impl Display for SettingsSection {
             SettingsSection::Keybindings => write!(f, "Keyboard shortcuts"),
             SettingsSection::SharedBlocks => write!(f, "Shared blocks"),
             SettingsSection::MCPServers => write!(f, "MCP Servers"),
+            SettingsSection::Scripting => write!(f, "Scripting"),
             SettingsSection::WarpDrive => write!(f, "Warp Drive"),
             SettingsSection::WarpAgent => write!(f, "Warp Agent"),
             SettingsSection::AgentProfiles => write!(f, "Profiles"),
@@ -305,39 +309,6 @@ impl Display for SettingsSection {
 }
 
 impl SettingsSection {
-    pub fn localized_label(&self, app: &AppContext) -> String {
-        crate::localization::text_for_app(app, self.translation_key())
-    }
-
-    fn translation_key(&self) -> &'static str {
-        match self {
-            Self::About => "settings.nav.about",
-            Self::Account => "settings.nav.account",
-            Self::MCPServers => "settings.nav.mcp_servers",
-            Self::BillingAndUsage => "settings.nav.billing_and_usage",
-            Self::Appearance => "settings.nav.appearance",
-            Self::Features => "settings.nav.features",
-            Self::Keybindings => "settings.nav.keyboard_shortcuts",
-            Self::Privacy => "settings.nav.privacy",
-            Self::Referrals => "settings.nav.referrals",
-            Self::SharedBlocks => "settings.nav.shared_blocks",
-            Self::Teams => "settings.nav.teams",
-            Self::WarpDrive => "settings.nav.warp_drive",
-            Self::Warpify => "settings.nav.warpify",
-            Self::AI => "settings.nav.ai",
-            Self::WarpAgent => "settings.nav.warp_agent",
-            Self::AgentProfiles => "settings.nav.agent_profiles",
-            Self::AgentMCPServers => "settings.nav.agent_mcp_servers",
-            Self::Knowledge => "settings.nav.knowledge",
-            Self::ThirdPartyCLIAgents => "settings.nav.third_party_cli_agents",
-            Self::Code => "settings.nav.code",
-            Self::CodeIndexing => "settings.nav.code_indexing",
-            Self::EditorAndCodeReview => "settings.nav.editor_and_code_review",
-            Self::CloudEnvironments => "settings.nav.cloud_environments",
-            Self::OzCloudAPIKeys => "settings.nav.oz_cloud_api_keys",
-        }
-    }
-
     /// Returns true if this section is a subpage under any umbrella.
     pub fn is_subpage(&self) -> bool {
         self.is_ai_subpage() || self.is_code_subpage() || self.is_cloud_platform_subpage()
@@ -419,6 +390,7 @@ impl FromStr for SettingsSection {
             "Keyboard shortcuts" => Ok(Self::Keybindings),
             "Privacy" => Ok(Self::Privacy),
             "Referrals" => Ok(Self::Referrals),
+            "Scripting" => Ok(Self::Scripting),
             "Shared blocks" => Ok(Self::SharedBlocks),
             "Teams" => Ok(Self::Teams),
             "Warpify" => Ok(Self::Warpify),
@@ -473,10 +445,8 @@ pub mod flags {
     pub const MOUSE_REPORTING_CONTEXT_FLAG: &str = "Mouse_Reporting";
     pub const SCROLL_REPORTING_CONTEXT_FLAG: &str = "Scroll_Reporting";
     pub const FOCUS_REPORTING_CONTEXT_FLAG: &str = "Focus_Reporting";
-    #[deprecated = "Use `SSH_TMUX_WRAPPER_CONTEXT_FLAG` for new ssh warpification logic"]
-    pub const LEGACY_SSH_WRAPPER_CONTEXT_FLAG: &str = "SSH_Wrapper";
+    pub const SSH_REUSE_CONTROL_MASTER_CONTEXT_FLAG: &str = "SSH_Reuse_Control_Master";
     pub const SSH_WARPIFICATION_CONTEXT_FLAG: &str = "SSH_Warpification";
-    pub const SSH_TMUX_WRAPPER_CONTEXT_FLAG: &str = "SSH_Tmux_Wrapper";
     pub const NOTIFICATIONS_CONTEXT_FLAG: &str = "Notifications_Enabled";
     pub const LONG_RUNNING_NOTIFICATIONS_FLAG: &str = "Long_Running_Notifications";
     pub const AGENT_TASK_COMPLETED_NOTIFICATIONS_FLAG: &str = "Agent_Task_Completed_Notifications";
@@ -552,6 +522,9 @@ pub mod flags {
         "Orchestration_Message_Display_AlwaysCollapse";
     pub const PROMPT_SUBMISSION_INTERRUPT: &str = "Prompt_Submission_Interrupt";
     pub const PROMPT_SUBMISSION_QUEUE: &str = "Prompt_Submission_Queue";
+    pub const LRC_SUBMISSION_SEND_IMMEDIATELY: &str = "LRC_Submission_Send_Immediately";
+    pub const LRC_SUBMISSION_QUEUE_UNTIL_COMMAND_COMPLETES: &str =
+        "LRC_Submission_Queue_Until_Command_Completes";
     pub const SHOW_TERMINAL_INPUT_MESSAGE_LINE_FLAG: &str = "Show_Terminal_Input_Message_Line";
     pub const PRESERVE_INPUT_FOCUS_ON_BLOCK_SELECTION_FLAG: &str =
         "Preserve_Input_Focus_On_Block_Selection";
@@ -632,6 +605,7 @@ pub mod flags {
     pub const SHOW_CONVERSATION_HISTORY: &str = "ShowConversationHistory";
     pub const SHOW_PROJECT_EXPLORER: &str = "ShowProjectExplorer";
     pub const SHOW_GLOBAL_SEARCH: &str = "ShowGlobalSearch";
+    pub const SHOW_HIDDEN_FILES: &str = "ShowHiddenFiles";
 }
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
@@ -652,9 +626,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![
                 ToggleSettingActionPair::custom(
-                    SettingActionPairDescriptions::new_localized_toggle(
-                        app,
-                        "settings.command_palette.debug.initialization_block",
+                    SettingActionPairDescriptions::new(
+                        "Show initialization block",
+                        "Hide initialization block",
                     ),
                     builder(SettingsAction::Debug(
                         DebugSettingsAction::ToggleInitializationBlock,
@@ -666,9 +640,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                     None,
                 ),
                 ToggleSettingActionPair::custom(
-                    SettingActionPairDescriptions::new_localized_toggle(
-                        app,
-                        "settings.command_palette.debug.in_band_command_blocks",
+                    SettingActionPairDescriptions::new(
+                        "Show in-band command blocks",
+                        "Hide in-band command blocks",
                     ),
                     builder(SettingsAction::Debug(
                         DebugSettingsAction::ToggleInBandCommandBlocks,
@@ -687,30 +661,26 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     if FeatureFlag::DebugMode.is_enabled() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.command_palette.debug.recording_mode",
+                ToggleSettingActionPair::new(
+                    "recording mode",
                     WorkspaceAction::ToggleRecordingMode,
                     &id!("Workspace"),
                     flags::RECORDING_MODE_FLAG,
                 ),
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.command_palette.debug.in_band_generators",
+                ToggleSettingActionPair::new(
+                    "in-band generators for new sessions",
                     WorkspaceAction::ToggleInBandGenerators,
                     &id!("Workspace"),
                     flags::IN_BAND_GENERATORS_FLAG,
                 ),
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.command_palette.debug.network_status",
+                ToggleSettingActionPair::new(
+                    "debug network status",
                     WorkspaceAction::ToggleDebugNetworkStatus,
                     &id!("Workspace"),
                     flags::DEBUG_NETWORK_ONLINE_FLAG,
                 ),
-                ToggleSettingActionPair::new_localized(
-                    app,
-                    "settings.command_palette.debug.memory_statistics",
+                ToggleSettingActionPair::new(
+                    "memory statistics",
                     WorkspaceAction::ToggleShowMemoryStats,
                     &id!("Workspace"),
                     flags::DEBUG_SHOW_MEMORY_STATS_FLAG,
@@ -730,48 +700,78 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 /// The string the user will see when the action is enabled or disabled.
 #[derive(Clone)]
 pub struct SettingActionPairDescriptions {
-    enable: BindingDescription,
-    disable: BindingDescription,
+    enable: String,
+    disable: String,
+    enable_key: Option<&'static str>,
+    disable_key: Option<&'static str>,
+    label_key: Option<&'static str>,
 }
 
 impl SettingActionPairDescriptions {
     pub fn new(enable: &str, disable: &str) -> Self {
         Self {
-            enable: BindingDescription::new(enable),
-            disable: BindingDescription::new(disable),
+            enable: enable.to_owned(),
+            disable: disable.to_owned(),
+            enable_key: None,
+            disable_key: None,
+            label_key: None,
         }
     }
 
-    pub fn new_localized_toggle(app: &AppContext, description_suffix_key: &'static str) -> Self {
-        fn toggle_description(
-            app: &AppContext,
-            toggle_key: &'static str,
-            description_suffix_key: &'static str,
-        ) -> BindingDescription {
-            BindingDescription::new(crate::localization::text_for_app(app, toggle_key).replace(
-                "{value}",
-                &crate::localization::text_for_app(app, description_suffix_key),
-            ))
-            .with_dynamic_override(move |ctx| {
-                Some(crate::localization::text_for_app(ctx, toggle_key).replace(
-                    "{value}",
-                    &crate::localization::text_for_app(ctx, description_suffix_key),
-                ))
-            })
-        }
-
+    pub fn from_label_key(enable: String, disable: String, label_key: &'static str) -> Self {
         Self {
-            enable: toggle_description(
-                app,
-                "settings.command_palette.enable",
-                description_suffix_key,
-            ),
-            disable: toggle_description(
-                app,
-                "settings.command_palette.disable",
-                description_suffix_key,
-            ),
+            enable,
+            disable,
+            enable_key: Some("command.toggle.enable"),
+            disable_key: Some("command.toggle.disable"),
+            label_key: Some(label_key),
         }
+    }
+
+    pub fn from_keys(
+        enable: &str,
+        disable: &str,
+        enable_key: &'static str,
+        disable_key: &'static str,
+    ) -> Self {
+        Self {
+            enable: enable.to_owned(),
+            disable: disable.to_owned(),
+            enable_key: Some(enable_key),
+            disable_key: Some(disable_key),
+            label_key: None,
+        }
+    }
+
+    fn enable_description(&self) -> BindingDescription {
+        self.binding_description(self.enable.clone(), self.enable_key)
+    }
+
+    fn disable_description(&self) -> BindingDescription {
+        self.binding_description(self.disable.clone(), self.disable_key)
+    }
+
+    fn binding_description(
+        &self,
+        fallback: String,
+        template_key: Option<&'static str>,
+    ) -> BindingDescription {
+        let Some(template_key) = template_key else {
+            return BindingDescription::new(fallback);
+        };
+        let label_key = self.label_key;
+        BindingDescription::new(fallback).with_dynamic_override(move |app| {
+            if let Some(label_key) = label_key {
+                let label = localization::text_for_app(app, label_key);
+                Some(localization::text_for_app_with_args(
+                    app,
+                    template_key,
+                    &[("label", label.as_str())],
+                ))
+            } else {
+                Some(localization::text_for_app(app, template_key))
+            }
+        })
     }
 }
 
@@ -842,8 +842,11 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
 
         ToggleSettingActionPair {
             descriptions: SettingActionPairDescriptions {
-                enable: format!("Enable {description_suffix}").into(),
-                disable: format!("Disable {description_suffix}").into(),
+                enable: format!("Enable {description_suffix}"),
+                disable: format!("Disable {description_suffix}"),
+                enable_key: None,
+                disable_key: None,
+                label_key: None,
             },
             contexts: SettingActionPairContexts {
                 enable_predicate: context_prefix.to_owned() & !id!(context_boolean_flag),
@@ -858,8 +861,8 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
     }
 
     pub fn new_localized(
-        app: &AppContext,
-        description_suffix_key: &'static str,
+        description_suffix: &str,
+        label_key: &'static str,
         toggle_action: T,
         context_prefix: &ContextPredicate,
         context_boolean_flag: &'static str,
@@ -867,9 +870,10 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
         use warpui::keymap::macros::id;
 
         ToggleSettingActionPair {
-            descriptions: SettingActionPairDescriptions::new_localized_toggle(
-                app,
-                description_suffix_key,
+            descriptions: SettingActionPairDescriptions::from_label_key(
+                format!("Enable {description_suffix}"),
+                format!("Disable {description_suffix}"),
+                label_key,
             ),
             contexts: SettingActionPairContexts {
                 enable_predicate: context_prefix.to_owned() & !id!(context_boolean_flag),
@@ -942,14 +946,14 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                                 let mut enable_binding = FixedBinding::custom(
                                     custom_action,
                                     toggle_action.clone(),
-                                    descriptions.enable,
+                                    descriptions.enable_description(),
                                     contexts.enable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
                                 let mut disable_binding = FixedBinding::custom(
                                     custom_action,
                                     toggle_action,
-                                    descriptions.disable,
+                                    descriptions.disable_description(),
                                     contexts.disable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
@@ -964,13 +968,13 @@ impl<T: Action + Clone> ToggleSettingActionPair<T> {
                             }
                             None => {
                                 let mut enable_binding = FixedBinding::empty(
-                                    descriptions.enable,
+                                    descriptions.enable_description(),
                                     toggle_action.clone(),
                                     contexts.enable_predicate,
                                 )
                                 .with_group(binding_group.as_str());
                                 let mut disable_binding = FixedBinding::empty(
-                                    descriptions.disable,
+                                    descriptions.disable_description(),
                                     toggle_action,
                                     contexts.disable_predicate,
                                 )
@@ -1163,6 +1167,7 @@ macro_rules! update_page {
             SettingsPageViewHandle::OzCloudAPIKeys(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Privacy(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Referrals(handle) => $ctx.update_view(handle, $update),
+            SettingsPageViewHandle::Scripting(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::AI(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::CloudEnvironments(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::About(handle) => $ctx.update_view(handle, $update),
@@ -1209,9 +1214,7 @@ pub struct SettingsView {
 
 impl SettingsView {
     pub fn new(page: Option<SettingsSection>, ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|ctx| {
-            PaneConfiguration::new(localization::text_for_app(ctx, "settings.title"))
-        });
+        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Settings"));
 
         let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
         // Main settings page with accounts info
@@ -1313,6 +1316,11 @@ impl SettingsView {
         ctx.subscribe_to_view(&referrals_page_handle, |me, _, event, ctx| {
             me.handle_referrals_page_event(event, ctx);
         });
+        let scripting_page_handle = if FeatureFlag::WarpControlCli.is_enabled() {
+            Some(ctx.add_typed_action_view(ScriptingSettingsPageView::new))
+        } else {
+            None
+        };
 
         // Warp Drive page
         let warp_drive_page_handle =
@@ -1346,32 +1354,13 @@ impl SettingsView {
             };
             let mut editor = EditorView::single_line(options, ctx);
             editor.set_placeholder_text(
-                crate::localization::text_for_app(ctx, "settings.search.placeholder"),
+                localization::text_for_app(ctx, "settings.search.placeholder"),
                 ctx,
             );
             editor
         });
 
         ctx.subscribe_to_view(&search_editor, Self::handle_search_editor_event);
-        ctx.subscribe_to_model(
-            &crate::localization::LocalizationUpdater::handle(ctx),
-            |me, _, _, ctx| {
-                me.pane_configuration
-                    .update(ctx, |pane_configuration, ctx| {
-                        pane_configuration.set_title(
-                            crate::localization::text_for_app(ctx, "settings.title"),
-                            ctx,
-                        );
-                    });
-                me.search_editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(
-                        crate::localization::text_for_app(ctx, "settings.search.placeholder"),
-                        ctx,
-                    );
-                });
-                ctx.notify();
-            },
-        );
 
         let context_menu = ctx.add_typed_action_view(|_| {
             Menu::new()
@@ -1398,6 +1387,10 @@ impl SettingsView {
             SettingsPage::new(warp_drive_page_handle),
         ];
 
+        if let Some(scripting_page_handle) = scripting_page_handle {
+            settings_pages.push(SettingsPage::new(scripting_page_handle));
+        }
+
         settings_pages.extend(vec![
             SettingsPage::new(mcp_servers_page_handle),
             SettingsPage::new(environments_page_handle.clone()),
@@ -1410,19 +1403,19 @@ impl SettingsView {
         let mut nav_items = vec![
             SettingsNavItem::Page(SettingsSection::Account),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
-                "settings.nav.umbrella.agents",
+                "Agents",
                 SettingsSection::ai_subpages().to_vec(),
             )),
             SettingsNavItem::Page(SettingsSection::BillingAndUsage),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
-                "settings.nav.umbrella.code",
+                "Code",
                 vec![
                     SettingsSection::CodeIndexing,
                     SettingsSection::EditorAndCodeReview,
                 ],
             )),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
-                "settings.nav.umbrella.cloud_platform",
+                "Cloud platform",
                 vec![
                     SettingsSection::CloudEnvironments,
                     SettingsSection::OzCloudAPIKeys,
@@ -1440,10 +1433,26 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::About),
         ];
 
+        if FeatureFlag::WarpControlCli.is_enabled() {
+            let shared_blocks_index = nav_items
+                .iter()
+                .position(|item| {
+                    matches!(item, SettingsNavItem::Page(SettingsSection::SharedBlocks))
+                })
+                .unwrap_or(nav_items.len());
+            nav_items.insert(
+                shared_blocks_index,
+                SettingsNavItem::Page(SettingsSection::Scripting),
+            );
+        }
+
         // Resolve the initial page: map internal backing-page sections to their default subpage.
         let initial_page = match page {
             Some(SettingsSection::AI) => SettingsSection::WarpAgent,
             Some(SettingsSection::Code) => SettingsSection::CodeIndexing,
+            Some(SettingsSection::Scripting) if !FeatureFlag::WarpControlCli.is_enabled() => {
+                SettingsSection::Account
+            }
             Some(section) if section.is_subpage() => section,
             other => other.unwrap_or_default(),
         };
@@ -1726,9 +1735,9 @@ impl SettingsView {
 
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend(vec![
-                MenuItemFields::new(crate::localization::text_for_app(
+                MenuItemFields::new(localization::text_for_app(
                     ctx,
-                    "settings.pane.split_right",
+                    "terminal.menu.split_pane_right",
                 ))
                 .with_on_select_action(SettingsAction::Split(Direction::Right))
                 .with_key_shortcut_label(keybinding_name_to_display_string(
@@ -1736,9 +1745,9 @@ impl SettingsView {
                     ctx,
                 ))
                 .into_item(),
-                MenuItemFields::new(crate::localization::text_for_app(
+                MenuItemFields::new(localization::text_for_app(
                     ctx,
-                    "settings.pane.split_left",
+                    "terminal.menu.split_pane_left",
                 ))
                 .with_on_select_action(SettingsAction::Split(Direction::Left))
                 .with_key_shortcut_label(keybinding_name_to_display_string(
@@ -1746,9 +1755,9 @@ impl SettingsView {
                     ctx,
                 ))
                 .into_item(),
-                MenuItemFields::new(crate::localization::text_for_app(
+                MenuItemFields::new(localization::text_for_app(
                     ctx,
-                    "settings.pane.split_down",
+                    "terminal.menu.split_pane_down",
                 ))
                 .with_on_select_action(SettingsAction::Split(Direction::Down))
                 .with_key_shortcut_label(keybinding_name_to_display_string(
@@ -1756,9 +1765,9 @@ impl SettingsView {
                     ctx,
                 ))
                 .into_item(),
-                MenuItemFields::new(crate::localization::text_for_app(
+                MenuItemFields::new(localization::text_for_app(
                     ctx,
-                    "settings.pane.split_up",
+                    "terminal.menu.split_pane_up",
                 ))
                 .with_on_select_action(SettingsAction::Split(Direction::Up))
                 .with_key_shortcut_label(keybinding_name_to_display_string(
@@ -1778,7 +1787,7 @@ impl SettingsView {
         if split_pane_state.is_in_split_pane() {
             let is_maximized = split_pane_state.is_maximized();
             items.push(
-                MenuItemFields::toggle_pane_action(is_maximized, ctx)
+                MenuItemFields::toggle_pane_action(is_maximized)
                     .with_on_select_action(SettingsAction::ToggleMaximizePane)
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:toggle_maximize_pane",
@@ -1788,16 +1797,13 @@ impl SettingsView {
             );
 
             items.push(
-                MenuItemFields::new(crate::localization::text_for_app(
-                    ctx,
-                    "settings.pane.close",
-                ))
-                .with_on_select_action(SettingsAction::Close)
-                .with_key_shortcut_label(
-                    custom_tag_to_keystroke(CustomAction::CloseCurrentSession.into())
-                        .map(|keystroke| keystroke.displayed()),
-                )
-                .into_item(),
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.close_pane"))
+                    .with_on_select_action(SettingsAction::Close)
+                    .with_key_shortcut_label(
+                        custom_tag_to_keystroke(CustomAction::CloseCurrentSession.into())
+                            .map(|keystroke| keystroke.displayed()),
+                    )
+                    .into_item(),
             );
         }
 
@@ -2201,6 +2207,7 @@ impl SettingsView {
             SettingsPageViewHandle::Privacy(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Warpify(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Referrals(v) => v.as_ref(app).should_render(app),
+            SettingsPageViewHandle::Scripting(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::AI(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::CloudEnvironments(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::MCPServers(v) => v.as_ref(app).should_render(app),
@@ -2468,8 +2475,8 @@ impl SettingsView {
 
     fn render_search_zero_state(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         Container::new(
@@ -2478,7 +2485,7 @@ impl SettingsView {
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_children([
                         Text::new(
-                            crate::localization::text_for_app(app, "settings.search.no_matches"),
+                            localization::text_for_app(app, "settings.search.no_matches"),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -2486,10 +2493,7 @@ impl SettingsView {
                         .with_color(theme.sub_text_color(theme.background()).into_solid())
                         .finish(),
                         Text::new(
-                            crate::localization::text_for_app(
-                                app,
-                                "settings.search.no_matches_hint",
-                            ),
+                            localization::text_for_app(app, "settings.search.no_matches_hint"),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -2524,7 +2528,7 @@ impl View for SettingsView {
         // (e.g. Oz -> AI, AgentMCPServers -> MCPServers).
         let content_page_section = self.current_settings_page.parent_page_section();
         let (page, current_page_handle) = if settings_pages.is_empty() {
-            (self.render_search_zero_state(app, appearance), None)
+            (self.render_search_zero_state(appearance, app), None)
         } else {
             match settings_pages
                 .iter()
@@ -2552,7 +2556,7 @@ impl View for SettingsView {
                     {
                         let page_active = section == self.current_settings_page;
                         buttons.add_child(
-                            page.render_page_button(app, appearance, *match_data, page_active)
+                            page.render_page_button(appearance, *match_data, page_active)
                                 .on_click(move |ctx, _, _| {
                                     ctx.dispatch_typed_action(SettingsAction::SelectAndRefresh(
                                         section,
@@ -2585,7 +2589,7 @@ impl View for SettingsView {
                     // across the full clickable area, not just the text.
                     buttons.add_child(
                         umbrella
-                            .render_umbrella_row(app, appearance)
+                            .render_umbrella_row(appearance)
                             .on_click(move |ctx, _, _| {
                                 ctx.dispatch_typed_action(SettingsAction::ToggleUmbrella(
                                     nav_index,
@@ -2616,9 +2620,9 @@ impl View for SettingsView {
                             }
 
                             let is_active = subpage_section == self.current_settings_page;
-                            if let Some(hoverable) = umbrella.render_subpage_button(
-                                app, sub_idx, appearance, match_data, is_active,
-                            ) {
+                            if let Some(hoverable) = umbrella
+                                .render_subpage_button(sub_idx, appearance, match_data, is_active)
+                            {
                                 buttons.add_child(
                                     hoverable
                                         .on_click(move |ctx, _, _| {
@@ -2645,8 +2649,8 @@ impl View for SettingsView {
         );
         let footer = render_footer(
             footer_kind,
-            app,
             appearance,
+            app,
             self.settings_file_error.as_ref(),
             AISettings::as_ref(app).is_any_ai_enabled(app),
             &self.footer_mouse_states,
@@ -2907,9 +2911,9 @@ impl BackingView for SettingsView {
     fn render_header_content(
         &self,
         _ctx: &view::HeaderRenderContext<'_>,
-        app: &AppContext,
+        _app: &AppContext,
     ) -> view::HeaderContent {
-        view::HeaderContent::simple(crate::localization::text_for_app(app, "settings.title"))
+        view::HeaderContent::simple("Settings")
     }
 
     fn set_focus_handle(&mut self, focus_handle: PaneFocusHandle, _ctx: &mut ViewContext<Self>) {

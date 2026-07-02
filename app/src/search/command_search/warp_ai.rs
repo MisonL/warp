@@ -30,6 +30,13 @@ use crate::ui_components::icons::Icon as UIIcon;
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 use crate::workflows::{AIWorkflowOrigin, WorkflowSource, WorkflowType};
 
+const OPEN_WARP_AI_ITEM_BODY_TEXT_KEY: &str = "search.command_search.warp_ai.open_body";
+const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_KEY: &str =
+    "search.command_search.warp_ai.translate_body";
+const OPEN_WARP_AI_ITEM_BODY_TEXT_FALLBACK: &str = "Ask Warp AI for command suggestions";
+const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_FALLBACK: &str =
+    "Translate into shell command using Warp AI";
+
 #[derive(Clone, Debug)]
 pub enum WarpAISearchItem {
     /// Translates the query within command search.
@@ -42,15 +49,15 @@ pub enum WarpAISearchItem {
 impl WarpAISearchItem {
     fn item_body_text_key(&self) -> &'static str {
         match self {
-            WarpAISearchItem::Translate => "search.command_search.warp_ai.translate_body",
-            WarpAISearchItem::Open => "search.command_search.warp_ai.open_body",
+            WarpAISearchItem::Translate => TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_KEY,
+            WarpAISearchItem::Open => OPEN_WARP_AI_ITEM_BODY_TEXT_KEY,
         }
     }
 
     fn item_body_text_fallback(&self) -> &'static str {
         match self {
-            WarpAISearchItem::Translate => "Translate into shell command using Warp AI",
-            WarpAISearchItem::Open => "Ask Warp AI for command suggestions",
+            WarpAISearchItem::Translate => TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_FALLBACK,
+            WarpAISearchItem::Open => OPEN_WARP_AI_ITEM_BODY_TEXT_FALLBACK,
         }
     }
 }
@@ -103,8 +110,9 @@ impl SearchItem for WarpAISearchItem {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let body_text = localization::text_for_app(app, self.item_body_text_key());
         Text::new_inline(
-            crate::localization::text_for_app(app, self.item_body_text_key()),
+            body_text,
             appearance.monospace_font_family(),
             appearance.monospace_font_size(),
         )
@@ -142,8 +150,12 @@ impl SearchItem for WarpAISearchItem {
     }
 
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
-        let body = localization::text_for_app(app, self.item_body_text_key());
-        localization::text_for_app_with_args(app, "search.a11y.type.warp_ai", &[("body", &body)])
+        let body_text = localization::text_for_app(app, self.item_body_text_key());
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.warp_ai",
+            &[("body", &body_text)],
+        )
     }
 }
 
@@ -244,11 +256,26 @@ impl AsyncDataSource for WarpAIDataSource {
 
 impl DataSourceRunError for GenerateCommandsFromNaturalLanguageError {
     fn user_facing_error(&self) -> String {
-        localization::text_for_locale(warp_localization::LocaleId::EnUs, self.error_text_key())
+        let key = match self {
+            Self::BadPrompt => "search.command_search.warp_ai.error.bad_prompt",
+            Self::AiProviderError | Self::Other => "search.command_search.warp_ai.error.generic",
+            Self::RateLimited => "search.command_search.warp_ai.error.rate_limited",
+        };
+        localization::text_for_locale(warp_localization::LocaleId::EnUs, key)
     }
 
-    fn user_facing_error_text_key(&self) -> Option<&'static str> {
-        Some(self.error_text_key())
+    fn user_facing_error_for_app(&self, app: &AppContext) -> String {
+        match self {
+            Self::BadPrompt => {
+                localization::text_for_app(app, "search.command_search.warp_ai.error.bad_prompt")
+            }
+            Self::AiProviderError | Self::Other => {
+                localization::text_for_app(app, "search.command_search.warp_ai.error.generic")
+            }
+            Self::RateLimited => {
+                localization::text_for_app(app, "search.command_search.warp_ai.error.rate_limited")
+            }
+        }
     }
 
     fn telemetry_payload(&self) -> serde_json::Value {
@@ -257,16 +284,6 @@ impl DataSourceRunError for GenerateCommandsFromNaturalLanguageError {
 
     fn as_any(&self) -> &dyn Any {
         self
-    }
-}
-
-impl GenerateCommandsFromNaturalLanguageError {
-    fn error_text_key(&self) -> &'static str {
-        match self {
-            Self::BadPrompt => "search.command_search.warp_ai.error.bad_prompt",
-            Self::AiProviderError | Self::Other => "search.command_search.warp_ai.error.generic",
-            Self::RateLimited => "search.command_search.warp_ai.error.rate_limited",
-        }
     }
 }
 

@@ -23,10 +23,6 @@ const DIALOG_PADDING: f32 = 24.;
 const OPEN_NATIVE_BUTTON_WIDTH: f32 = 260.;
 const OPEN_NATIVE_BUTTON_HEIGHT: f32 = 40.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 #[derive(Debug, Copy, Clone)]
 pub enum WasmNUXDialogAction {
     /// Close and dismiss the dialog
@@ -156,84 +152,101 @@ impl View for WasmNUXDialog {
 
         let dialog = if self.requested_download {
             Dialog::new(
-                text(app, "wasm_nux.open_desktop.title"),
-                Some(text(app, "wasm_nux.open_desktop.description")),
+                localization::text_for_app(app, "wasm_nux.open_desktop.title"),
+                Some(localization::text_for_app(
+                    app,
+                    "wasm_nux.open_desktop.description",
+                )),
                 dialog_styles,
             )
             .with_bottom_row_child(Self::render_dialog_button(
-                text(app, "wasm_nux.action.open_in_warp"),
+                localization::text_for_app(app, "wasm_nux.action.open_in_warp"),
                 WasmNUXDialogAction::OpenNativeAndClose,
                 &self.confirm_mouse_state,
                 appearance,
             ))
         } else if app_install_detected == &UserAppInstallStatus::NotDetected {
-            Dialog::new(text(app, "wasm_nux.download.title"), None, dialog_styles)
-                .with_child(
-                    Flex::column()
-                        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                        .with_main_axis_size(MainAxisSize::Min)
-                        .with_child(
+            Dialog::new(
+                localization::text_for_app(app, "wasm_nux.download.title"),
+                None,
+                dialog_styles,
+            )
+            .with_child(
+                Flex::column()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                    .with_main_axis_size(MainAxisSize::Min)
+                    .with_child(
+                        appearance
+                            .ui_builder()
+                            .span(localization::text_for_app(
+                                app,
+                                "wasm_nux.download.description",
+                            ))
+                            .with_style(UiComponentStyles {
+                                font_weight: Some(Weight::Thin),
+                                font_color: Some(
+                                    appearance
+                                        .theme()
+                                        .main_text_color(appearance.theme().surface_1())
+                                        .into_solid(),
+                                ),
+                                ..Default::default()
+                            })
+                            .with_soft_wrap()
+                            .build()
+                            .finish(),
+                    )
+                    .with_child(
+                        Align::new(
                             appearance
                                 .ui_builder()
-                                .span(text(app, "wasm_nux.download.description"))
-                                .with_style(UiComponentStyles {
-                                    font_weight: Some(Weight::Thin),
-                                    font_color: Some(
-                                        appearance
-                                            .theme()
-                                            .main_text_color(appearance.theme().surface_1())
-                                            .into_solid(),
-                                    ),
-                                    ..Default::default()
-                                })
-                                .with_soft_wrap()
+                                .link(
+                                    localization::text_for_app(app, "wasm_nux.action.learn_more"),
+                                    None,
+                                    Some(Box::new(|ctx| {
+                                        ctx.dispatch_typed_action(WasmNUXDialogAction::LearnMore)
+                                    })),
+                                    self.learn_more_mouse_state.clone(),
+                                )
                                 .build()
                                 .finish(),
                         )
-                        .with_child(
-                            Align::new(
-                                appearance
-                                    .ui_builder()
-                                    .link(
-                                        text(app, "wasm_nux.action.learn_more"),
-                                        None,
-                                        Some(Box::new(|ctx| {
-                                            ctx.dispatch_typed_action(
-                                                WasmNUXDialogAction::LearnMore,
-                                            )
-                                        })),
-                                        self.learn_more_mouse_state.clone(),
-                                    )
-                                    .build()
-                                    .finish(),
-                            )
-                            .left()
-                            .finish(),
-                        )
+                        .left()
                         .finish(),
-                )
-                .with_bottom_row_child(Self::render_dialog_button(
-                    text(app, "wasm_nux.action.download"),
-                    WasmNUXDialogAction::OpenDownloadDesktopAppLink,
-                    &self.download_warp_mouse_state,
-                    appearance,
-                ))
+                    )
+                    .finish(),
+            )
+            .with_bottom_row_child(Self::render_dialog_button(
+                localization::text_for_app(app, "wasm_nux.action.download"),
+                WasmNUXDialogAction::OpenDownloadDesktopAppLink,
+                &self.download_warp_mouse_state,
+                appearance,
+            ))
         } else {
             let object_kind = match web_intent_parser::current_web_intent() {
-                Some(WebIntent::DriveObject(_)) => text(app, "wasm_nux.object_kind.drive_objects"),
-                Some(WebIntent::SessionView(_)) => {
-                    text(app, "wasm_nux.object_kind.shared_sessions")
+                Some(WebIntent::DriveObject(_)) => {
+                    localization::text_for_app(app, "wasm_nux.object_kind.drive_objects")
                 }
-                _ => text(app, "wasm_nux.object_kind.warp_links"),
+                Some(WebIntent::SessionView(_)) => {
+                    localization::text_for_app(app, "wasm_nux.object_kind.shared_sessions")
+                }
+                _ => localization::text_for_app(app, "wasm_nux.object_kind.warp_links"),
             };
 
             Dialog::new(
-                text(app, "wasm_nux.web_preference.title").replace("{object_kind}", &object_kind),
-                Some(text(app, "wasm_nux.web_preference.description")),
+                localization::text_for_app_with_args(
+                    app,
+                    "wasm_nux.web_preference.title",
+                    &[("object_kind", &object_kind)],
+                ),
+                Some(localization::text_for_app(
+                    app,
+                    "wasm_nux.web_preference.description",
+                )),
                 dialog_styles,
             )
             .with_bottom_row_child(Self::render_dialog_button(
-                text(app, "wasm_nux.action.yes"),
+                localization::text_for_app(app, "wasm_nux.action.yes"),
                 WasmNUXDialogAction::SetWebAndClose,
                 &self.confirm_mouse_state,
                 appearance,

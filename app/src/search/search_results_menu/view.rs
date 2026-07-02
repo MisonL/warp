@@ -289,12 +289,12 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
 
         let mut column = Flex::column();
 
-        if let Some(title_key) = active_filter.and_then(renderable_title_key) {
+        if let Some(title) = active_filter.and_then(|filter| renderable_title_name(filter, app)) {
             column.add_child(
                 Container::new(
                     appearance
                         .ui_builder()
-                        .span(localization::text_for_app(app, title_key))
+                        .span(title)
                         .with_style(UiComponentStyles {
                             font_color: Some(
                                 appearance
@@ -340,9 +340,12 @@ impl<T: Action + Clone> View for SearchResultsMenuView<T> {
     }
 }
 
-fn renderable_title_key(query_filter: QueryFilter) -> Option<&'static str> {
+fn renderable_title_name(query_filter: QueryFilter, app: &AppContext) -> Option<String> {
     if matches!(query_filter, QueryFilter::AgentModeWorkflows) {
-        return Some("search.results.title.agent_mode_workflows");
+        return Some(crate::localization::text_for_app(
+            app,
+            "terminal.cloud_mode_v2.section.prompts",
+        ));
     }
 
     None

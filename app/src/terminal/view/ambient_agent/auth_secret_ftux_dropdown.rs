@@ -379,7 +379,7 @@ impl AuthSecretFtuxDropdown {
             }
             AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
                 items.push(MenuItem::Item(
-                    MenuItemFields::new(localization::text_for_app(ctx, "common.loading"))
+                    MenuItemFields::new(localization::text_for_app(ctx, "status.loading"))
                         .with_font_size_override(FONT_SIZE)
                         .with_padding_override(MENU_ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
                         .with_disabled(true)

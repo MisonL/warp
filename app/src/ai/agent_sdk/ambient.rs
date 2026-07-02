@@ -17,7 +17,7 @@ use warp_cli::task::{
 use warp_cli::{GlobalOptions, SortOrderArg};
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
-use warp_localization::{replace_placeholders, LocaleId};
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::r#async::{Spawnable, Timer};
 use warpui::{AppContext, ModelContext, SingletonEntity};
@@ -46,31 +46,12 @@ use crate::server::server_api::ai::{
 };
 use crate::server::server_api::ServerApi;
 use crate::terminal::shared_session;
-use crate::util::time_format::{
-    format_approx_duration_from_now_utc, localized_approx_duration_from_now_utc_for_locale,
-};
+use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{localization, ServerApiProvider};
+use crate::ServerApiProvider;
 
 const MAX_LINE_WIDTH: usize = 90;
 const STREAM_RETRY_BACKOFF_STEPS: &[u64] = &[1, 2, 5, 10];
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
-
-fn text_for_locale(locale: LocaleId, key: &str) -> String {
-    localization::text_for_locale(locale, key)
-}
-
-fn text_for_locale_with_args(locale: LocaleId, key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&text_for_locale(locale, key), args)
-        .expect("localized text template arguments must match the catalog")
-}
 
 /// Singleton model that runs async work for ambient agent CLI commands.
 struct AmbientAgentRunner;
@@ -97,8 +78,8 @@ pub fn list_ambient_agent_tasks(
 }
 
 /// Print a table of ambient agent tasks.
-pub(super) fn print_tasks(tasks: &[AmbientAgentTask], app: &AppContext) {
-    AmbientAgentRunner::print_tasks_table_for_app(tasks, app);
+pub(super) fn print_tasks(tasks: &[AmbientAgentTask]) {
+    AmbientAgentRunner::print_tasks_table(tasks);
 }
 
 /// Get status of a specific ambient agent task.
@@ -253,17 +234,11 @@ impl AmbientAgentRunner {
     }
     fn run_agent(&self, args: RunCloudArgs, ctx: &mut ModelContext<Self>) -> anyhow::Result<()> {
         if !FeatureFlag::AmbientAgentsCommandLine.is_enabled() {
-            return Err(anyhow::anyhow!(text(
-                ctx,
-                "agent_sdk.ambient.error.unsupported_feature"
-            )));
+            return Err(anyhow::anyhow!("Unsupported feature"));
         }
         let skill_enabled = FeatureFlag::OzPlatformSkills.is_enabled();
         if args.skill.is_some() && !skill_enabled {
-            return Err(anyhow::anyhow!(text(
-                ctx,
-                "agent_sdk.ambient.error.unexpected_skill_argument"
-            )));
+            return Err(anyhow::anyhow!("unexpected argument '--skill' found"));
         }
 
         let refresh_future = super::common::refresh_workspace_metadata(ctx);
@@ -284,10 +259,7 @@ impl AmbientAgentRunner {
                 || args.conversation.is_some();
             if !has_prompt_source {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text(
-                        ctx,
-                        "agent_sdk.ambient.error.prompt_skill_or_conversation_required",
-                    )),
+                    anyhow::anyhow!("Either --prompt, --skill, or --conversation must be provided"),
                     ctx,
                 );
                 return;
@@ -305,11 +277,7 @@ impl AmbientAgentRunner {
                         Ok(server_id) => server_id.into(),
                         Err(err) => {
                             super::report_fatal_error(
-                                anyhow::anyhow!(text_with_args(
-                                    ctx,
-                                    "agent_sdk.ambient.error.parse_saved_prompt_id",
-                                    &[("id", &id), ("error", &err.to_string())],
-                                )),
+                                anyhow::anyhow!("Failed to parse saved prompt ID '{id}': {err}"),
                                 ctx,
                             );
                             return;
@@ -324,11 +292,7 @@ impl AmbientAgentRunner {
                             Some(prompt_text) => Some(prompt_text.to_string()),
                             None => {
                                 super::report_fatal_error(
-                                    anyhow::anyhow!(text_with_args(
-                                        ctx,
-                                        "agent_sdk.ambient.error.not_saved_prompt",
-                                        &[("id", &id)],
-                                    )),
+                                    anyhow::anyhow!("'{id}' is not a saved prompt"),
                                     ctx,
                                 );
                                 return;
@@ -336,11 +300,7 @@ impl AmbientAgentRunner {
                         },
                         None => {
                             super::report_fatal_error(
-                                anyhow::anyhow!(text_with_args(
-                                    ctx,
-                                    "agent_sdk.ambient.error.saved_prompt_not_found",
-                                    &[("id", &id)],
-                                )),
+                                anyhow::anyhow!("Saved prompt with ID '{id}' not found"),
                                 ctx,
                             );
                             return;
@@ -365,14 +325,11 @@ impl AmbientAgentRunner {
             // This ensures users don't have to go through env selection if attachment validation fails
             if args.attachment_paths.len() > MAX_ATTACHMENT_COUNT_FOR_CLOUD_QUERY {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text_with_args(
-                        ctx,
-                        "agent_sdk.ambient.error.too_many_attachments",
-                        &[
-                            ("maximum", &MAX_ATTACHMENT_COUNT_FOR_CLOUD_QUERY.to_string()),
-                            ("provided", &args.attachment_paths.len().to_string())
-                        ],
-                    )),
+                    anyhow::anyhow!(
+                        "Too many attachments. Maximum {} attachments allowed, but {} were provided.",
+                        MAX_ATTACHMENT_COUNT_FOR_CLOUD_QUERY,
+                        args.attachment_paths.len()
+                    ),
                     ctx,
                 );
                 return;
@@ -399,10 +356,7 @@ impl AmbientAgentRunner {
             } else {
                 if !args.attachment_paths.is_empty() {
                     super::report_fatal_error(
-                        anyhow::anyhow!(text(
-                            ctx,
-                            "agent_sdk.ambient.error.attachment_upload_not_enabled",
-                        )),
+                        anyhow::anyhow!("Attachment upload is not enabled"),
                         ctx,
                     );
                     return;
@@ -423,9 +377,9 @@ impl AmbientAgentRunner {
             let environment_id = match EnvironmentChoice::resolve_for_create(environment_args, ctx)
             {
                 Ok(EnvironmentChoice::None) => {
-                    eprintln!("{}", text(ctx, "agent_sdk.ambient.output.no_environment"));
+                    eprintln!("Agent will run without an environment.");
                     None
-                }
+                },
                 Ok(EnvironmentChoice::Environment { id, .. }) => Some(id),
                 Err(ResolveConfigurationError::Canceled) => {
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
@@ -546,14 +500,9 @@ impl AmbientAgentRunner {
 
             let should_open = args.open;
             let oz_root_url = ChannelState::oz_root_url();
-            let locale = localization::current_locale(ctx);
             let ai_client_clone = ai_client.clone();
             let spawn_future = async move {
-                let mut stream = Box::pin(spawn_task(
-                    request,
-                    ai_client_clone,
-                    Some(TASK_STATUS_POLLING_DURATION),
-                ));
+                let mut stream = Box::pin(spawn_task(request, ai_client_clone, Some(TASK_STATUS_POLLING_DURATION)));
                 let mut session_join_info = None;
                 let mut spawned_task_id = None;
 
@@ -561,43 +510,14 @@ impl AmbientAgentRunner {
                     match event_result {
                         Ok(event) => match event {
                             AmbientAgentEvent::TaskSpawned { task_id, .. } => {
-                                let task_id_text = task_id.to_string();
-                                let run_url = format!("{oz_root_url}/runs/{task_id}");
-                                println!(
-                                    "{}",
-                                    text_for_locale_with_args(
-                                        locale,
-                                        "agent_sdk.ambient.output.spawned_run",
-                                        &[("task_id", &task_id_text)]
-                                    )
-                                );
-                                println!(
-                                    "{}",
-                                    text_for_locale_with_args(
-                                        locale,
-                                        "agent_sdk.ambient.output.view_run",
-                                        &[("url", &run_url)]
-                                    )
-                                );
+                                println!("Spawned ambient agent with run ID: {task_id}");
+                                println!("View run: {oz_root_url}/runs/{task_id}");
                                 spawned_task_id = Some(task_id);
                             }
                             AmbientAgentEvent::AtCapacity => {
-                                println!(
-                                    "{}",
-                                    text_for_locale(
-                                        locale,
-                                        "agent_sdk.ambient.output.concurrent_limit_reached",
-                                    )
-                                );
+                                println!("Concurrent cloud agent limit reached. This agent run will begin when one of your current cloud runs completes.");
                                 if let Some(url) = &upgrade_link {
-                                    println!(
-                                        "{}",
-                                        text_for_locale_with_args(
-                                            locale,
-                                            "agent_sdk.ambient.output.upgrade_plan",
-                                            &[("url", url)]
-                                        )
-                                    );
+                                    println!("To increase your concurrent agent limit, upgrade your plan: {}", url);
                                 }
                             }
                             AmbientAgentEvent::StateChanged {
@@ -610,67 +530,25 @@ impl AmbientAgentRunner {
                                         | AmbientAgentTaskState::Succeeded
                                 ) || state.is_failure_like()
                                 {
-                                    println!(
-                                        "{}",
-                                        text_for_locale_with_args(
-                                            locale,
-                                            "agent_sdk.ambient.output.agent_state",
-                                            &[("state", &format!("{state:?}"))],
-                                        )
-                                    );
+                                    println!("Agent state: {:?}", state);
                                 }
                                 if state.is_failure_like() {
                                     if let Some(msg) = status_message {
-                                        println!(
-                                            "{}",
-                                            text_for_locale_with_args(
-                                                locale,
-                                                "agent_sdk.ambient.output.error_message",
-                                                &[("message", &msg.message)]
-                                            )
-                                        );
+                                        println!("Error: {}", msg.message);
                                     } else {
-                                        println!(
-                                            "{}",
-                                            text_for_locale(
-                                                locale,
-                                                "agent_sdk.ambient.output.run_failed_no_message",
-                                            )
-                                        );
+                                        println!("Run failed with no error message");
                                     }
                                 }
                             }
                             AmbientAgentEvent::SessionStarted {
                                 session_join_info: info,
                             } => {
-                                println!(
-                                    "{}",
-                                    text_for_locale_with_args(
-                                        locale,
-                                        "agent_sdk.ambient.output.view_agent_session",
-                                        &[("session_link", &info.session_link)]
-                                    )
-                                );
+                                println!("View agent session: {}", info.session_link);
                                 session_join_info = Some(info);
                             }
                             AmbientAgentEvent::TimedOut => {
-                                let task_id_str = spawned_task_id
-                                    .as_ref()
-                                    .map_or_else(|| "unknown".to_string(), |id| id.to_string());
-                                println!(
-                                    "{}",
-                                    text_for_locale_with_args(
-                                        locale,
-                                        "agent_sdk.ambient.output.session_not_ready",
-                                        &[
-                                            ("task_id", &task_id_str),
-                                            (
-                                                "seconds",
-                                                &TASK_STATUS_POLLING_DURATION.as_secs().to_string()
-                                            )
-                                        ]
-                                    )
-                                );
+                                let task_id_str = spawned_task_id.as_ref().map_or_else(|| "unknown".to_string(), |id| id.to_string());
+                                println!("Agent session with run ID {task_id_str} is not ready after {}s. Check for a sharing link in the ambient agent management panel. See https://docs.warp.dev/agent-platform/cloud-agents/managing-cloud-agents for details.", TASK_STATUS_POLLING_DURATION.as_secs());
                             }
                         },
                         Err(err) => {
@@ -717,7 +595,6 @@ impl AmbientAgentRunner {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<()> {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-        let locale = localization::current_locale(ctx);
 
         let list_future = async move {
             if matches!(output_format, OutputFormat::Json) || json_output.force_json_output() {
@@ -730,7 +607,7 @@ impl AmbientAgentRunner {
                 }
             } else {
                 let tasks = ai_client.list_ambient_agent_tasks(limit, filter).await?;
-                Self::print_tasks_table_for_locale(&tasks, locale);
+                Self::print_tasks_table(&tasks);
             }
             Ok(())
         };
@@ -746,7 +623,6 @@ impl AmbientAgentRunner {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<()> {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-        let locale = localization::current_locale(ctx);
 
         let status_future = async move {
             let task_id = args.task_id.parse()?;
@@ -759,7 +635,7 @@ impl AmbientAgentRunner {
                 super::output::write_json_line(&task, std::io::stdout())?;
             } else {
                 let task = ai_client.get_ambient_agent_task(&task_id).await?;
-                Self::print_tasks_table_for_locale(&[task], locale);
+                Self::print_tasks_table(&[task]);
             }
             Ok(())
         };
@@ -778,7 +654,6 @@ impl AmbientAgentRunner {
         let ai_client = provider.get_ai_client();
         let server_api = provider.get();
         let scoped_task_id = task_id_for_message_send(&args.sender_run_id)?;
-        let locale = localization::current_locale(ctx);
 
         let future = async move {
             let request = SendAgentMessageRequest {
@@ -811,7 +686,7 @@ impl AmbientAgentRunner {
                     return Err(err);
                 }
             };
-            print_send_message_response_for_locale(&response, output_format, locale)?;
+            print_send_message_response(&response, output_format)?;
             Ok(())
         };
         self.spawn_command(future, ctx);
@@ -828,7 +703,6 @@ impl AmbientAgentRunner {
         let provider = ServerApiProvider::as_ref(ctx);
         let ai_client = provider.get_ai_client();
         let server_api = provider.get();
-        let locale = localization::current_locale(ctx);
 
         let future = async move {
             let request = ListAgentMessagesRequest {
@@ -844,7 +718,7 @@ impl AmbientAgentRunner {
                 }
                 None => ai_client.list_agent_messages(&args.run_id, request).await?,
             };
-            super::output::print_list_for_locale(messages, output_format, locale);
+            super::output::print_list(messages, output_format);
             Ok(())
         };
         self.spawn_command(future, ctx);
@@ -862,10 +736,8 @@ impl AmbientAgentRunner {
         let provider = ServerApiProvider::as_ref(ctx);
         let server_api = provider.get();
         let ai_client = provider.get_ai_client();
-        let locale = localization::current_locale(ctx);
 
-        let future =
-            async move { watch_messages_forever(server_api, ai_client, args, locale).await };
+        let future = async move { watch_messages_forever(server_api, ai_client, args).await };
         self.spawn_command(future, ctx);
 
         Ok(())
@@ -881,7 +753,6 @@ impl AmbientAgentRunner {
         let ai_client = provider.get_ai_client();
         let server_api = provider.get();
         let scoped_task_id = task_id_from_oz_run_id_env()?;
-        let locale = localization::current_locale(ctx);
 
         let future = async move {
             let message = match scoped_task_id {
@@ -892,7 +763,7 @@ impl AmbientAgentRunner {
                 }
                 None => ai_client.read_agent_message(&args.message_id).await?,
             };
-            print_read_message_response_for_locale(&message, output_format, locale)?;
+            print_read_message_response(&message, output_format)?;
             Ok(())
         };
         self.spawn_command(future, ctx);
@@ -910,7 +781,6 @@ impl AmbientAgentRunner {
         let ai_client = provider.get_ai_client();
         let server_api = provider.get();
         let scoped_task_id = task_id_from_oz_run_id_env()?;
-        let locale = localization::current_locale(ctx);
 
         let future = async move {
             match scoped_task_id {
@@ -921,11 +791,7 @@ impl AmbientAgentRunner {
                 }
                 None => ai_client.mark_message_delivered(&args.message_id).await?,
             }
-            print_mark_message_delivered_result_for_locale(
-                &args.message_id,
-                output_format,
-                locale,
-            )?;
+            print_mark_message_delivered_result(&args.message_id, output_format)?;
             Ok(())
         };
         self.spawn_command(future, ctx);
@@ -933,73 +799,47 @@ impl AmbientAgentRunner {
         Ok(())
     }
 
-    fn get_state_key(state: &AmbientAgentTaskState) -> &'static str {
+    /// Get the appropriate emoji for a task state.
+    fn get_state_emoji(state: &AmbientAgentTaskState) -> &'static str {
         match state {
-            AmbientAgentTaskState::Queued | AmbientAgentTaskState::Pending => {
-                "agent_sdk.ambient.state.queued"
-            }
-            AmbientAgentTaskState::Claimed => "agent_sdk.ambient.state.claimed",
-            AmbientAgentTaskState::InProgress => "agent_sdk.ambient.state.in_progress",
-            AmbientAgentTaskState::Succeeded => "agent_sdk.ambient.state.succeeded",
-            AmbientAgentTaskState::Failed | AmbientAgentTaskState::Error => {
-                "agent_sdk.ambient.state.failed"
-            }
-            AmbientAgentTaskState::Unknown => "agent_sdk.ambient.state.unknown",
-            AmbientAgentTaskState::Blocked => "agent_sdk.ambient.state.blocked",
-            AmbientAgentTaskState::Cancelled => "agent_sdk.ambient.state.cancelled",
+            AmbientAgentTaskState::Queued | AmbientAgentTaskState::Pending => "⏳",
+            AmbientAgentTaskState::Claimed => "🔄",
+            AmbientAgentTaskState::InProgress => "🔄",
+            AmbientAgentTaskState::Succeeded => "✅",
+            AmbientAgentTaskState::Failed
+            | AmbientAgentTaskState::Error
+            | AmbientAgentTaskState::Unknown => "❌",
+            AmbientAgentTaskState::Blocked => "🛑",
+            AmbientAgentTaskState::Cancelled => "🚫",
         }
     }
 
-    fn print_tasks_table_for_app(tasks: &[AmbientAgentTask], app: &AppContext) {
-        Self::print_tasks_table_with_app(tasks, Some(app));
+    fn ambient_task_status_message(locale: LocaleId, message: &str) -> String {
+        localized_task_status_message_for_locale(locale, message)
     }
 
-    fn print_tasks_table_for_locale(tasks: &[AmbientAgentTask], locale: LocaleId) {
-        Self::print_tasks_table_with_locale(tasks, Some(locale));
-    }
-
-    fn print_tasks_table_with_app(tasks: &[AmbientAgentTask], app: Option<&AppContext>) {
-        Self::print_tasks_table_inner(tasks, app.map(localization::current_locale));
-    }
-
-    fn print_tasks_table_with_locale(tasks: &[AmbientAgentTask], locale: Option<LocaleId>) {
-        Self::print_tasks_table_inner(tasks, locale);
-    }
-
-    fn print_tasks_table_inner(tasks: &[AmbientAgentTask], locale: Option<LocaleId>) {
+    /// Print runs in a beautifully formatted ASCII table with card-style layout.
+    fn print_tasks_table(tasks: &[AmbientAgentTask]) {
         if tasks.is_empty() {
-            println!(
-                "{}",
-                Self::ambient_text(locale, "agent_sdk.ambient.output.no_runs_found")
-            );
+            println!("No runs found.");
             return;
         }
 
         if tasks.len() == 1 {
-            println!(
-                "\n{}",
-                Self::ambient_text(locale, "agent_sdk.ambient.output.agent_run")
-            );
+            println!("\nAgent Run:");
         } else {
-            println!(
-                "\n{}",
-                Self::ambient_text_with_args(
-                    locale,
-                    "agent_sdk.ambient.output.agent_runs",
-                    &[("count", &tasks.len().to_string())],
-                )
-            );
+            println!("\nAgent Runs ({}):", tasks.len());
         }
 
         let oz_root_url = ChannelState::oz_root_url();
         for task in tasks {
-            let state_label = Self::ambient_text(locale, Self::get_state_key(&task.state));
+            let state_emoji = Self::get_state_emoji(&task.state);
 
             // Create a single-column table for each run (card-style)
             let mut table = crate::ai::agent_sdk::output::standard_table();
 
-            // Run header with state and ID
-            let header = format!("{} {} ({:?})", state_label, task.task_id, task.state);
+            // Run header with emoji and ID
+            let header = format!("{} {} ({:?})", state_emoji, task.task_id, task.state);
             table.add_row(vec![header]);
 
             // Oz webapp link
@@ -1007,9 +847,8 @@ impl AmbientAgentRunner {
 
             // Title (wrapped, single cell)
             if !task.title.is_empty() {
-                let title_label = Self::ambient_text(locale, "agent_sdk.ambient.field.title");
                 let title_cell = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
-                    &title_label,
+                    "Title",
                     &task.title,
                     MAX_LINE_WIDTH,
                 );
@@ -1017,42 +856,26 @@ impl AmbientAgentRunner {
             }
 
             if let Some(executor) = task.executor_display_name() {
-                table.add_row(vec![Self::ambient_text_with_args(
-                    locale,
-                    "agent_sdk.ambient.field.executed_as",
-                    &[("executor", &executor)],
-                )]);
+                table.add_row(vec![format!("Executed as: {executor}")]);
             }
 
             // Agent config snapshot (if available)
             if let Some(config) = task.agent_config_snapshot.as_ref() {
                 let config_str =
                     serde_json::to_string_pretty(config).unwrap_or_else(|_| format!("{config:?}"));
-                table.add_row(vec![Self::ambient_text_with_args(
-                    locale,
-                    "agent_sdk.ambient.field.config",
-                    &[("config", &config_str)],
-                )]);
+                table.add_row(vec![format!("Config:\n{config_str}")]);
             }
 
             // Created time
-            let created_formatted = locale
-                .map(|locale| {
-                    localized_approx_duration_from_now_utc_for_locale(locale, task.created_at)
-                })
-                .unwrap_or_else(|| format_approx_duration_from_now_utc(task.created_at));
-            table.add_row(vec![Self::ambient_text_with_args(
-                locale,
-                "agent_sdk.ambient.field.created",
-                &[("created", &created_formatted)],
-            )]);
+            let created_formatted = format_approx_duration_from_now_utc(task.created_at);
+            table.add_row(vec![format!("Created: {}", created_formatted)]);
 
             // Status message (if available) - single multi-line cell
             if let Some(status_msg) = &task.status_message {
-                let status_label = Self::ambient_text(locale, "agent_sdk.ambient.field.status");
+                let locale = LocaleId::EnUs;
                 let status_message = Self::ambient_task_status_message(locale, &status_msg.message);
                 let status_cell = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
-                    &status_label,
+                    "Status",
                     &status_message,
                     MAX_LINE_WIDTH,
                 );
@@ -1061,25 +884,23 @@ impl AmbientAgentRunner {
 
             // Artifacts (if available)
             if !task.artifacts.is_empty() {
-                let artifacts_cell = Self::format_artifacts(&task.artifacts, locale);
+                let artifacts_cell = Self::format_artifacts(&task.artifacts);
                 table.add_row(vec![artifacts_cell]);
             }
 
             // Session link (if available)
             if let Some(session_join_info) = SessionJoinInfo::from_task(task) {
-                table.add_row(vec![Self::ambient_text_with_args(
-                    locale,
-                    "agent_sdk.ambient.field.session",
-                    &[("session_link", &session_join_info.session_link)],
-                )]);
+                table.add_row(vec![format!("Session: {}", session_join_info.session_link)]);
             }
 
             println!("{table}");
         }
     }
 
-    fn format_artifacts(artifacts: &[Artifact], locale: Option<LocaleId>) -> String {
-        let mut lines = vec![Self::ambient_text(
+    /// Format artifacts for display.
+    fn format_artifacts(artifacts: &[Artifact]) -> String {
+        let locale = warp_localization::LocaleId::EnUs;
+        let mut lines = vec![crate::localization::text_for_locale(
             locale,
             "agent_sdk.ambient.artifacts.header",
         )];
@@ -1094,20 +915,26 @@ impl AmbientAgentRunner {
                     ..
                 } => {
                     let pr_display = match (repo, number) {
-                        (Some(repo), Some(num)) => Self::ambient_text_with_args(
+                        (Some(repo), Some(num)) => {
+                            let number = num.to_string();
+                            crate::localization::text_for_locale_with_args(
+                                locale,
+                                "agent_sdk.ambient.artifacts.pull_request_with_repo",
+                                &[("repo", repo), ("number", &number)],
+                            )
+                        }
+                        _ => crate::localization::text_for_locale(
                             locale,
-                            "agent_sdk.ambient.artifacts.pull_request_with_repo",
-                            &[("repo", repo), ("number", &num.to_string())],
+                            "agent_sdk.ambient.artifacts.pull_request",
                         ),
-                        _ => Self::ambient_text(locale, "agent_sdk.ambient.artifacts.pull_request"),
                     };
                     lines.push(pr_display);
-                    lines.push(Self::ambient_text_with_args(
+                    lines.push(crate::localization::text_for_locale_with_args(
                         locale,
                         "agent_sdk.ambient.artifacts.branch",
                         &[("branch", branch)],
                     ));
-                    lines.push(Self::ambient_text_with_args(
+                    lines.push(crate::localization::text_for_locale_with_args(
                         locale,
                         "agent_sdk.ambient.artifacts.link",
                         &[("url", url)],
@@ -1118,10 +945,13 @@ impl AmbientAgentRunner {
                     title,
                     ..
                 } => {
-                    let plan_title = title.as_deref().map(str::to_owned).unwrap_or_else(|| {
-                        Self::ambient_text(locale, "agent_sdk.ambient.artifacts.untitled_plan")
+                    let plan_title = title.clone().unwrap_or_else(|| {
+                        crate::localization::text_for_locale(
+                            locale,
+                            "agent_sdk.ambient.artifacts.untitled_plan",
+                        )
                     });
-                    lines.push(Self::ambient_text_with_args(
+                    lines.push(crate::localization::text_for_locale_with_args(
                         locale,
                         "agent_sdk.ambient.artifacts.plan",
                         &[("title", &plan_title)],
@@ -1129,7 +959,7 @@ impl AmbientAgentRunner {
                     if let Some(id) = notebook_uid {
                         let url =
                             format!("{}/drive/notebook/{}", ChannelState::server_root_url(), id);
-                        lines.push(Self::ambient_text_with_args(
+                        lines.push(crate::localization::text_for_locale_with_args(
                             locale,
                             "agent_sdk.ambient.artifacts.link",
                             &[("url", &url)],
@@ -1141,13 +971,13 @@ impl AmbientAgentRunner {
                     description,
                     ..
                 } => {
-                    let desc = description
-                        .as_deref()
-                        .map(str::to_owned)
-                        .unwrap_or_else(|| {
-                            Self::ambient_text(locale, "agent_sdk.ambient.artifacts.no_description")
-                        });
-                    lines.push(Self::ambient_text_with_args(
+                    let desc = description.clone().unwrap_or_else(|| {
+                        crate::localization::text_for_locale(
+                            locale,
+                            "agent_sdk.ambient.artifacts.no_description",
+                        )
+                    });
+                    lines.push(crate::localization::text_for_locale_with_args(
                         locale,
                         "agent_sdk.ambient.artifacts.screenshot",
                         &[("artifact_uid", artifact_uid), ("description", &desc)],
@@ -1160,18 +990,18 @@ impl AmbientAgentRunner {
                     ..
                 } => {
                     let label = super::super::artifacts::file_button_label(filename, filepath);
-                    lines.push(Self::ambient_text_with_args(
+                    lines.push(crate::localization::text_for_locale_with_args(
                         locale,
                         "agent_sdk.ambient.artifacts.file",
                         &[("label", &label)],
                     ));
-                    lines.push(Self::ambient_text_with_args(
+                    lines.push(crate::localization::text_for_locale_with_args(
                         locale,
                         "agent_sdk.ambient.artifacts.path",
                         &[("path", filepath)],
                     ));
                     if let Some(description) = description {
-                        lines.push(Self::ambient_text_with_args(
+                        lines.push(crate::localization::text_for_locale_with_args(
                             locale,
                             "agent_sdk.ambient.artifacts.description",
                             &[("description", description)],
@@ -1182,28 +1012,6 @@ impl AmbientAgentRunner {
         }
 
         lines.join("\n")
-    }
-
-    fn ambient_text(locale: Option<LocaleId>, key: &str) -> String {
-        locale
-            .map(|locale| text_for_locale(locale, key))
-            .unwrap_or_else(|| text_for_locale(LocaleId::EnUs, key))
-    }
-
-    fn ambient_text_with_args(
-        locale: Option<LocaleId>,
-        key: &str,
-        args: &[(&str, &str)],
-    ) -> String {
-        locale
-            .map(|locale| text_for_locale_with_args(locale, key, args))
-            .unwrap_or_else(|| text_for_locale_with_args(LocaleId::EnUs, key, args))
-    }
-
-    fn ambient_task_status_message(locale: Option<LocaleId>, message: &str) -> String {
-        locale
-            .map(|locale| localized_task_status_message_for_locale(locale, message))
-            .unwrap_or_else(|| message.to_owned())
     }
 }
 
@@ -1232,10 +1040,9 @@ fn ensure_stream_output_format(output_format: OutputFormat) -> anyhow::Result<()
         return Ok(());
     }
 
-    Err(anyhow!(text_for_locale(
-        LocaleId::EnUs,
-        "agent_sdk.ambient.error.streaming_requires_ndjson",
-    )))
+    Err(anyhow!(
+        "Streaming commands require `--output-format ndjson`"
+    ))
 }
 
 fn stream_retry_backoff(failures: usize) -> Duration {
@@ -1248,10 +1055,7 @@ fn stream_retry_backoff(failures: usize) -> Duration {
 fn write_stream_record<T: Serialize>(record: &T) -> anyhow::Result<()> {
     let mut stdout = std::io::stdout();
     super::output::write_json_line(record, &mut stdout)?;
-    stdout.flush().context(text_for_locale(
-        LocaleId::EnUs,
-        "agent_sdk.output.error.flush_stdout",
-    ))?;
+    stdout.flush().context("unable to flush stdout")?;
     Ok(())
 }
 
@@ -1261,17 +1065,12 @@ fn task_id_from_run_id(run_id: &str) -> Option<AmbientAgentTaskId> {
 
 fn task_id_from_oz_run_id_env() -> anyhow::Result<Option<AmbientAgentTaskId>> {
     match std::env::var(warp_cli::OZ_RUN_ID_ENV) {
-        Ok(run_id) => parse_ambient_task_id(
-            &run_id,
-            &text_for_locale(LocaleId::EnUs, "agent_sdk.common.error.invalid_oz_run_id"),
-        )
-        .map(Some),
+        Ok(run_id) => parse_ambient_task_id(&run_id, "Invalid OZ_RUN_ID").map(Some),
         Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(std::env::VarError::NotUnicode(_)) => Err(anyhow!(text_for_locale_with_args(
-            LocaleId::EnUs,
-            "agent_sdk.ambient.error.env_var_not_unicode",
-            &[("name", warp_cli::OZ_RUN_ID_ENV)],
-        ))),
+        Err(std::env::VarError::NotUnicode(_)) => Err(anyhow!(
+            "{} is set but is not valid Unicode",
+            warp_cli::OZ_RUN_ID_ENV
+        )),
     }
 }
 
@@ -1348,7 +1147,6 @@ async fn watch_messages_forever(
     server_api: Arc<ServerApi>,
     ai_client: Arc<dyn AIClient>,
     args: MessageWatchArgs,
-    locale: LocaleId,
 ) -> anyhow::Result<()> {
     let run_id = args.run_id;
     let watched_run_ids = vec![run_id.clone()];
@@ -1374,15 +1172,7 @@ async fn watch_messages_forever(
             Ok(stream) => {
                 if !initial_connect {
                     eprintln!(
-                        "{}",
-                        text_for_locale_with_args(
-                            locale,
-                            "agent_sdk.ambient.watch.reconnected",
-                            &[
-                                ("run_id", &run_id),
-                                ("sequence", &last_seen_sequence.to_string()),
-                            ],
-                        )
+                        "Reconnected message watch for run {run_id} at sequence {last_seen_sequence}."
                     );
                 }
                 initial_connect = false;
@@ -1391,24 +1181,14 @@ async fn watch_messages_forever(
             }
             Err(err) => {
                 if initial_connect {
-                    return Err(err.context(text_for_locale(
-                        locale,
-                        "agent_sdk.ambient.error.open_agent_event_stream",
-                    )));
+                    return Err(err.context("Failed to open agent event stream"));
                 }
 
                 failures += 1;
                 let backoff = stream_retry_backoff(failures);
                 eprintln!(
-                    "{}",
-                    text_for_locale_with_args(
-                        locale,
-                        "agent_sdk.ambient.watch.reconnect_failed",
-                        &[
-                            ("error", &format!("{err:#}")),
-                            ("seconds", &backoff.as_secs().to_string())
-                        ],
-                    )
+                    "Message watch reconnect failed: {err:#}. Retrying in {}s.",
+                    backoff.as_secs()
                 );
                 Timer::after(backoff).await;
                 continue;
@@ -1422,14 +1202,7 @@ async fn watch_messages_forever(
                     let event = match serde_json::from_str::<AgentRunEvent>(&message.data) {
                         Ok(event) => event,
                         Err(err) => {
-                            eprintln!(
-                                "{}",
-                                text_for_locale_with_args(
-                                    locale,
-                                    "agent_sdk.ambient.watch.skipping_malformed_event",
-                                    &[("error", &err.to_string())],
-                                )
-                            );
+                            eprintln!("Skipping malformed agent event payload: {err}");
                             continue;
                         }
                     };
@@ -1445,12 +1218,8 @@ async fn watch_messages_forever(
 
                     let Some(message_id) = event.ref_id.clone() else {
                         eprintln!(
-                            "{}",
-                            text_for_locale_with_args(
-                                locale,
-                                "agent_sdk.ambient.watch.skipping_event_without_ref",
-                                &[("sequence", &event.sequence.to_string())],
-                            )
+                            "Skipping new_message event without ref_id at sequence {}.",
+                            event.sequence
                         );
                         last_seen_sequence = event.sequence;
                         continue;
@@ -1469,16 +1238,8 @@ async fn watch_messages_forever(
                             failures += 1;
                             let backoff = stream_retry_backoff(failures);
                             eprintln!(
-                                "{}",
-                                text_for_locale_with_args(
-                                    locale,
-                                    "agent_sdk.ambient.watch.hydrate_failed",
-                                    &[
-                                        ("message_id", &message_id),
-                                        ("error", &format!("{err:#}")),
-                                        ("seconds", &backoff.as_secs().to_string()),
-                                    ],
-                                )
+                                "Failed to hydrate message {message_id}: {err:#}. Retrying in {}s.",
+                                backoff.as_secs()
                             );
                             Timer::after(backoff).await;
                             break;
@@ -1500,15 +1261,8 @@ async fn watch_messages_forever(
                     failures += 1;
                     let backoff = stream_retry_backoff(failures);
                     eprintln!(
-                        "{}",
-                        text_for_locale_with_args(
-                            locale,
-                            "agent_sdk.ambient.watch.disconnected",
-                            &[
-                                ("error", &err.to_string()),
-                                ("seconds", &backoff.as_secs().to_string())
-                            ],
-                        )
+                        "Message watch disconnected: {err}. Retrying in {}s.",
+                        backoff.as_secs()
                     );
                     Timer::after(backoff).await;
                     break;
@@ -1517,12 +1271,8 @@ async fn watch_messages_forever(
                     failures += 1;
                     let backoff = stream_retry_backoff(failures);
                     eprintln!(
-                        "{}",
-                        text_for_locale_with_args(
-                            locale,
-                            "agent_sdk.ambient.watch.stream_closed",
-                            &[("seconds", &backoff.as_secs().to_string())],
-                        )
+                        "Message watch stream closed. Reconnecting in {}s.",
+                        backoff.as_secs()
                     );
                     Timer::after(backoff).await;
                     break;
@@ -1532,20 +1282,18 @@ async fn watch_messages_forever(
     }
 }
 
-fn print_send_message_response_for_locale(
+fn print_send_message_response(
     response: &SendAgentMessageResponse,
     output_format: OutputFormat,
-    locale: LocaleId,
 ) -> anyhow::Result<()> {
     let mut stdout = std::io::stdout();
-    write_send_message_response_for_locale(response, output_format, &mut stdout, locale)
+    write_send_message_response(response, output_format, &mut stdout)
 }
 
-fn write_send_message_response_for_locale<W>(
+fn write_send_message_response<W>(
     response: &SendAgentMessageResponse,
     output_format: OutputFormat,
     mut output: W,
-    locale: LocaleId,
 ) -> anyhow::Result<()>
 where
     W: std::io::Write,
@@ -1556,19 +1304,11 @@ where
         OutputFormat::Pretty | OutputFormat::Text => {
             writeln!(
                 &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.sent_count",
-                    &[("count", &response.message_ids.len().to_string())],
-                )
+                "Sent {} message(s).",
+                response.message_ids.len()
             )?;
             if !response.message_ids.is_empty() {
-                writeln!(
-                    &mut output,
-                    "{}",
-                    text_for_locale(locale, "agent_sdk.ambient.message.message_ids")
-                )?;
+                writeln!(&mut output, "Message IDs:")?;
                 for message_id in &response.message_ids {
                     writeln!(&mut output, "- {message_id}")?;
                 }
@@ -1578,20 +1318,18 @@ where
     }
 }
 
-fn print_read_message_response_for_locale(
+fn print_read_message_response(
     response: &ReadAgentMessageResponse,
     output_format: OutputFormat,
-    locale: LocaleId,
 ) -> anyhow::Result<()> {
     let mut stdout = std::io::stdout();
-    write_read_message_response_for_locale(response, output_format, &mut stdout, locale)
+    write_read_message_response(response, output_format, &mut stdout)
 }
 
-fn write_read_message_response_for_locale<W>(
+fn write_read_message_response<W>(
     response: &ReadAgentMessageResponse,
     output_format: OutputFormat,
     mut output: W,
-    locale: LocaleId,
 ) -> anyhow::Result<()>
 where
     W: std::io::Write,
@@ -1600,92 +1338,40 @@ where
         OutputFormat::Json => super::output::write_json(response, &mut output),
         OutputFormat::Ndjson => super::output::write_json_line(response, &mut output),
         OutputFormat::Pretty | OutputFormat::Text => {
+            writeln!(&mut output, "Message ID: {}", response.message_id)?;
+            writeln!(&mut output, "From: {}", response.sender_run_id)?;
+            writeln!(&mut output, "Subject: {}", response.subject)?;
+            writeln!(&mut output, "Sent At: {}", response.sent_at)?;
             writeln!(
                 &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.message_id",
-                    &[("message_id", &response.message_id)],
-                )
+                "Delivered At: {}",
+                format_optional_timestamp(response.delivered_at.as_deref())
             )?;
             writeln!(
                 &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.from",
-                    &[("sender_run_id", &response.sender_run_id)],
-                )
-            )?;
-            writeln!(
-                &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.subject",
-                    &[("subject", &response.subject)],
-                )
-            )?;
-            writeln!(
-                &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.sent_at",
-                    &[("sent_at", &response.sent_at)],
-                )
-            )?;
-            writeln!(
-                &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.delivered_at",
-                    &[(
-                        "delivered_at",
-                        format_optional_timestamp(response.delivered_at.as_deref())
-                    )],
-                )
-            )?;
-            writeln!(
-                &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.read_at",
-                    &[(
-                        "read_at",
-                        format_optional_timestamp(response.read_at.as_deref())
-                    )],
-                )
+                "Read At: {}",
+                format_optional_timestamp(response.read_at.as_deref())
             )?;
             writeln!(&mut output)?;
-            writeln!(
-                &mut output,
-                "{}",
-                text_for_locale(locale, "agent_sdk.ambient.message.body")
-            )?;
+            writeln!(&mut output, "Body:")?;
             writeln!(&mut output, "{}", response.body)?;
             Ok(())
         }
     }
 }
 
-fn print_mark_message_delivered_result_for_locale(
+fn print_mark_message_delivered_result(
     message_id: &str,
     output_format: OutputFormat,
-    locale: LocaleId,
 ) -> anyhow::Result<()> {
     let mut stdout = std::io::stdout();
-    write_mark_message_delivered_result_for_locale(message_id, output_format, &mut stdout, locale)
+    write_mark_message_delivered_result(message_id, output_format, &mut stdout)
 }
 
-fn write_mark_message_delivered_result_for_locale<W>(
+fn write_mark_message_delivered_result<W>(
     message_id: &str,
     output_format: OutputFormat,
     mut output: W,
-    locale: LocaleId,
 ) -> anyhow::Result<()>
 where
     W: std::io::Write,
@@ -1699,15 +1385,7 @@ where
         OutputFormat::Json => super::output::write_json(&result, &mut output),
         OutputFormat::Ndjson => super::output::write_json_line(&result, &mut output),
         OutputFormat::Pretty | OutputFormat::Text => {
-            writeln!(
-                &mut output,
-                "{}",
-                text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.ambient.message.marked_delivered",
-                    &[("message_id", message_id)],
-                )
-            )?;
+            writeln!(&mut output, "Marked message delivered: {message_id}")?;
             Ok(())
         }
     }
@@ -1722,35 +1400,6 @@ impl super::output::TableFormat for AgentMessageHeader {
             Cell::new("SENT AT"),
             Cell::new("DELIVERED AT"),
             Cell::new("READ AT"),
-        ]
-    }
-
-    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
-        vec![
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.ambient.message_table.message_id",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.ambient.message_table.from",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.ambient.message_table.subject",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.ambient.message_table.sent_at",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.ambient.message_table.delivered_at",
-            )),
-            Cell::new(text_for_locale(
-                locale,
-                "agent_sdk.ambient.message_table.read_at",
-            )),
         ]
     }
 

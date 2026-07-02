@@ -28,22 +28,14 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::search_bar::SearchBar;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::util::bindings::{filter_bindings_including_keystroke, CommandBinding};
 use crate::workspace::tab_settings::TabSettings;
 use crate::workspace::WorkspaceAction;
-use crate::{localization, settings_view};
 
 const KEYBINDINGS_PAGE_SHORTCUT: &str = "workspace:toggle_keybindings_page";
-const TOGGLE_THIS_PANEL_KEY: &str = "resource_center.keybindings.toggle_this_panel";
-const SETTINGS_INSTRUCTIONS_KEY: &str = "resource_center.keybindings.settings_instructions";
-const SETTINGS_LINK_KEY: &str = "resource_center.keybindings.settings_link";
-const SECTION_ESSENTIALS_KEY: &str = "resource_center.keybindings.section.essentials";
-const SECTION_BLOCKS_KEY: &str = "resource_center.keybindings.section.blocks";
-const SECTION_INPUT_EDITOR_KEY: &str = "resource_center.keybindings.section.input_editor";
-const SECTION_TERMINAL_KEY: &str = "resource_center.keybindings.section.terminal";
-const SECTION_FUNDAMENTALS_KEY: &str = "resource_center.keybindings.section.fundamentals";
 const LINK_WIDTH: f32 = 30.;
 
 #[derive(Default)]
@@ -99,7 +91,7 @@ impl KeybindingsView {
         search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
             editor.set_placeholder_text(
-                localization::text_for_app(ctx, settings_view::keybindings::SEARCH_PLACEHOLDER_KEY),
+                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
                 ctx,
             );
         });
@@ -133,22 +125,6 @@ impl KeybindingsView {
         // they're opened; this one is built once per panel lifetime.
         let tab_settings_handle = TabSettings::handle(ctx);
         ctx.observe(&tab_settings_handle, Self::rebuild_bindings);
-
-        ctx.subscribe_to_model(
-            &localization::LocalizationUpdater::handle(ctx),
-            |me, _, _, ctx| {
-                me.search_editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(
-                        localization::text_for_app(
-                            ctx,
-                            settings_view::keybindings::SEARCH_PLACEHOLDER_KEY,
-                        ),
-                        ctx,
-                    );
-                });
-                me.rebuild_bindings(TabSettings::handle(ctx), ctx);
-            },
-        );
 
         Self {
             bindings: bindings.clone(),
@@ -198,6 +174,27 @@ impl KeybindingsView {
         .collect();
         self.bindings = Some(bindings);
         self.binding_results = Some(filtered);
+        ctx.notify();
+    }
+
+    pub fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        let bindings = Self::build_bindings(ctx);
+        let search_term = self.search_editor.as_ref(ctx).buffer_text(ctx);
+        let filtered: Vec<CommandBinding> = filter_bindings_including_keystroke(
+            bindings.iter(),
+            &search_term,
+            DescriptionContext::Default,
+        )
+        .map(|(_, binding)| binding.clone())
+        .collect();
+        self.bindings = Some(bindings);
+        self.binding_results = Some(filtered);
+        self.search_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
+                ctx,
+            );
+        });
         ctx.notify();
     }
 
@@ -342,7 +339,7 @@ impl KeybindingsView {
             .finish()
     }
 
-    fn render_subheader(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_subheader(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let bindings = self
             .bindings
             .as_ref()
@@ -374,7 +371,10 @@ impl KeybindingsView {
                         .finish(),
                 )
                 .with_child(self.render_text(
-                    localization::text_for_app(app, TOGGLE_THIS_PANEL_KEY),
+                    localization::text_for_app(
+                        app,
+                        "resource_center.keybindings.toggle_this_panel",
+                    ),
                     None,
                     appearance,
                 ))
@@ -392,7 +392,7 @@ impl KeybindingsView {
             appearance
                 .ui_builder()
                 .link(
-                    localization::text_for_app(app, SETTINGS_LINK_KEY),
+                    localization::text_for_app(app, "resource_center.keybindings.settings_link"),
                     None,
                     Some(Box::new(|ctx| {
                         ctx.dispatch_typed_action(WorkspaceAction::ConfigureKeybindingSettings {
@@ -415,7 +415,10 @@ impl KeybindingsView {
         Container::new(
             column
                 .with_child(self.render_text(
-                    localization::text_for_app(app, SETTINGS_INSTRUCTIONS_KEY),
+                    localization::text_for_app(
+                        app,
+                        "resource_center.keybindings.settings_instructions",
+                    ),
                     None,
                     appearance,
                 ))
@@ -432,8 +435,8 @@ impl KeybindingsView {
     fn render_section(
         &self,
         section: KeybindingSection,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let mut bindings = self.get_bindings_by_section(section.clone()).peekable();
 
@@ -444,15 +447,25 @@ impl KeybindingsView {
             Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
         let title = match section {
-            KeybindingSection::Essentials => SECTION_ESSENTIALS_KEY,
-            KeybindingSection::Blocks => SECTION_BLOCKS_KEY,
-            KeybindingSection::InputEditor => SECTION_INPUT_EDITOR_KEY,
-            KeybindingSection::Terminal => SECTION_TERMINAL_KEY,
-            KeybindingSection::Fundamentals => SECTION_FUNDAMENTALS_KEY,
+            KeybindingSection::Essentials => {
+                localization::text_for_app(app, "resource_center.keybindings.section.essentials")
+            }
+            KeybindingSection::Blocks => {
+                localization::text_for_app(app, "resource_center.keybindings.section.blocks")
+            }
+            KeybindingSection::InputEditor => {
+                localization::text_for_app(app, "resource_center.keybindings.section.input_editor")
+            }
+            KeybindingSection::Terminal => {
+                localization::text_for_app(app, "resource_center.keybindings.section.terminal")
+            }
+            KeybindingSection::Fundamentals => {
+                localization::text_for_app(app, "resource_center.keybindings.section.fundamentals")
+            }
         };
 
         let mut section_header = self.render_text(
-            localization::text_for_app(app, title),
+            title.into(),
             Some(UiComponentStyles {
                 font_color: Some(appearance.theme().active_ui_text_color().into()),
                 font_size: Some(SECTION_HEADER_FONT_SIZE),
@@ -512,12 +525,12 @@ impl KeybindingsView {
         Some(binding_list.finish())
     }
 
-    fn render_body(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_body(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let keybinding_sections = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_children(
                 all::<KeybindingSection>()
-                    .filter_map(|section| self.render_section(section, app, appearance))
+                    .filter_map(|section| self.render_section(section, appearance, app))
                     .map(|child| {
                         Container::new(child)
                             .with_margin_bottom(SECTION_SPACING)
@@ -570,8 +583,8 @@ impl View for KeybindingsView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let search_bar = ChildView::new(&self.search_bar).finish();
-        let subheader = self.render_subheader(app, appearance);
-        let body = self.render_body(app, appearance);
+        let subheader = self.render_subheader(appearance, app);
+        let body = self.render_body(appearance, app);
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)

@@ -1,3 +1,4 @@
+use cloud_objects::cloud_object::{GenericStringObjectFormat, JsonObjectType};
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
@@ -10,7 +11,6 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, View, ViewContext};
 
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType, ObjectType};
 use crate::drive::CloudObjectTypeAndId;
 use crate::localization;
 use crate::terminal::view::telemetry::SharingDialogSource;
@@ -50,6 +50,24 @@ const BLOCK_PADDING: f32 = 16.;
 const BUTTON_WIDTH: f32 = 100.;
 const BUTTON_HEIGHT: f32 = 32.;
 const BUTTON_FONT_SIZE: f32 = 14.;
+
+fn share_kind_key(object_id: CloudObjectTypeAndId) -> &'static str {
+    match object_id {
+        CloudObjectTypeAndId::Notebook(_) => "drive.sharing_onboarding.share_kind.notebook",
+        CloudObjectTypeAndId::Workflow(_) => "drive.sharing_onboarding.share_kind.workflow",
+        CloudObjectTypeAndId::Folder(_) => "drive.sharing_onboarding.share_kind.folder",
+        CloudObjectTypeAndId::GenericStringObject { object_type, .. } => match object_type {
+            GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) => {
+                "drive.sharing_onboarding.share_kind.environment_variables"
+            }
+            GenericStringObjectFormat::Json(JsonObjectType::WorkflowEnum)
+            | GenericStringObjectFormat::Json(JsonObjectType::AIFact) => {
+                "drive.sharing_onboarding.share_kind.rule"
+            }
+            GenericStringObjectFormat::Json(_) => "drive.sharing_onboarding.share_kind.item",
+        },
+    }
+}
 
 impl View for OnboardingDriveSharingBlock {
     fn ui_name() -> &'static str {
@@ -96,17 +114,12 @@ impl View for OnboardingDriveSharingBlock {
         }
 
         let button_label = match CloudModel::as_ref(app).get_by_uid(&self.object_id.uid()) {
-            Some(object) => {
-                let object_name = object.display_name();
-                localization::text_for_app_with_args(
-                    app,
-                    "drive.sharing_onboarding.share_named",
-                    &[("object", object_name.as_str())],
-                )
-            }
-            None => {
-                localization::text_for_app(app, share_kind_label_key(self.object_id.object_type()))
-            }
+            Some(object) => localization::text_for_app_with_args(
+                app,
+                "drive.sharing_onboarding.share_named",
+                &[("object", &object.display_name())],
+            ),
+            None => localization::text_for_app(app, share_kind_key(self.object_id)),
         };
         let object_id = self.object_id;
         let button = appearance
@@ -145,20 +158,5 @@ impl View for OnboardingDriveSharingBlock {
             .with_uniform_padding(BLOCK_PADDING)
             .with_border(Border::top(1.).with_border_fill(appearance.theme().outline()))
             .finish()
-    }
-}
-
-fn share_kind_label_key(object_type: ObjectType) -> &'static str {
-    match object_type {
-        ObjectType::Notebook => "drive.sharing_onboarding.share_kind.notebook",
-        ObjectType::Workflow => "drive.sharing_onboarding.share_kind.workflow",
-        ObjectType::Folder => "drive.sharing_onboarding.share_kind.folder",
-        ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-            JsonObjectType::EnvVarCollection,
-        )) => "drive.sharing_onboarding.share_kind.environment_variables",
-        ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-            JsonObjectType::AIFact,
-        )) => "drive.sharing_onboarding.share_kind.rule",
-        ObjectType::GenericStringObject(_) => "drive.sharing_onboarding.share_kind.item",
     }
 }

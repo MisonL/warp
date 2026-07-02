@@ -13,6 +13,7 @@ use crate::ai::blocklist::agent_view::{
 use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
+use crate::localization;
 use crate::persistence::ModelEvent;
 use crate::server::telemetry::TelemetryAgentViewEntryOrigin;
 use crate::terminal::input::message_bar::{Message, MessageItem};
@@ -26,7 +27,7 @@ use crate::terminal::view::{
 use crate::terminal::TerminalView;
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-use crate::{localization, TelemetryEvent};
+use crate::TelemetryEvent;
 
 pub const ENTER_AGAIN_TO_SEND_MESSAGE_ID: &str = "enter_again_to_send";
 
@@ -54,7 +55,7 @@ impl TerminalView {
         // Don't allow starting a new conversation while the agent is in control. 3p cloud
         // viewers enter agent view to wrap an existing run's content and are not starting a
         // new conversation, so they are exempt from this guard.
-        if !matches!(origin, AgentViewEntryOrigin::ThirdPartyCloudAgent)
+        if !matches!(&origin, AgentViewEntryOrigin::ThirdPartyCloudAgent)
             && !self
                 .ai_context_model
                 .as_ref(ctx)
@@ -65,7 +66,7 @@ impl TerminalView {
                 toast_stack.add_ephemeral_toast(
                     DismissibleToast::error(localization::text_for_app(
                         ctx,
-                        "terminal.agent_view.error.agent_monitoring_new_conversation",
+                        "terminal.input.toast.cannot_start_conversation_agent_monitoring",
                     )),
                     window_id,
                     ctx,
@@ -74,7 +75,7 @@ impl TerminalView {
             return;
         }
 
-        if let Err(e) = self.try_enter_agent_view(initial_prompt, origin, None, ctx) {
+        if let Err(e) = self.try_enter_agent_view(initial_prompt, origin.clone(), None, ctx) {
             log::error!(
                 "Failed to enter agent view for new conversation from origin {:?}: {:?}",
                 origin,
@@ -94,7 +95,7 @@ impl TerminalView {
     ) -> Option<AIConversationId> {
         let origin = AgentViewEntryOrigin::ThirdPartyCloudAgent;
 
-        match self.try_enter_agent_view(None, origin, None, ctx) {
+        match self.try_enter_agent_view(None, origin.clone(), None, ctx) {
             Ok(conversation_id) => {
                 let title = fallback_title.trim();
                 if !title.is_empty() {
@@ -141,7 +142,7 @@ impl TerminalView {
         if is_live {
             if let Err(e) = self.try_enter_agent_view(
                 initial_prompt.clone(),
-                origin,
+                origin.clone(),
                 Some(conversation_id),
                 ctx,
             ) {
@@ -162,7 +163,7 @@ impl TerminalView {
             );
             if let Err(e) = self.try_enter_agent_view(
                 initial_prompt.clone(),
-                origin,
+                origin.clone(),
                 Some(conversation_id),
                 ctx,
             ) {
@@ -212,10 +213,15 @@ impl TerminalView {
                     }
                     Box::new(|_, _| {})
                 };
+                let is_local = BlocklistAIHistoryModel::handle(ctx)
+                    .as_ref(ctx)
+                    .get_conversation_metadata(&conversation_id)
+                    .is_some_and(|m| m.has_local_data);
                 me.restore_conversation_and_directory_context(
                     conversation,
                     false,
                     RestoreConversationEntryBehavior::PreserveAgentViewState,
+                    is_local,
                     on_restored,
                     ctx,
                 );
@@ -243,7 +249,7 @@ impl TerminalView {
             .is_fullscreen();
 
         let conversation_id = self.agent_view_controller.update(ctx, |controller, ctx| {
-            controller.try_enter_agent_view(conversation_id, origin, ctx)
+            controller.try_enter_agent_view(conversation_id, origin.clone(), ctx)
         })?;
 
         // Associate pending context blocks with the new conversation so they remain
@@ -312,10 +318,7 @@ impl TerminalView {
                         key: "enter".to_owned(),
                         ..Default::default()
                     }),
-                    MessageItem::text(localization::text_for_app(
-                        ctx,
-                        "terminal.agent_view.confirmation.send_to_agent",
-                    )),
+                    MessageItem::text("again to send to agent"),
                 ])
                 .with_text_color(appearance.theme().ansi_fg_magenta());
                 self.ephemeral_message_model.update(ctx, |model, ctx| {
@@ -373,7 +376,7 @@ impl TerminalView {
             return;
         }
         let conversation_id = params.conversation_id;
-        let origin = params.origin;
+        let origin = params.origin.clone();
         let agent_view_block =
             ctx.add_typed_action_view(|ctx| AgentViewEntryBlock::new(params, ctx));
         ctx.subscribe_to_view(&agent_view_block, |me, _, event, ctx| match event {

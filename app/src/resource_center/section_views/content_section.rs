@@ -10,6 +10,7 @@ use super::{
     ITEM_PADDING_BOTTOM, SECTION_SPACING,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::resource_center::{ContentItem, ContentSectionData};
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 
@@ -69,9 +70,9 @@ impl ContentSectionView {
     fn render_link_button(
         &self,
         item: &ContentItem,
-        app: &AppContext,
         appearance: &Appearance,
         mouse_state_handle: MouseStateHandle,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let default_link_styles = UiComponentStyles {
@@ -95,7 +96,7 @@ impl ContentSectionView {
                 appearance
                     .ui_builder()
                     .link(
-                        item.button_label(app),
+                        localization::text_for_app(app, item.button_label),
                         Some(item.url.into()),
                         None,
                         mouse_state_handle,
@@ -114,20 +115,20 @@ impl ContentSectionView {
     fn render_content_item(
         &self,
         item: &ContentItem,
-        app: &AppContext,
         appearance: &Appearance,
         index: usize,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut element = Flex::column();
         let mouse_state = self.content_button_mouse_states.item_handles[index].clone();
-        let link_button = self.render_link_button(item, app, appearance, mouse_state);
+        let link_button = self.render_link_button(item, appearance, mouse_state, app);
 
         // title
         element.add_child(
             Container::new(
                 appearance
                     .ui_builder()
-                    .wrappable_text(item.title(app), true)
+                    .wrappable_text(localization::text_for_app(app, item.title), true)
                     .with_style(UiComponentStyles {
                         font_size: Some(DESCRIPTION_FONT_SIZE),
                         ..Default::default()
@@ -144,7 +145,7 @@ impl ContentSectionView {
             Container::new(
                 appearance
                     .ui_builder()
-                    .wrappable_text(item.description(app), true)
+                    .wrappable_text(localization::text_for_app(app, item.description), true)
                     .with_style(UiComponentStyles {
                         font_size: Some(DESCRIPTION_FONT_SIZE),
                         font_color: Some(ColorU::from(
@@ -216,7 +217,7 @@ impl View for ContentSectionView {
             let content_section = Container::new(
                 Flex::column()
                     .with_children(self.content_section_data.items.iter().enumerate().map(
-                        |(index, item)| self.render_content_item(item, app, appearance, index),
+                        |(index, item)| self.render_content_item(item, appearance, index, app),
                     ))
                     .finish(),
             )

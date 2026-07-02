@@ -19,16 +19,11 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::localization;
 
 const EDITOR_WIDTH: f32 = 368.;
 const EDITOR_VERTICAL_PADDING: f32 = 12.;
 const EDITOR_MARGIN: f32 = 16.;
 const BETWEEN_EDITOR_MARGIN: f32 = 8.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 pub enum LinkEditorEvent {
     Close,
@@ -57,7 +52,10 @@ impl LinkEditor {
 
         let tag_editor = ctx.add_typed_action_view(|ctx| {
             let mut editor = EditorView::single_line(editor_options.clone(), ctx);
-            editor.set_placeholder_text(text(ctx, "notebook.link_editor.text_placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::localization::text_for_app(ctx, "notebook.link_editor.text_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -67,7 +65,10 @@ impl LinkEditor {
 
         let url_editor = ctx.add_typed_action_view(|ctx| {
             let mut editor = EditorView::single_line(editor_options.clone(), ctx);
-            editor.set_placeholder_text(text(ctx, "notebook.link_editor.link_placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::localization::text_for_app(ctx, "notebook.link_editor.link_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -256,7 +257,10 @@ impl View for LinkEditor {
         let mut link_button = appearance
             .ui_builder()
             .button(ButtonVariant::Accent, self.apply_link_mouse_state.clone())
-            .with_centered_text_label(text(app, "notebook.link_editor.apply"));
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "notebook.link_editor.apply",
+            ));
 
         // Disable the link button if either of the editors are empty.
         if !self.is_valid(app) {

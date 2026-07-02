@@ -149,19 +149,13 @@ impl SpendingLimitModal {
         ctx.notify();
     }
 
-    fn error_text(&self, app: &AppContext) -> Option<String> {
+    fn error_text(&self) -> Option<String> {
         match self.input_error_state {
             Some(SpendingLimitModalInputErrorState::InvalidNumberFormat) => {
-                Some(crate::localization::text_for_app(
-                    app,
-                    "settings.billing.overage_limit.error.invalid_currency",
-                ))
+                Some("Please enter a valid currency amount".to_string())
             }
             Some(SpendingLimitModalInputErrorState::NumberOutOfRange) => {
-                Some(crate::localization::text_for_app(
-                    app,
-                    "settings.billing.overage_limit.error.out_of_range",
-                ))
+                Some("Please enter a price between $0.01 and $10,000,000".to_string())
             }
             None => None,
         }
@@ -201,7 +195,7 @@ impl View for SpendingLimitModal {
         let theme = appearance.theme();
 
         let description_text = Text::new(
-            crate::localization::text_for_app(app, "settings.billing.overage_limit.description"),
+            "Warp will prevent use of premium models when this dollar limit is reached. Resets on a monthly basis.",
             appearance.ui_font_family(),
             14.,
         )
@@ -209,7 +203,7 @@ impl View for SpendingLimitModal {
         .finish();
 
         let additional_note_text = Text::new(
-            crate::localization::text_for_app(app, "settings.billing.overage_limit.note"),
+            "Note that AI credits made near your chosen limit may exceed it by a few dollars.",
             appearance.ui_font_family(),
             12.,
         )
@@ -328,7 +322,7 @@ impl View for SpendingLimitModal {
                     .finish(),
             );
 
-        if let Some(error_text) = self.error_text(app) {
+        if let Some(error_text) = self.error_text() {
             let error_text = Text::new(error_text, appearance.ui_font_family(), 12.)
                 .with_color(theme.ui_error_color())
                 .finish();

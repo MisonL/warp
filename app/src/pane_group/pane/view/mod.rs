@@ -11,18 +11,17 @@ use warpui::elements::{
     Border, Container, DropTarget, DropTargetData, Flex, MainAxisSize, ParentElement, SavePosition,
     Shrinkable,
 };
-use warpui::keymap::{BindingDescription, EditableBinding};
+use warpui::keymap::EditableBinding;
 use warpui::presenter::ChildView;
 use warpui::{
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 use super::{
     BackingView, PaneConfiguration, PaneConfigurationEvent, PaneId, PaneStack, PaneStackEvent,
 };
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent};
 use crate::pane_group::pane::ActionOrigin;
 use crate::pane_group::{Direction, SplitPaneState, TabBarHoverIndex};
@@ -37,16 +36,11 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "pane:share_pane_contents",
-        binding_description("Share pane", "workspace.binding.share_pane_contents"),
+        "Share pane",
         PaneAction::ShareContents,
     )
     .with_custom_action(CustomAction::SharePaneContents)
     .with_context_predicate(id!("PaneView") & id!(HAS_SHARED_OBJECT_CONTEXT_KEY))]);
-}
-
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback)
-        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }
 
 pub enum PaneViewEvent {
@@ -437,6 +431,20 @@ impl<P: BackingView> View for PaneView<P> {
             keymap_context.set.insert(HAS_SHARED_OBJECT_CONTEXT_KEY);
         }
         keymap_context
+    }
+
+    fn child_view_ids(&self, app: &AppContext) -> Vec<EntityId> {
+        // The backing views are owned by the `pane_stack` model, and only the
+        // active (topmost) one is ever rendered (see `render`), so the
+        // non-active views — and even the active one in a window that never
+        // laid out — are invisible to the render-time parent graph. Report
+        // all of them plus the header so the entire pane moves together when
+        // it is transferred between windows; otherwise a backing view would
+        // be orphaned in the source window and later trip a "circular view
+        // reference" panic when accessed from its new window.
+        let mut ids = vec![self.header.id()];
+        ids.extend(self.pane_stack.as_ref(app).views().map(|view| view.id()));
+        ids
     }
 }
 

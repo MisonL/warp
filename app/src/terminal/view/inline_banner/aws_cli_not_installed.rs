@@ -1,5 +1,5 @@
 use warpui::elements::MouseStateHandle;
-use warpui::{AppContext, Element};
+use warpui::Element;
 
 use super::{
     render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
@@ -7,7 +7,6 @@ use super::{
     InlineBannerTextButtonVariant,
 };
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::terminal::view::TerminalAction;
 
 const AWS_CLI_INSTALL_DOCS_URL: &str =
@@ -44,11 +43,10 @@ impl AwsCliNotInstalledBannerAction {
 pub fn render_aws_cli_not_installed_banner(
     state: &AwsCliNotInstalledBannerState,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let active_ui_text_color = appearance.theme().active_ui_text_color().into_solid();
     let buttons = vec![InlineBannerTextButton {
-        text: localization::text_for_app(app, "auth.learn_more"),
+        text: "Learn More".to_owned(),
         text_color: active_ui_text_color,
         button_state: InlineBannerButtonState {
             on_click_event: TerminalAction::AwsCliNotInstalledBanner(
@@ -69,10 +67,7 @@ pub fn render_aws_cli_not_installed_banner(
     });
 
     let description_text = warpui::elements::Text::new(
-        localization::text_for_app(
-            app,
-            "terminal.inline_banner.aws_cli_not_installed.description",
-        ),
+        "The AWS CLI is required to authenticate with your organization's AWS Bedrock. Install it to continue.",
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 2.,
     )
@@ -83,10 +78,7 @@ pub fn render_aws_cli_not_installed_banner(
         InlineBannerStyle::Recommendation,
         appearance,
         InlineBannerContent {
-            title: localization::text_for_app(
-                app,
-                "terminal.inline_banner.aws_cli_not_installed.title",
-            ),
+            title: "AWS CLI Not Installed".to_string(),
             content: Some(vec![description_text]),
             buttons,
             close_button: Some(close_button),

@@ -4,10 +4,7 @@ use chrono::{Duration, Utc};
 use warp_core::settings::Setting;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-use crate::ai::request_usage_model::{
-    AIRequestUsageModel, AIRequestUsageModelEvent, BonusGrant, BonusGrantScope,
-};
-use crate::localization;
+use crate::ai::request_usage_model::{AIRequestUsageModel, AIRequestUsageModelEvent, BonusGrant};
 use crate::terminal::general_settings::GeneralSettings;
 
 pub struct BonusGrantNotificationModel {
@@ -19,7 +16,10 @@ pub struct BonusGrantNotificationModel {
 
 #[derive(Debug, Clone)]
 pub enum BonusGrantNotificationEvent {
-    ShowNotification { grant: BonusGrant, message: String },
+    ShowNotification {
+        grant: BonusGrant,
+        message: Option<String>,
+    },
 }
 
 impl Entity for BonusGrantNotificationModel {
@@ -30,7 +30,7 @@ impl SingletonEntity for BonusGrantNotificationModel {}
 
 impl BonusGrantNotificationModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, event, ctx| {
+        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
             if let AIRequestUsageModelEvent::RequestUsageUpdated = event {
                 me.check_for_new_bonus_grants(ctx);
             }
@@ -73,12 +73,7 @@ impl BonusGrantNotificationModel {
                 continue;
             }
 
-            // Use server-provided message if available, otherwise fall back to generic message
-            let message = if let Some(user_facing_message) = &grant.user_facing_message {
-                user_facing_message.clone()
-            } else {
-                Self::format_generic_grant_message(grant, ctx)
-            };
+            let message = grant.user_facing_message.clone();
 
             let grant_key = Self::create_grant_key(grant);
 
@@ -103,22 +98,6 @@ impl BonusGrantNotificationModel {
             self.mark_grant_as_shown(&grant_key, ctx);
             self.shown_grants_session.insert(grant_key);
         }
-    }
-
-    fn format_generic_grant_message(grant: &BonusGrant, ctx: &ModelContext<Self>) -> String {
-        let scope_key = match grant.scope {
-            BonusGrantScope::User => "workspace.bonus_grant.scope.account",
-            BonusGrantScope::Workspace(_) => "workspace.bonus_grant.scope.team",
-        };
-
-        localization::text_for_app_with_args(
-            ctx,
-            "workspace.bonus_grant.generic_message",
-            &[
-                ("count", &grant.request_credits_granted.to_string()),
-                ("scope", &localization::text_for_app(ctx, scope_key)),
-            ],
-        )
     }
 
     fn create_grant_key(grant: &BonusGrant) -> String {

@@ -6,9 +6,7 @@ use warpui::{AppContext, ModelHandle};
 
 use crate::pane_group::PaneId;
 use crate::search::command_palette::navigation::render::CommandRenderInfo;
-use crate::search::command_palette::navigation::search_item::{
-    NavigationSearchItemAccessibilityCopy, SearchItem,
-};
+use crate::search::command_palette::navigation::search_item::SearchItem;
 use crate::search::command_palette::navigation::DataSource;
 use crate::search::data_source::QueryResult;
 use crate::search::SyncDataSource;
@@ -91,11 +89,10 @@ impl SessionHighlightIndices {
 }
 
 /// Returns an iterator of sessions that match `search_term`.
-pub fn filter_sessions<'a, 'b, 'c, I>(
+pub fn filter_sessions<'a, 'b, I>(
     sessions_iter: I,
     search_term: &'b str,
-    app: &'c AppContext,
-) -> impl Iterator<Item = MatchedSession> + use<'a, 'b, 'c, I>
+) -> impl Iterator<Item = MatchedSession> + use<'a, 'b, I>
 where
     I: IntoIterator<Item = &'a SessionNavigationData>,
 {
@@ -106,7 +103,7 @@ where
                 Some((SessionMatchResult::no_match(), session.clone()))
             } else {
                 let (searchable_string, session_highlights) =
-                    searchable_session_string_and_ranges(session, app);
+                    searchable_session_string_and_ranges(session);
 
                 match_indices_case_insensitive(&searchable_string, search_term).map(|result| {
                     let highlight_indices =
@@ -131,7 +128,6 @@ where
 /// where [command] may or may not be present.
 fn searchable_session_string_and_ranges(
     session: &SessionNavigationData,
-    app: &AppContext,
 ) -> (String, SearchableSessionStringRanges) {
     let mut searchable_string = session.prompt().to_string();
     let prompt_end = session.prompt().chars().count();
@@ -170,7 +166,7 @@ fn searchable_session_string_and_ranges(
         CommandContext::None => None,
     };
 
-    let command_info = CommandRenderInfo::from_context(session.command_context(), app);
+    let command_info = CommandRenderInfo::from_context(session.command_context());
     searchable_string.push(' ');
     searchable_string.push_str(command_info.hint_text.as_str());
     let hint_text_range = match &command_range {
@@ -226,21 +222,13 @@ impl SessionSearcher for FuzzySessionSearcher {
             SessionSource::None => None,
             SessionSource::Set { active_pane_id, .. } => Some(*active_pane_id),
         };
-        let accessibility_copy = NavigationSearchItemAccessibilityCopy::new(app);
 
         // Sort sessions by last focus timestamp so sessions that were focused first are shown first.
         let all_sessions =
             SessionNavigationData::all_sessions(app).sorted_by_key(|x| x.last_focus_ts());
 
-        Ok(filter_sessions(all_sessions.as_slice(), search_term, app)
-            .map(|matched_session| {
-                SearchItem::new(
-                    matched_session,
-                    active_session_id,
-                    accessibility_copy.clone(),
-                )
-                .into()
-            })
+        Ok(filter_sessions(all_sessions.as_slice(), search_term)
+            .map(|matched_session| SearchItem::new(matched_session, active_session_id).into())
             .collect())
     }
 
@@ -267,9 +255,7 @@ mod full_text_searcher {
         searchable_session_string_and_ranges, MatchedSession, SearcherAction,
         SessionHighlightIndices, SessionMatchResult, SessionSearcher,
     };
-    use crate::search::command_palette::navigation::search_item::{
-        NavigationSearchItemAccessibilityCopy, SearchItem,
-    };
+    use crate::search::command_palette::navigation::search_item::SearchItem;
     use crate::search::data_source::QueryResult;
     use crate::search::searcher::{DEFAULT_MEMORY_BUDGET, SCORE_CONVERSION_FACTOR};
     use crate::session_management::{SessionNavigationData, SessionSource};
@@ -301,7 +287,7 @@ mod full_text_searcher {
                     .enumerate()
                     .map(|(idx, session)| {
                         let (search_string, highlight) =
-                            searchable_session_string_and_ranges(&session, app);
+                            searchable_session_string_and_ranges(&session);
                         let search_id = SessionSearchId(idx);
 
                         sessions.insert(search_id, (session, highlight, search_string.clone()));
@@ -317,7 +303,6 @@ mod full_text_searcher {
                 SessionSource::None => None,
                 SessionSource::Set { active_pane_id, .. } => Some(*active_pane_id),
             };
-            let accessibility_copy = NavigationSearchItemAccessibilityCopy::new(app);
 
             if search_term.is_empty() {
                 return Ok(sessions
@@ -328,12 +313,7 @@ mod full_text_searcher {
                             session,
                             match_result: SessionMatchResult::no_match(),
                         };
-                        SearchItem::new(
-                            matched_session,
-                            active_session_id,
-                            accessibility_copy.clone(),
-                        )
-                        .into()
+                        SearchItem::new(matched_session, active_session_id).into()
                     })
                     .collect());
             }
@@ -358,14 +338,7 @@ mod full_text_searcher {
                         session,
                         match_result,
                     };
-                    Some(
-                        SearchItem::new(
-                            matched_session,
-                            active_session_id,
-                            accessibility_copy.clone(),
-                        )
-                        .into(),
-                    )
+                    Some(SearchItem::new(matched_session, active_session_id).into())
                 })
                 .collect())
         }

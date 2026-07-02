@@ -34,10 +34,6 @@ use crate::view_components::action_button::{ActionButton, ActionButtonTheme, But
 use crate::view_components::alert::{Alert, AlertConfig};
 use crate::workspace::WorkspaceAction;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 struct ManageDefaultsTheme;
 
 impl ActionButtonTheme for ManageDefaultsTheme {
@@ -76,16 +72,19 @@ pub enum InlineModelSelectorEvent {
     Dismissed,
 }
 
-fn build_tab_configs(app: &AppContext) -> Vec<InlineMenuTabConfig<InlineModelSelectorTab>> {
+fn build_tab_configs(ctx: &AppContext) -> Vec<InlineMenuTabConfig<InlineModelSelectorTab>> {
     let mut configs = vec![InlineMenuTabConfig {
         id: InlineModelSelectorTab::BaseAgent,
-        label: text(app, "settings.ai.model_selector.tab.base"),
+        label: localization::text_for_app(ctx, "settings.ai.model_selector.tab.base"),
         filters: HashSet::from([QueryFilter::BaseModels]),
     }];
     if FeatureFlag::InlineMenuHeaders.is_enabled() {
         configs.push(InlineMenuTabConfig {
             id: InlineModelSelectorTab::FullTerminalUse,
-            label: text(app, "settings.ai.model_selector.tab.full_terminal_use"),
+            label: localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.tab.full_terminal_use",
+            ),
             filters: HashSet::from([QueryFilter::FullTerminalUseModels]),
         });
     }
@@ -149,9 +148,10 @@ impl InlineModelSelectorView {
         });
 
         let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            let manage_defaults_label = text(ctx, "settings.ai.model_selector.manage_defaults");
+            let manage_defaults_label =
+                localization::text_for_app(ctx, "settings.ai.model_selector.manage_defaults");
             let manage_defaults_button = ctx.add_view(move |_| {
-                ActionButton::new(manage_defaults_label, ManageDefaultsTheme)
+                ActionButton::new(manage_defaults_label.clone(), ManageDefaultsTheme)
                     .with_icon(Icon::Settings)
                     .with_size(ButtonSize::Small)
                     .on_click(|ctx| {
@@ -162,7 +162,7 @@ impl InlineModelSelectorView {
                     })
             });
             let header_config = InlineMenuHeaderConfig {
-                label: text(ctx, "settings.ai.model_selector.header.model_command"),
+                label: "/model".to_string(),
                 trailing_element: Some(Box::new(move |_app: &AppContext| {
                     ChildView::new(&manage_defaults_button).finish()
                 })),
@@ -194,30 +194,25 @@ impl InlineModelSelectorView {
                         .is_some_and(|c| !c.is_empty() && c.status().is_in_progress());
                     let is_cli_agent_in_control_or_tagged_in =
                         cli_ctrl.as_ref(app).is_agent_in_control_or_tagged_in();
-                    let message = match active_tab {
+                    let message_key = match active_tab {
                         InlineModelSelectorTab::FullTerminalUse
                             if main_agent_in_progress && !is_cli_agent_in_control_or_tagged_in =>
                         {
-                            Some(text(
-                                app,
-                                "settings.ai.model_selector.banner.base_agent_active",
-                            ))
+                            Some("settings.ai.model_selector.banner.base_agent_active")
                         }
                         InlineModelSelectorTab::BaseAgent
                             if is_cli_agent_in_control_or_tagged_in =>
                         {
-                            Some(text(
-                                app,
-                                "settings.ai.model_selector.banner.full_terminal_use_active",
-                            ))
+                            Some("settings.ai.model_selector.banner.full_terminal_use_active")
                         }
                         _ => None,
                     };
 
-                    message.map(|msg| {
+                    message_key.map(|key| {
                         let appearance = Appearance::as_ref(app);
                         Alert::new().render(
-                            AlertConfig::warning(msg).with_main_axis_size(MainAxisSize::Max),
+                            AlertConfig::warning(localization::text_for_app(app, key))
+                                .with_main_axis_size(MainAxisSize::Max),
                             appearance,
                         )
                     })

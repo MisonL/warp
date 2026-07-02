@@ -15,10 +15,17 @@ use crate::ai::agent::{StartAgentExecutionMode, StartAgentResult};
 use crate::test_util::settings::initialize_history_persistence_for_tests;
 use crate::BlocklistAIHistoryModel;
 
+fn orchestrator_participant() -> OrchestrationParticipant {
+    OrchestrationParticipant {
+        display_name: "Orchestrator".to_string(),
+        avatar: OrchestrationAvatar::Orchestrator,
+        conversation_id: None,
+    }
+}
+
 #[test]
 fn child_conversation_card_data_for_success_result_returns_conversation_id_and_title() {
     App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -52,71 +59,54 @@ fn child_conversation_card_data_for_success_result_returns_conversation_id_and_t
 
 #[test]
 fn start_agent_copy_uses_local_labels_for_local_children() {
-    App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
-        let execution_mode = StartAgentExecutionMode::local_harness("claude-code".to_string());
+    let execution_mode = StartAgentExecutionMode::local_harness("claude-code".to_string());
 
-        app.read(|ctx| {
-            assert_eq!(
-                start_agent_success_suffix(&execution_mode, ctx),
-                " locally."
-            );
-            assert_eq!(
-                start_agent_error_prefix(&execution_mode, ctx),
-                "Failed to start agent "
-            );
-            assert_eq!(
-                start_agent_cancelled_prefix(&execution_mode, ctx),
-                "Start agent "
-            );
-            assert_eq!(
-                start_agent_in_progress_prefix(&execution_mode, ctx),
-                "Starting agent "
-            );
-        });
-    });
+    assert_eq!(start_agent_success_suffix(&execution_mode), " locally.");
+    assert_eq!(
+        start_agent_error_prefix(&execution_mode),
+        "Failed to start agent "
+    );
+    assert_eq!(
+        start_agent_cancelled_prefix(&execution_mode),
+        "Start agent "
+    );
+    assert_eq!(
+        start_agent_in_progress_prefix(&execution_mode),
+        "Starting agent "
+    );
 }
 
 #[test]
 fn start_agent_copy_uses_remote_labels_for_remote_children() {
-    App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
-        let execution_mode = StartAgentExecutionMode::Remote {
-            environment_id: "env-123".to_string(),
-            skill_references: vec![],
-            model_id: String::new(),
-            computer_use_enabled: false,
-            worker_host: String::new(),
-            harness_type: String::new(),
-            title: String::new(),
-            auth_secret_name: None,
-        };
+    let execution_mode = StartAgentExecutionMode::Remote {
+        environment_id: "env-123".to_string(),
+        skill_references: vec![],
+        model_id: String::new(),
+        computer_use_enabled: false,
+        worker_host: String::new(),
+        harness_type: String::new(),
+        title: String::new(),
+        auth_secret_name: None,
+    };
 
-        app.read(|ctx| {
-            assert_eq!(
-                start_agent_success_suffix(&execution_mode, ctx),
-                " remotely."
-            );
-            assert_eq!(
-                start_agent_error_prefix(&execution_mode, ctx),
-                "Failed to start remote agent "
-            );
-            assert_eq!(
-                start_agent_cancelled_prefix(&execution_mode, ctx),
-                "Start remote agent "
-            );
-            assert_eq!(
-                start_agent_in_progress_prefix(&execution_mode, ctx),
-                "Starting remote agent "
-            );
-        });
-    });
+    assert_eq!(start_agent_success_suffix(&execution_mode), " remotely.");
+    assert_eq!(
+        start_agent_error_prefix(&execution_mode),
+        "Failed to start remote agent "
+    );
+    assert_eq!(
+        start_agent_cancelled_prefix(&execution_mode),
+        "Start remote agent "
+    );
+    assert_eq!(
+        start_agent_in_progress_prefix(&execution_mode),
+        "Starting remote agent "
+    );
 }
 
 #[test]
 fn child_conversation_card_data_for_success_result_without_available_title_uses_placeholder() {
     App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -206,7 +196,6 @@ fn agent_display_name_from_id_returns_child_agent_name() {
 #[test]
 fn agent_display_name_from_id_returns_orchestrator_label() {
     App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -227,8 +216,7 @@ fn agent_display_name_from_id_returns_orchestrator_label() {
 
 #[test]
 fn agent_display_name_from_id_returns_unknown_fallback() {
-    App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
+    App::test((), |app| async move {
         app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let actual =
             app.read(|ctx| agent_display_name_from_id("missing-agent-id", Some("other-id"), ctx));
@@ -422,65 +410,49 @@ fn participant_for_restored_child_run_id_resolves_to_agent_name() {
 
 #[test]
 fn transcript_metadata_uses_transcript_copy_without_technical_labels() {
-    App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
-        let recipients = vec![OrchestrationParticipant {
-            display_name: "Agent 1".to_string(),
-            avatar: OrchestrationAvatar::agent("Agent 1".to_string()),
-            conversation_id: None,
-        }];
+    let recipients = vec![OrchestrationParticipant {
+        display_name: "Agent 1".to_string(),
+        avatar: OrchestrationAvatar::agent("Agent 1".to_string()),
+        conversation_id: None,
+    }];
 
-        let metadata =
-            app.read(|ctx| transcript_metadata(&recipients, "Fix tests", ctx).expect("metadata"));
+    let metadata = transcript_metadata(&recipients, "Fix tests").expect("metadata");
 
-        assert_eq!(metadata, "to Agent 1 - Fix tests");
-        for legacy_label in ["Messages received", "From:", "To:", "Subject:"] {
-            assert!(
-                !metadata.contains(legacy_label),
-                "Transcript metadata should not contain old technical label {legacy_label}: {metadata}"
-            );
-        }
-    });
+    assert_eq!(metadata, "to Agent 1 • Fix tests");
+    for legacy_label in ["Messages received", "From:", "To:", "Subject:"] {
+        assert!(
+            !metadata.contains(legacy_label),
+            "Transcript metadata should not contain old technical label {legacy_label}: {metadata}"
+        );
+    }
 }
 
 #[test]
 fn transcript_metadata_omits_orchestrator_recipients() {
-    App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
-        let recipients = app.read(|ctx| vec![OrchestrationParticipant::orchestrator(ctx)]);
+    let recipients = vec![orchestrator_participant()];
 
-        app.read(|ctx| {
-            assert_eq!(
-                transcript_metadata(&recipients, "Status update", ctx),
-                Some("Status update".to_string())
-            );
-            assert_eq!(transcript_metadata(&recipients, "", ctx), None);
-        });
-    });
+    assert_eq!(
+        transcript_metadata(&recipients, "Status update"),
+        Some("Status update".to_string())
+    );
+    assert_eq!(transcript_metadata(&recipients, ""), None);
 }
 
 #[test]
 fn transcript_metadata_preserves_non_orchestrator_recipients() {
-    App::test((), |mut app| async move {
-        initialize_history_persistence_for_tests(&mut app);
-        let recipients = app.read(|ctx| {
-            vec![
-                OrchestrationParticipant::orchestrator(ctx),
-                OrchestrationParticipant {
-                    display_name: "Agent 1".to_string(),
-                    avatar: OrchestrationAvatar::agent("Agent 1".to_string()),
-                    conversation_id: None,
-                },
-            ]
-        });
+    let recipients = vec![
+        orchestrator_participant(),
+        OrchestrationParticipant {
+            display_name: "Agent 1".to_string(),
+            avatar: OrchestrationAvatar::agent("Agent 1".to_string()),
+            conversation_id: None,
+        },
+    ];
 
-        app.read(|ctx| {
-            assert_eq!(
-                transcript_metadata(&recipients, "Fix tests", ctx),
-                Some("to Agent 1 - Fix tests".to_string())
-            );
-        });
-    });
+    assert_eq!(
+        transcript_metadata(&recipients, "Fix tests"),
+        Some("to Agent 1 • Fix tests".to_string())
+    );
 }
 
 #[test]

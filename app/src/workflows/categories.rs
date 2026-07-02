@@ -31,6 +31,7 @@ use super::WorkflowSource;
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::Event as EditorEvent;
+use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::themes::theme::{self, Blend, WarpTheme};
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
@@ -38,7 +39,6 @@ use crate::util::bindings::CustomAction;
 use crate::voltron::{VoltronFeatureViewMeta, VoltronMetadata};
 use crate::workflows::WorkflowType;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{localization, send_telemetry_from_ctx};
 
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 const DESCRIPTION_MARGIN: f32 = 24.;
@@ -111,7 +111,6 @@ impl WorkflowViewType {
         selection_state: SelectionState,
         category_names: &[String],
         appearance: &Appearance,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let bg_color = selection_state.background_color(appearance.theme());
         let font_weight = selection_state.font_weight();
@@ -120,7 +119,7 @@ impl WorkflowViewType {
         let mut container = Container::new(
             appearance
                 .ui_builder()
-                .span(self.localized_name(category_names, app))
+                .span(self.as_str(category_names).to_string())
                 .with_style(UiComponentStyles {
                     font_weight: Some(font_weight),
                     font_color: Some(appearance.theme().main_text_color(bg_color).into_solid()),
@@ -148,48 +147,28 @@ impl WorkflowViewType {
             .finish()
     }
 
-    fn localized_name(&self, category_names: &[String], app: &AppContext) -> String {
+    fn as_str<'a>(&self, category_names: &'a [String]) -> &'a str {
         match self {
-            WorkflowViewType::All => localization::text_for_app(app, "workflows.category.all"),
-            WorkflowViewType::LocalPersonal => {
-                localization::text_for_app(app, "workflows.category.my_workflows")
-            }
-            WorkflowViewType::Project => {
-                localization::text_for_app(app, "workflows.category.repository_workflows")
-            }
-            WorkflowViewType::Team => {
-                localization::text_for_app(app, "workflows.category.team_workflows")
-            }
-            WorkflowViewType::Category { category_index, .. } => {
-                category_names[*category_index].clone()
-            }
+            WorkflowViewType::All => "All",
+            WorkflowViewType::LocalPersonal => "My Workflows",
+            WorkflowViewType::Project => "Repository Workflows",
+            WorkflowViewType::Team => "Team Workflows",
+            WorkflowViewType::Category { category_index, .. } => &category_names[*category_index],
         }
     }
 
-    fn as_accessibility_contents(
-        &self,
-        category_names: &[String],
-        app: &AppContext,
-    ) -> AccessibilityContent {
+    fn as_accessibility_contents(&self, category_names: &[String]) -> AccessibilityContent {
         let a11y_content = match self {
             WorkflowViewType::Category { .. } => {
-                let category = self.localized_name(category_names, app);
-                localization::text_for_app_with_args(
-                    app,
-                    "workflows.a11y.showing_category",
-                    &[("category", category.as_str())],
+                format!(
+                    "Showing workflows with category {}",
+                    self.as_str(category_names)
                 )
             }
-            WorkflowViewType::All => localization::text_for_app(app, "workflows.a11y.showing_all"),
-            WorkflowViewType::LocalPersonal => {
-                localization::text_for_app(app, "workflows.a11y.showing_my_workflows")
-            }
-            WorkflowViewType::Project => {
-                localization::text_for_app(app, "workflows.a11y.showing_project_workflows")
-            }
-            WorkflowViewType::Team => {
-                localization::text_for_app(app, "workflows.a11y.showing_team_workflows")
-            }
+            WorkflowViewType::All => "Showing all workflows".into(),
+            WorkflowViewType::LocalPersonal => "Showing my workflows".into(),
+            WorkflowViewType::Project => "Showing project workflows".into(),
+            WorkflowViewType::Team => "Showing team workflows".into(),
         };
 
         AccessibilityContent::new_without_help(a11y_content, WarpA11yRole::UserAction)
@@ -733,19 +712,10 @@ impl CategoriesView {
         if let Some(workflow_for_render) =
             self.filtered_workflows().nth(self.selected_workflow_index)
         {
-            let a11y_content_text = localization::text_for_app_with_args(
-                ctx,
-                "workflows.a11y.selected",
-                &[
-                    (
-                        "name",
-                        workflow_for_render.workflow_type.as_workflow().name(),
-                    ),
-                    (
-                        "content",
-                        workflow_for_render.workflow_type.as_workflow().content(),
-                    ),
-                ],
+            let a11y_content_text = format!(
+                "Selected {} {}",
+                workflow_for_render.workflow_type.as_workflow().name(),
+                workflow_for_render.workflow_type.as_workflow().content()
             );
             ctx.emit_a11y_content(AccessibilityContent::new_without_help(
                 a11y_content_text,
@@ -780,27 +750,18 @@ impl CategoriesView {
         }
     }
 
-    fn render_empty_list_placeholder(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let no_workflows_text = CategoriesView::text_label(
-            localization::text_for_app(app, "workflows.empty.no_matches"),
-            appearance,
-        );
+    fn render_empty_list_placeholder(&self, appearance: &Appearance) -> Box<dyn Element> {
+        let no_workflows_text =
+            CategoriesView::text_label("No matching workflows found.", appearance);
 
         let mut workflow_documentation_link_text =
-            Flex::row().with_child(CategoriesView::text_label(
-                localization::text_for_app(app, "workflows.empty.try_prefix"),
-                appearance,
-            ));
+            Flex::row().with_child(CategoriesView::text_label("Try ", appearance));
 
         workflow_documentation_link_text.add_child(
             appearance
                 .ui_builder()
                 .link(
-                    localization::text_for_app(app, "workflows.empty.create_link"),
+                    "creating your own workflow".into(),
                     Some(
                         "https://docs.warp.dev/knowledge-and-collaboration/warp-drive/workflows"
                             .into(),
@@ -948,11 +909,7 @@ impl CategoriesView {
     }
 
     /// Renders the list of workflow types as a left sidebar.
-    fn render_workflow_types_sidebar(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_workflow_types_sidebar(&self, appearance: &Appearance) -> Box<dyn Element> {
         let workflows_type_sidebar_focused =
             matches!(self.focus_state, WorkflowsFocusState::WorkflowTypesSidebar);
 
@@ -974,7 +931,6 @@ impl CategoriesView {
                     selection_state,
                     self.category_names.deref(),
                     appearance,
-                    app,
                 ))
                 .with_padding_right(SCROLLBAR_WIDTH.as_f32() + SCROLLABLE_LEFT_PADDING)
                 .with_padding_top(WORKFLOW_LIST_PADDING_Y)
@@ -984,7 +940,7 @@ impl CategoriesView {
         let theme = appearance.theme();
         workflow_types_list.add_child(
             Container::new(Self::workflow_types_label(
-                localization::text_for_app(app, "workflows.categories.label"),
+                "Categories",
                 Some(theme.sub_text_color(theme.surface_2()).into_solid()),
                 appearance.ui_builder(),
             ))
@@ -1023,7 +979,6 @@ impl CategoriesView {
                             selection_state,
                             view.category_names.deref(),
                             appearance,
-                            app,
                         )
                     })
                     .collect::<Vec<_>>()
@@ -1048,7 +1003,7 @@ impl CategoriesView {
             .finish()
     }
 
-    fn render_workflow_list(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_workflow_list(&self, appearance: &Appearance) -> Box<dyn Element> {
         let workflows: Vec<_> = self
             .filtered_workflows()
             .map(|workflow_with_highlight| {
@@ -1061,7 +1016,7 @@ impl CategoriesView {
             .collect();
 
         if workflows.is_empty() {
-            return self.render_empty_list_placeholder(appearance, app);
+            return self.render_empty_list_placeholder(appearance);
         }
 
         let selected_index = self.selected_workflow_index;
@@ -1142,7 +1097,7 @@ impl CategoriesView {
 
             ctx.emit_a11y_content(
                 self.selected_workflow_type
-                    .as_accessibility_contents(self.category_names.deref(), ctx),
+                    .as_accessibility_contents(self.category_names.deref()),
             );
         }
 
@@ -1250,10 +1205,10 @@ impl View for CategoriesView {
         "WorkflowsView"
     }
 
-    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            localization::text_for_app(app, "workflows.a11y.title"),
-            localization::text_for_app(app, "workflows.a11y.description"),
+            "Workflows",
+            "Search or use arrow up and arrow down keys to navigate and find a workflow. Use enter to confirm the workflow and esc to quit.",
             WarpA11yRole::MenuRole,
         ))
     }
@@ -1269,14 +1224,11 @@ impl View for CategoriesView {
                         Flex::row()
                             .with_children([
                                 // The workflow types sidebar.
-                                ConstrainedBox::new(
-                                    self.render_workflow_types_sidebar(appearance, app),
-                                )
-                                .with_width(150.)
-                                .finish(),
-                                // The list of workflows.
-                                Shrinkable::new(1., self.render_workflow_list(appearance, app))
+                                ConstrainedBox::new(self.render_workflow_types_sidebar(appearance))
+                                    .with_width(150.)
                                     .finish(),
+                                // The list of workflows.
+                                Shrinkable::new(1., self.render_workflow_list(appearance)).finish(),
                             ])
                             .with_main_axis_size(MainAxisSize::Max)
                             .finish(),
@@ -1291,8 +1243,8 @@ impl View for CategoriesView {
 }
 
 impl VoltronFeatureViewMeta for CategoriesView {
-    fn editor_placeholder_text_key(&self) -> &'static str {
-        "search.filter.placeholder.workflows"
+    fn editor_placeholder_text(&self) -> &'static str {
+        "Search workflows"
     }
 
     fn custom_action() -> Option<CustomAction> {

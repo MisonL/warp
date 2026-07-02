@@ -19,7 +19,7 @@ use super::toggle_card::{render_toggle_card, ToggleCardSpec};
 use super::OnboardingSlide;
 use crate::model::{OnboardingStateEvent, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
-use crate::OnboardingIntention;
+use crate::{OnboardingCopy, OnboardingIntention};
 
 /// Which setting card is currently expanded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,11 +49,13 @@ pub struct ThirdPartySlide {
     back_button: button::Button,
     next_button: button::Button,
     scroll_state: ClippedScrollStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl ThirdPartySlide {
     pub(crate) fn new(
         onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&onboarding_state, |_me, _model, event, ctx| {
@@ -74,6 +76,7 @@ impl ThirdPartySlide {
             back_button: button::Button::default(),
             next_button: button::Button::default(),
             scroll_state: ClippedScrollStateHandle::new(),
+            copy,
         }
     }
 
@@ -113,21 +116,17 @@ impl ThirdPartySlide {
         intention: OnboardingIntention,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let bottom_nav = Align::new(self.render_bottom_nav(appearance, intention, app)).finish();
+        let bottom_nav = Align::new(self.render_bottom_nav(appearance, app)).finish();
 
         let mut sections = vec![
-            self.render_header(appearance, app),
-            self.render_toolbar_section(appearance, cli_toolbar_enabled, app),
+            self.render_header(appearance),
+            self.render_toolbar_section(appearance, cli_toolbar_enabled),
         ];
 
         // Only show the notifications toggle for terminal intention.
         // For agent intention, notifications are always enabled.
         if matches!(intention, OnboardingIntention::Terminal) {
-            sections.push(self.render_notifications_section(
-                appearance,
-                show_agent_notifications,
-                app,
-            ));
+            sections.push(self.render_notifications_section(appearance, show_agent_notifications));
         }
 
         slide_content::onboarding_slide_content(
@@ -138,11 +137,10 @@ impl ThirdPartySlide {
         )
     }
 
-    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
-        let copy = self.onboarding_state.as_ref(app).copy();
+    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let title = appearance
             .ui_builder()
-            .paragraph(copy.text_owned("onboarding.third_party.title"))
+            .paragraph(self.copy.text_owned("onboarding.third_party.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -152,7 +150,7 @@ impl ThirdPartySlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            copy.text_owned("onboarding.third_party.subtitle"),
+            self.copy.text_owned("onboarding.third_party.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -177,19 +175,19 @@ impl ThirdPartySlide {
         &self,
         appearance: &Appearance,
         cli_toolbar_enabled: bool,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let is_selected = self.selected_setting == Some(SettingCard::CliToolbar);
-        let copy = self.onboarding_state.as_ref(app).copy();
 
         let card = render_toggle_card(
             appearance,
             ToggleCardSpec {
-                title: copy.text_owned("onboarding.third_party.cli_agent_toolbar"),
+                title: self
+                    .copy
+                    .text_owned("onboarding.third_party.cli_agent_toolbar"),
                 is_expanded: is_selected,
                 is_left_selected: cli_toolbar_enabled,
-                left_label: copy.text_owned("onboarding.common.enabled"),
-                right_label: copy.text_owned("onboarding.common.disabled"),
+                left_label: self.copy.text_owned("onboarding.common.enabled"),
+                right_label: self.copy.text_owned("onboarding.common.disabled"),
                 card_mouse_state: self.cli_toolbar_card_mouse_state.clone(),
                 on_expand: Box::new(|ctx, _, _| {
                     ctx.dispatch_typed_action(ThirdPartySlideAction::SelectSettingCard {
@@ -227,19 +225,17 @@ impl ThirdPartySlide {
         &self,
         appearance: &Appearance,
         show_agent_notifications: bool,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let is_selected = self.selected_setting == Some(SettingCard::Notifications);
-        let copy = self.onboarding_state.as_ref(app).copy();
 
         let card = render_toggle_card(
             appearance,
             ToggleCardSpec {
-                title: copy.text_owned("onboarding.third_party.notifications"),
+                title: self.copy.text_owned("onboarding.third_party.notifications"),
                 is_expanded: is_selected,
                 is_left_selected: show_agent_notifications,
-                left_label: copy.text_owned("onboarding.common.enabled"),
-                right_label: copy.text_owned("onboarding.common.disabled"),
+                left_label: self.copy.text_owned("onboarding.common.enabled"),
+                right_label: self.copy.text_owned("onboarding.common.disabled"),
                 card_mouse_state: self.notifications_card_mouse_state.clone(),
                 on_expand: Box::new(|ctx, _, _| {
                     ctx.dispatch_typed_action(ThirdPartySlideAction::SelectSettingCard {
@@ -273,17 +269,13 @@ impl ThirdPartySlide {
         .finish()
     }
 
-    fn render_bottom_nav(
-        &self,
-        appearance: &Appearance,
-        intention: OnboardingIntention,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let copy = self.onboarding_state.as_ref(app).copy();
+    fn render_bottom_nav(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(copy.text_owned("onboarding.common.back").into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -298,7 +290,9 @@ impl ThirdPartySlide {
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(copy.text_owned("onboarding.common.next").into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.next").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),
@@ -310,8 +304,7 @@ impl ThirdPartySlide {
             },
         );
 
-        let is_terminal = matches!(intention, OnboardingIntention::Terminal);
-        let (step_index, step_count) = if is_terminal { (2, 4) } else { (3, 5) };
+        let (step_index, step_count) = self.onboarding_state.as_ref(app).progress();
         bottom_nav::onboarding_bottom_nav(
             appearance,
             step_index,

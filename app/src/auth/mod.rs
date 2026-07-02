@@ -1,4 +1,3 @@
-use crate::localization;
 pub mod auth_manager;
 mod auth_override_warning_body;
 pub mod auth_override_warning_modal;
@@ -10,6 +9,7 @@ mod login_failure_notification;
 pub mod login_slide;
 pub mod needs_sso_link_view;
 pub mod paste_auth_token_modal;
+pub mod provider_keys_modal;
 mod user_properties;
 pub use warp_server_auth::{auth_state, credentials, user, user_uid};
 #[cfg(target_family = "wasm")]
@@ -50,7 +50,7 @@ use crate::workflows::manager::WorkflowManager;
 use crate::workspace::{Workspace, WorkspaceAction};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::{
-    focus_running_window_and_show_native_modal, persistence, report_if_error,
+    focus_running_window_and_show_native_modal, localization, persistence, report_if_error,
     send_telemetry_sync_from_app_ctx, GlobalResourceHandlesProvider,
 };
 
@@ -60,6 +60,7 @@ pub fn init(app: &mut AppContext) {
     auth_override_warning_body::init(app);
     login_slide::init(app);
     paste_auth_token_modal::init(app);
+    provider_keys_modal::init(app);
 }
 
 /// If the app has running processes or dirty objects, we'll show a confirmation modal before logging out.
@@ -104,10 +105,11 @@ pub fn maybe_log_out(app: &mut AppContext) {
             } else {
                 "auth.logout.running_processes_singular"
             };
-            info_text_vec.push(
-                localization::text_for_app(app, key)
-                    .replace("{count}", &num_long_running_commands.to_string()),
-            );
+            info_text_vec.push(localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_long_running_commands.to_string())],
+            ));
 
             button_data.push(ModalButton::for_app(
                 localization::text_for_app(app, "auth.logout.show_running_processes"),
@@ -151,10 +153,11 @@ pub fn maybe_log_out(app: &mut AppContext) {
             } else {
                 "auth.logout.shared_sessions_singular"
             };
-            info_text_vec.push(
-                localization::text_for_app(app, key)
-                    .replace("{count}", &num_shared_sessions.to_string()),
-            );
+            info_text_vec.push(localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_shared_sessions.to_string())],
+            ));
         }
 
         if num_unsaved_objects > 0 {
@@ -163,10 +166,11 @@ pub fn maybe_log_out(app: &mut AppContext) {
             } else {
                 "auth.logout.unsynced_objects_singular"
             };
-            info_text_vec.push(
-                localization::text_for_app(app, key)
-                    .replace("{count}", &num_unsaved_objects.to_string()),
-            );
+            info_text_vec.push(localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_unsaved_objects.to_string())],
+            ));
         }
 
         if num_unsaved_files > 0 {
@@ -175,10 +179,11 @@ pub fn maybe_log_out(app: &mut AppContext) {
             } else {
                 "auth.logout.unsaved_files_singular"
             };
-            info_text_vec.push(
-                localization::text_for_app(app, key)
-                    .replace("{count}", &num_unsaved_files.to_string()),
-            );
+            info_text_vec.push(localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_unsaved_files.to_string())],
+            ));
         }
 
         button_data.push(ModalButton::for_app(

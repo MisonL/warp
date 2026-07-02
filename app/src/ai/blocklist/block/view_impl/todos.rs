@@ -64,8 +64,7 @@ pub(super) fn render_todos(
     let is_list_outdated = has_cancelled_todo
         || todos.len() != conversation.active_todo_list().map_or(0, |list| list.len());
     if is_list_outdated {
-        header_config =
-            header_config.with_badge(localization::text_for_app(app, "agent.todos.outdated"));
+        header_config = header_config.with_badge("Outdated".to_string());
     }
 
     let header_element = header_config.render(app);

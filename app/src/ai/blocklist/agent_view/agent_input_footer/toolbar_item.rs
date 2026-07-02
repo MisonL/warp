@@ -4,7 +4,6 @@ use warpui::SingletonEntity;
 use super::editor::AgentToolbarEditorMode;
 use crate::context_chips::{agent_footer_available_chips, available_chips, ContextChipKind};
 use crate::features::FeatureFlag;
-use crate::localization;
 use crate::settings::AISettings;
 use crate::terminal::shared_session::SharedSessionStatus;
 use crate::ui_components::icons::Icon;
@@ -115,27 +114,20 @@ impl AgentToolbarItemKind {
         }
     }
 
-    pub fn display_label(&self, app: &warpui::AppContext) -> String {
-        if matches!(self, Self::ShareSession) {
-            return "/remote-control".to_owned();
-        }
-        localization::text_for_app(app, self.display_label_key())
-    }
-
-    fn display_label_key(&self) -> &'static str {
+    pub fn display_label(&self) -> &'static str {
         match self {
-            Self::ContextChip(_) => "agent.input_footer.toolbar_item.context_chip",
-            Self::ModelSelector => "agent.input_footer.toolbar_item.model_selector",
-            Self::NLDToggle => "agent.input_footer.toolbar_item.autodetection",
-            Self::VoiceInput => "agent.input_footer.toolbar_item.voice_input",
-            Self::FileAttach => "agent.input_footer.toolbar_item.attach_file",
-            Self::ContextWindowUsage => "agent.input_footer.toolbar_item.context_usage",
-            Self::FileExplorer => "agent.input_footer.toolbar_item.file_explorer",
-            Self::RichInput => "agent.input_footer.toolbar_item.rich_input",
-            Self::ShareSession => unreachable!("handled by display_label"),
-            Self::Settings => "agent.input_footer.toolbar_item.settings",
-            Self::FastForwardToggle => "agent.input_footer.toolbar_item.fast_forward",
-            Self::HandoffToCloud => "agent.input_footer.toolbar_item.handoff_to_cloud",
+            Self::ContextChip(_) => "Context Chip",
+            Self::ModelSelector => "Model Selector",
+            Self::NLDToggle => "Autodetection",
+            Self::VoiceInput => "Voice Input",
+            Self::FileAttach => "Attach File",
+            Self::ContextWindowUsage => "Context Usage",
+            Self::FileExplorer => "File Explorer",
+            Self::RichInput => "Rich Input",
+            Self::ShareSession => "/remote-control",
+            Self::Settings => "Settings",
+            Self::FastForwardToggle => "Fast Forward",
+            Self::HandoffToCloud => "Hand off to cloud",
         }
     }
 
@@ -162,7 +154,9 @@ impl AgentToolbarItemKind {
     /// Only items relevant to composing a cloud run are shown.
     pub(super) fn is_available_during_handoff_compose(&self) -> bool {
         match self {
-            Self::ContextChip(ContextChipKind::ShellGitBranch) => true,
+            Self::ContextChip(
+                ContextChipKind::ShellGitBranch | ContextChipKind::GitBranchStatus,
+            ) => true,
             Self::ModelSelector | Self::VoiceInput | Self::FileAttach => true,
             Self::ContextChip(_)
             | Self::NLDToggle

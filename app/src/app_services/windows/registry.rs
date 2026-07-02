@@ -54,9 +54,7 @@ pub(super) fn register_uri_handler() {
                     HSTRING::from(command.as_os_str())
                 }
                 Err(err) => {
-                    log::error!(
-                        "Could not get path to current executable for registering URI scheme: {err:?}"
-                    );
+                    log::error!("Could not get path to current executable for registering URI scheme: {err:?}");
                     return;
                 }
             };

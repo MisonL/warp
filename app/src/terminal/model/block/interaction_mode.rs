@@ -54,6 +54,7 @@ impl Block {
     }
 
     pub fn set_is_agent_tagged_in(&mut self, value: bool) {
+        let block_id = self.id().clone();
         if let InteractionMode::User(UserMode {
             ref mut did_user_tag_in_agent,
         }) = &mut self.interaction_mode
@@ -62,6 +63,7 @@ impl Block {
                 *did_user_tag_in_agent = value;
                 self.event_proxy
                     .send_terminal_event(Event::AgentTaggedInChanged {
+                        block_id,
                         is_tagged_in: value,
                     });
             }
@@ -92,9 +94,7 @@ impl Block {
             *task_id = new_task_id;
             Ok(())
         } else {
-            Err(anyhow!(
-                "Tried to upgrade CLI subagent task ID for block with no prior CLI subagent task ID."
-            ))
+            Err(anyhow!("Tried to upgrade CLI subagent task ID for block with no prior CLI subagent task ID."))
         }
     }
 
@@ -196,6 +196,11 @@ impl Block {
         }
     }
 
+    /// Returns `true` if this block is associated with a command requested by an agent.
+    pub fn is_agent_requested_command(&self) -> bool {
+        self.requested_command_action_id().is_some()
+    }
+
     /// Returns the `long_running_control_state` associated with this block, if any.
     pub fn long_running_control_state(&self) -> Option<&LongRunningCommandControlState> {
         self.interaction_mode.long_running_control_state()
@@ -291,9 +296,7 @@ impl Block {
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum UpdateInteractionModeError {
-    #[error(
-        "Attempted to update interaction mode from agent with requested command to agent-monitored for mismatched conversation IDs."
-    )]
+    #[error("Attempted to update interaction mode from agent with requested command to agent-monitored for mismatched conversation IDs.")]
     UnexpectedConversationId,
     #[error("Attempted to take over control for user when block was not already agent controlled")]
     InvalidTakeOver,

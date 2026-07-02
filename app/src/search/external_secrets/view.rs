@@ -17,15 +17,12 @@ use warpui::{
 
 use crate::appearance::Appearance;
 use crate::external_secrets::ExternalSecret;
-use crate::localization;
 use crate::search::external_secrets::external_secret_data_source::ExternalSecretDataSource;
 use crate::search::external_secrets::searcher::{
     ExternalSecretSearchItemAction, ExternalSecretSearchMixer,
 };
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
-use crate::search::search_bar::{
-    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
-};
+use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
 
 lazy_static! {
     static ref QUERY_RESULT_RENDERER_STYLES: QueryResultRendererStyles =
@@ -83,10 +80,10 @@ impl ExternalSecretsMenu {
         let mixer = ctx.add_model(|_| ExternalSecretSearchMixer::new());
 
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                SearchBarPlaceholder::localized("search.external_secrets.placeholder"),
+                "search.external_secrets.placeholder",
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -181,7 +178,7 @@ impl ExternalSecretsMenu {
         // There are no results to display, so notify the user of that fact.
         let text = appearance
             .ui_builder()
-            .span(localization::text_for_app(app, "search.no_results"))
+            .span(crate::localization::text_for_app(app, "search.no_results"))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.monospace_font_size()),
                 font_family_id: Some(appearance.ui_font_family()),

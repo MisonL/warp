@@ -8,8 +8,8 @@ use crate::proto::{
     client_message, host_scoped_request, notification, run_command_response, server_message,
     session_scoped_request, ClientMessage, CodebaseIndexStatus, CodebaseIndexStatusState,
     CodebaseIndexStatusUpdated, CodebaseIndexStatusesSnapshot, ErrorCode, GetDiffStateResponse,
-    InitializeResponse, OpenBufferResponse, RunCommandResponse, RunCommandSuccess, ServerMessage,
-    WriteFile,
+    InitializeResponse, OpenBufferResponse, RemoteAgentContextSnapshot, RemoteContextFileProto,
+    RunCommandResponse, RunCommandSuccess, ServerMessage, WriteFile,
 };
 use crate::protocol;
 
@@ -18,6 +18,55 @@ fn unwrap_session_scoped(msg: &ClientMessage) -> &session_scoped_request::Messag
     match &msg.message {
         Some(client_message::Message::SessionScoped(w)) => w.message.as_ref().unwrap(),
         other => panic!("Expected SessionScoped, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn remote_agent_context_snapshot_push_becomes_client_event() {
+    let (client_stream, server_stream) = tokio::io::duplex(4096);
+    let (server_read, server_write) = tokio::io::split(server_stream);
+    let (client_read, client_write) = tokio::io::split(client_stream);
+    drop(server_read);
+
+    let executor = executor::Background::default();
+    let (_client, event_rx, _failure_rx, _host_rx) =
+        RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
+    let mut writer = server_write.compat_write();
+
+    protocol::write_server_message(
+        &mut writer,
+        &ServerMessage {
+            request_id: String::new(),
+            message: Some(server_message::Message::RemoteAgentContextSnapshot(
+                RemoteAgentContextSnapshot {
+                    revision: 7,
+                    home_dir: "/home/user".to_string(),
+                    skills: vec![crate::proto::RemoteSkillProto {
+                        path: "/home/user/.agents/skills/test/SKILL.md".to_string(),
+                        content: "skill content".to_string(),
+                        source: Some(crate::proto::remote_skill_proto::Source::Home(
+                            crate::proto::HomeSkillMetadata {},
+                        )),
+                    }],
+                    global_rules: vec![RemoteContextFileProto {
+                        path: "/home/user/.agents/AGENTS.md".to_string(),
+                        content: "rule content".to_string(),
+                    }],
+                },
+            )),
+        },
+    )
+    .await
+    .unwrap();
+    writer.flush().await.unwrap();
+
+    match event_rx.recv().await.unwrap() {
+        ClientEvent::RemoteAgentContextSnapshotReceived { snapshot } => {
+            assert_eq!(snapshot.revision, 7);
+            assert_eq!(snapshot.skills[0].content, "skill content");
+            assert_eq!(snapshot.global_rules[0].content, "rule content");
+        }
+        other => panic!("Expected RemoteAgentContextSnapshotReceived, got {other:?}"),
     }
 }
 
@@ -83,7 +132,7 @@ async fn codebase_index_push_messages_become_client_events() {
     drop(server_read);
 
     let executor = executor::Background::default();
-    let (_client, event_rx, _failure_rx, _host_write_failure_rx, _host_rx) =
+    let (_client, event_rx, _failure_rx, _host_rx) =
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
     let mut writer = server_write.compat_write();
 
@@ -154,7 +203,7 @@ where
     ));
 
     let executor = executor::Background::default();
-    let (client, event_rx, _failure_rx, _host_write_failure_rx, _host_rx) =
+    let (client, event_rx, _failure_rx, _host_rx) =
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
     (client, event_rx, executor)
 }
@@ -244,7 +293,7 @@ async fn authenticate_sends_fire_and_forget_message() {
     let (server_read, _server_write) = tokio::io::split(server_stream);
     let (client_read, client_write) = tokio::io::split(client_stream);
     let executor = executor::Background::default();
-    let (client, _event_rx, _failure_rx, _host_write_failure_rx, _host_rx) =
+    let (client, _event_rx, _failure_rx, _host_rx) =
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
 
     client.authenticate("rotated-secret");
@@ -264,7 +313,7 @@ async fn send_host_scoped_returns_ok_when_connected() {
     let (server_read, _server_write) = tokio::io::split(server_stream);
     let (client_read, client_write) = tokio::io::split(client_stream);
     let executor = executor::Background::default();
-    let (client, _event_rx, _failure_rx, _host_write_failure_rx, _host_rx) =
+    let (client, _event_rx, _failure_rx, _host_rx) =
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
 
     let msg = ClientMessage::host_scoped(
@@ -298,7 +347,7 @@ async fn disconnected_on_closed_stream() {
 
     let (client_read, client_write) = tokio::io::split(client_stream);
     let executor = executor::Background::default();
-    let (client, disconnect_rx, _failure_rx, _host_write_failure_rx, _host_rx) =
+    let (client, disconnect_rx, _failure_rx, _host_rx) =
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
 
     // An initialize call on a dead stream must complete with an error rather than hang.
@@ -324,10 +373,6 @@ async fn disconnected_on_closed_stream() {
     // sending the event), so callers can rely on `is_disconnected()` to
     // short-circuit further requests.
     assert!(client.is_disconnected());
-
-    let closed =
-        tokio::time::timeout(std::time::Duration::from_millis(100), disconnect_rx.recv()).await;
-    assert!(matches!(closed, Ok(Err(_))));
 }
 
 #[tokio::test]
@@ -513,7 +558,7 @@ async fn malformed_host_scoped_response_emits_decode_failed_event() {
     drop(server_read);
 
     let executor = executor::Background::default();
-    let (_client, event_rx, _failure_rx, _host_write_failure_rx, _host_rx) =
+    let (_client, event_rx, _failure_rx, _host_rx) =
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
     let mut server_write = server_write.compat_write();
 
@@ -588,7 +633,7 @@ async fn get_diff_state_on_dead_connection_errors_promptly() {
 
     let (client_read, client_write) = tokio::io::split(client_stream);
     let executor = executor::Background::default();
-    let (client, disconnect_rx, _failure_rx, _host_write_failure_rx, _host_rx) =
+    let (client, disconnect_rx, _failure_rx, _host_rx) =
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
 
     // Drain the Disconnected event so the reader-task teardown is observed.

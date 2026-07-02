@@ -65,19 +65,19 @@ impl CloudActionConfirmationDialog {
 
     fn title_text(&self, app: &AppContext) -> String {
         match self.variant {
-            CloudActionConfirmationDialogVariant::LeaveTeam => {
-                text(app, "drive.confirmation.leave_team.title")
-            }
-            CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
-                text(app, "drive.confirmation.leave_team_reload_credits.title")
+            CloudActionConfirmationDialogVariant::LeaveTeam
+            | CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
+                localization::text_for_app(app, "drive.confirmation.leave_team.title")
             }
             CloudActionConfirmationDialogVariant::DeleteTeam => {
-                text(app, "drive.confirmation.delete_team.title")
+                localization::text_for_app(app, "drive.confirmation.delete_team.title")
             }
-            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => text(
-                app,
-                "drive.confirmation.remove_team_member_reload_credits.title",
-            ),
+            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => {
+                localization::text_for_app(
+                    app,
+                    "drive.confirmation.remove_team_member_reload_credits.title",
+                )
+            }
             CloudActionConfirmationDialogVariant::None => String::new(),
         }
     }
@@ -85,18 +85,20 @@ impl CloudActionConfirmationDialog {
     fn body_text(&self, app: &AppContext) -> String {
         match self.variant {
             CloudActionConfirmationDialogVariant::LeaveTeam => {
-                text(app, "drive.confirmation.leave_team.body")
-            }
-            CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
-                text(app, "drive.confirmation.leave_team_reload_credits.body")
+                localization::text_for_app(app, "drive.confirmation.leave_team.body")
             }
             CloudActionConfirmationDialogVariant::DeleteTeam => {
-                text(app, "drive.confirmation.delete_team.body")
+                localization::text_for_app(app, "drive.confirmation.delete_team.body")
             }
-            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => text(
-                app,
-                "drive.confirmation.remove_team_member_reload_credits.body",
-            ),
+            CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
+                localization::text_for_app(app, "drive.confirmation.leave_team_reload_credits.body")
+            }
+            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => {
+                localization::text_for_app(
+                    app,
+                    "drive.confirmation.remove_team_member_reload_credits.body",
+                )
+            }
             CloudActionConfirmationDialogVariant::None => String::new(),
         }
     }
@@ -104,18 +106,23 @@ impl CloudActionConfirmationDialog {
     fn confirm_button_text(&self, app: &AppContext) -> String {
         match self.variant {
             CloudActionConfirmationDialogVariant::LeaveTeam => {
-                text(app, "drive.confirmation.leave_team.confirm")
-            }
-            CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
-                text(app, "drive.confirmation.leave_team_reload_credits.confirm")
+                localization::text_for_app(app, "drive.confirmation.leave_team.confirm")
             }
             CloudActionConfirmationDialogVariant::DeleteTeam => {
-                text(app, "drive.confirmation.delete_team.confirm")
+                localization::text_for_app(app, "drive.confirmation.delete_team.confirm")
             }
-            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => text(
-                app,
-                "drive.confirmation.remove_team_member_reload_credits.confirm",
-            ),
+            CloudActionConfirmationDialogVariant::LeaveTeamReloadCredits => {
+                localization::text_for_app(
+                    app,
+                    "drive.confirmation.leave_team_reload_credits.confirm",
+                )
+            }
+            CloudActionConfirmationDialogVariant::RemoveTeamMemberReloadCredits => {
+                localization::text_for_app(
+                    app,
+                    "drive.confirmation.remove_team_member_reload_credits.confirm",
+                )
+            }
             CloudActionConfirmationDialogVariant::None => String::new(),
         }
     }
@@ -172,7 +179,7 @@ impl View for CloudActionConfirmationDialog {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_text_label(text(app, "drive.confirmation.cancel"))
+            .with_text_label(localization::text_for_app(app, "drive.confirmation.cancel"))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -242,8 +249,4 @@ impl TypedActionView for CloudActionConfirmationDialog {
             }
         }
     }
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }

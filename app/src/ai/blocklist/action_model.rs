@@ -52,6 +52,7 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentActionTypeDiscriminants, AIAgentExchange, AIAgentInput,
     CancellationReason, CreateDocumentsResult, EditDocumentsResult, RequestCommandOutputResult,
 };
+use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use crate::ai::blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
@@ -261,7 +262,7 @@ impl BlocklistAIActionModel {
                 ctx,
             )
         });
-        ctx.subscribe_to_model(&executor, move |me, event, ctx| match event {
+        ctx.subscribe_to_model(&executor, move |me, _, event, ctx| match event {
             BlocklistAIActionExecutorEvent::ExecutingAction { action_id } => {
                 ctx.emit(BlocklistAIActionEvent::ExecutingAction(action_id.clone()));
             }
@@ -865,18 +866,25 @@ impl BlocklistAIActionModel {
 
         let action_id = action.id.clone();
         let phase = self.action_phase_for_action(&action, ctx);
+        // WaitForEvents owns its own status transition; skip the default
+        // in-progress update.
+        let is_wait_for_events = matches!(action.action, AIAgentActionType::WaitForEvents { .. });
         let execute_result = self.executor.update(ctx, |executor, ctx| {
             executor.try_to_execute_action(action, conversation_id, is_user_initiated, ctx)
         });
 
         match execute_result {
             TryExecuteResult::ExecutedAsync => {
-                self.update_conversation_in_progress_status(conversation_id, ctx);
+                if !is_wait_for_events {
+                    self.update_conversation_in_progress_status(conversation_id, ctx);
+                }
                 self.add_running_action(conversation_id, action_id, phase);
                 Some(StartedAction::Async { phase })
             }
             TryExecuteResult::ExecutedSync => {
-                self.update_conversation_in_progress_status(conversation_id, ctx);
+                if !is_wait_for_events {
+                    self.update_conversation_in_progress_status(conversation_id, ctx);
+                }
                 Some(StartedAction::Sync)
             }
             TryExecuteResult::NotExecuted { reason, action } => {
@@ -1043,6 +1051,27 @@ impl BlocklistAIActionModel {
                     self.cancel_pending_action(conversation_id, action, Some(reason), ctx);
                 }
             }
+        }
+    }
+
+    /// Cancels any in-flight WaitForEvents action for the given conversation.
+    pub fn cancel_wait_for_events_for_conversation(
+        &mut self,
+        conversation_id: AIConversationId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let action_id = self.executor.update(ctx, |executor, _| {
+            executor.find_running_wait_for_events(conversation_id)
+        });
+        if let Some(action_id) = action_id {
+            self.cancel_action_with_id(
+                conversation_id,
+                &action_id,
+                CancellationReason::FollowUpSubmitted {
+                    is_for_same_conversation: true,
+                },
+                ctx,
+            );
         }
     }
 
@@ -1261,7 +1290,7 @@ impl BlocklistAIActionModel {
             .get(&conversation_id)
             .is_none_or(|actions| actions.is_empty())
         {
-            if !cancellation_reason.is_some_and(|r| r.is_follow_up_for_same_conversation()) {
+            if !cancellation_reason.is_some_and(|r| r.should_preserve_in_progress_status()) {
                 BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
                     let status = if self
                         .finished_action_results
@@ -1312,8 +1341,6 @@ impl BlocklistAIActionModel {
                     return;
                 };
                 let titles = conversation.get_document_titles_for_action(&result.id);
-                let default_title =
-                    crate::localization::text_for_app(ctx, "ai_document.title.default");
 
                 let doc_model = AIDocumentModel::handle(ctx);
                 doc_model.update(ctx, |doc_model, doc_ctx| {
@@ -1326,7 +1353,7 @@ impl BlocklistAIActionModel {
                             .as_ref()
                             .and_then(|t| t.get(index))
                             .cloned()
-                            .unwrap_or_else(|| default_title.clone());
+                            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
 
                         doc_model.restore_document(
                             doc_context.document_id,

@@ -32,17 +32,12 @@ use warpui::{
 use super::editor::view::{CodeEditorRenderOptions, CodeEditorView};
 use super::global_buffer_model::GlobalBufferModel;
 use crate::editor::InteractionState;
-use crate::localization;
 use crate::search::result_renderer::ItemHighlightState;
 
 /// Maximum height for the find references card.
 pub const FIND_REFERENCES_CARD_MAX_HEIGHT: f32 = 300.;
 
 const HAS_REFERENCES: &str = "HasReferences";
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -501,9 +496,9 @@ fn render_header(
 
     // "Showing X references" title
     let title_text = if total_refs == 1 {
-        text(app, "code.find_references.showing_one")
+        "Showing 1 reference".to_string()
     } else {
-        text(app, "code.find_references.showing_many").replace("{count}", &total_refs.to_string())
+        format!("Showing {total_refs} references")
     };
 
     let title = Align::new(
@@ -649,7 +644,7 @@ fn render_reference_entry(
             } else {
                 // Show loading indicator when line_content is None
                 Text::new_inline(
-                    text(app, "code.find_references.loading"),
+                    "Loading...",
                     appearance.monospace_font_family(),
                     appearance.monospace_font_size(),
                 )

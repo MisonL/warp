@@ -36,6 +36,8 @@ const LAUNCH_CONFIG_SAVE_MODAL_SOURCE: &str =
 const USER_CONFIG_NATIVE_SOURCE: &str = include_str!("../../../app/src/user_config/native.rs");
 const WORKSPACE_VIEW_SOURCE: &str = include_str!("../../../app/src/workspace/view.rs");
 const AI_SETTINGS_PAGE_SOURCE: &str = include_str!("../../../app/src/settings_view/ai_page.rs");
+const AMBIENT_AGENT_MODEL_SELECTOR_SOURCE: &str =
+    include_str!("../../../app/src/terminal/view/ambient_agent/model_selector.rs");
 const AGENT_SDK_AMBIENT_SOURCE: &str = include_str!("../../../app/src/ai/agent_sdk/ambient.rs");
 const WORKSPACE_CLI_INSTALL_SOURCE: &str =
     include_str!("../../../app/src/workspace/cli_install.rs");
@@ -1094,20 +1096,19 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.init_project.environment.prompt",
         "terminal.init_project.environment.skipped",
         "terminal.init_project.lsp.enabled",
-        "terminal.init_project.lsp.enabled_one_suffix",
+        "terminal.init_project.lsp.enabled_one",
         "terminal.init_project.lsp.install_failed",
         "terminal.init_project.lsp.install_success",
         "terminal.init_project.lsp.installing_background",
         "terminal.init_project.lsp.installation_started",
         "terminal.lsp.start_failed",
         "terminal.init_project.lsp.multiple_prompt",
-        "terminal.init_project.lsp.single_prompt_prefix",
-        "terminal.init_project.lsp.single_prompt_suffix",
+        "terminal.init_project.lsp.single_prompt",
         "terminal.init_project.lsp.skipped",
         "terminal.init_project.project_rules.already_configured",
         "terminal.init_project.project_rules.configured",
         "terminal.init_project.project_rules.generating",
-        "terminal.init_project.project_rules.linked_from_prefix",
+        "terminal.init_project.project_rules.linked_from",
         "terminal.init_project.project_rules.prompt",
         "terminal.init_project.project_rules.skipped",
         "terminal.init_project.welcome.already_setup",
@@ -1262,9 +1263,16 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "search.command_search.out_of_credits_contact_admin",
         "search.command_search.out_of_credits_prefix",
         "search.command_search.out_of_credits_suffix",
+        "search.command_search.a11y.result_accepted",
+        "search.command_search.a11y.result_accepted_help",
+        "search.command_search.a11y.result_executed",
+        "search.command_search.a11y.result_executed_help",
         "search.command_search.warp_ai.error.bad_prompt",
         "search.command_search.warp_ai.error.generic",
         "search.command_search.warp_ai.error.rate_limited",
+        "search.command_search.warp_ai.open_body",
+        "search.command_search.warp_ai.translate_body",
+        "search.ai_context_menu.code.error.generic",
         "search.command_search.upgrade",
         "search.command_search.upgrade_ai_usage",
         "search.filter.display.tabs",
@@ -1617,6 +1625,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "resource_center.section.whats_new",
         "settings.action.add",
         "settings.action.clear",
+        "settings.action.copied",
+        "settings.action.copy",
         "settings.action.default",
         "settings.action.edit",
         "settings.action.enable",
@@ -2009,7 +2019,52 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.environment.error.save_missing_environment",
         "settings.environment.error.share_no_team",
         "settings.environment.error.share_not_synced",
+        "settings.environment.form.create",
+        "settings.environment.form.create_environment",
         "settings.environment.form.delete",
+        "settings.environment.form.description.character_count",
+        "settings.environment.form.description.label",
+        "settings.environment.form.description.placeholder",
+        "settings.environment.form.docker_image.label",
+        "settings.environment.form.docker_image.open",
+        "settings.environment.form.docker_image.placeholder",
+        "settings.environment.form.edit_environment",
+        "settings.environment.form.loading",
+        "settings.environment.form.name.label",
+        "settings.environment.form.name.placeholder",
+        "settings.environment.form.orchestration.docker_image.label",
+        "settings.environment.form.orchestration.docker_image.placeholder",
+        "settings.environment.form.orchestration.name.placeholder",
+        "settings.environment.form.orchestration.repos.placeholder_authed",
+        "settings.environment.form.orchestration.setup_commands.helper",
+        "settings.environment.form.orchestration.setup_commands.placeholder",
+        "settings.environment.form.repos.auth_with_github",
+        "settings.environment.form.repos.configure_access",
+        "settings.environment.form.repos.empty",
+        "settings.environment.form.repos.error.load_failed",
+        "settings.environment.form.repos.error.load_failed_short",
+        "settings.environment.form.repos.error.load_failed_with_error",
+        "settings.environment.form.repos.helper",
+        "settings.environment.form.repos.label",
+        "settings.environment.form.repos.missing_repo",
+        "settings.environment.form.repos.placeholder_authed",
+        "settings.environment.form.repos.placeholder_unauthed",
+        "settings.environment.form.retry",
+        "settings.environment.form.save",
+        "settings.environment.form.save_environment",
+        "settings.environment.form.setup_commands.helper",
+        "settings.environment.form.setup_commands.label",
+        "settings.environment.form.setup_commands.placeholder",
+        "settings.environment.form.suggest_image.auth_required",
+        "settings.environment.form.suggest_image.authenticate",
+        "settings.environment.form.suggest_image.button",
+        "settings.environment.form.suggest_image.error.failed",
+        "settings.environment.form.suggest_image.error.failed_with_error",
+        "settings.environment.form.suggest_image.error.unknown",
+        "settings.environment.form.suggest_image.generating",
+        "settings.environment.form.suggest_image.launch_agent",
+        "settings.environment.form.suggest_image.no_match",
+        "settings.environment.form.suggest_image.tooltip",
         "settings.environment.page.description",
         "settings.environment.page.title",
         "settings.environment.search.no_matches",
@@ -2211,9 +2266,11 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.platform.api_keys.create",
         "settings.platform.api_keys.create_api_key",
         "settings.platform.api_keys.creating",
+        "settings.platform.api_keys.date",
         "settings.platform.api_keys.default_name",
         "settings.platform.api_keys.deleted",
         "settings.platform.api_keys.description",
+        "settings.platform.api_keys.description.agent",
         "settings.platform.api_keys.description.personal",
         "settings.platform.api_keys.description.team",
         "settings.platform.api_keys.documentation",
@@ -2245,6 +2302,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "settings.platform.api_keys.search_placeholder",
         "settings.platform.api_keys.title",
         "settings.platform.api_keys.type",
+        "settings.platform.api_keys.type.agent",
         "settings.platform.api_keys.type.personal",
         "settings.platform.api_keys.type.team",
         "settings.features.category.general",
@@ -2975,15 +3033,24 @@ fn settings_schema_translation_keys_match_json_schema_paths() {
 fn bundled_catalogs_include_onboarding_copy_keys() {
     let en_us = bundled_en_us_map();
     let zh_cn = bundled_zh_cn_map();
-    let keys = onboarding_copy_keys_from_source();
+    let keys = [
+        "onboarding.callout.meet_input.title",
+        "onboarding.callout.meet_input.body",
+        "onboarding.callout.talk_to_agent.title",
+        "onboarding.callout.talk_to_agent.prompt",
+        "onboarding.callout.terminal_mode.title",
+        "onboarding.callout.agent_mode.with_project_body",
+        "onboarding.common.skip",
+        "onboarding.common.next",
+        "onboarding.common.finish",
+        "onboarding.common.submit",
+    ];
 
     assert!(!keys.is_empty(), "expected onboarding copy keys");
 
     let missing = keys
         .iter()
-        .filter_map(|key| {
-            (en_us.get(key).is_none() || zh_cn.get(key).is_none()).then_some(key.as_str())
-        })
+        .filter_map(|key| (en_us.get(*key).is_none() || zh_cn.get(*key).is_none()).then_some(*key))
         .collect::<Vec<_>>();
 
     assert!(
@@ -3295,6 +3362,7 @@ fn app_menu_custom_items_do_not_use_direct_english_literals() {
             &content,
             pattern,
             &mut violations,
+            None,
         );
     }
 
@@ -3357,13 +3425,6 @@ fn current_i18n_multiline_ui_calls_do_not_use_direct_english_literals() {
         (
             "app/src/terminal/input/slash_commands/search_item.rs",
             &["Text::new("][..],
-        ),
-        (
-            "app/src/terminal/ssh/install_tmux.rs",
-            &[
-                "requested_script::render_requested_script(",
-                "render::build_header_row(",
-            ][..],
         ),
         (
             "app/src/ai/blocklist/inline_action/requested_command.rs",
@@ -3576,6 +3637,7 @@ fn binding_description_new_does_not_use_direct_english_literals() {
         &app_src,
         "BindingDescription::new(",
         &mut violations,
+        Some(binding_description_catalog_map_source()),
     );
 
     assert!(
@@ -3593,6 +3655,7 @@ fn editable_binding_descriptions_do_not_use_direct_english_literals() {
         "EditableBinding::new(",
         1,
         &mut violations,
+        Some(binding_description_catalog_map_source()),
     );
 
     assert!(
@@ -3680,6 +3743,28 @@ fn selected_search_accessibility_and_web_home_keys_exist_in_catalogs() {
 }
 
 #[test]
+fn working_directory_voice_and_separator_keys_exist_in_catalogs() {
+    let required_keys = [
+        "settings.features.working_directory.directory_placeholder",
+        "settings.features.working_directory.label",
+        "settings.features.working_directory.new_tab",
+        "settings.features.working_directory.new_window",
+        "settings.features.working_directory.option.advanced",
+        "settings.features.working_directory.option.custom",
+        "settings.features.working_directory.option.home",
+        "settings.features.working_directory.option.previous",
+        "settings.features.working_directory.split_pane",
+        "terminal.block_list.separator.previous_session",
+        "terminal.block_list.separator.restored",
+        "terminal.block_list.separator.with_timestamp",
+        "terminal.input.voice.listening",
+        "terminal.input.voice.transcribing",
+    ];
+
+    assert_bundled_keys_exist(&required_keys);
+}
+
+#[test]
 fn binding_search_accessibility_label_does_not_embed_selected_state() {
     let catalogs = [
         ("en-US", bundled_en_us_map(), "Selected"),
@@ -3697,6 +3782,27 @@ fn binding_search_accessibility_label_does_not_embed_selected_state() {
             "{locale}: search.a11y.item_with_binding must leave selected state to search.a11y.selected_item"
         );
     }
+}
+
+#[test]
+fn ambient_agent_model_selector_default_label_uses_catalog_copy() {
+    let default_label_key = "settings.ai.model_selector.default_model";
+    let occurrences = AMBIENT_AGENT_MODEL_SELECTOR_SOURCE
+        .match_indices(default_label_key)
+        .count();
+
+    assert!(
+        occurrences >= 2,
+        "ambient model selector should use {default_label_key} for both button and menu labels"
+    );
+    assert!(
+        !AMBIENT_AGENT_MODEL_SELECTOR_SOURCE.contains("MenuItemFields::new(\"default\")"),
+        "ambient model selector menu should not render the default label from a direct string"
+    );
+    assert!(
+        !AMBIENT_AGENT_MODEL_SELECTOR_SOURCE.contains("\"default\".to_string()"),
+        "ambient model selector button should not fall back to a direct default label"
+    );
 }
 
 #[test]
@@ -3891,6 +3997,43 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         "terminal.warpify.success.title",
         "workspace.handoff.auto_cloud_prompt",
         "workspace.codex_modal.initial_prompt",
+        "launch_config.save_modal.a11y.description",
+        "launch_config.save_modal.a11y.title",
+        "launch_config.save_modal.action.open_file",
+        "launch_config.save_modal.action.save",
+        "launch_config.save_modal.description",
+        "launch_config.save_modal.description_with_keybinding",
+        "launch_config.save_modal.documentation_link",
+        "launch_config.save_modal.error.file_already_exists",
+        "launch_config.save_modal.error.other",
+        "launch_config.save_modal.path_prefix",
+        "launch_config.save_modal.sentence_suffix",
+        "launch_config.save_modal.success_prefix",
+        "launch_config.save_modal.title",
+        "network_log.action.refresh",
+        "network_log.title",
+        "terminal.block_filter.a11y.content",
+        "terminal.block_filter.a11y.hint",
+        "terminal.block_filter.placeholder",
+        "terminal.block_filter.tooltip.case_sensitive",
+        "terminal.block_filter.tooltip.context_lines",
+        "terminal.block_filter.tooltip.invert",
+        "terminal.block_filter.tooltip.regex",
+        "workflow.env_vars.new",
+        "workflow.env_vars.title",
+        "workflow.info_box.command_edited",
+        "workflow.info_box.reset",
+        "workflow.info_box.view_context",
+        "workspace.autoupdate.package_manager.description_prefix",
+        "workspace.autoupdate.package_manager.description_suffix",
+        "workspace.autoupdate.package_manager.dist_upgrade_prefix",
+        "workspace.autoupdate.package_manager.dist_upgrade_suffix",
+        "workspace.autoupdate.package_manager.footer_prefix",
+        "workspace.autoupdate.package_manager.footer_suffix",
+        "workspace.autoupdate.package_manager.press_enter",
+        "workspace.autoupdate.package_manager.report_issues",
+        "workspace.autoupdate.package_manager.repository_configuration",
+        "workspace.autoupdate.package_manager.title",
     ];
 
     assert_bundled_keys_exist(&required_keys);
@@ -3909,14 +4052,9 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         ),
         ("app/src/util/path.rs", &["\"Remote host\""][..]),
         (
-            "app/src/ai/ai_document_view.rs",
-            &["\"Planning document\""][..],
-        ),
-        (
             "app/src/ai/document/ai_document_model.rs",
             &["\"Planning document\""][..],
         ),
-        ("app/src/ai/llms.rs", &["\"Custom endpoint\""][..]),
         (
             "app/src/ai/blocklist/controller.rs",
             &[
@@ -3955,14 +4093,6 @@ fn current_i18n_regression_targets_are_catalog_backed() {
             &["Remote codebase search is not available in this environment."][..],
         ),
         (
-            "app/src/remote_server/codebase_index_model.rs",
-            &[
-                "The remote host is currently disconnected.",
-                "The remote codebase index is missing its root hash.",
-                "Remote codebase search is not available.",
-            ][..],
-        ),
-        (
             "app/src/ai/blocklist/orchestration_events.rs",
             &["Source conversation not found", "No target agents provided"][..],
         ),
@@ -3971,16 +4101,8 @@ fn current_i18n_regression_targets_are_catalog_backed() {
             &["\"Failed to start SSH extension\""][..],
         ),
         (
-            "app/src/workspace/view.rs",
-            &["\"Hello, Agent Mode x Codex!\""][..],
-        ),
-        (
             "app/src/terminal/input/rewind/search_item.rs",
-            &[
-                "query_text: \"Current\"",
-                "\"Current state (no rewind)\"",
-                "Text::new_inline(\"Current\"",
-            ][..],
+            &["query_text: \"Current\"", "Text::new_inline(\"Current\""][..],
         ),
         (
             "app/src/tab_configs/session_config.rs",
@@ -3994,18 +4116,6 @@ fn current_i18n_regression_targets_are_catalog_backed() {
                 "format!(\"'{}' failed",
                 "format!(\"Failed to run",
             ][..],
-        ),
-        (
-            "app/src/terminal/cli_agent_sessions/plugin_manager/claude.rs",
-            &[
-                "Plugin update did not take effect",
-                "Platform plugin installation did not take effect",
-                "Platform plugin update did not take effect",
-            ][..],
-        ),
-        (
-            "app/src/terminal/cli_agent_sessions/plugin_manager/gemini.rs",
-            &["Plugin update did not take effect"][..],
         ),
         (
             "app/src/ai/blocklist/inline_action/ask_user_question_view.rs",
@@ -4107,11 +4217,62 @@ fn current_i18n_regression_targets_are_catalog_backed() {
                 "Agent encountered an error",
                 "Cancelled by user",
                 "The agent got stuck waiting for user confirmation",
-                "Your team has run out of credits",
-                "Warp is temporarily overloaded",
-                "Context window exceeded: {msg}",
-                "Invalid API key for {provider}",
-                "AWS Bedrock credentials expired or invalid",
+            ][..],
+        ),
+        (
+            "app/src/launch_configs/save_modal.rs",
+            &[
+                "Save Configuration",
+                "Open YAML File",
+                "Save Current Configuration",
+                "Link to Documentation",
+                "Failed to save. A launch configuration with the same name already exists.",
+                "An issue was encountered while saving.",
+                "This will save your current configuration of windows",
+                "The YAML file is saved to",
+                "Save Config Modal",
+                "Type the name of the file to which you want to save",
+            ][..],
+        ),
+        (
+            "app/src/autoupdate/linux.rs",
+            &[
+                "Run {package_manager_name} to update",
+                "or a compatible tool, the pre-filled command will update Warp for you.",
+                "The command below includes a one-time configuration",
+                "function ensures the Warp package repository is enabled",
+                "Review the command below, then",
+                "press enter",
+                "Please report any issues",
+            ][..],
+        ),
+        (
+            "app/src/workflows/info_box.rs",
+            &[
+                "ENV_VAR_SPAN: &str = \"Environment variables\"",
+                "NEW_ENV_VAR_BUTTON_LABEL: &str = \"New environment variables\"",
+                "Command edited.",
+                "String::from(\"Reset\")",
+                "\"View Context\"",
+            ][..],
+        ),
+        (
+            "app/src/server/network_log_view.rs",
+            &[
+                "NETWORK_LOG_HEADER_TEXT: &str = \"Network log\"",
+                "REFRESH_TOOLTIP: &str = \"Refresh\"",
+            ][..],
+        ),
+        (
+            "app/src/terminal/block_filter.rs",
+            &[
+                "Filter block output",
+                "Show context lines around matches",
+                "Regex toggle",
+                "Case sensitive search",
+                "Invert filter",
+                "Type searched phrase.",
+                "Press escape to quit",
             ][..],
         ),
     ];
@@ -4773,10 +4934,6 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
             &["\"SSH Warpification\""][..],
         ),
         (
-            "app/src/server/iap.rs",
-            &["IAP credential refresh failed: {message}"][..],
-        ),
-        (
             "app/src/ai/blocklist/agent_view/agent_input_footer/mod.rs",
             &["context remaining", "No plugin manager available"][..],
         ),
@@ -5014,15 +5171,6 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
                 "Manage your Warp Settings",
             ][..],
         ),
-        (
-            "app/src/search/welcome_palette/view.rs",
-            &[
-                "format!(\"Add repository {keystroke}\")",
-                "\"Add repository\".to_string()",
-                "format!(\"Terminal session {keystroke}\")",
-                "\"Terminal session\".to_string()",
-            ][..],
-        ),
         ("app/src/view_components/find.rs", &["\"Scanning...\""][..]),
         (
             "app/src/terminal/view/ambient_agent/block/harness_session_header.rs",
@@ -5184,18 +5332,6 @@ fn empty_translation_keys(catalog: &CatalogMap) -> Vec<&str> {
     catalog
         .iter()
         .filter_map(|(key, value)| (value.as_str() == Some("")).then_some(key.as_str()))
-        .collect()
-}
-
-fn onboarding_copy_keys_from_source() -> BTreeSet<String> {
-    let path = workspace_root().join("crates/onboarding/src/copy.rs");
-    let content = fs::read_to_string(&path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-    content
-        .lines()
-        .flat_map(string_literals)
-        .filter(|literal| literal.starts_with("onboarding."))
-        .map(str::to_owned)
         .collect()
 }
 
@@ -5811,6 +5947,7 @@ fn collect_direct_first_argument_literal_violations(
     content: &str,
     pattern: &str,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let mut cursor = 0;
     while let Some(found_at) = content[cursor..].find(pattern) {
@@ -5819,6 +5956,10 @@ fn collect_direct_first_argument_literal_violations(
         if let Some(literal) = first_argument_string_literal(&content[arg_start..]) {
             if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal) && looks_like_english_ui_text(literal)
             {
+                if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
+                    cursor = arg_start;
+                    continue;
+                }
                 violations.push(format!(
                     "{}:{}: {literal:?}",
                     relative_path,
@@ -5834,6 +5975,7 @@ fn collect_direct_first_argument_literal_violations_in_dir(
     dir: &Path,
     pattern: &str,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let entries =
         fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
@@ -5842,7 +5984,12 @@ fn collect_direct_first_argument_literal_violations_in_dir(
         let entry = entry.expect("failed to read source directory entry");
         let path = entry.path();
         if path.is_dir() {
-            collect_direct_first_argument_literal_violations_in_dir(&path, pattern, violations);
+            collect_direct_first_argument_literal_violations_in_dir(
+                &path,
+                pattern,
+                violations,
+                allowed_catalog_map_source,
+            );
             continue;
         }
 
@@ -5871,6 +6018,7 @@ fn collect_direct_first_argument_literal_violations_in_dir(
             &content,
             pattern,
             violations,
+            allowed_catalog_map_source,
         );
     }
 }
@@ -5880,6 +6028,7 @@ fn collect_binding_description_literal_violations_in_dir(
     pattern: &str,
     description_argument_index: usize,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let entries =
         fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
@@ -5893,6 +6042,7 @@ fn collect_binding_description_literal_violations_in_dir(
                 pattern,
                 description_argument_index,
                 violations,
+                allowed_catalog_map_source,
             );
             continue;
         }
@@ -5923,6 +6073,7 @@ fn collect_binding_description_literal_violations_in_dir(
             pattern,
             description_argument_index,
             violations,
+            allowed_catalog_map_source,
         );
     }
 }
@@ -5933,6 +6084,7 @@ fn collect_binding_description_literal_violations(
     pattern: &str,
     description_argument_index: usize,
     violations: &mut Vec<String>,
+    allowed_catalog_map_source: Option<&str>,
 ) {
     let mut cursor = 0;
     while let Some(found_at) = content[cursor..].find(pattern) {
@@ -5948,6 +6100,10 @@ fn collect_binding_description_literal_violations(
                 if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
                     && looks_like_english_ui_text(literal)
                 {
+                    if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
+                        cursor = close_paren + 1;
+                        continue;
+                    }
                     violations.push(format!(
                         "{}:{}: {literal:?}",
                         relative_path,
@@ -5958,6 +6114,50 @@ fn collect_binding_description_literal_violations(
         }
         cursor = close_paren + 1;
     }
+}
+
+fn binding_description_catalog_map_source() -> &'static str {
+    include_str!("../../../app/src/util/bindings.rs")
+}
+
+fn catalog_map_contains_literal(map_source: Option<&str>, literal: &str) -> bool {
+    let Some(map_source) = map_source else {
+        return false;
+    };
+    if english_catalog_contains_text(literal) {
+        return true;
+    }
+    let titlecase_literal = titlecase_for_binding_description(literal);
+    if english_catalog_contains_text(&titlecase_literal) {
+        return true;
+    }
+    map_source.contains(&format!("\"{titlecase_literal}\" =>"))
+}
+
+fn english_catalog_contains_text(text: &str) -> bool {
+    english_catalog_values().iter().any(|value| value == text)
+}
+
+fn english_catalog_values() -> Vec<String> {
+    let catalog: std::collections::HashMap<String, String> =
+        serde_json::from_str(BUNDLED_EN_US).expect("en-US catalog must be valid JSON");
+    catalog.into_values().collect()
+}
+
+fn titlecase_for_binding_description(literal: &str) -> String {
+    literal
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => {
+                    first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn collect_direct_literal_after_patterns(

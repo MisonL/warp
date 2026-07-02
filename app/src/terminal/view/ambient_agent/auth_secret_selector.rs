@@ -306,13 +306,13 @@ impl AuthSecretSelector {
         let Some(hovered_index) = hovered_index else {
             return;
         };
-        let new_label = localization::text_for_app(ctx, "terminal.auth_secret.new");
+        let new_item_label = localization::text_for_app(ctx, "terminal.auth_secret.new");
         let is_new_item = self.menu.read(ctx, |menu, _| {
             menu.items()
                 .get(hovered_index)
                 .map(|item| {
                     matches!(item,
-                    MenuItem::Item(fields) if fields.label() == new_label)
+                    MenuItem::Item(fields) if fields.label() == new_item_label)
                 })
                 .unwrap_or(false)
         });
@@ -629,7 +629,7 @@ fn build_main_menu_items(
         }
         AuthSecretFetchState::NotFetched | AuthSecretFetchState::Loading => {
             items.push(MenuItem::Item(
-                MenuItemFields::new(localization::text_for_app(app, "common.loading"))
+                MenuItemFields::new(localization::text_for_app(app, "status.loading"))
                     .with_font_size_override(ITEM_FONT_SIZE)
                     .with_padding_override(ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
                     .with_disabled(true)

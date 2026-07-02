@@ -18,7 +18,6 @@
 //! —————————————————————————————————
 //! ```
 
-use crate::localization;
 pub(super) mod common;
 pub use common::FindContext;
 mod comments;
@@ -89,10 +88,6 @@ use crate::util::link_detection::DetectedLinkType;
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::dropdown::DropdownItemAction;
 use crate::workspace::WorkspaceAction;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 /// Helper function to create gray strikethrough highlight for secrets
 fn create_secret_gray_highlight() -> Highlight {
@@ -741,7 +736,6 @@ where
 {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
-    let description = description.into().into_owned();
     Clipped::new(
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -749,7 +743,7 @@ where
             .with_child(
                 Container::new(
                     Text::new(
-                        description,
+                        description.into(),
                         appearance.ui_font_family(),
                         appearance.monospace_font_size() - 1.,
                     )
@@ -772,7 +766,10 @@ where
                         appearance
                             .ui_builder()
                             .link(
-                                text(app, "agent.output.permissions.manage_autonomy"),
+                                crate::localization::text_for_app(
+                                    app,
+                                    "agent.output.permissions.manage_autonomy",
+                                ),
                                 None,
                                 Some(Box::new(move |ctx| {
                                     ctx.dispatch_typed_action(
@@ -848,7 +845,10 @@ pub fn render_autonomy_checkbox_setting_speedbump_footer(
                     appearance
                         .ui_builder()
                         .link(
-                            text(app, "agent.output.permissions.manage_autonomy"),
+                            crate::localization::text_for_app(
+                                app,
+                                "agent.output.permissions.manage_autonomy",
+                            ),
                             None,
                             Some(Box::new(move |ctx| {
                                 ctx.dispatch_typed_action(
@@ -1068,6 +1068,13 @@ impl View for AIBlock {
         );
         drop(terminal_model);
 
+        #[cfg(not(target_family = "wasm"))]
+        let is_cloud_agent_context = FeatureFlag::CloudMode.is_enabled()
+            && self
+                .ambient_agent_view_model
+                .as_ref()
+                .is_some_and(|model| model.as_ref(app).is_ambient_agent());
+
         contents.add_child(output::render(
             output::Props {
                 model: self.model.as_ref(),
@@ -1121,6 +1128,8 @@ impl View for AIBlock {
                 shared_session_status: &shared_session_status,
                 terminal_view_id: self.terminal_view_id,
                 is_conversation_transcript_viewer,
+                #[cfg(not(target_family = "wasm"))]
+                is_cloud_agent_context,
                 aws_bedrock_credentials_error_view: self
                     .aws_bedrock_credentials_error_view
                     .as_ref(),
@@ -1228,8 +1237,11 @@ impl View for AIBlock {
 
         let mut selectable = SelectableArea::new(
             self.state_handles.selection_handle.clone(),
-            move |selection_args, _, _| {
-                *selected_text.write() = selection_args.selection;
+            move |selection_args, ctx, _| {
+                *selected_text.write() = selection_args
+                    .selection
+                    .filter(|selection| !selection.is_empty());
+                ctx.dispatch_typed_action(AIBlockAction::SelectText);
             },
             SavePosition::new(content.finish(), self.saved_position_id().as_str()).finish(),
         )

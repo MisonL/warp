@@ -29,13 +29,13 @@ use crate::pane_group::pane::{
     ToolbeltButton,
 };
 use crate::pane_group::{BackingView, Direction, PaneDragDropLocation, PaneId, TabBarHoverIndex};
+use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{SharingDialogSource, TelemetryEvent};
 use crate::settings::CodeSettings;
 use crate::tab::tab_position_id;
 use crate::terminal::view::TerminalAction;
 use crate::view_components::{FeaturePopup, NewFeaturePopupEvent, NewFeaturePopupLabel};
 use crate::workspace::{TabBarDropTargetData, TabBarLocation, VerticalTabsPaneDropTargetData};
-use crate::{localization, send_telemetry_from_ctx};
 
 mod sharing;
 
@@ -144,11 +144,9 @@ impl<P: BackingView> PaneHeader<P> {
 
         let shared_content = SharedPaneContent::new(ctx);
 
-        let toolbelt_feature_popup_label =
-            localization::text_for_app(ctx, "terminal.pane_header.toolbelt_feature_popup");
-        let toolbelt_feature_popup = ctx.add_view(move |_| {
+        let toolbelt_feature_popup = ctx.add_view(|_| {
             FeaturePopup::new_feature(NewFeaturePopupLabel::FromString(
-                toolbelt_feature_popup_label.clone(),
+                "Open files and review code diffs".to_string(),
             ))
         });
         ctx.subscribe_to_view(&toolbelt_feature_popup, move |me, _, event, ctx| {

@@ -1,6 +1,6 @@
 use session_sharing_protocol::common::{Role, WindowSize};
 use warpui::elements::MouseStateHandle;
-use warpui::{ViewContext, ViewHandle};
+use warpui::{AppContext, ViewContext, ViewHandle};
 
 use super::adapter::Participant;
 use crate::localization;
@@ -57,21 +57,21 @@ impl Viewer {
     pub fn role_change_menu_items(
         current_role: Role,
         is_reconnecting: bool,
-        ctx: &ViewContext<TerminalView>,
+        app: &AppContext,
     ) -> Vec<MenuItem<PaneHeaderAction<TerminalAction, TerminalAction>>> {
         let mut items = Vec::new();
         match current_role {
             Role::Reader => items.extend([
                 // TODO: this should still dispatch an action that eventually no-ops
                 MenuItemFields::new(localization::text_for_app(
-                    ctx,
+                    app,
                     "terminal.shared_session.role.view",
                 ))
                 .with_icon(Icon::Check)
                 .with_disabled(is_reconnecting)
                 .into_item(),
                 MenuItemFields::new(localization::text_for_app(
-                    ctx,
+                    app,
                     "terminal.shared_session.role.edit",
                 ))
                 .with_indent()
@@ -83,7 +83,7 @@ impl Viewer {
             ]),
             Role::Executor | Role::Full => items.extend([
                 MenuItemFields::new(localization::text_for_app(
-                    ctx,
+                    app,
                     "terminal.shared_session.role.view",
                 ))
                 .with_indent()
@@ -91,7 +91,7 @@ impl Viewer {
                 .into_item(),
                 // TODO: this should still dispatch an action that eventually no-ops
                 MenuItemFields::new(localization::text_for_app(
-                    ctx,
+                    app,
                     "terminal.shared_session.role.edit",
                 ))
                 .with_icon(Icon::Check)

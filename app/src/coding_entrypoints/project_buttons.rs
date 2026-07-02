@@ -21,14 +21,9 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
-use crate::localization;
 use crate::util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction};
 
 const BUTTON_MIN_WIDTH: f32 = 149.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -36,7 +31,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "project_buttons:open_repository",
-            text(app, "coding_entrypoints.open_repository.label"),
+            "Open repository",
             ProjectButtonsAction::OpenRepository,
         )
         .with_context_predicate(id!("ProjectButons"))
@@ -44,7 +39,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::OpenRepository),
         EditableBinding::new(
             "project_buttons:create_new_project",
-            text(app, "coding_entrypoints.create_project.label"),
+            "Create new project",
             ProjectButtonsAction::CreateProject,
         )
         .with_context_predicate(id!("ProjectButons"))
@@ -229,11 +224,11 @@ impl View for ProjectButtons {
         if FeatureFlag::CreateProjectFlow.is_enabled() {
             row.add_children([
                 Container::new(self.glowing_button(
-                    text(app, "coding_entrypoints.create_project.label"),
+                    "Create new project",
                     Icon::Plus,
                     ProjectButtonsAction::CreateProject,
                     TooltipData {
-                        text: text(app, "coding_entrypoints.create_project.tooltip"),
+                        text: "Create and initialize a brand new project".to_string(),
                         keybinding: keybinding_name_to_display_string(
                             "project_buttons:create_new_project",
                             app,
@@ -245,11 +240,11 @@ impl View for ProjectButtons {
                 .with_margin_right(16.)
                 .finish(),
                 Container::new(self.glowing_button(
-                    text(app, "coding_entrypoints.open_repository.label"),
+                    "Open repository",
                     Icon::Folder,
                     ProjectButtonsAction::OpenRepository,
                     TooltipData {
-                        text: text(app, "coding_entrypoints.open_repository.tooltip"),
+                        text: "Open an existing local folder or repository".to_string(),
                         keybinding: keybinding_name_to_display_string(
                             "project_buttons:open_repository",
                             app,
@@ -261,11 +256,11 @@ impl View for ProjectButtons {
                 .with_margin_right(16.)
                 .finish(),
                 self.glowing_button(
-                    text(app, "coding_entrypoints.clone_repository.label"),
+                    "Clone repository",
                     Icon::Duplicate,
                     ProjectButtonsAction::CloneRepository,
                     TooltipData {
-                        text: text(app, "coding_entrypoints.clone_repository.tooltip"),
+                        text: "Clone a repo from GitHub or another source".to_string(),
                         keybinding: None,
                     },
                     self.state_handles.clone_repo_button.clone(),
@@ -277,11 +272,11 @@ impl View for ProjectButtons {
                 Expanded::new(
                     1.,
                     self.glowing_button(
-                        text(app, "coding_entrypoints.open_repository.label"),
+                        "Open repository",
                         Icon::Plus,
                         ProjectButtonsAction::CreateProject,
                         TooltipData {
-                            text: text(app, "coding_entrypoints.open_repository.tooltip"),
+                            text: "Open an existing local folder or repository".to_string(),
                             keybinding: keybinding_name_to_display_string(
                                 "project_buttons:open_repository",
                                 app,

@@ -15,8 +15,7 @@ use super::{ExecutionProfileEditorView, ExecutionProfileEditorViewAction};
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::{
     long_context_pricing_warning_title, AIExecutionProfile, AIExecutionProfileAppExt as _,
-    ActionPermission, AskUserQuestionPermission, ComputerUsePermission, RunAgentsPermission,
-    WriteToPtyPermission,
+    ActionPermission,
 };
 use crate::editor::EditorView;
 use crate::settings::AISettings;
@@ -29,100 +28,6 @@ use crate::{localization, Appearance, TemplatableMCPServerManager};
 
 const CONTEXT_WINDOW_SLIDER_WIDTH: f32 = 220.;
 const CONTEXT_WINDOW_INPUT_BOX_WIDTH: f32 = 120.;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn action_permission_description(app: &AppContext, permission: ActionPermission) -> String {
-    let key = match permission {
-        ActionPermission::AgentDecides | ActionPermission::Unknown => {
-            "settings.execution_profile.editor.permission_description.agent_decides"
-        }
-        ActionPermission::AlwaysAllow => {
-            "settings.execution_profile.editor.permission_description.always_allow"
-        }
-        ActionPermission::AlwaysAsk => {
-            "settings.execution_profile.editor.permission_description.always_ask"
-        }
-    };
-    text(app, key)
-}
-
-fn write_to_pty_permission_description(
-    app: &AppContext,
-    permission: WriteToPtyPermission,
-) -> String {
-    let key = match permission {
-        WriteToPtyPermission::AlwaysAllow => {
-            return action_permission_description(app, ActionPermission::AlwaysAllow);
-        }
-        WriteToPtyPermission::AskOnFirstWrite => {
-            "settings.execution_profile.editor.permission_description.ask_on_first_write"
-        }
-        WriteToPtyPermission::AlwaysAsk => {
-            "settings.execution_profile.editor.permission_description.always_ask_running_command"
-        }
-        WriteToPtyPermission::Unknown => {
-            return action_permission_description(app, ActionPermission::Unknown);
-        }
-    };
-    text(app, key)
-}
-
-fn computer_use_permission_description(
-    app: &AppContext,
-    permission: ComputerUsePermission,
-) -> String {
-    let key = match permission {
-        ComputerUsePermission::Never => {
-            "settings.execution_profile.editor.permission_description.computer_use_never"
-        }
-        ComputerUsePermission::AlwaysAsk => {
-            "settings.execution_profile.editor.permission_description.computer_use_always_ask"
-        }
-        ComputerUsePermission::AlwaysAllow => {
-            "settings.execution_profile.editor.permission_description.computer_use_always_allow"
-        }
-        ComputerUsePermission::Unknown => {
-            "settings.execution_profile.editor.permission_description.unknown"
-        }
-    };
-    text(app, key)
-}
-
-fn ask_user_question_permission_description(
-    app: &AppContext,
-    permission: AskUserQuestionPermission,
-) -> String {
-    let key = match permission {
-        AskUserQuestionPermission::AskExceptInAutoApprove | AskUserQuestionPermission::Unknown => {
-            "settings.execution_profile.editor.permission_description.ask_unless_auto_approve"
-        }
-        AskUserQuestionPermission::Never => {
-            "settings.execution_profile.editor.permission_description.ask_questions_never"
-        }
-        AskUserQuestionPermission::AlwaysAsk => {
-            "settings.execution_profile.editor.permission_description.ask_questions_always"
-        }
-    };
-    text(app, key)
-}
-
-fn run_agents_permission_description(app: &AppContext, permission: RunAgentsPermission) -> String {
-    let key = match permission {
-        RunAgentsPermission::NeverAllow | RunAgentsPermission::Unknown => {
-            "settings.execution_profile.editor.permission_description.run_agents_never"
-        }
-        RunAgentsPermission::AlwaysAllow => {
-            "settings.execution_profile.editor.permission_description.run_agents_always_allow"
-        }
-        RunAgentsPermission::AlwaysAsk => {
-            "settings.execution_profile.editor.permission_description.run_agents_always_ask"
-        }
-    };
-    text(app, key)
-}
 
 pub(super) fn context_window_snap_values(min: u32, max: u32) -> Vec<f32> {
     if min >= max {
@@ -163,14 +68,14 @@ fn nice_step(raw: f64) -> f64 {
 use crate::settings_view::{render_input_list, render_separator, InputListItem};
 
 pub fn render_header_section(
-    appearance: &Appearance,
+    app: &AppContext,
     profile_name_editor: &ViewHandle<EditorView>,
     is_default_profile: bool,
-    app: &AppContext,
 ) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
     let mut column = Flex::column()
-        .with_child(render_header_title(appearance, app))
-        .with_child(render_header_name_label(appearance, app))
+        .with_child(render_header_title(app))
+        .with_child(render_header_name_label(app))
         .with_child(
             Container::new(
                 appearance
@@ -186,7 +91,7 @@ pub fn render_header_section(
 
     if is_default_profile {
         column.add_child(render_info_section(
-            &text(
+            &localization::text_for_app(
                 app,
                 "settings.execution_profile.editor.default_profile_name_locked",
             ),
@@ -200,9 +105,10 @@ pub fn render_header_section(
         .finish()
 }
 
-fn render_header_title(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+fn render_header_title(app: &AppContext) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
     Text::new_inline(
-        text(app, "settings.execution_profile.editor.title"),
+        localization::text_for_app(app, "settings.execution_profile.editor.title"),
         appearance.ui_font_family(),
         16.,
     )
@@ -211,10 +117,11 @@ fn render_header_title(appearance: &Appearance, app: &AppContext) -> Box<dyn Ele
     .finish()
 }
 
-fn render_header_name_label(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+fn render_header_name_label(app: &AppContext) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
     Container::new(
         Text::new(
-            text(app, "settings.execution_profile.editor.name"),
+            localization::text_for_app(app, "settings.execution_profile.editor.name"),
             appearance.ui_font_family(),
             13.,
         )
@@ -317,25 +224,14 @@ fn render_long_context_pricing_warning(
     )
 }
 
-struct WorkspaceOverrideTooltip {
-    show: bool,
-    mouse_state: MouseStateHandle,
-}
-
-fn workspace_override_tooltip(
-    show: bool,
-    mouse_state: MouseStateHandle,
-) -> WorkspaceOverrideTooltip {
-    WorkspaceOverrideTooltip { show, mouse_state }
-}
-
 fn render_permission_row<T: DropdownItemAction>(
     appearance: &Appearance,
     icon: Icon,
     label: &str,
     dropdown: &ViewHandle<Dropdown<T>>,
     info_text: &str,
-    workspace_override: WorkspaceOverrideTooltip,
+    show_workspace_override_tooltip: bool,
+    tooltip_mouse_state: MouseStateHandle,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let icon_elem = Container::new(
@@ -357,10 +253,10 @@ fn render_permission_row<T: DropdownItemAction>(
         .with_child(label_elem)
         .finish();
     let dropdown_element = ChildView::new(dropdown).finish();
-    let dropdown_row = if workspace_override.show {
+    let dropdown_row = if show_workspace_override_tooltip {
         wrap_disabled_with_workspace_override_tooltip(
             dropdown_element,
-            workspace_override.mouse_state,
+            tooltip_mouse_state,
             appearance,
             app,
         )
@@ -385,13 +281,13 @@ pub fn render_models_section(
     let mut column = Flex::column()
         .with_child(render_separator(appearance))
         .with_child(render_section_label(
-            &text(app, "settings.execution_profile.models"),
+            &localization::text_for_app(app, "settings.execution_profile.models"),
             appearance,
         ))
         .with_child(render_filterable_dropdown_row(
             appearance,
-            &text(app, "settings.execution_profile.editor.base_model"),
-            &text(
+            &localization::text_for_app(app, "settings.execution_profile.editor.base_model"),
+            &localization::text_for_app(
                 app,
                 "settings.execution_profile.editor.base_model_description",
             ),
@@ -404,11 +300,11 @@ pub fn render_models_section(
 
     column = column.with_child(render_filterable_dropdown_row(
         appearance,
-        &text(
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.full_terminal_use_model",
         ),
-        &text(
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.full_terminal_use_model_description",
         ),
@@ -418,8 +314,11 @@ pub fn render_models_section(
     if FeatureFlag::LocalComputerUse.is_enabled() {
         column.add_child(render_filterable_dropdown_row(
             appearance,
-            &text(app, "settings.execution_profile.editor.computer_use_model"),
-            &text(
+            &localization::text_for_app(
+                app,
+                "settings.execution_profile.editor.computer_use_model",
+            ),
+            &localization::text_for_app(
                 app,
                 "settings.execution_profile.editor.computer_use_model_description",
             ),
@@ -432,7 +331,7 @@ pub fn render_models_section(
         .finish()
 }
 
-/// Renders a `[min - slider - max] [input]` row beneath the base model
+/// Renders a `[min — slider — max] [input]` row beneath the base model
 /// dropdown. Returns `None` if the active base model doesn't advertise a
 /// configurable context window or global AI is disabled.
 fn render_context_window_row(
@@ -448,7 +347,7 @@ fn render_context_window_row(
     let max = cw.max;
 
     let label = Text::new(
-        text(app, "settings.execution_profile.editor.context_window"),
+        localization::text_for_app(app, "settings.execution_profile.editor.context_window"),
         appearance.ui_font_family(),
         13.,
     )
@@ -457,7 +356,7 @@ fn render_context_window_row(
     let min_label_text = min.separate_with_commas();
     let max_label_text = max.separate_with_commas();
     let desc = Text::new(
-        text(
+        localization::text_for_app(
             app,
             "settings.execution_profile.editor.context_window_description",
         ),
@@ -589,35 +488,31 @@ pub fn render_permissions_section(
     let mut column = Flex::column().with_children([
         render_separator(appearance),
         render_section_label(
-            &text(app, "settings.execution_profile.permissions"),
+            &localization::text_for_app(app, "settings.execution_profile.permissions"),
             appearance,
         ),
         render_permission_row(
             appearance,
             Icon::Code2,
-            &text(app, "settings.execution_profile.editor.apply_code_diffs"),
+            &localization::text_for_app(app, "settings.execution_profile.editor.apply_code_diffs"),
             &view.apply_code_diffs_dropdown,
-            &action_permission_description(app, profile_data.apply_code_diffs),
-            workspace_override_tooltip(
-                !ai_settings.is_code_diffs_permissions_editable(app),
-                view.tooltip_mouse_state_handles
-                    .apply_code_diffs_tooltip_mouse_state
-                    .clone(),
-            ),
+            profile_data.apply_code_diffs.description(),
+            !ai_settings.is_code_diffs_permissions_editable(app),
+            view.tooltip_mouse_state_handles
+                .apply_code_diffs_tooltip_mouse_state
+                .clone(),
             app,
         ),
         render_permission_row(
             appearance,
             Icon::Notebook,
-            &text(app, "settings.execution_profile.editor.read_files"),
+            &localization::text_for_app(app, "settings.execution_profile.editor.read_files"),
             &view.read_files_dropdown,
-            &action_permission_description(app, profile_data.read_files),
-            workspace_override_tooltip(
-                !ai_settings.is_read_files_permissions_editable(app),
-                view.tooltip_mouse_state_handles
-                    .read_files_tooltip_mouse_state
-                    .clone(),
-            ),
+            profile_data.read_files.description(),
+            !ai_settings.is_read_files_permissions_editable(app),
+            view.tooltip_mouse_state_handles
+                .read_files_tooltip_mouse_state
+                .clone(),
             app,
         ),
     ]);
@@ -636,15 +531,13 @@ pub fn render_permissions_section(
     column.add_child(render_permission_row(
         appearance,
         Icon::Terminal,
-        &text(app, "settings.execution_profile.editor.execute_commands"),
+        &localization::text_for_app(app, "settings.execution_profile.editor.execute_commands"),
         &view.execute_commands_dropdown,
-        &action_permission_description(app, profile_data.execute_commands),
-        workspace_override_tooltip(
-            !ai_settings.is_execute_commands_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .execute_commands_tooltip_mouse_state
-                .clone(),
-        ),
+        profile_data.execute_commands.description(),
+        !ai_settings.is_execute_commands_permissions_editable(app),
+        view.tooltip_mouse_state_handles
+            .execute_commands_tooltip_mouse_state
+            .clone(),
         app,
     ));
 
@@ -676,18 +569,16 @@ pub fn render_permissions_section(
     column.add_child(render_permission_row(
         appearance,
         Icon::Workflow,
-        &text(
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.interact_with_running_commands",
         ),
         &view.write_to_pty_dropdown,
-        &write_to_pty_permission_description(app, profile_data.write_to_pty),
-        workspace_override_tooltip(
-            !ai_settings.is_write_to_pty_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .write_to_pty_tooltip_mouse_state
-                .clone(),
-        ),
+        profile_data.write_to_pty.description(),
+        !ai_settings.is_write_to_pty_permissions_editable(app),
+        view.tooltip_mouse_state_handles
+            .write_to_pty_tooltip_mouse_state
+            .clone(),
         app,
     ));
 
@@ -695,15 +586,13 @@ pub fn render_permissions_section(
         column.add_child(render_permission_row(
             appearance,
             Icon::Laptop,
-            &text(app, "settings.execution_profile.editor.computer_use"),
+            &localization::text_for_app(app, "settings.execution_profile.editor.computer_use"),
             &view.computer_use_dropdown,
-            &computer_use_permission_description(app, profile_data.computer_use),
-            workspace_override_tooltip(
-                !ai_settings.is_computer_use_permissions_editable(app),
-                view.tooltip_mouse_state_handles
-                    .computer_use_tooltip_mouse_state
-                    .clone(),
-            ),
+            profile_data.computer_use.description(),
+            !ai_settings.is_computer_use_permissions_editable(app),
+            view.tooltip_mouse_state_handles
+                .computer_use_tooltip_mouse_state
+                .clone(),
             app,
         ));
     }
@@ -711,47 +600,41 @@ pub fn render_permissions_section(
     column.add_child(render_permission_row(
         appearance,
         Icon::MessageText,
-        &text(app, "settings.execution_profile.editor.ask_questions"),
+        &localization::text_for_app(app, "settings.execution_profile.editor.ask_questions"),
         &view.ask_user_question_dropdown,
-        &ask_user_question_permission_description(app, profile_data.ask_user_question),
-        workspace_override_tooltip(
-            !ai_settings.is_ask_user_question_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .ask_user_question_tooltip_mouse_state
-                .clone(),
-        ),
+        profile_data.ask_user_question.description(),
+        !ai_settings.is_ask_user_question_permissions_editable(app),
+        view.tooltip_mouse_state_handles
+            .ask_user_question_tooltip_mouse_state
+            .clone(),
         app,
     ));
     column.add_child(render_permission_row(
         appearance,
         Icon::Atom,
-        &text(
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.run_orchestrated_agents",
         ),
         &view.run_agents_dropdown,
-        &run_agents_permission_description(app, profile_data.run_agents),
-        workspace_override_tooltip(
-            !ai_settings.is_run_agents_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .run_agents_tooltip_mouse_state
-                .clone(),
-        ),
+        profile_data.run_agents.description(),
+        !ai_settings.is_run_agents_permissions_editable(app),
+        view.tooltip_mouse_state_handles
+            .run_agents_tooltip_mouse_state
+            .clone(),
         app,
     ));
 
     column.add_child(render_permission_row(
         appearance,
         Icon::Dataflow,
-        &text(app, "settings.execution_profile.editor.call_mcp_servers"),
+        &localization::text_for_app(app, "settings.execution_profile.editor.call_mcp_servers"),
         &view.call_mcp_servers_dropdown,
-        &action_permission_description(app, profile_data.mcp_permissions),
-        workspace_override_tooltip(
-            !ai_settings.is_mcp_permission_editable(app), // Use MCP override for this permission
-            view.tooltip_mouse_state_handles
-                .call_mcp_servers_tooltip_mouse_state
-                .clone(),
-        ),
+        profile_data.mcp_permissions.description(),
+        !ai_settings.is_mcp_permission_editable(app), // Use MCP override for this permission
+        view.tooltip_mouse_state_handles
+            .call_mcp_servers_tooltip_mouse_state
+            .clone(),
         app,
     ));
 
@@ -850,7 +733,7 @@ fn render_list_section<T, F, D>(
     appearance: &Appearance,
     is_editable: bool,
     tooltip_mouse_state: MouseStateHandle,
-    app: &AppContext,
+    app: &warpui::AppContext,
 ) -> Box<dyn Element>
 where
     T: Clone,
@@ -871,7 +754,7 @@ where
         })
         .collect();
 
-    let list = render_input_list(app, None, input_items, editor, appearance);
+    let list = render_input_list(None, input_items, editor, appearance, app);
     let list_element = if !is_editable {
         wrap_disabled_with_workspace_override_tooltip(list, tooltip_mouse_state, appearance, app)
     } else {
@@ -904,8 +787,8 @@ fn render_directory_allowlist_section(
     let is_editable = ai_settings.is_directory_allowlist_editable(app);
 
     render_list_section(
-        &text(app, "settings.execution_profile.editor.directory_allowlist"),
-        &text(
+        &localization::text_for_app(app, "settings.execution_profile.editor.directory_allowlist"),
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.directory_allowlist_description",
         ),
@@ -933,8 +816,8 @@ fn render_command_allowlist_section(
     let is_editable = ai_settings.is_command_allowlist_editable(app);
 
     render_list_section(
-        &text(app, "settings.execution_profile.editor.command_allowlist"),
-        &text(
+        &localization::text_for_app(app, "settings.execution_profile.editor.command_allowlist"),
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.command_allowlist_description",
         ),
@@ -996,16 +879,16 @@ fn render_command_denylist_section(
         .collect();
 
     let list = render_input_list(
-        app,
         None,
         input_items,
         Some(&view.command_denylist_editor),
         appearance,
+        app,
     );
 
     let mut column = Flex::column().with_child(create_section_header(
-        &text(app, "settings.execution_profile.editor.command_denylist"),
-        &text(
+        &localization::text_for_app(app, "settings.execution_profile.editor.command_denylist"),
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.command_denylist_description",
         ),
@@ -1021,11 +904,10 @@ fn render_command_denylist_section(
 fn display_mcp_name(uuid: &Uuid, app: &AppContext) -> String {
     TemplatableMCPServerManager::get_mcp_name(uuid, app).unwrap_or_else(|| {
         log::warn!("Expected a name for MCP server {uuid} but could not find one.");
-        let uuid = uuid.to_string();
         localization::text_for_app_with_args(
             app,
             "settings.execution_profile.editor.unknown_mcp_server",
-            &[("uuid", &uuid)],
+            &[("uuid", &uuid.to_string())],
         )
     })
 }
@@ -1040,8 +922,8 @@ fn render_mcp_allowlist_section(
     let is_editable = ai_settings.is_mcp_permission_editable(app);
 
     render_list_section(
-        &text(app, "settings.execution_profile.editor.mcp_allowlist"),
-        &text(
+        &localization::text_for_app(app, "settings.execution_profile.editor.mcp_allowlist"),
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.mcp_allowlist_description",
         ),
@@ -1070,8 +952,8 @@ fn render_mcp_denylist_section(
     let is_editable = ai_settings.is_mcp_permission_editable(app);
 
     render_list_section(
-        &text(app, "settings.execution_profile.editor.mcp_denylist"),
-        &text(
+        &localization::text_for_app(app, "settings.execution_profile.editor.mcp_denylist"),
+        &localization::text_for_app(
             app,
             "settings.execution_profile.editor.mcp_denylist_description",
         ),
@@ -1110,7 +992,7 @@ pub fn render_plan_auto_sync_toggle(
     .finish();
 
     let label_elem = Text::new(
-        text(app, "settings.execution_profile.editor.plan_auto_sync"),
+        localization::text_for_app(app, "settings.execution_profile.editor.plan_auto_sync"),
         appearance.ui_font_family(),
         13.,
     )
@@ -1118,7 +1000,7 @@ pub fn render_plan_auto_sync_toggle(
     .finish();
 
     let desc_elem = Text::new(
-        text(
+        localization::text_for_app(
             app,
             "settings.execution_profile.editor.plan_auto_sync_description",
         ),
@@ -1187,7 +1069,7 @@ pub fn render_web_search_toggle(
     .finish();
 
     let label_elem = Text::new(
-        text(app, "settings.execution_profile.editor.call_web_tools"),
+        localization::text_for_app(app, "settings.execution_profile.editor.call_web_tools"),
         appearance.ui_font_family(),
         13.,
     )
@@ -1195,7 +1077,7 @@ pub fn render_web_search_toggle(
     .finish();
 
     let desc_elem = Text::new(
-        text(
+        localization::text_for_app(
             app,
             "settings.execution_profile.editor.call_web_tools_description",
         ),
@@ -1249,14 +1131,16 @@ pub fn wrap_disabled_with_workspace_override_tooltip(
     appearance: &Appearance,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let tooltip_text = text(app, "settings.tooltip.organization_enforced");
     // Wrap the disabled element in a hoverable container that can show tooltips
-    Hoverable::new(mouse_state, move |state| {
+    Hoverable::new(mouse_state, |state| {
         let mut stack = Stack::new().with_child(child);
         if state.is_hovered() {
             let tooltip = appearance
                 .ui_builder()
-                .tool_tip(tooltip_text.clone())
+                .tool_tip(localization::text_for_app(
+                    app,
+                    "settings.tooltip.organization_enforced",
+                ))
                 .build()
                 .finish();
 

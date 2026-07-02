@@ -1,54 +1,54 @@
-# 为 Warp 做贡献
+# Contributing to Warp
 
-感谢你帮助改进 Warp。本指南说明如何提交 issue、提出变更并让你的工作进入审查。
+Thanks for helping improve Warp! This guide explains how to open issues, propose changes, and get your work reviewed.
 
 > [!TIP]
-> **在 Slack 中和我们交流。** 你可以在 [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) 频道与其他贡献者和 Warp 团队沟通。这里适合临时问题、设计讨论，以及在处理 issue 或 PR 时与维护者结对协作。刚加入？请先加入 [Warp Slack 社区](https://go.warp.dev/join-preview)，再进入 `#oss-contributors`。
+> **Chat with us in Slack.** Connect with other contributors and the Warp team in the [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) channel — a good place for ad-hoc questions, design discussion, and pairing with maintainers as you work through an issue or PR. New here? [Join the Warp Slack community](https://go.warp.dev/join-preview) first, then hop into `#oss-contributors`.
 
 ## TL;DR
 
-- 只要报告中的细节或维护者分拣结果足以支撑行动，欢迎提交 bug 修复。
-- 功能请求必须先标记为 `ready-to-spec` 或 `ready-to-implement`，PR 才会被接受。
-- 标记为 `warp:reserved-internal` 的 issue 正由 Warp 团队处理，不开放贡献者 PR。
-- 较大 issue 的技术和设计讨论应放在 spec 中完成。
-- Oz 会自动分拣新 issue，并审查打开的 PR。
-- 实现类 PR 必须包含手动测试证据。
+- Bug fixes are welcome once the report is actionable from the provided details or maintainer triage.
+- Feature requests must be marked `ready-to-spec` or `ready-to-implement` before PRs are accepted.
+- Issues marked `warp:reserved-internal` are being handled by the Warp team and are not open for contributor PRs.
+- Specs are the place where technical and design discussion on larger issues happen.
+- Oz automatically triages incoming issues and reviews open PRs.
+- Implementation PRs must include proof of manual testing.
 
-## Warp 贡献流程如何运作
+## How Contributing to Warp Works
 
-Warp 的贡献模型受 [Oz](https://oz.warp.dev) 影响。Oz 是一个自动化部分分拣、spec 编写、实现和审查工作的 agent。与典型开源仓库相比，这里有一些流程差异：
+Warp's contribution model is shaped by [Oz](https://oz.warp.dev), an agent that automates parts of triage, spec writing, implementation, and review. Compared with a typical open-source repository, a few things work differently here:
 
-- **Issue 是一切工作的起点。** 讨论、范围界定和设计都应先在 issue 中完成，再打开任何 PR。
-- **功能请求和 bug 修复不同：**
-  - 功能由准备状态标签门控：先是 `ready-to-spec`，设计确定后才是 `ready-to-implement`。这些标签表示贡献者何时可以接手工作。仅有讨论并不代表已经批准开始实现。
-  - 功能工作必须先有书面 spec：在写任何代码之前，功能请求会先经过一个 spec PR，其中包含提交到 [`specs/`](specs/) 下的 *product spec* 和 *tech spec*。
-  - Bug 修复在报告可复现或足以行动后，可以直接进入代码 PR；除非范围或设计不清晰，否则不需要 spec PR。
-- **审查很大程度上自动化。** 打开 PR 后，Oz 会自动被指派并给出初始审查。Oz 批准后，会自动请求 Warp 团队对应领域专家继续审查；你不需要手动指派人工 reviewer。
+- **Issues are the starting point for everything.** Discussion, scoping, and design happen on the issue before any PR is opened.
+- **Feature requests differ from bug fixes:**
+  - Features are gated by readiness labels — `ready-to-spec`, then `ready-to-implement` once the design is settled — that signal when contributors can pick up the work. Discussion alone is not approval to begin work.
+  - Feature work needs a written spec first: feature requests go through a spec PR (a *product spec* + *tech spec* committed under [`specs/`](specs/)) before any code is written.
+  - Bug fixes can go straight to a code PR once the report is reproducible or otherwise actionable; they do not require spec PRs unless the scope or design is unclear.
+- **Review is largely automated.** When you open a PR, Oz is auto-assigned and produces an initial review. Once Oz approves, it automatically requests a follow-up review from a Warp team subject-matter expert — you do not need to assign human reviewers yourself.
 
-### 准备状态标签
+### Readiness labels
 
-当某个 issue 可以由贡献者接手时，Warp 团队会添加以下标签之一：
+The Warp team applies one of the following labels when an issue is ready for contribution:
 
-- **`ready-to-spec`** - 问题已经理解，但设计仍开放。请在 [`specs/`](specs/) 下打开包含 *product spec*（`product.md`）和 *tech spec*（`tech.md`）的 spec PR。每份文档应包含哪些内容，请看[打开 Spec PR](#打开-spec-pr)。此标签**仅用于功能请求**。
-- **`ready-to-implement`** - issue 已准备好进入代码 PR。对 bug 来说，这表示报告已经足够可复现或可行动，且可能的修复不需要 spec、mock 或更深调查。
-- **`needs-mocks`** - 开始实现前需要设计 mock。请等待 Warp 团队补齐。
-- **`warp:reserved-internal`** - Warp 团队将该工作保留给内部实现或对齐。不要为带有此标签的 issue 打开 spec PR 或代码 PR；Oz 会拒绝关联这些 issue 的贡献者 PR，并附上说明评论。
+- **`ready-to-spec`** — The problem is understood but the design is open. Open a spec PR with a *product spec* (`product.md`) and a *tech spec* (`tech.md`) under [`specs/`](specs/) — see [Opening a Spec PR](#opening-a-spec-pr) for what goes in each. This label is **reserved for feature requests**.
+- **`ready-to-implement`** — The issue is ready for a code PR. For bugs, this means the report is sufficiently reproducible or actionable and the likely fix does not need a spec, mocks, or deeper investigation.
+- **`needs-mocks`** — Design mocks are required before implementation can begin. Wait for the Warp team to land them.
+- **`warp:reserved-internal`** — The Warp team is reserving this work for internal implementation or alignment. Do not open a spec or code PR for issues with this label; Oz will reject contributor PRs linked to them with an explanatory comment.
 
-任何人都可以接手 ready issue。准备状态标签不是任务指派，最佳实现会通过正常审查胜出。如果某个 issue 长时间未分拣，或你希望重新评估准备状态，请在评论中提及 **@oss-maintainers**，让团队关注。
+Anyone can pick up a ready issue — readiness labels are not assignments, and the best implementation wins through normal review. If an issue has been sitting un-triaged or you'd like readiness re-evaluated, mention **@oss-maintainers** in a comment to flag it for the team.
 
-## 贡献流程
+## Contribution Flow
 
-你（贡献者）负责的步骤用黄色表示；Warp 团队或 Oz 负责的步骤用蓝色表示。
+Steps owned by you (the contributor) are shown in yellow; steps owned by the Warp team or Oz are shown in blue.
 
 ```mermaid
 flowchart TD
-    A[提交 issue] --> B{Warp 团队分拣}
-    B -- ready-to-spec<br/>功能请求 --> C[打开 spec PR<br/>product.md + tech.md]
-    B -- needs-mocks --> D[产出设计 mock]
-    D --> E[打开代码 PR]
-    C -- spec 批准 --> E
-    B -- ready-to-implement<br/>可行动 bug 或设计已确定 --> E
-    E --> F[Oz 审查 → SME 审查 → CI → 合并]
+    A[File an issue] --> B{Warp team triages}
+    B -- ready-to-spec<br/>(feature requests) --> C[Open spec PR<br/>product.md + tech.md]
+    B -- needs-mocks --> D[Design mocks produced]
+    D --> E[Open code PR]
+    C -- specs approved --> E
+    B -- ready-to-implement<br/>(actionable bugs or settled designs) --> E
+    E --> F[Oz review → SME review → CI → merge]
 
     classDef contributor fill:#fef3c7,stroke:#b45309,color:#78350f;
     classDef warpTeam fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a;
@@ -56,162 +56,160 @@ flowchart TD
     class B,D,F warpTeam;
 ```
 
-## 提交高质量 Issue
+## Filing a Good Issue
 
-提交前请先搜索[现有 issue](https://github.com/warpdotdev/warp/issues)，避免重复。提交时请使用 issue 模板。
+Search [existing issues](https://github.com/warpdotdev/warp/issues) before filing to avoid duplicates. Use the issue templates when filing.
 
-如果你已经在运行 Warp，最快的提交方式是使用 `/feedback` 命令。它会打开一个公开 GitHub issue，并自动附上相关上下文（日志、环境详情）。
+If you're already running Warp, the fastest way to file is the `/feedback` command — it opens a public GitHub issue with relevant context (logs, environment details) automatically attached.
 
-### Bug 报告
+### Bug reports
 
-一份好的 bug 报告应包含：
+A good bug report includes:
 
-- 清晰标题和一段问题摘要。
-- 复现步骤（尽可能包含最小示例）。
-- 预期行为与实际行为。
-- Warp 版本和操作系统（见 `Settings → About`）。
-- 相关日志、截图或录屏。
+- A clear title and a one-paragraph summary of the problem.
+- Steps to reproduce (with a minimal example where possible).
+- Expected vs. actual behavior.
+- Warp version and OS (see `Settings → About`).
+- Logs, screenshots, or screen recordings when relevant.
 
-当 issue 被分拣为可行动 bug 后（由 Oz 的分拣 agent 或维护者完成），它可能被标记为 **`ready-to-implement`**，此时你可以接手并打开代码 PR。
+Once an issue is triaged as an actionable bug (by Oz's triage agent or a maintainer), it may be labeled **`ready-to-implement`** so you can pick it up and open a code PR.
 
-### 功能请求
+### Feature requests
 
-一份好的功能请求应先描述面向用户的问题，再提出任何实现方案。请包含：
+A good feature request describes the user-facing problem before any proposed implementation. Include:
 
-- 用户需求或痛点，以及受影响的人群。
-- 当前行为及其不足。
-- 期望行为或工作流草图（简短示例或 mock 会有帮助，但不是必需）。
-- 任何相关约束（兼容性、相关功能、先例等）。
+- The user need or pain point, and who experiences it.
+- The current behavior and why it falls short.
+- A sketch of the desired behavior or workflow (a short example or mock is helpful but not required).
+- Any relevant constraints (compatibility, related features, prior art, etc.).
 
-功能请求会走 spec 流程：当问题已被理解且设计对贡献者开放时，维护者会添加 **`ready-to-spec`**。之后的下一步是 spec PR，而不是代码 PR。
+Feature requests are the path that goes through the spec flow: a maintainer applies **`ready-to-spec`** when the problem is understood and the design is open for contributors. From there, the next step is a spec PR — not a code PR.
 
-自动分拣可能添加信息性标签（`area:*`、`repro:*` 等）。这些标签不影响准备状态。
+Automated triage may add informational labels (`area:*`, `repro:*`, etc.). Those do not affect readiness.
 
-## 打开 Spec PR
+## Opening a Spec PR
 
-标记为 `ready-to-spec` 的 issue 需要先有 spec，代码才能开始。一个 spec 由提交到 [`specs/GH<issue-number>/`](specs/) 下的两份短文档组成：
+Issues labeled `ready-to-spec` need a spec before code can begin. A spec consists of two short documents committed under [`specs/GH<issue-number>/`](specs/):
 
-- **`product.md`**（*product spec*）- 从消费者视角（用户、API 调用方、CLI 用户等）定义期望行为，并避免实现细节。核心内容是一组编号的**可测试行为不变量**，覆盖成功路径、用户可见状态、输入和响应，以及边界情况（空状态 / 错误 / 加载、取消、离线、权限拒绝、竞态、可访问性）。可选章节包括：问题陈述、目标 / 非目标、Figma 链接、开放问题。
-- **`tech.md`**（*tech spec*）- 基于本代码库的实现计划。必需章节包括：**Context**（当前系统和相关文件，并带行号引用）、**Proposed changes**（触及的模块、新类型 / API / 状态、数据流、取舍）以及 **Testing and validation**（如何验证 product spec 中每条不变量）。可选内容包括：端到端流程、Mermaid 图、风险、并行化、后续事项。
+- **`product.md`** (the *product spec*) — Defines the desired behavior from the consumer's perspective (the user, an API caller, a CLI user, etc.) and stays out of implementation detail. The core is a numbered list of **testable behavior invariants** covering the happy path, user-visible states, inputs and responses, and edge cases (empty / error / loading, cancellation, offline, permission denied, races, accessibility). Optional sections: problem statement, goals / non-goals, Figma link, open questions.
+- **`tech.md`** (the *tech spec*) — The implementation plan, grounded in this codebase. Required sections: **Context** (the current system and relevant files with line references), **Proposed changes** (modules touched, new types / APIs / state, data flow, tradeoffs), and **Testing and validation** (how each invariant from the product spec will be verified). Optional: end-to-end flow, Mermaid diagrams, risks, parallelization, follow-ups.
 
-spec 编写 skill 来自 [`warpdotdev/common-skills`](https://github.com/warpdotdev/common-skills)，不是直接在本仓库编写。本 checkout 会在 [`skills-lock.json`](skills-lock.json) 中固定期望版本，bootstrap 脚本可为你恢复这些 skill：
+The spec-writing skills are sourced from [`warpdotdev/common-skills`](https://github.com/warpdotdev/common-skills), not authored directly in this repository. This checkout pins the expected versions in [`skills-lock.json`](skills-lock.json), and the bootstrap scripts can restore them for you:
 
-- `./script/bootstrap` 默认安装或更新 common skills，并在需要时提示选择安装到项目本地或全局。
-- `./script/bootstrap --install-common-skills-in-repo` 会把锁定的 common skills 安装到当前 checkout 的 `.agents/skills/`。
-- `./script/bootstrap --install-common-skills-globally` 会把锁定的 common skills 安装到 `~/.agents/skills/`。
-- `WARP_COMMON_SKILLS_INSTALL_TARGET=project ./script/bootstrap` 和 `WARP_COMMON_SKILLS_INSTALL_TARGET=global ./script/bootstrap` 可用非交互方式选择同样的目标。
-- `./script/bootstrap --skip-common-skills` 会保持 common skills 不变，适用于你单独管理这些 skill 的情况。
+- `./script/bootstrap` installs or updates common skills by default and prompts for a project-local or global install target when needed.
+- `./script/bootstrap --install-common-skills-in-repo` installs the pinned common skills into this checkout's `.agents/skills/`.
+- `./script/bootstrap --install-common-skills-globally` installs the pinned common skills into `~/.agents/skills/`.
+- `WARP_COMMON_SKILLS_INSTALL_TARGET=project ./script/bootstrap` and `WARP_COMMON_SKILLS_INSTALL_TARGET=global ./script/bootstrap` select the same targets non-interactively.
+- `./script/bootstrap --skip-common-skills` leaves common skills untouched if you are managing them separately.
 
-打开 spec PR：
+To open a spec PR:
 
-1. 添加 `specs/GH<issue-number>/product.md` 和 `specs/GH<issue-number>/tech.md`。结构良好的 spec 示例可参考 [`specs/GH408/`](specs/GH408/)、[`specs/GH1063/`](specs/GH1063/) 和 [`specs/GH1066/`](specs/GH1066/)，也可以浏览 [`specs/`](specs/) 下的其他文档。安装 common skills 后，可以使用 `/write-product-spec` 和 `/write-tech-spec` skill 脚手架生成这些文档。
-2. 将该 PR 作为产品和技术讨论的主场。
-3. spec 批准后，实现通常会在同一个 PR 上继续。少数情况下，例如大型 spec 单独合并以便拆分实现，后续可以转到关联的 follow-up PR。
+1. Add `specs/GH<issue-number>/product.md` and `specs/GH<issue-number>/tech.md`. See [`specs/GH408/`](specs/GH408/), [`specs/GH1063/`](specs/GH1063/), and [`specs/GH1066/`](specs/GH1066/) for examples of well-structured specs, and browse the rest of [`specs/`](specs/) for more. After common skills are installed, the `/write-product-spec` and `/write-tech-spec` skills are available to scaffold these for you.
+2. Use the PR as the home for product and technical discussion.
+3. Once the specs are approved, implementation generally continues on the same PR. In rarer cases — for example, if a large spec is merged on its own so the implementation can be broken up — it can move to a linked follow-up PR.
 
-## 打开代码 PR
+## Opening a Code PR
 
-对标记为 `ready-to-implement` 的 issue：
+For issues labeled `ready-to-implement`:
 
-1. 从 `master` 创建分支。
-2. 实现变更并添加测试（见[测试](#测试)）。
-3. 运行 `./script/presubmit`，并在推送前修复所有失败。
-4. 使用 [pull request 模板](.github/pull_request_template.md) 打开 PR，并添加 changelog 条目（`CHANGELOG-NEW-FEATURE`、`CHANGELOG-IMPROVEMENT` 或 `CHANGELOG-BUG-FIX`）；只有纯文档或纯重构变更可以省略。
-5. 保持 PR 聚焦于单个逻辑变更，并在 PR 进入审查前合并 `master`。
+1. Branch from `master`.
+2. Implement the change and add tests (see [Testing](#testing)).
+3. Run `./script/presubmit` and fix any failures before pushing.
+4. Open a PR using the [pull request template](.github/pull_request_template.md) and add a changelog entry (`CHANGELOG-NEW-FEATURE`, `CHANGELOG-IMPROVEMENT`, or `CHANGELOG-BUG-FIX`); omit only for docs-only or refactoring-only changes.
+5. Keep the PR focused on a single logical change and merge `master` in before the PR enters review.
 
-你**不需要手动请求 reviewer**。面向 ready issue 的 PR 会自动指派 Oz，并由它给出初始审查。Oz 批准后，会自动请求合适的 Warp 团队领域专家进行后续审查。
+You **do not need to manually request reviewers**. Oz is auto-assigned to PRs that target a ready issue and produces an initial review. After Oz approves, it automatically requests a follow-up review from the appropriate Warp team subject-matter expert.
 
-推送处理 Oz 反馈的变更后，请在 PR 中评论 `/oz-review` 请求重新审查。每个 PR 最多可以这样做**三次**。如果流程卡住，或你需要超过三次审查，请在 PR 中提及 **@oss-maintainers** 升级给团队处理。
+After you push changes that address Oz's feedback, comment `/oz-review` on the PR to request a re-review — you can do this up to **three times** per PR. If something looks stuck or you need more reviews than that, mention **@oss-maintainers** on the PR to escalate to the team.
 
-**你必须包含[手动测试](#手动测试)证据**。对小型、独立、视觉相关变更，应包含**前后截图**。对较大、影响面广或交互式变更，还应包含**带解说的屏幕录制**。
+**You must include proof of [manual testing](#manual-testing)**. For small, isolated, and visual changes, you should include **before and after screenshots**. For larger, broad, or interactive changes, you should also include a **narrated screen recording**.
 
-如果维护者要求修改 PR，你需要再次请求 `/oz-review` 并通过它，之后才能请求复审。只要你通过 Oz 审查，它会自动为你请求复审。
+If a maintainer requests changes to your PR, you will need to request `/oz-review` again and pass it before a re-review can be requested. Oz will request the re-review for you automatically once you pass its reviews.
 
-### 没有关联 issue 的 PR
+### PRs opened without a linked issue
 
-我们要求 PR 必须关联对应 issue。问题范围界定、[准备状态标签](#准备状态标签)添加，以及部分功能的 [spec 阶段](#打开-spec-pr)，都发生在 issue 中。完整流程请看[贡献流程](#贡献流程)。
+We require PRs to be linked to an associated issue. This is where problems get scoped, [readiness labels](#readiness-labels) get applied, and some features go through a [spec phase](#opening-a-spec-pr) before any code is written. See the [Contribution Flow](#contribution-flow) for the full picture.
 
-也就是说，如果你在标准 issue 流程之前打开 PR，我们建议如下：
+That said, if you open a PR ahead of the standard issue workflow, here's what we recommend:
 
-首先，**搜索相关 issue**。由于收到的 issue 数量较多，某个功能或 bug 修复通常已经有对应 issue。如果找到，请在 PR 描述中链接它。理想情况下，该 issue 已由维护者审查并带有[准备状态标签](#准备状态标签)。如果找不到相关 issue，请提交一个 issue 描述你的 PR 解决了什么。维护者审查该 issue 和关联 PR 后，可以添加准备状态标签以解除最终检查阻塞。
+First, **search for a related issue.** Due to the volume of issues we receive, there's often an existing issue for a given feature or bug fix. If you find one, link it in your PR description. Ideally, this issue will have been reviewed by a maintainer with a [readiness label](#readiness-labels) applied. If you do not find a related issue, file an issue describing what your PR resolves. Once a maintainer has reviewed the issue and associated PR, we can apply a readiness label to unblock final checks.
 
-然后，**确保你的 PR 通过代码审查，并按[打开代码 PR 指南](#打开代码-pr)包含相关测试**。如果代码审查通过且测试相关性充分，这会给我们更早审查你的工作提供强信号。
+Then, **ensure your PR passes code review and includes relevant tests** per our [Opening a Code PR guide.](#opening-a-code-pr) If code review passes and relevant tests are present, that's high signal for us to review your work sooner.
 
-## 使用编码 Agent
+## Using a Coding Agent
 
-你可以使用**任何编码 agent** 来实现贡献，例如 Warp 内置 agent、Claude Code、Codex、Gemini CLI 或其他工具，也可以完全不用 agent。本仓库提供了 agent 可读上下文，包括 [`.agents/skills/`](.agents/skills/) 下的 skill、[`specs/`](specs/) 下的 spec，以及 [`AGENTS.md`](AGENTS.md)。任何支持这些格式的 harness 都可以读取它们。
+You can use **any coding agent** to implement a contribution — for example, Warp's built-in agent, Claude Code, Codex, Gemini CLI, or others — or no agent at all. This repository ships agent-readable context (skills under [`.agents/skills/`](.agents/skills/), specs under [`specs/`](specs/), and [`WARP.md`](WARP.md)) that any harness supporting these formats can pick up.
 
-如果你更希望由 **Oz cloud agent** 帮你实现 ready issue，请在 issue 中提及 **@oss-maintainers** 并提出请求。获批请求会使用赠送的 Oz credits **免费**运行，你不需要设置自己的 Oz 账户，也不需要支付计算费用。
+If you'd rather have an **Oz cloud agent** implement a ready issue for you, mention **@oss-maintainers** on the issue to request it. Approved requests run **for free** on complimentary Oz credits — you don't need to set up your own Oz account or pay for compute.
 
-虽然你可以使用编码 agent 完成实现，我们仍希望贡献者**亲自与我们协作**。这意味着你不应使用 OpenClaw 这类 agent 代替你与团队对话。我们的维护者始终会把你当作真人沟通，所以也请你以真人身份与我们沟通。
+While you can use coding agents for implementation, we expect contributors to **collaborate with us personally**. This means that you should not be using agents like OpenClaw to engage in conversation with our team. Our maintainers will always talk to you as a human, so please talk to us as a human as well.
 
-## 代码审查
+## Code Review
 
-所有 pull request 都会经过两阶段审查流程：
+All pull requests go through a two-stage review process:
 
-1. **Oz 审查** - 当你打开 PR 时，[Oz](https://warp.dev/oz) 会自动被指派并产出第一轮审查。Oz 会检查正确性、风格、测试覆盖，以及是否与关联 issue 和相关 spec 对齐。
-2. **Warp 团队审查** - 只有在 Oz **批准**后，PR 才会路由给 Warp 团队领域专家进行最终人工审查。尚未被 Oz 批准的 PR 不会指派给团队成员。
+1. **Oz review** — When you open a PR, [Oz](https://warp.dev/oz) is automatically assigned and produces the first review. Oz checks for correctness, style, test coverage, and alignment with the linked issue and any associated specs.
+2. **Warp team review** — Only after Oz has **approved** the PR is it routed to a Warp team subject-matter expert for a final human review. PRs that have not yet been approved by Oz will not be assigned to a team member.
 
-任何阶段你都不需要手动请求 reviewer。推送处理 Oz 反馈的变更后，请在 PR 中评论 `/oz-review` 请求重新审查。每个 PR 最多可以这样做**三次**。如果流程卡住或你需要额外审查，请在 PR 中提及 **@oss-maintainers** 升级给团队处理。
+You do not need to manually request reviewers at any stage. After pushing changes that address Oz's feedback, comment `/oz-review` on the PR to request a re-review — you can do this up to **three times** per PR. If something looks stuck or you need additional reviews, mention **@oss-maintainers** on the PR to escalate to the team.
 
-### 已请求修改的陈旧 PR
+### Stale PRs with requested changes
 
-如果 Oz 或维护者的审查让你的 PR 处于 **changes requested** 状态，随后又长期没有动静，自动化流程会跟进并最终关闭它，以保持审查队列有效。此规则仅适用于有活跃 requested-changes 审查的外部贡献者 PR。
+If a review (from Oz or a maintainer) leaves your PR with **changes requested** and it then goes quiet, automation follows up and eventually closes it so the review queue stays current. This applies only to external-contributor PRs with an active requested-changes review.
 
-- 如果 PR 无活动，会在 **7** 天和 **14** 天发布提醒，并在 **26** 天发布**最终警告**。
-- PR 会在无活动约 **30** 天后**自动关闭**，但只有在最终警告之后才会关闭，所以你会先收到提醒。
-- 只有**你的**活动会重置计时器：推送到你的分支（包括 force-push）或在 PR 中评论。维护者评论不会重置计时器，因为此时 PR 正在等待你处理。
-- 要保持 PR 打开，只需推送更新或回复。关闭的 PR 可以在你准备继续时重新打开（重新打开并推送，或请求维护者重新打开）。
-- 维护者可以添加 **`no-autoclose`** 标签来豁免应保持打开的 PR，例如该 PR 被我们阻塞时。
+- **Reminders** are posted at **7** and **10** days of inactivity, with the **day-10 reminder serving as the final warning**.
+- The PR is **automatically closed at ~14 days** of inactivity — but only after that final warning, so you always get a heads-up first.
+- Only **your** activity resets the timer: pushing to your branch (including a force-push) or commenting on the PR. Maintainer comments don't reset it, since the PR is waiting on you.
+- To keep a PR open, just push updates or reply. A closed PR can be reopened when you're ready to continue (reopen it and push, or ask a maintainer to reopen).
+- Maintainers can apply the **`no-autoclose`** label to exempt a PR that should stay open (for example, when it's blocked on us).
 
-## 开发环境准备
+## Development Setup
 
-完整工程指南见 [README.md](README.md) 和 [AGENTS.md](AGENTS.md)。快速开始：
+See [README.md](README.md) and [WARP.md](WARP.md) for the full engineering guide. Quick start:
 
 ```bash
-./script/bootstrap   # 平台相关环境准备
-cargo run            # 构建并运行 Warp
-./script/presubmit   # fmt、clippy 和测试
+./script/bootstrap   # platform-specific setup
+cargo run            # build and run Warp
+./script/presubmit   # fmt, clippy, and tests
 ```
 
-## 测试
+## Testing
 
-大多数代码变更都需要测试：
+Tests are required for most code changes:
 
-### 手动测试
+### Manual Testing
+Manual testing is required for changes that can be manually tested, and almost all changes can be manually tested. For small, isolated, and visual changes, you should include **before and after screenshots**. For larger, broad, or interactive changes, you should also include a **narrated screen recording**.
 
-凡是可以手动测试的变更，都必须手动测试；几乎所有变更都可以手动测试。对小型、独立、视觉相关变更，应包含**前后截图**。对较大、影响面广或交互式变更，还应包含**带解说的屏幕录制**。
+You can run the app locally using `./script/run` - see [WARP.md](WARP.md) for more details on how to get set up.
 
-你可以使用 `./script/run` 在本地运行应用。环境准备详情见 [AGENTS.md](AGENTS.md)。
+### Automated Tests
+- **Bug fixes** should include a regression test that would have caught the bug.
+- **Algorithmic or non-trivial logic** needs unit tests.
+- **User-facing flows** should have end-to-end coverage under [`crates/integration/`](crates/integration/) whenever the behavior can be exercised that way. The bar is high-quality coverage of the changes you ship — with agent-driven development the expectation is more integration tests, not just coverage of P0 paths. If a flow is worth shipping, it's usually worth an integration test.
 
-### 自动化测试
+Run unit tests with `cargo nextest run`.
 
-- **Bug 修复**应包含能捕获该 bug 的回归测试。
-- **算法或非平凡逻辑**需要单元测试。
-- **面向用户的流程**只要行为可以这样覆盖，就应在 [`crates/integration/`](crates/integration/) 下提供端到端覆盖。交付变更的测试覆盖质量要求很高；在 agent 驱动开发下，预期是更多集成测试，而不是只覆盖 P0 路径。如果某个流程值得发布，通常也值得写集成测试。
+## Code Style
 
-使用 `cargo nextest run` 运行单元测试。
+- `./script/format --check` and `cargo clippy --workspace --all-targets --all-features --tests -- -D warnings` must pass.
+- Prefer imports over path qualifiers, inline format args (`println!("{x}")`), and exhaustive `match` over `_` wildcards.
+- See [WARP.md](WARP.md) for the full style guide, including WarpUI patterns and terminal model locking rules.
 
-## 代码风格
+## Commit and Branch Conventions
 
-- `./script/format --check` 和 `cargo clippy --workspace --all-targets --all-features --tests -- -D warnings` 必须通过。
-- 优先使用 import 而不是路径限定符，优先使用内联格式参数（`println!("{x}")`），并优先使用穷尽 `match` 而不是 `_` 通配符。
-- 完整风格指南见 [AGENTS.md](AGENTS.md)，其中包括 WarpUI 模式和 terminal model 加锁规则。
+- Branch names should be prefixed with your handle (e.g. `alice/fix-parser`).
+- Commit messages should explain *what* and *why*, not just *what*.
 
-## Commit 和分支约定
+## Code of Conduct
 
-- 分支名应以你的 handle 为前缀（例如 `alice/fix-parser`）。
-- commit message 应说明 *what* 和 *why*，而不只是 *what*。
+This project adopts the [Contributor Covenant](https://www.contributor-covenant.org/) (v2.1) as its code of conduct. All contributors and maintainers are expected to follow it in every project space. See [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for the full text, or report violations to warp-coc at warp.dev.
 
-## 行为准则
+## Reporting Security Issues
 
-本项目采用 [Contributor Covenant](https://www.contributor-covenant.org/)（v2.1）作为行为准则。所有贡献者和维护者都应在每个项目空间中遵守它。完整文本见 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)，如需报告违规行为，请发送邮件至 warp-coc at warp.dev。
+See [`SECURITY.md`](SECURITY.md) for our security disclosure policy and private reporting channels. **Do not open public issues for security vulnerabilities.**
 
-## 报告安全问题
+## Getting Help
 
-我们的安全披露政策和私下报告渠道见 [`SECURITY.md`](SECURITY.md)。**不要为安全漏洞打开公开 issue。**
-
-## 获取帮助
-
-- 在 [Warp Slack 社区](https://go.warp.dev/join-preview)的 [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) 频道中，与其他贡献者和 Warp 团队交流（新用户请先加入 workspace）。
-- 浏览 [Warp 文档](https://docs.warp.dev/)。
-- 为 bug 或功能请求打开 [GitHub issue](https://github.com/warpdotdev/warp/issues)。
+- Chat with other contributors and the Warp team in [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) on the [Warp Slack community](https://go.warp.dev/join-preview) (join the workspace first if you're new).
+- Browse the [Warp docs](https://docs.warp.dev/).
+- Open a [GitHub issue](https://github.com/warpdotdev/warp/issues) for bugs or feature requests.

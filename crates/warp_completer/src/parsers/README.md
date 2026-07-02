@@ -1,16 +1,15 @@
-# 基础 parser
+# Basic parser
 
-该 parser 是一个类型驱动的 recursive descent parser。这份仍在完善中的指南会通过示例，以友好方式概览它的工作方式。部分位置包含 `你知道吗？` 备注，它们是值得了解的小技巧，因为 parser 会依赖这些内容。
+This parser is a type driven, recursive descent parser. This work in progress guide goes over a friendly overview of the workings of it with examples. In some places `Did you know?` notes are included, they are good to know tips because the parser relies on them.
 
-# 步骤
+# Steps
+1. Lex. - [What happens when we start the parse](#what-happens-when-we-start-the-parse)
+2. Lite Parse. - [Working with the tokens](#working-with-the-tokens)
+3. Type driven full parse. - [Full parse](#)
 
-1. Lex. - [开始 parse 时会发生什么](#开始-parse-时会发生什么)
-2. Lite Parse. - [处理 token](#处理-token)
-3. 类型驱动 full parse. - [Full parse](#)
+## What happens when we start the parse?
 
-## 开始 parse 时会发生什么？
-
-假设我们想 parse 输入 `warp --disable-telemetry`。Command call 通常采用 `cmd <arg1> <arg2> <argN>` 形式，其中 `<arg>` 是 positional parameter。我们使用 parser 的主要函数来检查。第一步是调用 tokenizer（这里是 `lex` 函数）：
+Let's say we are interested in parsing the input `warp --disable-telemetry`. Command calls generally have the form `cmd <arg1> <arg2> <argN>` where `<arg>`s are positional parameters. Let's use the primary functions of the parser and inspect. The first step we do is calling the tokenizer (the function `lex` here):
 
 ```rust
 let input = "warp --disable_telemetry";
@@ -20,7 +19,7 @@ let (tokens, _) = lex(input, start_offset);
 println!("{:#?}", tokens);
 ```
 
-输出如下：
+The output is:
 
 ```rust
 (
@@ -55,11 +54,11 @@ println!("{:#?}", tokens);
 )
 ```
 
-实际上，我们在这里得到的是被 *tokenize* 后的输入源。Parser 使用 `start_offset` 来计算每个 bare word 的 span。再仔细看一点，可以注意到这些 token 带有 `span` 字段。[`Span` struct type](../meta.rs) 有 `start` 和 `end` 数字字段，有助于了解某个内容所在的位置。
+In effect, we receive here the input source *tokenized*. The `start_offset` is used by the parser to calculate the spans of each bare word. Inspecting a little more we can notice the tokens with a `span` field on them. The `Span` [struct type](../meta.rs) has the fields `start` and `end` number that are helpful for knowing where something is.
 
-#### 你知道吗？`Span` struct type。
+#### Did you know? The `Span` struct type.
 
-下面使用上方输出中的 span 数字，并使用 `Span` struct 关联的 `slice` 函数。该函数接收一个字符串作为输入，并使用 `Span` 的 `start` 和 `end` 值返回它的一个 slice。我们用上面输出中的数字创建三个 `Span`，并从传给 lexer 的输入字符串中切出每个片段。
+Let's use the span numbers from the output above, and use the `Span` struct associated `slice` function. This function takes a string as input and will return a slice of it using the `Span`'s `start` and `end` values. Let's create three `Span`s with the numbers from the output above and slice each from the input string fed to the lexer.
 
 ```rust
 let input = "warp --disable-telemetry";
@@ -73,11 +72,11 @@ assert_eq!(word2.slice(input), " ");
 assert_eq!(word3.slice(input), "--disable-telemetry");
 ```
 
-## 处理 token
+## Working with the tokens
 
-基础 parser 的下一步与传统 parsing 中的 lexing/parsing 并没有太大不同。当前任务是理解 token 的边界，并准备好用于 full parse 的一般形态。此时我们暂时不需要做更多事情，因为这些 token 中的每一个都可以传给没有注册 signature 的命令（*稍后会详细说明*）。我们称这一步为 `Lite` parse step。
+The next step of the basic parser isn't all that different from lexing/parsing from traditional parsing. The task right now is to understand the boundaries of the tokens and get the general forms ready for a full parse. We are not interested here in doing anything more just yet since each of these tokens can be passed to commands that have no signature registered (*more on this later*). We call this step the `Lite` parse step.
 
-下面是 grammar rule 的极简视图：
+A very simplistic view of the grammar rules below:
 
 ```
 LiteRootNode    := LiteGroup
@@ -87,7 +86,7 @@ LiteCommand     := argument+
 // (*more grammar later*)
 ```
 
-它们表示为基础 parser 生成的 struct：
+These are represented as structs that basic parser generates, they are:
 
 ```rust
 pub struct LiteRootNode {
@@ -109,9 +108,9 @@ pub struct LiteCommand {
 }
 ```
 
-#### 你知道吗？`Spanned<T>` generic struct。
+#### Did you know? The `Spanned<T>` generic struct.
 
-`LiteCommand` 有一个 `parts` 字段，用来保存 `Spanned<String>` 的 vector。我们前面提到过 `Span` 类型。这里要说的是一个 generic `Spanned<T>`，它允许将任意 `T` 与一个 `Span` 值包装在一起。下面给出该类型，以及一些使用其 helper function 的示例。
+The `LiteCommand` has a `parts` field that holds a vector of `Spanned<String>`. We mentioned about the `Span` type before. Here, we talk about a generic `Spanned<T>` that allows wrapping any `T` with a `Span` value along with it. Here is the type along with a few examples using it's helper functions.
 
 ```rust
 pub struct Spanned<T> {
@@ -138,7 +137,7 @@ assert_eq!(first_flag_span.until(full_span).slice(example), "-p --disable-teleme
 
 ```
 
-这很有用，因为一旦 `lite` parse step 发生，我们就会得到所需的全部输出，并且 `span` 都已正确计算。下面继续对原始示例执行 lite parse（函数 `parse_tokens`），输入为 lexer 处理 `warp --disable-telemetry` 时生成的 token，如下：
+This is useful because as soon as the `lite` parse step happens. We get as output everything we need with `spans` correctly calculated. Let's go ahead and do a lite parse (the function `parse_tokens`) to our original example using as input the tokens generated by the lexer when processing the input `warp --disable-telemetry`, like so:
 
 ```rust
 let input = "warp --disable-telemetry";
@@ -156,8 +155,7 @@ assert_eq!(lite_node.groups[0].pipelines[0].commands.len(), 1);
 println!("{:#?}", lite_node);
 ```
 
-我们得到一个清晰的 lite node：
-
+We get a nice lite node:
 ```rust
 LiteRootNode {
     groups: [
@@ -192,7 +190,7 @@ LiteRootNode {
 }
 ```
 
-对于更复杂的输入（例如命令由 `|` 分隔和/或包含 `;`），lite parser 会有效创建必要的 `LitePipeline` 来表达它。下面看看对输入 `warp config-set --extension-path="/path/to/dir" ; echo $WARP_VAR"` 执行 lite parse 会发生什么（*这里因为 ; 字符而有两个 pipeline*）：
+For more involved inputs (say commands separated by `|` and/or having `;`) the lite parser will effectively create the necessary `LitePipeline`s to express it, let's explore what happens if we lite parse the input `warp config-set --extension-path="/path/to/dir" ; echo $WARP_VAR"` (*two pipelines here due to the ; character*), like so:
 
 ```rust
 let input = "warp config-set --extension-path=\"/path/to/dir\" ; echo $WARP_VAR";
@@ -273,6 +271,6 @@ LiteRootNode {
 }
  ```
 
- ## 类型驱动 full parse
+ ## Type driven full parse
 
 TODO

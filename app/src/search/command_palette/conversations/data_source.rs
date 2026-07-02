@@ -89,13 +89,12 @@ impl DataSource {
             .into_iter()
             .find(|conversation| &conversation.id == conversation_id)
             .map(|conversation| {
-                let search_item = ConversationSearchItem::new(
-                    ConversationAction::Resume(Box::new(MatchedConversation {
+                let search_item = ConversationSearchItem::new(ConversationAction::Resume(
+                    Box::new(MatchedConversation {
                         conversation,
                         match_result: ConversationMatchResult::no_match(),
-                    })),
-                    app,
-                );
+                    }),
+                ));
                 QueryResult::from(search_item)
             })
     }
@@ -104,21 +103,19 @@ impl DataSource {
         &self,
         limit: usize,
         app: &AppContext,
-    ) -> Vec<QueryResult<<Self as SyncDataSource>::Action>> {
+    ) -> impl Iterator<Item = QueryResult<<Self as SyncDataSource>::Action>> {
         self.searcher
             .searchable_conversations(app)
             .into_iter()
             .k_largest_by_key(limit, |conversation| conversation.last_updated)
             .map(|conversation| {
-                QueryResult::from(ConversationSearchItem::new(
-                    ConversationAction::Resume(Box::new(MatchedConversation {
+                QueryResult::from(ConversationSearchItem::new(ConversationAction::Resume(
+                    Box::new(MatchedConversation {
                         conversation,
                         match_result: ConversationMatchResult::no_match(),
-                    })),
-                    app,
-                ))
+                    }),
+                )))
             })
-            .collect()
     }
 }
 
@@ -182,10 +179,9 @@ impl SyncDataSource for DataSource {
                                 match_result: ConversationMatchResult::no_match(),
                             };
                             results.push(
-                                ConversationSearchItem::new(
-                                    ConversationAction::Resume(Box::new(matched_conversation)),
-                                    app,
-                                )
+                                ConversationSearchItem::new(ConversationAction::Resume(Box::new(
+                                    matched_conversation,
+                                )))
                                 .into(),
                             );
                         }
@@ -212,19 +208,16 @@ impl SyncDataSource for DataSource {
                         // Only surface the fork option if the selected conversation is done.
                         if conversation.status().is_done() {
                             results.push(
-                                ConversationSearchItem::new(
-                                    ConversationAction::Fork {
-                                        conversation_id: conversation.id(),
-                                        title: conversation.title().unwrap_or_default().to_string(),
-                                    },
-                                    app,
-                                )
+                                ConversationSearchItem::new(ConversationAction::Fork {
+                                    conversation_id: conversation.id(),
+                                    title: conversation.title().unwrap_or_default().to_string(),
+                                })
                                 .into(),
                             );
                         }
                     }
                 }
-                results.push(ConversationSearchItem::new(ConversationAction::New, app).into());
+                results.push(ConversationSearchItem::new(ConversationAction::New).into());
                 results
             })
         } else {

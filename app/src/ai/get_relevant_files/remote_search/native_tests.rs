@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
 use remote_server::proto::{file_context_proto, FileContextProto, ReadFileContextResponse};
-use warp_localization::LocaleId;
 
-use super::{file_contents_from_response, protocol_message, protocol_message_with_args};
+use super::file_contents_from_response;
 
 #[test]
 fn file_contents_from_response_keeps_only_whole_text_files() {
@@ -39,36 +38,5 @@ fn file_contents_from_response_keeps_only_whole_text_files() {
     assert_eq!(
         file_contents.get(&PathBuf::from("/repo/src/lib.rs")),
         Some(&"content".to_string())
-    );
-}
-
-#[test]
-fn remote_search_protocol_errors_use_en_us_text() {
-    assert_eq!(
-        protocol_message("agent.search_codebase.error.remote_not_enabled"),
-        crate::localization::text_for_locale(
-            LocaleId::EnUs,
-            "agent.search_codebase.error.remote_not_enabled"
-        )
-    );
-    assert_ne!(
-        protocol_message("agent.search_codebase.error.remote_not_enabled"),
-        crate::localization::text_for_locale(
-            LocaleId::ZhCn,
-            "agent.search_codebase.error.remote_not_enabled"
-        )
-    );
-}
-
-#[test]
-fn remote_search_protocol_errors_keep_en_us_templates_with_arguments() {
-    let message = protocol_message_with_args(
-        "agent.search_codebase.error.remote_read_failed",
-        &[("failed", "/repo/src/main.rs: denied")],
-    );
-
-    assert_eq!(
-        message,
-        "Failed to read remote search result files: /repo/src/main.rs: denied"
     );
 }

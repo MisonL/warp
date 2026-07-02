@@ -35,6 +35,22 @@ fn restored_conversation(conversation_data: Option<AgentConversationData>) -> AI
     .unwrap()
 }
 
+fn restored_conversation_with_root_description(description: &str) -> AIConversation {
+    AIConversation::new_restored(
+        AIConversationId::new(),
+        vec![api::Task {
+            id: "root-task".to_string(),
+            messages: vec![],
+            dependencies: None,
+            description: description.to_string(),
+            summary: String::new(),
+            server_data: String::new(),
+        }],
+        None,
+    )
+    .unwrap()
+}
+
 fn user_query_message(id: &str, request_id: &str, query: &str) -> api::Message {
     api::Message {
         id: id.to_string(),
@@ -119,8 +135,10 @@ fn custom_endpoint_usage_metadata(
         summarized: false,
         token_usage: vec![],
         tool_usage_metadata: None,
+        total_input_tokens: 0,
         warp_token_usage: HashMap::new(),
         byok_token_usage: HashMap::new(),
+        context_window_segments: Vec::new(),
         custom_endpoint_token_usage: HashMap::from([(
             config_key.to_string(),
             api::response_event::stream_finished::ModelTokenUsage {
@@ -151,6 +169,20 @@ fn latest_user_query_trims_and_skips_empty_queries() {
         conversation.latest_user_query(),
         Some("write unit tests".to_string())
     );
+}
+
+#[test]
+fn title_uses_root_task_description() {
+    let conversation = restored_conversation_with_root_description("Root task title");
+
+    assert_eq!(conversation.title().as_deref(), Some("Root task title"));
+}
+
+#[test]
+fn title_falls_back_to_initial_query_when_root_description_is_empty() {
+    let conversation = restored_conversation_with_queries(&["Initial query"]);
+
+    assert_eq!(conversation.title().as_deref(), Some("Initial query"));
 }
 
 #[test]
@@ -229,7 +261,7 @@ fn restored_conversation_with_empty_task_list_creates_in_progress_optimistic_roo
 }
 
 #[test]
-fn update_cost_and_usage_preserves_custom_endpoint_config_key_for_footer_usage() {
+fn update_cost_and_usage_resolves_custom_endpoint_alias_for_footer_usage() {
     App::test((), |mut app| async move {
         initialize_custom_endpoint_usage_test_app(&mut app);
         ApiKeyManager::handle(&app).update(&mut app, |manager, ctx| {
@@ -263,8 +295,8 @@ fn update_cost_and_usage_preserves_custom_endpoint_config_key_for_footer_usage()
         let usage = conversation
             .token_usage()
             .iter()
-            .find(|usage| usage.model_id == "config-key")
-            .expect("custom endpoint config key should be retained in footer usage");
+            .find(|usage| usage.model_id == "Friendly alias")
+            .expect("custom endpoint alias should resolve into footer usage");
         assert_eq!(usage.custom_endpoint_tokens, 6);
         assert_eq!(usage.byok_tokens, 0);
         assert_eq!(
@@ -277,9 +309,11 @@ fn update_cost_and_usage_preserves_custom_endpoint_config_key_for_footer_usage()
 }
 
 #[test]
-fn update_cost_and_usage_preserves_unknown_custom_endpoint_config_key() {
+fn update_cost_and_usage_uses_fallback_label_for_unknown_custom_endpoint() {
     App::test((), |mut app| async move {
         initialize_custom_endpoint_usage_test_app(&mut app);
+        app.add_singleton_model(LLMPreferences::new);
+
         let mut conversation = AIConversation::new(false, false);
         app.read(|ctx| {
             conversation
@@ -296,8 +330,8 @@ fn update_cost_and_usage_preserves_unknown_custom_endpoint_config_key() {
         let usage = conversation
             .token_usage()
             .iter()
-            .find(|usage| usage.model_id == "missing-config-key")
-            .expect("unknown custom endpoint usage should retain the config key");
+            .find(|usage| usage.model_id == "Custom endpoint")
+            .expect("unknown custom endpoint usage should use the fallback label");
         assert_eq!(usage.custom_endpoint_tokens, 9);
         assert_eq!(usage.byok_tokens, 0);
         assert_eq!(
@@ -338,6 +372,7 @@ fn footer_model_token_usage_keeps_custom_endpoint_usage_distinct_from_same_label
             #[allow(deprecated)]
             token_usage: vec![],
             tool_usage_metadata: None,
+            total_input_tokens: 0,
             warp_token_usage: HashMap::new(),
             byok_token_usage: HashMap::from([(
                 "Resolved custom".to_string(),
@@ -355,16 +390,18 @@ fn footer_model_token_usage_keeps_custom_endpoint_usage_distinct_from_same_label
                     token_usage_by_category: HashMap::from([(category.clone(), 6)]),
                 },
             )]),
+            context_window_segments: Vec::new(),
         };
 
-        let model_usage = footer_model_token_usage(&usage_metadata);
+        let model_usage =
+            app.read(|ctx| footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx)));
         let byok_usage = model_usage
             .iter()
             .find(|usage| usage.model_id == "Resolved custom" && usage.byok_tokens == 4)
             .expect("existing model usage should be present");
         let custom_usage = model_usage
             .iter()
-            .find(|usage| usage.model_id == "config-key" && usage.custom_endpoint_tokens == 6)
+            .find(|usage| usage.model_id == "Resolved custom" && usage.custom_endpoint_tokens == 6)
             .expect("custom endpoint usage should remain distinct");
 
         assert_eq!(model_usage.len(), 2);
@@ -386,9 +423,11 @@ fn footer_model_token_usage_keeps_custom_endpoint_usage_distinct_from_same_label
 
 #[allow(deprecated)]
 #[test]
-fn footer_model_token_usage_preserves_unresolved_custom_endpoint_config_key() {
+fn footer_model_token_usage_preserves_unresolved_custom_endpoint_usage_with_fallback_label() {
     App::test((), |mut app| async move {
         initialize_custom_endpoint_usage_test_app(&mut app);
+        app.add_singleton_model(LLMPreferences::new);
+
         let category = "primary_agent".to_string();
         let usage_metadata = api::response_event::stream_finished::ConversationUsageMetadata {
             context_window_usage: 0.0,
@@ -398,6 +437,7 @@ fn footer_model_token_usage_preserves_unresolved_custom_endpoint_config_key() {
             #[allow(deprecated)]
             token_usage: vec![],
             tool_usage_metadata: None,
+            total_input_tokens: 0,
             warp_token_usage: HashMap::new(),
             byok_token_usage: HashMap::new(),
             custom_endpoint_token_usage: HashMap::from([(
@@ -408,13 +448,15 @@ fn footer_model_token_usage_preserves_unresolved_custom_endpoint_config_key() {
                     token_usage_by_category: HashMap::from([(category.clone(), 9)]),
                 },
             )]),
+            context_window_segments: Vec::new(),
         };
 
-        let model_usage = footer_model_token_usage(&usage_metadata);
+        let model_usage =
+            app.read(|ctx| footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx)));
         let custom_usage = model_usage
             .iter()
-            .find(|usage| usage.model_id == "missing-config-key")
-            .expect("unresolved custom endpoint usage should retain the config key");
+            .find(|usage| usage.model_id == "Custom endpoint")
+            .expect("fallback custom endpoint usage should be present");
 
         assert_eq!(model_usage.len(), 1);
         assert_eq!(custom_usage.custom_endpoint_tokens, 9);
@@ -642,4 +684,60 @@ fn fork_artifacts_adds_file_artifacts_to_conversation() {
             size_bytes: Some(42),
         })
     );
+}
+
+#[test]
+fn waiting_for_events_display_label_is_waiting() {
+    assert_eq!(
+        format!("{}", ConversationStatus::WaitingForEvents),
+        "Waiting"
+    );
+}
+
+/// `is_done` returns true only for `Success | Error | Cancelled`;
+/// `WaitingForEvents` and `Blocked` are not done because the run can still
+/// resume on its own.
+#[test]
+fn is_done_only_includes_success_error_cancelled() {
+    assert!(ConversationStatus::Success.is_done());
+    assert!(ConversationStatus::Error.is_done());
+    assert!(ConversationStatus::Cancelled.is_done());
+
+    assert!(!ConversationStatus::InProgress.is_done());
+    assert!(!ConversationStatus::Blocked {
+        blocked_action: "approve".to_string()
+    }
+    .is_done());
+    assert!(!ConversationStatus::WaitingForEvents.is_done());
+}
+
+/// `is_waiting_for_events` is true only for the new variant.
+#[test]
+fn is_waiting_for_events_returns_true_only_for_waiting_for_events_variant() {
+    assert!(ConversationStatus::WaitingForEvents.is_waiting_for_events());
+
+    assert!(!ConversationStatus::InProgress.is_waiting_for_events());
+    assert!(!ConversationStatus::Success.is_waiting_for_events());
+    assert!(!ConversationStatus::Error.is_waiting_for_events());
+    assert!(!ConversationStatus::Cancelled.is_waiting_for_events());
+    assert!(!ConversationStatus::Blocked {
+        blocked_action: "approve".to_string()
+    }
+    .is_waiting_for_events());
+}
+
+/// A conversation that was yielded via `wait_for_events` at shutdown
+/// restores as whatever `derive_status_from_root_task` returns (Success
+/// for a cleanly-streamed last exchange). The unresolved tool call stays
+/// in the transcript as an orphan; the next outbound request triggers
+/// the server's existing supersede mechanism to synthesize the matching
+/// `Cancel`. The waiting state itself is not durable across restart.
+#[test]
+fn restored_conversation_does_not_re_enter_waiting_for_events() {
+    let conversation_data: AgentConversationData =
+        serde_json::from_str(r#"{"server_conversation_token":null}"#).unwrap();
+
+    let conversation = restored_conversation(Some(conversation_data));
+
+    assert_eq!(conversation.status(), &ConversationStatus::Success);
 }

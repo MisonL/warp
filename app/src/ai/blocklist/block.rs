@@ -1,5 +1,4 @@
 //! Implementation of "AI blocks" used to render AI queries and outputs in the blocklist.
-use crate::localization;
 pub mod cli;
 pub mod cli_controller;
 pub mod compact_agent_input;
@@ -101,6 +100,7 @@ use crate::ai::agent::{
     SummarizationType, TodoOperation,
 };
 use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConversationsModelEvent};
+use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::NewConversationDecision;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
@@ -202,9 +202,12 @@ use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, 
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
-    report_error, report_if_error, send_telemetry_from_ctx, AIAgentTodoList, Appearance, FileEdit,
-    LLMPreferences, PrivacySettings, ToastStack,
+    localization, report_error, report_if_error, send_telemetry_from_ctx, AIAgentTodoList,
+    Appearance, FileEdit, LLMPreferences, PrivacySettings, ToastStack,
 };
+
+/// The default display name used for the user if they have no associated display name.
+const DEFAULT_USER_DISPLAY_NAME: &str = "User";
 
 const HAS_PENDING_ACTION: &str = "HasPendingAction";
 const DISPATCHED_REQUESTED_EDIT_KEYMAP_CONTEXT: &str = "PendingAIRequestedEdits";
@@ -215,14 +218,14 @@ const AUTO_EXPAND_REQUESTED_COMMAND_DELAY: std::time::Duration =
 pub const RICH_CONTENT_SECRET_FIRST_CHAR_POSITION_ID: &str =
     "ai_block:rich_content_secret_first_char_position";
 
+fn block_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct UserAvatarInfo {
     display_name: String,
     profile_image_path: Option<String>,
-}
-
-fn ai_block_text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }
 
 fn current_user_avatar_info(app: &AppContext) -> UserAvatarInfo {
@@ -230,7 +233,7 @@ fn current_user_avatar_info(app: &AppContext) -> UserAvatarInfo {
     UserAvatarInfo {
         display_name: auth_state
             .username_for_display()
-            .unwrap_or_else(|| ai_block_text(app, "agent.block.default_user_display_name")),
+            .unwrap_or_else(|| DEFAULT_USER_DISPLAY_NAME.to_owned()),
         profile_image_path: auth_state.user_photo_url(),
     }
 }
@@ -478,13 +481,10 @@ pub(super) struct AIBlockStateHandles {
     /// Mouse state handle for AI document created block
     ai_document_handle: MouseStateHandle,
 
-    /// Mouse state handle for 'open skill' button
-    /// from an OpenSkill action banner
-    open_skill_button_handle: MouseStateHandle,
-
-    /// Mouse state handle for 'open skill' button
-    /// from a ReadFiles action banner
-    read_from_skill_button_handle: MouseStateHandle,
+    /// Per-action mouse state handles for the 'open skill' button shown on
+    /// ReadSkill and ReadFiles action banners. Keyed by action id so that
+    /// multiple skill banners in the same block don't share hover/click state.
+    skill_button_handles: HashMap<AIAgentActionId, MouseStateHandle>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -601,7 +601,7 @@ impl ImportedCommentElementState {
                 ActionButton::new("", NakedTheme)
                     .with_icon(Icon::Github)
                     .with_size(ButtonSize::Small)
-                    .with_tooltip(ai_block_text(ctx, "agent.block.action.open_in_github"))
+                    .with_tooltip(block_text(ctx, "agent.block.action.open_in_github"))
                     .on_click({
                         let url = url.clone();
                         move |ctx| {
@@ -616,7 +616,7 @@ impl ImportedCommentElementState {
         let action_id_for_open_button = action_id.clone();
         let open_in_code_review_button = ctx.add_typed_action_view(move |ctx| {
             ActionButton::new(
-                ai_block_text(ctx, "agent.block.action.open_in_code_review"),
+                block_text(ctx, "agent.block.action.open_in_code_review"),
                 SecondaryTheme,
             )
             .with_size(ButtonSize::Small)
@@ -1243,7 +1243,7 @@ impl AIBlock {
 
         let manage_rules_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                ai_block_text(ctx, "agent.block.action.manage_rules"),
+                block_text(ctx, "agent.block.action.manage_rules"),
                 NakedTheme,
             )
             .on_click(|ctx| ctx.dispatch_typed_action(AIBlockAction::OpenAIFactCollection))
@@ -1377,7 +1377,7 @@ impl AIBlock {
 
         let review_changes_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                ai_block_text(ctx, "agent.block.action.review_changes"),
+                block_text(ctx, "agent.block.action.review_changes"),
                 SecondaryTheme,
             )
             .with_icon(Icon::Diff)
@@ -1389,7 +1389,7 @@ impl AIBlock {
 
         let open_all_comments_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                ai_block_text(ctx, "agent.block.action.open_all_in_code_review"),
+                block_text(ctx, "agent.block.action.open_all_in_code_review"),
                 SecondaryTheme,
             )
             .with_size(ButtonSize::Small)
@@ -1400,7 +1400,7 @@ impl AIBlock {
 
         let dismiss_suggestion_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                ai_block_text(ctx, "agent.block.action.dismiss"),
+                block_text(ctx, "agent.block.action.dismiss"),
                 SuggestionDismissButtonTheme,
             )
             .with_icon(Icon::X)
@@ -1412,7 +1412,7 @@ impl AIBlock {
 
         let disable_rule_suggestions_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                ai_block_text(ctx, "agent.block.action.dont_show_again"),
+                block_text(ctx, "agent.block.action.dont_show_again"),
                 SuggestionDismissButtonTheme,
             )
             .with_size(ButtonSize::Small)
@@ -1426,11 +1426,11 @@ impl AIBlock {
         let conversation_id = client_ids.conversation_id;
         let rewind_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                ai_block_text(ctx, "agent.block.action.rewind"),
+                block_text(ctx, "agent.block.action.rewind"),
                 RewindButtonTheme,
             )
             .with_size(ButtonSize::XSmall)
-            .with_tooltip(ai_block_text(ctx, "agent.block.action.rewind_tooltip"))
+            .with_tooltip(block_text(ctx, "agent.block.action.rewind_tooltip"))
             .on_click(move |ctx| {
                 ctx.dispatch_typed_action(TerminalAction::RewindAIConversation {
                     ai_block_view_id,
@@ -1759,10 +1759,13 @@ impl AIBlock {
                         for source in image_sources {
                             resolved_image_sources.insert(
                                 source.clone(),
-                                Some(resolve_asset_source_relative_to_directory(
-                                    &source,
-                                    cwd.as_deref().map(Path::new),
-                                )),
+                                Some(
+                                    resolve_asset_source_relative_to_directory(
+                                        &source,
+                                        cwd.as_deref().map(Path::new),
+                                    )
+                                    .with_local_file_content_version(),
+                                ),
                             );
                         }
 
@@ -1995,7 +1998,7 @@ impl AIBlock {
 
             if !self.action_buttons.contains_key(&action.id) {
                 let run_button = CompactibleActionButton::new(
-                    ai_block_text(ctx, "agent.block.action.run"),
+                    "Run".to_string(),
                     Some(KeystrokeSource::Fixed(ENTER_KEYSTROKE.clone())),
                     ButtonSize::InlineActionHeader,
                     AIBlockAction::ExecuteRequestedAction {
@@ -2007,7 +2010,7 @@ impl AIBlock {
                 );
 
                 let cancel_button = CompactibleActionButton::new(
-                    ai_block_text(ctx, "agent.block.action.cancel"),
+                    localization::text_for_app(ctx, "agent.block.action.cancel"),
                     Some(KeystrokeSource::Fixed(CTRL_C_KEYSTROKE.clone())),
                     ButtonSize::InlineActionHeader,
                     AIBlockAction::CancelRequestedAction {
@@ -2029,6 +2032,16 @@ impl AIBlock {
             if matches!(&action.action, AIAgentActionType::StartAgent { .. }) {
                 self.state_handles
                     .orchestration_navigation_card_handles
+                    .entry(action.id.clone())
+                    .or_default();
+            }
+
+            if matches!(
+                &action.action,
+                AIAgentActionType::ReadSkill(_) | AIAgentActionType::ReadFiles(_)
+            ) {
+                self.state_handles
+                    .skill_button_handles
                     .entry(action.id.clone())
                     .or_default();
             }
@@ -2087,18 +2100,9 @@ impl AIBlock {
                         other => other.clone(),
                     };
                     let command_text = if display_input.is_null() {
-                        localization::text_for_app_with_args(
-                            ctx,
-                            "agent.requested_command.mcp_tool.label",
-                            &[("name", name)],
-                        )
+                        format!("MCP Tool: {name}")
                     } else {
-                        let display_input = display_input.to_string();
-                        localization::text_for_app_with_args(
-                            ctx,
-                            "agent.requested_command.mcp_tool.label_with_input",
-                            &[("name", name), ("input", &display_input)],
-                        )
+                        format!("MCP Tool: {name} ({display_input})")
                     };
                     self.handle_mcp_tool_stream_update(action_id, &command_text, ctx);
                 }
@@ -2122,9 +2126,9 @@ impl AIBlock {
                     ..
                 } => {
                     let start_new_conversation_button_text =
-                        ai_block_text(ctx, "agent.output.new_conversation.start");
+                        localization::text_for_app(ctx, "agent.output.new_conversation.start");
                     let continue_current_conversation_button_text =
-                        ai_block_text(ctx, "agent.output.new_conversation.continue_current");
+                        "Continue current conversation".to_owned();
 
                     let server_output_id = self.model.server_output_id(ctx);
                     let accept_action = AIBlockAction::StartNewConversationButtonClicked {
@@ -3782,7 +3786,7 @@ impl AIBlock {
 
         for (index, document) in documents.iter().enumerate() {
             let title = if document.title.is_empty() {
-                ai_block_text(ctx, "ai_document.title.default")
+                DEFAULT_PLANNING_DOCUMENT_TITLE.to_string()
             } else {
                 document.title.clone()
             };
@@ -4341,7 +4345,7 @@ impl AIBlock {
         self.model
             .inputs_to_render(app)
             .iter()
-            .any(|input| input.user_query().is_some())
+            .any(|input| input.display_query().is_some())
     }
 
     /// `true` if the AI block is "finished".
@@ -4909,6 +4913,32 @@ impl AIBlock {
                     .find_map(|comment| comment.rich_text_editor.as_ref(ctx).selected_text(ctx))
             })
             .or_else(|| self.selected_text.read().clone())
+            .filter(|selection| !selection.is_empty())
+    }
+
+    /// Test-only helper to set the block-level text selection, which is normally
+    /// written by the `SelectableArea` selection callback during a drag.
+    #[cfg(any(test, feature = "integration_tests"))]
+    pub fn set_block_level_selected_text_for_test(&self, text: Option<String>) {
+        *self.selected_text.write() = text;
+    }
+
+    /// Test-only helper that simulates a block-level text selection in this AI
+    /// block: it writes the selected text and emits the same
+    /// [`AIBlockEvent::SelectionChanged`] signal that
+    /// [`AIBlockAction::SelectText`] does, so the terminal view mirrors it into
+    /// the model's rich content selection (which the copy/insert paths read).
+    ///
+    /// This lets integration tests exercise the in-AI-block copy path without
+    /// depending on layout-sensitive pixel coordinates.
+    #[cfg(any(test, feature = "integration_tests"))]
+    pub fn simulate_text_selection_for_test(
+        &mut self,
+        text: Option<String>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        *self.selected_text.write() = text;
+        ctx.emit(AIBlockEvent::SelectionChanged);
     }
 
     /// Start a selection at the top left corner of the block's SelectableArea.
@@ -5485,7 +5515,7 @@ impl AIBlock {
         self.model
             .inputs_to_render(app)
             .iter()
-            .filter_map(|input| input.user_query())
+            .filter_map(|input| input.display_query())
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -5821,13 +5851,8 @@ fn set_imported_comment_button_disabled(
     handle.update(ctx, |button, ctx| {
         button.set_disabled(should_disable, ctx);
         if should_disable {
-            let tooltip = repo_path.map(|path| {
-                localization::text_for_app_with_args(
-                    ctx,
-                    "agent.block.action.open_comments_disabled_tooltip",
-                    &[("path", &path.display_path())],
-                )
-            });
+            let tooltip = repo_path
+                .map(|path| format!("Navigate to {} to open these comments", path.display_path()));
             button.set_tooltip(tooltip, ctx);
         } else {
             button.set_tooltip(None::<String>, ctx);
@@ -5973,6 +5998,12 @@ pub enum AIBlockEvent {
     /// important because selecting across multiple blocks only supports text selections at the
     /// `AIBlock` level.
     ChildViewTextSelected,
+    /// Emitted when the `AIBlock`'s own (block-level) text selection state may
+    /// have changed. The terminal view uses this to keep the model's record of
+    /// which rich content block has an active selection in sync, so copy/insert
+    /// paths can find the selected text. Rich content selections are not tied to
+    /// the point-based model selection, so this signal is required.
+    SelectionChanged,
     CopiedEmptyText,
     OpenSettings,
     #[cfg(feature = "local_fs")]
@@ -6239,6 +6270,10 @@ impl TypedActionView for AIBlock {
                 // If we have a selection, we should use the default cursor, even if it's over a link.
                 ctx.reset_cursor();
                 self.dismiss_ai_tooltips(ctx);
+                // Notify the terminal view so it can keep the model's record of which rich
+                // content block has an active selection in sync (rich content selections are
+                // not tied to the point-based model selection used for regular blocks).
+                ctx.emit(AIBlockEvent::SelectionChanged);
             }
             AIBlockAction::CopyAIBlockCodeSnippet(text) => {
                 ctx.clipboard()
@@ -6246,7 +6281,7 @@ impl TypedActionView for AIBlock {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success(ai_block_text(
+                        DismissibleToast::success(crate::localization::text_for_app(
                             ctx,
                             "agent.block.toast.copied_to_clipboard",
                         )),
@@ -6555,7 +6590,7 @@ impl TypedActionView for AIBlock {
 
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::default(ai_block_text(
+                    let toast = DismissibleToast::default(crate::localization::text_for_app(
                         ctx,
                         "agent.block.toast.feedback_thanks",
                     ));
@@ -6633,10 +6668,7 @@ impl TypedActionView for AIBlock {
             } => {
                 // Resets the interaction states of ReadSkill and ReadFiles tool call banners before opening a new code pane
                 // Avoids an immediate re-hover (and stuck tooltip) while the new code pane is being created
-                for handle in [
-                    &self.state_handles.open_skill_button_handle,
-                    &self.state_handles.read_from_skill_button_handle,
-                ] {
+                for handle in self.state_handles.skill_button_handles.values() {
                     if let Ok(mut state) = handle.lock() {
                         state.reset_interaction_state();
                     }

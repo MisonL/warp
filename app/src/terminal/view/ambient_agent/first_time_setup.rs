@@ -32,10 +32,6 @@ const FORM_PADDING: f32 = 24.;
 const SECTION_SPACING: f32 = 16.;
 const HEADER_SPACING: f32 = 4.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 /// Events emitted by FirstTimeCloudAgentSetupView.
 #[derive(Debug, Clone)]
 pub enum FirstTimeCloudAgentSetupViewEvent {
@@ -140,16 +136,18 @@ impl FirstTimeCloudAgentSetupView {
     }
 
     /// Renders the header section (title + description) - displayed OUTSIDE the form card.
-    fn render_header(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
         let mut column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(HEADER_SPACING);
 
+        // Title - 20px medium weight
         column.add_child(
             Text::new(
-                text(app, "terminal.ambient_agent.first_time_setup.title"),
+                localization::text_for_app(app, "terminal.ambient_agent.first_time_setup.title"),
                 appearance.ui_font_family(),
                 20.,
             )
@@ -158,13 +156,17 @@ impl FirstTimeCloudAgentSetupView {
             .finish(),
         );
 
+        // Description with "Visit docs" link
         let description_fragments = vec![
-            FormattedTextFragment::plain_text(text(
+            FormattedTextFragment::plain_text(localization::text_for_app(
                 app,
                 "terminal.ambient_agent.first_time_setup.description",
             )),
             FormattedTextFragment::hyperlink(
-                text(app, "terminal.ambient_agent.first_time_setup.docs_link"),
+                localization::text_for_app(
+                    app,
+                    "terminal.ambient_agent.first_time_setup.docs_link",
+                ),
                 "https://docs.warp.dev/agent-platform/cloud-agents/overview",
             ),
         ];
@@ -188,12 +190,13 @@ impl FirstTimeCloudAgentSetupView {
     }
 
     /// Renders the subheading text in accent color - displayed OUTSIDE the form card.
-    fn render_subheading(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_subheading(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
         // Bold/semibold text in foreground color (per Figma: font-semibold text-[#e3e2df])
         Text::new(
-            text(app, "terminal.ambient_agent.first_time_setup.subheading"),
+            localization::text_for_app(app, "terminal.ambient_agent.first_time_setup.subheading"),
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
@@ -204,18 +207,14 @@ impl FirstTimeCloudAgentSetupView {
     }
 
     /// Renders the free credits banner - displayed INSIDE the form card at the top.
-    fn render_free_credits_banner(
-        &self,
-        app: &AppContext,
-        credits: i32,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_free_credits_banner(&self, credits: i32, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
         // Badge with blue border
         let badge = Container::new(
             Text::new(
-                text(
+                localization::text_for_app(
                     app,
                     "terminal.ambient_agent.first_time_setup.free_credits_badge",
                 ),
@@ -233,17 +232,18 @@ impl FirstTimeCloudAgentSetupView {
         .finish();
 
         // Banner text - dynamic based on credits
+        let credits_string = credits.to_string();
         let credits_text = if credits == 1 {
-            text(
+            localization::text_for_app(
                 app,
                 "terminal.ambient_agent.first_time_setup.free_credits_singular",
             )
         } else {
-            text(
+            localization::text_for_app_with_args(
                 app,
                 "terminal.ambient_agent.first_time_setup.free_credits_plural",
+                &[("credits", credits_string.as_str())],
             )
-            .replace("{credits}", &credits.to_string())
         };
         let text = Text::new(credits_text, appearance.ui_font_family(), 12.)
             .with_color(blended_colors::text_sub(theme, theme.surface_1()))
@@ -273,12 +273,8 @@ impl FirstTimeCloudAgentSetupView {
     }
 
     /// Renders the form card container with subtle background.
-    fn render_form_card(
-        &self,
-        app: &AppContext,
-        credits: Option<i32>,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_form_card(&self, credits: Option<i32>, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let card_bg = blended_colors::fg_overlay_1(appearance.theme()).into();
 
         let mut card_content =
@@ -286,7 +282,7 @@ impl FirstTimeCloudAgentSetupView {
 
         // Free credits banner at the top of the card - only show if credits are present
         if let Some(credits) = credits {
-            card_content.add_child(self.render_free_credits_banner(app, credits, appearance));
+            card_content.add_child(self.render_free_credits_banner(credits, app));
         }
 
         // Embedded form with padding
@@ -350,13 +346,13 @@ impl View for FirstTimeCloudAgentSetupView {
             .with_spacing(SECTION_SPACING);
 
         // Header section (outside card)
-        content.add_child(self.render_header(app, appearance));
+        content.add_child(self.render_header(app));
 
         // Subheading (outside card)
-        content.add_child(self.render_subheading(app, appearance));
+        content.add_child(self.render_subheading(app));
 
         // Form card (contains banner + form)
-        content.add_child(self.render_form_card(app, credits_to_display, appearance));
+        content.add_child(self.render_form_card(credits_to_display, app));
 
         // Constrain width and center the content
         let centered_content = Align::new(

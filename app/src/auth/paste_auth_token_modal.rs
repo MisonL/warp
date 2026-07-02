@@ -8,6 +8,7 @@
 //! depend on.
 use pathfinder_color::ColorU;
 use ui_components::{button, Component as _, Options as _};
+use warp_core::safe_error;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::actions::StandardAction;
 use warpui::elements::{
@@ -128,7 +129,7 @@ impl PasteAuthTokenModalView {
                 ctx,
             );
             editor.set_placeholder_text(
-                localization::text_for_app(ctx, "auth.token.enter_placeholder"),
+                localization::text_for_app(ctx, "auth.paste_token.placeholder"),
                 ctx,
             );
             editor
@@ -208,7 +209,10 @@ impl PasteAuthTokenModalView {
                 });
             }
             Err(error) => {
-                log::error!("Failed to parse pasted auth URL: {error:#}");
+                safe_error!(
+                    safe: ("Failed to parse pasted auth URL"),
+                    full: ("Failed to parse pasted auth URL: {error:#}")
+                );
                 self.last_failure_reason =
                     Some(LoginFailureReason::InvalidRedirectUrl { was_pasted: true });
                 self.set_editor_enabled(true, ctx);
@@ -248,7 +252,7 @@ impl View for PasteAuthTokenModalView {
         let ui_builder = appearance.ui_builder();
 
         let title = FormattedTextElement::from_str(
-            localization::text_for_app(app, "auth.token.modal.title"),
+            localization::text_for_app(app, "auth.paste_token.title"),
             appearance.ui_font_family(),
             16.,
         )
@@ -275,7 +279,7 @@ impl View for PasteAuthTokenModalView {
 
         let subtitle_color = internal_colors::text_sub(theme, dialog_surface_solid);
         let subtitle = FormattedTextElement::from_str(
-            localization::text_for_app(app, "auth.token.modal.subtitle"),
+            localization::text_for_app(app, "auth.paste_token.subtitle"),
             appearance.ui_font_family(),
             14.,
         )

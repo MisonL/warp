@@ -247,20 +247,23 @@ impl MCPServersListPageView {
         me.create_server_cards(ctx);
         me.create_file_based_server_cards(ctx);
         ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
-            me.search_editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(
-                    localization::text_for_app(ctx, "settings.mcp.list.search_placeholder"),
-                    ctx,
-                );
-            });
-            me.add_button.update(ctx, |button, ctx| {
-                button.set_label(localization::text_for_app(ctx, "settings.action.add"), ctx);
-            });
-            me.create_server_cards(ctx);
-            me.create_file_based_server_cards(ctx);
-            ctx.notify();
+            me.refresh_localized_text(ctx);
         });
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.search_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.mcp.list.search_placeholder"),
+                ctx,
+            );
+        });
+        self.add_button.update(ctx, |button, ctx| {
+            button.set_label(localization::text_for_app(ctx, "settings.action.add"), ctx);
+        });
+        self.refresh_server_cards(ctx);
+        self.refresh_file_based_server_cards(ctx);
     }
 
     fn listen_to_cloud_model_events(ctx: &mut ViewContext<Self>) {
@@ -1153,20 +1156,21 @@ impl MCPServersListPageView {
 
         let toggle_row = build_toggle_element(label, switch, appearance, None);
 
-        let description = FormattedTextElement::new(
-            FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(localization::text_for_app(
+        let file_based_description_fragments = vec![
+            FormattedTextFragment::plain_text(localization::text_for_app(
+                app,
+                "settings.mcp.list.file_based.description",
+            )),
+            FormattedTextFragment::hyperlink(
+                localization::text_for_app(
                     app,
-                    "settings.mcp.list.file_based.description",
-                )),
-                FormattedTextFragment::hyperlink(
-                    localization::text_for_app(
-                        app,
-                        "settings.mcp.list.file_based.supported_providers_link",
-                    ),
-                    "https://docs.warp.dev/agent-platform/capabilities/mcp#file-based-mcp-servers",
+                    "settings.mcp.list.file_based.supported_providers_link",
                 ),
-            ])]),
+                "https://docs.warp.dev/agent-platform/capabilities/mcp#file-based-mcp-servers",
+            ),
+        ];
+        let description = FormattedTextElement::new(
+            FormattedText::new([FormattedTextLine::Line(file_based_description_fragments)]),
             style::CONTENT_FONT_SIZE,
             appearance.ui_font_family(),
             appearance.ui_font_family(),
@@ -1294,11 +1298,11 @@ impl MCPServersListPageView {
                         .current_team()
                         .map(|team| team.name.clone());
                     let shared_by_text = match team_name {
-                        Some(name) => localization::text_for_app(
+                        Some(name) => localization::text_for_app_with_args(
                             app,
                             "settings.mcp.list.section.shared_by_warp_and_team",
-                        )
-                        .replace("{team}", &name),
+                            &[("team", &name)],
+                        ),
                         None => localization::text_for_app(
                             app,
                             "settings.mcp.list.section.shared_by_warp_and_devices",
@@ -1325,9 +1329,11 @@ impl MCPServersListPageView {
 
                 // Render one section per provider (e.g. "Detected from Claude").
                 for (provider, cards) in &filtered_file_based_cards {
-                    let section_title =
-                        localization::text_for_app(app, "settings.mcp.list.section.detected_from")
-                            .replace("{provider}", provider.display_name());
+                    let section_title = localization::text_for_app_with_args(
+                        app,
+                        "settings.mcp.list.section.detected_from",
+                        &[("provider", provider.display_name())],
+                    );
                     page.add_child(self.render_server_cards_section(
                         &section_title,
                         cards,
@@ -1512,7 +1518,7 @@ impl MCPServersListPageView {
             .finish()
     }
 
-    fn render_empty_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_empty_state(&self, appearance: &Appearance, _app: &AppContext) -> Box<dyn Element> {
         Container::new(
             ConstrainedBox::new(
                 Align::new(
@@ -1525,7 +1531,7 @@ impl MCPServersListPageView {
                                 .ui_builder()
                                 .wrappable_text(
                                     localization::text_for_app(
-                                        app,
+                                        _app,
                                         "settings.mcp.list.empty_state",
                                     ),
                                     true,
@@ -1582,13 +1588,11 @@ impl MCPServersListPageView {
         .finish()
     }
 
-    fn file_based_root_chip_text(root_path: &PathBuf, app: &AppContext) -> Option<String> {
-        let global_text = || localization::text_for_app(app, "settings.mcp.list.title_chip.global");
-
+    fn file_based_root_chip_text(root_path: &PathBuf) -> Option<String> {
         // If the path is the user's home directory, set the text to "global".
         if let Some(home_dir) = dirs::home_dir() {
             if root_path == &home_dir {
-                return Some(global_text());
+                return Some("global".to_string());
             }
         }
 
@@ -1596,7 +1600,7 @@ impl MCPServersListPageView {
         // "global". The Warp provider stores its data directory as the root path rather than the
         // home directory, unlike other providers that store the home directory directly.
         if root_path == &crate::warp_managed_paths_watcher::warp_data_dir() {
-            return Some(global_text());
+            return Some("global".to_string());
         }
 
         // Otherwise, set the text to the final path component.
@@ -1619,12 +1623,11 @@ impl MCPServersListPageView {
         };
 
         let mut title_chips = Vec::new();
-        let global_text = localization::text_for_app(ctx, "settings.mcp.list.title_chip.global");
         for provider in providers {
             let paths = FileBasedMCPManager::as_ref(ctx)
                 .directory_paths_for_installation_and_provider(uuid, provider);
             for path in paths {
-                if let Some(text) = Self::file_based_root_chip_text(&path, ctx) {
+                if let Some(text) = Self::file_based_root_chip_text(&path) {
                     title_chips.push(TitleChip::with_icon(text, provider.icon()));
                 }
             }
@@ -1632,8 +1635,8 @@ impl MCPServersListPageView {
 
         // If global is present, only show global chips (global scope implies project-scope
         // chips are redundant).
-        if title_chips.iter().any(|chip| chip.text == global_text) {
-            title_chips.retain(|chip| chip.text == global_text);
+        if title_chips.iter().any(|chip| chip.text == "global") {
+            title_chips.retain(|chip| chip.text == "global");
         }
 
         title_chips
@@ -1818,13 +1821,13 @@ impl MCPServersListPageView {
 
                 if is_shared {
                     match creator {
-                        Some(creator) => Some(TitleChip::text(
-                            localization::text_for_app(
+                        Some(creator) => {
+                            Some(TitleChip::text(localization::text_for_app_with_args(
                                 ctx,
                                 "settings.mcp.list.title_chip.shared_by_creator",
-                            )
-                            .replace("{creator}", &creator),
-                        )),
+                                &[("creator", &creator)],
+                            )))
+                        }
                         None => Some(TitleChip::text(localization::text_for_app(
                             ctx,
                             "settings.mcp.list.title_chip.shared_by_team_member",

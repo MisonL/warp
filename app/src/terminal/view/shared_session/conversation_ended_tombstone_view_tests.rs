@@ -1,11 +1,10 @@
 use chrono::Utc;
-use warp_localization::LocaleId;
 
 use super::TombstoneDisplayData;
 use crate::ai::ambient_agents::task::{RequestUsage, TaskPrincipalInfo, TaskStatusMessage};
 use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskState};
 use crate::ai::artifacts::Artifact;
-use crate::ai::blocklist::format_credits_for_locale;
+use crate::ai::blocklist::format_credits;
 
 const INFERENCE_COST: f64 = 1.5;
 const COMPUTE_COST: f64 = 3.0;
@@ -77,7 +76,7 @@ fn task_failure_status_message_overrides_conversation_error() {
         ..Default::default()
     };
 
-    data.enrich_from_task_for_locale(task, LocaleId::EnUs);
+    data.enrich_from_task(task);
 
     assert!(data.is_error);
     assert_eq!(data.error_message.as_deref(), Some("task failed"));
@@ -97,12 +96,9 @@ fn task_overrides_run_time_and_credits_when_present() {
     let task = task_with_run_time_and_credits();
     let mut data = data_with_conversation_values();
 
-    data.enrich_from_task_for_locale(task, LocaleId::EnUs);
+    data.enrich_from_task(task);
 
-    let expected_credits = format_credits_for_locale(
-        LocaleId::EnUs,
-        (INFERENCE_COST + COMPUTE_COST + PLATFORM_COST) as f32,
-    );
+    let expected_credits = format_credits((INFERENCE_COST + COMPUTE_COST + PLATFORM_COST) as f32);
     assert_eq!(data.run_time.as_deref(), Some("42.0 sec"));
     assert_eq!(data.credits, Some(expected_credits));
 }
@@ -112,7 +108,7 @@ fn conversation_values_preserved_when_task_lacks_run_time_and_credits() {
     let task = task_without_run_time_or_credits();
     let mut data = data_with_conversation_values();
 
-    data.enrich_from_task_for_locale(task, LocaleId::EnUs);
+    data.enrich_from_task(task);
 
     assert_eq!(data.run_time.as_deref(), Some("conv run time"));
     assert_eq!(data.credits.as_deref(), Some("conv credits"));
@@ -123,12 +119,9 @@ fn empty_defaults_populated_from_task_for_non_oz() {
     let task = task_with_run_time_and_credits();
     let mut data = TombstoneDisplayData::default();
 
-    data.enrich_from_task_for_locale(task, LocaleId::EnUs);
+    data.enrich_from_task(task);
 
-    let expected_credits = format_credits_for_locale(
-        LocaleId::EnUs,
-        (INFERENCE_COST + COMPUTE_COST + PLATFORM_COST) as f32,
-    );
+    let expected_credits = format_credits((INFERENCE_COST + COMPUTE_COST + PLATFORM_COST) as f32);
     assert_eq!(data.run_time.as_deref(), Some("42.0 sec"));
     assert_eq!(data.credits, Some(expected_credits));
 }
@@ -140,7 +133,7 @@ fn task_artifacts_populate_empty_defaults() {
     let expected_artifacts = task.artifacts.clone();
     let mut data = TombstoneDisplayData::default();
 
-    data.enrich_from_task_for_locale(task, LocaleId::EnUs);
+    data.enrich_from_task(task);
 
     assert_eq!(data.artifacts, expected_artifacts);
 }
@@ -155,7 +148,7 @@ fn task_artifacts_override_conversation_artifacts() {
         ..Default::default()
     };
 
-    data.enrich_from_task_for_locale(task, LocaleId::EnUs);
+    data.enrich_from_task(task);
 
     assert_eq!(data.artifacts, expected_artifacts);
 }
@@ -170,7 +163,7 @@ fn empty_task_artifacts_preserve_conversation_artifacts() {
         ..Default::default()
     };
 
-    data.enrich_from_task_for_locale(task, LocaleId::EnUs);
+    data.enrich_from_task(task);
 
     assert_eq!(data.artifacts, conversation_artifacts);
 }

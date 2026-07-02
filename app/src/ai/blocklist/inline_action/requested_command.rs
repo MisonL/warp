@@ -16,7 +16,7 @@ use warpui::elements::{
     Expanded, Flex, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement, Radius,
     ScrollbarWidth, SelectableArea, SelectionHandle, Stack, Text,
 };
-use warpui::keymap::{BindingDescription, Context, EditableBinding, FixedBinding, Keystroke};
+use warpui::keymap::{Context, EditableBinding, FixedBinding, Keystroke};
 use warpui::ui_components::components::UiComponent as _;
 use warpui::{
     AppContext, Element, Entity, EntityId, EventContext, ModelHandle, SingletonEntity,
@@ -48,6 +48,7 @@ use crate::ai::blocklist::{
     AIBlock, BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIHistoryModel,
     ClientIdentifiers,
 };
+use crate::cmd_or_ctrl_shift;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
 use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
@@ -63,11 +64,27 @@ use crate::view_components::compactible_action_button::{
     MEDIUM_SIZE_SWITCH_THRESHOLD, SMALL_SIZE_SWITCH_THRESHOLD,
 };
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
-use crate::{cmd_or_ctrl_shift, localization};
 
 /// The vertical padding applied to the requested command row's content body.
 /// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.
 pub const REQUESTED_COMMAND_BODY_VERTICAL_PADDING: f32 = 16.;
+
+const REQUESTED_COMMAND_REJECT_LABEL: &str = "Reject";
+const REQUESTED_COMMAND_ACCEPT_LABEL: &str = "Run";
+const REQUESTED_COMMAND_EDIT_LABEL: &str = "Edit";
+const REQUESTED_COMMAND_MINIMIZE_LABEL: &str = "Done";
+
+const LOADING_MESSAGE: &str = "Generating command...";
+const COMMAND_WAITING_FOR_USER_MESSAGE: &str = "OK if I run this command and read the output?";
+const MCP_TOOL_WAITING_FOR_USER_MESSAGE: &str = "OK if I call this MCP tool?";
+const MONITORING_COMMAND_MESSAGE: &str = "Agent is monitoring command...";
+const AGENT_NEEDS_INPUT_MESSAGE: &str = "Agent needs your input to continue";
+const USER_TOOK_CONTROL_COMMAND_MESSAGE: &str = "User is in control.";
+const USER_STOPPED_CLI_SUBAGENT_COMMAND_MESSAGE: &str = "Paused agent. User is in control.";
+const AGENT_REQUESTED_USER_TAKE_CONTROL_COMMAND_MESSAGE: &str = "User in control";
+const AGENT_ERRORED_COMMAND_MESSAGE: &str = "Agent ran into an issue. Take over control.";
+pub const VIEWING_COMMAND_DETAIL_MESSAGE: &str = "Viewing command detail";
+const VIEWING_MCP_TOOL_DETAIL_MESSAGE: &str = "Viewing MCP tool call detail";
 
 const EDIT_COMMAND_ACTION_NAME: &str = "requested_command:edit";
 
@@ -75,18 +92,6 @@ const EDIT_MODE_OPEN_KEYMAP_CONTEXT: &str = "RequestedCommandViewEditModeOpen";
 
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 const MAX_EDITOR_HEIGHT: f32 = 500.0;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
-
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
-}
 
 lazy_static! {
     pub static ref CANCEL_REQUESTED_COMMAND_KEYSTROKE: Keystroke = Keystroke {
@@ -145,10 +150,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         EDIT_COMMAND_ACTION_NAME,
-        binding_description(
-            "Edit requested command",
-            "agent.requested_command.binding.edit_requested_command",
-        ),
+        "Edit requested command",
         RequestedCommandViewAction::OpenEditMode,
     )
     .with_key_binding(cmd_or_ctrl_shift("e"))
@@ -259,7 +261,7 @@ impl RequestedCommandView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let cancel_button = CompactibleActionButton::new(
-            text(ctx, "agent.requested_command.action.reject"),
+            REQUESTED_COMMAND_REJECT_LABEL.to_string(),
             Some(KeystrokeSource::Fixed(
                 CANCEL_REQUESTED_COMMAND_KEYSTROKE.clone(),
             )),
@@ -272,7 +274,7 @@ impl RequestedCommandView {
 
         let position_id_prefix = format!("{action_id:?}");
         let accept_and_autoexecute_split_button = CompactibleSplitActionButton::new(
-            text(ctx, "agent.requested_command.action.run"),
+            REQUESTED_COMMAND_ACCEPT_LABEL.to_string(),
             Some(KeystrokeSource::Fixed(
                 ENTER_ACCEPT_REQUESTED_COMMAND_KEYSTROKE.clone(),
             )),
@@ -288,7 +290,7 @@ impl RequestedCommandView {
         );
 
         let edit_button = CompactibleActionButton::new(
-            text(ctx, "agent.requested_command.action.edit"),
+            REQUESTED_COMMAND_EDIT_LABEL.to_string(),
             Some(KeystrokeSource::Binding(EDIT_COMMAND_ACTION_NAME)),
             ButtonSize::InlineActionHeader,
             RequestedCommandViewAction::OpenEditMode,
@@ -298,7 +300,7 @@ impl RequestedCommandView {
         );
 
         let minimize_button = CompactibleActionButton::new(
-            text(ctx, "agent.requested_command.action.done"),
+            REQUESTED_COMMAND_MINIMIZE_LABEL.to_string(),
             Some(KeystrokeSource::Fixed(
                 MINIMIZE_REQUESTED_COMMAND_KEYSTROKE.clone(),
             )),
@@ -593,18 +595,15 @@ impl RequestedCommandView {
             .unwrap_or_default();
 
             let accept_item = MenuItemFields::new_with_label(
-                text(ctx, "agent.requested_command.action.run"),
-                accept_keystroke,
+                REQUESTED_COMMAND_ACCEPT_LABEL,
+                accept_keystroke.as_str(),
             )
             .with_on_select_action(RequestedCommandViewAction::Accept)
             .into_item();
 
-            let auto_item = MenuItemFields::new_with_label(
-                text(ctx, "agent.requested_command.action.auto_approve"),
-                auto_keystroke,
-            )
-            .with_on_select_action(RequestedCommandViewAction::AcceptAndAutoExecute)
-            .into_item();
+            let auto_item = MenuItemFields::new_with_label("Auto-approve", auto_keystroke.as_str())
+                .with_on_select_action(RequestedCommandViewAction::AcceptAndAutoExecute)
+                .into_item();
 
             self.accept_split_button_menu.update(ctx, |menu, ctx| {
                 menu.set_items(vec![accept_item, auto_item], ctx);
@@ -642,9 +641,7 @@ impl RequestedCommandView {
             let Some(mouse_state_handle) =
                 self.citation_state_handles.get(copied_citation).cloned()
             else {
-                log::warn!(
-                    "Tried to retrieve mouse state handle for citation, but no mouse state handle exists."
-                );
+                log::warn!("Tried to retrieve mouse state handle for citation, but no mouse state handle exists.");
                 return None;
             };
             render_citation(
@@ -705,7 +702,7 @@ impl RequestedCommandView {
             ) if show_for_action_id == &self.action_id => {
                 *shown.lock() = true;
                 Some(render_autonomy_checkbox_setting_speedbump_footer(
-                    text(
+                    crate::localization::text_for_app(
                         app,
                         "agent.requested_command.speedbump.always_allow_oz_readonly",
                     ),
@@ -765,7 +762,7 @@ impl RequestedCommandView {
                 )
                 .with_child(
                     Text::new(
-                        text(app, "agent.requested_command.warning.always_ask_permission"),
+                        "Your profile is set to always ask for permission to execute commands.",
                         appearance.ui_font_family(),
                         font_size,
                     )
@@ -780,7 +777,10 @@ impl RequestedCommandView {
                             appearance
                                 .ui_builder()
                                 .link(
-                                    text(app, "agent.requested_command.manage_execution_setting"),
+                                    crate::localization::text_for_app(
+                                        app,
+                                        "agent.requested_command.manage_execution_setting",
+                                    ),
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(
@@ -981,7 +981,7 @@ impl RequestedCommandView {
     /// Extracts the tool name from MCP tool command text, removing parameters.
     /// For example, "tool_name(param1, param2)" becomes "tool_name".
     fn extract_mcp_tool_name(&self, command_text: &str) -> String {
-        if let Some(paren_pos) = command_text.find('(').or_else(|| command_text.find('（')) {
+        if let Some(paren_pos) = command_text.find('(') {
             command_text[..paren_pos].trim().to_string()
         } else {
             command_text.trim().to_string()
@@ -1035,12 +1035,8 @@ impl RequestedCommandView {
             }
             Some(AIActionStatus::Blocked) => {
                 title = match &self.action_type {
-                    RequestedActionViewType::Command => {
-                        text(app, "agent.requested_command.status.waiting_command").into()
-                    }
-                    RequestedActionViewType::McpTool => {
-                        text(app, "agent.requested_command.status.waiting_mcp_tool").into()
-                    }
+                    RequestedActionViewType::Command => COMMAND_WAITING_FOR_USER_MESSAGE.into(),
+                    RequestedActionViewType::McpTool => MCP_TOOL_WAITING_FOR_USER_MESSAGE.into(),
                 };
             }
             Some(AIActionStatus::RunningAsync) | Some(AIActionStatus::Finished(..))
@@ -1060,41 +1056,27 @@ impl RequestedCommandView {
                                         );
 
                                     if is_errored {
-                                        text(app, "agent.requested_command.status.agent_errored")
-                                            .into()
+                                        AGENT_ERRORED_COMMAND_MESSAGE.into()
                                     } else if *is_blocked {
-                                        text(
-                                            app,
-                                            "agent.requested_command.status.agent_needs_input",
-                                        )
-                                        .into()
+                                        AGENT_NEEDS_INPUT_MESSAGE.into()
                                     } else {
-                                        text(
-                                            app,
-                                            "agent.requested_command.status.monitoring_command",
-                                        )
-                                        .into()
+                                        MONITORING_COMMAND_MESSAGE.into()
                                     }
                                 }
                                 LongRunningCommandControlState::User { reason } => {
-                                    header_message_for_user_take_over_reason(reason, app).into()
+                                    header_message_for_user_take_over_reason(reason).into()
                                 }
                             }
                         } else {
-                            text(app, "agent.requested_command.status.viewing_command_detail")
-                                .into()
+                            VIEWING_COMMAND_DETAIL_MESSAGE.into()
                         }
                     }
-                    RequestedActionViewType::McpTool => text(
-                        app,
-                        "agent.requested_command.status.viewing_mcp_tool_detail",
-                    )
-                    .into(),
+                    RequestedActionViewType::McpTool => VIEWING_MCP_TOOL_DETAIL_MESSAGE.into(),
                 };
             }
             None => {
                 if self.block_model.status(app).is_streaming() {
-                    title = text(app, "agent.requested_command.status.generating_command").into();
+                    title = LOADING_MESSAGE.into();
 
                     if !self
                         .block_model
@@ -1115,7 +1097,7 @@ impl RequestedCommandView {
                     // mid-flight.
                     let title_str = self.get_header_title_text();
                     title = if title_str.trim().is_empty() {
-                        text(app, "agent.requested_command.status.generating_command").into()
+                        LOADING_MESSAGE.into()
                     } else {
                         title_str.into()
                     };
@@ -1134,7 +1116,7 @@ impl RequestedCommandView {
                 // Show cancelled command loading message when the command was cancelled during generation,
                 // and then restored with an empty title as a result.
                 if title.is_empty() {
-                    title = text(app, "agent.requested_command.status.generating_command").into();
+                    title = LOADING_MESSAGE.into();
                     font_color_override = Some(blended_colors::text_disabled(
                         appearance.theme(),
                         appearance.theme().surface_2(),
@@ -1339,13 +1321,12 @@ impl RequestedCommandView {
 
 pub(crate) fn header_message_for_user_take_over_reason(
     reason: &UserTakeOverReason,
-    app: &AppContext,
-) -> String {
+) -> &'static str {
     match reason {
-        UserTakeOverReason::Manual => text(app, "agent.requested_command.status.user_in_control"),
-        UserTakeOverReason::Stop => text(app, "agent.requested_command.status.paused_user_control"),
+        UserTakeOverReason::Manual => USER_TOOK_CONTROL_COMMAND_MESSAGE,
+        UserTakeOverReason::Stop => USER_STOPPED_CLI_SUBAGENT_COMMAND_MESSAGE,
         UserTakeOverReason::TransferFromAgent { .. } => {
-            text(app, "agent.requested_command.status.user_in_control_short")
+            AGENT_REQUESTED_USER_TAKE_CONTROL_COMMAND_MESSAGE
         }
     }
 }
@@ -1462,26 +1443,13 @@ impl View for RequestedCommandView {
                 // If we have a result, show the JSON response.
                 let result_text = match result {
                     CallMCPToolResult::Success { result } => serde_json::to_string_pretty(result)
-                        .unwrap_or_else(|_| {
-                            text(
-                                app,
-                                "agent.requested_command.mcp_tool.error_formatting_json",
-                            )
-                        }),
-                    CallMCPToolResult::Error(error) => text_with_args(
-                        app,
-                        "agent.requested_command.mcp_tool.result_error",
-                        &[("error", error)],
-                    ),
-                    CallMCPToolResult::Cancelled => {
-                        text(app, "agent.requested_command.mcp_tool.cancelled")
+                        .unwrap_or_else(|_| "Error formatting JSON".to_string()),
+                    CallMCPToolResult::Error(error) => {
+                        format!("Error: {error}")
                     }
+                    CallMCPToolResult::Cancelled => "Tool call was cancelled".to_string(),
                 };
-                text_with_args(
-                    app,
-                    "agent.requested_command.mcp_tool.response",
-                    &[("command", command_text), ("response", &result_text)],
-                )
+                format!("{command_text}\n\nResponse: {result_text}")
             } else if self.is_header_expanded {
                 command_text.to_string()
             } else {
@@ -1560,7 +1528,7 @@ impl View for RequestedCommandView {
                                     !exchange
                                         .input
                                         .iter()
-                                        .any(|input| input.user_query().is_some())
+                                        .any(|input| input.display_query().is_some())
                                 })
                     }))
                 && !is_input_pinned_to_top);

@@ -51,7 +51,7 @@ pub fn render_cloud_mode_loading_screen(
         if let Some(link_target) = tip.link() {
             fragments.push(FormattedTextFragment::plain_text(" "));
             fragments.push(FormattedTextFragment::hyperlink(
-                localization::text_for_app(app, "terminal.ambient_agent.learn_more"),
+                crate::localization::text_for_app(app, "terminal.ambient_agent.learn_more"),
                 link_target,
             ));
         }
@@ -158,9 +158,8 @@ fn render_tier_limits_footer(
     }
 
     let mut fragments = vec![FormattedTextFragment::plain_text(format!(
-        "{} ",
-        localization::text_for_app(app, "terminal.ambient_agent.tier.current_machine")
-            .replace("{specs}", &specs)
+        "Your agent is currently running on a {} machine. ",
+        specs
     ))];
 
     // Get the upgrade URL for the current team
@@ -169,11 +168,11 @@ fn render_tier_limits_footer(
         .map(|team| UserWorkspaces::upgrade_link_for_team(team.uid))?;
 
     fragments.push(FormattedTextFragment::hyperlink(
-        localization::text_for_app(app, "terminal.ambient_agent.tier.upgrade"),
+        localization::text_for_app(app, "onboarding.common.upgrade"),
         upgrade_url,
     ));
     fragments.push(FormattedTextFragment::plain_text(
-        localization::text_for_app(app, "terminal.ambient_agent.tier.upgrade_suffix"),
+        " for more powerful cloud agents.",
     ));
 
     let formatted_text = FormattedText::new(vec![FormattedTextLine::Line(fragments)]);
@@ -329,6 +328,7 @@ pub fn render_cloud_mode_github_auth_required_screen(
         .with_height(ERROR_ICON_SIZE)
         .finish();
 
+    // Title text - "GitHub Authentication Required"
     let title_text = Text::new(
         localization::text_for_app(app, "terminal.ambient_agent.github_auth.title"),
         appearance.ui_font_family(),
@@ -338,6 +338,7 @@ pub fn render_cloud_mode_github_auth_required_screen(
     .with_color(title_color)
     .finish();
 
+    // Message text - "Please authenticate with GitHub to continue"
     let message_text = Text::new(
         localization::text_for_app(app, "terminal.ambient_agent.github_auth.message"),
         appearance.ui_font_family(),
@@ -420,6 +421,7 @@ pub fn render_cloud_mode_cancelled_screen(
     .with_height(ERROR_ICON_SIZE)
     .finish();
 
+    // Title text - "Cloud Agent Run Cancelled"
     let title_text = Text::new(
         localization::text_for_app(app, "terminal.ambient_agent.cancelled.title"),
         appearance.ui_font_family(),
@@ -429,6 +431,7 @@ pub fn render_cloud_mode_cancelled_screen(
     .with_color(title_color)
     .finish();
 
+    // Subtitle text - "No cloud environment was started"
     let subtitle_text = Text::new(
         localization::text_for_app(app, "terminal.ambient_agent.cancelled.subtitle"),
         appearance.ui_font_family(),

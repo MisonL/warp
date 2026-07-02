@@ -286,7 +286,7 @@ fn agent_conversation_data_legacy_rows_default_to_unpinned() {
 #[test]
 fn model_token_usage_replays_custom_endpoint_usage_by_model_id() {
     let usage = ModelTokenUsage {
-        model_id: "config-key".to_string(),
+        model_id: "Friendly alias".to_string(),
         custom_endpoint_tokens: 6,
         custom_endpoint_token_usage_by_category: HashMap::from([("primary_agent".to_string(), 6)]),
         ..Default::default()
@@ -296,8 +296,8 @@ fn model_token_usage_replays_custom_endpoint_usage_by_model_id() {
         .to_proto_custom_endpoint_usage()
         .expect("custom endpoint usage should serialize for replay");
 
-    assert_eq!(key, "config-key");
-    assert_eq!(proto.model_id, "config-key");
+    assert_eq!(key, "Friendly alias");
+    assert_eq!(proto.model_id, "Friendly alias");
     assert_eq!(proto.total_tokens, 6);
     assert_eq!(proto.token_usage_by_category.get("primary_agent"), Some(&6));
 }

@@ -4,7 +4,7 @@ use anyhow::Result;
 use onboarding::callout::{
     OnboardingCalloutView, OnboardingCalloutViewEvent, OnboardingKeybindings,
 };
-use onboarding::{OnboardingCopy, OnboardingIntention};
+use onboarding::OnboardingIntention;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use rust_embed::RustEmbed;
@@ -57,7 +57,6 @@ impl OnboardingExampleView {
                 OnboardingIntention::AgentDrivenDevelopment,
                 false, // initial_natural_language_detection_enabled
                 keybindings,
-                OnboardingCopy::default(),
                 ctx,
             )
         });

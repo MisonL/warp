@@ -16,13 +16,13 @@ use warpui::{AppContext, Element, SingletonEntity};
 use crate::ai::blocklist::agent_view::{
     ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE, ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
 };
+use crate::cmd_or_ctrl_shift;
 use crate::terminal::{self, TOGGLE_AUTOEXECUTE_MODE_KEYBINDING};
 use crate::ui_components::blended_colors;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::view::{
     TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, TOGGLE_RIGHT_PANEL_BINDING_NAME,
 };
-use crate::{cmd_or_ctrl_shift, localization};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct AgentShortcutsViewContext {
@@ -122,7 +122,7 @@ pub fn render_agent_shortcuts_view(
                     key: "!".to_owned(),
                     ..Default::default()
                 },
-                text: localization::text_for_app(
+                text: crate::localization::text_for_app(
                     app,
                     "agent.zero_state.shortcut.input_shell_command",
                 )
@@ -139,8 +139,11 @@ pub fn render_agent_shortcuts_view(
                 key: "/".to_owned(),
                 ..Default::default()
             },
-            text: localization::text_for_app(app, "agent.zero_state.shortcut.slash_commands")
-                .into(),
+            text: crate::localization::text_for_app(
+                app,
+                "agent.zero_state.shortcut.slash_commands",
+            )
+            .into(),
             ..Default::default()
         },
         app,
@@ -152,8 +155,11 @@ pub fn render_agent_shortcuts_view(
                 key: "@".to_owned(),
                 ..Default::default()
             },
-            text: localization::text_for_app(app, "agent.zero_state.shortcut.attach_context")
-                .into(),
+            text: crate::localization::text_for_app(
+                app,
+                "agent.zero_state.shortcut.attach_context",
+            )
+            .into(),
             ..Default::default()
         },
         app,
@@ -166,7 +172,7 @@ pub fn render_agent_shortcuts_view(
             shortcuts.push(render_shortcut(
                 ShortcutProps {
                     keystroke,
-                    text: localization::text_for_app(
+                    text: crate::localization::text_for_app(
                         app,
                         "agent.zero_state.shortcut.open_code_review",
                     )
@@ -185,7 +191,7 @@ pub fn render_agent_shortcuts_view(
             shortcuts.push(render_shortcut(
                 ShortcutProps {
                     keystroke,
-                    text: localization::text_for_app(
+                    text: crate::localization::text_for_app(
                         app,
                         "agent.zero_state.shortcut.toggle_conversation_list",
                     )
@@ -200,8 +206,11 @@ pub fn render_agent_shortcuts_view(
     shortcuts.push(render_shortcut(
         ShortcutProps {
             keystroke: Keystroke::parse(cmd_or_ctrl_shift("y")).expect("is valid keystroke"),
-            text: localization::text_for_app(app, "agent.zero_state.shortcut.search_conversations")
-                .into(),
+            text: crate::localization::text_for_app(
+                app,
+                "agent.zero_state.shortcut.search_conversations",
+            )
+            .into(),
             ..Default::default()
         },
         app,
@@ -217,13 +226,9 @@ pub fn render_agent_shortcuts_view(
     shortcuts.push(render_shortcut(
         ShortcutProps {
             keystroke: new_conversation_keystroke.clone(),
-            text: localization::text_for_app(
+            text: crate::localization::text_for_app(
                 app,
-                if context.is_cloud_agent {
-                    "agent.zero_state.shortcut.new_cloud_agent_conversation"
-                } else {
-                    "agent.zero_state.shortcut.new_agent_conversation"
-                },
+                "agent.zero_state.shortcut.new_agent_conversation",
             )
             .into(),
             ..Default::default()
@@ -238,8 +243,11 @@ pub fn render_agent_shortcuts_view(
             shortcuts.push(render_shortcut(
                 ShortcutProps {
                     keystroke,
-                    text: localization::text_for_app(app, "agent.zero_state.shortcut.auto_accept")
-                        .into(),
+                    text: crate::localization::text_for_app(
+                        app,
+                        "agent.zero_state.shortcut.auto_accept",
+                    )
+                    .into(),
                     ..Default::default()
                 },
                 app,
@@ -254,7 +262,8 @@ pub fn render_agent_shortcuts_view(
                 ctrl: true,
                 ..Default::default()
             },
-            text: localization::text_for_app(app, "agent.zero_state.shortcut.pause_agent").into(),
+            text: crate::localization::text_for_app(app, "agent.zero_state.shortcut.pause_agent")
+                .into(),
             ..Default::default()
         },
         app,
@@ -266,8 +275,11 @@ pub fn render_agent_shortcuts_view(
                 key: "escape".to_owned(),
                 ..Default::default()
             },
-            text: localization::text_for_app(app, "agent.zero_state.shortcut.go_back_to_terminal")
-                .into(),
+            text: crate::localization::text_for_app(
+                app,
+                "agent.zero_state.shortcut.go_back_to_terminal",
+            )
+            .into(),
             ..Default::default()
         },
         app,

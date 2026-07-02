@@ -4,7 +4,6 @@ use warpui::ui_components::text::WrappableText;
 use warpui::{AppContext, Element, Entity, ModelContext, SingletonEntity};
 
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::result_renderer::QueryResultRenderer;
 use crate::search::search_bar::SelectionUpdate;
@@ -172,7 +171,7 @@ impl Items {
 
         if !self.recent.is_empty() {
             flex.add_child(Self::render_section_text(
-                localization::text_for_app(app, "search.command_palette.zero_state.recent"),
+                crate::localization::text_for_app(app, "search.command_palette.zero_state.recent"),
                 appearance,
             ));
 
@@ -188,7 +187,10 @@ impl Items {
 
         if !self.suggested.is_empty() {
             flex.add_child(Self::render_section_text(
-                localization::text_for_app(app, "search.command_palette.zero_state.suggested"),
+                crate::localization::text_for_app(
+                    app,
+                    "search.command_palette.zero_state.suggested",
+                ),
                 appearance,
             ));
 

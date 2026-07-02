@@ -60,15 +60,7 @@ use crate::util::openable_file_type::FileTarget;
 use crate::view_components::{MarkdownToggleEvent, MarkdownToggleView};
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ActiveSession;
-use crate::{cmd_or_ctrl_shift, localization, safe_warn, send_telemetry_from_ctx};
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
+use crate::{cmd_or_ctrl_shift, safe_warn, send_telemetry_from_ctx};
 
 /// Display mode for markdown files shown via the header segmented control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -245,7 +237,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
 }
 
 impl FileNotebookView {
@@ -322,14 +315,29 @@ impl FileNotebookView {
         self.code_source = source;
     }
 
-    pub fn title(&self, app: &AppContext) -> String {
+    pub fn title(&self) -> String {
         // Prefer the location name that's been resolved against a Session, but if that's not
         // available yet, fall back to the raw file path.
         self.location
             .as_ref()
             .map(|location| location.name.clone())
             .or_else(|| self.file_state.display_name())
-            .unwrap_or_else(|| text(app, "notebook.placeholder.untitled"))
+            .unwrap_or_else(|| {
+                crate::localization::text_for_locale(
+                    warp_localization::LocaleId::EnUs,
+                    "notebook.placeholder.untitled",
+                )
+            })
+    }
+
+    pub fn title_for_app(&self, app: &AppContext) -> String {
+        self.location
+            .as_ref()
+            .map(|location| location.name.clone())
+            .or_else(|| self.file_state.display_name())
+            .unwrap_or_else(|| {
+                crate::localization::text_for_app(app, "notebook.placeholder.untitled")
+            })
     }
 
     pub fn focus(&self, ctx: &mut ViewContext<Self>) {
@@ -367,7 +375,7 @@ impl FileNotebookView {
     /// Set the notebook's location context.
     fn set_context(&mut self, path: &Path, session: Arc<Session>, ctx: &mut ViewContext<Self>) {
         self.location = Some(FileLocation::new(path, session.home_dir()));
-        let title = self.title(ctx);
+        let title = self.title();
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.set_title(title, ctx);
         });
@@ -822,10 +830,9 @@ impl FileNotebookView {
         &self,
         appearance: &Appearance,
         font_settings: &FontSettings,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let title = Text::new_inline(
-            self.title(app),
+            self.title(),
             appearance.ui_font_family(),
             styles::title_font_size(font_settings),
         )
@@ -862,12 +869,7 @@ impl FileNotebookView {
     }
 
     /// Render an error state for when loading the source file failed.
-    fn render_error(
-        &self,
-        source: &SourceFile,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_error(&self, source: &SourceFile, appearance: &Appearance) -> Box<dyn Element> {
         let error_text_color = appearance
             .theme()
             .sub_text_color(appearance.theme().background());
@@ -877,10 +879,7 @@ impl FileNotebookView {
             .with_child(
                 appearance
                     .ui_builder()
-                    .paragraph(
-                        text(app, "notebook.file.error.could_not_read")
-                            .replace("{file}", &source.display_name()),
-                    )
+                    .paragraph(format!("Could not read {}", source.display_name()))
                     .with_style(self.state_style(appearance))
                     .build()
                     .finish(),
@@ -893,7 +892,7 @@ impl FileNotebookView {
                         .with_text_and_icon_label(
                             TextAndIcon::new(
                                 TextAndIconAlignment::TextFirst,
-                                text(app, "notebook.file.action.try_again"),
+                                "Try again".to_string(),
                                 Icon::Refresh.to_warpui_icon(error_text_color),
                                 MainAxisSize::Min,
                                 MainAxisAlignment::Center,
@@ -921,12 +920,15 @@ impl FileNotebookView {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
+        let file_name = source.display_name();
         Align::new(
             appearance
                 .ui_builder()
-                .paragraph(
-                    text(app, "notebook.file.loading").replace("{file}", &source.display_name()),
-                )
+                .paragraph(crate::localization::text_for_app_with_args(
+                    app,
+                    "notebook.file.loading",
+                    &[("file", &file_name)],
+                ))
                 .with_style(self.state_style(appearance))
                 .build()
                 .finish(),
@@ -939,7 +941,10 @@ impl FileNotebookView {
         Align::new(
             appearance
                 .ui_builder()
-                .paragraph(text(app, "notebook.file.missing_source_file"))
+                .paragraph(crate::localization::text_for_app(
+                    app,
+                    "notebook.file.missing_source_file",
+                ))
                 .with_style(self.state_style(appearance))
                 .build()
                 .finish(),
@@ -963,7 +968,7 @@ impl FileNotebookView {
         let body = match &self.file_state {
             FileState::NoFile => self.render_no_file(appearance, app),
             FileState::Loading(source) => self.render_loading(source, appearance, app),
-            FileState::Error(source) => self.render_error(source, appearance, app),
+            FileState::Error(source) => self.render_error(source, appearance),
             FileState::Loaded(_) => ChildView::new(&self.editor).finish(),
         };
 
@@ -991,9 +996,12 @@ impl View for FileNotebookView {
     }
 
     fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
-        let title = self.title(ctx);
         Some(AccessibilityContent::new_without_help(
-            text_with_args(ctx, "notebook.a11y.label", &[("title", &title)]),
+            crate::localization::text_for_app_with_args(
+                ctx,
+                "notebook.a11y.label",
+                &[("title", &self.title_for_app(ctx))],
+            ),
             WarpA11yRole::TextRole,
         ))
     }
@@ -1003,7 +1011,7 @@ impl View for FileNotebookView {
         let font_settings = FontSettings::as_ref(app);
 
         let column = Flex::column().with_children([
-            self.render_title(appearance, font_settings, app),
+            self.render_title(appearance, font_settings),
             Shrinkable::new(1., self.render_body(appearance, app)).finish(),
         ]);
 
@@ -1140,16 +1148,19 @@ impl BackingView for FileNotebookView {
             .focus_handle
             .as_ref()
             .is_some_and(|h| h.is_maximized(ctx));
-        let mut actions = vec![MenuItemFields::toggle_pane_action(is_maximized, ctx)
+        let mut actions = vec![MenuItemFields::toggle_pane_action(is_maximized)
             .with_on_select_action(FileNotebookAction::ToggleMaximized)
             .into_item()];
 
         if let Some(SourceFile::FileBased { .. }) = self.file_state.source() {
             actions.push(MenuItem::Separator);
             actions.push(
-                MenuItemFields::new(text(ctx, "notebook.file.menu.refresh_file"))
-                    .with_on_select_action(FileNotebookAction::ReloadFile)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "notebook.file.menu.refresh_file",
+                ))
+                .with_on_select_action(FileNotebookAction::ReloadFile)
+                .into_item(),
             );
 
             #[cfg(feature = "local_fs")]
@@ -1157,15 +1168,21 @@ impl BackingView for FileNotebookView {
                 // The markdown rendered/raw toggle is always visible in the pane header, so we don't
                 // duplicate it in the overflow menu. Keep "Open in editor" available for local files.
                 actions.push(
-                    MenuItemFields::new(text(ctx, "terminal.menu.open_in_editor"))
-                        .with_on_select_action(FileNotebookAction::OpenInEditor)
-                        .into_item(),
+                    MenuItemFields::new(crate::localization::text_for_app(
+                        ctx,
+                        "notebook.file.menu.open_in_editor",
+                    ))
+                    .with_on_select_action(FileNotebookAction::OpenInEditor)
+                    .into_item(),
                 );
                 actions.extend([
                     MenuItem::Separator,
-                    MenuItemFields::new(text(ctx, "code_review.tooltip.copy_file_path"))
-                        .with_on_select_action(FileNotebookAction::CopyFilePath)
-                        .into_item(),
+                    MenuItemFields::new(crate::localization::text_for_app(
+                        ctx,
+                        "notebook.file.menu.copy_file_path",
+                    ))
+                    .with_on_select_action(FileNotebookAction::CopyFilePath)
+                    .into_item(),
                 ]);
             }
         }

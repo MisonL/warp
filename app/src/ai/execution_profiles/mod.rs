@@ -125,16 +125,12 @@ pub trait AIExecutionProfileAppExt {
     fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow>;
 
     fn context_window_display_value(&self, app: &AppContext) -> Option<u32>;
-
     fn context_window_limit_for_request(&self, app: &AppContext) -> Option<u32>;
-
     fn should_show_long_context_pricing_warning(
         &self,
         context_window_limit: Option<u32>,
         app: &AppContext,
     ) -> bool;
-
-    fn display_name_for_app(&self, app: &AppContext) -> String;
 }
 
 impl AIExecutionProfileAppExt for AIExecutionProfile {
@@ -154,7 +150,6 @@ impl AIExecutionProfileAppExt for AIExecutionProfile {
         let cw = self.configurable_context_window(app)?;
         Some(self.context_window_limit.unwrap_or(cw.default_max))
     }
-
     fn context_window_limit_for_request(&self, app: &AppContext) -> Option<u32> {
         let llm = effective_base_model(self, app);
         if !has_configurable_context_window(
@@ -183,19 +178,6 @@ impl AIExecutionProfileAppExt for AIExecutionProfile {
             ),
             FeatureFlag::GPTConfigurableContextWindow.is_enabled(),
         )
-    }
-
-    fn display_name_for_app(&self, app: &AppContext) -> String {
-        if self.is_default_profile {
-            localization::text_for_app(
-                app,
-                "settings.execution_profile.editor.default_profile_name",
-            )
-        } else if self.name.trim().is_empty() {
-            localization::text_for_app(app, "settings.execution_profile.untitled_profile_name")
-        } else {
-            self.name.clone()
-        }
     }
 }
 

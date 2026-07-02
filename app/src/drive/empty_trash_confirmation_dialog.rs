@@ -60,7 +60,10 @@ impl View for EmptyTrashConfirmationDialog {
         let confirm_button = appearance
             .ui_builder()
             .button(ButtonVariant::Accent, self.confirm_mouse_state.clone())
-            .with_centered_text_label(text(app, "drive.confirmation.empty_trash.confirm"))
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "drive.confirmation.empty_trash.confirm",
+            ))
             .with_style(button_style)
             .build()
             .with_cursor(Cursor::PointingHand)
@@ -72,7 +75,7 @@ impl View for EmptyTrashConfirmationDialog {
         let cancel_button = appearance
             .ui_builder()
             .button(ButtonVariant::Basic, self.cancel_mouse_state.clone())
-            .with_centered_text_label(text(app, "drive.confirmation.cancel"))
+            .with_centered_text_label(localization::text_for_app(app, "settings.action.cancel"))
             .with_style(button_style)
             .build()
             .with_cursor(Cursor::PointingHand)
@@ -82,8 +85,11 @@ impl View for EmptyTrashConfirmationDialog {
             .finish();
 
         Dialog::new(
-            text(app, "drive.confirmation.empty_trash.title"),
-            Some(text(app, "drive.confirmation.empty_trash.body")),
+            localization::text_for_app(app, "drive.confirmation.empty_trash.title"),
+            Some(localization::text_for_app(
+                app,
+                "drive.confirmation.empty_trash.body",
+            )),
             UiComponentStyles {
                 width: Some(460.),
                 padding: Some(Coords::uniform(24.)),
@@ -106,8 +112,4 @@ impl TypedActionView for EmptyTrashConfirmationDialog {
             EmptyTrashConfirmationAction::Cancel => ctx.emit(EmptyTrashConfirmationEvent::Cancel),
         }
     }
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }

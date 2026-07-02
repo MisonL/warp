@@ -43,8 +43,6 @@ pub fn main() -> Result<()> {
                 // Use an IP in the IANA testing range, with the TCP discard port, to
                 // black-hole server traffic.
                 server_root_url: "http://192.0.2.0:9".into(),
-                iap_protected_server_root_url: None,
-                iap_protected_rtc_http_url: None,
                 rtc_server_url: "ws://192.0.2.0:9/graphql/v2".into(),
                 session_sharing_server_url: None,
             },
@@ -260,10 +258,8 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_bash_bootstraps_with_prompt_command_array);
     register_test!(test_bash_bootstraps_with_prompt_command_array_that_sets_ps1);
     register_test!(test_zsh_bootstraps_with_nounset_option);
-    register_test!(test_legacy_ssh_into_bash);
-    register_test!(test_legacy_ssh_into_zsh);
-    register_test!(test_tmux_ssh_into_bash);
-    register_test!(test_tmux_ssh_into_zsh);
+    register_test!(test_ssh_wrapper_into_bash);
+    register_test!(test_ssh_wrapper_into_zsh);
     register_test!(test_ssh_into_fish);
     register_test!(test_ssh_into_sh);
     register_test!(test_ssh_into_ash);
@@ -364,6 +360,7 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_detach_tab_to_new_window_with_drag);
     register_test!(test_attach_tab_to_other_window_and_continue_drag);
     register_test!(test_single_tab_handoff_continues_drag);
+    register_test!(test_multi_tab_drag_back_to_source_and_out_again);
 
     register_test!(test_restore_single_closed_pane);
     register_test!(test_restore_multiple_closed_panes);
@@ -407,6 +404,7 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
 
     register_test!(test_middle_click_paste);
 
+    register_test!(test_copy_selection_within_ai_block);
     register_test!(test_selection_first_to_last_through_ai_simple);
     register_test!(test_copy_on_select_first_to_last_through_ai_simple);
     register_test!(test_selection_first_to_last_through_ai_semantic);
@@ -471,7 +469,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
 
     // Video recording test (manual only)
     register_test!(test_video_recording);
-    register_test!(test_zh_cn_localization_visual_smoke);
 
     // Rich Input Ctrl+Enter submit toggle (issue #11588)
     // Full-stack wiring guard: toggle ON → Enter inserts newline, Ctrl+Enter submits.

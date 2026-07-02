@@ -8,8 +8,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 use super::new_session_option::{
     Direction, NewSessionConfig, NewSessionOption, NewSessionOptionId,
 };
-use super::search_item::{NewSessionSearchItemAccessibilityCopy, SearchItem};
-use crate::localization::LocalizationUpdater;
+use super::search_item::SearchItem;
 use crate::search::binding_source::BindingSource;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::data_source::{DataSourceSearchError, Query, QueryResult};
@@ -71,9 +70,6 @@ impl NewSessionDataSource {
 
     fn new_fuzzy(binding_source: ModelHandle<BindingSource>, ctx: &mut ModelContext<Self>) -> Self {
         ctx.observe(&binding_source, Self::on_binding_source_changed);
-        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), move |me, _, ctx| {
-            me.rebuild_options(binding_source.clone(), ctx)
-        });
         Self {
             searcher: Box::new(FuzzyNewSessionSearcher::default()),
             allowed: Default::default(),
@@ -86,9 +82,6 @@ impl NewSessionDataSource {
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         ctx.observe(&binding_source, Self::on_binding_source_changed);
-        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), move |me, _, ctx| {
-            me.rebuild_options(binding_source.clone(), ctx)
-        });
         Self {
             searcher: Box::new(full_text_searcher::FullTextNewSessionSearcher::new(
                 ctx.background_executor(),
@@ -103,14 +96,6 @@ impl NewSessionDataSource {
     }
 
     fn on_binding_source_changed(
-        &mut self,
-        source: ModelHandle<BindingSource>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.rebuild_options(source, ctx);
-    }
-
-    fn rebuild_options(
         &mut self,
         source: ModelHandle<BindingSource>,
         ctx: &mut ModelContext<Self>,
@@ -148,7 +133,6 @@ impl NewSessionDataSource {
                 let new_option = Arc::new(NewSessionOption::new(
                     id.clone(),
                     NewSessionConfig::NewWindow(shell.clone()),
-                    ctx,
                 ));
                 shell_id_to_options.insert(id, new_option);
             }
@@ -158,7 +142,6 @@ impl NewSessionDataSource {
                 let new_option = Arc::new(NewSessionOption::new(
                     id.clone(),
                     NewSessionConfig::NewTab(shell.clone()),
-                    ctx,
                 ));
                 shell_id_to_options.insert(id, new_option);
             }
@@ -174,7 +157,6 @@ impl NewSessionDataSource {
                     let new_option = Arc::new(NewSessionOption::new(
                         id.clone(),
                         NewSessionConfig::Split(direction, shell.clone()),
-                        ctx,
                     ));
                     shell_id_to_options.insert(id, new_option);
                 }
@@ -187,17 +169,11 @@ impl NewSessionDataSource {
     pub fn query_result(
         &self,
         id: &NewSessionOptionId,
-        app: &AppContext,
     ) -> Option<QueryResult<CommandPaletteItemAction>> {
-        let accessibility_copy = NewSessionSearchItemAccessibilityCopy::new(app);
-        self.searcher.bindings().get(id).map(|option| {
-            SearchItem::new(
-                option.clone(),
-                FuzzyMatchResult::no_match(),
-                accessibility_copy,
-            )
-            .into()
-        })
+        self.searcher
+            .bindings()
+            .get(id)
+            .map(|option| SearchItem::new(option.clone(), FuzzyMatchResult::no_match()).into())
     }
 }
 
@@ -209,10 +185,10 @@ impl SyncDataSource for NewSessionDataSource {
     fn run_query(
         &self,
         query: &Query,
-        app: &AppContext,
+        _app: &AppContext,
     ) -> Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper> {
         let search_term = query.text.as_str();
-        self.searcher.search(search_term, app).map_err(|err| {
+        self.searcher.search(search_term).map_err(|err| {
             let search_error = DataSourceSearchError::new(err.to_string());
             Box::new(search_error) as DataSourceRunErrorWrapper
         })
@@ -235,11 +211,7 @@ const SEARCHER_BASE_STRINGS: [&str; 6] = [
 ];
 
 trait NewSessionSearcher {
-    fn search(
-        &self,
-        _search_term: &str,
-        _app: &AppContext,
-    ) -> anyhow::Result<Vec<QueryResult<SearcherAction>>>;
+    fn search(&self, _search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>>;
 
     fn build_index(&mut self);
 
@@ -262,13 +234,8 @@ struct FuzzyNewSessionSearcher {
 }
 
 impl NewSessionSearcher for FuzzyNewSessionSearcher {
-    fn search(
-        &self,
-        search_term: &str,
-        app: &AppContext,
-    ) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
+    fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
         let max_match = self.compute_max_match(search_term);
-        let accessibility_copy = NewSessionSearchItemAccessibilityCopy::new(app);
 
         Ok(self
             .shell_id_to_options
@@ -299,12 +266,7 @@ impl NewSessionSearcher for FuzzyNewSessionSearcher {
                 .map(|result| (result, new_session_option))
             })
             .map(|(match_result, new_session_config)| {
-                SearchItem::new(
-                    new_session_config.clone(),
-                    match_result,
-                    accessibility_copy.clone(),
-                )
-                .into()
+                SearchItem::new(new_session_config.clone(), match_result).into()
             })
             .collect())
     }
@@ -343,14 +305,11 @@ mod full_text_searcher {
     use fuzzy_match::FuzzyMatchResult;
     use warp_search_core::define_search_schema;
     use warpui::r#async::executor::Background;
-    use warpui::AppContext;
 
     use crate::search::command_palette::new_session::data_source::{
         NewSessionSearcher, SearcherAction, SEARCHER_BASE_STRINGS,
     };
-    use crate::search::command_palette::new_session::search_item::{
-        NewSessionSearchItemAccessibilityCopy, SearchItem,
-    };
+    use crate::search::command_palette::new_session::search_item::SearchItem;
     use crate::search::command_palette::new_session::{NewSessionOption, NewSessionOptionId};
     use crate::search::data_source::QueryResult;
     use crate::search::searcher::{
@@ -382,14 +341,9 @@ mod full_text_searcher {
     }
 
     impl NewSessionSearcher for FullTextNewSessionSearcher {
-        fn search(
-            &self,
-            search_term: &str,
-            app: &AppContext,
-        ) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
+        fn search(&self, search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>> {
             let max_match = self.compute_max_match(search_term);
             let search_result = self.searcher.search_id(search_term)?;
-            let accessibility_copy = NewSessionSearchItemAccessibilityCopy::new(app);
             Ok(search_result
                 .into_iter()
                 .filter_map(|result| {
@@ -410,7 +364,6 @@ mod full_text_searcher {
                                 score: (capped_score * SCORE_CONVERSION_FACTOR) as i64,
                                 matched_indices,
                             },
-                            accessibility_copy.clone(),
                         )
                         .into(),
                     )

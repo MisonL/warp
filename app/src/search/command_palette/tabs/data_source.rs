@@ -1,7 +1,7 @@
 use warpui::{AppContext, Entity};
 
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
-use crate::search::command_palette::tabs::{SearchItem, TabSearchItemAccessibilityCopy};
+use crate::search::command_palette::tabs::SearchItem;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
 use crate::session_management::TabNavigationData;
@@ -37,10 +37,9 @@ impl SyncDataSource for DataSource {
     fn run_query(
         &self,
         query: &Query,
-        app: &AppContext,
+        _ctx: &AppContext,
     ) -> Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper> {
         let query_text = query.text.trim().to_lowercase();
-        let accessibility_copy = TabSearchItemAccessibilityCopy::new(app);
 
         let results = self
             .tabs
@@ -54,9 +53,7 @@ impl SyncDataSource for DataSource {
                         .as_deref()
                         .is_some_and(|s| s.to_lowercase().contains(&query_text))
             })
-            .map(|(i, tab)| {
-                QueryResult::from(SearchItem::new(tab.clone(), i, accessibility_copy.clone()))
-            })
+            .map(|(i, tab)| QueryResult::from(SearchItem::new(tab.clone(), i)))
             .collect();
 
         Ok(results)

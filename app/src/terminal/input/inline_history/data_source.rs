@@ -15,7 +15,6 @@ use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::input_suggestions::{HistoryInputSuggestion, HistoryOrder};
-use crate::localization;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::SyncDataSource;
@@ -165,9 +164,9 @@ impl InlineHistoryMenuDataSource {
             let Some(timestamp) = conversation.last_modified_at() else {
                 continue;
             };
-            let title = conversation.title().unwrap_or_else(|| {
-                localization::text_for_app(app, "workspace.conversation.untitled")
-            });
+            let title = conversation
+                .title()
+                .unwrap_or_else(|| "Untitled conversation".to_string());
             let match_result = if trimmed_query.is_empty() {
                 None
             } else {

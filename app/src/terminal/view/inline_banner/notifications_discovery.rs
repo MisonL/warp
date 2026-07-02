@@ -47,7 +47,7 @@ pub fn render_inline_notifications_discovery_banner(
     let active_ui_text_color = appearance.theme().active_ui_text_color().into_solid();
 
     let learn_more_button = InlineBannerTextButton {
-        text: localization::text_for_app(app, "auth.learn_more"),
+        text: crate::localization::text_for_app(app, "common.learn_more"),
         text_color: active_ui_text_color,
         button_state: InlineBannerButtonState {
             on_click_event: TerminalAction::NotificationsDiscoveryBanner(
@@ -89,7 +89,7 @@ pub fn render_inline_notifications_discovery_banner(
             vec![],
         ),
         NotificationsMode::Unset => (
-            localization::text_for_app(app, trigger.discovery_banner_copy_key()),
+            localization::text_for_app(app, trigger.discovery_banner_key()),
             vec![
                 learn_more_button,
                 InlineBannerTextButton {
@@ -182,7 +182,7 @@ pub fn render_inline_notifications_discovery_banner(
         InlineBannerStyle::CallToAction,
         appearance,
         InlineBannerContent {
-            title,
+            title: title.to_owned(),
             buttons,
             close_button: Some(close_button),
             ..Default::default()

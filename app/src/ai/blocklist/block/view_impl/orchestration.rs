@@ -43,15 +43,8 @@ use crate::terminal::view::TerminalAction;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 
+const GENERATING_TITLE_PLACEHOLDER: &str = "Generating title...";
 const ORCHESTRATION_COLLAPSED_MAX_HEIGHT: f32 = 200.;
-
-fn orchestration_text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn orchestration_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct OrchestrationParticipant {
     display_name: String,
@@ -64,14 +57,14 @@ struct OrchestrationParticipant {
 impl OrchestrationParticipant {
     fn orchestrator(app: &AppContext) -> Self {
         Self {
-            display_name: orchestration_text(app, "agent.orchestration.orchestrator"),
+            display_name: localization::text_for_app(app, "agent.orchestration.orchestrator"),
             avatar: OrchestrationAvatar::Orchestrator,
             conversation_id: None,
         }
     }
 
     fn unknown_child(app: &AppContext) -> Self {
-        let display_name = orchestration_text(app, "agent.orchestration.unknown_agent");
+        let display_name = localization::text_for_app(app, "agent.orchestration.unknown_agent");
         Self {
             display_name: display_name.clone(),
             avatar: OrchestrationAvatar::agent(display_name),
@@ -136,7 +129,7 @@ fn participant_for_conversation(
     let display_name = conversation
         .agent_name()
         .map(str::to_string)
-        .unwrap_or_else(|| orchestration_text(app, "agent.child_agent.name"));
+        .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.agent"));
     OrchestrationParticipant {
         display_name: display_name.clone(),
         avatar: OrchestrationAvatar::agent(display_name),
@@ -175,11 +168,7 @@ fn participant_for_current_conversation(
         .unwrap_or_else(|| OrchestrationParticipant::orchestrator(app))
 }
 
-fn transcript_metadata(
-    recipients: &[OrchestrationParticipant],
-    subject: &str,
-    app: &AppContext,
-) -> Option<String> {
+fn transcript_metadata(recipients: &[OrchestrationParticipant], subject: &str) -> Option<String> {
     let recipients = recipients
         .iter()
         .filter(|participant| !participant.is_orchestrator())
@@ -189,16 +178,8 @@ fn transcript_metadata(
     match (recipients.is_empty(), subject.is_empty()) {
         (true, true) => None,
         (true, false) => Some(subject.to_string()),
-        (false, true) => Some(orchestration_text_with_args(
-            app,
-            "agent.orchestration.transcript.to_recipients",
-            &[("recipients", &recipients)],
-        )),
-        (false, false) => Some(orchestration_text_with_args(
-            app,
-            "agent.orchestration.transcript.to_recipients_subject",
-            &[("recipients", &recipients), ("subject", subject)],
-        )),
+        (false, true) => Some(format!("to {recipients}")),
+        (false, false) => Some(format!("to {recipients} • {subject}")),
     }
 }
 
@@ -295,7 +276,7 @@ fn render_transcript_row(
 
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     content.add_child(header_row_element);
-    if let Some(metadata) = transcript_metadata(data.recipients, data.subject, app) {
+    if let Some(metadata) = transcript_metadata(data.recipients, data.subject) {
         content.add_child(
             Container::new(
                 Text::new(metadata, font_family, font_size)
@@ -485,11 +466,7 @@ pub(super) fn render_send_message(
                 );
             }
             SendMessageToAgentResult::Error(error) => {
-                let label = orchestration_text_with_args(
-                    app,
-                    "agent.orchestration.failed_send_message_to",
-                    &[("recipients", &recipients), ("error", error)],
-                );
+                let label = format!("Failed to send message to {recipients}: {error}");
                 let status_icon = inline_action_icons::red_x_icon(appearance).finish();
                 return render_requested_action_row_for_text(
                     label.into(),
@@ -506,11 +483,7 @@ pub(super) fn render_send_message(
                 .finish();
             }
             SendMessageToAgentResult::Cancelled => {
-                let label = orchestration_text_with_args(
-                    app,
-                    "agent.orchestration.send_message_cancelled",
-                    &[("recipients", &recipients)],
-                );
+                let label = format!("Send message to {recipients} cancelled.");
                 let status_icon = inline_action_icons::cancelled_icon(appearance).finish();
                 return render_requested_action_row_for_text(
                     label.into(),
@@ -536,16 +509,12 @@ pub(super) fn render_send_message(
         || status.as_ref().is_some_and(|s| s.is_queued());
 
     let label_fragments = vec![
-        FormattedTextFragment::plain_text(orchestration_text(
+        FormattedTextFragment::plain_text(localization::text_for_app(
             app,
             "agent.orchestration.sending_message_to",
         )),
         FormattedTextFragment::bold(&recipients),
-        FormattedTextFragment::plain_text(orchestration_text_with_args(
-            app,
-            "agent.orchestration.subject_suffix",
-            &[("subject", subject)],
-        )),
+        FormattedTextFragment::plain_text(format!(": {subject}")),
     ];
     let mut header_text = render_formatted_text_element(label_fragments, app);
     if should_dim_text {
@@ -620,44 +589,28 @@ pub(super) fn render_start_agent(
         let (label_fragments, status_icon) = match result {
             StartAgentResult::Success { .. } => (
                 vec![
-                    FormattedTextFragment::plain_text(orchestration_text(
+                    FormattedTextFragment::plain_text(localization::text_for_app(
                         app,
                         "agent.orchestration.started_agent",
                     )),
                     FormattedTextFragment::bold(name),
-                    FormattedTextFragment::plain_text(start_agent_success_suffix(
-                        execution_mode,
-                        app,
-                    )),
+                    FormattedTextFragment::plain_text(start_agent_success_suffix(execution_mode)),
                 ],
                 inline_action_icons::green_check_icon(appearance).finish(),
             ),
             StartAgentResult::Error { error, .. } => (
                 vec![
-                    FormattedTextFragment::plain_text(start_agent_error_prefix(
-                        execution_mode,
-                        app,
-                    )),
+                    FormattedTextFragment::plain_text(start_agent_error_prefix(execution_mode)),
                     FormattedTextFragment::bold(name),
-                    FormattedTextFragment::plain_text(orchestration_text_with_args(
-                        app,
-                        "agent.orchestration.error_suffix",
-                        &[("error", error)],
-                    )),
+                    FormattedTextFragment::plain_text(format!(": {error}")),
                 ],
                 inline_action_icons::red_x_icon(appearance).finish(),
             ),
             StartAgentResult::Cancelled { .. } => (
                 vec![
-                    FormattedTextFragment::plain_text(start_agent_cancelled_prefix(
-                        execution_mode,
-                        app,
-                    )),
+                    FormattedTextFragment::plain_text(start_agent_cancelled_prefix(execution_mode)),
                     FormattedTextFragment::bold(name),
-                    FormattedTextFragment::plain_text(orchestration_text(
-                        app,
-                        "agent.orchestration.cancelled_suffix",
-                    )),
+                    FormattedTextFragment::plain_text(" cancelled."),
                 ],
                 inline_action_icons::cancelled_icon(appearance).finish(),
             ),
@@ -734,12 +687,9 @@ pub(super) fn render_start_agent(
         || status.as_ref().is_some_and(|s| s.is_queued());
 
     let label_fragments = vec![
-        FormattedTextFragment::plain_text(start_agent_in_progress_prefix(execution_mode, app)),
+        FormattedTextFragment::plain_text(start_agent_in_progress_prefix(execution_mode)),
         FormattedTextFragment::bold(name),
-        FormattedTextFragment::plain_text(orchestration_text(
-            app,
-            "agent.orchestration.progress_suffix",
-        )),
+        FormattedTextFragment::plain_text(" ..."),
     ];
     let mut header_text = render_formatted_text_element(label_fragments, app);
     if should_dim_text {
@@ -789,56 +739,31 @@ pub(super) fn render_start_agent(
         .finish()
 }
 
-fn start_agent_success_suffix(
-    execution_mode: &StartAgentExecutionMode,
-    app: &AppContext,
-) -> String {
+fn start_agent_success_suffix(execution_mode: &StartAgentExecutionMode) -> &'static str {
     match execution_mode {
-        StartAgentExecutionMode::Local { .. } => {
-            orchestration_text(app, "agent.orchestration.started_agent_suffix.local")
-        }
-        StartAgentExecutionMode::Remote { .. } => {
-            orchestration_text(app, "agent.orchestration.started_agent_suffix.remote")
-        }
+        StartAgentExecutionMode::Local { .. } => " locally.",
+        StartAgentExecutionMode::Remote { .. } => " remotely.",
     }
 }
 
-fn start_agent_error_prefix(execution_mode: &StartAgentExecutionMode, app: &AppContext) -> String {
+fn start_agent_error_prefix(execution_mode: &StartAgentExecutionMode) -> &'static str {
     match execution_mode {
-        StartAgentExecutionMode::Local { .. } => {
-            orchestration_text(app, "agent.orchestration.failed_start_agent")
-        }
-        StartAgentExecutionMode::Remote { .. } => {
-            orchestration_text(app, "agent.orchestration.failed_start_remote_agent")
-        }
+        StartAgentExecutionMode::Local { .. } => "Failed to start agent ",
+        StartAgentExecutionMode::Remote { .. } => "Failed to start remote agent ",
     }
 }
 
-fn start_agent_cancelled_prefix(
-    execution_mode: &StartAgentExecutionMode,
-    app: &AppContext,
-) -> String {
+fn start_agent_cancelled_prefix(execution_mode: &StartAgentExecutionMode) -> &'static str {
     match execution_mode {
-        StartAgentExecutionMode::Local { .. } => {
-            orchestration_text(app, "agent.orchestration.start_agent")
-        }
-        StartAgentExecutionMode::Remote { .. } => {
-            orchestration_text(app, "agent.orchestration.start_remote_agent")
-        }
+        StartAgentExecutionMode::Local { .. } => "Start agent ",
+        StartAgentExecutionMode::Remote { .. } => "Start remote agent ",
     }
 }
 
-fn start_agent_in_progress_prefix(
-    execution_mode: &StartAgentExecutionMode,
-    app: &AppContext,
-) -> String {
+fn start_agent_in_progress_prefix(execution_mode: &StartAgentExecutionMode) -> &'static str {
     match execution_mode {
-        StartAgentExecutionMode::Local { .. } => {
-            orchestration_text(app, "agent.orchestration.starting_agent")
-        }
-        StartAgentExecutionMode::Remote { .. } => {
-            orchestration_text(app, "agent.orchestration.starting_remote_agent")
-        }
+        StartAgentExecutionMode::Local { .. } => "Starting agent ",
+        StartAgentExecutionMode::Remote { .. } => "Starting remote agent ",
     }
 }
 
@@ -894,7 +819,7 @@ fn child_conversation_card_data_for_result(
             let agent_name = conversation
                 .agent_name()
                 .map(str::to_string)
-                .unwrap_or_else(|| orchestration_text(app, "agent.child_agent.name"));
+                .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.agent"));
             let status = conversation.status().clone();
             let title = available_conversation_title_for_id(conversation_id, app)?;
             Some(ChildConversationCardData {
@@ -918,10 +843,7 @@ fn available_conversation_title_for_id(
         Some(title) if conversation.initial_query().as_deref() != Some(title.as_str()) => {
             Some(title)
         }
-        _ => Some(orchestration_text(
-            app,
-            "agent.orchestration.generating_title",
-        )),
+        _ => Some(GENERATING_TITLE_PLACEHOLDER.to_string()),
     }
 }
 

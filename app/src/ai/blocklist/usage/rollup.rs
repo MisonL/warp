@@ -5,14 +5,13 @@
 //! [`BlocklistAIHistoryModel`] using the shared
 //! [`descendant_conversation_ids_in_spawn_order`] helper, sums each loaded
 //! conversation's `credits_spent`, and emits a per-agent breakdown for the
-//! footer's "View details" list.
+//! footer's per-agent detail list.
 
-use warpui::AppContext;
+use warp_localization::LocaleId;
 
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::blocklist::orchestration_topology::descendant_conversation_ids_in_spawn_order;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
-use crate::localization;
 
 /// Avatar identity for a row in the per-agent breakdown.
 ///
@@ -65,7 +64,6 @@ pub struct OrchestrationCreditRollup {
 pub fn compute_orchestration_rollup(
     parent_id: AIConversationId,
     history: &BlocklistAIHistoryModel,
-    app: &AppContext,
 ) -> Option<OrchestrationCreditRollup> {
     // Descendants in spawn order so ties break naturally. The orchestrator
     // is prepended at index 0 so it sorts before its descendants at equal
@@ -86,7 +84,7 @@ pub fn compute_orchestration_rollup(
                 0,
                 PerAgentCreditEntry {
                     conversation_id: parent_id,
-                    display_name: orchestrator_display_name(orchestrator, app),
+                    display_name: orchestrator_display_name(orchestrator),
                     avatar: AgentAvatar::Orchestrator,
                     credits_spent: credits,
                 },
@@ -106,7 +104,7 @@ pub fn compute_orchestration_rollup(
                 spawn_idx + 1,
                 PerAgentCreditEntry {
                     conversation_id: *descendant_id,
-                    display_name: child_display_name(descendant, app),
+                    display_name: child_display_name(descendant),
                     avatar: AgentAvatar::Child,
                     credits_spent: credits,
                 },
@@ -134,25 +132,29 @@ pub fn compute_orchestration_rollup(
 }
 
 /// Display name for the orchestrator row. Prefers the explicitly assigned
-/// `agent_name`, falls back to catalog text so the row is always
+/// `agent_name`, falls back to "Orchestrator" so the row is always
 /// meaningful.
-fn orchestrator_display_name(orchestrator: &AIConversation, app: &AppContext) -> String {
+fn orchestrator_display_name(orchestrator: &AIConversation) -> String {
     orchestrator
         .agent_name()
         .filter(|n| !n.is_empty())
         .map(|n| n.to_string())
-        .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.orchestrator"))
+        .unwrap_or_else(|| {
+            crate::localization::text_for_locale(LocaleId::EnUs, "agent.orchestration.orchestrator")
+        })
 }
 
 /// Display name for a child row. Mirrors the orchestration pill bar's
-/// fallback so the breakdown stays consistent with the pill
+/// fallback (`"Agent"`) so the breakdown stays consistent with the pill
 /// labels when an agent hasn't been named yet.
-fn child_display_name(child: &AIConversation, app: &AppContext) -> String {
+fn child_display_name(child: &AIConversation) -> String {
     child
         .agent_name()
         .filter(|n| !n.is_empty())
         .map(|n| n.to_string())
-        .unwrap_or_else(|| localization::text_for_app(app, "agent.child_agent.name"))
+        .unwrap_or_else(|| {
+            crate::localization::text_for_locale(LocaleId::EnUs, "agent.orchestration.agent")
+        })
 }
 
 #[cfg(test)]

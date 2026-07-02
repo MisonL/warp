@@ -14,7 +14,6 @@ mod history;
 mod input;
 mod keyboard_protocol;
 mod launch_configs;
-mod localization_visual;
 mod notebooks;
 mod pane_restoration;
 #[cfg(target_os = "macos")]
@@ -57,7 +56,6 @@ pub use history::*;
 pub use input::*;
 pub use keyboard_protocol::*;
 pub use launch_configs::*;
-pub use localization_visual::*;
 pub use notebooks::*;
 pub use pane_restoration::*;
 use parking_lot::Mutex;
@@ -465,15 +463,8 @@ pub fn test_open_and_close_settings() -> Builder {
             new_step_with_default_assertions("Open settings tab")
                 .with_keystrokes(&["cmdorctrl-,"])
                 .add_assertion(assert_tab_count(2))
-                .add_assertion(assert_tab_title(
-                    1,
-                    regex::Regex::new("^(Settings|设置)$").expect("regex should compile"),
-                ))
-                .add_assertion(assert_pane_title(
-                    1,
-                    0,
-                    regex::Regex::new("^(Settings|设置)$").expect("regex should compile"),
-                ))
+                .add_assertion(assert_tab_title(1, "Settings"))
+                .add_assertion(assert_pane_title(1, 0, "Settings"))
                 .add_assertion(move |app, window_id| {
                     let settings_views: Vec<ViewHandle<SettingsView>> = app
                         .views_of_type(window_id)
@@ -494,10 +485,7 @@ pub fn test_open_and_close_settings() -> Builder {
                 .with_hover_over_saved_position("close_tab_button:1")
                 .with_click_on_saved_position("close_tab_button:1")
                 .add_assertion(assert_tab_count(1))
-                .add_assertion(assert_tab_title(
-                    0,
-                    regex::Regex::new("^(~|bash)$").expect("regex should compile"),
-                )),
+                .add_assertion(assert_tab_title(0, "~")),
         )
 }
 
@@ -2076,9 +2064,9 @@ pub fn test_open_and_close_resource_center() -> Builder {
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
         .with_step(
-            new_step_with_default_assertions("Open resource center")
-                .with_click_on_saved_position("workspace:user_avatar_button")
-                .with_click_on_saved_position("resource_center_keyboard_shortcuts_menu_item")
+            new_step_with_default_assertions("Click the resource center button to show the menu")
+                .with_hover_over_saved_position("resource_center_button")
+                .with_click_on_saved_position("resource_center_button")
                 .add_assertion(|app, window_id| {
                     let views = app.views_of_type(window_id).expect("No workspace found");
                     let workspace: &ViewHandle<Workspace> =
@@ -2092,8 +2080,9 @@ pub fn test_open_and_close_resource_center() -> Builder {
                 }),
         )
         .with_step(
-            new_step_with_default_assertions("Click resource center close button")
-                .with_click_on_saved_position("resource_center_close_button")
+            new_step_with_default_assertions("Click the resource center button to hide the menu")
+                .with_hover_over_saved_position("resource_center_button")
+                .with_click_on_saved_position("resource_center_button")
                 .add_assertion(|app, window_id| {
                     let views = app.views_of_type(window_id).expect("No workspace found");
                     let workspace: &ViewHandle<Workspace> =
@@ -2292,11 +2281,8 @@ pub fn test_shell_reinitializing() -> Builder {
 
                         async_assert_eq!(
                             "Starting shell...".to_string(),
-                            view.prompt_render_helper.prompt_working_dir(
-                                &model,
-                                view.sessions(ctx),
-                                ctx
-                            ),
+                            view.prompt_render_helper
+                                .prompt_working_dir(&model, view.sessions(ctx)),
                             "Checking the prompt value"
                         )
                     })

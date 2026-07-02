@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use chrono::{DateTime, FixedOffset};
 use settings::Setting as _;
 
+use crate::report_if_error;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::util::bindings::trigger_to_keystroke;
-use crate::{localization, report_if_error};
 
 mod main_page;
 pub mod utils;
@@ -130,8 +130,8 @@ impl TipAction {
 
 // Section item that dispatches an action within the app
 pub struct FeatureItem {
-    pub title_key: &'static str,
-    pub description_key: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
     pub feature: Tip,
     pub editable_binding_name: Option<&'static str>,
     pub shortcut: Option<Keystroke>,
@@ -139,8 +139,8 @@ pub struct FeatureItem {
 
 impl FeatureItem {
     pub fn new(
-        title_key: &'static str,
-        description_key: &'static str,
+        title: &'static str,
+        description: &'static str,
         feature: Tip,
         ctx: &mut AppContext,
     ) -> Self {
@@ -159,44 +159,22 @@ impl FeatureItem {
         }
 
         Self {
-            title_key,
-            description_key,
+            title,
+            description,
             feature,
             editable_binding_name,
             shortcut,
         }
-    }
-
-    pub fn title(&self, app: &AppContext) -> String {
-        localization::text_for_app(app, self.title_key)
-    }
-
-    pub fn description(&self, app: &AppContext) -> String {
-        localization::text_for_app(app, self.description_key)
     }
 }
 
 #[derive(Clone, Debug)]
 // Section item that links to an external URL
 pub struct ContentItem {
-    pub title_key: &'static str,
-    pub description_key: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
     pub url: &'static str,
-    pub button_label_key: &'static str,
-}
-
-impl ContentItem {
-    pub fn title(&self, app: &AppContext) -> String {
-        localization::text_for_app(app, self.title_key)
-    }
-
-    pub fn description(&self, app: &AppContext) -> String {
-        localization::text_for_app(app, self.description_key)
-    }
-
-    pub fn button_label(&self, app: &AppContext) -> String {
-        localization::text_for_app(app, self.button_label_key)
-    }
+    pub button_label: &'static str,
 }
 
 pub enum Section {

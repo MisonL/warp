@@ -1,5 +1,4 @@
 use ordered_float::OrderedFloat;
-use warp_localization::replace_placeholders;
 use warpui::elements::{Container, Flex, Highlight, ParentElement, Text};
 use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
@@ -19,23 +18,30 @@ use crate::search::notebooks::fuzzy_match::{
 use crate::search::result_renderer::ItemHighlightState;
 use crate::ui_components::icons::Icon;
 
+fn notebook_title_for_app(notebook: &CloudNotebook, app: &AppContext) -> String {
+    if notebook.model().title.is_empty() {
+        crate::localization::text_for_app(app, "notebook.placeholder.untitled")
+    } else {
+        notebook.model().title.clone()
+    }
+}
+
+fn notebook_title_fallback(notebook: &CloudNotebook) -> String {
+    if notebook.model().title.is_empty() {
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "notebook.placeholder.untitled",
+        )
+    } else {
+        notebook.model().title.clone()
+    }
+}
+
 /// Search item result for a cloud notebook.
 #[derive(Debug)]
 pub struct NotebookSearchItem {
     pub cloud_notebook: CloudNotebook,
     pub match_result: FuzzyMatchNotebookResult,
-    pub untitled_fallback: String,
-    pub accessibility_label_template: String,
-}
-
-impl NotebookSearchItem {
-    fn title(&self) -> String {
-        if self.cloud_notebook.model().title.is_empty() {
-            self.untitled_fallback.clone()
-        } else {
-            self.cloud_notebook.model().title.clone()
-        }
-    }
 }
 
 impl SearchItem for NotebookSearchItem {
@@ -75,7 +81,7 @@ impl SearchItem for NotebookSearchItem {
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut name_text = Text::new_inline(
-            self.title(),
+            notebook_title_for_app(&self.cloud_notebook, app),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -150,10 +156,18 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        replace_placeholders(
-            &self.accessibility_label_template,
-            &[("title", &self.title())],
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_fallback(&self.cloud_notebook))],
         )
-        .expect("notebook accessibility label template must use title")
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_for_app(&self.cloud_notebook, app))],
+        )
     }
 }

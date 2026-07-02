@@ -277,14 +277,6 @@ impl SearchItem for InlineHistoryItem {
         self.accept_result()
     }
 
-    fn accessibility_label(&self) -> String {
-        match &self.item_type {
-            HistoryItemType::Conversation { title, .. } => format!("Conversation: {title}"),
-            HistoryItemType::Command { command, .. } => format!("Command: {command}"),
-            HistoryItemType::AIPrompt { query_text } => format!("AI prompt: {query_text}"),
-        }
-    }
-
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
         match &self.item_type {
             HistoryItemType::Conversation { title, .. } => localization::text_for_app_with_args(
@@ -302,6 +294,14 @@ impl SearchItem for InlineHistoryItem {
                 "terminal.inline_history.a11y.ai_prompt",
                 &[("query", query_text)],
             ),
+        }
+    }
+
+    fn accessibility_label(&self) -> String {
+        match &self.item_type {
+            HistoryItemType::Conversation { title, .. } => format!("Conversation: {title}"),
+            HistoryItemType::Command { command, .. } => format!("Command: {command}"),
+            HistoryItemType::AIPrompt { query_text } => format!("AI prompt: {query_text}"),
         }
     }
 }

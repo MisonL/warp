@@ -59,20 +59,17 @@ fn file_title_text(openable_path: &OpenablePath, app: &AppContext) -> String {
                     let language = languages::language_by_local_filename(&openable_path.path);
 
                     match language.as_ref().map(|language| language.display_name()) {
-                        Some(display_name) => {
-                            localization::text_for_app(
-                                app,
-                                "terminal.inline_banner.open_in_warp.code_title_with_language",
-                            )
-                            .replace("{language}", display_name)
-                        }
+                        Some(display_name) => localization::text_for_app_with_args(
+                            app,
+                            "terminal.inline_banner.open_in_warp.code_title_with_language",
+                            &[("language", display_name)],
+                        ),
                         None => localization::text_for_app(
                             app,
                             "terminal.inline_banner.open_in_warp.code_title",
                         ),
                     }
                 } else {
-                    // The `languages` crate is not available on WASM, so use a fallback message.
                     localization::text_for_app(
                         app,
                         "terminal.inline_banner.open_in_warp.code_title",
@@ -114,7 +111,7 @@ pub fn render_open_in_warp_banner(
     };
 
     let learn_more_button = InlineBannerTextButton {
-        text: localization::text_for_app(app, "auth.learn_more"),
+        text: crate::localization::text_for_app(app, "common.learn_more"),
         text_color: appearance.theme().active_ui_text_color().into_solid(),
         button_state: InlineBannerButtonState {
             on_click_event: TerminalAction::OpenInWarpBanner(OpenInWarpBannerAction::LearnMore),

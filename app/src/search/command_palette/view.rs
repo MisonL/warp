@@ -36,8 +36,7 @@ use crate::search::command_palette::SelectedItems;
 use crate::search::data_source::QueryResult;
 use crate::search::result_renderer::QueryResultRenderer;
 use crate::search::search_bar::{
-    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
-    SelectionUpdate,
+    SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering, SelectionUpdate,
 };
 use crate::search::QueryFilter;
 use crate::server::ids::SyncId;
@@ -275,10 +274,10 @@ impl View {
         let ui_font_family = Appearance::as_ref(ctx).ui_font_family();
 
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                SearchBarPlaceholder::localized("search.command_palette.placeholder"),
+                "search.command_palette.placeholder",
                 Self::create_query_result_renderer,
                 ctx,
             )
@@ -304,6 +303,19 @@ impl View {
             zero_state_items,
             is_shared_session_viewer: false,
         }
+    }
+
+    fn placeholder_query_renderer(
+        &self,
+        app: &AppContext,
+    ) -> QueryResultRenderer<CommandPaletteItemAction> {
+        QueryResultRenderer::new(
+            MatchedBinding::placeholder(localization::text_for_app(app, "search.no_results"))
+                .into(),
+            "command_palette:no_results".into(),
+            |_, _, _| {},
+            *styles::QUERY_RESULT_RENDERER_STYLES,
+        )
     }
 
     #[cfg(feature = "integration_tests")]
@@ -668,7 +680,10 @@ impl View {
     fn render_palette_list(&self, theme: &WarpTheme, app: &AppContext) -> Box<dyn Element> {
         match self.search_bar_state.as_ref(app).query_result_renderers() {
             None => Empty::new().finish(),
-            Some(renderers) if renderers.is_empty() => Self::render_no_results(app),
+            Some(renderers) if renderers.is_empty() => {
+                self.placeholder_query_renderer(app)
+                    .render(0, true /* is_selected */, app)
+            }
             Some(renderers) => {
                 let selected_index = self.search_bar_state.as_ref(app).selected_index();
                 let list = Flex::column()
@@ -698,17 +713,6 @@ impl View {
                 .finish()
             }
         }
-    }
-
-    fn render_no_results(app: &AppContext) -> Box<dyn Element> {
-        QueryResultRenderer::new(
-            MatchedBinding::placeholder(localization::text_for_app(app, "search.no_results"))
-                .into(),
-            "command_palette:no_results".into(),
-            |_, _, _| {},
-            *styles::QUERY_RESULT_RENDERER_STYLES,
-        )
-        .render(0, true /* is_selected */, app)
     }
 
     /// Handles the `CommandPaletteItemAction` action and closes the search panel.
@@ -862,6 +866,7 @@ impl View {
                     summarize_after_fork: false,
                     summarization_prompt: None,
                     initial_prompt: None,
+                    initial_attachments: vec![],
                     destination: ForkedConversationDestination::SplitPane,
                 });
             }

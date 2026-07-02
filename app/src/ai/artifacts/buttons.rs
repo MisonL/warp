@@ -146,8 +146,8 @@ fn collect_buttons(
                         localization::text_for_app(ctx, "artifact.plan.untitled")
                     });
                     let theme = theme.clone();
-                    buttons.push(ctx.add_typed_action_view(move |ctx| {
-                        make_plan_button(button_text, *notebook_uid, theme, ctx)
+                    buttons.push(ctx.add_typed_action_view(move |ctx_button| {
+                        make_plan_button(button_text, *notebook_uid, theme, ctx_button)
                     }));
                 }
             }
@@ -159,15 +159,15 @@ fn collect_buttons(
             } => {
                 if !branch.is_empty() {
                     let theme = theme.clone();
-                    buttons.push(ctx.add_typed_action_view(move |ctx| {
-                        make_branch_button(branch.clone(), theme, ctx)
+                    buttons.push(ctx.add_typed_action_view(move |ctx_button| {
+                        make_branch_button(branch.clone(), theme, ctx_button)
                     }));
                 }
 
                 if !url.is_empty() {
                     let theme = theme.clone();
-                    buttons.push(ctx.add_typed_action_view(move |ctx| {
-                        make_pr_button(url.clone(), repo.clone(), *number, theme, ctx)
+                    buttons.push(ctx.add_typed_action_view(move |ctx_button| {
+                        make_pr_button(url.clone(), repo.clone(), *number, theme, ctx_button)
                     }));
                 }
             }
@@ -186,8 +186,8 @@ fn collect_buttons(
             } => {
                 let button_text = file_button_label(filename, filepath);
                 let theme = theme.clone();
-                buttons.push(ctx.add_typed_action_view(move |ctx| {
-                    make_file_button(button_text, artifact_uid.clone(), theme, ctx)
+                buttons.push(ctx.add_typed_action_view(move |ctx_button| {
+                    make_file_button(button_text, artifact_uid.clone(), theme, ctx_button)
                 }));
             }
         }
@@ -195,9 +195,13 @@ fn collect_buttons(
 
     if !screenshot_uids.is_empty() {
         let theme = theme.clone();
-        let label = localization::text_for_app(ctx, "artifact.screenshot.label");
-        buttons.push(ctx.add_typed_action_view(move |ctx| {
-            make_screenshot_button(label, screenshot_uids, theme, ctx)
+        buttons.push(ctx.add_typed_action_view(move |ctx_button| {
+            make_screenshot_button(
+                localization::text_for_app(ctx_button, "artifact.screenshot.label"),
+                screenshot_uids,
+                theme,
+                ctx_button,
+            )
         }));
     }
 
@@ -213,11 +217,10 @@ fn make_plan_button(
     make_artifact_button(
         title,
         Icon::Compass,
-        "artifact.tooltip.open_plan",
+        localization::text_for_app(app, "artifact.tooltip.open_plan"),
         None,
         ArtifactButtonAction::OpenPlan { notebook_uid },
         theme,
-        app,
     )
 }
 
@@ -229,11 +232,10 @@ fn make_branch_button(
     make_artifact_button(
         branch.clone(),
         Icon::GitBranch,
-        "artifact.tooltip.copy_branch_name",
+        localization::text_for_app(app, "artifact.tooltip.copy_branch_name"),
         Some(AnsiColorIdentifier::Green),
         ArtifactButtonAction::CopyBranch { branch },
         theme,
-        app,
     )
 }
 
@@ -253,11 +255,10 @@ fn make_pr_button(
     make_artifact_button(
         display_text,
         Icon::Github,
-        "artifact.tooltip.open_pull_request",
+        localization::text_for_app(app, "artifact.tooltip.open_pull_request"),
         None,
         ArtifactButtonAction::OpenPullRequest { url },
         theme,
-        app,
     )
 }
 
@@ -270,11 +271,10 @@ fn make_screenshot_button(
     make_artifact_button(
         label,
         Icon::Image,
-        "artifact.tooltip.view_screenshots",
+        localization::text_for_app(app, "artifact.tooltip.view_screenshots"),
         None,
         ArtifactButtonAction::ViewScreenshots { artifact_uids },
         theme,
-        app,
     )
 }
 
@@ -287,27 +287,25 @@ fn make_file_button(
     make_artifact_button(
         label,
         Icon::File,
-        "artifact.tooltip.download_file",
+        localization::text_for_app(app, "artifact.tooltip.download_file"),
         None,
         ArtifactButtonAction::DownloadFile { artifact_uid },
         theme,
-        app,
     )
 }
 
 fn make_artifact_button(
     display_text: String,
     icon: Icon,
-    tooltip_key: &str,
+    tooltip: String,
     icon_color: Option<AnsiColorIdentifier>,
     action: ArtifactButtonAction,
     theme: Arc<dyn ActionButtonTheme>,
-    app: &AppContext,
 ) -> ActionButton {
     let mut button = ActionButton::new_with_boxed_theme(display_text, theme)
         .with_size(ButtonSize::Small)
         .with_icon(icon)
-        .with_tooltip(localization::text_for_app(app, tooltip_key))
+        .with_tooltip(&tooltip)
         .with_tooltip_alignment(TooltipAlignment::Center)
         .with_tooltip_positioning_provider(Arc::new(MenuPositioning::BelowInputBox))
         .with_max_label_width(BUTTON_MAX_TEXT_WIDTH)

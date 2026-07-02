@@ -25,10 +25,6 @@ mod tests;
 
 const CONTEXT_MENU_WIDTH: f32 = 200.;
 
-fn text(app: &warpui::AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 pub struct ContextMenuState<V: TypedActionView + View>
 where
     V::Action: Clone + From<ContextMenuAction>,
@@ -121,19 +117,19 @@ where
         };
 
         if has_selection && can_edit {
-            let item = MenuItemFields::new(text(ctx, "terminal.menu.cut"))
+            let item = MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.cut"))
                 .with_on_select_action(V::Action::from(ContextMenuAction::CutSelectedText))
                 .with_key_shortcut_label(custom_action_to_display(CustomAction::Cut));
             items.push(item.into_item());
         }
         if has_selection {
-            let item = MenuItemFields::new(text(ctx, "terminal.menu.copy"))
+            let item = MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy"))
                 .with_on_select_action(V::Action::from(ContextMenuAction::CopySelectedText))
                 .with_key_shortcut_label(custom_action_to_display(CustomAction::Copy));
             items.push(item.into_item());
         }
         if can_edit {
-            let item = MenuItemFields::new(text(ctx, "terminal.menu.paste"))
+            let item = MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.paste"))
                 .with_on_select_action(V::Action::from(ContextMenuAction::Paste))
                 .with_key_shortcut_label(custom_action_to_display(CustomAction::Paste));
             items.push(item.into_item());
@@ -160,42 +156,54 @@ where
         let mut items = vec![];
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend([
-                MenuItemFields::new(text(ctx, "settings.pane.split_right"))
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitRight(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_right",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new(text(ctx, "settings.pane.split_left"))
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitLeft(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_left",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new(text(ctx, "settings.pane.split_down"))
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitDown(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_down",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new(text(ctx, "settings.pane.split_up"))
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitUp(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_up",
-                        ctx,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_right",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitRight(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_right",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_left",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitLeft(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_left",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_down",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitDown(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_down",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_up",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitUp(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_up",
+                    ctx,
+                ))
+                .into_item(),
             ]);
         }
 
@@ -206,7 +214,7 @@ where
         if split_pane_state.is_in_split_pane() {
             let is_maximized = split_pane_state.is_maximized();
             items.push(
-                MenuItemFields::toggle_pane_action(is_maximized, ctx)
+                MenuItemFields::toggle_pane_action(is_maximized)
                     .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
                         PaneEvent::ToggleMaximized,
                     )))
@@ -218,7 +226,7 @@ where
             );
 
             items.push(
-                MenuItemFields::new(text(ctx, "settings.pane.close"))
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.close_pane"))
                     .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
                         PaneEvent::Close,
                     )))

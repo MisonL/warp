@@ -18,14 +18,13 @@ use warpui::{ModelHandle, ModelSpawner};
 use super::super::terminal::{CommandHandle, TerminalDriver};
 use super::super::{AgentDriver, AgentDriverError};
 use super::claude_transcript::{
-    claude_config_dir, home_dir_for_claude_config, read_envelope, write_envelope,
-    write_session_index_entry, ClaudeResumeInfo, ClaudeTranscriptEnvelope,
+    claude_config_dir, home_dir_for_claude_config, read_envelope, rehydrate_claude_transcript,
+    ClaudeResumeInfo, ClaudeTranscriptEnvelope,
 };
 use super::json_utils::{read_json_file_or_default, write_json_file};
 use super::{
-    cli_agent_session_status, default_text, default_text_with_args, write_temp_file,
-    HarnessCleanupDisposition, HarnessRunner, JSONMCPServer, ResumePayload, SavePoint,
-    ThirdPartyHarness,
+    cli_agent_session_status, write_temp_file, HarnessCleanupDisposition, HarnessRunner,
+    JSONMCPServer, ResumePayload, SavePoint, ThirdPartyHarness,
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_sdk::setup_observability::{
@@ -181,6 +180,10 @@ impl ThirdPartyHarness for ClaudeHarness {
             resolved_mcp_servers,
         )?))
     }
+
+    fn requires_verified_platform_plugin(&self) -> bool {
+        true
+    }
 }
 
 /// Format slug sent to the server when creating a Claude Code conversation.
@@ -274,26 +277,8 @@ impl ClaudeHarnessRunner {
                 session_id,
                 mut envelope,
             }) => {
-                // Rehydrate the stored envelope under the current working directory so
-                // `claude --resume <uuid>` finds the jsonl under ~/.claude/projects/<encoded_cwd>/.
-                // The original envelope's cwd usually points at the cloud sandbox path, which
-                // doesn't exist locally.
-                envelope.cwd = working_dir.to_path_buf();
-                let config_root = claude_config_dir().map_err(|e| {
-                    AgentDriverError::ConfigBuildFailed(e.context(default_text(
-                        "agent_sdk.driver.harness.claude.error.resolve_config_dir",
-                    )))
-                })?;
-                write_envelope(&envelope, &config_root).map_err(|e| {
-                    AgentDriverError::ConfigBuildFailed(e.context(default_text(
-                        "agent_sdk.driver.harness.claude.error.rehydrate_transcript",
-                    )))
-                })?;
-                // Index write is best-effort: upstream Claude versions vary in how they use
-                // `sessions-index.json`, so losing the index entry shouldn't abort the run.
-                if let Err(e) = write_session_index_entry(session_id, working_dir, &config_root) {
-                    log::warn!("Failed to update Claude sessions-index.json: {e:#}");
-                }
+                rehydrate_claude_transcript(&mut envelope, working_dir)
+                    .map_err(AgentDriverError::ConfigBuildFailed)?;
                 (session_id, Some(conversation_id))
             }
             None => (Uuid::new_v4(), None),
@@ -527,12 +512,7 @@ impl HarnessRunner for ClaudeHarnessRunner {
                 });
             })
             .await
-            .map_err(|_| {
-                anyhow::anyhow!(default_text_with_args(
-                    "agent_sdk.driver.harness.error.driver_dropped_sending_command",
-                    &[("command", CLAUDE_EXIT_COMMAND)],
-                ))
-            })
+            .map_err(|_| anyhow::anyhow!("Agent driver dropped while sending /exit"))
     }
 
     async fn handle_session_update(&self, _foreground: &ModelSpawner<AgentDriver>) -> Result<()> {
@@ -610,36 +590,20 @@ async fn upload_transcript(
 ) -> Result<()> {
     log::info!("Uploading Claude Code transcript to conversation {conversation_id}");
 
-    let config_dir = claude_config_dir().context(default_text(
-        "agent_sdk.driver.harness.claude.error.resolve_config_dir",
-    ))?;
+    let config_dir = claude_config_dir().context("Failed to resolve Claude config dir")?;
     let working_dir = working_dir.to_path_buf();
     let body = tokio::task::spawn_blocking(move || {
-        let mut envelope =
-            read_envelope(session_id, &working_dir, &config_dir).with_context(|| {
-                default_text_with_args(
-                    "agent_sdk.driver.harness.claude.error.read_transcript_for_session",
-                    &[("session_id", &session_id.to_string())],
-                )
-            })?;
+        let mut envelope = read_envelope(session_id, &working_dir, &config_dir)
+            .with_context(|| format!("Failed to read transcript for session {session_id}"))?;
         envelope.claude_version = claude_version;
-        serde_json::to_vec(&envelope).context(default_text(
-            "agent_sdk.driver.harness.claude.error.serialize_transcript_envelope",
-        ))
+        serde_json::to_vec(&envelope).context("Failed to serialize transcript envelope")
     })
     .await
-    .context(default_text(
-        "agent_sdk.driver.harness.error.read_envelope_task_panicked",
-    ))??;
+    .context("read_envelope task panicked")??;
     let target = client
         .get_transcript_upload_target(&conversation_id)
         .await
-        .with_context(|| {
-            default_text_with_args(
-                "agent_sdk.driver.harness.error.transcript_upload_target",
-                &[("conversation_id", &conversation_id.to_string())],
-            )
-        })?;
+        .with_context(|| format!("Failed to get transcript upload target for {conversation_id}"))?;
     upload_to_target(client.http_client(), &target, body).await
 }
 pub(crate) fn prepare_claude_environment_config(
@@ -664,11 +628,7 @@ fn claude_global_config_path() -> Result<PathBuf> {
 
     home_dir_for_claude_config()
         .map(|home| home.join(CLAUDE_JSON_FILE_NAME))
-        .ok_or_else(|| {
-            anyhow::anyhow!(default_text(
-                "agent_sdk.driver.harness.error.home_directory"
-            ))
-        })
+        .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))
 }
 
 fn prepare_claude_config(
@@ -695,7 +655,7 @@ fn prepare_claude_config(
     write_json_file(
         claude_json_path,
         &claude_config,
-        default_text("agent_sdk.driver.harness.claude.error.serialize_config"),
+        "Failed to serialize Claude config",
     )?;
     Ok(())
 }
@@ -706,7 +666,7 @@ fn prepare_claude_settings(claude_settings_path: &Path) -> Result<()> {
     write_json_file(
         claude_settings_path,
         &settings,
-        default_text("agent_sdk.driver.harness.claude.error.serialize_settings"),
+        "Failed to serialize Claude settings",
     )?;
     Ok(())
 }
@@ -850,9 +810,7 @@ pub(crate) fn serialize_claude_mcp_config(
             })
             .collect(),
     };
-    serde_json::to_string_pretty(&config).context(default_text(
-        "agent_sdk.driver.harness.claude.error.serialize_mcp_config",
-    ))
+    serde_json::to_string_pretty(&config).context("Failed to serialize Claude MCP config")
 }
 
 #[cfg(test)]

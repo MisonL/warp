@@ -30,11 +30,10 @@ use crate::view_components::action_button::{
 use crate::view_components::compactible_action_button::{
     render_compact_and_regular_button_rows, CompactibleActionButton, MEDIUM_SIZE_SWITCH_THRESHOLD,
 };
-use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
+use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
+const ACCEPT_LABEL: &str = "Generate tests";
+const CANCEL_LABEL: &str = "Dismiss";
 
 #[derive(Debug, Clone)]
 pub enum SuggestedUnitTestsEvent {
@@ -83,7 +82,7 @@ impl SuggestedUnitTestsView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let accept_button = CompactibleActionButton::new(
-            text(ctx, "agent.suggested_unit_tests.generate_tests"),
+            ACCEPT_LABEL.to_string(),
             Some(KeystrokeSource::Binding(
                 ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
             )),
@@ -95,7 +94,7 @@ impl SuggestedUnitTestsView {
         );
 
         let cancel_button = CompactibleActionButton::new(
-            text(ctx, "agent.suggested_unit_tests.dismiss"),
+            CANCEL_LABEL.to_string(),
             Some(KeystrokeSource::Fixed(
                 REJECT_PROMPT_SUGGESTION_KEYSTROKE.clone(),
             )),
@@ -313,10 +312,7 @@ impl SuggestedUnitTestsView {
 
         let checkbox_text = appearance
             .ui_builder()
-            .span(text(
-                app,
-                "settings.ai.active.suggested_code_banners.hide_again",
-            ))
+            .span("Don't show me suggested code banners again")
             .with_style(UiComponentStyles {
                 font_color: Some(font_color),
                 font_size: Some(font_size),
@@ -329,8 +325,8 @@ impl SuggestedUnitTestsView {
         let formatted_text = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(vec![
                 FormattedTextFragment::hyperlink(
-                    text(app, "settings.ai.active.suggested_code_banners.manage"),
-                    text(app, "settings.nav.ai"),
+                    "Manage suggested code banner settings",
+                    "Settings > AI",
                 ),
             ])]),
             font_size,

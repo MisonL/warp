@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::ffi::OsString;
-use std::fmt;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -16,17 +14,14 @@ use warp_cli::share::{ShareAccessLevel, ShareRequest, ShareSubject};
 use warp_completer::completer::CommandOutput;
 use warp_core::command::ExitCode;
 use warp_core::features::FeatureFlag;
-use warp_localization::{replace_placeholders, LocaleId};
 use warp_terminal::model::grid::Dimensions;
 use warp_util::path::ShellFamily;
-use warp_util::sync::Condition;
 use warpui::r#async::FutureExt;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity as _, ViewHandle};
 
 use super::AgentDriverError;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::attachment_utils::attachments_download_dir;
-use crate::localization;
 use crate::pane_group::NewTerminalOptions;
 use crate::root_view::{open_new_with_workspace_source, NewWorkspaceSource};
 use crate::terminal::model::block::{BlockId, SerializedBlock};
@@ -41,52 +36,68 @@ use crate::terminal::view::{ConversationRestorationInNewPaneType, Event};
 use crate::terminal::TerminalView;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-/// Describes why an agent's session-sharing request failed.
+/// Describes why a terminal session bootstrap failed.
 #[derive(Debug)]
-pub(crate) enum ShareSessionError {
-    /// Connection to the session-sharing server failed.
-    Internal(Arc<anyhow::Error>),
-    /// The server rejected the session-sharing request.
-    Failed(String),
-    /// Session sharing is disabled for this user or team.
-    Disabled,
-    /// The session-sharing request timed out.
-    Timeout,
-    /// The session-sharing channel was dropped before completing.
-    Interrupted,
+pub(crate) enum BootstrapError {
+    /// The PTY or shell process failed before the bootstrap script completed.
+    /// When `reason` is `Some`, the message is
+    /// "Shell spawn failed: {reason}. Check the Warp logs for details."
+    /// When `reason` is `None`, it is
+    /// "Shell spawn failed. Check the Warp logs for details."
+    PtySpawnFailed { reason: Option<String> },
+    /// The bootstrap script did not complete within the expected time.
+    TimedOut,
+    /// An unexpected internal error in the bootstrap channel
+    /// (e.g. the sender was dropped without sending).
+    InternalError,
 }
 
-fn text(key: &str) -> String {
-    localization::text_for_locale(LocaleId::EnUs, key)
-}
-
-fn text_with_args(key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&text(key), args)
-        .expect("localized text template arguments must match the catalog")
-}
-
-impl fmt::Display for ShareSessionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = match self {
-            ShareSessionError::Internal(_) => text("agent_sdk.driver.terminal.error.internal"),
-            ShareSessionError::Failed(reason) => reason.clone(),
-            ShareSessionError::Disabled => text("agent_sdk.driver.terminal.error.share_disabled"),
-            ShareSessionError::Timeout => text("agent_sdk.driver.terminal.error.share_timeout"),
-            ShareSessionError::Interrupted => {
-                text("agent_sdk.driver.terminal.error.share_interrupted")
-            }
-        };
-        f.write_str(&message)
-    }
-}
-
-impl Error for ShareSessionError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
+impl std::fmt::Display for BootstrapError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ShareSessionError::Internal(error) => Some(error.as_ref().as_ref()),
-            _ => None,
+            BootstrapError::PtySpawnFailed { reason: Some(r) } => {
+                write!(
+                    f,
+                    "Shell spawn failed: {r}. Check the Warp logs for details."
+                )
+            }
+            BootstrapError::PtySpawnFailed { reason: None } => {
+                write!(f, "Shell spawn failed. Check the Warp logs for details.")
+            }
+            BootstrapError::TimedOut => write!(
+                f,
+                "Terminal session did not start within the expected time. \
+                 Check the Warp logs for details."
+            ),
+            BootstrapError::InternalError => {
+                write!(f, "An unexpected internal error occurred during bootstrap.")
+            }
         }
     }
+}
+
+impl std::error::Error for BootstrapError {}
+
+/// Describes why an agent's session-sharing request failed.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ShareSessionError {
+    /// Connection to the session-sharing server failed.
+    #[error("Internal error")]
+    Internal(#[source] Arc<anyhow::Error>),
+    /// The server rejected the session-sharing request.
+    #[error("{0}")]
+    Failed(String),
+    /// Session sharing is disabled for this user or team.
+    #[error(
+        "Session sharing is not enabled. This is likely because an administrator has disabled session sharing for your team."
+    )]
+    Disabled,
+    /// The session-sharing request timed out.
+    #[error("Timed out waiting for session sharing to start")]
+    Timeout,
+    /// The session-sharing channel was dropped before completing.
+    #[error("Session sharing was interrupted")]
+    Interrupted,
 }
 
 const TERMINAL_SESSION_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -122,7 +133,12 @@ pub(crate) enum TerminalDriverEvent {
 /// - Detecting block completion
 pub(crate) struct TerminalDriver {
     terminal_view: ViewHandle<TerminalView>,
-    session_bootstrapped: Condition,
+    /// Sender half of the bootstrap result channel. Exactly one of
+    /// `SessionBootstrapped`, `PtySpawnFailed`, or `Exited` (pre-bootstrap)
+    /// will send the outcome; all others no-op after the first send.
+    bootstrap_tx: Option<oneshot::Sender<Result<(), BootstrapError>>>,
+    /// Receiver half consumed by `wait_for_session_bootstrapped`.
+    bootstrap_rx: Option<oneshot::Receiver<Result<(), BootstrapError>>>,
     /// The session ID once sharing has been established.
     shared_session_id: Option<SessionId>,
     /// Receiver for the session sharing result. Present when sharing is expected
@@ -215,8 +231,6 @@ impl TerminalDriver {
         working_dir: PathBuf,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        let session_bootstrapped = Condition::new();
-
         // Create a oneshot channel for session sharing when sharing is expected.
         // When sharing is disabled (or running against ngrok), leave both halves
         // as None so that `wait_for_session_shared` returns immediately.
@@ -258,13 +272,14 @@ impl TerminalDriver {
             });
         }
 
-        ctx.subscribe_to_view(&terminal_view, move |me, event, ctx| {
+        ctx.subscribe_to_view(&terminal_view, move |me, _, event, ctx| {
             me.handle_terminal_view_event(event, &mut session_share_tx, ctx);
         });
 
-        // If the session already bootstrapped before we subscribed, set the
-        // condition immediately so callers of `wait_for_session_bootstrapped`
-        // don't block forever.
+        let (bootstrap_tx_inner, bootstrap_rx) = oneshot::channel::<Result<(), BootstrapError>>();
+
+        // If bootstrap already completed before we subscribed, resolve the
+        // channel immediately so `wait_for_session_bootstrapped` doesn't block.
         let already_bootstrapped = terminal_view.read(ctx, |terminal, _| {
             terminal
                 .model
@@ -272,13 +287,17 @@ impl TerminalDriver {
                 .block_list()
                 .is_bootstrapping_precmd_done()
         });
-        if already_bootstrapped {
-            session_bootstrapped.set();
-        }
+        let bootstrap_tx = if already_bootstrapped {
+            let _ = bootstrap_tx_inner.send(Ok(()));
+            None
+        } else {
+            Some(bootstrap_tx_inner)
+        };
 
         Self {
             terminal_view,
-            session_bootstrapped,
+            bootstrap_tx,
+            bootstrap_rx: Some(bootstrap_rx),
             shared_session_id: None,
             session_share_rx,
             pending_share_requests: Vec::new(),
@@ -567,21 +586,32 @@ impl TerminalDriver {
 
     /// Returns a future that resolves when the session has bootstrapped.
     ///
-    /// This only waits for the `SessionBootstrapped` terminal view event.
+    /// The bootstrap result channel carries `Ok(())` on success or
+    /// `Err(BootstrapError)` on failure. If the channel times out, the error
+    /// is `BootstrapError::TimedOut`.
     pub fn wait_for_session_bootstrapped(
-        &self,
-    ) -> impl Future<Output = Result<(), AgentDriverError>> {
-        let session_bootstrapped = self.session_bootstrapped.clone();
+        &mut self,
+    ) -> impl Future<Output = Result<(), BootstrapError>> {
+        let bootstrap_rx = self.bootstrap_rx.take();
 
         async move {
-            session_bootstrapped
-                .wait()
-                .with_timeout(TERMINAL_SESSION_BOOTSTRAP_TIMEOUT)
-                .await
-                .map_err(|_| {
-                    log::error!("Timed out waiting for session bootstrap");
-                    AgentDriverError::BootstrapFailed
-                })
+            let result = if let Some(rx) = bootstrap_rx {
+                // Map channel cancellation (sender dropped without sending)
+                // to InternalError — this shouldn't happen in practice.
+                let inner = async move { rx.await.unwrap_or(Err(BootstrapError::InternalError)) };
+                match inner.with_timeout(TERMINAL_SESSION_BOOTSTRAP_TIMEOUT).await {
+                    Ok(result) => result,
+                    Err(_timeout) => Err(BootstrapError::TimedOut),
+                }
+            } else {
+                // bootstrap_rx already consumed — shouldn't happen in normal flow.
+                Err(BootstrapError::InternalError)
+            };
+
+            if let Err(ref e) = result {
+                log::error!("Terminal bootstrap failed: {e}");
+            }
+            result
         }
     }
 
@@ -614,13 +644,9 @@ impl TerminalDriver {
                     })
                 }
                 Err(_timeout) => {
-                    let seconds = TERMINAL_SESSION_SHARE_DELAY.as_secs().to_string();
                     log::error!(
-                        "{}",
-                        text_with_args(
-                            "agent_sdk.driver.terminal.error.share_timeout_after",
-                            &[("seconds", &seconds)]
-                        )
+                        "Timed out waiting for session sharing to start after {}s",
+                        TERMINAL_SESSION_SHARE_DELAY.as_secs()
                     );
                     Err(AgentDriverError::ShareSessionFailed {
                         error: ShareSessionError::Timeout,
@@ -704,7 +730,28 @@ impl TerminalDriver {
     ) {
         match event {
             crate::terminal::view::Event::SessionBootstrapped => {
-                self.session_bootstrapped.set();
+                if let Some(tx) = self.bootstrap_tx.take() {
+                    let _ = tx.send(Ok(()));
+                }
+            }
+            crate::terminal::view::Event::PtySpawnFailed { reason } => {
+                // Signal the bootstrap waiter immediately so it doesn't wait
+                // for the full 60 s timeout when a spawn failure has already
+                // been confirmed.
+                if let Some(tx) = self.bootstrap_tx.take() {
+                    let _ = tx.send(Err(BootstrapError::PtySpawnFailed {
+                        reason: Some(reason.clone()),
+                    }));
+                }
+            }
+            crate::terminal::view::Event::Exited => {
+                // The shell process exited before bootstrap completed —
+                // cancel the wait immediately rather than sitting out the
+                // full 60 s timeout. No specific reason is known at this
+                // point; the logs will have details.
+                if let Some(tx) = self.bootstrap_tx.take() {
+                    let _ = tx.send(Err(BootstrapError::PtySpawnFailed { reason: None }));
+                }
             }
             crate::terminal::view::Event::SlowBootstrap => {
                 ctx.emit(TerminalDriverEvent::SlowBootstrap);

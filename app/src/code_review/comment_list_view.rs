@@ -40,7 +40,7 @@ use crate::appearance::Appearance;
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorView};
-use crate::code_review::code_review_view::{code_review_text, CodeReviewView};
+use crate::code_review::code_review_view::CodeReviewView;
 use crate::code_review::comment_rendering::CommentViewCard;
 use crate::code_review::comments::{
     AttachedReviewComment, AttachedReviewCommentTarget, CommentId, CommentOrigin,
@@ -49,26 +49,27 @@ use crate::code_review::comments::{
 use crate::code_review::telemetry_event::CodeReviewTelemetryEvent;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
-use crate::send_telemetry_from_ctx;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, SecondaryTheme,
 };
 use crate::workspace::view::right_panel::ReviewDestination;
+use crate::{localization, send_telemetry_from_ctx};
+
+/// Header text for the outdated section when there is exactly one outdated comment.
+const OUTDATED_SECTION_HEADER_SINGULAR: &str = "1 comment will be omitted because it is outdated.";
+/// Header text format for the outdated section when there are multiple outdated comments.
+/// Use with `format!` to insert the count.
+const OUTDATED_SECTION_HEADER_PLURAL_FMT: &str =
+    " comments will be omitted because they are outdated.";
 
 /// Returns the header text for the outdated section based on the number of outdated comments.
-fn outdated_section_header_text(count: usize, app: &AppContext) -> Cow<'static, str> {
+fn outdated_section_header_text(count: usize) -> Cow<'static, str> {
     if count == 1 {
-        Cow::Owned(code_review_text(
-            app,
-            "code_review.comments.outdated_one_omitted",
-        ))
+        Cow::Borrowed(OUTDATED_SECTION_HEADER_SINGULAR)
     } else {
-        Cow::Owned(
-            code_review_text(app, "code_review.comments.outdated_many_omitted")
-                .replace("{count}", &count.to_string()),
-        )
+        Cow::Owned(format!("{count}{OUTDATED_SECTION_HEADER_PLURAL_FMT}"))
     }
 }
 
@@ -87,6 +88,15 @@ fn markdown_to_html(
             buffer.as_ref(ctx).ranges_as_html(vec1![range], ctx)
         })
     })
+}
+
+struct CommentMenuText {
+    copy: String,
+    edit: String,
+    file_level_edit_disabled: String,
+    outdated_edit_disabled: String,
+    view_in_github: String,
+    remove: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -203,7 +213,7 @@ impl CommentListView {
 
         let comments_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                code_review_text(ctx, "code_review.comments.one_comment"),
+                localization::text_for_app(ctx, "code_review.comments.one_comment"),
                 CustomSecondaryActionTheme,
             )
             .with_size(ButtonSize::Small)
@@ -300,8 +310,7 @@ impl CommentListView {
             ai_available,
             ai_enabled,
             ctx,
-        )
-        .into_owned();
+        );
 
         CommentListDebugState {
             review_destination: self.review_destination.clone(),
@@ -647,7 +656,6 @@ impl CommentListView {
             count,
             is_collapsed,
             appearance,
-            ctx,
         ));
 
         if !is_collapsed {
@@ -676,11 +684,10 @@ impl CommentListView {
         count: usize,
         is_collapsed: bool,
         appearance: &Appearance,
-        ctx: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let yellow_border: ColorU = theme.terminal_colors().normal.yellow.into();
-        let header_text = outdated_section_header_text(count, ctx);
+        let header_text = outdated_section_header_text(count);
 
         Hoverable::new(
             self.view_state.outdated_chevron_mouse_state.clone(),
@@ -758,7 +765,7 @@ impl CommentListView {
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_main_axis_size(MainAxisSize::Max)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        header_row.add_child(self.render_header_left(appearance, ctx));
+        header_row.add_child(self.render_header_left(appearance));
         header_row.add_child(self.render_header_right(appearance, ctx));
 
         Container::new(Clipped::new(Shrinkable::new(1., header_row.finish()).finish()).finish())
@@ -779,7 +786,7 @@ impl CommentListView {
             .finish()
     }
 
-    fn render_header_left(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
+    fn render_header_left(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         let mut left_section = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::Start)
@@ -809,8 +816,7 @@ impl CommentListView {
             .finish();
 
             let outdated_text = Text::new(
-                code_review_text(ctx, "code_review.comments.outdated_count")
-                    .replace("{count}", &outdated_count.to_string()),
+                format!("{outdated_count} outdated"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -877,7 +883,7 @@ impl CommentListView {
         right_section.finish()
     }
 
-    fn render_cancel_button(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
+    fn render_cancel_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let cancel_button = EventHandler::new(
             appearance
                 .ui_builder()
@@ -885,7 +891,7 @@ impl CommentListView {
                     ButtonVariant::Text,
                     self.view_state.cancel_button_mouse_state.clone(),
                 )
-                .with_text_label(code_review_text(ctx, "code_review.action.cancel"))
+                .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
                 .build()
                 .finish(),
         )
@@ -910,47 +916,34 @@ impl CommentListView {
         ai_available: bool,
         ai_enabled: bool,
         app: &AppContext,
-    ) -> Cow<'static, str> {
+    ) -> String {
         if let ReviewDestination::Cli(agent) = destination {
             if !has_sendable_comments {
-                Cow::Owned(code_review_text(
-                    app,
-                    "code_review.comments.no_non_outdated_to_send",
-                ))
+                localization::text_for_app(app, "code_review.comments.no_non_outdated_to_send")
             } else {
                 let cmd = agent.command_prefix();
+                let cli_agent = localization::text_for_app(app, "code_review.comments.cli_agent");
                 let label = if cmd.is_empty() {
-                    code_review_text(app, "code_review.comments.cli_agent")
+                    cli_agent.as_str()
                 } else {
-                    cmd.to_string()
+                    cmd
                 };
-                Cow::Owned(
-                    code_review_text(app, "code_review.comments.send_to_cli_agent")
-                        .replace("{label}", &label),
+                localization::text_for_app_with_args(
+                    app,
+                    "code_review.comments.send_to_cli_agent",
+                    &[("label", label)],
                 )
             }
         } else if !ai_enabled {
-            Cow::Owned(code_review_text(
-                app,
-                "code_review.comments.ai_must_be_enabled",
-            ))
+            localization::text_for_app(app, "code_review.comments.ai_must_be_enabled")
         } else if !ai_available {
-            Cow::Owned(code_review_text(
-                app,
-                "code_review.comments.ai_credits_required",
-            ))
+            localization::text_for_app(app, "code_review.comments.requires_ai_credits")
         } else if matches!(destination, ReviewDestination::None) {
-            Cow::Owned(code_review_text(
-                app,
-                "code_review.comments.all_terminals_busy",
-            ))
+            localization::text_for_app(app, "code_review.comments.all_terminals_busy")
         } else if !has_sendable_comments {
-            Cow::Owned(code_review_text(
-                app,
-                "code_review.comments.no_non_outdated_to_send",
-            ))
+            localization::text_for_app(app, "code_review.comments.no_non_outdated_to_send")
         } else {
-            Cow::Owned(code_review_text(app, "code_review.comments.send_to_agent"))
+            localization::text_for_app(app, "code_review.comments.send_to_agent")
         }
     }
 
@@ -976,7 +969,7 @@ impl CommentListView {
 
         let tooltip = appearance
             .ui_builder()
-            .tool_tip(tooltip_text.into_owned())
+            .tool_tip(tooltip_text)
             .build()
             .finish();
 
@@ -986,7 +979,7 @@ impl CommentListView {
                 ButtonVariant::Accent,
                 self.view_state.submit_button_mouse_state.clone(),
             )
-            .with_text_label(code_review_text(
+            .with_text_label(localization::text_for_app(
                 ctx,
                 "code_review.comments.send_to_agent_button",
             ))
@@ -1097,24 +1090,21 @@ impl CommentListView {
         is_outdated: bool,
         html_url: Option<&str>,
         appearance: &Appearance,
-        app: &AppContext,
+        text: CommentMenuText,
     ) -> Vec<MenuItem<CommentListAction>> {
-        let mut items =
-            vec![
-                MenuItemFields::new(code_review_text(app, "code_review.comments.copy_text"))
-                    .with_icon(Icon::Copy)
-                    .with_on_select_action(CommentListAction::CopyCommentText)
-                    .into_item(),
-            ];
+        let mut items = vec![MenuItemFields::new(text.copy)
+            .with_icon(Icon::Copy)
+            .with_on_select_action(CommentListAction::CopyCommentText)
+            .into_item()];
 
-        let mut edit_item = MenuItemFields::new(code_review_text(app, "code_review.comments.edit"))
+        let mut edit_item = MenuItemFields::new(text.edit)
             .with_icon(Icon::Pencil)
             .with_on_select_action(CommentListAction::EditComment);
         if is_file_level || is_outdated {
             let tooltip_text = if is_file_level {
-                code_review_text(app, "code_review.comments.file_level_edit_disabled")
+                text.file_level_edit_disabled
             } else {
-                code_review_text(app, "code_review.comments.outdated_edit_disabled")
+                text.outdated_edit_disabled
             };
             edit_item = edit_item.with_disabled(true).with_tooltip(tooltip_text);
         }
@@ -1122,7 +1112,7 @@ impl CommentListView {
 
         if let Some(url) = html_url {
             items.push(
-                MenuItemFields::new(code_review_text(app, "code_review.comments.view_in_github"))
+                MenuItemFields::new(text.view_in_github)
                     .with_icon(Icon::Github)
                     .with_on_select_action(CommentListAction::ViewInGitHub {
                         url: url.to_string(),
@@ -1132,7 +1122,7 @@ impl CommentListView {
         }
 
         items.push(
-            MenuItemFields::new(code_review_text(app, "code_review.comments.remove"))
+            MenuItemFields::new(text.remove)
                 .with_icon(Icon::Trash)
                 .with_override_text_color(Fill::Solid(appearance.theme().ansi_fg_red()))
                 .with_override_icon_color(Fill::Solid(appearance.theme().ansi_fg_red()))
@@ -1273,7 +1263,32 @@ impl TypedActionView for CommentListView {
                                 is_outdated,
                                 html_url.as_deref(),
                                 appearance,
-                                ctx,
+                                CommentMenuText {
+                                    copy: localization::text_for_app(
+                                        ctx,
+                                        "code_review.comments.copy_text",
+                                    ),
+                                    edit: localization::text_for_app(
+                                        ctx,
+                                        "code_review.comments.edit",
+                                    ),
+                                    file_level_edit_disabled: localization::text_for_app(
+                                        ctx,
+                                        "code_review.comments.file_level_edit_disabled",
+                                    ),
+                                    outdated_edit_disabled: localization::text_for_app(
+                                        ctx,
+                                        "code_review.comments.outdated_edit_disabled",
+                                    ),
+                                    view_in_github: localization::text_for_app(
+                                        ctx,
+                                        "code_review.comments.view_in_github",
+                                    ),
+                                    remove: localization::text_for_app(
+                                        ctx,
+                                        "code_review.comments.remove",
+                                    ),
+                                },
                             ),
                             ctx,
                         );

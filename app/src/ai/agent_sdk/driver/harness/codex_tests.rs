@@ -86,20 +86,15 @@ fn prepare_codex_auth_writes_with_0600_perms() {
 }
 
 #[test]
-#[serial_test::serial]
 fn resolve_openai_api_key_returns_value_from_resolved_map() {
-    let prev = std::env::var(OPENAI_API_KEY_ENV).ok();
-    std::env::remove_var(OPENAI_API_KEY_ENV);
     let resolved = HashMap::from([(
         OsString::from("OPENAI_API_KEY"),
         OsString::from("sk-from-secret"),
     )]);
-    let result = resolve_openai_api_key(&resolved);
-
-    if let Some(v) = prev {
-        std::env::set_var(OPENAI_API_KEY_ENV, v);
-    }
-    assert_eq!(result.as_deref(), Some("sk-from-secret"));
+    assert_eq!(
+        resolve_openai_api_key(&resolved).as_deref(),
+        Some("sk-from-secret")
+    );
 }
 
 #[test]
@@ -658,13 +653,30 @@ fn codex_command_with_session_id_invokes_resume_subcommand() {
     let cmd = codex_command("codex", Some(&uuid), "/tmp/prompt.txt");
     assert!(
         cmd.contains(&format!(
-            "resume --dangerously-bypass-approvals-and-sandbox {uuid}"
+            "resume --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust {uuid}"
         )),
         "resume command should pass UUID to `resume`: {cmd}"
     );
     assert!(
         cmd.contains("\"$(cat '/tmp/prompt.txt')\""),
         "resume command should pipe prompt: {cmd}"
+    );
+}
+
+#[test]
+fn codex_command_without_session_id_bypasses_hook_trust() {
+    let cmd = codex_command("codex", None, "/tmp/prompt.txt");
+    assert!(
+        cmd.contains("--dangerously-bypass-approvals-and-sandbox"),
+        "command should bypass approvals and sandbox: {cmd}"
+    );
+    assert!(
+        cmd.contains("--dangerously-bypass-hook-trust"),
+        "command should bypass hook trust for driver-installed hooks: {cmd}"
+    );
+    assert!(
+        cmd.contains("\"$(cat '/tmp/prompt.txt')\""),
+        "command should pipe prompt: {cmd}"
     );
 }
 

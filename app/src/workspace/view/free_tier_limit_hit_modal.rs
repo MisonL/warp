@@ -33,18 +33,6 @@ const MODAL_HEIGHT: f32 = 440.;
 const LEFT_PANEL_WIDTH: f32 = 360.;
 const RIGHT_PANEL_WIDTH: f32 = 360.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with(app: &AppContext, key: &str, replacements: &[(&str, String)]) -> String {
-    let mut value = text(app, key);
-    for (placeholder, replacement) in replacements {
-        value = value.replace(placeholder, replacement);
-    }
-    value
-}
-
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
@@ -84,6 +72,7 @@ impl FreeTierLimitHitModal {
                     ctx.emit(FreeTierLimitHitModalEvent::MaybeOpen);
                 }
                 AIRequestUsageModelEvent::RequestBonusRefunded { .. } => {}
+                AIRequestUsageModelEvent::AmbientCreditsBannerDismissed => {}
             },
         );
 
@@ -160,7 +149,7 @@ impl FreeTierLimitHitModal {
                         .with_child(
                             Container::new(
                                 FormattedTextElement::from_str(
-                                    text(app, "workspace.free_tier_limit.title"),
+                                    "You’re out of credits",
                                     appearance.ui_font_family(),
                                     24.,
                                 )
@@ -177,7 +166,7 @@ impl FreeTierLimitHitModal {
                         .with_child(
                             Container::new(
                                 FormattedTextElement::from_str(
-                                    text(app, "workspace.free_tier_limit.description"),
+                                    "To continue using AI, please upgrade your plan.",
                                     appearance.ui_font_family(),
                                     14.,
                                 )
@@ -194,13 +183,9 @@ impl FreeTierLimitHitModal {
                             Container::new({
                                 let benefits_text = if let Some(plan) = Self::get_build_plan_details(app) {
                                     let price = plan.monthly_plan_price_per_month_usd_cents / 100;
-                                    text_with(
-                                        app,
-                                        "workspace.free_tier_limit.build_plan_with_price",
-                                        &[("{price}", price.to_string())],
-                                    )
+                                    format!("The Build plan is ${price}/month which includes everything in the free tier plus:")
                                 } else {
-                                    text(app, "workspace.free_tier_limit.build_plan")
+                                    "The Build plan includes everything in the free tier plus:".to_string()
                                 };
                                 let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
                                     FormattedTextFragment::plain_text(benefits_text),
@@ -222,13 +207,9 @@ impl FreeTierLimitHitModal {
                             Container::new({
                                 let credits_text = if let Some(plan) = Self::get_build_plan_details(app) {
                                     let limit = plan.request_limit.unwrap_or(1500);
-                                    text_with(
-                                        app,
-                                        "workspace.free_tier_limit.benefit.credits",
-                                        &[("{credits}", limit.separate_with_commas())],
-                                    )
+                                    format!("{} Credits per month", limit.separate_with_commas())
                                 } else {
-                                    text(app, "workspace.free_tier_limit.benefit.extended_credits")
+                                    "Extended Credits per month".to_string()
                                 };
                                 Self::render_checklist_item_dynamic(credits_text, appearance, theme)
                             })
@@ -238,7 +219,7 @@ impl FreeTierLimitHitModal {
                         .with_child(
                             Container::new(
                                 Self::render_checklist_item_dynamic(
-                                    text(app, "workspace.free_tier_limit.benefit.frontier_models"),
+                                    "Access to frontier OpenAI, Anthropic, and Google models".to_string(),
                                     appearance,
                                     theme,
                                 )
@@ -249,12 +230,12 @@ impl FreeTierLimitHitModal {
                         .with_child(
                             Container::new({
                                 let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
-                                    FormattedTextFragment::plain_text(text(
+                                    FormattedTextFragment::plain_text(localization::text_for_app(
                                         app,
-                                        "workspace.free_tier_limit.benefit.reload_credits_prefix",
+                                        "workspace.free_tier_limit.access_to_prefix",
                                     )),
                                     FormattedTextFragment::hyperlink(
-                                        text(app, "workspace.free_tier_limit.benefit.reload_credits_link"),
+                                        "Reload Credits".to_string(),
                                         "https://docs.warp.dev/support-and-community/plans-and-billing/add-on-credits".to_string(),
                                     ),
                                 ])]);
@@ -297,7 +278,7 @@ impl FreeTierLimitHitModal {
                             Container::new({
                                 let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
                                     FormattedTextFragment::hyperlink(
-                                        text(app, "workspace.free_tier_limit.benefit.extended_cloud_agents"),
+                                        "Extended cloud agents access".to_string(),
                                         "https://www.warp.dev/oz".to_string(),
                                     ),
                                 ])]);
@@ -351,9 +332,9 @@ impl FreeTierLimitHitModal {
                                 width: Some(296.),
                                 ..Default::default()
                             })
-                            .with_centered_text_label(text(
+                            .with_centered_text_label(localization::text_for_app(
                                 app,
-                                "workspace.free_tier_limit.cta.upgrade_plan",
+                                "workspace.free_tier_limit.action.upgrade_plan",
                             ))
                             .build()
                             .with_cursor(Cursor::PointingHand)

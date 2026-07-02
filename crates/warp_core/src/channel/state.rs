@@ -19,8 +19,8 @@ lazy_static! {
 
 #[cfg(feature = "test-util")]
 lazy_static! {
-    static ref MOCK_SERVER: mockito::ServerGuard = mockito::Server::new();
-    static ref MOCK_SERVER_URL: String = MOCK_SERVER.url();
+    static ref MOCK_SERVER: Mutex<mockito::ServerGuard> = Mutex::new(mockito::Server::new());
+    static ref MOCK_SERVER_URL: String = MOCK_SERVER.lock().url();
     static ref APP_VERSION: Mutex<Option<&'static str>> = Mutex::new(None);
 }
 
@@ -54,22 +54,16 @@ impl ChannelState {
         }
     }
 
+    /// Returns the server used by test-only URL routing so downstream tests can install mocks.
+    #[cfg(feature = "test-util")]
+    pub fn mock_server() -> parking_lot::MutexGuard<'static, mockito::ServerGuard> {
+        lazy_static::initialize(&MOCK_SERVER_URL);
+        MOCK_SERVER.lock()
+    }
+
     pub fn new(channel: Channel, mut config: ChannelConfig) -> Self {
         if let Some(app_id) = app_id_from_bundle() {
             config.app_id = app_id;
-        }
-        if config.server_config.iap_config.is_some()
-            && config.server_config.iap_protected_server_root_url.is_none()
-        {
-            config.server_config.iap_protected_server_root_url =
-                Some(config.server_config.server_root_url.clone());
-        }
-        if config.server_config.iap_config.is_some()
-            && config.server_config.iap_protected_rtc_http_url.is_none()
-        {
-            config.server_config.iap_protected_rtc_http_url =
-                derive_http_origin_from_ws_url(&config.server_config.rtc_server_url)
-                    .map(Cow::Owned);
         }
         Self {
             channel,
@@ -231,24 +225,6 @@ impl ChannelState {
 
     pub fn iap_config() -> Option<IapConfig> {
         CHANNEL_STATE.lock().config.server_config.iap_config.clone()
-    }
-
-    pub fn iap_protected_server_root_url() -> Option<Cow<'static, str>> {
-        CHANNEL_STATE
-            .lock()
-            .config
-            .server_config
-            .iap_protected_server_root_url
-            .clone()
-    }
-
-    pub fn iap_protected_rtc_http_url() -> Option<Cow<'static, str>> {
-        CHANNEL_STATE
-            .lock()
-            .config
-            .server_config
-            .iap_protected_rtc_http_url
-            .clone()
     }
 
     pub fn ws_server_url() -> Cow<'static, str> {
@@ -429,6 +405,7 @@ impl ChannelState {
 /// (`wss`→`https`, `ws`→`http`) and stripping the path, query, and fragment.
 /// Returns [`None`] when the input cannot be parsed as a URL or uses a scheme
 /// other than `ws` or `wss`.
+#[cfg(not(feature = "test-util"))]
 fn derive_http_origin_from_ws_url(ws_url: &str) -> Option<String> {
     let url = Url::parse(ws_url).ok()?;
     let http_scheme = match url.scheme() {

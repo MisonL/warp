@@ -191,15 +191,15 @@ impl SearchItem for RepoSearchItem {
         self.accept_result()
     }
 
-    fn accessibility_label(&self) -> String {
-        format!("Indexed repository: {}", self.display_name)
-    }
-
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
         localization::text_for_app_with_args(
             app,
             "terminal.input.repos.a11y.indexed_repository",
             &[("name", &self.display_name)],
         )
+    }
+
+    fn accessibility_label(&self) -> String {
+        format!("Indexed repository: {}", self.display_name)
     }
 }

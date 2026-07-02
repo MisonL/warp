@@ -61,8 +61,8 @@ use super::view::{
 use super::warpify::render::{draw_flag_pole, render_subshell_flag};
 use super::{heights_approx_eq, TerminalModel, HEIGHT_FUDGE_FACTOR_LINES};
 use crate::ai::blocklist::agent_view::{agent_view_bg_fill, AgentViewState};
-use crate::ai::blocklist::ai_brand_color;
-use crate::ai_assistant::AI_ASSISTANT_SVG_PATH;
+use crate::ai::blocklist::{ai_brand_color, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT};
+use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_WARP_AI_MENU_KEY};
 use crate::appearance::Appearance;
 use crate::drive::settings::WarpDriveSettings;
 use crate::features::FeatureFlag;
@@ -182,6 +182,8 @@ const SPACE_BETWEEN_SELECTED_BLOCK_AVATARS: f32 = 2.;
 
 const CLI_SUBAGENT_HORIZONTAL_MARGIN: f32 = 8.;
 const CLI_SUBAGENT_VERTICAL_MARGIN: f32 = 8.;
+const CLI_SUBAGENT_MAX_WIDTH_RATIO: f32 = 0.75;
+const CLI_SUBAGENT_MAX_HEIGHT_RATIO: f32 = 0.75;
 
 pub type LabelBuilderFn = dyn Fn(
     Vec<BlockIndex>,
@@ -1156,7 +1158,7 @@ impl BlockListElement {
                 if has_active_long_running_command && active_block.index() == block_index {
                     (
                         Some(TerminalAction::SetInputModeAgent),
-                        localization::text_for_app(
+                        crate::localization::text_for_app(
                             app,
                             "terminal.block_hover.tag_agent_for_assistance",
                         ),
@@ -1164,13 +1166,13 @@ impl BlockListElement {
                 } else {
                     (
                         Some(TerminalAction::AskAIAssistant { block_index }),
-                        localization::text_for_app(app, "terminal.menu.attach_as_agent_context"),
+                        (*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT).to_owned(),
                     )
                 }
             } else {
                 (
                     Some(TerminalAction::AskAIAssistant { block_index }),
-                    localization::text_for_app(app, "terminal.menu.ask_warp_ai"),
+                    crate::localization::text_for_app(app, ASK_WARP_AI_MENU_KEY),
                 )
             };
 
@@ -1220,7 +1222,7 @@ impl BlockListElement {
                 render_hoverable_block_button(
                     icon,
                     Some(ToolbeltButtonTooltip {
-                        label: localization::text_for_app(
+                        label: crate::localization::text_for_app(
                             app,
                             "terminal.block_hover.save_as_workflow_secrets",
                         ),
@@ -1243,7 +1245,10 @@ impl BlockListElement {
                 render_hoverable_block_button(
                     icon,
                     Some(ToolbeltButtonTooltip {
-                        label: localization::text_for_app(app, "terminal.menu.save_as_workflow"),
+                        label: crate::localization::text_for_app(
+                            app,
+                            "terminal.menu.save_as_workflow",
+                        ),
                         tool_tip_below_button: should_render_tooltip_below_button,
                     }),
                     false,
@@ -3362,14 +3367,16 @@ impl Element for BlockListElement {
                                 self.cli_subagent_views.get_mut(block.id())
                             {
                                 let block_height = (height.as_f64() as f32) * cell_size.y();
+                                let max_width = (constraint.max.x() * CLI_SUBAGENT_MAX_WIDTH_RATIO
+                                    - CLI_SUBAGENT_HORIZONTAL_MARGIN)
+                                    .max(0.);
+                                let max_height = (block_height - CLI_SUBAGENT_VERTICAL_MARGIN * 2.)
+                                    .min(constraint.max.y() * CLI_SUBAGENT_MAX_HEIGHT_RATIO)
+                                    .max(0.);
                                 cli_subagent_view.layout(
                                     SizeConstraint {
                                         min: vec2f(0., 0.),
-                                        max: vec2f(
-                                            constraint.max.x() * 0.4
-                                                - CLI_SUBAGENT_HORIZONTAL_MARGIN,
-                                            block_height - CLI_SUBAGENT_VERTICAL_MARGIN * 2.,
-                                        ),
+                                        max: vec2f(max_width, max_height),
                                     },
                                     ctx,
                                     app,
@@ -3409,16 +3416,21 @@ impl Element for BlockListElement {
                     // we want to show different text in the separator if this is an individual conversation
                     // restored from the command palette
                     let banner_intro_text = if is_historical_conversation_restoration {
-                        "Conversation restored".to_string()
+                        localization::text_for_app(app, "terminal.block_list.separator.restored")
                     } else {
-                        "Previous session".to_string()
+                        localization::text_for_app(
+                            app,
+                            "terminal.block_list.separator.previous_session",
+                        )
                     };
 
                     let separator_text =
                         if let Some(ts) = (*model).block_list().restored_session_ts() {
-                            format!(
-                                "{banner_intro_text} from {}",
-                                ts.format("%a %b %-d at %-I:%M %p")
+                            let timestamp = ts.format("%a %b %-d at %-I:%M %p").to_string();
+                            localization::text_for_app_with_args(
+                                app,
+                                "terminal.block_list.separator.with_timestamp",
+                                &[("text", &banner_intro_text), ("timestamp", &timestamp)],
                             )
                         } else {
                             banner_intro_text
@@ -3571,8 +3583,7 @@ impl Element for BlockListElement {
 
                     let total_lines = grid_storage_lines + flat_storage_lines;
                     let total_bytes = grid_storage_bytes + flat_storage_bytes;
-                    let text = format!(
-                        "\
+                    let text = format!("\
                             Lines: {total_lines} (grid: {grid_storage_lines}, flat: {flat_storage_lines}); \
                             Size: {:#.1} (grid: {:#.1}, flat: {:#.1})\
                         ",
@@ -3980,9 +3991,7 @@ impl Element for BlockListElement {
                                     - SPACE_BETWEEN_SELECTED_BLOCK_AVATARS,
                             );
                         } else {
-                            log::warn!(
-                                "Should show avatar for shared session participant at selected block but avatar element was not found"
-                            )
+                            log::warn!("Should show avatar for shared session participant at selected block but avatar element was not found")
                         }
                     }
 
@@ -4622,7 +4631,7 @@ impl Element for BlockListElement {
                 is_first_mouse,
                 modifiers,
                 ..
-            } => self.mouse_down(
+            } if !handled => self.mouse_down(
                 *position,
                 *click_count,
                 *is_first_mouse,

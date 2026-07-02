@@ -25,7 +25,7 @@ use crate::ai::agent_management::notifications::{
 use crate::ai::agent_management::{AgentManagementEvent, AgentNotificationsModel};
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::appearance::Appearance;
-use crate::localization::{self, LocalizationUpdater};
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 
@@ -117,32 +117,32 @@ impl NotificationMailboxView {
             AgentManagementEvent::ConversationNeedsAttention { .. } => {}
         });
 
-        let close_button = ctx.add_typed_action_view(|_| {
+        let close_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::X)
                 .with_size(ButtonSize::XSmall)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent_management.notifications.action.close",
+                ))
                 .with_tooltip_sublabel("Esc")
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(NotificationMailboxViewAction::Dismiss);
                 })
         });
 
-        let mark_all_read_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("", NakedTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(NotificationMailboxViewAction::MarkAllRead);
-                })
-        });
-        Self::update_localized_button_text(&close_button, &mark_all_read_button, ctx);
-
-        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), {
-            let close_button = close_button.clone();
-            let mark_all_read_button = mark_all_read_button.clone();
-            move |_, _, _, ctx| {
-                Self::update_localized_button_text(&close_button, &mark_all_read_button, ctx);
-                ctx.notify();
-            }
+        let mark_all_read_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(
+                    ctx,
+                    "agent_management.notifications.action.mark_all_read",
+                ),
+                NakedTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(NotificationMailboxViewAction::MarkAllRead);
+            })
         });
 
         Self {
@@ -190,40 +190,6 @@ impl NotificationMailboxView {
         if let Some(terminal_view_id) = terminal_view_id {
             ctx.emit(NotificationMailboxViewEvent::NavigateToTerminal { terminal_view_id });
         }
-    }
-
-    fn filter_label(filter: NotificationFilter, app: &AppContext) -> String {
-        let key = match filter {
-            NotificationFilter::All => "agent_management.notifications.filter.all_tabs",
-            NotificationFilter::Unread => "agent_management.notifications.filter.unread",
-            NotificationFilter::Errors => "agent_management.notifications.filter.errors",
-        };
-        localization::text_for_app(app, key)
-    }
-
-    fn update_localized_button_text(
-        close_button: &ViewHandle<ActionButton>,
-        mark_all_read_button: &ViewHandle<ActionButton>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        close_button.update(ctx, |button, ctx| {
-            button.set_tooltip(
-                Some(localization::text_for_app(
-                    ctx,
-                    "agent_management.notifications.action.close",
-                )),
-                ctx,
-            );
-        });
-        mark_all_read_button.update(ctx, |button, ctx| {
-            button.set_label(
-                localization::text_for_app(
-                    ctx,
-                    "agent_management.notifications.action.mark_all_read",
-                ),
-                ctx,
-            );
-        });
     }
 
     /// Refreshes the cached filtered notification IDs and mouse states.
@@ -384,11 +350,11 @@ impl View for NotificationMailboxView {
         let mut column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_main_axis_size(MainAxisSize::Min)
-            .with_child(self.render_header(appearance, app))
+            .with_child(self.render_header(appearance))
             .with_child(self.render_filter_bar(notifications, app));
 
         if notifications.filtered_count(self.active_filter) == 0 {
-            column.add_child(self.render_empty_state(appearance, app));
+            column.add_child(self.render_empty_state(appearance));
         } else {
             let theme = appearance.theme();
 
@@ -449,15 +415,12 @@ impl View for NotificationMailboxView {
 }
 
 impl NotificationMailboxView {
-    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let label = appearance
             .ui_builder()
-            .wrappable_text(
-                localization::text_for_app(app, "agent_management.notifications.title"),
-                false,
-            )
+            .wrappable_text("Notifications".to_string(), false)
             .with_style(UiComponentStyles {
                 font_size: Some(14.),
                 font_color: Some(theme.main_text_color(theme.surface_2()).into()),
@@ -507,11 +470,10 @@ impl NotificationMailboxView {
 
             let is_active = self.active_filter == filter;
             let count = notifications.filtered_count(filter);
-            let filter_label = Self::filter_label(filter, app);
             let label = if count == 0 {
-                filter_label
+                filter.label().to_string()
             } else {
-                format!("{filter_label} ({count})")
+                format!("{} ({count})", filter.label())
             };
             let text_color = if is_active {
                 theme.main_text_color(theme.surface_2())
@@ -589,16 +551,13 @@ impl NotificationMailboxView {
             .finish()
     }
 
-    fn render_empty_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_empty_state(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         Container::new(
             appearance
                 .ui_builder()
-                .wrappable_text(
-                    localization::text_for_app(app, "agent_management.notifications.empty"),
-                    false,
-                )
+                .wrappable_text("No notifications".to_string(), false)
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     font_color: Some(theme.sub_text_color(theme.surface_2()).into()),

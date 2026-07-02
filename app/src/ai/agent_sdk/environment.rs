@@ -14,7 +14,6 @@ use warp_graphql::queries::list_warp_dev_images::{
     ListWarpDevImages, ListWarpDevImagesResult, ListWarpDevImagesVariables,
 };
 use warp_graphql::queries::user_repo_auth_status::UserRepoAuthStatusEnum;
-use warp_localization::LocaleId;
 use warpui::r#async::FutureExt;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
@@ -33,25 +32,11 @@ use crate::server::cloud_objects::update_manager::{
 };
 use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
-use crate::util::time_format::{
-    format_approx_duration_from_now_utc, localized_approx_duration_from_now_utc,
-};
+use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::{localization, CloudObjectTypeAndId};
 
 const WARP_DEV_ENVIRONMENTS_REPO: &str = "https://github.com/warpdotdev/warp-dev-environments";
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_for_locale(locale: LocaleId, key: &str) -> String {
-    localization::text_for_locale(locale, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
 
 /// Parse repo strings in the format "owner/repo" into GithubRepo objects.
 fn parse_repos(repo_strings: Vec<String>) -> anyhow::Result<Vec<GithubRepo>> {
@@ -183,29 +168,32 @@ impl EnvironmentCommandRunner {
                     ) {
                         println!(
                             "{}\n",
-                            text_with_args(
+                            localization::text_for_app_with_args(
                                 ctx,
                                 "agent_sdk.environment.image_list_info",
-                                &[("url", WARP_DEV_ENVIRONMENTS_REPO)]
+                                &[("url", WARP_DEV_ENVIRONMENTS_REPO)],
                             )
                         );
                     }
-                    output::print_list_for_app(image_infos, global_options.output_format, ctx);
+                    output::print_list(image_infos, global_options.output_format);
                     ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
                 }
                 ListWarpDevImagesResult::UserFacingError(_) | ListWarpDevImagesResult::Unknown => {
                     super::report_fatal_error(
-                        anyhow::anyhow!(text(ctx, "agent_sdk.environment.error.fetch_images")),
+                        anyhow::anyhow!(localization::text_for_app(
+                            ctx,
+                            "agent_sdk.environment.error.fetch_images"
+                        )),
                         ctx,
                     );
                 }
             },
             Err(err) => {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text_with_args(
+                    anyhow::anyhow!(localization::text_for_app_with_args(
                         ctx,
                         "agent_sdk.environment.error.fetch_images_with_error",
-                        &[("error", &err.to_string())]
+                        &[("error", &err.to_string())],
                     )),
                     ctx,
                 );
@@ -221,7 +209,10 @@ impl EnvironmentCommandRunner {
         ctx.spawn(initial_sync, move |_, result, ctx| {
             if result.is_err() {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text(ctx, "agent_sdk.common.error.warp_drive_sync_timeout")),
+                    anyhow::anyhow!(localization::text_for_app(
+                        ctx,
+                        "agent_sdk.common.error.warp_drive_sync_timeout",
+                    )),
                     ctx,
                 );
                 return;
@@ -247,20 +238,20 @@ impl EnvironmentCommandRunner {
                                 .profile_for_uid(UserUid::new(uid))
                                 .map(|profile| profile.email.clone())
                         })
-                        .unwrap_or_else(|| super::common::UNKNOWN_VALUE.to_string());
+                        .unwrap_or_else(|| "Unknown".to_string());
 
                     let last_edited_utc = environment.metadata().revision.as_ref().map(|r| r.utc());
 
                     let last_edited = last_edited_utc
                         .map(format_approx_duration_from_now_utc)
-                        .unwrap_or_else(|| super::common::UNKNOWN_VALUE.to_string());
+                        .unwrap_or_else(|| "Unknown".to_string());
 
                     let scope_display =
-                        super::common::owner_scope(&environment.permissions().owner);
+                        super::common::format_owner(&environment.permissions().owner);
 
                     let id = match environment.sync_id() {
                         SyncId::ServerId(server_id) => server_id.to_string(),
-                        SyncId::ClientId(_) => super::common::UNSYNCED_ID.to_string(),
+                        SyncId::ClientId(_) => "Unsynced".to_string(),
                     };
 
                     EnvironmentInfo {
@@ -278,7 +269,7 @@ impl EnvironmentCommandRunner {
                 })
                 .collect();
 
-            output::print_list_for_app(environment_infos, global_options.output_format, ctx);
+            output::print_list(environment_infos, global_options.output_format);
 
             ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
         });
@@ -292,7 +283,7 @@ impl EnvironmentCommandRunner {
         ctx.spawn(initial_sync, move |_, result, ctx| {
             if result.is_err() {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text(ctx, "agent_sdk.common.error.warp_drive_sync_timeout")),
+                    anyhow::anyhow!("Timed out waiting for Warp Drive to sync"),
                     ctx,
                 );
                 return;
@@ -302,14 +293,9 @@ impl EnvironmentCommandRunner {
             let server_id = match ServerId::try_from(id.as_str()) {
                 Ok(sid) => sid,
                 Err(_) => {
-                    let error = anyhow::anyhow!(text_with_args(
-                        ctx,
-                        "agent_sdk.environment.error.not_found",
-                        &[("id", &id)]
-                    ));
                     ctx.terminate_app(
                         warpui::platform::TerminationMode::ForceTerminate,
-                        Some(Err(error)),
+                        Some(Err(anyhow::anyhow!("Environment {} not found", id))),
                     );
                     return;
                 }
@@ -318,74 +304,39 @@ impl EnvironmentCommandRunner {
             let environment = CloudAmbientAgentEnvironment::get_by_id(&sync_id, ctx);
 
             if let Some(environment) = environment {
-                Self::print_environment_details(&environment.model().string_model, ctx);
+                Self::print_environment_details(&environment.model().string_model);
                 ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
             } else {
-                let error = anyhow::anyhow!(text_with_args(
-                    ctx,
-                    "agent_sdk.environment.error.not_found",
-                    &[("id", &id)]
-                ));
                 ctx.terminate_app(
                     warpui::platform::TerminationMode::ForceTerminate,
-                    Some(Err(error)),
+                    Some(Err(anyhow::anyhow!("Environment {} not found", id))),
                 );
             }
         });
     }
 
-    fn print_environment_details(env: &AmbientAgentEnvironment, ctx: &AppContext) {
-        println!(
-            "{}",
-            text_with_args(
-                ctx,
-                "agent_sdk.environment.detail.name",
-                &[("name", &env.name)]
-            )
-        );
+    fn print_environment_details(env: &AmbientAgentEnvironment) {
+        println!("Name: {}", env.name);
         if let Some(desc) = &env.description {
-            println!(
-                "{}",
-                text_with_args(
-                    ctx,
-                    "agent_sdk.environment.detail.description",
-                    &[("description", desc)]
-                )
-            );
+            println!("Description: {desc}");
         }
         match &env.base_image {
             BaseImage::DockerImage(img) => {
-                println!(
-                    "{}",
-                    text_with_args(
-                        ctx,
-                        "agent_sdk.environment.detail.docker_image",
-                        &[("image", img)]
-                    )
-                );
+                println!("Docker image: {img}");
             }
         }
         if env.github_repos.is_empty() {
-            println!(
-                "{}",
-                text(ctx, "agent_sdk.environment.detail.repositories_none")
-            );
+            println!("Repositories: None");
         } else {
-            println!("{}", text(ctx, "agent_sdk.environment.detail.repositories"));
+            println!("Repositories:");
             for repo in &env.github_repos {
                 println!("  - {}/{}", repo.owner, repo.repo);
             }
         }
         if env.setup_commands.is_empty() {
-            println!(
-                "{}",
-                text(ctx, "agent_sdk.environment.detail.setup_commands_none")
-            );
+            println!("Setup commands: None");
         } else {
-            println!(
-                "{}",
-                text(ctx, "agent_sdk.environment.detail.setup_commands")
-            );
+            println!("Setup commands:");
             for (i, cmd) in env.setup_commands.iter().enumerate() {
                 println!("  {}. {}", i + 1, cmd);
             }
@@ -396,10 +347,7 @@ impl EnvironmentCommandRunner {
     fn handle_inquire_error(err: InquireError, ctx: &mut ModelContext<Self>) -> bool {
         match err {
             InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-                eprintln!(
-                    "{}",
-                    text(ctx, "agent_sdk.environment.output.creation_canceled")
-                );
+                eprintln!("Environment creation canceled.");
                 ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
                 true
             }
@@ -412,6 +360,8 @@ impl EnvironmentCommandRunner {
     where
         F: FnOnce(String, &mut ModelContext<Self>) + Send + 'static,
     {
+        const CUSTOM_IMAGE_OPTION: &str = "Custom Docker image";
+
         let server_api = ServerApiProvider::as_ref(ctx).get();
         let operation = ListWarpDevImages::build(ListWarpDevImagesVariables {});
         let fetch_images = async move { server_api.send_graphql_request(operation, None).await };
@@ -421,49 +371,62 @@ impl EnvironmentCommandRunner {
                 ListWarpDevImagesResult::ListWarpDevImagesOutput(output) => {
                     if output.images.is_empty() {
                         super::report_fatal_error(
-                            anyhow::anyhow!(text(ctx, "agent_sdk.environment.error.no_images")),
+                            anyhow::anyhow!(localization::text_for_app(
+                                ctx,
+                                "agent_sdk.environment.error.no_images",
+                            )),
                             ctx,
                         );
                         return;
                     }
 
-                    println!("{}", text(ctx, "agent_sdk.environment.no_image_provided"));
                     println!(
-                        "{}",
-                        text(ctx, "agent_sdk.environment.image_info")
-                            .replace("{url}", WARP_DEV_ENVIRONMENTS_REPO)
+                        "{}\n",
+                        localization::text_for_app(ctx, "agent_sdk.environment.no_image_provided")
+                    );
+                    println!(
+                        "{}\n",
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent_sdk.environment.image_info",
+                            &[("url", WARP_DEV_ENVIRONMENTS_REPO)],
+                        )
                     );
 
                     let mut image_choices: Vec<String> =
                         output.images.into_iter().map(|img| img.image).collect();
-                    let custom_image_option = text(ctx, "agent_sdk.environment.custom_image");
-                    image_choices.push(custom_image_option.clone());
+                    image_choices.push(CUSTOM_IMAGE_OPTION.to_string());
 
-                    let select_prompt = text(ctx, "agent_sdk.environment.select_base_image");
-                    let selected_image = match Select::new(&select_prompt, image_choices).prompt() {
-                        Ok(image) => image,
-                        Err(err) => {
-                            if !Self::handle_inquire_error(err, ctx) {
-                                super::report_fatal_error(
-                                    anyhow::anyhow!(text(
+                    let select_image_prompt =
+                        localization::text_for_app(ctx, "agent_sdk.environment.select_base_image");
+                    let selected_image =
+                        match Select::new(&select_image_prompt, image_choices).prompt() {
+                            Ok(image) => image,
+                            Err(err) => {
+                                if !Self::handle_inquire_error(err, ctx) {
+                                    super::report_fatal_error(
+                                        anyhow::anyhow!(localization::text_for_app(
+                                            ctx,
+                                            "agent_sdk.environment.error.selecting_image",
+                                        )),
                                         ctx,
-                                        "agent_sdk.environment.error.selecting_image",
-                                    )),
-                                    ctx,
-                                );
+                                    );
+                                }
+                                return;
                             }
-                            return;
-                        }
-                    };
+                        };
 
-                    let final_image = if selected_image == custom_image_option {
-                        let custom_prompt = text(ctx, "agent_sdk.environment.enter_custom_image");
-                        match inquire::Text::new(&custom_prompt).prompt() {
+                    let final_image = if selected_image == CUSTOM_IMAGE_OPTION {
+                        let custom_image_prompt = localization::text_for_app(
+                            ctx,
+                            "agent_sdk.environment.enter_custom_image",
+                        );
+                        match inquire::Text::new(&custom_image_prompt).prompt() {
                             Ok(custom) => custom,
                             Err(err) => {
                                 if !Self::handle_inquire_error(err, ctx) {
                                     super::report_fatal_error(
-                                        anyhow::anyhow!(text(
+                                        anyhow::anyhow!(localization::text_for_app(
                                             ctx,
                                             "agent_sdk.environment.error.entering_custom_image",
                                         )),
@@ -481,17 +444,20 @@ impl EnvironmentCommandRunner {
                 }
                 ListWarpDevImagesResult::UserFacingError(_) | ListWarpDevImagesResult::Unknown => {
                     super::report_fatal_error(
-                        anyhow::anyhow!(text(ctx, "agent_sdk.environment.error.fetch_base_images")),
+                        anyhow::anyhow!(localization::text_for_app(
+                            ctx,
+                            "agent_sdk.environment.error.fetch_base_images",
+                        )),
                         ctx,
                     );
                 }
             },
             Err(err) => {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text_with_args(
+                    anyhow::anyhow!(localization::text_for_app_with_args(
                         ctx,
                         "agent_sdk.environment.error.fetch_images_with_error",
-                        &[("error", &err.to_string())]
+                        &[("error", &err.to_string())],
                     )),
                     ctx,
                 );
@@ -555,7 +521,7 @@ impl EnvironmentCommandRunner {
         ctx.spawn(initial_sync, move |_, result, ctx| {
             if result.is_err() {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text(ctx, "agent_sdk.common.error.warp_drive_sync_timeout")),
+                    anyhow::anyhow!("Timed out waiting for Warp Drive to sync"),
                     ctx,
                 );
                 return;
@@ -642,15 +608,8 @@ impl EnvironmentCommandRunner {
                             UserRepoAuthStatusEnum::NoInstallationOrAccessForRepo => {
                                 if !status.is_public {
                                     eprintln!(
-                                        "{}",
-                                        text_with_args(
-                                            ctx,
-                                            "agent_sdk.environment.auth.cannot_access_private_repo",
-                                            &[
-                                                ("owner", &status.owner),
-                                                ("repo", &status.repo),
-                                            ],
-                                        )
+                                        "Cannot access private repo {}/{}",
+                                        status.owner, status.repo,
                                     );
                                     has_blocking_private_issues = true;
                                     private_repo_owners.insert(status.owner.clone());
@@ -659,10 +618,7 @@ impl EnvironmentCommandRunner {
                                 }
                             }
                             UserRepoAuthStatusEnum::UserNotConnectedToGithub => {
-                                eprintln!(
-                                    "{}",
-                                    text(ctx, "agent_sdk.environment.auth.github_not_connected")
-                                );
+                                eprintln!("User not connected to GitHub");
                                 has_blocking_private_issues = true;
                                 break;
                             }
@@ -672,14 +628,12 @@ impl EnvironmentCommandRunner {
                     // Check that all private repos have the same owner
                     if private_repo_owners.len() > 1 {
                         let owners_str = private_repo_owners.into_iter().collect::<Vec<_>>().join(", ");
-                        let error = text_with_args(
-                            ctx,
-                            "agent_sdk.environment.error.private_repo_multiple_owners",
-                            &[("owners", &owners_str)],
-                        );
                         ctx.terminate_app(
                             warpui::platform::TerminationMode::ForceTerminate,
-                            Some(Err(anyhow::anyhow!(error))),
+                            Some(Err(anyhow::anyhow!(
+                                "All private repositories in an environment must belong to the same owner. Found multiple owners: {}.\nIf you need support for private repos from multiple owners, please submit a GitHub issue.",
+                                owners_str
+                            ))),
                         );
                         return;
                     }
@@ -696,27 +650,13 @@ impl EnvironmentCommandRunner {
                                     )
                                 {
                                     eprintln!(
-                                        "{}",
-                                        text_with_args(
-                                            ctx,
-                                            "agent_sdk.environment.auth.public_repo_without_auth",
-                                            &[
-                                                ("owner", &status.owner),
-                                                ("repo", &status.repo),
-                                            ],
-                                        )
+                                        "Warning: using public repo {}/{} without authorization. Read-only access is available, but you need to authorize if you want full access.",
+                                         status.owner, status.repo
                                     );
                                 }
                             }
                             if let Some(auth_url) = response.auth_url {
-                                println!(
-                                    "\n{}\n",
-                                    text_with_args(
-                                        ctx,
-                                        "agent_sdk.environment.auth.authorize_access_here",
-                                        &[("auth_url", &auth_url)],
-                                    )
-                                );
+                                println!("\nAuthorize access here: {auth_url}\n");
                             }
                         }
 
@@ -730,29 +670,14 @@ impl EnvironmentCommandRunner {
                     match (response.auth_url, response.tx_id) {
                         (Some(auth_url), Some(tx_id)) => {
                             // Open URL and poll for OAuth completion.
-                            println!(
-                                "\n{}",
-                                text(ctx, "agent_sdk.environment.auth.private_repo_required")
-                            );
-                            println!(
-                                "{}\n",
-                                text_with_args(
-                                    ctx,
-                                    "agent_sdk.environment.auth.opening_browser",
-                                    &[("auth_url", &auth_url)],
-                                )
-                            );
+                            println!("\nAuthorization required for private repository access.");
+                            println!("Opening browser for GitHub authorization: {auth_url}\n");
                             ctx.open_url(&auth_url);
 
                             let integrations_client = ServerApiProvider::as_ref(ctx)
                                 .get_integrations_client();
                             let tx_id = tx_id.into_inner();
-                            let poll_future = poll_oauth_until_terminal(
-                                integrations_client,
-                                tx_id,
-                                text(ctx, "agent_sdk.oauth.waiting_for_authorization"),
-                                text(ctx, "agent_sdk.oauth.error.timeout"),
-                            );
+                            let poll_future = poll_oauth_until_terminal(integrations_client, tx_id);
 
                             let next_attempt = attempt + 1;
 
@@ -765,46 +690,37 @@ impl EnvironmentCommandRunner {
                                             Self::auth_repos_then_execute(repos, next_attempt, operation_name, on_success, ctx);
                                         }
                                         Ok(OauthConnectTxStatus::Failed) => {
-                                            let error = text(
-                                                ctx,
-                                                "agent_sdk.environment.error.github_authorization_failed",
-                                            );
                                             ctx.terminate_app(
                                                 warpui::platform::TerminationMode::ForceTerminate,
-                                                Some(Err(anyhow::anyhow!(error))),
+                                                Some(Err(anyhow::anyhow!(
+                                                    "GitHub authorization failed. Please try again."
+                                                ))),
                                             );
                                         }
                                         Ok(OauthConnectTxStatus::Expired) => {
-                                            let error = text(
-                                                ctx,
-                                                "agent_sdk.environment.error.github_authorization_expired",
-                                            );
                                             ctx.terminate_app(
                                                 warpui::platform::TerminationMode::ForceTerminate,
-                                                Some(Err(anyhow::anyhow!(error))),
+                                                Some(Err(anyhow::anyhow!(
+                                                    "GitHub authorization expired. Please try again."
+                                                ))),
                                             );
                                         }
                                         Ok(OauthConnectTxStatus::Pending)
                                         | Ok(OauthConnectTxStatus::InProgress) => {
                                             // Should not be returned by poll_oauth_until_terminal.
-                                            let error = text(
-                                                ctx,
-                                                "agent_sdk.environment.error.oauth_non_terminal",
-                                            );
                                             ctx.terminate_app(
                                                 warpui::platform::TerminationMode::ForceTerminate,
-                                                Some(Err(anyhow::anyhow!(error))),
+                                                Some(Err(anyhow::anyhow!(
+                                                    "Unexpected non-terminal OAuth status returned"
+                                                ))),
                                             );
                                         }
                                         Err(err) => {
-                                            let error = text_with_args(
-                                                ctx,
-                                                "agent_sdk.environment.error.oauth_poll",
-                                                &[("error", &err.to_string())],
-                                            );
                                             ctx.terminate_app(
                                                 warpui::platform::TerminationMode::ForceTerminate,
-                                                Some(Err(anyhow::anyhow!(error))),
+                                                Some(Err(anyhow::anyhow!(
+                                                    "Error polling OAuth status: {err}"
+                                                ))),
                                             );
                                         }
                                     }
@@ -813,18 +729,8 @@ impl EnvironmentCommandRunner {
                         }
                         (Some(auth_url), None) => {
                             // Legacy flow: no txId, print URL and exit.
-                            println!(
-                                "\n{}\n",
-                                text_with_args(
-                                    ctx,
-                                    "agent_sdk.environment.auth.authorize_access_here",
-                                    &[("auth_url", &auth_url)],
-                                )
-                            );
-                            println!(
-                                "{}",
-                                text(ctx, "agent_sdk.environment.auth.rerun_after_authorizing")
-                            );
+                            println!("\nAuthorize access here: {auth_url}\n");
+                            println!("After authorizing, please re-run this command.");
                             ctx.terminate_app(
                                 warpui::platform::TerminationMode::ForceTerminate,
                                 None,
@@ -832,32 +738,29 @@ impl EnvironmentCommandRunner {
                         }
                         (None, Some(_)) => {
                             // Server returned txId without authUrl - unexpected.
-                            let error =
-                                text(ctx, "agent_sdk.environment.error.oauth_missing_auth_url");
                             ctx.terminate_app(
                                 warpui::platform::TerminationMode::ForceTerminate,
-                                Some(Err(anyhow::anyhow!(error))),
+                                Some(Err(anyhow::anyhow!(
+                                    "Server error: did not receive auth URL for OAuth flow"
+                                ))),
                             );
                         }
                         (None, None) => {
                             // No auth URL or txId provided, but we have auth issues.
-                            let error = text_with_args(
-                                ctx,
-                                "agent_sdk.environment.error.auth_flow_missing",
-                                &[("operation", operation_name)],
-                            );
                             ctx.terminate_app(
                                 warpui::platform::TerminationMode::ForceTerminate,
-                                Some(Err(anyhow::anyhow!(error))),
+                                Some(Err(anyhow::anyhow!(
+                                    "Cannot {} environment: authorization required but no auth flow provided by server",
+                                    operation_name
+                                ))),
                             );
                         }
                     }
                 }
                 Err(e) => {
-                    let error = text(ctx, "agent_sdk.environment.error.github_auth_status");
                     ctx.terminate_app(
                         warpui::platform::TerminationMode::ForceTerminate,
-                        Some(Err(e.context(error))),
+                        Some(Err(e.context("Failed to check GitHub auth status"))),
                     );
                 }
             }
@@ -900,21 +803,14 @@ impl EnvironmentCommandRunner {
         // We should subscribe to the UpdateManager here because we want to wait
         // for our environment to be assigned a ServerId. Environments are not
         // usable without first being synced.
-        ctx.subscribe_to_model(&UpdateManager::handle(ctx), move |_, event, ctx| {
+        ctx.subscribe_to_model(&UpdateManager::handle(ctx), move |_, _, event, ctx| {
             if let UpdateManagerEvent::ObjectOperationComplete { result } = event {
                 if matches!(result.operation, ObjectOperation::Create { .. })
                     && matches!(result.success_type, OperationSuccessType::Success)
                     && result.client_id == Some(client_id)
                 {
                     let server_id = result.server_id.unwrap();
-                    println!(
-                        "{}",
-                        text_with_args(
-                            ctx,
-                            "agent_sdk.environment.output.created",
-                            &[("server_id", &server_id.to_string())],
-                        )
-                    );
+                    println!("Environment created successfully with ID: {server_id}");
                     ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
                 }
             }
@@ -940,70 +836,49 @@ impl EnvironmentCommandRunner {
                 .await
         };
 
-        ctx.spawn(
-            check_integrations_future,
-            move |_, result, ctx| match result {
+        ctx.spawn(check_integrations_future, move |_, result, ctx| {
+            match result {
                 Ok(output) => {
                     if !output.provider_names.is_empty() {
                         let integration_list = output.provider_names.join(", ");
-                        let prompt_message = text_with_args(
-                            ctx,
-                            "agent_sdk.environment.confirm.used_by_integrations",
-                            &[("integration_list", &integration_list), ("action", action)],
+                        let prompt_message = format!(
+                            "This environment is used in the following integration(s): {integration_list}. Are you sure you want to {action} it?"
                         );
 
-                        let confirmation =
-                            Confirm::new(&prompt_message).with_default(false).prompt();
+                        let confirmation = Confirm::new(&prompt_message)
+                            .with_default(false)
+                            .prompt();
 
                         match confirmation {
                             Ok(true) => on_confirm(ctx),
-                            Ok(false)
-                            | Err(
-                                InquireError::OperationCanceled
-                                | InquireError::OperationInterrupted,
-                            ) => {
-                                println!(
-                                    "{}",
-                                    text_with_args(
-                                        ctx,
-                                        "agent_sdk.environment.output.action_canceled",
-                                        &[("action", action)],
-                                    )
-                                );
+                            Ok(false) | Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                                println!("Environment {action} canceled.");
                                 ctx.terminate_app(
                                     warpui::platform::TerminationMode::ForceTerminate,
                                     None,
                                 );
                             }
                             Err(err) => {
-                                let error = text_with_args(
-                                    ctx,
-                                    "agent_sdk.environment.error.prompt_confirmation",
-                                    &[("error", &err.to_string())],
-                                );
                                 ctx.terminate_app(
                                     warpui::platform::TerminationMode::ForceTerminate,
-                                    Some(Err(anyhow::anyhow!(error))),
+                                    Some(Err(anyhow::anyhow!("Error prompting for confirmation: {err}"))),
                                 );
                             }
-                        }
+                      }
                     } else {
                         on_confirm(ctx);
                     }
                 }
                 Err(_) => {
-                    let error = text_with_args(
-                        ctx,
-                        "agent_sdk.environment.error.integration_usage_unknown",
-                        &[("action", action)],
-                    );
                     ctx.terminate_app(
                         warpui::platform::TerminationMode::ForceTerminate,
-                        Some(Err(anyhow::anyhow!(error))),
+                        Some(Err(anyhow::anyhow!(
+                            "Aborting environment {action} because integration usage could not be determined. Re-run with --force to override."
+                        ))),
                     );
                 }
-            },
-        );
+            }
+        });
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1028,7 +903,7 @@ impl EnvironmentCommandRunner {
         ctx.spawn(initial_sync, move |_, result, ctx| {
             if result.is_err() {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text(ctx, "agent_sdk.common.error.warp_drive_sync_timeout")),
+                    anyhow::anyhow!("Timed out waiting for Warp Drive to sync"),
                     ctx,
                 );
                 return;
@@ -1038,11 +913,7 @@ impl EnvironmentCommandRunner {
             let server_id = match ServerId::try_from(id.as_str()) {
                 Ok(sid) => sid,
                 Err(_) => {
-                    let error = anyhow::anyhow!(text_with_args(
-                        ctx,
-                        "agent_sdk.environment.error.not_found",
-                        &[("id", &id)]
-                    ));
+                    let error = anyhow::anyhow!("Environment {} not found", id);
                     ctx.terminate_app(
                         warpui::platform::TerminationMode::ForceTerminate,
                         Some(Err(error)),
@@ -1053,11 +924,7 @@ impl EnvironmentCommandRunner {
             let sync_id = SyncId::ServerId(server_id);
             let environment = CloudAmbientAgentEnvironment::get_by_id(&sync_id, ctx);
             let Some(environment) = environment else {
-                let error = anyhow::anyhow!(text_with_args(
-                    ctx,
-                    "agent_sdk.environment.error.not_found",
-                    &[("id", &id)]
-                ));
+                let error = anyhow::anyhow!("Environment {} not found", id);
                 ctx.terminate_app(
                     warpui::platform::TerminationMode::ForceTerminate,
                     Some(Err(error)),
@@ -1148,12 +1015,8 @@ impl EnvironmentCommandRunner {
                 updated_env.github_repos.remove(pos);
             } else {
                 eprintln!(
-                    "{}",
-                    text_with_args(
-                        ctx,
-                        "agent_sdk.environment.warning.repo_not_found_skip_removal",
-                        &[("owner", &repo.owner), ("repo", &repo.repo)],
-                    )
+                    "Warning: repository {}/{} not found in environment, skipping removal",
+                    repo.owner, repo.repo
                 );
             }
         }
@@ -1167,12 +1030,7 @@ impl EnvironmentCommandRunner {
                 updated_env.setup_commands.remove(pos);
             } else {
                 eprintln!(
-                    "{}",
-                    text_with_args(
-                        ctx,
-                        "agent_sdk.environment.warning.setup_command_not_found_skip_removal",
-                        &[("cmd", cmd)],
-                    )
+                    "Warning: setup command '{cmd}' not found in environment, skipping removal"
                 );
             }
         }
@@ -1190,15 +1048,15 @@ impl EnvironmentCommandRunner {
         });
 
         // Subscribe to UpdateManager to wait for the update to complete
-        ctx.subscribe_to_model(&UpdateManager::handle(ctx), move |_, event, ctx| {
+        ctx.subscribe_to_model(&UpdateManager::handle(ctx), move |_, _, event, ctx| {
             if let UpdateManagerEvent::ObjectOperationComplete { result } = event {
                 if matches!(result.operation, ObjectOperation::Update)
                     && result.server_id == Some(server_id)
                 {
                     match result.success_type {
                         OperationSuccessType::Success => {
-                            println!("{}", text(ctx, "agent_sdk.environment.output.updated"));
-                            Self::print_environment_details(&updated_env, ctx);
+                            println!("Environment updated successfully!\n");
+                            Self::print_environment_details(&updated_env);
                             ctx.terminate_app(
                                 warpui::platform::TerminationMode::ForceTerminate,
                                 None,
@@ -1206,10 +1064,7 @@ impl EnvironmentCommandRunner {
                         }
                         _ => {
                             super::report_fatal_error(
-                                anyhow::anyhow!(text(
-                                    ctx,
-                                    "agent_sdk.environment.error.update_failed"
-                                )),
+                                anyhow::anyhow!("Failed to update environment"),
                                 ctx,
                             );
                         }
@@ -1227,7 +1082,7 @@ impl EnvironmentCommandRunner {
         ctx.spawn(initial_sync, move |_, result, ctx| {
             if result.is_err() {
                 super::report_fatal_error(
-                    anyhow::anyhow!(text(ctx, "agent_sdk.common.error.warp_drive_sync_timeout")),
+                    anyhow::anyhow!("Timed out waiting for Warp Drive to sync"),
                     ctx,
                 );
                 return;
@@ -1237,11 +1092,7 @@ impl EnvironmentCommandRunner {
             let server_id = match ServerId::try_from(id.as_str()) {
                 Ok(sid) => sid,
                 Err(_) => {
-                    let error = anyhow::anyhow!(text_with_args(
-                        ctx,
-                        "agent_sdk.environment.error.not_found",
-                        &[("id", &id)]
-                    ));
+                    let error = anyhow::anyhow!("Environment {} not found", id);
                     ctx.terminate_app(
                         warpui::platform::TerminationMode::ForceTerminate,
                         Some(Err(error)),
@@ -1252,11 +1103,7 @@ impl EnvironmentCommandRunner {
             let sync_id = SyncId::ServerId(server_id);
             let environment = CloudAmbientAgentEnvironment::get_by_id(&sync_id, ctx);
             let Some(environment) = environment else {
-                let error = anyhow::anyhow!(text_with_args(
-                    ctx,
-                    "agent_sdk.environment.error.not_found",
-                    &[("id", &id)]
-                ));
+                let error = anyhow::anyhow!("Environment {} not found", id);
                 ctx.terminate_app(
                     warpui::platform::TerminationMode::ForceTerminate,
                     Some(Err(error)),
@@ -1287,12 +1134,12 @@ impl EnvironmentCommandRunner {
         });
 
         // Listen to the UpdateManager for a completed object deletion
-        ctx.subscribe_to_model(&UpdateManager::handle(ctx), move |_, event, ctx| {
+        ctx.subscribe_to_model(&UpdateManager::handle(ctx), move |_, _, event, ctx| {
             if let UpdateManagerEvent::ObjectOperationComplete { result } = event {
                 if matches!(result.operation, ObjectOperation::Delete { .. }) {
                     match result.success_type {
                         OperationSuccessType::Success => {
-                            println!("{}", text(ctx, "agent_sdk.environment.output.deleted"));
+                            println!("Environment deleted successfully");
                             ctx.terminate_app(
                                 warpui::platform::TerminationMode::ForceTerminate,
                                 None,
@@ -1300,10 +1147,7 @@ impl EnvironmentCommandRunner {
                         }
                         _ => {
                             super::report_fatal_error(
-                                anyhow::anyhow!(text(
-                                    ctx,
-                                    "agent_sdk.environment.error.delete_failed"
-                                )),
+                                anyhow::anyhow!("Failed to delete environment"),
                                 ctx,
                             );
                         }
@@ -1340,56 +1184,15 @@ struct EnvironmentInfo {
 impl TableFormat for EnvironmentInfo {
     fn header() -> Vec<Cell> {
         vec![
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.id",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.name",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.description",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.base_image",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.git_repos",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.setup_commands",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.creator",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.last_edited",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.table.scope",
-            )),
-        ]
-    }
-
-    fn header_for_app(app: &AppContext) -> Vec<Cell> {
-        vec![
-            Cell::new(text(app, "agent_sdk.environment.table.id")),
-            Cell::new(text(app, "agent_sdk.environment.table.name")),
-            Cell::new(text(app, "agent_sdk.environment.table.description")),
-            Cell::new(text(app, "agent_sdk.environment.table.base_image")),
-            Cell::new(text(app, "agent_sdk.environment.table.git_repos")),
-            Cell::new(text(app, "agent_sdk.environment.table.setup_commands")),
-            Cell::new(text(app, "agent_sdk.environment.table.creator")),
-            Cell::new(text(app, "agent_sdk.environment.table.last_edited")),
-            Cell::new(text(app, "agent_sdk.environment.table.scope")),
+            Cell::new("ID"),
+            Cell::new("Name"),
+            Cell::new("Description"),
+            Cell::new("Base image"),
+            Cell::new("Git repos"),
+            Cell::new("Setup commands"),
+            Cell::new("Creator"),
+            Cell::new("Last edited"),
+            Cell::new("Scope"),
         ]
     }
 
@@ -1415,48 +1218,6 @@ impl TableFormat for EnvironmentInfo {
             Cell::new(&self.scope),
         ]
     }
-
-    fn row_for_app(&self, app: &AppContext) -> Vec<Cell> {
-        let github_repos_display = if self.github_repos.is_empty() {
-            text(app, "agent_sdk.common.value.none")
-        } else {
-            self.github_repos
-                .iter()
-                .map(|repo| repo.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        let setup_commands_display = if self.setup_commands.is_empty() {
-            text(app, "agent_sdk.common.value.none")
-        } else {
-            self.setup_commands.join("\n")
-        };
-        let description_display = self
-            .description
-            .clone()
-            .unwrap_or_else(|| text(app, "agent_sdk.common.value.none"));
-
-        vec![
-            Cell::new(&self.id),
-            Cell::new(&self.name),
-            Cell::new(description_display),
-            Cell::new(self.base_image.to_string()),
-            Cell::new(github_repos_display),
-            Cell::new(setup_commands_display),
-            Cell::new(super::common::format_unknown_for_app(
-                &self.creator_email,
-                app,
-            )),
-            Cell::new(
-                self.last_edited_utc
-                    .map(|last_edited| localized_approx_duration_from_now_utc(app, last_edited))
-                    .unwrap_or_else(|| {
-                        super::common::format_unknown_for_app(&self.last_edited, app)
-                    }),
-            ),
-            Cell::new(super::common::format_owner_scope_for_app(&self.scope, app)),
-        ]
-    }
 }
 
 /// Image information that's shown in the `image list` command.
@@ -1470,26 +1231,9 @@ struct ImageInfo {
 impl TableFormat for ImageInfo {
     fn header() -> Vec<Cell> {
         vec![
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.image_table.image",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.image_table.repository",
-            )),
-            Cell::new(text_for_locale(
-                LocaleId::EnUs,
-                "agent_sdk.environment.image_table.tag",
-            )),
-        ]
-    }
-
-    fn header_for_app(app: &AppContext) -> Vec<Cell> {
-        vec![
-            Cell::new(text(app, "agent_sdk.environment.image_table.image")),
-            Cell::new(text(app, "agent_sdk.environment.image_table.repository")),
-            Cell::new(text(app, "agent_sdk.environment.image_table.tag")),
+            Cell::new("Image"),
+            Cell::new("Repository"),
+            Cell::new("Tag"),
         ]
     }
 

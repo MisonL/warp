@@ -229,7 +229,7 @@ impl TemplatableMCPServerManager {
     ) -> Self {
         // Subscribe to FileBasedMCPManager events.
         let file_based_mcp_manager = FileBasedMCPManager::handle(ctx);
-        ctx.subscribe_to_model(&file_based_mcp_manager, |me, event, ctx| match event {
+        ctx.subscribe_to_model(&file_based_mcp_manager, |me, _, event, ctx| match event {
             FileBasedMCPManagerEvent::SpawnServers { installations } => {
                 me.spawn_file_based_servers(installations, ctx);
             }
@@ -247,7 +247,7 @@ impl TemplatableMCPServerManager {
 
         // TemplatableMCPServerManager is the source of truth for templatable MCP servers stored on the cloud
         let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |me, event, ctx| match event {
+        ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| match event {
             CloudModelEvent::ObjectUpdated {
                 type_and_id:
                     CloudObjectTypeAndId::GenericStringObject {
@@ -799,10 +799,10 @@ impl TemplatableMCPServerManager {
                 if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(crate::localization::text_for_app(
-                                ctx,
-                                "settings.mcp.toast.path_required",
-                            )),
+                            DismissibleToast::error(
+                                "PATH required to launch MCP server. Please open a new terminal session to autopopulate PATH."
+                                    .to_string(),
+                            ),
                             window_id,
                             ctx,
                         );
@@ -928,11 +928,7 @@ impl TemplatableMCPServerManager {
                                     manager.pending_oauth_csrf.insert(csrf_state, uuid);
                                 }
                                 ctx.open_url(&auth_url);
-                                manager.change_server_state(
-                                    uuid,
-                                    MCPServerState::Authenticating,
-                                    ctx,
-                                );
+                                manager.change_server_state(uuid, MCPServerState::Authenticating, ctx);
                             })
                             .await
                             .map_err(|err| {
@@ -951,13 +947,9 @@ impl TemplatableMCPServerManager {
                                 if let Some(active_window_id) = ctx.windows().active_window() {
                                     ToastStack::handle(ctx).update(ctx, |stack, ctx| {
                                         stack.add_ephemeral_toast(
-                                            DismissibleToast::default(
-                                                crate::localization::text_for_app_with_args(
-                                                    ctx,
-                                                    "settings.mcp.toast.authenticated_server",
-                                                    &[("server_name", &server_name)],
-                                                ),
-                                            ),
+                                            DismissibleToast::default(format!(
+                                                "Successfully authenticated {server_name} MCP server"
+                                            )),
                                             active_window_id,
                                             ctx,
                                         );
@@ -1516,6 +1508,7 @@ impl TemplatableMCPServerManager {
         let ParsedTemplatableMCPServerResult {
             templatable_mcp_server,
             templatable_mcp_server_installation,
+            ..
         } = parsed_result.clone();
         let template_uuid = templatable_mcp_server.uuid;
         self.create_templatable_mcp_server(templatable_mcp_server, space, initiated_by, ctx);

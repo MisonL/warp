@@ -96,7 +96,7 @@ where
             Some(click_button_style),
             None,
         )
-        .with_centered_text_label(localization::text_for_app(app, "auth.learn_more"))
+        .with_centered_text_label(crate::localization::text_for_app(app, "auth.learn_more"))
         .build()
         .on_click(move |ctx, _, _| {
             ctx.dispatch_typed_action(action.clone());
@@ -171,6 +171,10 @@ where
         ..Default::default()
     };
 
+    let paragraph_1 = localization::text_for_app(app, "auth.offline.paragraph_1");
+    let paragraph_2 = localization::text_for_app(app, "auth.offline.paragraph_2");
+    let paragraph_3 = localization::text_for_app(app, "auth.offline.paragraph_3");
+
     Container::new(
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -195,7 +199,7 @@ where
                 Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph(localization::text_for_app(app, "auth.offline.paragraph_1"))
+                        .paragraph(paragraph_1)
                         .with_style(body_text_styles)
                         .build()
                         .finish(),
@@ -207,7 +211,7 @@ where
                 Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph(localization::text_for_app(app, "auth.offline.paragraph_2"))
+                        .paragraph(paragraph_2)
                         .with_style(body_text_styles)
                         .build()
                         .finish(),
@@ -219,7 +223,7 @@ where
                 Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph(localization::text_for_app(app, "auth.offline.paragraph_3"))
+                        .paragraph(paragraph_3)
                         .with_style(body_text_styles)
                         .build()
                         .finish(),
@@ -479,7 +483,7 @@ pub fn render_privacy_settings_toggles<A: Action + Clone + 'static>(
             appearance
                 .ui_builder()
                 .link(
-                    localization::text_for_app(app, "auth.learn_more"),
+                    crate::localization::text_for_app(app, "auth.learn_more"),
                     Some(PRIVACY_URL.into()),
                     None,
                     handles.telemetry_docs_mouse.clone(),

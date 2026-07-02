@@ -13,7 +13,6 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::localization;
 use crate::modal::Modal;
 use crate::ui_components::blended_colors;
 
@@ -149,12 +148,17 @@ impl InactivityModalBody {
     }
 
     fn render_countdown(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
-        let text = format!(
-            "{}{}:{:02}{}",
-            localization::text_for_app(app, "terminal.shared_session.inactivity.countdown_prefix"),
-            self.duration.as_secs() / 60,
-            self.duration.as_secs() % 60,
-            localization::text_for_app(app, "terminal.shared_session.inactivity.countdown_suffix"),
+        let text = crate::localization::text_for_app_with_args(
+            app,
+            "terminal.shared_session.inactivity.countdown",
+            &[(
+                "time",
+                &format!(
+                    "{}:{:02}",
+                    self.duration.as_secs() / 60,
+                    self.duration.as_secs() % 60
+                ),
+            )],
         );
 
         Container::new(
@@ -186,7 +190,7 @@ impl InactivityModalBody {
                     font_weight: Some(Weight::Bold),
                     ..Default::default()
                 })
-                .with_centered_text_label(localization::text_for_app(
+                .with_centered_text_label(crate::localization::text_for_app(
                     app,
                     "terminal.shared_session.menu.stop_sharing",
                 ))
@@ -219,7 +223,7 @@ impl InactivityModalBody {
                 font_weight: Some(Weight::Bold),
                 ..Default::default()
             })
-            .with_centered_text_label(localization::text_for_app(
+            .with_centered_text_label(crate::localization::text_for_app(
                 app,
                 "terminal.shared_session.action.continue_sharing",
             ))
@@ -249,7 +253,7 @@ impl View for InactivityModalBody {
 
         let header = Container::new(
             Text::new_inline(
-                localization::text_for_app(app, "terminal.shared_session.inactivity.title"),
+                crate::localization::text_for_app(app, "terminal.shared_session.inactivity.title"),
                 appearance.ui_font_family(),
                 HEADER_FONT_SIZE,
             )

@@ -26,7 +26,6 @@ use warpui::platform::keyboard::KeyCode;
 use warpui::platform::OperatingSystem;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel};
 
-use crate::ai::agent::conversation::AIConversation;
 use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::auth::AuthStateProvider;
 use crate::report_if_error;
@@ -468,13 +467,11 @@ impl ThinkingDisplayMode {
         }
     }
 
-    pub fn display_name_key(&self) -> &'static str {
+    pub fn command_palette_description(&self) -> &'static str {
         match self {
-            ThinkingDisplayMode::ShowAndCollapse => {
-                "settings.ai.other.thinking.option.show_and_collapse"
-            }
-            ThinkingDisplayMode::AlwaysShow => "settings.ai.other.thinking.option.always_show",
-            ThinkingDisplayMode::NeverShow => "settings.ai.other.thinking.option.never_show",
+            ThinkingDisplayMode::ShowAndCollapse => "Set agent thinking display: show & collapse",
+            ThinkingDisplayMode::AlwaysShow => "Set agent thinking display: always show",
+            ThinkingDisplayMode::NeverShow => "Set agent thinking display: never show",
         }
     }
 
@@ -485,14 +482,6 @@ impl ThinkingDisplayMode {
             }
             ThinkingDisplayMode::AlwaysShow => "settings.command_palette.ai.thinking.always_show",
             ThinkingDisplayMode::NeverShow => "settings.command_palette.ai.thinking.never_show",
-        }
-    }
-
-    pub fn command_palette_description(&self) -> &'static str {
-        match self {
-            ThinkingDisplayMode::ShowAndCollapse => "Set agent thinking display: show & collapse",
-            ThinkingDisplayMode::AlwaysShow => "Set agent thinking display: always show",
-            ThinkingDisplayMode::NeverShow => "Set agent thinking display: never show",
         }
     }
 
@@ -690,6 +679,82 @@ impl PromptSubmissionMode {
     }
 }
 
+/// What happens when a prompt is submitted while an agent controls an agent-requested
+/// long-running command (LRC).
+///
+/// Only consulted when [`PromptSubmissionMode`] is `Interrupt`: in `Queue` mode
+/// prompts always queue until the full response finishes, so this setting is
+/// hidden and ignored.
+#[derive(
+    Default,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    PartialEq,
+    Copy,
+    Clone,
+    EnumIter,
+    schemars::JsonSchema,
+    settings_value::SettingsValue,
+)]
+#[schemars(
+    description = "What happens when a prompt is submitted while an agent controls an agent-requested long-running command.",
+    rename_all = "snake_case"
+)]
+pub enum LongRunningCommandSubmissionMode {
+    /// Send the prompt to the agent immediately, steering it mid-command.
+    SendImmediately,
+    /// Queue the prompt and send it to the agent when the command finishes
+    /// (default).
+    #[default]
+    QueueUntilCommandCompletes,
+}
+
+settings::macros::implement_setting_for_enum!(
+    LongRunningCommandSubmissionMode,
+    AISettings,
+    SupportedPlatforms::ALL,
+    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+    private: false,
+    toml_path: "agents.warp_agent.other.long_running_command_submission_mode",
+    description: "What happens when a prompt is submitted while an agent controls an agent-requested long-running command.",
+    feature_flag: FeatureFlag::QueueSlashCommand,
+);
+
+impl LongRunningCommandSubmissionMode {
+    /// Display name for the settings dropdown.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            LongRunningCommandSubmissionMode::SendImmediately => "Send immediately",
+            LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                "Queue until command finishes"
+            }
+        }
+    }
+
+    pub fn command_palette_description(&self) -> &'static str {
+        match self {
+            LongRunningCommandSubmissionMode::SendImmediately => {
+                "Set long-running command submission: send immediately"
+            }
+            LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                "Set long-running command submission: queue until command finishes"
+            }
+        }
+    }
+
+    pub fn command_palette_description_key(&self) -> &'static str {
+        match self {
+            LongRunningCommandSubmissionMode::SendImmediately => {
+                "settings.command_palette.ai.long_running_command_submission.send_immediately"
+            }
+            LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                "settings.command_palette.ai.long_running_command_submission.queue_until_command_finishes"
+            }
+        }
+    }
+}
+
 /// Tracks the state of the quota reset banner
 #[derive(
     Debug,
@@ -825,8 +890,8 @@ impl schemars::JsonSchema for ToolbarCommandMap {
         std::borrow::Cow::Borrowed("ToolbarCommandMap")
     }
 
-    fn json_schema(schema_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schema_generator.subschema_for::<HashMap<String, String>>()
+    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        gen.subschema_for::<HashMap<String, String>>()
     }
 }
 
@@ -1227,6 +1292,20 @@ define_settings_group!(AISettings, settings: [
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     }
+    // Whether to mint and attach Gemini Enterprise (GEAP) credentials to eligible agent
+    // requests, routing them through the workspace's Google Cloud project. Only consulted
+    // when the admin sets the GEAP host to RESPECT_USER_SETTING; ENFORCE bypasses it.
+    // Prefer [`UserWorkspaces::is_gemini_enterprise_credentials_enabled`] to interpret
+    // this setting.
+    gemini_enterprise_credentials_enabled: GeminiEnterpriseCredentialsEnabled {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::DESKTOP,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "cloud_platform.third_party_api_keys.gemini_enterprise_credentials_enabled",
+        description: "Whether Warp should route eligible requests through your workspace's Gemini Enterprise Google Cloud project.",
+    }
     // Whether or not the user wants agent mode requests to use their saved rules.
     memory_enabled: MemoryEnabled {
         type: bool,
@@ -1343,6 +1422,19 @@ define_settings_group!(AISettings, settings: [
     // We model it as a setting so it's only shown once to a given user regardless of the number of
     // devices they use.
     did_check_to_trigger_orchestration_launch_modal: DidShowOrchestrationLaunchModal {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
+        private: true,
+    }
+
+    // This is not a user-visible setting - it's merely a one-time flag to track if the
+    // free-AI-removal notice modal has been shown to (or silently marked as seen for) the user.
+    //
+    // We model it as a setting so it's only shown once to a given user regardless of the number of
+    // devices they use.
+    did_check_to_trigger_free_ai_removal_modal: DidShowFreeAiRemovalModal {
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
@@ -1564,6 +1656,11 @@ define_settings_group!(AISettings, settings: [
     // setting is the fallback used when a conversation has no explicit override.
     default_prompt_submission_mode: PromptSubmissionMode,
 
+    // What happens when a prompt is submitted while an agent controls an agent-requested
+    // long-running command. Only consulted when `default_prompt_submission_mode` is `Interrupt`;
+    // per-LRC manual overrides live on `QueuedQueryModel`.
+    long_running_command_submission_mode: LongRunningCommandSubmissionMode,
+
     // Whether agent-executed shell commands should be included in command history
     // (up-arrow, Ctrl-R search, inline history menu).
     // When false, commands run by the AI agent are excluded from history.
@@ -1666,6 +1763,19 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.other.auto_handoff_on_sleep_enabled",
         description: "Whether Warp automatically hands off local agent conversations to cloud when the computer is about to sleep.",
     }
+
+    // This is not a user-visible setting - it's merely a one-time flag to track if the
+    // auto-handoff sleep modal has been shown to the user.
+    //
+    // We model it as a setting so it's only shown once to a given user regardless of the number of
+    // devices they use.
+    did_show_auto_handoff_sleep_modal: DidShowAutoHandoffSleepModal {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::No),
+        private: true,
+    }
 ]);
 
 impl AISettings {
@@ -1675,7 +1785,7 @@ impl AISettings {
         CompiledCommandsForCodingAgentToolbar::register(app);
 
         app.update_model(&Self::handle(app), |_me, ctx| {
-            ctx.subscribe_to_model(&FocusedTerminalInfo::handle(ctx), |_me, event, ctx| {
+            ctx.subscribe_to_model(&FocusedTerminalInfo::handle(ctx), |_me, _, event, ctx| {
                 if matches!(event, FocusedTerminalInfoEvent::TerminalInfoUpdated) {
                     // Pipe the event so that any view that listens for settings changes will be notified.
                     ctx.emit(AISettingsChangedEvent::IsAnyAIEnabled {
@@ -1868,16 +1978,6 @@ impl AISettings {
             crate::workspaces::workspace::AdminEnablementSetting::Disable
         )
     }
-
-    pub fn is_cloud_handoff_enabled_for_conversation(
-        &self,
-        conversation: Option<&AIConversation>,
-        app: &warpui::AppContext,
-    ) -> bool {
-        self.is_cloud_handoff_enabled(app)
-            && conversation.is_none_or(|conversation| !conversation.has_parent_agent())
-    }
-
     pub fn is_ampersand_handoff_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_cloud_handoff_enabled(app) && !*self.should_force_disable_ampersand_handoff
     }

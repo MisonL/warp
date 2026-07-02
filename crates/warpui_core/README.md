@@ -1,14 +1,14 @@
 # WarpUI
 
-## 快速导览
+## Whirlwind tour
 
-WarpUI 包含许多相互嵌套的概念。如果不引用系统中的其他部分，很难解释其中任意一部分。因此，本指南会先探索主要概念之间的关系，提供整体概览，然后再深入其中某个概念的细节。
+WarpUI contains many interlocking concepts. It's difficult to explain any one part of the system without reference to other parts. Because of this, this guide tries to provide an overview by exploring the relationships between the major concepts before providing a lot of detail on any one of them.
 
-Rust 严格的 ownership 规则对用户界面是一项挑战，因为多方向数据流通常很关键。如果每个 object 都有且只有一个 owner，我们该如何表达 event handler 这类事物？
+Rust's strict ownership rules are a challenge for user interfaces, where multi-directional dataflow is often critical. If every object has one and only one owner, how do we express things like event handlers?
 
-## 全局 App object、entity 和 handle
+## The global App object, entities, and handles
 
-WarpUI 使用 `App` object 解决这个问题。`App` object 是应用中所有 view 和 model 的唯一 owner。我们将 view 和 model 统称为 **entity**。Entity 可以通过 **handle** 持有对其他 entity 的引用。Handle 会在特定且受限的场景中提供对 entity 的访问。以多 tab terminal 为例：应用 window 由一个 `WorkspaceView` 占据，我们希望这个 workspace 包含多个 `TerminalView`。`Workspace` 不会直接持有这些 `TerminalView`，而是持有一个 `ViewHandle<TerminalView>` 的 vector。
+WarpUI solves this problem with the `App` object, which is the sole owner of all the views and models in the application. We collectively refer to views and models as **entities**. Entities can hold references to other entities via **handles**. A handle provides access to an entity in specific, limited circumstances. Take for example a multi-tabbed terminal. The application window is occupied by a `WorkspaceView`, and we want this workspace to contain multiple `TerminalView`s. Rather than holding the `TerminalView`s directly, the `Workspace` instead holds a vector of `ViewHandle<TerminalView>`.
 
 ```rust
 struct WorkspaceView {
@@ -16,11 +16,11 @@ struct WorkspaceView {
 }
 ```
 
-`ViewHandle` 本身做不了太多事情。它的存在会阻止被引用的 view 被全局 `App` object 丢弃，但它不提供对被引用 view 的直接访问。Handle 基本上是一个更强一点的 identifier。要将 handle 转换成实际引用，需要一个 **app context** object 的引用；该 object 会由全局 `App` object 在特定时间点提供。
+On its own, a `ViewHandle` can't do much. Its existence prevents the referenced view from being discarded by the global `App` object, but it doesn't provide direct access to the referenced view. A handle is basically a glorified identifier. To convert a handle into an actual reference, you need a reference to an **app context** object, which will be provided by the global `App` object at specific points in time.
 
-其中一个时间点可以是 `WorkspaceView` 上的 `render` 方法。每当 workspace 的屏幕表示更新时，框架会调用该方法。`render` 的参数之一是 `&AppContext`，它可以传给 `ViewHandle` 上的 `as_ref` 方法，以获取底层 object 的引用。
+An example of one of those times could be the `render` method on `WorkspaceView`, which will be called by the framework whenever the workspace's on-screen representation is updated. One of the parameters to `render` is an `&AppContext`, which can be passed to the `as_ref` method on a `ViewHandle` to retrieve a reference to the underlying object.
 
-下面的代码示例省略了很多细节，以便专注于当前主题。假设我们想知道所有 terminal session 的标题，以便将它们渲染成 tab：
+Many details are elided in the code example below so we can focus on the topic at hand, but imagine we wanted to know the titles of all our terminal sessions so we could render them in tabs:
 
 ```rust
 impl View for WorkspaceView {
@@ -33,22 +33,22 @@ impl View for WorkspaceView {
 }
 ```
 
-从 `render` 方法返回，并失去调用期间提供的 `&AppContext` 参数后，我们就不再能访问这些 handle 引用的 terminal view。
+After we return from the `render` method and lose access to the `&AppContext` parameter provided during its call, we no longer have access to the terminal views they reference.
 
-当然，entity 也可以直接拥有任何它需要的 state。只有当一个 entity 需要引用另一个 entity 时才需要 handle。随着我们继续勾勒系统更多方面，何时将一块应用状态表达为自己的 entity 会变得更清晰。
+Entities are of course entitled to own any state they like directly as well. Handles are only required when an entity needs to reference an entity. The reasons it would make sense to express a piece of application state as its own entity will become clearer as we sketch in more aspects of the system.
 
-## Element
+## Elements
 
-框架要求所有 view 实现 `View` trait，而该 trait 的关键方法之一是上面展示过的 `render`。这个方法的职责是根据 view 当前状态计算其视觉描述，并且每当 view 状态变化时都会被调用。
+The framework requires all views to implement the `View` trait, and a key method of this trait is `render`, which we showcased above. This method's job is to compute a visual description of the view based on its current state, and it is called whenever the view's state changes.
 
-为了描述 view 的外观，render 会返回一个 **element**。一个 view 可以存在任意长时间，并随着用户与应用交互而改变状态；而 element 被设计为只存在单帧。更准确地说，未变化 view 返回的 element 会跨多帧复用，但从概念上可以将 element 视为一次性 object：每当返回它的 view 发生变化时，就会被丢弃并替换。
+To describe the view's appearance, render returns an **element**. While a single view may exist for an arbitrary amount of time, changing its state as the user interacts with the application, an element is designed to exist for only a single frame. More precisely, elements returned by views that haven't changed are recycled across multiple frames, but conceptually you can think of an element as a throwaway object that is discarded and replaced whenever the view that returned it changes.
 
-框架内置了多个可组合 element，用于执行常见任务，例如绘制背景和边框、添加 padding、渲染 label text、水平和垂直布局 element、处理 event 等。内置 element 大致基于 Flutter framework。定义自己的自定义 element 也很直接，可以让你细粒度控制 layout，并通过硬件加速的 `Scene` API 以 imperative 方式在 scene 上绘制像素。
+The framework ships with several elements that can be composed to perform common tasks such as drawing backgrounds and borders, adding padding, rendering label text, laying out elements horizontally and vertically, handling events, etc. The stock elements are loosely based on the Flutter framework. It's also straightforward to define your own custom elements, giving you detailed control over layout and the ability to imperatively paint pixels on scene via the hardware-accelerated `Scene` API.
 
-## Action
+## Actions
 
-### Action handler
+### Action handlers
 
 ### Action dispatch
 
-## View
+## Views

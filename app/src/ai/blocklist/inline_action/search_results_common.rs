@@ -10,7 +10,6 @@ use super::inline_action_header::{
     ICON_MARGIN, INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
 };
 use super::inline_action_icons::icon_size;
-use crate::localization;
 use crate::ui_components::icons::Icon;
 
 pub fn render_search_results_header(
@@ -206,9 +205,7 @@ pub fn render_collapsible_search_results<F>(
 where
     F: Fn(&mut EventContext) + 'static,
 {
-    let right_label = localization::text_for_app(app, "agent.search_results.count_label")
-        .replace("{count}", &results_count.to_string())
-        .replace("{label}", results_label);
+    let right_label = format!("{results_count} {results_label}");
 
     let header = render_search_results_header(
         title_text,

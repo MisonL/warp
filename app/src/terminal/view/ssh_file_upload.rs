@@ -16,14 +16,9 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::UiComponent as _;
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
-use crate::localization;
 use crate::terminal::ssh::util::InteractiveSshCommand;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 pub type FileUploadId = usize;
 
@@ -308,7 +303,10 @@ impl FileUpload {
         if let FileUploadStatus::AwaitingPassword = file.status {
             session_action_row.add_child(
                 FormattedTextElement::from_str(
-                    text(app, "terminal.ssh_file_upload.waiting_for_password"),
+                    crate::localization::text_for_app(
+                        app,
+                        "terminal.ssh_file_upload.waiting_for_password",
+                    ),
                     font_family,
                     font_size,
                 )
@@ -373,13 +371,13 @@ impl FileUpload {
     fn render_file_detail_text(&self, file: &FileUploadInfo, app: &AppContext) -> FormattedText {
         let status_string = match file.status {
             FileUploadStatus::Started | FileUploadStatus::AwaitingPassword => {
-                text(app, "terminal.ssh_file_upload.status.uploading")
+                crate::localization::text_for_app(app, "terminal.ssh_file_upload.status.uploading")
             }
             FileUploadStatus::Completed { successful: true } => {
-                text(app, "terminal.ssh_file_upload.status.uploaded")
+                crate::localization::text_for_app(app, "terminal.ssh_file_upload.status.uploaded")
             }
             FileUploadStatus::Completed { successful: false } => {
-                text(app, "terminal.ssh_file_upload.status.failed")
+                crate::localization::text_for_app(app, "terminal.ssh_file_upload.status.failed")
             }
         };
 
@@ -405,7 +403,10 @@ impl FileUpload {
         }
 
         let mut dest_fragments = vec![
-            FormattedTextFragment::plain_text(text(app, "terminal.ssh_file_upload.destination")),
+            FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                app,
+                "terminal.ssh_file_upload.destination",
+            )),
             FormattedTextFragment::inline_code(&file.remote_host),
         ];
         if let Some(remote_path) = &file.remote_dest_path {
@@ -428,10 +429,16 @@ impl FileUpload {
     ) -> Box<dyn Element> {
         let upload_id = file.upload_id;
         let ui_builder = appearance.ui_builder().clone();
-        let tooltip = text(app, "terminal.ssh_file_upload.clear_upload");
+        let clear_upload_tooltip =
+            crate::localization::text_for_app(app, "terminal.ssh_file_upload.clear_upload");
         Container::new(
             icon_button(appearance, Icon::X, true, file.clear_button.clone())
-                .with_tooltip(move || ui_builder.tool_tip(tooltip.clone()).build().finish())
+                .with_tooltip(move || {
+                    ui_builder
+                        .tool_tip(clear_upload_tooltip.clone())
+                        .build()
+                        .finish()
+                })
                 .build()
                 .on_click(move |event_ctx, _, _| {
                     event_ctx
@@ -450,9 +457,9 @@ impl FileUpload {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let view_session_text = if file.local_session_open {
-            text(app, "terminal.ssh_file_upload.close_session")
+            crate::localization::text_for_app(app, "terminal.ssh_file_upload.close_session")
         } else {
-            text(app, "terminal.ssh_file_upload.view_session")
+            crate::localization::text_for_app(app, "terminal.ssh_file_upload.view_session")
         };
         let upload_id = file.upload_id;
         Container::new(
@@ -480,10 +487,9 @@ impl FileUpload {
             FormattedTextElement::new(
                 FormattedText::new(vec![FormattedTextLine::Heading(FormattedTextHeader {
                     heading_size: 3,
-                    text: vec![FormattedTextFragment::plain_text(text(
-                        app,
-                        "terminal.ssh_file_upload.header",
-                    ))],
+                    text: vec![FormattedTextFragment::plain_text(
+                        crate::localization::text_for_app(app, "terminal.ssh_file_upload.header"),
+                    )],
                 })]),
                 appearance.ui_font_size(),
                 appearance.ui_font_family(),

@@ -55,11 +55,9 @@ use crate::util::bindings::CustomAction;
 use crate::view_components::alert::AlertConfig;
 use crate::view_components::{Alert, DismissibleToast, ToastType};
 use crate::workspace::ToastStack;
-use crate::{send_telemetry_from_ctx, Appearance, CloudObjectTypeAndId, TelemetryEvent};
-
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
+use crate::{
+    localization, send_telemetry_from_ctx, Appearance, CloudObjectTypeAndId, TelemetryEvent,
+};
 
 // Universal
 pub(super) const CORE_HORIZONATAL_MARGIN: f32 = 24.;
@@ -98,7 +96,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -113,8 +112,8 @@ pub(super) enum EditorType {
 pub(super) struct ValidationError {
     /// The highest priority secret level detected in this field
     pub(super) secret_level: SecretLevel,
-    /// User-friendly error message
-    pub(super) message: String,
+    /// Localization key for the user-friendly error message
+    pub(super) message_key: &'static str,
 }
 
 /// Validation state for a single environment variable row
@@ -345,21 +344,21 @@ pub enum EnvVarCollectionAction {
 /// Defines the view for a collection of environment variables
 impl ValidationError {
     /// Create validation error from detected secret level
-    fn from_secret_level(secret_level: SecretLevel, app: &AppContext) -> Self {
-        let message = match secret_level {
-            SecretLevel::Enterprise => text(app, "env_vars.validation.secret_conflict.enterprise"),
-            SecretLevel::User => text(app, "env_vars.validation.secret_conflict.user"),
+    fn from_secret_level(secret_level: SecretLevel) -> Self {
+        let message_key = match secret_level {
+            SecretLevel::Enterprise => "env_vars.validation.secret_conflict.enterprise",
+            SecretLevel::User => "env_vars.validation.secret_conflict.user",
         };
         Self {
             secret_level,
-            message,
+            message_key,
         }
     }
 }
 
 impl EnvVarCollectionView {
     /// Validates field content for secrets and returns validation error if found
-    fn validate_field_content(text: &str, app: &AppContext) -> Option<ValidationError> {
+    fn validate_field_content(text: &str) -> Option<ValidationError> {
         let detected_secrets = find_secrets_in_text_with_levels(text);
         if detected_secrets.is_empty() {
             return None;
@@ -371,7 +370,7 @@ impl EnvVarCollectionView {
             .map(|(_, level)| *level)
             .max_by_key(|level| level.priority())
             .map(|highest_priority_level| {
-                ValidationError::from_secret_level(highest_priority_level, app)
+                ValidationError::from_secret_level(highest_priority_level)
             })
     }
 
@@ -390,7 +389,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text, ctx)
+            Self::validate_field_content(text)
         } else {
             None
         };
@@ -406,7 +405,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text, ctx)
+            Self::validate_field_content(text)
         } else {
             None
         };
@@ -424,7 +423,7 @@ impl EnvVarCollectionView {
         let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
         let validation_error = if should_validate {
-            Self::validate_field_content(text, ctx)
+            Self::validate_field_content(text)
         } else {
             None
         };
@@ -458,11 +457,15 @@ impl EnvVarCollectionView {
         &self,
         error: &ValidationError,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        Container::new(self.validation_alert.render(
-            AlertConfig::error(error.message.clone()).with_main_axis_size(MainAxisSize::Max),
-            appearance,
-        ))
+        Container::new(
+            self.validation_alert.render(
+                AlertConfig::error(localization::text_for_app(app, error.message_key))
+                    .with_main_axis_size(MainAxisSize::Max),
+                appearance,
+            ),
+        )
         .with_margin_top(ERROR_ALERT_MARGIN_TOP)
         .finish()
     }
@@ -471,9 +474,10 @@ impl EnvVarCollectionView {
     pub(super) fn render_bottom_error_message(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         self.get_highest_severity_form_error()
-            .map(|error| self.render_validation_error(error, appearance))
+            .map(|error| self.render_validation_error(error, appearance, app))
     }
 
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
@@ -485,8 +489,8 @@ impl EnvVarCollectionView {
             view.handle_cloud_model_event(event, ctx);
         });
 
-        let pane_configuration =
-            ctx.add_model(|ctx| PaneConfiguration::new(text(ctx, "env_vars.title.untitled")));
+        let untitled = localization::text_for_app(ctx, "env_vars.title.untitled");
+        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(untitled));
 
         let active_env_var_collection_data = ctx.add_model(ActiveEnvVarCollectionData::new);
         ctx.subscribe_to_model(
@@ -507,14 +511,20 @@ impl EnvVarCollectionView {
             ctx,
             Some(PLACEHOLDER_FONT_SIZE),
             Some(ui_font_family),
-            Some(&text(ctx, "env_vars.placeholder.title")),
+            Some(localization::text_for_app(
+                ctx,
+                "env_vars.placeholder.title",
+            )),
             true,
         );
         let description_editor = Self::create_editor_handle(
             ctx,
             Some(PLACEHOLDER_FONT_SIZE),
             Some(ui_font_family),
-            Some(&text(ctx, "env_vars.placeholder.description")),
+            Some(localization::text_for_app(
+                ctx,
+                "env_vars.placeholder.description",
+            )),
             false,
         );
         ctx.subscribe_to_view(&title_editor, |me, _, event, ctx| {
@@ -659,7 +669,7 @@ impl EnvVarCollectionView {
         let title = collection.title.clone().unwrap_or_default();
 
         let pane_title = if title.is_empty() {
-            text(ctx, "env_vars.title.untitled")
+            localization::text_for_app(ctx, "env_vars.title.untitled")
         } else {
             title.clone()
         };
@@ -745,7 +755,10 @@ impl EnvVarCollectionView {
                     let window_id = ctx.window_id();
                     crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(text(ctx, "env_vars.toast.invoke_failed")),
+                            DismissibleToast::error(localization::text_for_app(
+                                ctx,
+                                "env_vars.toast.invoke_failed",
+                            )),
                             window_id,
                             ctx,
                         );
@@ -767,12 +780,7 @@ impl EnvVarCollectionView {
         }
 
         let title = self.title_editor.as_ref(ctx).buffer_text(ctx);
-        let pane_title = if title.is_empty() {
-            text(ctx, "env_vars.title.untitled")
-        } else {
-            title.clone()
-        };
-        self.set_pane_title(&pane_title, ctx);
+        self.set_pane_title(&title, ctx);
 
         let title = if title.is_empty() { None } else { Some(title) };
 
@@ -881,7 +889,10 @@ impl EnvVarCollectionView {
             ctx,
             Some(VARIABLE_FONT_SIZE),
             Some(ui_font_family),
-            Some(&text(ctx, "env_vars.placeholder.variable")),
+            Some(localization::text_for_app(
+                ctx,
+                "env_vars.placeholder.variable",
+            )),
             true,
         );
 
@@ -893,7 +904,10 @@ impl EnvVarCollectionView {
             ctx,
             Some(VARIABLE_FONT_SIZE),
             Some(ui_font_family),
-            Some(&text(ctx, "env_vars.placeholder.value")),
+            Some(localization::text_for_app(
+                ctx,
+                "env_vars.placeholder.value",
+            )),
             true,
         );
 
@@ -905,7 +919,10 @@ impl EnvVarCollectionView {
             ctx,
             Some(VARIABLE_FONT_SIZE),
             Some(ui_font_family),
-            Some(&text(ctx, "env_vars.placeholder.variable_description")),
+            Some(localization::text_for_app(
+                ctx,
+                "env_vars.placeholder.variable_description",
+            )),
             true,
         );
 
@@ -1138,7 +1155,7 @@ impl EnvVarCollectionView {
                     .finish()
                 } else {
                     appearance.ui_builder().tool_tip_on_element(
-                        text(app, "env_vars.secret_tooltip"),
+                        localization::text_for_app(app, "env_vars.secret_tooltip"),
                         self.button_mouse_states.secret_tooltip_state.clone(),
                         icon_button_with_context_menu(
                             Icon::Key,
@@ -1389,7 +1406,7 @@ impl View for EnvVarCollectionView {
                     .with_children(self.render_variable_rows(editability, appearance, app))
                     .finish(),
             );
-        if let Some(error_element) = self.render_bottom_error_message(appearance) {
+        if let Some(error_element) = self.render_bottom_error_message(appearance, app) {
             flex.add_child(error_element);
         }
 
@@ -1445,7 +1462,7 @@ impl View for EnvVarCollectionView {
 
         if self.dialog_open_states.unsaved_changes_dialog_open {
             stack.add_positioned_child(
-                self.render_unsaved_changes_dialog(appearance, app),
+                self.render_unsaved_changes_dialog(appearance),
                 dialog_position,
             )
         } else if self.dialog_open_states.secrets_dialog_open {
@@ -1593,7 +1610,7 @@ impl BackingView for EnvVarCollectionView {
     ) -> view::HeaderContent {
         let title = self.title_editor.as_ref(app).buffer_text(app);
         let title = if title.is_empty() {
-            text(app, "env_vars.title.untitled")
+            localization::text_for_app(app, "env_vars.title.untitled")
         } else {
             title
         };

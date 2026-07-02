@@ -39,7 +39,6 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PlainTextEditorViewAction, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions,
 };
-use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::input::MenuPositioning;
 use crate::terminal::resizable_data::{ModalType, ResizableData, DEFAULT_VOLTRON_WIDTH};
@@ -89,24 +88,12 @@ pub enum VoltronItem {
 }
 
 impl VoltronItem {
-    fn debug_name(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             VoltronItem::AiCommands => "A.I. Command Search",
             VoltronItem::Workflows => "Workflows",
             VoltronItem::History => "History Search",
         }
-    }
-
-    fn label_key(&self) -> &'static str {
-        match self {
-            VoltronItem::AiCommands => "terminal.menu.ai_command_search",
-            VoltronItem::Workflows => "terminal.input.binding.workflows",
-            VoltronItem::History => "terminal.input.binding.history_search",
-        }
-    }
-
-    pub fn label(&self, app: &AppContext) -> String {
-        localization::text_for_app(app, self.label_key())
     }
 }
 
@@ -129,8 +116,8 @@ pub struct VoltronMetadata {
 /// Trait that each of the views used within Voltron should implement, so that all the events are
 /// then properly propagated to corresponding views.
 pub trait VoltronFeatureViewMeta {
-    /// Catalog key for placeholder text to show in the editor.
-    fn editor_placeholder_text_key(&self) -> &'static str;
+    /// Placeholder text to show in the editor.
+    fn editor_placeholder_text(&self) -> &'static str;
 
     /// Voltron captures all the editor events and passes them to the currently focused feature by
     /// calling this method. Note that it does not call `ctx.notify()`, so it's up to the feature
@@ -271,12 +258,11 @@ impl Voltron {
         }
     }
 
-    fn placeholder(&mut self, ctx: &mut ViewContext<Self>) -> Option<String> {
+    fn placeholder(&mut self, ctx: &mut ViewContext<Self>) -> Option<&'static str> {
         if let Some(current_feature) = self.current_feature() {
             Some(match current_feature.feature_view_handle {
                 VoltronFeatureViewHandle::Workflows(view_handle) => {
-                    let key = view_handle.read(ctx, |view, _| view.editor_placeholder_text_key());
-                    localization::text_for_app(ctx, key)
+                    view_handle.read(ctx, |view, _| view.editor_placeholder_text())
                 }
             })
         } else {
@@ -346,7 +332,7 @@ impl Voltron {
             None => {
                 log::info!(
                     "Trying to open {} in Voltron, but no such feature registered",
-                    feature_name.debug_name()
+                    feature_name.as_str()
                 );
                 // Close voltron as a feature was requested that isn't registered.
                 self.close(ctx);
@@ -367,7 +353,7 @@ impl Voltron {
             let items: Vec<MenuItem<VoltronAction>> = features
                 .into_iter()
                 .map(|view| {
-                    let item = MenuItemFields::new(view.name.label(ctx))
+                    let item = MenuItemFields::new(view.name.as_str())
                         .with_on_select_action(VoltronAction::SelectAndRefresh(view.name));
                     let label = view.feature_view_handle.custom_action().and_then(enclose!(
                         (context) | action | {
@@ -397,7 +383,7 @@ impl Voltron {
         ctx.notify();
     }
 
-    fn render_dropdown(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_dropdown(&self, appearance: &Appearance) -> Box<dyn Element> {
         let current_feature = self
             .current_feature()
             .expect("Voltron is only rendered when it's visible and the feature exists");
@@ -418,7 +404,7 @@ impl Voltron {
                             .with_text_and_icon_label(
                                 TextAndIcon::new(
                                     TextAndIconAlignment::TextFirst,
-                                    current_feature.name.label(app),
+                                    current_feature.name.as_str().to_string(),
                                     Icon::new(icon_path, appearance.theme().active_ui_text_color()),
                                     MainAxisSize::Min,
                                     MainAxisAlignment::SpaceBetween,
@@ -426,6 +412,7 @@ impl Voltron {
                                 )
                                 .with_inner_padding(10.),
                             )
+                            // .with_text_label(current_feature.name.as_str().to_string())
                             .build()
                             .finish(),
                     )
@@ -524,7 +511,7 @@ impl View for Voltron {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(Shrinkable::new(1., editor).finish());
         if self.features.len() > 1 {
-            editor_row.add_child(self.render_dropdown(appearance, app));
+            editor_row.add_child(self.render_dropdown(appearance));
         }
 
         let editor_container = Container::new(

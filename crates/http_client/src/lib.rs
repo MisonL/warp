@@ -118,12 +118,6 @@ pub struct Request {
     prevent_sleep_reason: Option<&'static str>,
 }
 
-impl Request {
-    pub fn headers(&self) -> &http::HeaderMap {
-        self.wrapped.headers()
-    }
-}
-
 /// A wrapper around a `reqwest::Response` that ensures any async calls to the underlying `Response`
 /// a properly adapted to be run outside of a Tokio context.
 pub struct Response(reqwest::Response);
@@ -242,26 +236,15 @@ impl Client {
         self.builder(self.wrapped.delete(url), include_warp_headers, iap_token)
     }
 
-    /// Returns the IAP bearer token to attach to a request targeting `url`,
-    /// scoped to the IAP-protected server and RTC origins.
+    /// Returns the IAP bearer token to attach to a request targeting
+    /// `url`, scoped to the Warp server's origin.
     fn iap_token_for<U: IntoUrl>(&self, url: U) -> Option<String> {
+        let provider = self.iap_token_provider.as_ref()?;
         let url = url.into_url().ok()?;
-        if !Self::targets_iap_protected_origin(&url) {
+        if !is_warp_server_origin(&url) {
             return None;
         }
-        let provider = self.iap_token_provider.as_ref()?;
         provider.cached_token()
-    }
-
-    fn targets_iap_protected_origin(url: &reqwest::Url) -> bool {
-        [
-            ChannelState::iap_protected_server_root_url(),
-            ChannelState::iap_protected_rtc_http_url(),
-        ]
-        .into_iter()
-        .flatten()
-        .filter_map(|protected_url| reqwest::Url::parse(protected_url.as_ref()).ok())
-        .any(|protected_url| url.origin() == protected_url.origin())
     }
 
     /// Helper method to determine if the request should include warp-specific headers. The only case
@@ -401,6 +384,16 @@ impl Client {
 
         Ok(Response(result))
     }
+}
+
+fn is_warp_server_origin(url: &reqwest::Url) -> bool {
+    [
+        ChannelState::server_root_url(),
+        ChannelState::rtc_http_url(),
+    ]
+    .iter()
+    .filter_map(|candidate| reqwest::Url::parse(candidate.as_ref()).ok())
+    .any(|candidate| candidate.origin() == url.origin())
 }
 
 impl<'a> RequestBuilder<'a> {
@@ -775,5 +768,29 @@ impl<'c> oauth2::AsyncHttpClient<'c> for Client {
                 .body(response_body)
                 .map_err(oauth2::HttpClientError::Http)
         })
+    }
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+
+    #[test]
+    fn server_and_rtc_origins_match() {
+        // Derive the expected origins from `ChannelState` so the assertion holds
+        // regardless of which channel config the test build resolves to.
+        let server = reqwest::Url::parse(ChannelState::server_root_url().as_ref()).unwrap();
+        assert!(is_warp_server_origin(&server.join("/graphql/v2").unwrap()));
+
+        let rtc = reqwest::Url::parse(ChannelState::rtc_http_url().as_ref()).unwrap();
+        assert!(is_warp_server_origin(
+            &rtc.join("/api/v1/agent/events/stream").unwrap()
+        ));
+    }
+
+    #[test]
+    fn third_party_origin_does_not_match() {
+        let url = reqwest::Url::parse("https://evil.example.com/graphql/v2").unwrap();
+        assert!(!is_warp_server_origin(&url));
     }
 }

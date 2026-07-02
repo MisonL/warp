@@ -17,7 +17,6 @@ use warpui::{AppContext, Element, EventContext, SingletonEntity};
 
 use crate::ai::AIRequestUsageModel;
 use crate::auth::AuthStateProvider;
-use crate::localization;
 use crate::settings_view::billing_and_usage::billing_cycle_usage_common::{
     aggregate_segments, cost_type_color, format_cost_cents, format_credits,
     render_breakdown_tooltip, render_section_subheader, BarSegment, BillingUsageMouseStates,
@@ -51,11 +50,11 @@ pub enum SourceFilter {
 }
 
 impl SourceFilter {
-    pub fn label_key(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            SourceFilter::All => "settings.billing.source_filter.all",
-            SourceFilter::Local => "settings.billing.source_filter.local",
-            SourceFilter::Cloud => "settings.billing.source_filter.cloud",
+            SourceFilter::All => "All",
+            SourceFilter::Local => "Local",
+            SourceFilter::Cloud => "Cloud",
         }
     }
 
@@ -91,7 +90,7 @@ fn viewer_identity(app: &AppContext) -> (Option<String>, String) {
         .display_name()
         .or_else(|| auth_state.username_for_display())
         .or_else(|| auth_state.user_email())
-        .unwrap_or_else(|| localization::text_for_app(app, "settings.billing.usage.your_usage"));
+        .unwrap_or_else(|| "Your usage".to_string());
     (viewer_uid, display_name)
 }
 
@@ -164,7 +163,7 @@ impl MemberUsageRow {
 
     /// Synthetic "Other members" aggregate row used by TeamAggregate
     /// visibility — represents everyone except the viewer.
-    fn for_other_members(entries: &[BillingCycleUsageEntry], app: &AppContext) -> Self {
+    fn for_other_members(entries: &[BillingCycleUsageEntry]) -> Self {
         let team_entries = entries
             .iter()
             .filter(|e| e.subject_type == AiCreditsUsageAndCostSubjectType::Team);
@@ -174,7 +173,7 @@ impl MemberUsageRow {
             subject_type: AiCreditsUsageAndCostSubjectType::Team,
             subject_key: OTHER_MEMBERS_KEY.to_string(),
             subject_uid: None,
-            display_name: localization::text_for_app(app, "settings.billing.usage.other_members"),
+            display_name: "Other members".to_string(),
             total_credits,
             total_cost_cents,
             segments,
@@ -190,7 +189,6 @@ impl MemberUsageRow {
         entries: &[BillingCycleUsageEntry],
         members: &[WorkspaceMember],
         source_filter: SourceFilter,
-        app: &AppContext,
     ) -> Vec<Self> {
         // Group entries by subject for joining against the member list below.
         let mut grouped: HashMap<String, GroupedSubjectUsage> = HashMap::new();
@@ -213,9 +211,10 @@ impl MemberUsageRow {
             };
             let group = grouped.entry(key).or_insert_with(|| GroupedSubjectUsage {
                 subject_type: entry.subject_type.clone(),
-                display_name: entry.subject_display_name.clone().unwrap_or_else(|| {
-                    localization::text_for_app(app, "settings.billing.value.unknown")
-                }),
+                display_name: entry
+                    .subject_display_name
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".to_string()),
                 entries: Vec::new(),
             });
             group.entries.push(entry.clone());
@@ -309,11 +308,11 @@ fn build_rows(
                 display_name,
                 SourceFilter::All,
             )];
-            rows.push(MemberUsageRow::for_other_members(entries, app));
+            rows.push(MemberUsageRow::for_other_members(entries));
             rows
         }
         UsageVisibilityGranularity::PerUserTotals | UsageVisibilityGranularity::FullBreakdown => {
-            MemberUsageRow::for_each_member(entries, &workspace.members, source_filter, app)
+            MemberUsageRow::for_each_member(entries, &workspace.members, source_filter)
         }
     };
 
@@ -418,29 +417,21 @@ fn render_stacked_bar(
 }
 
 /// Per-cost-type tooltip breakdown with a "Total usage" footer.
-fn render_usage_tooltip_content(
-    row: &MemberUsageRow,
-    appearance: &Appearance,
-    app: &AppContext,
-) -> Box<dyn Element> {
+fn render_usage_tooltip_content(row: &MemberUsageRow, appearance: &Appearance) -> Box<dyn Element> {
     render_breakdown_tooltip(
         &row.segments,
         row.total_credits,
         row.total_cost_cents,
         appearance,
-        app,
     )
 }
 
 /// Small text-only tooltip surfaced on hover of the service-account info
 /// icon. Mirrors the visual treatment of `render_aggregate_legend_tooltip`.
-fn render_service_account_info_tooltip(
-    appearance: &Appearance,
-    app: &AppContext,
-) -> Box<dyn Element> {
+fn render_service_account_info_tooltip(appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
     let text = Text::new_inline(
-        localization::text_for_app(app, "settings.billing.service_account.tooltip"),
+        "This is an automated agent on your team.".to_string(),
         appearance.ui_font_family(),
         12.,
     )
@@ -465,7 +456,6 @@ fn render_row_card(
     team_max_credits: i64,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let card_bg = theme.background().into_solid();
@@ -533,7 +523,7 @@ fn render_row_card(
             stack.add_child(icon);
             if state.is_hovered() {
                 stack.add_positioned_overlay_child(
-                    render_service_account_info_tooltip(appearance, app),
+                    render_service_account_info_tooltip(appearance),
                     OffsetPositioning::offset_from_parent(
                         vec2f(0., -TOOLTIP_GAP),
                         ParentOffsetBounds::WindowByPosition,
@@ -624,11 +614,10 @@ fn render_member_row(
     tooltip_mouse_state: MouseStateHandle,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     // No segments => no tooltip needed.
     if row.segments.is_empty() {
-        return render_row_card(row, team_max_credits, mouse_states, appearance, app);
+        return render_row_card(row, team_max_credits, mouse_states, appearance);
     }
 
     // The info icon sits inside the row card, so hovering it would otherwise
@@ -648,7 +637,6 @@ fn render_member_row(
             team_max_credits,
             mouse_states,
             appearance,
-            app,
         ));
 
         let info_hovered = info_state
@@ -657,7 +645,7 @@ fn render_member_row(
 
         if state.is_hovered() && !info_hovered {
             stack.add_positioned_overlay_child(
-                render_usage_tooltip_content(row, appearance, app),
+                render_usage_tooltip_content(row, appearance),
                 OffsetPositioning::offset_from_parent(
                     vec2f(0., -TOOLTIP_GAP),
                     ParentOffsetBounds::WindowByPosition,
@@ -679,7 +667,6 @@ fn render_source_filter_toggle(
     current: SourceFilter,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
-    app: &AppContext,
     on_change: FilterChangeFn,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -698,7 +685,7 @@ fn render_source_filter_toggle(
         .with_main_axis_size(MainAxisSize::Min);
 
     for (filter, mouse_state) in options {
-        let label = localization::text_for_app(app, filter.label_key());
+        let label = filter.label();
         let is_selected = filter == current;
         let fg = if is_selected { main } else { sub };
         let font_family = appearance.ui_font_family();
@@ -745,7 +732,7 @@ pub fn render_own_usage_with_workspace_row(
         display_name,
         SourceFilter::All,
     );
-    render_member_row_list(std::slice::from_ref(&row), mouse_states, appearance, app)
+    render_member_row_list(std::slice::from_ref(&row), mouse_states, appearance)
 }
 
 pub fn render_own_usage_solo_row(
@@ -760,7 +747,7 @@ pub fn render_own_usage_solo_row(
         display_name,
         model.requests_used() as i64,
     );
-    render_member_row_list(std::slice::from_ref(&row), mouse_states, appearance, app)
+    render_member_row_list(std::slice::from_ref(&row), mouse_states, appearance)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -790,7 +777,7 @@ pub fn render_rows(
     ) {
         column.add_child(header);
     }
-    column.add_child(render_member_row_list(&rows, mouse_states, appearance, app));
+    column.add_child(render_member_row_list(&rows, mouse_states, appearance));
     column.finish()
 }
 
@@ -807,7 +794,7 @@ fn render_member_header(
         && has_cloud_usage(entries);
 
     let subheader = render_section_subheader(
-        &localization::text_for_app(app, "settings.billing.usage.members"),
+        &crate::localization::text_for_app(app, "settings.billing.usage.members"),
         appearance,
     );
     let header = if show_toggle {
@@ -820,7 +807,6 @@ fn render_member_header(
                 source_filter,
                 mouse_states,
                 appearance,
-                app,
                 on_filter_change,
             ))
             .finish()
@@ -835,7 +821,6 @@ fn render_member_row_list(
     rows: &[MemberUsageRow],
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let mut column = Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -848,7 +833,6 @@ fn render_member_row_list(
             tooltip_state,
             mouse_states,
             appearance,
-            app,
         ));
     }
     column.finish()

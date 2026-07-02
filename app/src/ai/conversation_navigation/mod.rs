@@ -7,7 +7,6 @@ use warpui::{AppContext, EntityId, SingletonEntity, WindowId};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
-use crate::localization;
 use crate::terminal::view::blocklist_filter;
 use crate::undo_close::UndoCloseStack;
 use crate::workspace::{PaneViewLocator, WorkspaceRegistry};
@@ -63,7 +62,6 @@ impl Ord for ConversationNavigationData {
 impl ConversationNavigationData {
     #[allow(clippy::too_many_arguments)]
     pub fn from_ai_conversation(
-        app: &AppContext,
         conversation: &AIConversation,
         terminal_view_id: Option<EntityId>,
         window_id: Option<WindowId>,
@@ -76,7 +74,7 @@ impl ConversationNavigationData {
         let initial_query = conversation.initial_query();
         let title = conversation
             .title()
-            .unwrap_or_else(|| localization::text_for_app(app, "workspace.conversation.untitled"));
+            .unwrap_or_else(|| "Untitled conversation".to_string());
         let last_updated = conversation
             .latest_exchange()
             .map(|exchange| exchange.start_time)
@@ -99,17 +97,10 @@ impl ConversationNavigationData {
         }
     }
 
-    pub fn from_historical_conversation_metadata(
-        app: &AppContext,
-        metadata: &AIConversationMetadata,
-    ) -> Self {
+    pub fn from_historical_conversation_metadata(metadata: &AIConversationMetadata) -> Self {
         Self {
             id: metadata.id,
-            title: if metadata.title.is_empty() {
-                localization::text_for_app(app, "workspace.conversation.untitled")
-            } else {
-                metadata.title.clone()
-            },
+            title: metadata.title.clone(),
             initial_query: Some(metadata.initial_query.clone()),
             last_updated: chrono::Local.from_utc_datetime(&metadata.last_modified_at),
             terminal_view_id: None,
@@ -235,7 +226,6 @@ impl ConversationNavigationData {
 
                             all_conversations.push(
                                 ConversationNavigationData::from_ai_conversation(
-                                    app,
                                     conversation,
                                     Some(terminal_view_id),
                                     Some(window_id),
@@ -279,7 +269,6 @@ impl ConversationNavigationData {
                 {
                     all_conversation_ids.insert(conversation.id());
                     all_conversations.push(ConversationNavigationData::from_ai_conversation(
-                        app,
                         conversation,
                         None,
                         None,
@@ -309,7 +298,6 @@ impl ConversationNavigationData {
                 if !all_conversation_ids.contains(&conversation.id()) {
                     all_conversation_ids.insert(conversation.id());
                     all_conversations.push(ConversationNavigationData::from_ai_conversation(
-                        app,
                         conversation,
                         None,
                         None,
@@ -346,9 +334,7 @@ impl ConversationNavigationData {
             .get_local_conversations_metadata()
             .for_each(|metadata| {
                 let conversation =
-                    ConversationNavigationData::from_historical_conversation_metadata(
-                        app, metadata,
-                    );
+                    ConversationNavigationData::from_historical_conversation_metadata(metadata);
                 if !conversation_ids.contains(&conversation.id()) {
                     conversation_ids.insert(conversation.id());
                     conversations.push(conversation);

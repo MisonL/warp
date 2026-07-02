@@ -29,6 +29,7 @@ const PRIMARY_BUTTON_HEIGHT: f32 = 40.;
 const SECTION_UNIFORM_PADDING: f32 = 16.;
 const MARGIN_BETWEEN_MODAL_SECTIONS: f32 = 16.;
 const MODAL_CONTENT_FONT_SIZE: f32 = 14.;
+const RESTORE_DEFAULT_LABEL: &str = "Restore default";
 
 /// Mouse state handles for interactive controls in chip editor sections and modals.
 #[derive(Default)]
@@ -89,7 +90,6 @@ pub fn render_chip_editor_modal<A: Action + Clone + Copy + 'static>(
                     mouse_handles: config.mouse_handles,
                 },
                 appearance,
-                app,
             ))
             .with_margin_bottom(MARGIN_BETWEEN_MODAL_SECTIONS)
             .finish(),
@@ -143,15 +143,11 @@ fn render_restore_default_button<A: Action + Clone + Copy + 'static>(
     reset_action: A,
     mouse_handle: &MouseStateHandle,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let button = Hoverable::new(mouse_handle.clone(), |_state| {
         appearance
             .ui_builder()
-            .span(localization::text_for_app(
-                app,
-                "prompt.editor.restore_default",
-            ))
+            .span(RESTORE_DEFAULT_LABEL.to_string())
             .with_style(UiComponentStyles {
                 font_size: Some(MODAL_CONTENT_FONT_SIZE),
                 ..Default::default()
@@ -187,7 +183,6 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
     chip_configurator: &ChipConfigurator,
     config: ChipEditorSectionsConfig<A>,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let header_row = Flex::row()
         .with_child(render_section_label(
@@ -199,7 +194,6 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
             config.reset_action,
             &config.mouse_handles.restore_default,
             appearance,
-            app,
         ))
         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .with_main_axis_size(MainAxisSize::Max)
@@ -209,20 +203,15 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
         config.activate_action,
         config.chip_action_wrapper,
         appearance,
-        app,
     );
 
     let left_section = Flex::column()
-        .with_child(render_section_label(
-            &localization::text_for_app(app, "chip_configurator.left_side"),
-            appearance,
-        ))
+        .with_child(render_section_label("Left side", appearance))
         .with_child(
             Container::new(chip_configurator.render_left_drop_zone(
                 config.activate_action,
                 config.chip_action_wrapper,
                 appearance,
-                app,
             ))
             .with_margin_top(8.)
             .finish(),
@@ -230,16 +219,12 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
         .finish();
 
     let right_section = Flex::column()
-        .with_child(render_section_label(
-            &localization::text_for_app(app, "chip_configurator.right_side"),
-            appearance,
-        ))
+        .with_child(render_section_label("Right side", appearance))
         .with_child(
             Container::new(chip_configurator.render_right_drop_zone(
                 config.activate_action,
                 config.chip_action_wrapper,
                 appearance,
-                app,
             ))
             .with_margin_top(8.)
             .finish(),
@@ -310,7 +295,7 @@ fn render_buttons<A: Action + Clone + Copy + 'static>(
     app: &AppContext,
 ) -> Box<dyn Element> {
     let cancel_button = render_primary_button(
-        localization::text_for_app(app, "settings.action.cancel"),
+        localization::text_for_app(app, "prompt.editor.cancel"),
         ButtonVariant::Outlined,
         false,
         &config.mouse_handles.cancel,

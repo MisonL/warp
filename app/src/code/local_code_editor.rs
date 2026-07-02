@@ -68,7 +68,7 @@ use crate::code::{SaveOutcome, ShowFindReferencesCardProvider};
 use crate::code_review::comments::CommentId;
 use crate::localization;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
-use crate::settings::AISettings;
+use crate::settings::{AISettings, CodeSettings};
 use crate::terminal::TerminalView;
 use crate::workspace::WorkspaceAction;
 
@@ -993,6 +993,14 @@ impl LocalCodeEditorView {
     }
 
     fn format_and_save(&mut self, file_id: FileId, ctx: &mut ViewContext<Self>) {
+        // Respect the user's format-on-save setting. When disabled, save without
+        // requesting LSP document formatting; all other LSP features (hover,
+        // go-to-definition, references, diagnostics) are unaffected.
+        if !*CodeSettings::as_ref(ctx).format_on_save {
+            self.perform_save(file_id, ctx);
+            return;
+        }
+
         let Some(lsp_server) = &self.lsp_server else {
             self.perform_save(file_id, ctx);
             return;
@@ -1511,7 +1519,6 @@ impl LocalCodeEditorView {
             if event.file_id() != file_id {
                 return;
             }
-            me.update_diff_hunk_gutter_buttons(ctx);
             match event {
                 GlobalBufferModelEvent::BufferLoaded {
                     content_version, ..
@@ -1523,13 +1530,13 @@ impl LocalCodeEditorView {
                     if me.base_content_version.is_some() {
                         me.base_content_version = Some(*content_version);
                         ctx.notify();
-                        return;
+                    } else {
+                        me.base_content_version = Some(*content_version);
+                        me.subscribe_to_lsp_manager_updates(ctx);
+                        me.try_connect_lsp_server(ctx);
+                        me.on_file_loaded(ctx);
+                        ctx.emit(LocalCodeEditorEvent::FileLoaded);
                     }
-                    me.base_content_version = Some(*content_version);
-                    me.subscribe_to_lsp_manager_updates(ctx);
-                    me.try_connect_lsp_server(ctx);
-                    me.on_file_loaded(ctx);
-                    ctx.emit(LocalCodeEditorEvent::FileLoaded);
                 }
                 GlobalBufferModelEvent::FailedToLoad { error, .. } => {
                     me.is_new_file = true;
@@ -1549,7 +1556,10 @@ impl LocalCodeEditorView {
                         me.base_content_version = Some(*content_version);
                     }
                 }
-                GlobalBufferModelEvent::FileSaved { .. } => {
+                GlobalBufferModelEvent::FileSaved {
+                    content_version, ..
+                } => {
+                    me.base_content_version = Some(*content_version);
                     me.has_remote_conflict = false;
                     ctx.emit(LocalCodeEditorEvent::FileSaved);
                 }
@@ -1567,6 +1577,8 @@ impl LocalCodeEditorView {
                     // Not relevant for local code editors.
                 }
             }
+
+            me.update_diff_hunk_gutter_buttons(ctx);
         });
     }
 
@@ -1834,7 +1846,7 @@ impl LocalCodeEditorView {
                         Shrinkable::new(
                             1.,
                             Text::new_inline(
-                                text(app, "code.selection_tooltip.add_as_context"),
+                                "Add as context",
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )
@@ -1949,12 +1961,15 @@ impl LocalCodeEditorView {
     }
 
     /// Creates menu items for the context menu
-    fn context_menu_items(&self, app: &AppContext) -> Vec<MenuItem<LocalCodeEditorAction>> {
+    fn context_menu_items(&self, ctx: &ViewContext<Self>) -> Vec<MenuItem<LocalCodeEditorAction>> {
         vec![
-            MenuItemFields::new(text(app, "code.menu.go_to_definition"))
-                .with_on_select_action(LocalCodeEditorAction::GotoDefinition)
-                .into_item(),
-            MenuItemFields::new(text(app, "code.menu.find_references"))
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "code.menu.go_to_definition",
+            ))
+            .with_on_select_action(LocalCodeEditorAction::GotoDefinition)
+            .into_item(),
+            MenuItemFields::new(localization::text_for_app(ctx, "code.menu.find_references"))
                 .with_on_select_action(LocalCodeEditorAction::FindReferences)
                 .into_item(),
         ]
@@ -2168,13 +2183,13 @@ impl View for LocalCodeEditorView {
                 let appearance = Appearance::as_ref(app);
                 let banner = render_unsaved_changes_banner(
                     appearance,
+                    app,
                     self.conflict_banner_mouse_states
                         .discard_mouse_state
                         .clone(),
                     self.conflict_banner_mouse_states
                         .overwrite_mouse_state
                         .clone(),
-                    app,
                 );
                 let mut col = Flex::column().with_child(banner);
 
@@ -2362,9 +2377,9 @@ impl TypedActionView for LocalCodeEditorView {
 /// Renders a banner warning that the file has saved changes not reflected in the diff
 pub fn render_unsaved_changes_banner(
     appearance: &Appearance,
+    app: &AppContext,
     discard_mouse_state: MouseStateHandle,
     overwrite_mouse_state: MouseStateHandle,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let left = Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -2386,7 +2401,7 @@ pub fn render_unsaved_changes_banner(
             Shrinkable::new(
                 1.,
                 Text::new(
-                    text(app, "code.saved_changes_notice"),
+                    localization::text_for_app(app, "code.saved_changes_notice"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -2404,7 +2419,10 @@ pub fn render_unsaved_changes_banner(
             appearance
                 .ui_builder()
                 .button(ButtonVariant::Text, discard_mouse_state)
-                .with_text_label(text(app, "code.action.discard_this_version"))
+                .with_text_label(localization::text_for_app(
+                    app,
+                    "code.action.discard_this_version",
+                ))
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -2426,7 +2444,7 @@ pub fn render_unsaved_changes_banner(
                 appearance
                     .ui_builder()
                     .button(ButtonVariant::Outlined, overwrite_mouse_state)
-                    .with_text_label(text(app, "code.action.overwrite"))
+                    .with_text_label(localization::text_for_app(app, "code.action.overwrite"))
                     .with_style(UiComponentStyles {
                         font_color: Some(appearance.theme().active_ui_text_color().into()),
                         ..Default::default()
@@ -2486,7 +2504,7 @@ pub fn render_remote_disconnected_banner(
             Shrinkable::new(
                 1.,
                 Text::new(
-                    text(app, "code.remote_disconnected.banner"),
+                    localization::text_for_app(app, "remote.host.disconnected_save_unavailable"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -2591,8 +2609,4 @@ impl ShowFindReferencesCardProvider for ShowFindReferencesCard {
         let lower_left_in = parent_bounds.contains_point(card_anchor_location.lower_left());
         upper_right_in || lower_left_in
     }
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }

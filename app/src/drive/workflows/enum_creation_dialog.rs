@@ -50,16 +50,6 @@ const SECTION_FONT_SIZE: f32 = 16.;
 const SPAN_FONT_SIZE: f32 = 16.;
 const VARIANT_FONT_SIZE: f32 = 13.;
 
-const CANCEL_BUTTON_KEY: &str = "workflow.enum.action.close";
-const NEW_ENUM_KEY: &str = "workflow.enum.title.new";
-const EXISTING_ENUM_KEY: &str = "workflow.enum.title.edit";
-const NAME_PLACEHOLDER_KEY: &str = "workflow.enum.placeholder.name";
-const CREATE_BUTTON_KEY: &str = "workflow.enum.action.create";
-const SAVE_BUTTON_KEY: &str = "workflow.enum.action.save";
-const VARIANT_PLACEHOLDER_KEY: &str = "workflow.enum.placeholder.variant";
-const STATIC_LABEL_KEY: &str = "workflow.enum.variants.title";
-const DYNAMIC_PLACEHOLDER_KEY: &str = "workflow.enum.placeholder.dynamic_command";
-
 #[derive(Debug, Clone)]
 pub enum EnumCreationDialogAction {
     Close,
@@ -149,20 +139,7 @@ enum EnumType {
     Dynamic,
 }
 
-impl EnumType {
-    fn translation_key(self) -> &'static str {
-        match self {
-            Self::Static => "workflow.enum.type.static",
-            Self::Dynamic => "workflow.enum.type.dynamic",
-        }
-    }
-}
-
 impl EnumCreationDialog {
-    fn text(app: &AppContext, key: &str) -> String {
-        localization::text_for_app(app, key)
-    }
-
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let name_editor = {
             ctx.add_typed_action_view(|ctx| {
@@ -175,7 +152,10 @@ impl EnumCreationDialog {
                 };
 
                 let mut editor = EditorView::single_line(options, ctx);
-                editor.set_placeholder_text(Self::text(ctx, NAME_PLACEHOLDER_KEY), ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, "workflow.enum.placeholder.name"),
+                    ctx,
+                );
                 editor
             })
         };
@@ -208,7 +188,10 @@ impl EnumCreationDialog {
                 };
 
                 let mut editor = EditorView::new(options, ctx);
-                editor.set_placeholder_text(Self::text(ctx, DYNAMIC_PLACEHOLDER_KEY), ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, "workflow.enum.placeholder.dynamic_command"),
+                    ctx,
+                );
                 editor.set_autogrow(true);
                 editor
             })
@@ -561,7 +544,10 @@ impl EnumCreationDialog {
                 },
                 ctx,
             );
-            editor.set_placeholder_text(Self::text(ctx, VARIANT_PLACEHOLDER_KEY), ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "workflow.enum.placeholder.variant"),
+                ctx,
+            );
             editor
         });
 
@@ -639,14 +625,14 @@ impl EnumCreationDialog {
     }
 
     fn render_dialog_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
-        let text_key = match self.sync_id {
-            Some(_) => EXISTING_ENUM_KEY,
-            None => NEW_ENUM_KEY,
+        let text = match self.sync_id {
+            Some(_) => localization::text_for_app(app, "workflow.enum.title.edit"),
+            None => localization::text_for_app(app, "workflow.enum.title.new"),
         };
 
         appearance
             .ui_builder()
-            .span(Self::text(app, text_key))
+            .span(text)
             .with_style(UiComponentStyles {
                 font_size: Some(SPAN_FONT_SIZE),
                 ..Default::default()
@@ -665,7 +651,15 @@ impl EnumCreationDialog {
                         self.enum_type_options
                             .iter()
                             .map(|arg_type| {
-                                let label = Self::text(app, arg_type.translation_key());
+                                let label = match arg_type {
+                                    EnumType::Static => {
+                                        localization::text_for_app(app, "workflow.enum.type.static")
+                                    }
+                                    EnumType::Dynamic => localization::text_for_app(
+                                        app,
+                                        "workflow.enum.type.dynamic",
+                                    ),
+                                };
                                 ToggleMenuItem::new(label)
                             })
                             .collect(),
@@ -841,7 +835,10 @@ impl EnumCreationDialog {
                 1.,
                 appearance
                     .ui_builder()
-                    .span(Self::text(app, STATIC_LABEL_KEY))
+                    .span(localization::text_for_app(
+                        app,
+                        "workflow.enum.variants.title",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(SECTION_FONT_SIZE),
                         ..Default::default()
@@ -881,9 +878,9 @@ impl EnumCreationDialog {
 
     fn render_footer_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let disable_save = self.should_disable_save(app);
-        let save_button_label_key = match self.sync_id {
-            None => CREATE_BUTTON_KEY,
-            Some(_) => SAVE_BUTTON_KEY,
+        let save_button_label = match self.sync_id {
+            None => localization::text_for_app(app, "workflow.enum.action.create"),
+            Some(_) => localization::text_for_app(app, "workflow.enum.action.save"),
         };
 
         Flex::row()
@@ -897,7 +894,7 @@ impl EnumCreationDialog {
                                 .cancel_button_mouse_state_handle
                                 .clone(),
                             EnumCreationDialogAction::Close,
-                            Self::text(app, CANCEL_BUTTON_KEY),
+                            localization::text_for_app(app, "workflow.enum.action.close"),
                             false,
                             false,
                         ),
@@ -916,7 +913,7 @@ impl EnumCreationDialog {
                             .save_button_mouse_state_handle
                             .clone(),
                         EnumCreationDialogAction::SaveEnum,
-                        Self::text(app, save_button_label_key),
+                        save_button_label,
                         true,
                         disable_save,
                     ),

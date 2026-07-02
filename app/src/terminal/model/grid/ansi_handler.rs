@@ -156,9 +156,7 @@ enum ResetGridChecks {
 
 impl ansi::Handler for GridHandler {
     fn set_title(&mut self, _: Option<String>) {
-        log::error!(
-            "Handler method GridHandler::set_title should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method GridHandler::set_title should never be called. This should be handled by TerminalModel.");
     }
 
     fn set_cursor_style(&mut self, style: Option<ansi::CursorStyle>) {
@@ -1139,21 +1137,15 @@ impl ansi::Handler for GridHandler {
     }
 
     fn set_color(&mut self, _: usize, _: warpui::color::ColorU) {
-        log::error!(
-            "Handler method GridHandler::set_color should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method GridHandler::set_color should never be called. This should be handled by TerminalModel.");
     }
 
     fn dynamic_color_sequence<W: std::io::Write>(&mut self, _: &mut W, _: u8, _: usize, _: &str) {
-        log::error!(
-            "Handler method GridHandler::dynamic_color_sequence should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method GridHandler::dynamic_color_sequence should never be called. This should be handled by TerminalModel.");
     }
 
     fn reset_color(&mut self, _: usize) {
-        log::error!(
-            "Handler method GridHandler::reset_color should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method GridHandler::reset_color should never be called. This should be handled by TerminalModel.");
     }
 
     fn clipboard_store(&mut self, clipboard: u8, base64: &[u8]) {
@@ -1202,15 +1194,11 @@ impl ansi::Handler for GridHandler {
     }
 
     fn push_title(&mut self) {
-        log::error!(
-            "Handler method GridHandler::push_title should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method GridHandler::push_title should never be called. This should be handled by TerminalModel.");
     }
 
     fn pop_title(&mut self) {
-        log::error!(
-            "Handler method GridHandler::pop_title should never be called. This should be handled by TerminalModel."
-        );
+        log::error!("Handler method GridHandler::pop_title should never be called. This should be handled by TerminalModel.");
     }
 
     fn text_area_size_pixels<W: std::io::Write>(&mut self, writer: &mut W) {
@@ -1376,7 +1364,7 @@ impl ansi::Handler for GridHandler {
             (scroll_right_px / (self.ansi_handler_state.cell_width as f32)).ceil() as usize;
 
         let image_id = image.metadata.id;
-        let placement_id = rand::thread_rng().r#gen();
+        let placement_id = rand::thread_rng().gen();
 
         self.ansi_handler_state
             .event_proxy
@@ -1769,7 +1757,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into());
+                        .into())
                     }
                 };
 
@@ -1792,7 +1780,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into());
+                        .into())
                     }
                 };
 
@@ -1894,7 +1882,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into());
+                        .into())
                     }
                 };
 

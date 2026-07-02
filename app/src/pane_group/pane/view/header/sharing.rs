@@ -14,14 +14,11 @@ use warpui::{AppContext, Element, ViewContext, ViewHandle};
 use super::{Event, OpenOverlay, PaneHeader, PaneHeaderAction};
 use crate::drive::sharing::dialog::{SharingDialog, SharingDialogEvent};
 use crate::drive::sharing::{ContentEditability, ShareableObject};
+use crate::localization;
 use crate::pane_group::BackingView;
 use crate::server::telemetry::SharingDialogSource;
 use crate::ui_components::buttons::{icon_button, icon_button_with_color};
 use crate::ui_components::icons::Icon;
-
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
 
 /// Pane header component for sharing the pane contents.
 pub struct SharedPaneContent {
@@ -195,19 +192,22 @@ impl<P: BackingView> PaneHeader<P> {
                 (
                     Icon::Share,
                     false,
-                    text(app, "pane.header.sharing.unsharable_conversation_tooltip"),
+                    localization::text_for_app(
+                        app,
+                        "pane.header.sharing.unsharable_conversation_tooltip",
+                    ),
                 )
             } else if editability.can_edit() {
                 (
                     Icon::Share,
                     self.open_overlay == OpenOverlay::SharingDialog,
-                    text(app, "pane.header.sharing.share"),
+                    localization::text_for_app(app, "pane.header.sharing.share"),
                 )
             } else {
                 (
                     Icon::Link,
                     false,
-                    text(app, "pane.header.sharing.copy_link"),
+                    localization::text_for_app(app, "pane.header.sharing.copy_link"),
                 )
             };
 
@@ -262,11 +262,10 @@ impl<P: BackingView> PaneHeader<P> {
         element.add_child(primary_button);
 
         if !editability.can_edit() {
-            let tooltip_text = if matches!(editability, ContentEditability::RequiresLogin) {
-                text(app, "pane.header.sharing.read_only_sign_in")
-            } else {
-                text(app, "pane.header.sharing.read_only")
-            };
+            let mut tooltip_text = String::from("Read-only");
+            if matches!(editability, ContentEditability::RequiresLogin) {
+                tooltip_text.push_str(". Sign in to edit");
+            }
 
             let ui_builder = appearance.ui_builder().clone();
             let view_only_button = if let Some(icon_color) = icon_color_override {

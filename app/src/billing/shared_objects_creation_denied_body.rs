@@ -42,33 +42,6 @@ pub enum SharedObjectsCreationDeniedBodyEvent {
     ManageBilling,
 }
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with(app: &AppContext, key: &str, replacements: &[(&str, &str)]) -> String {
-    replacements
-        .iter()
-        .fold(text(app, key), |message, (placeholder, value)| {
-            message.replace(placeholder, value)
-        })
-}
-
-fn object_type_label(app: &AppContext, object_type: DriveObjectType) -> String {
-    let key = match object_type {
-        DriveObjectType::Notebook { .. } => "drive.object.lower.notebooks",
-        DriveObjectType::Workflow => "drive.object.lower.workflows",
-        DriveObjectType::Folder => "drive.object.lower.folders",
-        DriveObjectType::EnvVarCollection => "drive.object.lower.environment_variables",
-        DriveObjectType::AgentModeWorkflow => "drive.object.lower.agent_workflows",
-        DriveObjectType::AIFact => "drive.object.lower.ai_fact",
-        DriveObjectType::AIFactCollection => "drive.object.lower.rules",
-        DriveObjectType::MCPServer => "drive.object.lower.mcp_server",
-        DriveObjectType::MCPServerCollection => "drive.object.lower.mcp_servers",
-    };
-    text(app, key)
-}
-
 impl SharedObjectsCreationDeniedBody {
     pub fn new(object_type: Option<DriveObjectType>) -> Self {
         Self {
@@ -108,111 +81,38 @@ impl View for SharedObjectsCreationDeniedBody {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let is_stripe_paid_plan = BillingMetadata::is_stripe_paid_plan(self.customer_type);
-
-        let shared_object_type = self
+        let object_type = self
             .object_type
-            .map(|object_type| object_type_label(app, object_type))
-            .unwrap_or_else(|| text(app, "drive.object.lower.drive_objects"));
+            .map(|object_type| shared_object_type_label(object_type, app))
+            .unwrap_or_else(|| localization::text_for_app(app, "drive.object.lower.drive_objects"));
 
-        let sub_header = match self.object_type {
-            Some(object_type) => {
-                let object_type = object_type_label(app, object_type);
-                match (
-                    self.is_delinquent_due_to_payment_issue,
-                    self.has_admin_permissions,
-                    self.customer_type,
-                ) {
-                    (true, true, _) => {
-                        if is_stripe_paid_plan {
-                            text_with(
-                                app,
-                                "drive.shared_objects_limit.description.delinquent.admin",
-                                &[("{object_type}", &object_type)],
-                            )
-                        } else {
-                            text_with(
-                                app,
-                                "drive.shared_objects_limit.description.delinquent.enterprise_admin",
-                                &[("{object_type}", &object_type)],
-                            )
-                        }
-                    }
-                    (true, false, _) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.delinquent.member",
-                        &[("{object_type}", &object_type)],
-                    ),
-                    (false, true, CustomerType::Prosumer) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.prosumer.admin",
-                        &[("{object_type}", &object_type)],
-                    ),
-                    (false, false, CustomerType::Prosumer) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.prosumer.member",
-                        &[("{object_type}", &object_type)],
-                    ),
-                    (false, true, _) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.free.admin",
-                        &[("{object_type}", &object_type)],
-                    ),
-                    (false, false, _) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.free.member",
-                        &[("{object_type}", &object_type)],
-                    ),
+        let sub_header_key = match (
+            self.is_delinquent_due_to_payment_issue,
+            self.has_admin_permissions,
+            self.customer_type,
+        ) {
+            (true, true, _) => {
+                if is_stripe_paid_plan {
+                    "drive.shared_objects_limit.description.delinquent.admin"
+                } else {
+                    "drive.shared_objects_limit.description.delinquent.enterprise_admin"
                 }
             }
-            _ => {
-                match (
-                    self.is_delinquent_due_to_payment_issue,
-                    self.has_admin_permissions,
-                    self.customer_type,
-                ) {
-                    (true, true, _) => {
-                        if is_stripe_paid_plan {
-                            text_with(
-                                app,
-                                "drive.shared_objects_limit.description.delinquent.admin",
-                                &[("{object_type}", &shared_object_type)],
-                            )
-                        } else {
-                            text_with(
-                                app,
-                                "drive.shared_objects_limit.description.delinquent.enterprise_admin",
-                                &[("{object_type}", &shared_object_type)],
-                            )
-                        }
-                    }
-                    (true, false, _) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.delinquent.member",
-                        &[("{object_type}", &shared_object_type)],
-                    ),
-                    (false, true, CustomerType::Prosumer) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.prosumer.admin",
-                        &[("{object_type}", &shared_object_type)],
-                    ),
-                    (false, false, CustomerType::Prosumer) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.prosumer.member",
-                        &[("{object_type}", &shared_object_type)],
-                    ),
-                    (false, true, _) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.free.admin",
-                        &[("{object_type}", &shared_object_type)],
-                    ),
-                    (false, false, _) => text_with(
-                        app,
-                        "drive.shared_objects_limit.description.free.member",
-                        &[("{object_type}", &shared_object_type)],
-                    ),
-                }
+            (true, false, _) => "drive.shared_objects_limit.description.delinquent.member",
+            (false, true, CustomerType::Prosumer) => {
+                "drive.shared_objects_limit.description.prosumer.admin"
             }
+            (false, false, CustomerType::Prosumer) => {
+                "drive.shared_objects_limit.description.prosumer.member"
+            }
+            (false, true, _) => "drive.shared_objects_limit.description.free.admin",
+            (false, false, _) => "drive.shared_objects_limit.description.free.member",
         };
+        let sub_header = localization::text_for_app_with_args(
+            app,
+            sub_header_key,
+            &[("object_type", &object_type)],
+        );
 
         let mut body = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -247,7 +147,7 @@ impl View for SharedObjectsCreationDeniedBody {
                                 0.5,
                                 self.render_button(
                                     appearance,
-                                    text(app, "drive.action.manage_billing"),
+                                    localization::text_for_app(app, "drive.action.manage_billing"),
                                     self.button_mouse_states.button_mouse_state.clone(),
                                     SharedObjectsCreationDeniedBodyAction::ManageBilling,
                                 ),
@@ -269,7 +169,7 @@ impl View for SharedObjectsCreationDeniedBody {
                                 0.5,
                                 self.render_button(
                                     appearance,
-                                    text(app, "drive.action.compare_plans"),
+                                    localization::text_for_app(app, "drive.action.compare_plans"),
                                     self.button_mouse_states.button_mouse_state.clone(),
                                     SharedObjectsCreationDeniedBodyAction::Upgrade,
                                 ),
@@ -286,6 +186,21 @@ impl View for SharedObjectsCreationDeniedBody {
 
         body.finish()
     }
+}
+
+fn shared_object_type_label(object_type: DriveObjectType, app: &AppContext) -> String {
+    let key = match object_type {
+        DriveObjectType::Notebook { .. } => "drive.object.lower.notebooks",
+        DriveObjectType::Folder => "drive.object.lower.folders",
+        DriveObjectType::EnvVarCollection => "drive.object.lower.environment_variables",
+        DriveObjectType::Workflow => "drive.object.lower.workflows",
+        DriveObjectType::AgentModeWorkflow => "drive.object.lower.agent_workflows",
+        DriveObjectType::AIFact => "drive.object.lower.ai_fact",
+        DriveObjectType::AIFactCollection => "drive.object.lower.rules",
+        DriveObjectType::MCPServer => "drive.object.lower.mcp_server",
+        DriveObjectType::MCPServerCollection => "drive.object.lower.mcp_servers",
+    };
+    localization::text_for_app(app, key)
 }
 
 impl SharedObjectsCreationDeniedBody {

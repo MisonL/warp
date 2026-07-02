@@ -7,7 +7,6 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use crate::appearance::Appearance;
 use crate::auth::UserUid;
-use crate::localization;
 use crate::server::ids::ServerId;
 
 pub struct TransferOwnershipConfirmationModal {
@@ -52,8 +51,10 @@ impl View for TransferOwnershipConfirmationModal {
         let email = self.new_owner_email.as_deref().unwrap_or_default();
 
         let description_text = Text::new(
-            localization::text_for_app(app, "settings.transfer_ownership.description")
-                .replace("{email}", email),
+            format!(
+                "Are you sure you want to transfer team ownership to {}? You will no longer be the owner and will not be able to take any administrative actions for this team.",
+                email
+            ),
             appearance.ui_font_family(),
             14.,
         )
@@ -72,7 +73,10 @@ impl View for TransferOwnershipConfirmationModal {
                 appearance
                     .ui_builder()
                     .button(ButtonVariant::Secondary, self.cancel_mouse_state.clone())
-                    .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
+                    .with_text_label(crate::localization::text_for_app(
+                        app,
+                        "settings.action.cancel",
+                    ))
                     .with_style(button_style)
                     .build()
                     .on_click(|ctx, _, _| {
@@ -85,7 +89,7 @@ impl View for TransferOwnershipConfirmationModal {
                     appearance
                         .ui_builder()
                         .button(ButtonVariant::Accent, self.confirm_mouse_state.clone())
-                        .with_text_label(localization::text_for_app(
+                        .with_text_label(crate::localization::text_for_app(
                             app,
                             "settings.transfer_ownership.transfer",
                         ))

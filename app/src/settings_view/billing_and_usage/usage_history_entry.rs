@@ -43,7 +43,7 @@ impl UsageHistoryEntry {
     pub fn render(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let mut res = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(self.render_header(appearance, app));
+            .with_child(self.render_header(appearance));
 
         if let Some(entry) = &self.entry {
             if self.is_expanded {
@@ -76,7 +76,7 @@ impl UsageHistoryEntry {
             .finish()
     }
 
-    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let Some(entry) = &self.entry else {
             return self.render_loading_entry(appearance);
         };
@@ -111,7 +111,7 @@ impl UsageHistoryEntry {
         let total_credits =
             entry.usage_metadata.credits_spent + entry.usage_metadata.platform_credits_spent;
         let credits_spent = Text::new_inline(
-            format_credits(app, total_credits as f32),
+            format_credits(total_credits as f32),
             appearance.ui_font_family(),
             14.,
         )

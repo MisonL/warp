@@ -1,7 +1,6 @@
 use pathfinder_color::ColorU;
 use warpui::elements::{
-    Align, ConstrainedBox, Container, CrossAxisAlignment, Flex, HighlightedHyperlink,
-    MouseStateHandle, ParentElement, Shrinkable,
+    Align, Container, CrossAxisAlignment, Flex, MouseStateHandle, ParentElement, Shrinkable,
 };
 use warpui::fonts::Weight;
 use warpui::keymap::Keystroke;
@@ -9,10 +8,9 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element};
 
-use super::{render_block_banner, BLOCK_BANNER_DESCRIPTION_MAX_HEIGHT};
+use super::render_block_banner;
 use crate::appearance::Appearance;
 use crate::localization;
-use crate::terminal::ssh::warpify::warpify_description;
 use crate::terminal::view::{RememberForWarpification, TerminalAction};
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
@@ -20,44 +18,9 @@ use crate::ui_components::blended_colors;
 const CLOSE_BUTTON_DIAMETER: f32 = 20.0;
 const STANDARD_PADDING: f32 = 8.0;
 
-#[derive(Clone)]
-pub enum WarpificationMode {
-    Ssh {
-        command: String,
-        host: Option<String>,
-        hyperlink_index: HighlightedHyperlink,
-    },
-    Subshell {
-        command: String,
-    },
-}
-
-impl WarpificationMode {
-    pub fn ssh(command: String, host: Option<String>) -> Self {
-        Self::Ssh {
-            command,
-            host,
-            hyperlink_index: Default::default(),
-        }
-    }
-
-    pub fn has_host(&self) -> bool {
-        matches!(self, Self::Ssh { host: Some(_), .. })
-    }
-
-    pub fn subshell(command: String) -> Self {
-        Self::Subshell { command }
-    }
-}
-
-impl WarpificationMode {
-    pub fn is_ssh(&self) -> bool {
-        matches!(self, Self::Ssh { .. })
-    }
-}
-
 pub struct WarpifyBannerState {
-    pub mode: WarpificationMode,
+    /// The subshell command that triggered the banner.
+    pub command: String,
     pub height: f32,
     pub accept_button_mouse_state: MouseStateHandle,
     pub dont_ask_button_mouse_state: MouseStateHandle,
@@ -71,9 +34,9 @@ pub struct WarpifyBannerState {
 }
 
 impl WarpifyBannerState {
-    pub fn new(mode: WarpificationMode, initialize_warpify_keybinding: Option<Keystroke>) -> Self {
+    pub fn new(command: String, initialize_warpify_keybinding: Option<Keystroke>) -> Self {
         Self {
-            mode,
+            command,
             height: 0.0,
             initialize_warpify_keybinding,
             accept_button_mouse_state: Default::default(),
@@ -83,53 +46,19 @@ impl WarpifyBannerState {
         }
     }
 
-    pub fn is_ssh(&self) -> bool {
-        self.mode.is_ssh()
-    }
-
-    pub fn title(&self, app: &AppContext) -> String {
-        match &self.mode {
-            WarpificationMode::Ssh { .. } => localization::text_for_app(
-                app,
-                "terminal.use_agent_footer.action.warpify_ssh_session",
-            ),
-            WarpificationMode::Subshell { .. } => {
-                localization::text_for_app(app, "terminal.use_agent_footer.action.warpify_subshell")
-            }
-        }
+    pub fn title(&self) -> &str {
+        "Warpify subshell"
     }
 
     pub fn action(&self) -> TerminalAction {
-        match &self.mode {
-            WarpificationMode::Ssh { .. } => TerminalAction::WarpifySSHSession,
-            WarpificationMode::Subshell { .. } => TerminalAction::TriggerSubshellBootstrap,
-        }
+        TerminalAction::TriggerSubshellBootstrap
     }
 
     fn remember_for_warpification(&self, should_remember: bool) -> RememberForWarpification {
-        match &self.mode {
-            WarpificationMode::Ssh { command, host, .. } => {
-                let Some(host) = host else {
-                    if should_remember {
-                        return RememberForWarpification::RememberSubshellCommand(
-                            command.to_owned(),
-                        );
-                    }
-                    return RememberForWarpification::DoNotRememberSSHHost;
-                };
-                if should_remember {
-                    RememberForWarpification::RememberSSHHost(host.to_owned())
-                } else {
-                    RememberForWarpification::DoNotRememberSSHHost
-                }
-            }
-            WarpificationMode::Subshell { command } => {
-                if should_remember {
-                    RememberForWarpification::RememberSubshellCommand(command.to_owned())
-                } else {
-                    RememberForWarpification::DoNotRememberSubshellCommand
-                }
-            }
+        if should_remember {
+            RememberForWarpification::RememberSubshellCommand(self.command.to_owned())
+        } else {
+            RememberForWarpification::DoNotRememberSubshellCommand
         }
     }
 }
@@ -147,7 +76,6 @@ pub fn render_warpification_banner(
         &state.initialize_warpify_keybinding,
         &state.accept_button_mouse_state,
         appearance,
-        app,
     );
 
     let remember = state.remember_for_warpification(true);
@@ -160,7 +88,7 @@ pub fn render_warpification_banner(
             )
             .with_text_label(localization::text_for_app(
                 app,
-                "terminal.use_agent_footer.action.dont_show_again",
+                "terminal.warpify_banner.do_not_show_again",
             ))
             .build()
             .on_click(move |ctx, _, _| {
@@ -188,7 +116,7 @@ pub fn render_warpification_banner(
         })
         .finish();
 
-    let mut col = Flex::column()
+    let col = Flex::column()
         .with_child(
             Flex::row()
                 .with_child(Align::new(yes_button).finish())
@@ -202,26 +130,7 @@ pub fn render_warpification_banner(
         .with_cross_axis_alignment(CrossAxisAlignment::Start);
 
     render_block_banner(
-        |hover_state| {
-            if let WarpificationMode::Ssh {
-                hyperlink_index, ..
-            } = &state.mode
-            {
-                let description = Container::new(warpify_description(app, hyperlink_index))
-                    .with_uniform_margin(STANDARD_PADDING)
-                    .with_margin_top(4.)
-                    .finish();
-                let description = if hover_state.is_hovered() {
-                    description
-                } else {
-                    ConstrainedBox::new(description)
-                        .with_max_height(2. * BLOCK_BANNER_DESCRIPTION_MAX_HEIGHT)
-                        .finish()
-                };
-                col.add_child(description);
-            }
-            col.finish()
-        },
+        |_hover_state| col.finish(),
         state.hover_state.clone(),
         appearance.theme(),
     )
@@ -232,12 +141,11 @@ fn render_yes_button(
     initialize_warpification_keybinding: &Option<Keystroke>,
     mouse_state: &MouseStateHandle,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let yes_button = match initialize_warpification_keybinding {
         Some(keystroke) => appearance
             .ui_builder()
-            .keyboard_shortcut_button(state.title(app), keystroke, mouse_state.clone())
+            .keyboard_shortcut_button(state.title().to_owned(), keystroke, mouse_state.clone())
             .with_style(UiComponentStyles {
                 height: Some(36.),
                 padding: Some(Coords {
@@ -251,7 +159,7 @@ fn render_yes_button(
         None => appearance
             .ui_builder()
             .button(ButtonVariant::Basic, mouse_state.clone())
-            .with_text_label(state.title(app))
+            .with_text_label(state.title().to_owned())
             .with_style(UiComponentStyles {
                 background: Some(Fill::Solid(ColorU::transparent_black()).into()),
                 height: Some(36.),

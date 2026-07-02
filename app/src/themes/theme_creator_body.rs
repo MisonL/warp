@@ -36,6 +36,10 @@ const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BORDER_WIDTH: f32 = 1.;
 
+const IMAGE_PICKER_BUTTON_PRE_SELECT_TEXT: &str = "Select an image";
+const IMAGE_PICKER_BUTTON_SELECTING_TEXT: &str = "Selecting image...";
+const IMAGE_PICKER_BUTTON_POST_SELECT_TEXT: &str = "Select a new image";
+
 #[derive(Default)]
 struct MouseStateHandles {
     image_picker_mouse_state: MouseStateHandle,
@@ -74,28 +78,16 @@ pub enum ThemeCreatorImageState {
     Uploaded,
 }
 
-impl ThemeCreatorImageState {
-    fn label(&self, app: &AppContext) -> String {
-        match self {
-            ThemeCreatorImageState::Empty => {
-                localization::text_for_app(app, "settings.theme_creator.select_image")
-            }
-            ThemeCreatorImageState::Uploading => {
-                localization::text_for_app(app, "settings.theme_creator.selecting_image")
-            }
-            ThemeCreatorImageState::Uploaded => {
-                localization::text_for_app(app, "settings.theme_creator.select_new_image")
-            }
-        }
-    }
-}
-
 impl fmt::Display for ThemeCreatorImageState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ThemeCreatorImageState::Empty => write!(f, "empty"),
-            ThemeCreatorImageState::Uploading => write!(f, "uploading"),
-            ThemeCreatorImageState::Uploaded => write!(f, "uploaded"),
+            ThemeCreatorImageState::Empty => write!(f, "{IMAGE_PICKER_BUTTON_PRE_SELECT_TEXT}"),
+            ThemeCreatorImageState::Uploading => {
+                write!(f, "{IMAGE_PICKER_BUTTON_SELECTING_TEXT}")
+            }
+            ThemeCreatorImageState::Uploaded => {
+                write!(f, "{IMAGE_PICKER_BUTTON_POST_SELECT_TEXT}")
+            }
         }
     }
 }
@@ -216,7 +208,7 @@ impl ThemeCreatorBody {
             log::warn!("Tried to save theme without a local filesystem.");
             if errored {
                 self.send_error_toast(
-                    localization::text_for_app(ctx, "settings.theme_creator.error.generic"),
+                    crate::localization::text_for_app(ctx, "settings.theme_creator.error.generic"),
                     ctx,
                 );
             }
@@ -576,7 +568,7 @@ impl View for ThemeCreatorBody {
             Container::new(
                 if let ThemeCreatorImageState::Uploading = self.image_state {
                     image_picker_button
-                        .with_centered_text_label(self.image_state.label(app))
+                        .with_centered_text_label(self.image_state.to_string())
                         .disabled()
                         .build()
                         .finish()
@@ -585,7 +577,7 @@ impl View for ThemeCreatorBody {
                         .with_text_and_icon_label(
                             TextAndIcon::new(
                                 TextAndIconAlignment::TextFirst,
-                                self.image_state.label(app),
+                                self.image_state.to_string(),
                                 Icon::new("bundled/svg/upload-01.svg", ColorU::white()),
                                 MainAxisSize::Max,
                                 MainAxisAlignment::Center,

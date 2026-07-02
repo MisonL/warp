@@ -1,22 +1,23 @@
-为 Warp 实现 dock tile plugin。
+Implements a dock tile plugin for Warp.
 
-该 plugin 用于在应用图标变更时更新 dock tile icon，并允许应用图标变更在应用重启后保持。没有该 plugin 时，应用第一次退出后图标状态会恢复为默认值（不过出于某些原因，第一次退出之后图标状态又会被保留）。
+The plugin is used to update the dock tile icon when the app icon changes and allows for app icon changes to be persisted across app restarts. Without the plugin, the icon state reverts to the default upon the first time the app quits (although for some reason after the first quit the icon state is preserved).
 
-该 plugin 使用 Objective-C 实现，并通过 `clang` 编译器配合 `-bundle` flag 构建。更多详情见 Makefile。
+The plugin is implemented in Objective-C and is built using the `clang` compiler
+with the `-bundle` flag.  See the Makefile for more details.
 
-该 plugin 会安装到 app bundle 的 `Contents/PlugIns/WarpDockTilePlugin.docktileplugin`，并通过 script/mac/bundle 脚本打包。它会为 arm64 和 x86_64 构建 universal binary。
+The plugin is installed into the app bundle at `Contents/PlugIns/WarpDockTilePlugin.docktileplugin` and is bundled using the script/mac/bundle script.  It is built as a universal binary for both arm64 and x86_64.
 
-该 plugin 是一个简单的 Objective-C 程序，会监听 main application 在应用图标变更时发出的 notification。收到 notification 后，它会更新 dock tile icon。
+The plugin is a simple Objective-C program that listens for notifications from the mainapplication when the app icon changes. When it receives a notification, it updates the dock tile icon.
 
-更多详情见 Mac 文档：
+See Mac documentation for more details:
 https://developer.apple.com/documentation/appkit/nsdocktileplugin?language=objc
 
-注意，在开发期间，MacOS 对变更后重新加载 plugin 的支持并不好。
+Note, that during development, MacOS is not great about reloading the plugin when changes are made.
 
-重建后的建议流程是：
-1. 从 dock 中移除图标。
-2. 运行 `killall Dock && killall SystemUIServer`
+The suggested workflow after rebuilding is to
+1. Remove the icon from the dock.
+2. Run `killall Dock && killall SystemUIServer`
 
-另外，[MacDockTileSample](https://github.com/CartBlanche/MacDockTileSample) 中有一个示例 plugin，对安装和迭代很有帮助。
+Also, there is a sample plugin at [MacDockTileSample](https://github.com/CartBlanche/MacDockTileSample) that is helpful for installing and iterating on.
 
-另一个技巧是添加基于文件的 debug 日志，而不是使用 NSLog，因为无法找到 NSLog 被写到哪里。
+Another tip is to add file based debug logs rather than using NSLog, as it's impossible to find where NSLogs are being written to.

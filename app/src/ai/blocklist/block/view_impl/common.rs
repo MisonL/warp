@@ -102,55 +102,46 @@ use crate::workspaces::workspace::CustomerType;
 
 pub const STATUS_ICON_SIZE_DELTA: f32 = 4.;
 pub const STATUS_FOOTER_VERTICAL_PADDING: f32 = 4.;
+pub const WAITING_FOR_USER_INPUT_MESSAGE: &str = "Agent waiting for instructions...";
 const IMAGE_SOURCE_LINK_LINE_INDEX: usize = 1;
+
+const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
+const INTERNAL_WARP_ERROR: &str = "Internal Warp error.";
+
+pub const LOAD_OUTPUT_MESSAGE: &str = "Warping...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING: &str = "Adjusting tasks...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN: &str = "Generating fix...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF: &str = "Creating diff...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION: &str = "Preparing question...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN: &str = "Generating plan...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN: &str = "Updating plan...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_CONVERSATION: &str = "Summarizing conversation...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_TOOL_CALL_RESULT: &str =
+    "Summarizing command output...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE: &str = "Searching codebase...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_READING_FILES: &str = "Reading files...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_GREP: &str = "Grepping...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB: &str = "Finding files...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_RUNNING_COMMAND: &str = "Executing command...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_WRITING_TO_COMMAND: &str = "Writing command input...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_WAITING_FOR_COMMAND_COMPLETION: &str =
+    "Waiting for command to exit...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH: &str = "Searching the web...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_FETCHING_REVIEW_COMMENTS: &str = "Fetching PR comments...";
 
 #[cfg(feature = "local_fs")]
 pub(crate) type ResolvedBlocklistImageSources = HashMap<String, Option<AssetSource>>;
 
-pub fn default_warping_message(app: &AppContext) -> String {
-    crate::localization::text_for_app(app, "agent.warping.status.default")
-}
-
-pub fn waiting_for_user_input_message(app: &AppContext) -> String {
-    crate::localization::text_for_app(app, "agent.warping.status.waiting_for_user_input")
-}
-
-pub fn blocked_action_message_for_write_to_long_running_shell_command(app: &AppContext) -> String {
-    crate::localization::text_for_app(
-        app,
-        "agent.cli.blocked_action.write_to_long_running_shell_command",
-    )
-}
-
-pub fn blocked_action_message_for_reading_files(app: &AppContext) -> String {
-    crate::localization::text_for_app(app, "agent.cli.blocked_action.reading_files")
-}
-
-pub fn blocked_action_message_for_searching_codebase(app: &AppContext) -> String {
-    crate::localization::text_for_app(app, "agent.cli.blocked_action.searching_codebase")
-}
-
-pub fn blocked_action_message_for_grep_or_file_glob(app: &AppContext) -> String {
-    crate::localization::text_for_app(app, "agent.cli.blocked_action.grep_or_file_glob")
-}
-
-fn error_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
-
-fn error_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    crate::localization::text_for_app_with_args(app, key, args)
-}
-
-fn warping_status_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
-
-fn warping_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    crate::localization::text_for_app_with_args(app, key, args)
-}
+pub const BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND: &str =
+    "Can I write the following to this running command?";
+pub const BLOCKED_ACTION_MESSAGE_FOR_READING_FILES: &str = "Grant access to the following files?";
+pub const BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE: &str =
+    "Grant access to the following repository?";
+pub const BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB: &str =
+    "OK if I search the files in this directory?";
 
 const BLOCKLIST_VISUAL_SECTION_HEIGHT_LINE_MULTIPLIER: f32 = 10.0;
+const BLOCKLIST_MERMAID_MAX_HEIGHT_LINE_MULTIPLIER: f32 = 40.0;
 const INLINE_IMAGE_HEIGHT: f32 = 164.;
 const INLINE_IMAGE_MAX_WIDTH: f32 = 218.;
 const INLINE_IMAGE_SPACING: f32 = 32.;
@@ -162,6 +153,10 @@ const VISUAL_CARD_CORNER_RADIUS: f32 = 8.;
 const VISUAL_CARD_HEADER_VERTICAL_PADDING: f32 = 8.;
 const VISUAL_CARD_HEADER_HORIZONTAL_PADDING: f32 = 16.;
 const MERMAID_CANVAS_PADDING: f32 = 32.;
+
+fn warping_status_text(app: &AppContext, key: &str) -> String {
+    crate::localization::text_for_app(app, key)
+}
 
 pub struct WarpingProps<'a, V> {
     pub model: &'a dyn AIBlockModel<View = V>,
@@ -300,10 +295,10 @@ pub fn render_warping_indicator<V: View>(
         // Choose the appropriate message based on summarization type
         let base_message = match summarization_type {
             SummarizationType::ConversationSummary => {
-                warping_status_text(app, "agent.warping.status.summarizing_conversation")
+                LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_CONVERSATION
             }
             SummarizationType::ToolCallResultSummary => {
-                warping_status_text(app, "agent.warping.status.summarizing_command_output")
+                LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_TOOL_CALL_RESULT
             }
         };
 
@@ -311,12 +306,7 @@ pub fn render_warping_indicator<V: View>(
         // summarization
         if matches!(summarization_type, SummarizationType::ConversationSummary) {
             let timer_text = if let Some(start_time) = props.summarization_start_time {
-                let elapsed = format_elapsed_seconds(start_time.elapsed(), app);
-                warping_text_with_args(
-                    app,
-                    "agent.warping.elapsed_suffix",
-                    &[("elapsed", elapsed.as_str())],
-                )
+                format!(" • {}", format_elapsed_seconds(start_time.elapsed()))
             } else {
                 String::new()
             };
@@ -324,31 +314,31 @@ pub fn render_warping_indicator<V: View>(
             // Move the timer / token text outside of the base message, we don't want it to shimmer
             // since that would cause the animation to reset every time the tokens or time changes.
             non_shimmering_text = Some(timer_text.to_string());
-            base_message
+            base_message.into()
         } else {
-            base_message
+            base_message.to_string()
         }
     } else if props.model.contains_update_document_action(app) {
-        warping_status_text(app, "agent.warping.status.updating_plan")
+        LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN.to_string()
     } else if props.model.contains_create_document_action(app) {
-        warping_status_text(app, "agent.warping.status.generating_plan")
+        LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN.to_string()
     } else if props.model.request_type(app).is_passive_code_diff() {
-        warping_status_text(app, "agent.warping.status.generating_fix")
+        LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN.to_string()
     } else if is_last_message_requesting_file_edits {
-        warping_status_text(app, "agent.warping.status.creating_diff")
+        LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF.to_string()
     } else if is_last_message_asking_user_question {
-        warping_status_text(app, "agent.warping.status.preparing_question")
+        LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION.to_string()
     } else if is_searching_web {
-        warping_status_text(app, "agent.warping.status.searching_web")
+        LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH.to_string()
     } else if is_fetching_review_comments {
-        warping_status_text(app, "agent.warping.status.fetching_pr_comments")
+        LOAD_OUTPUT_MESSAGE_FOR_FETCHING_REVIEW_COMMENTS.to_string()
     } else if is_interrupt_query_for_same_conversation
         && output_to_render
             .as_ref()
             .is_none_or(|output| output.get().messages.is_empty())
     {
         // Only "Adjusting..." if nothing from the current exchange has streamed yet.
-        warping_status_text(app, "agent.warping.status.adjusting_tasks")
+        LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING.to_string()
     } else {
         match props
             .action_model
@@ -356,27 +346,21 @@ pub fn render_warping_indicator<V: View>(
             .map(|action| &action.action)
         {
             Some(AIAgentActionType::SearchCodebase(..)) => {
-                warping_status_text(app, "agent.warping.status.searching_codebase")
+                LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE.to_owned()
             }
-            Some(AIAgentActionType::Grep { .. }) => {
-                warping_status_text(app, "agent.warping.status.grepping")
+            Some(AIAgentActionType::Grep { .. }) => LOAD_OUTPUT_MESSAGE_FOR_GREP.to_owned(),
+            Some(AIAgentActionType::CallMCPTool { name, .. }) => {
+                format!("Calling \"{name}\" MCP tool...")
             }
-            Some(AIAgentActionType::CallMCPTool { name, .. }) => warping_text_with_args(
-                app,
-                "agent.warping.calling_mcp_tool",
-                &[("name", name.as_str())],
-            ),
-            Some(AIAgentActionType::ReadMCPResource { name, .. }) => warping_text_with_args(
-                app,
-                "agent.warping.reading_mcp_resource",
-                &[("name", name.as_str())],
-            ),
+            Some(AIAgentActionType::ReadMCPResource { name, .. }) => {
+                format!("Reading \"{name}\" MCP resource...")
+            }
             Some(AIAgentActionType::FileGlob { .. })
             | Some(AIAgentActionType::FileGlobV2 { .. }) => {
-                warping_status_text(app, "agent.warping.status.finding_files")
+                LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB.to_owned()
             }
             Some(AIAgentActionType::WriteToLongRunningShellCommand { .. }) => {
-                warping_status_text(app, "agent.warping.status.writing_command_input")
+                LOAD_OUTPUT_MESSAGE_FOR_WRITING_TO_COMMAND.to_owned()
             }
             action => {
                 let active_block = props.terminal_model.block_list().active_block();
@@ -386,7 +370,7 @@ pub fn render_warping_indicator<V: View>(
                 {
                     if action.is_none() {
                         should_render_waiting_icon = true;
-                        waiting_for_user_input_message(app)
+                        WAITING_FOR_USER_INPUT_MESSAGE.to_owned()
                     } else {
                         // Choose the base message depending on whether the agent is waiting
                         // for the command to exit or polling at a fixed interval.
@@ -394,13 +378,10 @@ pub fn render_warping_indicator<V: View>(
                             Some(AIAgentActionType::ReadShellCommandOutput {
                                 delay: Some(ShellCommandDelay::OnCompletion),
                                 ..
-                            }) => warping_status_text(
-                                app,
-                                "agent.warping.status.waiting_for_command_exit",
-                            ),
-                            _ => warping_status_text(app, "agent.warping.status.executing_command"),
+                            }) => LOAD_OUTPUT_MESSAGE_FOR_WAITING_FOR_COMMAND_COMPLETION,
+                            _ => LOAD_OUTPUT_MESSAGE_FOR_RUNNING_COMMAND,
                         };
-                        // Compute the next poll suffix for fixed-interval polls. Only
+                        // Compute "Next check in {time}" for fixed-interval polls. Only
                         // `ReadShellCommandOutput { delay: Duration(_) }` has a meaningful
                         // countdown; `OnCompletion` is a safety cap rather than a poll
                         // interval, and the 2s default is too short to be useful.
@@ -425,20 +406,16 @@ pub fn render_warping_indicator<V: View>(
                             } else {
                                 format!("{}m", secs / 60)
                             };
-                            let suffix = warping_text_with_args(
-                                app,
-                                "agent.warping.next_check_in",
-                                &[("time", formatted.as_str())],
-                            );
+                            let suffix = format!(" · Next check in {formatted}");
 
                             // Keep the base message constant so the shimmering animation
                             // isn't interrupted every time the countdown ticks. The
                             // suffix is rendered as a separate non-shimmering element,
                             // matching the same pattern used by the summarization timer.
                             non_shimmering_text = Some(suffix);
-                            base
+                            base.to_owned()
                         } else {
-                            base
+                            base.to_owned()
                         }
                     }
                 } else {
@@ -459,15 +436,14 @@ pub fn render_warping_indicator<V: View>(
             hide_responses_button_props,
             should_hide_responses,
             appearance,
-            app,
         ));
     }
 
     if let Some(take_over_button_props) = props.take_over_lrc_control_button {
         has_buttons = true;
         buttons_row.add_child(render_switch_control_to_user_button(
-            crate::localization::text_for_app(app, "agent.warping.take_over"),
-            crate::localization::text_for_app(app, "agent.warping.take_over_tooltip"),
+            "Take over",
+            "Take over control of the command",
             take_over_button_props,
             appearance,
         ));
@@ -478,7 +454,6 @@ pub fn render_warping_indicator<V: View>(
         buttons_row.add_child(render_auto_approve_button(
             autoexecute_button_props,
             appearance,
-            app,
         ));
     }
 
@@ -487,14 +462,13 @@ pub fn render_warping_indicator<V: View>(
         buttons_row.add_child(render_queue_next_prompt_button(
             queue_button_props,
             appearance,
-            app,
         ));
     }
 
     if let Some(stop_button_props) = props.stop_button {
         has_buttons = true;
         buttons_row = buttons_row
-            .with_child(render_stop_button(stop_button_props, appearance, app))
+            .with_child(render_stop_button(stop_button_props, appearance))
             .with_spacing(4.);
     }
 
@@ -513,8 +487,8 @@ pub fn render_warping_indicator<V: View>(
     let non_shimmering_suffix = match (&non_shimmering_text, props.force_refresh_button) {
         (Some(_), Some(force_refresh_button_props)) => Some(render_force_refresh_inline(
             force_refresh_button_props,
-            appearance,
             app,
+            appearance,
         )),
         _ => None,
     };
@@ -694,16 +668,12 @@ pub fn render_warping_indicator_base(
 }
 
 /// Formats elapsed time as a human-readable string with proper singular/plural.
-pub fn format_elapsed_seconds(elapsed: std::time::Duration, app: &AppContext) -> String {
+pub fn format_elapsed_seconds(elapsed: std::time::Duration) -> String {
     let total_seconds = elapsed.as_secs();
     if total_seconds == 1 {
-        crate::localization::text_for_app(app, "agent.elapsed.one_second")
+        "1 second".to_string()
     } else {
-        crate::localization::text_for_app_with_args(
-            app,
-            "agent.elapsed.seconds",
-            &[("count", &total_seconds.to_string())],
-        )
+        format!("{total_seconds} seconds")
     }
 }
 
@@ -781,13 +751,12 @@ fn render_hide_responses_button(
     props: ButtonProps,
     should_hide_responses: bool,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let button_text = if should_hide_responses {
-        crate::localization::text_for_app(app, "agent.warping.show_responses")
+        "Show responses"
     } else {
-        crate::localization::text_for_app(app, "agent.warping.hide_responses")
+        "Hide responses"
     };
     let text = Container::new(
         Text::new(
@@ -801,9 +770,9 @@ fn render_hide_responses_button(
     .finish();
 
     let tooltip_text = if should_hide_responses {
-        crate::localization::text_for_app(app, "agent.warping.show_responses_tooltip")
+        "Show agent responses"
     } else {
-        crate::localization::text_for_app(app, "agent.warping.hide_responses_tooltip")
+        "Hide agent responses"
     };
 
     render_warping_indicator_button(
@@ -811,7 +780,7 @@ fn render_hide_responses_button(
         appearance,
         text,
         props.keystroke,
-        tooltip_text,
+        tooltip_text.to_string(),
         props.is_active,
         false,
         |ctx| {
@@ -821,8 +790,8 @@ fn render_hide_responses_button(
 }
 
 pub fn render_switch_control_to_user_button(
-    text: String,
-    tooltip: String,
+    text: &'static str,
+    tooltip: &'static str,
     props: ButtonProps,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -843,7 +812,7 @@ pub fn render_switch_control_to_user_button(
         appearance,
         text,
         props.keystroke,
-        tooltip,
+        tooltip.to_string(),
         props.is_active,
         false,
         |ctx| {
@@ -852,11 +821,7 @@ pub fn render_switch_control_to_user_button(
     )
 }
 
-fn render_stop_button(
-    props: ButtonProps,
-    appearance: &Appearance,
-    app: &AppContext,
-) -> Box<dyn Element> {
+fn render_stop_button(props: ButtonProps, appearance: &Appearance) -> Box<dyn Element> {
     let icon_size = get_icon_size(appearance);
     let stop_icon = Container::new(
         ConstrainedBox::new(red_stop_icon(appearance).finish())
@@ -871,7 +836,7 @@ fn render_stop_button(
         appearance,
         stop_icon,
         props.keystroke,
-        crate::localization::text_for_app(app, "agent.warping.stop_task_tooltip"),
+        "Stop agent task".to_string(),
         props.is_active,
         false,
         |ctx: &mut EventContext<'_>| {
@@ -883,7 +848,6 @@ fn render_stop_button(
 fn render_queue_next_prompt_button(
     props: ButtonProps,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let icon_color = if props.is_active {
         appearance.theme().accent()
@@ -900,9 +864,9 @@ fn render_queue_next_prompt_button(
     .finish();
 
     let tooltip_text = if props.is_active {
-        crate::localization::text_for_app(app, "agent.warping.auto_queue_enabled_tooltip")
+        "Auto-queue is on: your next prompt will be queued"
     } else {
-        crate::localization::text_for_app(app, "agent.warping.auto_queue_tooltip")
+        "Auto-queue next prompt while agent is responding"
     };
 
     render_warping_indicator_button(
@@ -910,7 +874,7 @@ fn render_queue_next_prompt_button(
         appearance,
         icon,
         props.keystroke,
-        tooltip_text,
+        tooltip_text.to_string(),
         props.is_active,
         false,
         |ctx| {
@@ -922,7 +886,6 @@ fn render_queue_next_prompt_button(
 fn render_auto_approve_button(
     props: AutoExecuteButtonProps,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     // In locked mode (ambient/cloud agent conversations), the button is always
     // rendered in its "on" state regardless of the underlying conversation state.
@@ -945,11 +908,11 @@ fn render_auto_approve_button(
     .finish();
 
     let tooltip_text = if props.is_locked {
-        crate::localization::text_for_app(app, "agent.warping.auto_approve_locked_tooltip")
+        "Fast forward is always enabled for cloud agent conversations"
     } else if is_active {
-        crate::localization::text_for_app(app, "agent.warping.auto_approve_disable_tooltip")
+        "Turn off auto-approve all agent actions"
     } else {
-        crate::localization::text_for_app(app, "agent.warping.auto_approve_tooltip")
+        "Auto-approve all agent actions for this task"
     };
 
     render_warping_indicator_button(
@@ -957,7 +920,7 @@ fn render_auto_approve_button(
         appearance,
         icon,
         props.keystroke,
-        tooltip_text,
+        tooltip_text.to_string(),
         is_active,
         props.is_locked,
         move |ctx| {
@@ -982,8 +945,8 @@ fn get_icon_size(appearance: &Appearance) -> f32 {
 /// agent's pending poll timer for the given block and delivers a fresh snapshot.
 fn render_force_refresh_inline(
     props: ForceRefreshButtonProps<'_>,
-    appearance: &Appearance,
     app: &AppContext,
+    appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let ui_builder = appearance.ui_builder().clone();
@@ -993,9 +956,6 @@ fn render_force_refresh_inline(
     let font_size = appearance.monospace_font_size() - 2.;
     let block_id = props.block_id;
     let block_id_for_click = block_id.clone();
-    let check_now_text = crate::localization::text_for_app(app, "agent.warping.check_now_inline");
-    let check_now_tooltip =
-        crate::localization::text_for_app(app, "agent.warping.check_now_tooltip");
 
     Hoverable::new(props.button_handle.clone(), move |state| {
         let color = if state.is_hovered() {
@@ -1007,13 +967,17 @@ fn render_force_refresh_inline(
         // Mirror `render_output_status_text` exactly: same `Text` configuration plus
         // the `Container::with_margin_top(1.)` wrapper so this sits on the same
         // baseline as the adjacent `Last seen by agent ...` text.
-        let text = Text::new(check_now_text.clone(), font_family, font_size)
-            .with_color(color)
-            .with_style(Properties::default())
-            .with_clip(ClipConfig::end())
-            .with_selectable(false)
-            .soft_wrap(false)
-            .finish();
+        let text = Text::new(
+            warping_status_text(app, "agent.warping.check_now_inline"),
+            font_family,
+            font_size,
+        )
+        .with_color(color)
+        .with_style(Properties::default())
+        .with_clip(ClipConfig::end())
+        .with_selectable(false)
+        .soft_wrap(false)
+        .finish();
         let text_with_margin = Container::new(text).with_margin_top(1.).finish();
 
         // Tooltip overlay, positioned above the element on hover. Same pattern as
@@ -1021,7 +985,10 @@ fn render_force_refresh_inline(
         let mut stack = Stack::new().with_child(text_with_margin);
         if state.is_hovered() {
             let tool_tip = ui_builder
-                .tool_tip(check_now_tooltip.clone())
+                .tool_tip(crate::localization::text_for_app(
+                    app,
+                    "agent.command_review.tooltip.check_now",
+                ))
                 .build()
                 .finish();
             stack.add_positioned_overlay_child(
@@ -1800,12 +1767,26 @@ enum VisualMarkdownAlignment {
     Center,
 }
 
+/// How a visual markdown block (image or mermaid diagram) is sized.
+#[derive(Clone, Copy, Debug)]
+enum VisualMarkdownSizing {
+    /// Fixed element height. Width is fixed when `width` is set, otherwise
+    /// bounded by `max_width`, otherwise falls back to a square of `height`.
+    FixedHeight {
+        height: f32,
+        width: Option<f32>,
+        max_width: Option<f32>,
+    },
+    /// Fill the available width, deriving the element height from the
+    /// image's intrinsic aspect ratio, capped at `max_height`. When the cap
+    /// applies, the width shrinks proportionally instead of letterboxing.
+    FitWidth { max_height: f32 },
+}
+
 #[derive(Clone)]
 struct VisualMarkdownBlockOptions<A: 'static> {
-    height: f32,
-    width: Option<f32>,
+    sizing: VisualMarkdownSizing,
     copy_action_factory: Option<CopyCodeActionFactory<A>>,
-    max_width: Option<f32>,
     alignment: VisualMarkdownAlignment,
     lightbox_trigger: Option<VisualMarkdownLightboxTrigger>,
     /// When `Some(non_empty)`, the rendered image is wrapped in the standard
@@ -2016,10 +1997,12 @@ fn render_inline_image_group_item<A: Action>(
         asset_source,
         indexed_image.image.markdown_source.clone(),
         VisualMarkdownBlockOptions {
-            height: INLINE_IMAGE_HEIGHT,
-            width: Some(width),
+            sizing: VisualMarkdownSizing::FixedHeight {
+                height: INLINE_IMAGE_HEIGHT,
+                width: Some(width),
+                max_width: None,
+            },
             copy_action_factory: render_context.copy_action_factory,
-            max_width: None,
             alignment: VisualMarkdownAlignment::Left,
             lightbox_trigger: lightbox_trigger_for_section(
                 render_context.lightbox_collection,
@@ -2109,10 +2092,12 @@ fn render_block_image_group_row<A: Action>(
         asset_source,
         indexed_image.image.markdown_source.clone(),
         VisualMarkdownBlockOptions {
-            height: BLOCK_IMAGE_THUMBNAIL_SIZE,
-            width: Some(BLOCK_IMAGE_THUMBNAIL_SIZE),
+            sizing: VisualMarkdownSizing::FixedHeight {
+                height: BLOCK_IMAGE_THUMBNAIL_SIZE,
+                width: Some(BLOCK_IMAGE_THUMBNAIL_SIZE),
+                max_width: None,
+            },
             copy_action_factory: render_context.copy_action_factory,
-            max_width: None,
             alignment: VisualMarkdownAlignment::Center,
             lightbox_trigger: lightbox_trigger_for_section(
                 render_context.lightbox_collection,
@@ -2173,14 +2158,23 @@ fn render_mermaid_diagram_section<A: Action>(
     }
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
+    let sizing = if matches!(asset_state, AssetState::Loaded { .. }) {
+        VisualMarkdownSizing::FitWidth {
+            max_height: mermaid_section_max_height(app),
+        }
+    } else {
+        VisualMarkdownSizing::FixedHeight {
+            height: visual_section_height(app),
+            width: None,
+            max_width: None,
+        }
+    };
     let mermaid_block = render_visual_markdown_block(
         asset_source,
         diagram.markdown_source.clone(),
         VisualMarkdownBlockOptions {
-            height: visual_section_height(app),
-            width: None,
+            sizing,
             copy_action_factory,
-            max_width: visual_section_max_width(&asset_state, visual_section_height(app)),
             alignment: VisualMarkdownAlignment::Center,
             lightbox_trigger: lightbox_trigger_for_section(lightbox_collection, section_index),
             // Mermaid diagrams don't carry CommonMark image titles.
@@ -2241,15 +2235,30 @@ fn render_visual_markdown_block<A: Action>(
         .contain()
         .before_load(placeholder)
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)));
-    let mut content = ConstrainedBox::new(Box::new(image)).with_height(options.height);
-    if let Some(width) = finite_positive_visual_size(options.width) {
-        content = content.with_width(width);
-    } else if let Some(max_width) = finite_positive_visual_size(options.max_width) {
-        content = content.with_max_width(max_width);
-    } else if let Some(fallback_width) = finite_positive_visual_size(Some(options.height)) {
-        content = content.with_width(fallback_width);
-    }
-    let content = content.finish();
+    let content = match options.sizing {
+        VisualMarkdownSizing::FixedHeight {
+            height,
+            width,
+            max_width,
+        } => {
+            let mut content = ConstrainedBox::new(Box::new(image)).with_height(height);
+            if let Some(width) = finite_positive_visual_size(width) {
+                content = content.with_width(width);
+            } else if let Some(max_width) = finite_positive_visual_size(max_width) {
+                content = content.with_max_width(max_width);
+            } else if let Some(fallback_width) = finite_positive_visual_size(Some(height)) {
+                content = content.with_width(fallback_width);
+            }
+            content.finish()
+        }
+        VisualMarkdownSizing::FitWidth { max_height } => {
+            let mut content = ConstrainedBox::new(Box::new(image.layout_using_paint_bounds()));
+            if let Some(max_height) = finite_positive_visual_size(Some(max_height)) {
+                content = content.with_max_height(max_height);
+            }
+            content.finish()
+        }
+    };
     let content = match options.alignment {
         VisualMarkdownAlignment::Left => Align::new(content).left().finish(),
         VisualMarkdownAlignment::Center => Align::new(content).finish(),
@@ -2406,10 +2415,17 @@ fn is_supported_blocklist_image_source(source: &str) -> bool {
 }
 
 fn visual_section_height(app: &AppContext) -> f32 {
+    blocklist_base_line_height(app) * BLOCKLIST_VISUAL_SECTION_HEIGHT_LINE_MULTIPLIER
+}
+
+fn mermaid_section_max_height(app: &AppContext) -> f32 {
+    blocklist_base_line_height(app) * BLOCKLIST_MERMAID_MAX_HEIGHT_LINE_MULTIPLIER
+}
+
+fn blocklist_base_line_height(app: &AppContext) -> f32 {
     rich_text_styles(Appearance::as_ref(app), FontSettings::as_ref(app))
         .base_line_height()
         .as_f32()
-        * BLOCKLIST_VISUAL_SECTION_HEIGHT_LINE_MULTIPLIER
 }
 
 const TABLE_BLOCK_CORNER_RADIUS: f32 = 8.0;
@@ -3032,14 +3048,23 @@ pub struct FailedOutputProps<'a> {
 
 pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
-    let apology = error_text(app, "agent.error.apology");
+
+    // While an automatic retry/resume is still in flight, don't surface the underlying
+    // transport failure at all. These are typically transient and recover on their own,
+    // so showing the alarming "Warp lost connection" banner (plus debug info) for every
+    // blip is noisy and misleading. Render nothing during in-flight recovery; the full
+    // error banner is only shown once recovery has actually failed. Dogfood builds
+    // (Local/Dev) opt out so developers still see every transport failure aggressively.
+    if props.error.should_suppress_during_recovery() {
+        return Empty::new().finish();
+    }
 
     let error_text = match props.error {
         RenderableAIError::QuotaLimit {
             user_display_message,
         } => {
             if let Some(message) = user_display_message {
-                format!("{apology}\n\n{message}")
+                format!("{ERROR_APOLOGY_TEXT}\n\n{message}")
             } else {
                 let ai_request_usage_model = AIRequestUsageModel::as_ref(app);
                 let formatted_next_refresh_time = ai_request_usage_model
@@ -3047,43 +3072,27 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
                     .format("%B %d")
                     .to_string();
 
-                error_text_with_args(
-                    app,
-                    "agent.error.quota_limit_resets",
-                    &[
-                        ("apology", &apology),
-                        ("date", &formatted_next_refresh_time),
-                    ],
+                format!(
+                    "{ERROR_APOLOGY_TEXT}\n\nYou've reached your credit limit. Your credit limit resets on {formatted_next_refresh_time}.",
                 )
             }
         }
-        RenderableAIError::ServerOverloaded => error_text(app, "agent.error.server_overloaded"),
-        RenderableAIError::InternalWarpError => {
-            let internal_error = error_text(app, "agent.error.internal_warp");
-            format!("{apology}\n\n{internal_error}")
+        RenderableAIError::ServerOverloaded => {
+            "Warp is currently overloaded. Please try again later.".to_string()
         }
-        RenderableAIError::Other {
-            error_message,
-            will_attempt_resume,
-            waiting_for_network,
-        } => {
-            if *will_attempt_resume {
-                if *waiting_for_network {
-                    error_text_with_args(
-                        app,
-                        "agent.error.resume_when_network_restored",
-                        &[("message", error_message)],
-                    )
-                } else {
-                    error_text_with_args(
-                        app,
-                        "agent.error.attempting_resume",
-                        &[("message", error_message)],
-                    )
-                }
-            } else {
-                format!("{apology}\n\n{error_message}")
-            }
+        RenderableAIError::InternalWarpError => {
+            format!("{ERROR_APOLOGY_TEXT}\n\n{INTERNAL_WARP_ERROR}")
+        }
+        RenderableAIError::Other { error_message, .. } => {
+            // A still-recovering `Other` error is handled by the early return above; once we
+            // reach here recovery has failed, so surface the error directly.
+            format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}")
+        }
+        RenderableAIError::TransientNetworkError { .. } => {
+            // Recovering transient errors are handled by the early return above; once we
+            // reach here recovery has failed. These carry their own complete user-facing
+            // copy (plus debug info), so the apology prefix adds nothing.
+            props.error.to_string()
         }
         RenderableAIError::InvalidApiKey {
             provider,
@@ -3109,10 +3118,9 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
                 return ChildView::new(view).finish();
             }
             // Fallback for contexts that don't have the stateful view (e.g. CLI subagent)
-            error_text_with_args(
-                app,
-                "agent.aws_bedrock_credentials.fallback",
-                &[("apology", &apology), ("model", model_name)],
+            format!(
+                "{ERROR_APOLOGY_TEXT}\n\nAWS credentials expired or missing for {model_name}. \
+                 Please refresh your AWS credentials."
             )
         }
     };
@@ -3180,7 +3188,7 @@ fn render_invalid_api_key_error(
     .finish();
 
     let alert_text = Text::new(
-        error_text(app, "agent.error.invalid_api_key.title"),
+        "Provided API key is not valid",
         appearance.ui_font_family(),
         14.,
     )
@@ -3189,10 +3197,9 @@ fn render_invalid_api_key_error(
     .finish();
 
     let detail_text = Text::new(
-        error_text_with_args(
-            app,
-            "agent.error.invalid_api_key.description",
-            &[("provider", provider), ("model_name", model_name)],
+        format!(
+            "Failed to authenticate with {provider} when using {model_name}. \
+                     Double-check that your API key is correct."
         ),
         appearance.ui_font_family(),
         14.,
@@ -3360,7 +3367,7 @@ pub(crate) fn render_debug_footer<V: View>(
                 )
                 .with_centered_text_label(crate::localization::text_for_app(
                     app,
-                    "agent.block.action.send_feedback",
+                    "agent.feedback.send",
                 ))
                 .with_style(submit_button_style)
                 .with_hovered_styles(submit_button_hover_style)
@@ -3377,11 +3384,7 @@ pub(crate) fn render_debug_footer<V: View>(
 
     // render the conversation's debug id so screenshots automatically show the debug id
     let debug_text = Text::new(
-        crate::localization::text_for_app_with_args(
-            app,
-            "agent.block.debug.info",
-            &[("info", debug_info.as_str())],
-        ),
+        format!("Debug information: {debug_info}"),
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     )
@@ -3425,7 +3428,7 @@ pub(crate) fn render_debug_footer<V: View>(
     })
     .finish();
     let copy_button_with_tooltip = appearance.ui_builder().tool_tip_on_element(
-        crate::localization::text_for_app(app, "agent.block.debug.copy_debug_id"),
+        "Copy debug ID".to_string(),
         props.debug_copy_button_handle,
         copy_button,
         warpui::elements::ParentAnchor::TopRight,

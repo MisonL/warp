@@ -120,7 +120,7 @@ impl View for WebHandoffView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let label = match &self.state {
             HandoffState::LoadingFromHost | HandoffState::LoadingFromSessionCookie => {
-                localization::text_for_app(app, "common.loading")
+                localization::text_for_app(app, "status.loading")
             }
             HandoffState::Failed => localization::text_for_app(app, "auth.web_handoff.error"),
         };

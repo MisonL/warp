@@ -6,7 +6,6 @@
 use warpui::ViewContext;
 
 use super::view::Workspace;
-use crate::localization;
 use crate::pane_group::{AnyPaneContent, FilePane};
 
 /// Create a static "home page" pane.
@@ -20,8 +19,8 @@ pub fn create_home_pane(ctx: &mut ViewContext<Workspace>) -> Box<dyn AnyPaneCont
     );
     pane.file_view(ctx).update(ctx, |pane, ctx| {
         pane.open_static(
-            localization::text_for_app(ctx, "workspace.home.title"),
-            &localization::text_for_app(ctx, "workspace.home.content"),
+            crate::localization::text_for_app(ctx, "workspace.home.title"),
+            &crate::localization::text_for_app(ctx, "workspace.home.content"),
             ctx,
         );
     });

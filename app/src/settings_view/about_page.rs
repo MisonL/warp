@@ -13,6 +13,7 @@ use super::settings_page::{
 use super::SettingsSection;
 use crate::appearance::Appearance;
 use crate::channel::ChannelState;
+use crate::localization;
 use crate::themes::theme::ColorScheme;
 use crate::workspace::WorkspaceAction;
 
@@ -115,10 +116,7 @@ impl SettingsWidget for AboutPageWidget {
                 .with_child(version_row.finish())
                 .with_child(
                     ui_builder
-                        .span(crate::localization::text_for_app(
-                            app,
-                            "settings.about.copyright",
-                        ))
+                        .span(localization::text_for_app(app, "settings.about.copyright"))
                         .build()
                         .with_margin_top(16.)
                         .finish(),

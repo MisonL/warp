@@ -15,8 +15,7 @@ pub mod text {
         UploadArtifactResult, WebFetchStatus, WebSearchStatus,
         WriteToLongRunningShellCommandResult,
     };
-    use crate::localization;
-    use crate::AIAgentActionResultType;
+    use crate::{localization, AIAgentActionResultType};
 
     const DEFAULT_MIME_TYPE: &str = "text/plain";
     const UNKNOWN_VALUE: &str = "unknown";
@@ -514,6 +513,8 @@ pub mod text {
                 AIAgentActionResultType::AskUserQuestion(_) => Ok(()),
                 // RunAgents is a desktop-client-only action; not used in the SDK.
                 AIAgentActionResultType::RunAgents(_) => Ok(()),
+                // No user-visible payload to emit.
+                AIAgentActionResultType::WaitForEvents(_) => Ok(()),
             },
         }
     }
@@ -790,6 +791,7 @@ pub mod text {
                     AIAgentActionType::AskUserQuestion { .. } => (),
                     // RunAgents is desktop-client-only; SDK driver renders nothing.
                     AIAgentActionType::RunAgents(_) => (),
+                    AIAgentActionType::WaitForEvents { .. } => (),
                 },
                 AIAgentOutputMessageType::TodoOperation(operation) => match operation {
                     TodoOperation::UpdateTodos { todos } => {
@@ -1115,8 +1117,7 @@ pub mod json {
         TodoOperation, UploadArtifactResult, WriteToLongRunningShellCommandResult,
     };
     use crate::code::buffer_location::LocalOrRemotePath;
-    use crate::localization;
-    use crate::AIAgentActionResultType;
+    use crate::{localization, AIAgentActionResultType};
 
     fn text(key: &str) -> String {
         localization::text_for_locale(LocaleId::EnUs, key)
@@ -1652,6 +1653,7 @@ pub mod json {
                     // RunAgents is desktop-client-only; SDK has no JSON
                     // representation for it.
                     AIAgentActionType::RunAgents(_) => None,
+                    AIAgentActionType::WaitForEvents { .. } => None,
                 },
                 AIAgentOutputMessageType::TodoOperation(operation) => match operation {
                     TodoOperation::UpdateTodos { todos } => Some(JsonMessage::UpdateTodos {

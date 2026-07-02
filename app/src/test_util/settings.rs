@@ -23,7 +23,6 @@ pub fn initialize_settings_for_tests_with_mode(
     mode: warp_core::execution_mode::ExecutionMode,
     is_sandboxed: bool,
 ) {
-    use settings::Setting as _;
     use warp_core::execution_mode::AppExecutionMode;
     use warp_core::semantic_selection::SemanticSelection;
 
@@ -34,11 +33,11 @@ pub fn initialize_settings_for_tests_with_mode(
     use crate::settings::manager::SettingsManager;
     use crate::settings::{
         init_and_register_user_preferences, AISettings, AccessibilitySettings,
-        AliasExpansionSettings, AppEditorSettings, AppLanguage, BlockVisibilitySettings,
-        ChangelogSettings, CloudPreferencesSettings, CodeSettings, DebugSettings,
-        EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings, InputSettings,
-        LanguageSettings, NativePreferenceSettings, PaneSettings, SameLinePromptBlockSettings,
-        ScrollSettings, SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
+        AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings, ChangelogSettings,
+        CloudPreferencesSettings, CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings,
+        GPUSettings, InputModeSettings, InputSettings, LocalControlSettings,
+        NativePreferenceSettings, PaneSettings, SameLinePromptBlockSettings, ScrollSettings,
+        SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
     };
     use crate::terminal::general_settings::GeneralSettings;
     use crate::terminal::keys_settings::KeysSettings;
@@ -58,6 +57,10 @@ pub fn initialize_settings_for_tests_with_mode(
     app.update(init_and_register_user_preferences);
     app.add_singleton_model(|_ctx| SettingsManager::default());
     app.add_singleton_model(WarpConfig::mock);
+    app.update(|ctx| {
+        // Register a no-op secure storage provider for testing.
+        warpui_extras::secure_storage::register_noop("test", ctx);
+    });
 
     AccessibilitySettings::register(app);
     app.update(AISettings::register_and_subscribe_to_events);
@@ -83,16 +86,11 @@ pub fn initialize_settings_for_tests_with_mode(
     GPUSettings::register(app);
     InputModeSettings::register(app);
     InputSettings::register(app);
-    let language_settings = LanguageSettings::register(app);
-    language_settings.update(app, |settings, ctx| {
-        settings
-            .app_language
-            .set_value(AppLanguage::English, ctx)
-            .expect("test app language should be configurable");
-    });
-    app.update(crate::localization::register_localization_updater);
     KeysSettings::register(app);
     LigatureSettings::register(app);
+    if warp_core::features::FeatureFlag::WarpControlCli.is_enabled() {
+        LocalControlSettings::register(app);
+    }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     {
@@ -123,9 +121,6 @@ pub fn initialize_settings_for_tests_with_mode(
     SemanticSelection::register(app);
 
     app.update(|ctx| {
-        // Register a no-op secure storage provider for testing.
-        warpui_extras::secure_storage::register_noop("test", ctx);
-
         // Add settings models that are backed by secure storage, not user preferences.
         ctx.add_singleton_model(ai::api_keys::ApiKeyManager::new);
     });

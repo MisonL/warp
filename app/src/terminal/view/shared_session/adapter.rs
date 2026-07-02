@@ -110,7 +110,7 @@ impl Adapter {
             Banner::new_without_close(BannerTextContent::formatted_text(vec![
                 FormattedTextFragment::plain_text(localization::text_for_app(
                     ctx,
-                    "terminal.shared_session.reconnecting",
+                    "terminal.shared_session.reconnecting.offline",
                 )),
             ]))
             .with_icon(Icon::CloudOffline)

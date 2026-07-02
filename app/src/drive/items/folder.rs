@@ -65,7 +65,7 @@ impl WarpDriveItem for WarpDriveFolder {
         Some(DriveIndexAction::ToggleFolderOpen(self.folder.id))
     }
 
-    fn preview(&self, _: &Appearance, _app: &AppContext) -> Option<Box<dyn Element>> {
+    fn preview(&self, _: &Appearance) -> Option<Box<dyn Element>> {
         None
     }
 

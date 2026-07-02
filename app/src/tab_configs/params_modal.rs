@@ -34,25 +34,6 @@ use crate::view_components::action_button::{
     ActionButton, DisabledTheme, KeystrokeSource, NakedTheme, PrimaryTheme,
 };
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_value(app: &AppContext, key: &str, placeholder: &str, value: &str) -> String {
-    text(app, key).replace(placeholder, value)
-}
-
-fn localized_param_description<'a>(
-    app: &AppContext,
-    param: &'a TabConfigParam,
-) -> Option<&'a String> {
-    match localization::current_locale(app) {
-        warp_localization::LocaleId::ZhCn => param.description_zh_cn.as_ref(),
-        warp_localization::LocaleId::EnUs => None,
-    }
-    .or(param.description.as_ref())
-}
-
 pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings(vec![
         FixedBinding::new(
@@ -168,22 +149,32 @@ pub enum TabConfigParamsModalAction {
 impl TabConfigParamsModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let cancel_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(text(ctx, "settings.action.cancel"), NakedTheme).on_click(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.cancel"),
+                NakedTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(TabConfigParamsModalAction::Cancel);
             })
         });
         let submit_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(text(ctx, "tab_config.action.open_tab"), PrimaryTheme)
-                .with_keybinding(
-                    KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
-                    ctx,
-                )
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(TabConfigParamsModalAction::Submit);
-                })
+            ActionButton::new(
+                localization::text_for_app(ctx, "tab_config.action.open_tab"),
+                PrimaryTheme,
+            )
+            .with_keybinding(
+                KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
+                ctx,
+            )
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(TabConfigParamsModalAction::Submit);
+            })
         });
         let submit_button_disabled = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(text(ctx, "tab_config.action.open_tab"), DisabledTheme)
+            ActionButton::new(
+                localization::text_for_app(ctx, "tab_config.action.open_tab"),
+                DisabledTheme,
+            )
         });
         Self {
             param_fields: Vec::new(),
@@ -302,7 +293,7 @@ impl TabConfigParamsModal {
                 TabConfigParamType::Text => {
                     let default_text = param.default.clone().unwrap_or_default();
                     let placeholder = if default_text.is_empty() {
-                        text_with_value(ctx, "tab_config.placeholder.enter_param", "{name}", name)
+                        format!("Enter {name}")
                     } else {
                         default_text.clone()
                     };
@@ -594,7 +585,7 @@ impl View for TabConfigParamsModal {
             form.add_child(label.finish());
 
             // Optional description sub-label.
-            if let Some(description) = localized_param_description(app, param) {
+            if let Some(description) = &param.description {
                 form.add_child(
                     Container::new(
                         Text::new_inline(
@@ -616,12 +607,7 @@ impl View for TabConfigParamsModal {
                     form.add_child(
                         Container::new(
                             Text::new_inline(
-                                text_with_value(
-                                    app,
-                                    "tab_config.param.default_value",
-                                    "{value}",
-                                    default_value,
-                                ),
+                                format!("Default: {default_value}"),
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size() - 1.,
                             )

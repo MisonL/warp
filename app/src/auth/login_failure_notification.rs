@@ -9,7 +9,8 @@ use warpui::{Action, AppContext, Element, SingletonEntity};
 use crate::appearance::Appearance;
 use crate::localization;
 
-const LOGIN_TROUBLESHOOTING_DOCS_URL: &str = "https://docs.warp.dev/support-and-community/troubleshooting-and-support/troubleshooting-login-issues";
+const LOGIN_TROUBLESHOOTING_DOCS_URL: &str =
+    "https://docs.warp.dev/support-and-community/troubleshooting-and-support/troubleshooting-login-issues";
 
 /// Represents reasons why login failed.
 pub enum LoginFailureReason {
@@ -28,15 +29,15 @@ impl LoginFailureReason {
             app: &AppContext,
         ) -> Vec<FormattedTextFragment> {
             fragments.extend([
-                FormattedTextFragment::plain_text(text(
+                FormattedTextFragment::plain_text(localization::text_for_app(
                     app,
                     "auth.login_failure.troubleshooting_prefix",
                 )),
                 FormattedTextFragment::hyperlink(
-                    text(app, "auth.login_failure.troubleshooting_link"),
+                    localization::text_for_app(app, "auth.login_failure.troubleshooting_link"),
                     LOGIN_TROUBLESHOOTING_DOCS_URL,
                 ),
-                FormattedTextFragment::plain_text(text(
+                FormattedTextFragment::plain_text(localization::text_for_app(
                     app,
                     "auth.login_failure.troubleshooting_suffix",
                 )),
@@ -45,45 +46,35 @@ impl LoginFailureReason {
         }
         let fragments = match self {
             LoginFailureReason::InvalidRedirectUrl { was_pasted } => {
-                let key = if *was_pasted {
-                    "auth.login_failure.invalid_token"
+                let text = if *was_pasted {
+                    localization::text_for_app(app, "auth.login_failure.invalid_token")
                 } else {
-                    "auth.login_failure.manual_token"
+                    localization::text_for_app(app, "auth.login_failure.manual_token")
                 };
-                with_troubleshooting_text(
-                    vec![FormattedTextFragment::plain_text(text(app, key))],
-                    app,
-                )
+                with_troubleshooting_text(vec![FormattedTextFragment::plain_text(text)], app)
             }
             LoginFailureReason::FailedUserAuthentication => with_troubleshooting_text(
-                vec![FormattedTextFragment::plain_text(text(
-                    app,
-                    "auth.login_failure.login_failed",
-                ))],
+                vec![FormattedTextFragment::plain_text(
+                    localization::text_for_app(app, "auth.login_failure.login_failed"),
+                )],
                 app,
             ),
             LoginFailureReason::FailedMintCustomToken => with_troubleshooting_text(
-                vec![FormattedTextFragment::plain_text(text(
-                    app,
-                    "auth.login_failure.signup_failed",
-                ))],
+                vec![FormattedTextFragment::plain_text(
+                    localization::text_for_app(app, "auth.login_failure.signup_failed"),
+                )],
                 app,
             ),
             LoginFailureReason::InvalidStateParameter
             | LoginFailureReason::MissingStateParameter => with_troubleshooting_text(
-                vec![FormattedTextFragment::plain_text(text(
-                    app,
-                    "auth.login_failure.invalid_redirect_url",
-                ))],
+                vec![FormattedTextFragment::plain_text(
+                    localization::text_for_app(app, "auth.login_failure.invalid_redirect_url"),
+                )],
                 app,
             ),
         };
         FormattedText::new([FormattedTextLine::Line(fragments)])
     }
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }
 
 /// Renders a dismissable notification with a message explaining why login failed.

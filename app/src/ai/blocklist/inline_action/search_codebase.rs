@@ -36,14 +36,6 @@ use crate::util::link_detection::{
     detect_links, DetectedLinkType, DetectedLinksState, LinkLocation,
 };
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
-    localization::text_for_app_with_args(app, key, args)
-}
-
 pub enum SearchCodebaseViewEvent {
     OpenLinkTooltip {
         rich_content_link: RichContentLink,
@@ -163,17 +155,20 @@ impl SearchCodebaseView {
         file_contexts: &[FileContext],
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let title_text = if let Some(repo) = &self.repo_name {
-            text_with_args(
+        let title_text = if let Some(repo_name) = &self.repo_name {
+            localization::text_for_app_with_args(
                 app,
                 "agent.search_codebase.searched_in_repo",
-                &[("query", &self.search_query), ("repo", repo)],
+                &[
+                    ("query", self.search_query.as_str()),
+                    ("repo", repo_name.as_str()),
+                ],
             )
         } else {
-            text_with_args(
+            localization::text_for_app_with_args(
                 app,
                 "agent.search_codebase.searched",
-                &[("query", &self.search_query)],
+                &[("query", self.search_query.as_str())],
             )
         };
 
@@ -186,7 +181,7 @@ impl SearchCodebaseView {
         render_collapsible_search_results(
             title_text,
             file_contexts.len(),
-            &text(app, "agent.search_results.results_label"),
+            &localization::text_for_app(app, "agent.search_results.results_label"),
             &self.collapsible,
             body,
             |ctx| {
@@ -247,7 +242,7 @@ impl SearchCodebaseView {
                 ..Default::default()
             };
             self.render_formatted_text(
-                text(app, "agent.search_codebase.no_results_found"),
+                localization::text_for_app(app, "search.no_results"),
                 no_results_style,
                 appearance,
             )
@@ -481,17 +476,20 @@ impl View for SearchCodebaseView {
                 | AIActionStatus::Queued
                 | AIActionStatus::RunningAsync,
             ) => {
-                let loading_text = if let Some(repo) = &self.repo_name {
-                    text_with_args(
+                let loading_text = if let Some(repo_name) = &self.repo_name {
+                    localization::text_for_app_with_args(
                         app,
                         "agent.search_codebase.searching_in_repo",
-                        &[("query", &self.search_query), ("repo", repo)],
+                        &[
+                            ("query", self.search_query.as_str()),
+                            ("repo", repo_name.as_str()),
+                        ],
                     )
                 } else {
-                    text_with_args(
+                    localization::text_for_app_with_args(
                         app,
                         "agent.search_codebase.searching",
-                        &[("query", &self.search_query)],
+                        &[("query", self.search_query.as_str())],
                     )
                 };
                 let loading_icon = yellow_running_icon(appearance);
@@ -500,17 +498,20 @@ impl View for SearchCodebaseView {
                     .finish()
             }
             Some(AIActionStatus::Finished(result)) if result.result.is_cancelled() => {
-                let cancelled_text = if let Some(repo) = &self.repo_name {
-                    text_with_args(
+                let cancelled_text = if let Some(repo_name) = &self.repo_name {
+                    localization::text_for_app_with_args(
                         app,
                         "agent.search_codebase.cancelled_in_repo",
-                        &[("query", &self.search_query), ("repo", repo)],
+                        &[
+                            ("query", self.search_query.as_str()),
+                            ("repo", repo_name.as_str()),
+                        ],
                     )
                 } else {
-                    text_with_args(
+                    localization::text_for_app_with_args(
                         app,
                         "agent.search_codebase.cancelled",
-                        &[("query", &self.search_query)],
+                        &[("query", self.search_query.as_str())],
                     )
                 };
                 let cancelled_icon = cancelled_icon(appearance);
@@ -523,17 +524,20 @@ impl View for SearchCodebaseView {
                 .with_agent_output_item_spacing(app)
                 .finish(),
             _ => {
-                let text = if let Some(repo) = &self.repo_name {
-                    text_with_args(
+                let text = if let Some(repo_name) = &self.repo_name {
+                    localization::text_for_app_with_args(
                         app,
                         "agent.search_codebase.searched_codebase_in_repo",
-                        &[("query", &self.search_query), ("repo", repo)],
+                        &[
+                            ("query", self.search_query.as_str()),
+                            ("repo", repo_name.as_str()),
+                        ],
                     )
                 } else {
-                    text_with_args(
+                    localization::text_for_app_with_args(
                         app,
                         "agent.search_codebase.searched_codebase",
-                        &[("query", &self.search_query)],
+                        &[("query", self.search_query.as_str())],
                     )
                 };
                 self.render_simple_header(text, app)

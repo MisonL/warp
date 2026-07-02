@@ -10,6 +10,7 @@
 //! place.
 use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::render::element::VerticalExpansionBehavior;
+use warp_server_client::network_logging::NetworkLogModel;
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{ChildView, MouseStateHandle};
 use warpui::text_layout::ClipConfig;
@@ -23,11 +24,10 @@ use crate::appearance::Appearance;
 use crate::code::editor::scroll::{ScrollPosition, ScrollTrigger};
 use crate::code::editor::view::{CodeEditorRenderOptions, CodeEditorView};
 use crate::editor::InteractionState;
-use crate::localization;
+use crate::localization::LocalizationUpdater;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view::{self, HeaderContent, StandardHeader, StandardHeaderOptions};
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent, PaneHeaderAction};
-use crate::server::network_logging::NetworkLogModel;
 use crate::ui_components::buttons::icon_button_with_color;
 use crate::ui_components::{blended_colors, icons};
 
@@ -59,8 +59,10 @@ pub struct NetworkLogView {
 
 impl NetworkLogView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|ctx| {
-            PaneConfiguration::new(localization::text_for_app(ctx, "network_log.title"))
+        let title = crate::localization::text_for_app(ctx, "network_log.title");
+        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(&title));
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.update_pane_title(ctx);
         });
 
         // Capture a one-shot snapshot of the model. We intentionally do not
@@ -93,6 +95,13 @@ impl NetworkLogView {
 
     pub fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {
         self.pane_configuration.clone()
+    }
+
+    fn update_pane_title(&self, ctx: &mut ViewContext<Self>) {
+        let title = crate::localization::text_for_app(ctx, "network_log.title");
+        self.pane_configuration.update(ctx, |configuration, ctx| {
+            configuration.set_title(title, ctx);
+        });
     }
 
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) {
@@ -139,7 +148,7 @@ impl NetworkLogView {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder().clone();
-        let refresh_tooltip = localization::text_for_app(app, "network_log.action.refresh");
+        let refresh_tooltip = crate::localization::text_for_app(app, "network_log.action.refresh");
 
         icon_button_with_color(
             appearance,
@@ -226,7 +235,7 @@ impl BackingView for NetworkLogView {
         app: &AppContext,
     ) -> HeaderContent {
         HeaderContent::Standard(StandardHeader {
-            title: localization::text_for_app(app, "network_log.title"),
+            title: crate::localization::text_for_app(app, "network_log.title"),
             title_secondary: None,
             title_style: None,
             title_clip_config: ClipConfig::start(),

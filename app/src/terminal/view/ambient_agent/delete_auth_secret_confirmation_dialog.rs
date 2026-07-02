@@ -105,7 +105,7 @@ impl View for DeleteAuthSecretConfirmationDialog {
         let description = localization::text_for_app_with_args(
             app,
             "terminal.auth_secret.delete.description",
-            &[("name", &pending_deletion.name)],
+            &[("name", pending_deletion.name.as_str())],
         );
 
         let dialog = Dialog::new(

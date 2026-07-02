@@ -133,10 +133,7 @@ fn cloud_with_opencode_disables_accept() {
     ));
     let reason = state.orch.accept_disabled_reason();
     assert!(reason.is_some(), "Cloud + OpenCode should disable Accept");
-    assert_eq!(
-        reason,
-        Some("agent.orchestration.controls.opencode_cloud_unsupported")
-    );
+    assert!(reason.unwrap().contains("OpenCode"));
 }
 
 #[test]
@@ -156,7 +153,7 @@ fn local_with_disabled_codex_disables_accept() {
     let state = make_edit_state_with_orch_fields("codex", RunAgentsExecutionMode::Local);
     assert_eq!(
         state.orch.accept_disabled_reason(),
-        Some("agent.orchestration.controls.local_codex_disabled")
+        Some("Local Codex child agents are temporarily disabled.")
     );
 }
 
@@ -306,6 +303,26 @@ mod format_terminal_state_tests {
         let (label, kind) = format_terminal_state(&result);
         assert_eq!(label, "Spawned 2 of 3 agents");
         assert!(matches!(kind, StatusKind::Mixed));
+    }
+
+    #[test]
+    fn all_failed_uses_failure_status_not_mixed() {
+        let result = launched_result(vec![
+            failed("a", "boom"),
+            failed("b", "boom"),
+            failed("c", "boom"),
+        ]);
+        let (label, kind) = format_terminal_state(&result);
+        assert_eq!(label, "Failed to spawn 3 agents");
+        assert!(matches!(kind, StatusKind::Failure));
+    }
+
+    #[test]
+    fn single_failed_uses_singular_failure_label() {
+        let result = launched_result(vec![failed("a", "boom")]);
+        let (label, kind) = format_terminal_state(&result);
+        assert_eq!(label, "Failed to spawn agent");
+        assert!(matches!(kind, StatusKind::Failure));
     }
 
     #[test]
@@ -502,7 +519,7 @@ mod override_from_approved_config_tests {
             .override_from_approved_config(&local_config("auto", "codex"));
         assert_eq!(
             state.orch.accept_disabled_reason(),
-            Some("agent.orchestration.controls.local_codex_disabled")
+            Some("Local Codex child agents are temporarily disabled.")
         );
     }
 }

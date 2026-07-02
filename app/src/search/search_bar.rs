@@ -20,8 +20,7 @@ use crate::editor::{
     PlainTextEditorViewAction as EditorAction, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions,
 };
-use crate::localization;
-use crate::localization::LocalizationUpdater;
+use crate::localization::{self, LocalizationUpdater};
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::SearchMixer;
 use crate::search::result_renderer::{QueryResultIndex, QueryResultRenderer};
@@ -33,6 +32,20 @@ use crate::ui_components::icons::Icon;
 /// and click-action of a a rendered query result.
 pub type CreateQueryResultRendererFn<T> =
     fn(QueryResultIndex, QueryResult<T>) -> QueryResultRenderer<T>;
+
+enum PlaceholderText {
+    Static(&'static str),
+    LocalizationKey(&'static str),
+}
+
+impl PlaceholderText {
+    fn resolve(&self, app: &AppContext) -> String {
+        match self {
+            Self::Static(text) => (*text).to_string(),
+            Self::LocalizationKey(key) => localization::text_for_app(app, key),
+        }
+    }
+}
 
 enum SearchResultLimit {
     /// Search results are unbounded.
@@ -116,7 +129,7 @@ pub struct SearchBar<T: Action + Clone> {
     mixer: ModelHandle<SearchMixer<T>>,
     /// The placeholder text that is rendered in the search bar when no query has been run or
     /// filters have been applied.
-    placeholder: SearchBarPlaceholder,
+    placeholder_text: PlaceholderText,
     create_query_result_renderer_fn: CreateQueryResultRendererFn<T>,
     /// Font family to use when rendering the editor and query filters. If `None` the monospace font
     /// family is used.
@@ -337,36 +350,11 @@ pub enum SelectionUpdate {
     Clear,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum SearchBarPlaceholder {
-    Static(&'static str),
-    Localized(&'static str),
-}
-
-impl SearchBarPlaceholder {
-    pub fn localized(key: &'static str) -> Self {
-        Self::Localized(key)
-    }
-
-    fn text(self, app: &AppContext) -> String {
-        match self {
-            Self::Static(text) => text.to_string(),
-            Self::Localized(key) => localization::text_for_app(app, key),
-        }
-    }
-}
-
-impl From<&'static str> for SearchBarPlaceholder {
-    fn from(value: &'static str) -> Self {
-        Self::Static(value)
-    }
-}
-
 impl<T: Action + Clone> SearchBar<T> {
     pub fn new(
         mixer: ModelHandle<SearchMixer<T>>,
         state: ModelHandle<SearchBarState<T>>,
-        placeholder: impl Into<SearchBarPlaceholder>,
+        placeholder_text: &'static str,
         create_query_result_renderer_fn: CreateQueryResultRendererFn<T>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -391,13 +379,14 @@ impl<T: Action + Clone> SearchBar<T> {
         });
         ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
             me.update_placeholder_text(ctx);
+            me.update_filter_autosuggestion_text(ctx);
             ctx.notify();
         });
 
         let me = Self {
             editor_handle,
             mixer,
-            placeholder: placeholder.into(),
+            placeholder_text: PlaceholderText::Static(placeholder_text),
             state,
             create_query_result_renderer_fn,
             font_family_override: None,
@@ -405,6 +394,19 @@ impl<T: Action + Clone> SearchBar<T> {
 
         me.update_placeholder_text(ctx);
         me
+    }
+
+    pub fn new_with_localized_placeholder(
+        mixer: ModelHandle<SearchMixer<T>>,
+        state: ModelHandle<SearchBarState<T>>,
+        placeholder_key: &'static str,
+        create_query_result_renderer_fn: CreateQueryResultRendererFn<T>,
+        ctx: &mut ViewContext<Self>,
+    ) -> Self {
+        let mut search_bar = Self::new(mixer, state, "", create_query_result_renderer_fn, ctx);
+        search_bar.placeholder_text = PlaceholderText::LocalizationKey(placeholder_key);
+        search_bar.update_placeholder_text(ctx);
+        search_bar
     }
 
     /// Sets the font that the search bar editor and query filter should use. If unspecified the
@@ -720,15 +722,12 @@ impl<T: Action + Clone> SearchBar<T> {
     fn emit_accessibility_content(&self, ctx: &mut ViewContext<Self>) {
         if let Some(loading_filters) = self.mixer.as_ref(ctx).loading_query_filters() {
             for loading_filter in loading_filters.into_iter() {
-                let filter =
-                    localization::text_for_app(ctx, loading_filter.display_name_text_key());
-                let message = localization::text_for_app_with_args(
-                    ctx,
-                    "search.a11y.loading_suggestions",
-                    &[("filter", filter.as_str())],
-                );
                 ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                    message,
+                    crate::localization::text_for_app_with_args(
+                        ctx,
+                        "search.a11y.loading_suggestions",
+                        &[("filter", loading_filter.display_name())],
+                    ),
                     WarpA11yRole::MenuItemRole,
                 ));
             }
@@ -738,19 +737,18 @@ impl<T: Action + Clone> SearchBar<T> {
 
         if let Some((.., data_source_err)) = self.mixer.as_ref(ctx).first_data_source_error() {
             ctx.emit_a11y_content(AccessibilityContent::new(
-                localization::text_for_app(ctx, "search.a11y.error_finding_results"),
-                data_source_error_message(ctx, data_source_err),
+                crate::localization::text_for_app(ctx, "search.a11y.error_finding_results"),
+                data_source_err.user_facing_error_for_app(ctx),
                 WarpA11yRole::MenuItemRole,
             ));
             return;
         }
 
         if let Some(selected_result) = self.state.as_ref(ctx).selected_result() {
-            let item = selected_result.accessibility_label_for_app(ctx);
-            let a11y_content_text = localization::text_for_app_with_args(
+            let a11y_content_text = crate::localization::text_for_app_with_args(
                 ctx,
                 "search.a11y.selected_item",
-                &[("item", item.as_str())],
+                &[("item", &selected_result.accessibility_label_for_app(ctx))],
             );
             let a11y_content = match selected_result.accessibility_help_message_for_app(ctx) {
                 None => AccessibilityContent::new_without_help(
@@ -817,17 +815,10 @@ impl<T: Action + Clone> SearchBar<T> {
                 // Set the appropriate placeholder text if the editor buffer is empty.
                 match self.state.as_ref(ctx).query_filter {
                     Some(filter) => {
-                        editor.set_placeholder_text(
-                            localization::text_for_app_or(
-                                ctx,
-                                filter.placeholder_text_key(),
-                                filter.placeholder_text(),
-                            ),
-                            ctx,
-                        );
+                        editor.set_placeholder_text(filter.placeholder_text(), ctx);
                     }
                     None => {
-                        editor.set_placeholder_text(self.placeholder.text(ctx), ctx);
+                        editor.set_placeholder_text(self.placeholder_text.resolve(ctx), ctx);
                     }
                 }
             }
@@ -979,16 +970,6 @@ impl<T: Action + Clone> View for SearchBar<T> {
         );
         input_contents.finish()
     }
-}
-
-fn data_source_error_message(
-    app: &AppContext,
-    error: &crate::search::mixer::DataSourceRunErrorWrapper,
-) -> String {
-    error
-        .user_facing_error_text_key()
-        .map(|key| localization::text_for_app(app, key))
-        .unwrap_or_else(|| error.user_facing_error())
 }
 
 #[cfg(feature = "integration_tests")]

@@ -24,7 +24,9 @@ use warpui::{
 
 use super::styles;
 use crate::appearance::Appearance;
+use crate::debounce;
 use crate::drive::settings::WarpDriveSettings;
+use crate::localization;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::blocks::data_source::BlockDataSource;
 #[cfg(not(target_family = "wasm"))]
@@ -57,7 +59,6 @@ use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, Searc
 use crate::settings::InputSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::workspace::ActiveSession;
-use crate::{debounce, localization};
 
 const CORNER_RADIUS: f32 = 8.0;
 const DEFAULT_PALETTE_WIDTH: f32 = 320.0;
@@ -127,10 +128,6 @@ impl AIContextMenuCategory {
             AIContextMenuCategory::Conversations => "search.ai_context_menu.category.conversations",
             AIContextMenuCategory::Skills => "search.ai_context_menu.category.skills",
         }
-    }
-
-    pub fn localized_name(&self, app: &AppContext) -> String {
-        localization::text_for_app(app, self.name_key())
     }
 
     pub fn icon(&self) -> &'static str {
@@ -395,7 +392,7 @@ impl AIContextMenu {
                     .and_then(|window_id| ActiveSession::as_ref(app).working_directory(window_id))
                     .is_some_and(|dir| {
                         DetectedRepositories::as_ref(app)
-                            .get_root_for_path(dir)
+                            .get_root_for_canonical_path(dir)
                             .is_some()
                     })
             }
@@ -1228,7 +1225,8 @@ impl AIContextMenu {
             categories
                 .into_iter()
                 .filter(|category| {
-                    let category_name_lower = category.localized_name(app).to_lowercase();
+                    let category_name_lower =
+                        localization::text_for_app(app, category.name_key()).to_lowercase();
                     category_name_lower.contains(&query_lower)
                 })
                 .collect()
@@ -1294,7 +1292,7 @@ impl AIContextMenu {
 
             let text = Container::new(
                 Text::new(
-                    category.localized_name(app),
+                    localization::text_for_app(app, category.name_key()),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size() - 1.0,
                 )
@@ -1394,7 +1392,7 @@ impl AIContextMenu {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                localization::text_for_app(app, "search.ai_context_menu.loading_results"),
+                localization::text_for_app(app, "search.loading"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -1562,7 +1560,7 @@ impl AIContextMenu {
 
         let title = Container::new(
             Text::new(
-                category.localized_name(app),
+                localization::text_for_app(app, category.name_key()),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() - 2.0,
             )

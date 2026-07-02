@@ -28,12 +28,13 @@ use crate::auth::AuthStateProvider;
 use crate::changelog_model::ChangelogModel;
 use crate::channel::ChannelState;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::resource_center::skip_tips_and_write_to_user_defaults;
+use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
-use crate::settings::{LanguageSettings, Settings};
+use crate::settings::Settings;
 use crate::themes::theme::{Blend, Fill as FillTheme};
 use crate::workspace::WorkspaceAction;
-use crate::{localization, send_telemetry_from_ctx};
 
 const SEND_SVG_PATH: &str = "bundled/svg/send.svg";
 
@@ -82,11 +83,7 @@ impl ResourceCenterMainView {
         }
     }
 
-    fn on_language_settings_changed(
-        &mut self,
-        _language_settings: ModelHandle<LanguageSettings>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    pub fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.notify();
     }
 
@@ -97,11 +94,6 @@ impl ResourceCenterMainView {
         changelog_model_handle: ModelHandle<ChangelogModel>,
     ) -> Vec<SectionViewHandle> {
         let sections = sections(ctx);
-        let language_settings = LanguageSettings::handle(ctx);
-        ctx.observe(
-            &language_settings,
-            ResourceCenterMainView::on_language_settings_changed,
-        );
 
         // Set gamified tips count
         let gamified_tips_count = sections
@@ -353,7 +345,7 @@ impl ResourceCenterMainView {
         .finish()
     }
 
-    fn render_invite_button(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_invite_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let default_styles = UiComponentStyles {
             font_size: Some(DETAIL_FONT_SIZE),
             font_family_id: Some(appearance.ui_font_family()),
@@ -426,8 +418,8 @@ impl ResourceCenterMainView {
 
     fn render_skip_tips_button(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Container::new(
             Align::new(
@@ -523,8 +515,8 @@ impl View for ResourceCenterMainView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let body = self.render_body(appearance);
-        let invite_button = self.render_invite_button(app, appearance);
-        let skip_tips = self.render_skip_tips_button(app, appearance);
+        let invite_button = self.render_invite_button(appearance, app);
+        let skip_tips = self.render_skip_tips_button(appearance, app);
 
         let mut main_page = Flex::column();
 

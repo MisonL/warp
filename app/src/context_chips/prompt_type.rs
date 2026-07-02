@@ -59,20 +59,20 @@ impl PromptType {
             .filter_map(|chip_result| {
                 if chip_result.value.is_some() && chip_result.kind.is_copyable() {
                     if let Some(chip) = chip_result.kind.to_chip() {
-                        let label = localization::text_for_app_with_args(
-                            ctx,
-                            "context_chips.menu.copy_chip",
-                            &[("title", chip.title())],
-                        );
+                        let title = chip.title();
                         Some(
-                            MenuItemFields::new(label)
-                                .with_on_select_action(TerminalAction::ContextMenu(
-                                    ContextMenuAction::CopyPrompt {
-                                        position,
-                                        part: PromptPart::ContextChip(chip_result.kind),
-                                    },
-                                ))
-                                .into_item(),
+                            MenuItemFields::new(localization::text_for_app_with_args(
+                                ctx,
+                                "context_chips.menu.copy_chip",
+                                &[("title", title)],
+                            ))
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::CopyPrompt {
+                                    position,
+                                    part: PromptPart::ContextChip(chip_result.kind),
+                                },
+                            ))
+                            .into_item(),
                         )
                     } else {
                         log::error!("Missing definition for chip: {:?}", chip_result.kind);

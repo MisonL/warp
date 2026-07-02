@@ -41,10 +41,6 @@ const TITLE_FONT_SIZE: f32 = 16.;
 const OPTION_TITLE_FONT_SIZE: f32 = 14.;
 const OPTION_DESC_FONT_SIZE: f32 = 12.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 /// The mode for environment setup selected by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EnvironmentSetupMode {
@@ -130,11 +126,11 @@ impl EnvironmentSetupModeSelector {
         }
     }
 
-    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = Text::new(
-            text(app, "terminal.init_environment.mode_selector.title"),
+            "Choose how you'd like to set up your environment".to_string(),
             appearance.ui_font_family(),
             TITLE_FONT_SIZE,
         )
@@ -191,7 +187,6 @@ impl EnvironmentSetupModeSelector {
     #[allow(clippy::too_many_arguments)]
     fn render_option(
         &self,
-        app: &AppContext,
         index: usize,
         icon: Icon,
         title: String,
@@ -200,6 +195,7 @@ impl EnvironmentSetupModeSelector {
         mouse_state: MouseStateHandle,
         action: EnvironmentSetupModeSelectorAction,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
@@ -225,6 +221,8 @@ impl EnvironmentSetupModeSelector {
         let icon_color = nonactive_text;
 
         let is_selected = self.selected_option_index == index;
+        let suggested_label =
+            localization::text_for_app(app, "terminal.init_environment.suggested");
         let action = action.clone();
         Hoverable::new(mouse_state, move |state| {
             let is_hovered = state.is_hovered() || state.is_clicked();
@@ -257,7 +255,7 @@ impl EnvironmentSetupModeSelector {
                 .with_border(Border::all(1.).with_border_color(avatar_border))
                 .finish();
 
-            let title_text = Text::new(title.clone(), font_family, OPTION_TITLE_FONT_SIZE)
+            let title_text = Text::new(title.to_string(), font_family, OPTION_TITLE_FONT_SIZE)
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(active_text.into())
                 .finish();
@@ -268,14 +266,11 @@ impl EnvironmentSetupModeSelector {
                 .with_child(title_text);
 
             if is_suggested {
-                let suggested_text = Text::new(
-                    text(app, "terminal.init_environment.suggested"),
-                    font_family,
-                    OPTION_DESC_FONT_SIZE,
-                )
-                .with_style(Properties::default().weight(Weight::Medium))
-                .with_color(badge_text_color)
-                .finish();
+                let suggested_text =
+                    Text::new(suggested_label.clone(), font_family, OPTION_DESC_FONT_SIZE)
+                        .with_style(Properties::default().weight(Weight::Medium))
+                        .with_color(badge_text_color)
+                        .finish();
 
                 let suggested = Container::new(suggested_text)
                     .with_horizontal_padding(8.)
@@ -289,7 +284,7 @@ impl EnvironmentSetupModeSelector {
             }
 
             let description_text =
-                Text::new(description.clone(), font_family, OPTION_DESC_FONT_SIZE)
+                Text::new(description.to_string(), font_family, OPTION_DESC_FONT_SIZE)
                     .with_style(Properties::default().weight(Weight::Normal))
                     .with_color(nonactive_text.into())
                     .soft_wrap(true)
@@ -338,7 +333,7 @@ impl EnvironmentSetupModeSelector {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let header = Container::new(self.render_header(appearance, app))
+        let header = Container::new(self.render_header(appearance))
             .with_padding_top(HEADER_PADDING_TOP)
             .with_padding_bottom(HEADER_PADDING_BOTTOM)
             .with_padding_left(HEADER_PADDING_HORIZONTAL)
@@ -346,14 +341,13 @@ impl EnvironmentSetupModeSelector {
             .finish();
 
         let remote_github_option = self.render_option(
-            app,
             0,
             Icon::Github,
-            text(
+            localization::text_for_app(
                 app,
                 "terminal.init_environment.mode_selector.quick_setup.title",
             ),
-            text(
+            localization::text_for_app(
                 app,
                 "terminal.init_environment.mode_selector.quick_setup.description",
             ),
@@ -361,14 +355,14 @@ impl EnvironmentSetupModeSelector {
             self.remote_github_mouse_state.clone(),
             EnvironmentSetupModeSelectorAction::SelectRemoteGitHub,
             appearance,
+            app,
         );
 
         let local_repos_option = self.render_option(
-            app,
             1,
             Icon::Terminal,
-            text(app, "terminal.init_environment.mode_selector.agent.title"),
-            text(
+            localization::text_for_app(app, "terminal.init_environment.mode_selector.agent.title"),
+            localization::text_for_app(
                 app,
                 "terminal.init_environment.mode_selector.agent.description",
             ),
@@ -376,6 +370,7 @@ impl EnvironmentSetupModeSelector {
             self.local_repos_mouse_state.clone(),
             EnvironmentSetupModeSelectorAction::SelectLocalRepositories,
             appearance,
+            app,
         );
 
         let options = Flex::column()

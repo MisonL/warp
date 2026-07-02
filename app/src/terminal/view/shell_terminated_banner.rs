@@ -10,7 +10,7 @@ use warpui::elements::*;
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::UiComponent as _;
-use warpui::{Entity, SingletonEntity as _, TypedActionView, View, ViewContext};
+use warpui::{AppContext, Entity, SingletonEntity as _, TypedActionView, View, ViewContext};
 
 use crate::terminal::model::terminal_model::ExitReason;
 use crate::{localization, ui_components};
@@ -25,9 +25,11 @@ pub struct ShellTerminatedBanner {
 }
 
 impl ShellTerminatedBanner {
-    pub fn new(termination_type: TerminationType) -> Self {
+    pub fn new(termination_type: TerminationType, ctx: &mut ViewContext<Self>) -> Self {
+        let appearance = Appearance::as_ref(ctx);
+
         let mut handles = vec![];
-        termination_type.initialize_button_handles(&mut handles);
+        let _ = termination_type.buttons(appearance, ctx, &mut handles);
 
         Self {
             termination_type,
@@ -56,9 +58,9 @@ impl View for ShellTerminatedBanner {
 
         let mut text_column = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::Start)
-            .with_child(self.termination_type.text(app, appearance));
+            .with_child(self.termination_type.text(appearance, app));
 
-        if let Some(subtext) = self.termination_type.subtext(app, appearance) {
+        if let Some(subtext) = self.termination_type.subtext(appearance, app) {
             text_column.add_child(subtext);
         }
 
@@ -73,7 +75,7 @@ impl View for ShellTerminatedBanner {
         let mut handles = self.handles.borrow_mut();
         let buttons = self
             .termination_type
-            .buttons(app, appearance, &mut handles)
+            .buttons(appearance, app, &mut handles)
             .into_iter()
             .map(|button| Container::new(button).with_margin_left(8.).finish());
 
@@ -158,33 +160,38 @@ impl TerminationType {
         .finish()
     }
 
-    fn text(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
-        let text_key = match self {
-            TerminationType::Normal => "terminal.shell_terminated.normal.title",
-            TerminationType::PtySpawnFailure { .. } => "terminal.shell_terminated.pty_spawn.title",
-            TerminationType::Premature { .. } => "terminal.shell_terminated.premature.title",
+    fn text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let text = match self {
+            TerminationType::Normal => {
+                localization::text_for_app(app, "terminal.shell_terminated.normal.title")
+            }
+            TerminationType::PtySpawnFailure { .. } => {
+                localization::text_for_app(app, "terminal.shell_terminated.pty_spawn.title")
+            }
+            TerminationType::Premature { .. } => {
+                localization::text_for_app(app, "terminal.shell_terminated.premature.title")
+            }
         };
 
-        Text::new(
-            localization::text_for_app(app, text_key),
-            appearance.ui_font_family(),
-            14.,
-        )
-        .with_color(appearance.theme().background().into_solid())
-        .with_clip(ClipConfig::end())
-        .finish()
+        Text::new(text, appearance.ui_font_family(), 14.)
+            .with_color(appearance.theme().background().into_solid())
+            .with_clip(ClipConfig::end())
+            .finish()
     }
 
-    fn subtext(&self, app: &AppContext, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn subtext(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>> {
         let text: Cow<str> = match self {
             TerminationType::Normal => return None,
             TerminationType::PtySpawnFailure { pty_spawn_error } => {
                 format!("{pty_spawn_error:#}").into()
             }
             TerminationType::Premature { shell_detail, .. } => {
-                localization::text_for_app(app, "terminal.shell_terminated.premature.description")
-                    .replace("{shell_detail}", shell_detail)
-                    .into()
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.shell_terminated.premature.description",
+                    &[("shell_detail", shell_detail)],
+                )
+                .into()
             }
         };
 
@@ -198,17 +205,16 @@ impl TerminationType {
 
     fn buttons(
         &self,
-        app: &AppContext,
         appearance: &Appearance,
+        app: &AppContext,
         handles: &mut Vec<MouseStateHandle>,
     ) -> Vec<Box<dyn Element>> {
-        self.initialize_button_handles(handles);
-
         match self {
             TerminationType::Normal => vec![],
             TerminationType::Premature { .. } => {
                 let ui_builder = inverted_color_ui_builder(appearance);
 
+                handles.resize_with(2, MouseStateHandle::default);
                 vec![
                     ui_builder
                         .button(ButtonVariant::Text, handles[0].clone())
@@ -241,6 +247,7 @@ impl TerminationType {
             TerminationType::PtySpawnFailure { pty_spawn_error } => {
                 let ui_builder = inverted_color_ui_builder(appearance);
 
+                handles.resize_with(3, MouseStateHandle::default);
                 let error_str = format!("{pty_spawn_error:#}");
                 vec![
                     ui_builder
@@ -285,15 +292,6 @@ impl TerminationType {
                 ]
             }
         }
-    }
-
-    fn initialize_button_handles(&self, handles: &mut Vec<MouseStateHandle>) {
-        let button_count = match self {
-            TerminationType::Normal => 0,
-            TerminationType::Premature { .. } => 2,
-            TerminationType::PtySpawnFailure { .. } => 3,
-        };
-        handles.resize_with(button_count, MouseStateHandle::default);
     }
 }
 

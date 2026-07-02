@@ -14,7 +14,6 @@ use crate::ai::blocklist::{
     BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIInputModel,
 };
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::inline_history::{AcceptHistoryItem, HistoryTab};
 use crate::terminal::input::inline_menu::{InlineMenuModel, InlineMenuModelEvent};
@@ -97,7 +96,7 @@ impl View for TerminalInputMessageBar {
         {
             let selected = self.inline_history_model.as_ref(app).selected_item();
             let message = InlineHistoryMessageProducer
-                .produce_message((selected, app))
+                .produce_message(selected)
                 .unwrap_or_default();
             return Container::new(render_terminal_message(message, app))
                 .with_padding_bottom(8.)
@@ -203,10 +202,7 @@ impl MessageProvider<TerminalMessageArgs<'_>> for AgentMessageProducer {
                     key: "enter".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(localization::text_for_app(
-                    app,
-                    "terminal.message_bar.new_conversation",
-                )),
+                MessageItem::text(" new conversation"),
             ])
             .with_color(message_magenta(theme)),
         )
@@ -237,10 +233,7 @@ impl MessageProvider<TerminalMessageArgs<'_>> for PlanMessageProducer {
                     key: "enter".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(localization::text_for_app(
-                    app,
-                    "terminal.message_bar.plan_with_agent",
-                )),
+                MessageItem::text(" plan with agent"),
             ])
             .with_color(message_magenta(theme)),
         )
@@ -262,10 +255,7 @@ impl MessageProvider<TerminalMessageArgs<'_>> for ContinueConversationMessagePro
         let keystroke = keybinding_name_to_keystroke(commands::CONVERSATIONS.name, args.app)?;
         Some(Message::new(vec![
             MessageItem::keystroke(keystroke),
-            MessageItem::text(localization::text_for_app(
-                args.app,
-                "terminal.message_bar.to_continue_conversation",
-            )),
+            MessageItem::text(" to continue conversation"),
         ]))
     }
 }
@@ -352,54 +342,32 @@ impl MessageProvider<TerminalMessageArgs<'_>> for DefaultMessageProducer {
         if let Some(keystroke) = keystroke {
             Some(Message::new(vec![
                 MessageItem::keystroke(keystroke),
-                MessageItem::text(localization::text_for_app(
-                    args.app,
-                    "terminal.message_bar.new_agent_conversation",
-                )),
+                MessageItem::text(" new /agent conversation"),
             ]))
         } else {
             Some(Message::new(vec![MessageItem::text(
-                localization::text_for_app(args.app, "terminal.message_bar.agent_new_conversation"),
+                "/agent for new conversation",
             )]))
         }
     }
 }
 
 struct InlineHistoryMessageProducer;
-impl MessageProvider<(Option<&AcceptHistoryItem>, &AppContext)> for InlineHistoryMessageProducer {
-    fn produce_message(&self, args: (Option<&AcceptHistoryItem>, &AppContext)) -> Option<Message> {
-        let (selected, app) = args;
+impl MessageProvider<Option<&AcceptHistoryItem>> for InlineHistoryMessageProducer {
+    fn produce_message(&self, selected: Option<&AcceptHistoryItem>) -> Option<Message> {
         let enter = MessageItem::keystroke(Keystroke {
             key: "enter".to_owned(),
             ..Default::default()
         });
         let items = match selected {
             Some(AcceptHistoryItem::Command { .. }) => {
-                vec![
-                    enter,
-                    MessageItem::text(localization::text_for_app(
-                        app,
-                        "terminal.message_bar.to_execute",
-                    )),
-                ]
+                vec![enter, MessageItem::text(" to execute")]
             }
             Some(AcceptHistoryItem::AIPrompt { .. }) => {
-                vec![
-                    enter,
-                    MessageItem::text(localization::text_for_app(
-                        app,
-                        "terminal.message_bar.to_send",
-                    )),
-                ]
+                vec![enter, MessageItem::text(" to send")]
             }
             Some(AcceptHistoryItem::Conversation { title, .. }) => {
-                vec![
-                    enter,
-                    MessageItem::text(
-                        localization::text_for_app(app, "terminal.message_bar.to_open")
-                            .replace("{title}", title),
-                    ),
-                ]
+                vec![enter, MessageItem::text(format!(" to open '{title}'"))]
             }
             None => {
                 vec![MessageItem::text("")]
@@ -432,15 +400,9 @@ impl MessageTransformer<TerminalMessageArgs<'_>> for AutodetectedPromptMessageTr
                     });
 
             message.items.extend([
-                MessageItem::text(localization::text_for_app(
-                    args.app,
-                    "terminal.message_bar.autodetected",
-                )),
+                MessageItem::text(" (autodetected) "),
                 MessageItem::keystroke(set_terminal_mode_keystroke),
-                MessageItem::text(localization::text_for_app(
-                    args.app,
-                    "terminal.message_bar.to_override",
-                )),
+                MessageItem::text(" to override"),
             ]);
         }
         message.set_color(message_magenta(Appearance::as_ref(args.app).theme()));
@@ -465,28 +427,15 @@ impl MessageTransformer<TerminalMessageArgs<'_>> for AttachedBlocksMessageTransf
         };
 
         if context_block_ids.len() == 1 {
-            let text = localization::text_for_app(
-                args.app,
-                "terminal.message_bar.context.with_block_attached",
-            )
-            .replace("{command}", &block_command);
-            message.append_text(text.as_str());
+            message.append_text(format!(" with `{}` attached", block_command).as_str());
         } else {
             let text = if context_block_ids.len() == 2 {
-                localization::text_for_app(
-                    args.app,
-                    "terminal.message_bar.context.with_block_and_one_other_attached",
-                )
-                .replace("{command}", &block_command)
+                format!(" with `{}` and 1 other command attached", block_command)
             } else {
-                localization::text_for_app(
-                    args.app,
-                    "terminal.message_bar.context.with_block_and_others_attached",
-                )
-                .replace("{command}", &block_command)
-                .replace(
-                    "{count}",
-                    &context_block_ids.len().saturating_sub(1).to_string(),
+                format!(
+                    " with `{}` and {} other commands attached",
+                    block_command,
+                    context_block_ids.len().saturating_sub(1)
                 )
             };
             message.append_text(text.as_str());
@@ -504,11 +453,7 @@ impl MessageTransformer<TerminalMessageArgs<'_>> for AttachedTextSelectionMessag
         {
             return false;
         }
-        let text = localization::text_for_app(
-            args.app,
-            "terminal.message_bar.context.with_text_selection_attached",
-        );
-        message.append_text(&text);
+        message.append_text(" with text selection attached");
         true
     }
 }

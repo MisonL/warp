@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use chrono::Local;
@@ -13,7 +13,7 @@ use warpui::elements::{
     Resizable, ResizableStateHandle, SavePosition, Shrinkable, Stack, Text,
 };
 use warpui::fonts::Properties;
-use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding};
+use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::platform::Cursor;
 use warpui::presenter::ChildView;
 use warpui::r#async::Timer;
@@ -30,13 +30,14 @@ use super::transcript::{Transcript, TranscriptEvent};
 use super::utils::{render_prepared_response_button, render_request_limit_info, TranscriptPart};
 use super::{
     AskAIType, AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AI_ASSISTANT_SVG_PATH,
-    PROMPT_CHARACTER_LIMIT,
+    ASK_WARP_AI_MENU_KEY, PROMPT_CHARACTER_LIMIT,
 };
 use crate::appearance::Appearance;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
 };
 use crate::input_suggestions::{Event as InputSuggestionsEvent, InputSuggestions};
+use crate::send_telemetry_from_ctx;
 use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::ServerApi;
 use crate::server::telemetry::{TelemetryEvent, WarpAIActionType};
@@ -46,7 +47,6 @@ use crate::ui_components::buttons::icon_button;
 use crate::util::bindings::{cmd_or_ctrl_shift, CustomAction};
 use crate::workspace::{ActiveSession, TAB_BAR_HEIGHT};
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{localization, send_telemetry_from_ctx};
 
 const INFO_ICON_SVG_PATH: &str = "bundled/svg/info.svg";
 pub const HEXAGON_ALERT_SVG_PATH: &str = "bundled/svg/alert-hexagon.svg";
@@ -67,6 +67,43 @@ const LOGO_SIZE: f32 = 20.;
 const BODY_FONT_SIZE: f32 = 13.;
 const TITLE_FONT_SIZE: f32 = 16.;
 const ZERO_STATE_HELP_TEXT_FONT_SIZE: f32 = 12.;
+
+const ZERO_STATE_HELP_TEXT: &str = "Shift + ctrl + space a block or text selection to ask Warp AI.";
+const SCRIPT_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.script";
+const GIT_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.git";
+const FILES_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.files";
+static SCRIPT_ZERO_STATE_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            SCRIPT_ZERO_STATE_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
+static GIT_ZERO_STATE_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            GIT_ZERO_STATE_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
+static FILES_ZERO_STATE_PROMPT: LazyLock<&'static str> = LazyLock::new(|| {
+    Box::leak(
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            FILES_ZERO_STATE_PROMPT_KEY,
+        )
+        .into_boxed_str(),
+    )
+});
+
+// The placeholder texts are prepended with a space to give them cushion from the cursor.
+const INIT_PLACEHOLDER_TEXT: &str = " Ask a question...";
+const FOLLOWUP_PLACEHOLDER_TEXT: &str = " Type a response or click one above...";
+const RESTART_BUTTON_TEXT: &str = "Restart";
 
 const ASK_AI_BLOCK_INPUT_LIMIT: usize = 100;
 
@@ -122,8 +159,8 @@ pub enum AIAssistantAction {
     ResetContext,
     CopyTranscript,
     PreparedPrompt {
-        prompt_key: &'static str,
         prompt: String,
+        telemetry_prompt: &'static str,
     },
     ClickedUrl(HyperlinkUrl),
     CopyAnswerToClipboard(Arc<String>),
@@ -137,48 +174,33 @@ pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings([FixedBinding::custom(
         CustomAction::CloseCurrentSession,
         AIAssistantAction::ClosePanel,
-        binding_description("Close Warp AI", "ai_assistant.binding.close_warp_ai"),
+        "Close Warp AI",
         id!("AIAssistantPanel"),
     )]);
 
     app.register_editable_bindings([
         EditableBinding::new(
             "ai_assistant_panel:focus_terminal_input",
-            binding_description(
-                "Focus Terminal Input From Warp AI",
-                "ai_assistant.binding.focus_terminal_input",
-            ),
+            "Focus Terminal Input From Warp AI",
             AIAssistantAction::FocusTerminalInput,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding(cmd_or_ctrl_shift("l")),
         EditableBinding::new(
             "ai_assistant_panel:reset_context",
-            binding_description("Restart Warp AI", "ai_assistant.binding.restart_warp_ai"),
+            "Restart Warp AI",
             AIAssistantAction::ResetContext,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding("ctrl-l"),
         EditableBinding::new(
             "ai_assistant_panel:reset_context",
-            binding_description("Restart Warp AI", "ai_assistant.binding.restart_warp_ai"),
+            "Restart Warp AI",
             AIAssistantAction::ResetContext,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding(cmd_or_ctrl_shift("k")),
     ]);
-}
-
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
-fn padded_text(app: &AppContext, key: &str) -> String {
-    format!(" {}", text(app, key))
 }
 
 impl AIAssistantPanelView {
@@ -204,7 +226,7 @@ impl AIAssistantPanelView {
             })
         };
         editor.update(ctx, |editor, ctx| {
-            editor.set_placeholder_text(padded_text(ctx, "ai_assistant.placeholder.initial"), ctx)
+            editor.set_placeholder_text(INIT_PLACEHOLDER_TEXT, ctx)
         });
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| {
             me.handle_editor_event(event, ctx);
@@ -571,10 +593,7 @@ impl AIAssistantPanelView {
             RequestsEvent::RequestFinished { .. } => {
                 self.editor.update(ctx, |editor, ctx| {
                     editor.clear_buffer_and_reset_undo_stack(ctx);
-                    editor.set_placeholder_text(
-                        padded_text(ctx, "ai_assistant.placeholder.followup"),
-                        ctx,
-                    );
+                    editor.set_placeholder_text(FOLLOWUP_PLACEHOLDER_TEXT, ctx);
                 });
                 self.transcript_view.update(ctx, |transcript_view, ctx| {
                     transcript_view.scroll_to_bottom_of_transcript(ctx);
@@ -642,7 +661,7 @@ impl AIAssistantPanelView {
         }
 
         self.editor.update(ctx, |editor, ctx| {
-            editor.set_placeholder_text(padded_text(ctx, "ai_assistant.placeholder.initial"), ctx);
+            editor.set_placeholder_text(INIT_PLACEHOLDER_TEXT, ctx);
         });
 
         self.requests_model.update(ctx, |requests_model, ctx| {
@@ -745,7 +764,7 @@ impl AIAssistantPanelView {
             || matches!(self.request_status(app), RequestStatus::InFlight { .. })
         {
             header.add_child(
-                Container::new(Align::new(self.render_restart_button(appearance, app)).finish())
+                Container::new(Align::new(self.render_restart_button(appearance)).finish())
                     .with_margin_right(4.)
                     .finish(),
             );
@@ -784,7 +803,7 @@ impl AIAssistantPanelView {
     ) -> Box<dyn Element> {
         let tooltip_background = appearance.theme().surface_1().into_solid();
         let ui_builder = appearance.ui_builder().clone();
-        let tooltip_text = text(app, "ai_assistant.copy_transcript");
+        let tooltip_text = crate::localization::text_for_app(app, "ai_assistant.copy_transcript");
         icon_button(
             appearance,
             crate::ui_components::icons::Icon::Copy,
@@ -808,7 +827,7 @@ impl AIAssistantPanelView {
         .finish()
     }
 
-    fn render_restart_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_restart_button(&self, appearance: &Appearance) -> Box<dyn Element> {
         let default_styles = UiComponentStyles {
             border_width: None,
             font_color: Some(appearance.theme().active_ui_text_color().into()),
@@ -839,7 +858,7 @@ impl AIAssistantPanelView {
                 Some(hover_style),
                 Some(hover_style),
             )
-            .with_text_label(text(app, "ai_assistant.restart"))
+            .with_text_label(RESTART_BUTTON_TEXT.to_owned())
             .build()
             .on_click(move |ctx, _, _| ctx.dispatch_typed_action(AIAssistantAction::ResetContext))
             .with_cursor(Cursor::PointingHand)
@@ -849,14 +868,13 @@ impl AIAssistantPanelView {
     fn render_editor_size_warning(
         &self,
         appearance: &Appearance,
-        app: &AppContext,
         buffer_len: usize,
     ) -> Box<dyn Element> {
         Flex::row()
             .with_children([
                 Container::new(
                     Text::new_inline(
-                        text(app, "ai_assistant.character_limit_exceeded"),
+                        "Character limit exceeded.",
                         appearance.ui_font_family(),
                         BODY_FONT_SIZE,
                     )
@@ -921,7 +939,7 @@ impl AIAssistantPanelView {
             .with_child(
                 Container::new(
                     Text::new_inline(
-                        text(app, "terminal.menu.ask_warp_ai"),
+                        crate::localization::text_for_app(app, ASK_WARP_AI_MENU_KEY),
                         appearance.ui_font_family(),
                         14.,
                     )
@@ -933,18 +951,15 @@ impl AIAssistantPanelView {
             );
 
         if self.num_remaining_reqs(app) > 0 {
-            let git_prompt_key = "ai_assistant.zero_state.prompt.git";
-            let files_prompt_key = "ai_assistant.zero_state.prompt.files";
-            let script_prompt_key = "ai_assistant.zero_state.prompt.script";
             column.add_children([
                 Container::new(render_prepared_response_button(
                     appearance,
                     self.mouse_state_handles.git_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    git_prompt_key,
-                    text(app, git_prompt_key),
-                    text(app, git_prompt_key),
+                    crate::localization::text_for_app(app, GIT_ZERO_STATE_PROMPT_KEY),
+                    GIT_ZERO_STATE_PROMPT.to_string(),
+                    *GIT_ZERO_STATE_PROMPT,
                 ))
                 .with_margin_top(20.)
                 .with_margin_bottom(10.)
@@ -954,9 +969,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.files_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    files_prompt_key,
-                    text(app, files_prompt_key),
-                    text(app, files_prompt_key),
+                    crate::localization::text_for_app(app, FILES_ZERO_STATE_PROMPT_KEY),
+                    FILES_ZERO_STATE_PROMPT.to_string(),
+                    *FILES_ZERO_STATE_PROMPT,
                 ))
                 .with_margin_bottom(10.)
                 .finish(),
@@ -965,9 +980,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.script_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    script_prompt_key,
-                    text(app, script_prompt_key),
-                    text(app, script_prompt_key),
+                    crate::localization::text_for_app(app, SCRIPT_ZERO_STATE_PROMPT_KEY),
+                    SCRIPT_ZERO_STATE_PROMPT.to_string(),
+                    *SCRIPT_ZERO_STATE_PROMPT,
                 ))
                 .finish(),
             ]);
@@ -996,10 +1011,7 @@ impl AIAssistantPanelView {
                             1.,
                             appearance
                                 .ui_builder()
-                                .wrappable_text(
-                                    text(app, "ai_assistant.zero_state.help_text"),
-                                    true,
-                                )
+                                .wrappable_text(ZERO_STATE_HELP_TEXT.to_string(), true)
                                 .with_style(UiComponentStyles {
                                     font_family_id: Some(appearance.ui_font_family()),
                                     font_size: Some(ZERO_STATE_HELP_TEXT_FONT_SIZE),
@@ -1073,10 +1085,15 @@ impl TypedActionView for AIAssistantPanelView {
             ClosePanel => {
                 ctx.emit(AIAssistantPanelEvent::ClosePanel);
             }
-            PreparedPrompt { prompt_key, prompt } => {
+            PreparedPrompt {
+                prompt,
+                telemetry_prompt,
+            } => {
                 self.issue_request(prompt.clone(), ctx);
                 send_telemetry_from_ctx!(
-                    TelemetryEvent::UsedWarpAIPreparedPrompt { prompt: prompt_key },
+                    TelemetryEvent::UsedWarpAIPreparedPrompt {
+                        prompt: telemetry_prompt
+                    },
                     ctx
                 );
             }
@@ -1140,11 +1157,9 @@ impl View for AIAssistantPanelView {
             let buffer_text = self.editor.as_ref(app).buffer_text(app);
             if self.is_prompt_too_long(buffer_text.as_str()) {
                 panel.add_child(
-                    Container::new(self.render_editor_size_warning(
-                        appearance,
-                        app,
-                        buffer_text.chars().count(),
-                    ))
+                    Container::new(
+                        self.render_editor_size_warning(appearance, buffer_text.chars().count()),
+                    )
                     .with_padding_left(PANEL_HORIZONTAL_PADDING)
                     .with_padding_bottom(5.)
                     .with_padding_top(10.)

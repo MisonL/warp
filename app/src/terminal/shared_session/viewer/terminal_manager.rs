@@ -6,15 +6,16 @@ use parking_lot::FairMutex;
 use pathfinder_geometry::vector::Vector2F;
 use session_sharing_protocol::common::{
     ActivePrompt, AddGuestsResponse, CLIAgentSessionState, CommandExecutionFailureReason,
-    LinkAccessLevelUpdateResponse, RemoveGuestResponse, SelectedAgentModel, SessionId,
-    TeamAccessLevelUpdateResponse, UniversalDeveloperInputContextUpdate,
-    UpdatePendingUserRoleResponse,
+    LinkAccessLevelUpdateResponse, LongRunningCommandAgentInteraction, RemoveGuestResponse,
+    SelectedAgentModel, SessionId, TeamAccessLevelUpdateResponse,
+    UniversalDeveloperInputContextUpdate, UpdatePendingUserRoleResponse,
 };
 use session_sharing_protocol::sharer::SessionSourceType;
 use session_sharing_protocol::viewer::SessionEndedReason;
 use settings::Setting as _;
 use warpui::{
-    AppContext, ModelContext, ModelHandle, SingletonEntity, ViewHandle, WeakViewHandle, WindowId,
+    AppContext, ModelContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle,
+    WeakViewHandle, WindowId,
 };
 
 use super::event_loop::SharedSessionInitialLoadMode;
@@ -37,6 +38,7 @@ use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::context_chips::prompt_snapshot::PromptSnapshot;
 use crate::context_chips::prompt_type::PromptType;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::pane_group::pane::DetachType;
 use crate::pane_group::TerminalViewResources;
@@ -168,6 +170,29 @@ impl TerminalManager {
         Self::update_current_network(current_network, ctx, |network, _| {
             network.send_universal_developer_input_context_update(update);
         });
+    }
+
+    /// Handles a failed viewer command request and clears any queued-command dispatch state.
+    fn handle_command_execution_request_failed(
+        terminal_view: &mut TerminalView,
+        reason: &CommandExecutionFailureReason,
+        ctx: &mut ViewContext<TerminalView>,
+    ) {
+        let reason_string =
+            localization::text_for_app(ctx, command_execution_failure_reason_key(reason));
+        terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
+        terminal_view.clear_queued_command_in_flight(ctx);
+
+        // On command execution request, the input is frozen and set to a loading state.
+        // We only need to restore the input for errors that aren't the result of a new buffer.
+        if matches!(
+            reason,
+            CommandExecutionFailureReason::InsufficientPermissions
+        ) {
+            terminal_view.input().update(ctx, |input, ctx| {
+                input.on_execute_command_for_shared_session_participant_failure(ctx);
+            })
+        }
     }
 
     /// Internal constructor that creates all the models for viewing a shared session. This does not rely on the shared session existing yet.
@@ -466,6 +491,7 @@ impl TerminalManager {
                 self.model.clone(),
                 write_to_pty_events_rx,
                 initial_load_mode,
+                self.viewer_remote_update_guard.clone(),
                 ctx,
             )
         });
@@ -772,6 +798,9 @@ impl TerminalManager {
                             ctx,
                         );
                     }
+                    // TODO(roland): we do not apply universal_developer_input_context.long_running_command_agent_interaction here
+                    // because the block it should apply to won't exist yet, until the `OrderedTerminalEvents` that come after are processed.
+                    // We should try to apply it after catching up to the latest state.
                 }
                 let Some(view) = weak_view_handle.upgrade(ctx) else {
                     return;
@@ -877,7 +906,7 @@ impl TerminalManager {
                 }
                 view.update(ctx, |terminal_view, ctx| {
                     let reason_string =
-                        crate::localization::text_for_app(ctx, session_ended_reason_key(reason));
+                        localization::text_for_app(ctx, session_ended_reason_key(reason));
                     match reason {
                         SessionEndedReason::EndedBySharer
                         | SessionEndedReason::ExceededSizeLimit => {}
@@ -912,7 +941,7 @@ impl TerminalManager {
                 Self::shared_session_ended(&view, model.clone(), ctx);
                 view.update(ctx, |terminal_view, ctx| {
                     let reason_string =
-                        crate::localization::text_for_app(ctx, viewer_removed_reason_key(reason));
+                        localization::text_for_app(ctx, viewer_removed_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -944,7 +973,7 @@ impl TerminalManager {
                 Self::shared_session_ended(&view, model.clone(), ctx);
                 view.update(ctx, |terminal_view, ctx| {
                     terminal_view.show_persistent_toast(
-                        crate::localization::text_for_app(
+                        localization::text_for_app(
                             ctx,
                             "terminal.shared_session.toast.reconnect_failed",
                         ),
@@ -989,17 +1018,24 @@ impl TerminalManager {
                     .active_block()
                     .is_active_and_long_running()
                 {
-                    if let Some(interaction_state) =
+                    if let Some(interaction) =
+                        context_update.long_running_command_agent_interaction.clone()
+                    {
+                        if let Some(view) = weak_view_handle.upgrade(ctx) {
+                            view.update(ctx, |view, ctx| {
+                                view.apply_long_running_command_agent_interaction(interaction, ctx);
+                            });
+                        }
+                    } else if let Some(interaction_state) =
                         context_update.long_running_command_agent_interaction_state
                     {
-                        log::info!(
-                            "[viewer] UniversalDeveloperInputContextUpdated: \
-                             applying LRC interaction_state={interaction_state:?}"
-                        );
+                        // TODO (roland): this is kept around for backward compatibility. Remove after 6 weeks (around Jul 23, 2026)
+                        // once clients have updated to use context_update.long_running_command_agent_interaction above.
                         if let Some(view) = weak_view_handle.upgrade(ctx) {
                             view.update(ctx, |view, ctx| {
                                 view.apply_long_running_command_agent_interaction_state(
                                     interaction_state,
+                                    None,
                                     ctx,
                                 );
                             });
@@ -1143,22 +1179,7 @@ impl TerminalManager {
                     return;
                 };
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = crate::localization::text_for_app(
-                        ctx,
-                        command_execution_failure_reason_key(reason),
-                    );
-                    terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
-
-                    // On command execution request, the input is frozen and set to a loading state.
-                    // We only need to restore the input for errors that aren't the result of a new buffer.
-                    if matches!(
-                        reason,
-                        CommandExecutionFailureReason::InsufficientPermissions
-                    ) {
-                        terminal_view.input().update(ctx, |input, ctx| {
-                            input.on_execute_command_for_shared_session_participant_failure(ctx);
-                        })
-                    }
+                    Self::handle_command_execution_request_failed(terminal_view, reason, ctx);
                 });
             }
             NetworkEvent::WriteToPtyRequestFailed { reason } => {
@@ -1166,10 +1187,8 @@ impl TerminalManager {
                     return;
                 };
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = crate::localization::text_for_app(
-                        ctx,
-                        write_to_pty_failure_reason_key(reason),
-                    );
+                    let reason_string =
+                        localization::text_for_app(ctx, write_to_pty_failure_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -1188,10 +1207,8 @@ impl TerminalManager {
                     return;
                 };
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = crate::localization::text_for_app(
-                        ctx,
-                        agent_prompt_failure_reason_key(reason),
-                    );
+                    let reason_string =
+                        localization::text_for_app(ctx, agent_prompt_failure_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
 
                     terminal_view.input().update(ctx, |input, ctx| {
@@ -1204,10 +1221,8 @@ impl TerminalManager {
                     return;
                 };
                 view.update(ctx, |terminal_view, ctx| {
-                    let reason_string = crate::localization::text_for_app(
-                        ctx,
-                        control_action_failure_reason_key(reason),
-                    );
+                    let reason_string =
+                        localization::text_for_app(ctx, control_action_failure_reason_key(reason));
                     terminal_view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -1269,7 +1284,7 @@ impl TerminalManager {
                     }
                     LinkAccessLevelUpdateResponse::Error => {
                         terminal_view.show_persistent_toast(
-                            crate::localization::text_for_app(
+                            localization::text_for_app(
                                 ctx,
                                 "terminal.shared_session.toast.permission_update_failed",
                             ),
@@ -1301,7 +1316,7 @@ impl TerminalManager {
                     }
                     TeamAccessLevelUpdateResponse::Error(_) => {
                         terminal_view.show_persistent_toast(
-                            crate::localization::text_for_app(
+                            localization::text_for_app(
                                 ctx,
                                 "terminal.shared_session.toast.permission_update_failed",
                             ),
@@ -1319,18 +1334,18 @@ impl TerminalManager {
                     view.update(ctx, |terminal_view, ctx| {
                         let reason_string = match reason {
                             session_sharing_protocol::common::FailedToAddGuestsReason::NotWarpUsers => {
-                                crate::localization::text_for_app(
+                                localization::text_for_app(
                                     ctx,
                                     "terminal.shared_session.error.guests_not_warp_users",
                                 )
                             }
                             session_sharing_protocol::common::FailedToAddGuestsReason::GuestAlreadyAdded => {
-                                crate::localization::text_for_app(
+                                localization::text_for_app(
                                     ctx,
                                     "terminal.shared_session.error.guests_already_added",
                                 )
                             }
-                            _ => crate::localization::text_for_app(
+                            _ => localization::text_for_app(
                                 ctx,
                                 "terminal.shared_session.toast.permission_update_failed",
                             ),
@@ -1346,7 +1361,7 @@ impl TerminalManager {
                     };
                     view.update(ctx, |terminal_view, ctx| {
                         terminal_view.show_persistent_toast(
-                            crate::localization::text_for_app(
+                            localization::text_for_app(
                                 ctx,
                                 "terminal.shared_session.toast.permission_update_failed",
                             ),
@@ -1363,7 +1378,7 @@ impl TerminalManager {
                     };
                     view.update(ctx, |terminal_view, ctx| {
                         terminal_view.show_persistent_toast(
-                            crate::localization::text_for_app(
+                            localization::text_for_app(
                                 ctx,
                                 "terminal.shared_session.toast.permission_update_failed",
                             ),
@@ -1569,13 +1584,24 @@ impl TerminalManager {
                     network.send_report_terminal_size(*window_size);
                 });
             }
-            TerminalViewEvent::LongRunningCommandAgentInteractionStateChanged { state } => {
+            TerminalViewEvent::LongRunningCommandAgentInteractionStateChanged {
+                state,
+                block_id,
+            } => {
+                let interaction =
+                    block_id
+                        .clone()
+                        .map(|block_id| LongRunningCommandAgentInteraction {
+                            block_id: block_id.into(),
+                            state: *state,
+                        });
                 Self::send_input_context_update_to_current_network(
                     &viewer_remote_update_guard,
                     &model,
                     &current_network,
                     UniversalDeveloperInputContextUpdate {
                         long_running_command_agent_interaction_state: Some(*state),
+                        long_running_command_agent_interaction: interaction,
                         ..Default::default()
                     },
                     ctx,

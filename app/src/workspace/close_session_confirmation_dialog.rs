@@ -19,10 +19,6 @@ use crate::pane_group::PaneId;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 use crate::workspace::TabMovement;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 #[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone)]
 /// Describes the action which opened the close session confirmation dialog
@@ -95,7 +91,7 @@ impl View for CloseSessionConfirmationDialog {
             .ui_builder()
             .checkbox(self.dont_show_again_mouse_state.clone(), Some(14.))
             .with_label(Span::new(
-                text(app, "workspace.close_session.dont_show_again"),
+                localization::text_for_app(app, "workspace.close_session.dont_show_again"),
                 Default::default(),
             ))
             .check(self.dont_show_again)
@@ -110,7 +106,10 @@ impl View for CloseSessionConfirmationDialog {
         let close_session_button = appearance
             .ui_builder()
             .button(ButtonVariant::Accent, self.confirm_mouse_state.clone())
-            .with_centered_text_label(text(app, "workspace.close_session.confirm"))
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "workspace.close_session.confirm",
+            ))
             .with_style(button_style)
             .build()
             .with_cursor(Cursor::PointingHand)
@@ -124,7 +123,10 @@ impl View for CloseSessionConfirmationDialog {
         let cancel_button = appearance
             .ui_builder()
             .button(ButtonVariant::Basic, self.cancel_mouse_state.clone())
-            .with_centered_text_label(text(app, "settings.action.cancel"))
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "settings.action.cancel",
+            ))
             .with_style(button_style)
             .build()
             .with_cursor(Cursor::PointingHand)
@@ -135,8 +137,11 @@ impl View for CloseSessionConfirmationDialog {
 
         let dialog = Container::new(
             Dialog::new(
-                text(app, "workspace.close_session.title"),
-                Some(text(app, "workspace.close_session.description")),
+                localization::text_for_app(app, "workspace.close_session.title"),
+                Some(localization::text_for_app(
+                    app,
+                    "workspace.close_session.description",
+                )),
                 UiComponentStyles {
                     width: Some(460.),
                     padding: Some(Coords::uniform(24.)),

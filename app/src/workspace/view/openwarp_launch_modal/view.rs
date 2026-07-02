@@ -19,12 +19,9 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ActionButtonTheme, ButtonSize};
-
-fn openwarp_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
 
 const MODAL_WIDTH: f32 = 420.;
 const HERO_HEIGHT: f32 = 92.;
@@ -148,7 +145,7 @@ impl OpenWarpLaunchModal {
 
         let cta_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                openwarp_text(ctx, "workspace.openwarp.cta.visit_repo"),
+                localization::text_for_app(ctx, "workspace.openwarp.cta.visit_repo"),
                 CtaButtonTheme,
             )
             .with_full_width(true)
@@ -197,9 +194,9 @@ impl OpenWarpLaunchModal {
         hero_stack.finish()
     }
 
-    fn render_badge(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_badge(app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let text = Text::new_inline(
-            openwarp_text(app, "workspace.openwarp.badge.new"),
+            localization::text_for_app(app, "workspace.openwarp.badge.new"),
             appearance.ui_font_family(),
             14.,
         )
@@ -222,9 +219,9 @@ impl OpenWarpLaunchModal {
         .finish()
     }
 
-    fn render_title(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_title(app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         Text::new(
-            openwarp_text(app, "workspace.openwarp.title"),
+            localization::text_for_app(app, "workspace.openwarp.title"),
             appearance.ui_font_family(),
             20.,
         )
@@ -233,9 +230,9 @@ impl OpenWarpLaunchModal {
         .finish()
     }
 
-    fn render_description(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_description(app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         Text::new(
-            openwarp_text(app, "workspace.openwarp.description"),
+            localization::text_for_app(app, "workspace.openwarp.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -270,20 +267,20 @@ impl OpenWarpLaunchModal {
 
     fn render_feature_description(
         item: &FeatureItem,
-        appearance: &Appearance,
         app: &AppContext,
+        appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let description = openwarp_text(app, item.description_key);
+        let description = localization::text_for_app(app, item.description_key);
         let Some(link) = &item.inline_link else {
             return Text::new(description, appearance.ui_font_family(), 14.)
                 .with_color(PhenomenonStyle::modal_feature_description_text())
                 .finish();
         };
-        let link_text = openwarp_text(app, link.text_key);
+        let link_text = localization::text_for_app(app, link.text_key);
 
         // Build a formatted description with an inline hyperlink and inline code.
         let (before, after) = description
-            .split_once(link_text.as_str())
+            .split_once(&link_text)
             .unwrap_or((description.as_str(), ""));
 
         let link_fragment = FormattedTextFragment {
@@ -323,8 +320,8 @@ impl OpenWarpLaunchModal {
 
     fn render_feature_row(
         item: &FeatureItem,
-        appearance: &Appearance,
         app: &AppContext,
+        appearance: &Appearance,
     ) -> Box<dyn Element> {
         let icon_el = ConstrainedBox::new(
             item.icon
@@ -342,14 +339,14 @@ impl OpenWarpLaunchModal {
             .with_spacing(2.)
             .with_child(
                 Text::new_inline(
-                    openwarp_text(app, item.title_key),
+                    localization::text_for_app(app, item.title_key),
                     appearance.ui_font_family(),
                     14.,
                 )
                 .with_color(PhenomenonStyle::modal_feature_title_text())
                 .finish(),
             )
-            .with_child(Self::render_feature_description(item, appearance, app))
+            .with_child(Self::render_feature_description(item, app, appearance))
             .finish();
 
         Flex::row()
@@ -360,12 +357,12 @@ impl OpenWarpLaunchModal {
             .finish()
     }
 
-    fn render_body(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_body(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let mut features_col = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(12.);
         for item in FEATURE_ITEMS {
-            features_col.add_child(Self::render_feature_row(item, appearance, app));
+            features_col.add_child(Self::render_feature_row(item, app, appearance));
         }
 
         let cta = ChildView::new(&self.cta_button).finish();
@@ -377,9 +374,9 @@ impl OpenWarpLaunchModal {
                     Flex::column()
                         .with_cross_axis_alignment(CrossAxisAlignment::Start)
                         .with_spacing(8.)
-                        .with_child(Self::render_badge(appearance, app))
-                        .with_child(Self::render_title(appearance, app))
-                        .with_child(Self::render_description(appearance, app))
+                        .with_child(Self::render_badge(app, appearance))
+                        .with_child(Self::render_title(app, appearance))
+                        .with_child(Self::render_description(app, appearance))
                         .finish(),
                 )
                 .with_child(
@@ -420,7 +417,7 @@ impl View for OpenWarpLaunchModal {
                     .with_main_axis_size(MainAxisSize::Min)
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                     .with_child(self.render_hero())
-                    .with_child(self.render_body(appearance, app))
+                    .with_child(self.render_body(app, appearance))
                     .finish(),
             )
             .with_background(Fill::Solid(PhenomenonStyle::modal_background()))

@@ -48,7 +48,7 @@ struct AutoWarpifySnippet {
     selected_text: Arc<RwLock<Option<String>>>,
 
     shell_type: ShellType,
-    description: Cow<'static, str>,
+    description_key: &'static str,
     code_snippet_handles: CodeSnippetButtonHandles,
     can_write_to_rc: bool,
 }
@@ -67,7 +67,6 @@ impl WarpifySuccessBlock {
         spawning_command: String,
         subshell_info: Option<SubshellInitializationInfo>,
         shell: Shell,
-        disable_tmux: bool,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&WarpifySettings::handle(ctx), move |_, _, _, ctx| {
@@ -94,7 +93,6 @@ impl WarpifySuccessBlock {
                         &subshell_info,
                         shell.shell_type(),
                         remote_os,
-                        disable_tmux,
                     );
                     if command.is_empty() {
                         return ("".into(), false);
@@ -113,18 +111,11 @@ impl WarpifySuccessBlock {
         };
         let auto_warpify_snippet =
             auto_warpify_snippet.map(|(output_grid, can_write_to_rc)| AutoWarpifySnippet {
-                description: (if !output_grid.is_empty() {
-                    localization::text_for_app(
-                        ctx,
-                        "terminal.warpify.success.auto_warpify_instructions",
-                    )
+                description_key: if !output_grid.is_empty() {
+                    "terminal.warpify.success.auto_warpify_instructions"
                 } else {
-                    localization::text_for_app(
-                        ctx,
-                        "terminal.warpify.success.remote_subshell_description",
-                    )
-                })
-                .into(),
+                    "terminal.warpify.success.remote_subshell_description"
+                },
                 output_grid: output_grid.into(),
                 selection_handle: Default::default(),
                 selected_text: Default::default(),
@@ -302,7 +293,7 @@ impl WarpifySuccessBlock {
             .with_child(
                 Container::new(
                     Text::new(
-                        auto_warpify_snippet.description.clone(),
+                        localization::text_for_app(app, auto_warpify_snippet.description_key),
                         appearance.monospace_font_family(),
                         appearance.monospace_font_size(),
                     )

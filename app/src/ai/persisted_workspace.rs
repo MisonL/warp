@@ -50,7 +50,7 @@ use crate::settings::CodeSettings;
 use crate::terminal::local_shell::LocalShellState;
 use crate::terminal::TerminalView;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-use crate::{localization, report_if_error, send_telemetry_from_ctx, TelemetryEvent};
+use crate::{report_if_error, send_telemetry_from_ctx, TelemetryEvent};
 #[cfg(feature = "local_fs")]
 use crate::{view_components::DismissibleToast, workspace::ToastStack};
 
@@ -239,9 +239,8 @@ impl PersistedWorkspace {
             .collect();
 
         if FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
-            ctx.subscribe_to_model(
-                &CodebaseIndexManager::handle(ctx),
-                |me, event, ctx| match event {
+            ctx.subscribe_to_model(&CodebaseIndexManager::handle(ctx), |me, _, event, ctx| {
+                match event {
                     CodebaseIndexManagerEvent::IndexMetadataUpdated { root_path, event } => {
                         me.handle_index_metadata_event(root_path, *event);
                     }
@@ -254,26 +253,30 @@ impl PersistedWorkspace {
                         send_active_indexed_repos_changed_telemetry(ctx);
                     }
                     _ => {}
-                },
-            );
-
-            // Subscribe to AI conversation events to trigger incremental sync
-            ctx.subscribe_to_model(&BlocklistAIHistoryModel::handle(ctx), |me, event, ctx| {
-                if let BlocklistAIHistoryEvent::StartedNewConversation {
-                    terminal_view_id, ..
-                } = event
-                {
-                    #[cfg(feature = "local_fs")]
-                    me.clean_up_deleted_indices(ctx);
-
-                    me.trigger_incremental_sync_for_conversation(*terminal_view_id, ctx);
                 }
             });
+
+            // Subscribe to AI conversation events to trigger incremental sync
+            ctx.subscribe_to_model(
+                &BlocklistAIHistoryModel::handle(ctx),
+                |me, _, event, ctx| {
+                    if let BlocklistAIHistoryEvent::StartedNewConversation {
+                        terminal_view_id,
+                        ..
+                    } = event
+                    {
+                        #[cfg(feature = "local_fs")]
+                        me.clean_up_deleted_indices(ctx);
+
+                        me.trigger_incremental_sync_for_conversation(*terminal_view_id, ctx);
+                    }
+                },
+            );
 
             // Subscribe to changes in workspace settings.
             ctx.subscribe_to_model(
                 &UserWorkspaces::handle(ctx),
-                |me, user_workspaces_event, ctx| {
+                |me, _, user_workspaces_event, ctx| {
                     if let UserWorkspacesEvent::CodebaseContextEnablementChanged =
                         user_workspaces_event
                     {
@@ -283,7 +286,7 @@ impl PersistedWorkspace {
             );
 
             // Subscribe to ProjectContextModel events to persist rule changes
-            ctx.subscribe_to_model(&ProjectContextModel::handle(ctx), |me, event, _ctx| {
+            ctx.subscribe_to_model(&ProjectContextModel::handle(ctx), |me, _, event, _ctx| {
                 if let ProjectContextModelEvent::KnownRulesChanged(delta) = event {
                     let mut events = vec![];
 
@@ -313,7 +316,7 @@ impl PersistedWorkspace {
             feature = "integration_tests"
         )) && CodebaseIndexManager::as_ref(ctx).is_indexing_enabled()
         {
-            ctx.subscribe_to_model(&DetectedRepositories::handle(ctx), |me, event, ctx| {
+            ctx.subscribe_to_model(&DetectedRepositories::handle(ctx), |me, _, event, ctx| {
                 let DetectedRepositoriesEvent::DetectedGitRepo { repository, .. } = event;
                 let repo_path = repository.as_ref(ctx).root_dir().to_local_path_lossy();
 
@@ -971,11 +974,13 @@ impl PersistedWorkspace {
                     if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::success(localization::text_for_app_with_args(
-                                    ctx,
-                                    "terminal.init_project.lsp.install_success",
-                                    &[("server", server_type.binary_name())],
-                                )),
+                                DismissibleToast::success(
+                                    crate::localization::text_for_app_with_args(
+                                        ctx,
+                                        "terminal.init_project.lsp.install_success",
+                                        &[("server", server_type.binary_name())],
+                                    ),
+                                ),
                                 window_id,
                                 ctx,
                             );
@@ -1009,17 +1014,18 @@ impl PersistedWorkspace {
 
                     // Show error toast
                     if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
-                        let error = e.to_string();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(localization::text_for_app_with_args(
-                                    ctx,
-                                    "terminal.init_project.lsp.install_failed",
-                                    &[
-                                        ("server", server_type.binary_name()),
-                                        ("error", error.as_str()),
-                                    ],
-                                )),
+                                DismissibleToast::error(
+                                    crate::localization::text_for_app_with_args(
+                                        ctx,
+                                        "terminal.init_project.lsp.install_failed",
+                                        &[
+                                            ("server", server_type.binary_name()),
+                                            ("error", &e.to_string()),
+                                        ],
+                                    ),
+                                ),
                                 window_id,
                                 ctx,
                             );
@@ -1116,7 +1122,7 @@ impl PersistedWorkspace {
         for server in servers {
             let workspace_root_display = workspace_root_display.clone();
             let server_type_name = server.as_ref(ctx).server_name();
-            ctx.subscribe_to_model(&server, move |_me, event, ctx| match event {
+            ctx.subscribe_to_model(&server, move |_me, _, event, ctx| match event {
                 LspEvent::Started => {
                     send_telemetry_from_ctx!(
                         LspTelemetryEvent::ServerStarted {
@@ -1133,15 +1139,14 @@ impl PersistedWorkspace {
                         ctx
                     );
                     if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
-                        let path = workspace_root_display.as_str();
-                        let error = e.to_string();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                            let toast =
-                                DismissibleToast::error(localization::text_for_app_with_args(
+                            let toast = DismissibleToast::error(
+                                crate::localization::text_for_app_with_args(
                                     ctx,
                                     "terminal.lsp.start_failed",
-                                    &[("path", path), ("error", error.as_str())],
-                                ));
+                                    &[("path", &workspace_root_display), ("error", &e.to_string())],
+                                ),
+                            );
                             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                         });
                     }

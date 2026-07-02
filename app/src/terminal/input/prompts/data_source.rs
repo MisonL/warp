@@ -224,15 +224,15 @@ impl SearchItem for PromptSearchItem {
         self.accept_result()
     }
 
-    fn accessibility_label(&self) -> String {
-        format!("Prompt: {}", self.name)
-    }
-
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
         localization::text_for_app_with_args(
             app,
             "terminal.input.prompts.a11y.label",
             &[("name", &self.name)],
         )
+    }
+
+    fn accessibility_label(&self) -> String {
+        format!("Prompt: {}", self.name)
     }
 }

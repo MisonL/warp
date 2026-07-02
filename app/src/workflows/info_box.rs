@@ -33,7 +33,6 @@ use crate::ai::blocklist::ai_brand_color;
 use crate::appearance::Appearance;
 use crate::cloud_object::model::actions::{ObjectActionType, ObjectActions};
 use crate::cloud_object::CloudObjectMetadataExt;
-use crate::localization;
 use crate::server::ids::SyncId;
 use crate::settings::InputModeSettings;
 use crate::terminal::block_list_viewport::InputMode;
@@ -252,9 +251,9 @@ impl WorkflowsMoreInfoView {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let label = if cloud_workflow.model().data.is_agent_mode_workflow() {
-            localization::text_for_app(app, "workflow.info_box.edit_prompt")
+            crate::localization::text_for_app(app, "workflow.info_box.edit_prompt")
         } else {
-            localization::text_for_app(app, "workflow.info_box.edit_workflow")
+            crate::localization::text_for_app(app, "workflow.info_box.edit_workflow")
         };
         let workflow = cloud_workflow.clone();
         render_hoverable_card_button(
@@ -513,7 +512,7 @@ impl WorkflowsMoreInfoView {
                 Shrinkable::new(
                     1.,
                     Container::new(
-                        Text::new_inline(
+                        Text::new(
                             crate::localization::text_for_app(
                                 app,
                                 "workflow.info_box.cycle_parameters",
@@ -555,7 +554,7 @@ impl WorkflowsMoreInfoView {
         let workflow = self.workflow.as_workflow().to_owned();
         render_hoverable_card_button(
             icons::Icon::Workflow,
-            Some(localization::text_for_app(
+            Some(crate::localization::text_for_app(
                 app,
                 "workflow.info_box.save_as_workflow",
             )),
@@ -691,6 +690,7 @@ impl WorkflowsMoreInfoView {
                     self,
                     workflow_source.to_string(),
                     appearance,
+                    app,
                 ));
             }
         }
@@ -1030,12 +1030,13 @@ impl WorkflowsMoreInfoView {
         &self,
         workflow_source: String,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Container::new(
             appearance
                 .ui_builder()
                 .link(
-                    "View Context".into(),
+                    crate::localization::text_for_app(app, "workflow.info_box.view_context"),
                     Some(workflow_source),
                     None,
                     self.button_mouse_states.view_context.clone(),

@@ -9,7 +9,6 @@ use warpui::prelude::{Container, MouseStateHandle};
 use warpui::text_layout::ClipConfig;
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
-use crate::localization;
 use crate::terminal::view::PADDING_LEFT;
 use crate::terminal::CLIAgent;
 use crate::ui_components::icons::Icon;
@@ -64,15 +63,15 @@ impl View for HarnessSessionHeader {
             Icon::ChevronRight
         };
 
-        let agent_name = if self.cli_name.is_empty() {
-            localization::text_for_app(app, "agent.child_agent.name")
+        let agent = if self.cli_name.is_empty() {
+            crate::localization::text_for_app(app, "agent.orchestration.agent")
         } else {
             self.cli_name.clone()
         };
-        let label = localization::text_for_app_with_args(
+        let label = crate::localization::text_for_app_with_args(
             app,
             "terminal.ambient_agent.header.running",
-            &[("agent", &agent_name)],
+            &[("agent", &agent)],
         );
 
         let row = Flex::row()

@@ -172,15 +172,15 @@ impl SearchItem for ConversationSearchItem {
         self.accept_result()
     }
 
-    fn accessibility_label(&self) -> String {
-        format!("Conversation: {}", self.entry.display.title)
-    }
-
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
         localization::text_for_app_with_args(
             app,
             "terminal.input.conversations.a11y.label",
             &[("title", &self.entry.display.title)],
         )
+    }
+
+    fn accessibility_label(&self) -> String {
+        format!("Conversation: {}", self.entry.display.title)
     }
 }

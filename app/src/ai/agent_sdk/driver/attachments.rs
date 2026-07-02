@@ -10,13 +10,11 @@ use mime_guess::from_path;
 use tokio::fs;
 use tokio_util::io::StreamReader;
 use warp_core::features::FeatureFlag;
-use warp_localization::{replace_placeholders, LocaleId};
 
 use crate::ai::agent_sdk::retry::with_bounded_retry;
 use crate::ai::ambient_agents::task::{AttachmentInput, TaskAttachment};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::attachment_utils::MAX_ATTACHMENT_SIZE_BYTES;
-use crate::localization;
 use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::presigned_upload::HttpStatusError;
 use crate::server::server_api::ServerApi;
@@ -24,15 +22,6 @@ use crate::util::image::MIN_IMAGE_HEADER_SIZE;
 
 /// Maximum number of file attachments for a cloud agent task.
 pub const MAX_ATTACHMENT_COUNT_FOR_CLOUD_QUERY: usize = 25;
-
-fn text(key: &str) -> String {
-    localization::text_for_locale(LocaleId::EnUs, key)
-}
-
-fn text_with_args(key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&text(key), args)
-        .expect("localized text template arguments must match the catalog")
-}
 
 /// Fetches task attachments via GraphQL and downloads them to the filesystem.
 /// Returns the attachments directory path if any attachments were downloaded,
@@ -42,6 +31,7 @@ fn text_with_args(key: &str, args: &[(&str, &str)]) -> String {
 ///
 /// Makes a best-effort attempt to download all attachments.
 /// Individual download failures are logged but don't cause the entire function to fail.
+#[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
 pub(crate) async fn fetch_and_download_attachments(
     ai_client: Arc<dyn AIClient>,
     http_client: Arc<ServerApi>,
@@ -55,7 +45,7 @@ pub(crate) async fn fetch_and_download_attachments(
     let attachments = ai_client
         .get_task_attachments(task_id.clone())
         .await
-        .context(text("agent_sdk.driver.attachments.error.fetch_task"))?;
+        .context("Failed to fetch task attachments")?;
 
     log::info!("Fetched {} task attachments", attachments.len());
 
@@ -77,6 +67,7 @@ pub(crate) async fn fetch_and_download_attachments(
 /// logged at WARN level inside this function; per-file errors are not surfaced to callers.
 ///
 /// Fatal failures (listing the attachments, creating the handoff dir) return `Err`.
+#[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
 pub(crate) async fn fetch_and_download_handoff_snapshot_attachments(
     ai_client: Arc<dyn AIClient>,
     http_client: &http_client::Client,
@@ -94,18 +85,16 @@ pub(crate) async fn fetch_and_download_handoff_snapshot_attachments(
     let attachments = ai_client
         .get_handoff_snapshot_attachments(&task_id)
         .await
-        .context(text(
-            "agent_sdk.driver.attachments.error.fetch_handoff_snapshot",
-        ))?;
+        .context("Failed to fetch handoff snapshot attachments")?;
 
     if attachments.is_empty() {
         return Ok(None);
     }
 
     let handoff_dir = attachments_dir.join("handoff");
-    fs::create_dir_all(&handoff_dir).await.context(text(
-        "agent_sdk.driver.attachments.error.create_handoff_directory",
-    ))?;
+    fs::create_dir_all(&handoff_dir)
+        .await
+        .context("Failed to create handoff attachments directory")?;
 
     let attempts = attachments.len();
     let download_futures = attachments.into_iter().map(|attachment| {
@@ -157,7 +146,7 @@ async fn download_and_write_attachments(
 ) -> anyhow::Result<()> {
     fs::create_dir_all(attachment_dir)
         .await
-        .context(text("agent_sdk.driver.attachments.error.create_directory"))?;
+        .context("Failed to create attachments directory")?;
     log::info!(
         "Created attachments directory at: {}",
         attachment_dir.display()
@@ -194,12 +183,7 @@ async fn download_task_attachment(
     let safe_filename = Path::new(&attachment.filename)
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or_else(|| {
-            anyhow::anyhow!(text_with_args(
-                "agent_sdk.driver.attachments.error.invalid_filename",
-                &[("file_id", &attachment.file_id)]
-            ))
-        })?
+        .ok_or_else(|| anyhow::anyhow!("Invalid filename for file_id={}", attachment.file_id))?
         .to_string();
 
     let file_path = attachment_dir.join(&safe_filename);
@@ -238,16 +222,25 @@ async fn download_handoff_entry(
 /// Shared download primitive: GET `download_url`, write the body to `file_path`, and retry
 /// transient HTTP failures on the shared bounded-backoff schedule. Non-2xx responses surface
 /// an [`HttpStatusError`] so the retry classifier can decide whether to retry.
+#[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
 async fn download_attachment(
     http_client: &http_client::Client,
     download_url: &str,
     file_path: &Path,
 ) -> anyhow::Result<()> {
     let operation = format!("download attachment '{}'", file_path.display());
-    with_bounded_retry(&operation, || async {
-        let response = http_client.get(download_url).send().await.context(text(
-            "agent_sdk.driver.attachments.error.send_download_request",
-        ))?;
+
+    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
+    async fn attempt(
+        http_client: &http_client::Client,
+        download_url: &str,
+        file_path: &Path,
+    ) -> anyhow::Result<()> {
+        let response = http_client
+            .get(download_url)
+            .send()
+            .await
+            .context("Failed to send download request")?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -256,24 +249,25 @@ async fn download_attachment(
                 status: status.as_u16(),
                 body: body.clone(),
             })
-            .context(text_with_args(
-                "agent_sdk.driver.attachments.error.download_status",
-                &[("status", &status.to_string()), ("body", &body)],
-            )));
+            .context(format!("Download failed with status {status}: {body}")));
         }
 
         // Stream the response body directly to disk instead of buffering the full payload
         // in memory.
         let mut file = fs::File::create(file_path)
             .await
-            .context(text("agent_sdk.driver.attachments.error.create_file"))?;
+            .context("Failed to create file")?;
         let mut response_stream =
             StreamReader::new(response.bytes_stream().map_err(std::io::Error::other));
         tokio::io::copy(&mut response_stream, &mut file)
             .await
-            .context(text("agent_sdk.driver.attachments.error.write_file"))?;
+            .context("Failed to write file")?;
 
         Ok(())
+    }
+
+    with_bounded_retry(&operation, || async {
+        attempt(http_client, download_url, file_path).await
     })
     .await
 }
@@ -286,12 +280,10 @@ pub fn process_attachment(
     index: usize,
 ) -> anyhow::Result<AttachmentInput> {
     let file_bytes = std::fs::read(attachment_path).map_err(|e| {
-        let path = attachment_path.display().to_string();
-        let error = e.to_string();
-        anyhow::anyhow!(text_with_args(
-            "agent_sdk.driver.attachments.error.read_attachment_file",
-            &[("path", &path), ("error", &error)]
-        ))
+        anyhow::anyhow!(
+            "Failed to read attachment file '{}': {e}",
+            attachment_path.display()
+        )
     })?;
 
     // Detect MIME type from file data using infer crate, fall back to file extension
@@ -309,11 +301,10 @@ pub fn process_attachment(
     });
 
     if file_bytes.len() > MAX_ATTACHMENT_SIZE_BYTES {
-        let size_mb = (file_bytes.len() / (1024 * 1024)).to_string();
-        return Err(anyhow::anyhow!(text_with_args(
-            "agent_sdk.driver.attachments.error.file_too_large",
-            &[("size_mb", &size_mb)]
-        )));
+        return Err(anyhow::anyhow!(
+            "File is too large ({}MB). Maximum size is 10MB.",
+            file_bytes.len() / (1024 * 1024)
+        ));
     }
 
     let base64_data = general_purpose::STANDARD.encode(&file_bytes);

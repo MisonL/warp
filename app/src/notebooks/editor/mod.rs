@@ -17,9 +17,9 @@ use warp_util::user_input::UserInput;
 use warpui::elements::{Border, ListIndentLevel};
 use warpui::fonts::FamilyId;
 use warpui::ui_components::checkbox::HOVER_BACKGROUND_COLOR;
+use warpui::AppContext;
 
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::notebooks::editor::embedded_item::EmbeddedWorkflow;
 use crate::settings::{derived_notebook_font_size, FontSettings};
 use crate::themes::theme::Fill;
@@ -144,7 +144,7 @@ impl BlockType {
         }
     }
 
-    fn localized_label(self, app: &warpui::AppContext) -> String {
+    fn localized_label(self, app: &AppContext) -> String {
         let key = match self {
             BlockType::Text => "notebook.block.text",
             BlockType::Header(BlockHeaderSize::Header1) => "notebook.block.header_1",
@@ -159,7 +159,7 @@ impl BlockType {
             BlockType::Code => "notebook.block.code",
             BlockType::TaskList => "notebook.block.todo_list",
         };
-        localization::text_for_app(app, key)
+        crate::localization::text_for_app(app, key)
     }
 }
 

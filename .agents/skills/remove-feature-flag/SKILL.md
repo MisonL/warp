@@ -1,29 +1,28 @@
 ---
 name: remove-feature-flag
-description: 在 Warp 代码库中，当 feature flag 已经 rollout 并稳定后移除它。
+description: Remove a feature flag after it has been rolled out and stabilized in the Warp codebase.
 ---
 
 # remove-feature-flag
 
-在 Warp 代码库中，当 feature flag 已经 rollout 并稳定后移除它。
+Remove a feature flag after it has been rolled out and stabilized in the Warp codebase.
 
-## 概述
+## Overview
 
-当某个 feature flag 已为所有用户启用，并在 production 中稳定后，应移除该 flag，以减少技术债并简化代码库。这包括移除 flag 定义和所有条件检查。
+After a feature flag has been enabled for all users and has stabilized in production, the flag should be removed to reduce technical debt and simplify the codebase. This involves removing the flag definition and all conditional checks.
 
-## 何时移除
+## When to Remove
 
-在以下情况下移除 feature flag：
-- 该 feature 已在 `app/Cargo.toml` 的 `default` features 中启用
-- 该 feature 已在 production 中稳定运行合理时间
-- 没有计划禁用该 feature 或提供配置选项
-- 团队同意该 feature 是永久性的
+Remove a feature flag when:
+- The feature has been enabled in `default` features in `app/Cargo.toml`
+- The feature has been stable in production for a reasonable period
+- There are no plans to disable the feature or provide configuration options
+- The team agrees the feature is permanent
 
-## 步骤
+## Steps
 
-### 1. 从 app/Cargo.toml 移除
-
-同时从 `[features]` section 和 `default` 数组中移除该 feature：
+### 1. Remove from app/Cargo.toml
+Remove the feature from both the `[features]` section and the `default` array:
 
 ```toml
 [features]
@@ -35,9 +34,8 @@ default = [
 # your_feature_name = []
 ```
 
-### 2. 从 FeatureFlag enum 移除
-
-从 `warp_core/src/features.rs` 的 `FeatureFlag` enum 中移除该 variant：
+### 2. Remove from FeatureFlag enum
+Remove the variant from the `FeatureFlag` enum in `warp_core/src/features.rs`:
 
 ```rust
 #[derive(Sequence)]
@@ -46,9 +44,8 @@ pub enum FeatureFlag {
 }
 ```
 
-### 3. 从 app/src/lib.rs 移除
-
-移除条件编译指令：
+### 3. Remove from app/src/lib.rs
+Remove the conditional compilation directive:
 
 ```rust
 // Remove these lines:
@@ -56,9 +53,8 @@ pub enum FeatureFlag {
 // YourFeatureName,
 ```
 
-### 4. 从 DOGFOOD_FLAGS/PREVIEW_FLAGS/RELEASE_FLAGS 移除
-
-如果该 flag 列在 `features.rs` 的任何这些数组中，请移除它：
+### 4. Remove from DOGFOOD_FLAGS/PREVIEW_FLAGS/RELEASE_FLAGS
+If the flag was listed in any of these arrays in `features.rs`, remove it:
 
 ```rust
 pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
@@ -66,9 +62,8 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
 ];
 ```
 
-### 5. 移除所有运行时检查和 dead code
-
-在整个代码库中查找并移除所有 `FeatureFlag::YourFeatureName.is_enabled()` 检查：
+### 5. Remove all runtime checks and dead code
+Find and remove all `FeatureFlag::YourFeatureName.is_enabled()` checks throughout the codebase:
 
 **Before:**
 ```rust
@@ -84,15 +79,13 @@ if FeatureFlag::YourFeatureName.is_enabled() {
 // new behavior (unconditionally enabled)
 ```
 
-使用 ripgrep 查找所有出现位置：
-
+Use ripgrep to find all occurrences:
 ```bash
 rg "YourFeatureName" app/ warp_core/
 ```
 
-### 6. 移除 keybinding predicate
-
-如果 feature flag 用于 keybinding enabled predicate，请移除该 predicate：
+### 6. Remove keybinding predicates
+If the feature flag was used in keybinding enabled predicates, remove the predicate:
 
 **Before:**
 ```rust
@@ -115,13 +108,11 @@ EditableBinding::new(
 .with_key_binding("cmdorctrl-key")
 ```
 
-### 7. 清理 dead code branch
+### 7. Clean up dead code branches
+Remove any code paths that were only executed when the feature was disabled (the `else` branches in feature checks). These are now dead code.
 
-移除任何只在 feature 禁用时执行的代码路径（feature check 中的 `else` branch）。这些现在都是 dead code。
-
-### 8. 运行测试和验证
-
-移除 flag 后：
+### 8. Run tests and validation
+After removing the flag:
 
 ```bash
 # Format and lint
@@ -135,15 +126,15 @@ cargo nextest run --no-fail-fast --workspace --exclude command-signatures-v2
 cargo run
 ```
 
-## 最佳实践
+## Best Practices
 
-- 不再需要 feature flag 后，应及时移除以减少技术债
-- 移除 flag 时，移除所有相关代码（检查、dead branch、keybinding predicate）
-- 使用 grep/ripgrep 确保已找到所有出现位置
-- 移除后充分测试，确保没有 regression
-- 考虑用单独 PR 移除 flag，便于审查
+- Remove feature flags promptly after they're no longer needed to reduce technical debt
+- When removing a flag, remove ALL related code (checks, dead branches, keybinding predicates)
+- Use grep/ripgrep to ensure you've found all occurrences
+- Test thoroughly after removal to ensure no regressions
+- Consider doing flag removal in a separate PR for easier review
 
-## 示例搜索命令
+## Example Search Commands
 
 ```bash
 # Find all occurrences of the flag name

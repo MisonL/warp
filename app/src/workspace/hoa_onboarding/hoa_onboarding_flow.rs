@@ -41,7 +41,7 @@ use crate::workspace::tab_settings::TabSettings;
 
 const CALLOUT_WIDTH: f32 = 480.;
 
-fn text(app: &AppContext, key: &str) -> String {
+fn hoa_onboarding_text(app: &AppContext, key: &str) -> String {
     localization::text_for_app(app, key)
 }
 
@@ -213,7 +213,7 @@ impl HoaOnboardingFlow {
 
         let cta_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                text(ctx, "workspace.hoa_onboarding.action.see_whats_new"),
+                hoa_onboarding_text(ctx, "workspace.hoa_onboarding.action.see_whats_new"),
                 HoaWelcomeModalButtonTheme,
             )
             .with_full_width(true)
@@ -224,7 +224,7 @@ impl HoaOnboardingFlow {
 
         let next_vtabs_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                text(ctx, "workspace.hoa_onboarding.action.next"),
+                hoa_onboarding_text(ctx, "workspace.hoa_onboarding.action.next"),
                 HoaPrimaryButtonTheme,
             )
             .with_keybinding(KeystrokeSource::Fixed(enter.clone()), ctx)
@@ -233,7 +233,7 @@ impl HoaOnboardingFlow {
 
         let dismiss_vtabs_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                text(ctx, "workspace.hoa_onboarding.action.dismiss"),
+                hoa_onboarding_text(ctx, "workspace.hoa_onboarding.action.dismiss"),
                 HoaPrimaryButtonTheme,
             )
             .with_keybinding(KeystrokeSource::Fixed(enter.clone()), ctx)
@@ -242,7 +242,7 @@ impl HoaOnboardingFlow {
 
         let next_inbox_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                text(ctx, "workspace.hoa_onboarding.action.next"),
+                hoa_onboarding_text(ctx, "workspace.hoa_onboarding.action.next"),
                 HoaPrimaryButtonTheme,
             )
             .with_keybinding(KeystrokeSource::Fixed(enter.clone()), ctx)
@@ -251,7 +251,7 @@ impl HoaOnboardingFlow {
 
         let finish_button = ctx.add_view(|ctx| {
             ActionButton::new(
-                text(ctx, "workspace.hoa_onboarding.action.finish"),
+                hoa_onboarding_text(ctx, "workspace.hoa_onboarding.action.finish"),
                 HoaPrimaryButtonTheme,
             )
             .with_keybinding(KeystrokeSource::Fixed(enter), ctx)
@@ -391,8 +391,8 @@ impl HoaOnboardingFlow {
 
     fn render_callout_content(
         &self,
-        title: String,
-        description: String,
+        title: &'static str,
+        description: &'static str,
         extra_child: Option<Box<dyn Element>>,
         button: &ViewHandle<ActionButton>,
         appearance: &Appearance,
@@ -442,10 +442,7 @@ impl HoaOnboardingFlow {
             .finish();
 
         let checkbox_label = Text::new_inline(
-            text(
-                app,
-                "workspace.hoa_onboarding.vertical_tabs.switch_horizontal",
-            ),
+            "Switch back to horizontal tabs".to_string(),
             appearance.ui_font_family(),
             12.,
         )
@@ -466,8 +463,8 @@ impl HoaOnboardingFlow {
         };
 
         self.render_callout_content(
-            text(app, "workspace.hoa_onboarding.vertical_tabs.title"),
-            text(app, "workspace.hoa_onboarding.vertical_tabs.description"),
+            "Introducing vertical tabs - the new default",
+            "Vertical tabs show all open agent and terminal panes, grouped by tab. Customize what information you want to see to support your workflow.",
             Some(checkbox_row),
             button,
             appearance,
@@ -476,7 +473,7 @@ impl HoaOnboardingFlow {
 
     fn render_inbox_callout(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let title = Text::new(
-            text(app, "workspace.hoa_onboarding.agent_inbox.title"),
+            hoa_onboarding_text(app, "workspace.hoa_onboarding.agent_inbox.title"),
             appearance.ui_font_family(),
             16.,
         )
@@ -486,7 +483,7 @@ impl HoaOnboardingFlow {
 
         // Build the description with an inline "Learn more" hyperlink.
         let learn_more_fragment = FormattedTextFragment {
-            text: text(app, "workspace.hoa_onboarding.agent_inbox.learn_more"),
+            text: hoa_onboarding_text(app, "workspace.hoa_onboarding.agent_inbox.learn_more"),
             styles: FormattedTextStyles {
                 underline: true,
                 hyperlink: Some(Hyperlink::Url(
@@ -497,7 +494,7 @@ impl HoaOnboardingFlow {
         };
 
         let formatted = FormattedText::new([FormattedTextLine::Line(vec![
-            FormattedTextFragment::plain_text(text(
+            FormattedTextFragment::plain_text(hoa_onboarding_text(
                 app,
                 "workspace.hoa_onboarding.agent_inbox.description",
             )),
@@ -534,11 +531,8 @@ impl HoaOnboardingFlow {
         Flex::column().with_child(body).with_child(footer).finish()
     }
 
-    fn render_tab_config_step(
-        &self,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_tab_config_step(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let form = tab_config_step::render_tab_config_form(
             tab_config_step::TabConfigFormState {
                 session_types: &self.session_types,
@@ -570,8 +564,8 @@ impl HoaOnboardingFlow {
                     );
                 },
             },
-            appearance,
             app,
+            appearance,
         );
 
         let footer = self.render_callout_footer(&self.finish_button, appearance);
@@ -649,7 +643,7 @@ impl View for HoaOnboardingFlow {
                 )
             }
             HoaOnboardingStep::TabConfig => {
-                let tab_content = self.render_tab_config_step(appearance, app);
+                let tab_content = self.render_tab_config_step(app);
                 let use_vertical = *TabSettings::as_ref(app).use_vertical_tabs;
                 let (arrow_direction, arrow_position) = if use_vertical {
                     (

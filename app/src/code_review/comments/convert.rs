@@ -20,11 +20,7 @@ impl std::fmt::Display for ConversionError {
                 write!(f, "Invalid timestamp: {}", ts)
             }
             ConversionError::InvalidFilePath(path) => {
-                write!(
-                    f,
-                    "Pending imported review comment targets must use repo-relative paths, invalid path: {}",
-                    path.display()
-                )
+                write!(f, "Pending imported review comment targets must use repo-relative paths, invalid path: {}", path.display())
             }
         }
     }

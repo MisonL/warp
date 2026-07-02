@@ -14,7 +14,6 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, Win
 
 use super::file::is_markdown_file;
 use crate::drive::OpenWarpDriveObjectArgs;
-use crate::localization;
 use crate::terminal::model::session::Session;
 use crate::uri::parse_url_paths::{get_item_data_from_warp_link, WarpWebLink};
 #[cfg(feature = "local_fs")]
@@ -47,20 +46,19 @@ pub enum LinkTarget {
 
 impl LinkTarget {
     /// A secondary action to show in the tooltip for this link.
-    pub fn secondary_action(&self, app: &AppContext) -> Option<SecondaryAction> {
+    pub fn secondary_action(&self) -> Option<SecondaryAction> {
         match self {
             LinkTarget::LocalDirectory { .. } => Some(SecondaryAction {
-                label: text(app, "notebook.link.action.new_session").into(),
-                tooltip: Some(text(app, "notebook.link.action.new_session_tooltip").into()),
-                accessibility_content: text(app, "notebook.link.action.open_in_terminal_session")
-                    .into(),
+                label: "New session".into(),
+                tooltip: Some("Open a new terminal session in this directory".into()),
+                accessibility_content: "Open in terminal session".into(),
             }),
             LinkTarget::LocalFile {
                 is_markdown: true, ..
             } => Some(SecondaryAction {
-                label: text(app, "notebook.link.action.open_in_editor").into(),
+                label: "Open in editor".into(),
                 tooltip: None,
-                accessibility_content: text(app, "notebook.link.action.edit_markdown_file").into(),
+                accessibility_content: "Edit Markdown file".into(),
             }),
             LinkTarget::Url(_) | LinkTarget::LocalFile { .. } => None,
         }
@@ -105,10 +103,6 @@ impl fmt::Display for LinkTarget {
             LinkTarget::LocalDirectory { path, .. } => path.display().fmt(f),
         }
     }
-}
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
 }
 
 /// Model for resolving and opening links in a notebook, taking into account their context (for
@@ -358,6 +352,11 @@ impl NotebookLinks {
 }
 
 /// Open a file respecting user's editor settings.
+///
+/// For targets that would be handed to the OS default handler (`SystemGeneric` /
+/// `SystemDefault`), we reveal the file in Finder / Explorer instead of opening it.
+/// This prevents a malicious markdown link from triggering arbitrary code execution
+/// via an executable disguised as a local file (e.g. an extensionless shell script).
 // The `line_and_column` argument is unused when there is no local filesystem.
 #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
 fn open_file(
@@ -367,17 +366,36 @@ fn open_file(
 ) {
     #[cfg(feature = "local_fs")]
     {
-        let target = if is_supported_image_file(&path) {
-            FileTarget::SystemGeneric
-        } else {
-            let settings = EditorSettings::as_ref(ctx);
-            resolve_file_target(&path, settings, None)
-        };
-        ctx.emit(LinkEvent::OpenFileWithTarget {
-            path,
-            target,
-            line_col: line_and_column,
-        });
+        // Images are safe to open with the system default viewer.
+        if is_supported_image_file(&path) {
+            ctx.emit(LinkEvent::OpenFileWithTarget {
+                path,
+                target: FileTarget::SystemGeneric,
+                line_col: line_and_column,
+            });
+            return;
+        }
+
+        let settings = EditorSettings::as_ref(ctx);
+        let target = resolve_file_target(&path, settings, None);
+        match target {
+            // Safe targets: open in a viewer/editor that won't execute the file.
+            FileTarget::MarkdownViewer(_)
+            | FileTarget::CodeEditor(_)
+            | FileTarget::ExternalEditor(_)
+            | FileTarget::EnvEditor => {
+                ctx.emit(LinkEvent::OpenFileWithTarget {
+                    path,
+                    target,
+                    line_col: line_and_column,
+                });
+            }
+            // Dangerous targets: the OS default handler could execute the file.
+            // Reveal in Finder / Explorer instead.
+            FileTarget::SystemGeneric | FileTarget::SystemDefault => {
+                ctx.open_file_path_in_explorer(&path);
+            }
+        }
     }
     #[cfg(not(feature = "local_fs"))]
     ctx.open_file_path(&path);
@@ -413,16 +431,6 @@ impl fmt::Display for ResolveError {
             ResolveError::FileNotFound => f.write_str("File not found"),
             ResolveError::MissingContext => f.write_str("No base directory"),
             ResolveError::Unknown => f.write_str("Broken file link"),
-        }
-    }
-}
-
-impl ResolveError {
-    pub fn localized_message(&self, app: &AppContext) -> String {
-        match self {
-            ResolveError::FileNotFound => text(app, "notebook.link.error.file_not_found"),
-            ResolveError::MissingContext => text(app, "notebook.link.error.missing_context"),
-            ResolveError::Unknown => text(app, "notebook.link.error.unknown"),
         }
     }
 }

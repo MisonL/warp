@@ -28,7 +28,6 @@ use crate::ai::predict::generate_am_query_suggestions::{
 };
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::network::NetworkStatus;
-use crate::report_error;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::PromptSuggestionFallbackReason;
 use crate::settings::AISettings;
@@ -40,6 +39,7 @@ use crate::terminal::model::terminal_model::TerminalModel;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::{AgentModePromptSuggestion, PromptSuggestion};
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, report_error};
 
 const NUM_TOP_BLOCK_LINES: usize = 100;
 const NUM_BOTTOM_BLOCK_LINES: usize = 200;
@@ -90,10 +90,10 @@ impl PassiveSuggestionsModel {
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(model_event_dispatcher, |me, event, ctx| {
+        ctx.subscribe_to_model(model_event_dispatcher, |me, _, event, ctx| {
             me.handle_model_event(event, ctx);
         });
-        ctx.subscribe_to_model(&ai_controller, |me, event, _ctx| {
+        ctx.subscribe_to_model(&ai_controller, |me, _, event, _ctx| {
             me.handle_controller_event(event, _ctx);
         });
 
@@ -607,7 +607,7 @@ fn fetch_static_prompt_suggestion(
     if !block.serialized_block.exit_code.was_successful() {
         return None;
     }
-    static_suggested_query(&block.command, crate::localization::current_locale(ctx))
+    static_suggested_query(&block.command, localization::current_locale(ctx))
         .map(AgentModePromptSuggestion::Success)
 }
 

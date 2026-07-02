@@ -10,7 +10,6 @@ use super::tab_config::{
 };
 use crate::app_state::{BranchSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot};
 use crate::launch_configs::launch_config::SplitDirection;
-use crate::localization;
 use crate::terminal::cli_agent::CLIAgent;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::icons::Icon;
@@ -56,14 +55,6 @@ impl SessionType {
             SessionType::CliAgent(agent) => agent.display_name(),
         }
     }
-
-    pub(crate) fn localized_pill_label(&self, app: &warpui::AppContext) -> String {
-        match self {
-            SessionType::Terminal => localization::text_for_app(app, "tab_config.session.terminal"),
-            SessionType::Oz => localization::text_for_app(app, "tab_config.session.built_in_agent"),
-            SessionType::CliAgent(_) => self.pill_label().to_string(),
-        }
-    }
 }
 
 /// The user's selections from the session config modal.
@@ -90,28 +81,15 @@ fn handlebars_placeholder(name: &str) -> String {
 /// Derives a human-readable config name from the directory and worktree setting.
 /// e.g. "Worktree: my-repo" or "New tab: my-repo".
 fn config_name(directory: &Path, enable_worktree: bool) -> String {
-    format_config_name(directory, enable_worktree, "Worktree", "New tab")
-}
-
-fn localized_config_name(directory: &Path, enable_worktree: bool) -> String {
-    format_config_name(directory, enable_worktree, "工作树", "新标签页")
-}
-
-fn format_config_name(
-    directory: &Path,
-    enable_worktree: bool,
-    worktree_prefix: &str,
-    new_tab_prefix: &str,
-) -> String {
     let repo = directory
         .file_name()
         .and_then(|n| n.to_str())
         .or_else(|| directory.to_str())
         .unwrap_or("untitled");
     let prefix = if enable_worktree {
-        worktree_prefix
+        "Worktree"
     } else {
-        new_tab_prefix
+        "New tab"
     };
     format!("{prefix}: {repo}")
 }
@@ -126,22 +104,6 @@ pub fn build_tab_config(
     directory: &Path,
     enable_worktree: bool,
     autogenerate_worktree_branch_name: bool,
-) -> TabConfig {
-    build_tab_config_with_worktree_branch_description(
-        session_type,
-        directory,
-        enable_worktree,
-        autogenerate_worktree_branch_name,
-        None,
-    )
-}
-
-pub fn build_tab_config_with_worktree_branch_description(
-    session_type: &SessionType,
-    directory: &Path,
-    enable_worktree: bool,
-    autogenerate_worktree_branch_name: bool,
-    worktree_branch_description: Option<&str>,
 ) -> TabConfig {
     let mut commands: Vec<String> = Vec::new();
     let mut params = HashMap::new();
@@ -167,8 +129,8 @@ pub fn build_tab_config_with_worktree_branch_description(
             params.insert(
                 WORKTREE_BRANCH_PARAM.to_string(),
                 TabConfigParam {
-                    description: worktree_branch_description.map(str::to_string),
-                    description_zh_cn: None,
+                    description: Some("Worktree branch name".to_string()),
+                    description_zh_cn: Some("Worktree 分支名称".to_string()),
                     default: Some(WORKTREE_BRANCH_DEFAULT.to_string()),
                     param_type: TabConfigParamType::Text,
                 },
@@ -188,7 +150,7 @@ pub fn build_tab_config_with_worktree_branch_description(
 
     TabConfig {
         name: config_name(directory, enable_worktree),
-        name_zh_cn: Some(localized_config_name(directory, enable_worktree)),
+        name_zh_cn: None,
         title,
         color: None,
         panes: vec![TabConfigPaneNode {
@@ -256,7 +218,7 @@ pub fn tab_config_from_pane_snapshot(
 
     TabConfig {
         name: "My Tab Config".to_string(),
-        name_zh_cn: Some("我的标签页配置".to_string()),
+        name_zh_cn: None,
         title: custom_title,
         color,
         panes,

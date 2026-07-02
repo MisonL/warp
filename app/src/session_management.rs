@@ -7,6 +7,7 @@ use crate::context_chips::prompt_snapshot::PromptSnapshot;
 use crate::pane_group::{PaneGroup, PaneId};
 use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::shared_session::SharedSessionStatus;
+use crate::themes::theme::AnsiColorIdentifier;
 use crate::workspace::{PaneViewLocator, Workspace};
 
 /// Contains session metadata, including a prompt and running command (if there is one).
@@ -69,6 +70,42 @@ pub enum CommandContext {
     },
     /// No command context (e.g. just launched terminal)
     None,
+}
+
+impl CommandContext {
+    pub fn a11y_description(&self) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::LastRunCommand {
+                last_run_command, ..
+            } => Some(crate::localization::text_for_locale_with_args(
+                warp_localization::LocaleId::EnUs,
+                "search.navigation.a11y.last_run_command",
+                &[("command", last_run_command)],
+            )),
+            Self::LastRunAIBlock { prompt } => {
+                Some(crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.navigation.a11y.last_ai_interaction",
+                    &[("prompt", prompt)],
+                ))
+            }
+            Self::RunningCommand { running_command } => {
+                Some(crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.navigation.a11y.running_command",
+                    &[("command", running_command)],
+                ))
+            }
+            Self::RunningAIBlock { prompt } => {
+                Some(crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.navigation.a11y.running_ai_interaction",
+                    &[("prompt", prompt)],
+                ))
+            }
+        }
+    }
 }
 
 impl SessionNavigationData {
@@ -222,4 +259,6 @@ pub struct TabNavigationData {
     pub window_id: WindowId,
     /// 1-based left-to-right tab index for display disambiguation.
     pub tab_index: usize,
+    /// The tab's color, if one has been set by the user.
+    pub color: Option<AnsiColorIdentifier>,
 }

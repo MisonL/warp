@@ -97,13 +97,21 @@ impl CliAgentPluginManager for GeminiPluginManager {
             .unwrap_or(true);
         if still_outdated {
             log.push_str("Post-update version check: plugin is still outdated\n");
-            return Err(PluginInstallError::localized(
+            return Err(PluginInstallError::from_key(
                 "agent.input_footer.plugin_update_no_effect",
-                vec![],
+                Vec::new(),
                 log,
             ));
         }
         Ok(())
+    }
+
+    fn install_success_message_key(&self) -> &'static str {
+        "agent.input_footer.plugin_installed_restart_gemini"
+    }
+
+    fn update_success_message_key(&self) -> &'static str {
+        "agent.input_footer.plugin_updated_restart_gemini"
     }
 
     fn install_instructions(&self) -> &'static PluginInstructions {

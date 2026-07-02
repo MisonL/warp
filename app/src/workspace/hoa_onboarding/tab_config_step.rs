@@ -17,10 +17,6 @@ use crate::view_components::callout_bubble::{
 
 const SECTION_GAP: f32 = 16.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 pub struct TabConfigFormState<'a> {
     pub session_types: &'a [SessionType],
     pub selected_session_type_index: usize,
@@ -50,8 +46,8 @@ pub struct TabConfigFormHandlers<F1, F2, F3, F4> {
 pub fn render_tab_config_form<F1, F2, F3, F4>(
     state: TabConfigFormState<'_>,
     handlers: TabConfigFormHandlers<F1, F2, F3, F4>,
-    appearance: &Appearance,
     app: &AppContext,
+    appearance: &Appearance,
 ) -> Box<dyn Element>
 where
     F1: Fn(usize, &mut EventContext, Vector2F) + 'static,
@@ -61,7 +57,7 @@ where
 {
     let callout_bg = callout_background_fill(appearance).into_solid();
     let title = Text::new(
-        text(app, "workspace.hoa_onboarding.tab_config.title"),
+        localization::text_for_app(app, "workspace.hoa_onboarding.tab_config.title"),
         appearance.ui_font_family(),
         16.,
     )
@@ -70,7 +66,7 @@ where
     .finish();
 
     let description = Text::new(
-        text(app, "workspace.hoa_onboarding.tab_config.description"),
+        localization::text_for_app(app, "workspace.hoa_onboarding.tab_config.description"),
         appearance.ui_font_family(),
         14.,
     )
@@ -82,9 +78,9 @@ where
         state.selected_session_type_index,
         state.session_pill_mouse_states,
         handlers.on_select_session_type,
+        app,
         Some(callout_bg),
         appearance,
-        app,
     );
 
     let directory_section = session_config_rendering::render_directory_picker_with_background(
@@ -93,34 +89,27 @@ where
         handlers.on_open_directory_picker,
         Some(callout_bg),
         appearance,
-        app,
     );
 
     let worktree_section = session_config_rendering::render_worktree_checkbox_with_background(
-        session_config_rendering::WorktreeCheckboxState {
-            enabled: state.enable_worktree,
-            is_git_repo: state.is_git_repo,
-            checkbox_mouse_state: state.worktree_checkbox_mouse_state,
-            tooltip_mouse_state: state.worktree_tooltip_mouse_state,
-        },
+        state.enable_worktree,
+        state.is_git_repo,
+        state.worktree_checkbox_mouse_state,
+        state.worktree_tooltip_mouse_state,
         handlers.on_toggle_worktree,
         Some(callout_bg),
         appearance,
-        app,
     );
 
     let autogenerate_section =
         session_config_rendering::render_autogenerate_worktree_branch_name_checkbox_with_background(
-            session_config_rendering::AutogenerateWorktreeCheckboxState {
-                checked: state.autogenerate_worktree_branch_name,
-                enable_worktree: state.enable_worktree,
-                checkbox_mouse_state: state.autogenerate_checkbox_mouse_state,
-                tooltip_mouse_state: state.autogenerate_tooltip_mouse_state,
-            },
+            state.autogenerate_worktree_branch_name,
+            state.enable_worktree,
+            state.autogenerate_checkbox_mouse_state,
+            state.autogenerate_tooltip_mouse_state,
             handlers.on_toggle_autogenerate,
             Some(callout_bg),
             appearance,
-            app,
         );
 
     Flex::column()

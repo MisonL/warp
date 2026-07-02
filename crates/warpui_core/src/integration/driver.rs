@@ -168,7 +168,6 @@ impl Builder {
             steps: self.steps,
             test_name: test_name.to_string(),
             test_setup,
-            use_real_display: self.use_real_display,
             should_run_test: self.should_run_test,
             setup: self.setup.unwrap_or_else(|| Box::new(|_| {})),
             cleanup: self.cleanup,
@@ -212,7 +211,6 @@ pub struct TestDriver {
     steps: VecDeque<TestStep>,
     test_name: String,
     test_setup: TestSetupUtils,
-    use_real_display: bool,
     should_run_test: Box<dyn FnMut() -> bool>,
     setup: Box<dyn FnMut(&mut TestSetupUtils) + 'static>,
     cleanup: Box<dyn FnMut(&mut TestSetupUtils) + 'static>,
@@ -234,10 +232,6 @@ enum StepResult {
 }
 
 impl TestDriver {
-    pub fn uses_real_display(&self) -> bool {
-        self.use_real_display
-    }
-
     /// Executes the test steps, performing assertions against application state,
     /// and then cleans up test-only state as necessary.
     ///

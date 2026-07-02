@@ -18,13 +18,10 @@ use warpui::{
 use super::searcher::{EmbeddingSearchItemAction, EmbeddingSearchMixer};
 use crate::appearance::Appearance;
 use crate::cloud_object::Space;
-use crate::localization;
 use crate::search::notebook_embedding::notebooks::CloudNotebooksDataSource;
 use crate::search::notebook_embedding::workflows::CloudWorkflowsDataSource;
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
-use crate::search::search_bar::{
-    SearchBar, SearchBarEvent, SearchBarPlaceholder, SearchBarState, SearchResultOrdering,
-};
+use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
 
 lazy_static! {
     static ref QUERY_RESULT_RENDERER_STYLES: QueryResultRendererStyles =
@@ -81,10 +78,10 @@ impl EmbeddingSearchMenu {
 
         let ui_font_family = Appearance::as_ref(ctx).ui_font_family();
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                SearchBarPlaceholder::localized("search.notebook_embedding.placeholder"),
+                "search.notebook_embedding.placeholder",
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -201,7 +198,7 @@ impl EmbeddingSearchMenu {
                 // There are no results to display, so notify the user of that fact.
                 let text = appearance
                     .ui_builder()
-                    .span(localization::text_for_app(app, "search.no_results"))
+                    .span(crate::localization::text_for_app(app, "search.no_results"))
                     .with_style(UiComponentStyles {
                         font_size: Some(appearance.monospace_font_size()),
                         font_family_id: Some(appearance.ui_font_family()),

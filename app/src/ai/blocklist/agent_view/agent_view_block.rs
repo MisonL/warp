@@ -231,7 +231,7 @@ fn render_deleted_state(
             .finish(),
         )
         .with_child(render_subtext(
-            localization::text_for_app(app, "agent.view_block.deleted"),
+            localization::text_for_app(app, "agent.view_block.deleted_status"),
             appearance,
         ))
         .finish();
@@ -265,7 +265,7 @@ impl View for AgentViewEntryBlock {
             // If the agent_view_block's conversation no longer exists,
             // we assume that it has been deleted.
             return render_deleted_state(
-                self.origin,
+                self.origin.clone(),
                 self.cached_title.clone(),
                 appearance,
                 are_block_dividers_enabled,
@@ -299,23 +299,17 @@ impl View for AgentViewEntryBlock {
         let is_open_elsewhere = is_active && !is_active_in_this_pane;
 
         let subtext = if is_open_elsewhere {
-            Some(localization::text_for_app(
-                app,
-                "agent.view_block.open_in_different_pane",
-            ))
+            Some("Open in different pane")
         } else if self.is_restored {
-            Some(localization::text_for_app(app, "agent.view_block.restored"))
+            Some("Restored")
         } else if !self.is_new
             && !matches!(
-                self.origin,
+                &self.origin,
                 AgentViewEntryOrigin::LongRunningCommand
                     | AgentViewEntryOrigin::AgentRequestedNewConversation
             )
         {
-            Some(localization::text_for_app(
-                app,
-                "agent.view_block.continued",
-            ))
+            Some("Continued")
         } else {
             None
         };
@@ -327,10 +321,9 @@ impl View for AgentViewEntryBlock {
                 Shrinkable::new(
                     1.,
                     Text::new(
-                        conversation.title().unwrap_or(localization::text_for_app(
-                            app,
-                            "workspace.conversation.untitled",
-                        )),
+                        conversation
+                            .title()
+                            .unwrap_or("Untitled conversation".to_string()),
                         appearance.ui_font_family(),
                         appearance.monospace_font_size(),
                     )
@@ -393,7 +386,7 @@ impl View for AgentViewEntryBlock {
             .with_child(Container::new(fork_button).with_margin_left(8.).finish())
             .with_child(open_conversation_button);
 
-        let origin = self.origin;
+        let origin = self.origin.clone();
         let entry_block_id = self.view_id;
         let entry_block_position_id = get_agent_view_entry_block_position_id(entry_block_id);
         SavePosition::new(
@@ -404,7 +397,7 @@ impl View for AgentViewEntryBlock {
                     blended_colors::fg_overlay_1(appearance.theme())
                 };
                 render_block_container(
-                    origin,
+                    origin.clone(),
                     row.finish(),
                     background.into(),
                     appearance,
@@ -499,7 +492,7 @@ impl TypedActionView for AgentViewEntryBlock {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(localization::text_for_app(
+                                DismissibleToast::error(crate::localization::text_for_app(
                                     ctx,
                                     "terminal.input.toast.could_not_navigate_to_conversation",
                                 )),

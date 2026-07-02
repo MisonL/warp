@@ -31,6 +31,8 @@ use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
 
 use crate::appearance::Appearance;
+use crate::localization;
+use crate::localization::LocalizationUpdater;
 use crate::modal::MODAL_BACKDROP_OPACITY;
 use crate::themes::theme::Blend;
 use crate::ui_components::buttons::icon_button;
@@ -50,15 +52,7 @@ const REPO_ROW_VERTICAL_PADDING: f32 = 8.;
 const REPO_ROW_CORNER_RADIUS: f32 = 6.;
 
 fn agent_assisted_environment_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
-
-fn agent_assisted_environment_text_with_args(
-    app: &AppContext,
-    key: &str,
-    args: &[(&str, &str)],
-) -> String {
-    crate::localization::text_for_app_with_args(app, key, args)
+    localization::text_for_app(app, key)
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +150,10 @@ impl AgentAssistedEnvironmentModal {
             create_button,
         };
 
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
+
         #[cfg(all(
             feature = "local_fs",
             not(target_family = "wasm"),
@@ -188,6 +186,33 @@ impl AgentAssistedEnvironmentModal {
 
         me.update_create_button_disabled_state(ctx);
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.add_repo_button.update(ctx, |button, ctx| {
+            button.set_label(
+                agent_assisted_environment_text(
+                    ctx,
+                    "settings.environment.agent_assisted.add_repo",
+                ),
+                ctx,
+            );
+        });
+        self.cancel_button.update(ctx, |button, ctx| {
+            button.set_label(
+                agent_assisted_environment_text(ctx, "settings.action.cancel"),
+                ctx,
+            );
+        });
+        self.create_button.update(ctx, |button, ctx| {
+            button.set_label(
+                agent_assisted_environment_text(
+                    ctx,
+                    "settings.environment.form.create_environment",
+                ),
+                ctx,
+            );
+        });
     }
 
     pub fn is_visible(&self) -> bool {
@@ -605,10 +630,10 @@ impl AgentAssistedEnvironmentModal {
         let window_id = ctx.window_id();
         let path = home_relative_path(selected_path);
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(agent_assisted_environment_text_with_args(
+            let toast = DismissibleToast::error(localization::text_for_app_with_args(
                 ctx,
                 "settings.environment.agent_assisted.error.not_git_repo",
-                &[("path", &path)],
+                &[("path", path.as_str())],
             ))
             .with_object_id("agent_assisted_env_add_repo_not_git_repo".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
@@ -653,10 +678,7 @@ impl AgentAssistedEnvironmentModal {
             move |paths_result, ctx| {
                 let result = paths_result.and_then(|paths| {
                     paths.into_iter().next().map(PathBuf::from).ok_or_else(|| {
-                        FilePickerError::DialogFailed(agent_assisted_environment_text(
-                            ctx,
-                            "settings.environment.agent_assisted.error.no_directory_selected",
-                        ))
+                        FilePickerError::DialogFailed("No directory selected".to_string())
                     })
                 });
 

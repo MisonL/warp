@@ -29,10 +29,6 @@ const HEADER_FONT_SIZE: f32 = 16.;
 const MODAL_CORNER_RADIUS: f32 = 8.;
 pub const BODY_HEIGHT: f32 = 244.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 #[derive(Debug)]
 pub enum ImportModalAction {
     Close,
@@ -234,7 +230,7 @@ impl ImportModal {
                     1.0,
                     Align::new(
                         Text::new_inline(
-                            text(app, "drive.import.title"),
+                            localization::text_for_app(app, "drive.import.title"),
                             appearance.ui_font_family(),
                             HEADER_FONT_SIZE,
                         )
@@ -291,9 +287,9 @@ impl ImportModal {
 
     fn render_footer(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let button_text = if !self.import_modal.as_ref(app).upload_in_progress(app) {
-            text(app, "code_review.action.close_panel")
+            localization::text_for_app(app, "common.close")
         } else {
-            text(app, "code_review.action.cancel")
+            localization::text_for_app(app, "settings.action.cancel")
         };
 
         Container::new(

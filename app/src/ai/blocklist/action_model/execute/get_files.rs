@@ -19,7 +19,6 @@ use crate::{
     },
     terminal::model::session::active_session::ActiveSession,
 };
-use crate::localization;
 
 use super::{
     read_local_file_context, ActionExecution, AnyActionExecution, ExecuteActionInput,
@@ -170,7 +169,10 @@ impl GetFilesExecutor {
             // This should really never happen; it implies that we don't know what the
             // current working directory is, which is never the case.
             return ActionExecution::Sync(AIAgentActionResultType::GetFiles(
-                GetFilesResult::Error(search_failed_message(ctx)),
+                GetFilesResult::Error(localization::text_for_app(
+                    ctx,
+                    "agent.search_codebase.error.search_failed",
+                )),
             ));
         };
 
@@ -216,24 +218,20 @@ impl GetFilesExecutor {
                                 );
 
                                 let error_message = match e {
-                                    GetRelevantFilesError::Pending => {
-                                        localization::text_for_app(
-                                            ctx,
-                                            "agent.search_codebase.error.indexing",
-                                        )
-                                    }
+                                    GetRelevantFilesError::Pending => localization::text_for_app(
+                                        ctx,
+                                        "agent.search_codebase.error.indexing",
+                                    ),
                                     GetRelevantFilesError::CreateFailed => {
                                         localization::text_for_app(
                                             ctx,
                                             "agent.search_codebase.error.current_directory_unavailable",
                                         )
                                     }
-                                    GetRelevantFilesError::Missing => {
-                                        localization::text_for_app(
-                                            ctx,
-                                            "agent.search_codebase.error.missing_git_repo",
-                                        )
-                                    }
+                                    GetRelevantFilesError::Missing => localization::text_for_app(
+                                        ctx,
+                                        "agent.search_codebase.error.missing_git_repo",
+                                    ),
                                 };
                                 ActionExecution::Sync(AIAgentActionResultType::GetFiles(
                                     GetFilesResult::Error(error_message),
@@ -257,7 +255,7 @@ impl GetFilesExecutor {
                         ),
                     Some(GetRelevantFilesStatus::Failed { .. }) => ActionExecution::Sync(
                         AIAgentActionResultType::GetFiles(GetFilesResult::Error(
-                            search_failed_message(ctx),
+                            localization::text_for_app(ctx, "agent.search_codebase.error.search_failed"),
                         )),
                     ),
                     None => {
@@ -314,8 +312,6 @@ impl GetFilesExecutor {
             .cloned();
 
         let shell = self.active_session.as_ref(ctx).shell_launch_data(ctx);
-        let missing_files_template =
-            localization::text_for_app(ctx, "agent.search_codebase.error.missing_files");
 
         ActionExecution::Async {
             execute_future: Box::pin(async move {
@@ -328,9 +324,10 @@ impl GetFilesExecutor {
                     })
                 } else {
                     let missing_files = result.missing_files.join(", ");
-                    Ok(GetFilesResult::Error(
-                        missing_files_template.replace("{files}", &missing_files),
-                    ))
+                    Ok(GetFilesResult::Error(format!(
+                        "These files do not exist: {}",
+                        missing_files
+                    )))
                 }
             }),
             on_complete: Box::new(|res, _ctx| {
@@ -343,8 +340,4 @@ impl GetFilesExecutor {
 
 impl Entity for GetFilesExecutor {
     type Event = ();
-}
-
-fn search_failed_message(app: &warpui::AppContext) -> String {
-    localization::text_for_app(app, "agent.search_codebase.error.search_failed")
 }

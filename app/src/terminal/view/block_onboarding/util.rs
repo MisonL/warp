@@ -23,15 +23,11 @@ pub const SKIP_BUTTON_HEIGHT: f32 = 40.;
 const CREATE_BUTTON_WIDTH: f32 = 120.;
 pub const BUTTON_GAP: f32 = 8.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 pub fn render_skip_button<A: Action + Clone>(
     action: A,
     mouse_state_handle: MouseStateHandle,
-    app: &AppContext,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     appearance
         .ui_builder()
@@ -48,7 +44,10 @@ pub fn render_skip_button<A: Action + Clone>(
             background: Some(appearance.theme().outline().into()),
             ..Default::default()
         })
-        .with_centered_text_label(text(app, "terminal.block_onboarding.skip"))
+        .with_centered_text_label(localization::text_for_app(
+            app,
+            "terminal.block_onboarding.skip",
+        ))
         .build()
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| ctx.dispatch_typed_action(action.clone()))
@@ -118,7 +117,10 @@ pub fn render_input_row<A: Action + Clone>(
             height: Some(SKIP_BUTTON_HEIGHT),
             ..Default::default()
         })
-        .with_centered_text_label(text(ctx, "terminal.block_onboarding.create_team"));
+        .with_centered_text_label(localization::text_for_app(
+            ctx,
+            "terminal.block_onboarding.create_team",
+        ));
     if name(ctx, team_name_editor).is_none() {
         create_team_button = create_team_button
             .with_style(UiComponentStyles {
@@ -154,8 +156,8 @@ pub fn render_input_row<A: Action + Clone>(
             render_skip_button(
                 skip_action.clone(),
                 mouse_state_handle_skip_button.clone(),
-                ctx,
                 appearance,
+                ctx,
             ),
         ]);
         row.finish()

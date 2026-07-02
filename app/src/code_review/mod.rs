@@ -6,8 +6,11 @@ pub mod diff_size_limits;
 pub mod diff_state;
 pub mod editor_state;
 pub(crate) mod find_model;
+pub(crate) mod git_actions;
 pub(crate) mod git_dialog;
-pub mod git_status_update;
+pub mod git_repo_model;
+mod git_repo_models;
+pub mod github_repo_model;
 mod hidden_lines;
 pub mod telemetry_event;
 #[cfg_attr(not(feature = "local_fs"), allow(unused_imports))]
@@ -29,10 +32,14 @@ use warpui::{
 
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
-use crate::localization;
 use crate::terminal::view::TerminalView;
 use crate::terminal::CLIAgent;
 use crate::util::bindings::CustomAction;
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
 
 /// Arguments needed to open or toggle the code review panel.
 /// Bundled into a struct so that events can atomically open the
@@ -94,18 +101,13 @@ pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings([FixedBinding::custom(
         CustomAction::Undo,
         CodeReviewAction::UndoRevert,
-        binding_description("Undo", "code_review.action.undo"),
+        "Undo",
         id!("CodeReviewView") & !id!("IMEOpen"),
     )]);
 
     diff_menu::init(app);
     diff_selector::init(app);
     git_dialog::init(app);
-}
-
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback)
-        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }
 
 /// Uses heuristics to determine if a file is auto-generated.

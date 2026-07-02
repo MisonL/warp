@@ -30,6 +30,7 @@ pub mod federate;
 pub mod harness_support;
 pub mod integration;
 pub mod json_filter;
+pub mod local_control;
 mod localization;
 pub mod mcp;
 pub mod model;
@@ -94,7 +95,11 @@ pub struct GlobalOptions {
     pub output_format: OutputFormat,
 }
 
-/// Command-line argument parser for the main Warp binary. This is used across all channels.
+/// Normal argument parser for the shared Warp executable across all channels.
+///
+/// Oz commands are subcommands of this parser, so invoking an `oz` symlink does
+/// not require a mode flag. Warp Control uses its separate [`local_control::ControlArgs`]
+/// parser, selected before this parser sees the arguments.
 #[derive(Debug, Default, Parser, Clone)]
 #[command(
     name = "oz",
@@ -550,6 +555,30 @@ pub enum CliCommand {
     /// Manage API keys.
     #[command(subcommand)]
     ApiKey(crate::api_key::ApiKeyCommand),
+}
+
+impl CliCommand {
+    /// Returns the command path used to identify this invocation in tracing.
+    pub fn as_str_for_tracing(&self) -> &'static str {
+        match self {
+            CliCommand::Agent(command) => command.as_str_for_tracing(),
+            CliCommand::Environment(command) => command.as_str_for_tracing(),
+            CliCommand::MCP(command) => command.as_str_for_tracing(),
+            CliCommand::Run(command) => command.as_str_for_tracing(),
+            CliCommand::Model(command) => command.as_str_for_tracing(),
+            CliCommand::Login => "login",
+            CliCommand::Logout => "logout",
+            CliCommand::Whoami => "whoami",
+            CliCommand::Provider(command) => command.as_str_for_tracing(),
+            CliCommand::Integration(command) => command.as_str_for_tracing(),
+            CliCommand::Schedule(command) => command.as_str_for_tracing(),
+            CliCommand::Secret(command) => command.as_str_for_tracing(),
+            CliCommand::Federate(command) => command.as_str_for_tracing(),
+            CliCommand::HarnessSupport(args) => args.command.as_str_for_tracing(),
+            CliCommand::Artifact(command) => command.as_str_for_tracing(),
+            CliCommand::ApiKey(command) => command.as_str_for_tracing(),
+        }
+    }
 }
 
 /// A subcommand of the main Warp application. This includes all [`WorkerCommand`]s as well as app-specific debugging tools.

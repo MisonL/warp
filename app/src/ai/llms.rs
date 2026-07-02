@@ -14,22 +14,26 @@ use super::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::AuthStateProvider;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
+use crate::report_error;
 use crate::server::server_api::ServerApiProvider;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-use crate::{localization, report_error};
 
 /// Checks if a user's' API key is being used for the given provider.
 /// Returns `true` if BYO API key is enabled and a key exists for the provider.
+/// For xAI, a connected Grok subscription counts: its OAuth access token is
+/// sent like a BYO key (see `ApiKeyManager::api_keys_for_request`).
 pub fn is_using_api_key_for_provider(provider: &LLMProvider, app: &AppContext) -> bool {
-    let api_keys = UserWorkspaces::as_ref(app)
-        .is_byo_api_key_enabled(app)
-        .then(|| ApiKeyManager::as_ref(app).keys().clone());
+    if !UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app) {
+        return false;
+    }
+    let manager = ApiKeyManager::as_ref(app);
 
     match provider {
-        LLMProvider::OpenAI => api_keys.is_some_and(|keys| keys.openai.is_some()),
-        LLMProvider::Anthropic => api_keys.is_some_and(|keys| keys.anthropic.is_some()),
-        LLMProvider::Google => api_keys.is_some_and(|keys| keys.google.is_some()),
-        _ => false,
+        LLMProvider::OpenAI => manager.keys().openai.is_some(),
+        LLMProvider::Anthropic => manager.keys().anthropic.is_some(),
+        LLMProvider::Google => manager.keys().google.is_some(),
+        LLMProvider::Xai => manager.grok_tokens().is_some(),
+        LLMProvider::Unknown => false,
     }
 }
 
@@ -63,23 +67,16 @@ pub enum DisableReason {
 }
 
 impl DisableReason {
-    pub fn tooltip_key(&self) -> &'static str {
+    /// Returns a user-facing tooltip explaining why the model is disabled.
+    pub fn tooltip_text(&self) -> &'static str {
         match self {
-            DisableReason::AdminDisabled => {
-                "settings.execution_profile.model.disable_reason.admin_disabled"
-            }
-            DisableReason::OutOfRequests => {
-                "settings.execution_profile.model.disable_reason.out_of_requests"
-            }
+            DisableReason::AdminDisabled => "This model has been disabled by your team admin.",
+            DisableReason::OutOfRequests => "Please upgrade your plan to make more requests.",
             DisableReason::ProviderOutage => {
-                "settings.execution_profile.model.disable_reason.provider_outage"
+                "This model is temporarily unavailable due to a provider outage."
             }
-            DisableReason::RequiresUpgrade => {
-                "settings.execution_profile.model.disable_reason.requires_upgrade"
-            }
-            DisableReason::Unavailable => {
-                "settings.execution_profile.model.disable_reason.unavailable"
-            }
+            DisableReason::RequiresUpgrade => "Please upgrade your plan to access this model.",
+            DisableReason::Unavailable => "This model is unavailable.",
         }
     }
 
@@ -136,6 +133,7 @@ pub enum LLMModelHost {
     DirectApi,
     AwsBedrock,
     CustomEndpoint,
+    GeminiEnterprise,
     #[serde(other)]
     Unknown,
 }
@@ -575,7 +573,7 @@ impl LLMPreferences {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         let models_by_feature = get_cached_models(ctx).unwrap_or_default();
 
-        ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |me, event, ctx| {
+        ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |me, _, event, ctx| {
             if let NetworkStatusEvent::NetworkStatusChanged {
                 new_status: NetworkStatusKind::Online,
             } = event
@@ -588,13 +586,13 @@ impl LLMPreferences {
         // available LLMs query to the general workspace metadata query which is polled
         // and hooked up to workspace changes. For that to work, each user would need to
         // have a personal workspace. This is a stop-gap.
-        ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, event, ctx| {
+        ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
             if let AuthManagerEvent::AuthComplete = event {
                 me.refresh_authed_models(ctx);
             }
         });
 
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, event, ctx| {
+        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _, event, ctx| {
             if let UserWorkspacesEvent::TeamsChanged = event {
                 me.sanitize_disabled_custom_model_preferences(ctx);
                 me.refresh_authed_models(ctx);
@@ -607,7 +605,7 @@ impl LLMPreferences {
         // immediately flow through to the model picker.
         ctx.subscribe_to_model(
             &ApiKeyManager::handle(ctx),
-            |me, _event: &ApiKeyManagerEvent, ctx| {
+            |me, _, _event: &ApiKeyManagerEvent, ctx| {
                 me.rebuild_custom_llms(ctx);
                 me.reconcile_disabled_model_preferences(ctx);
                 ctx.emit(LLMPreferencesEvent::UpdatedAvailableLLMs);
@@ -828,18 +826,12 @@ impl LLMPreferences {
 
     /// Footer label for custom endpoint usage keyed by the request config_key.
     /// The synthetic custom LLMInfo already owns alias-or-name display semantics.
-    pub fn custom_endpoint_usage_display_label(
-        &self,
-        config_key: &str,
-        app: &AppContext,
-    ) -> String {
+    pub fn custom_endpoint_usage_display_label(&self, config_key: &str) -> String {
         let config_key = LLMId::from(config_key);
         self.custom_llm_info_for_id(&config_key)
             .map(|info| info.display_name.as_str())
             .map(str::to_string)
-            .unwrap_or_else(|| {
-                localization::text_for_app(app, "settings.ai.custom_endpoint.usage_fallback")
-            })
+            .unwrap_or_else(|| "Custom endpoint".to_owned())
     }
 
     fn custom_llm_info_for_id_if_enabled(&self, id: &LLMId, app: &AppContext) -> Option<&LLMInfo> {

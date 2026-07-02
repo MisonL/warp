@@ -83,15 +83,12 @@ impl NodeVersionPopupView {
                 ctx.dispatch_typed_action(NodeVersionPopupAction::InstallNvm);
             })
         });
-        let install_latest_node_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(
-                localization::text_for_app(ctx, "context_chips.node.install_latest_command"),
-                SecondaryTheme,
-            )
-            .with_icon(icons::Icon::Terminal)
-            .on_click(|ctx| {
-                ctx.dispatch_typed_action(NodeVersionPopupAction::InstallLatestNodeVersion);
-            })
+        let install_latest_node_button = ctx.add_typed_action_view(|_ctx| {
+            ActionButton::new("nvm install node", SecondaryTheme)
+                .with_icon(icons::Icon::Terminal)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(NodeVersionPopupAction::InstallLatestNodeVersion);
+                })
         });
         let has_nvm = detect_nvm_installed();
         let versions = if has_nvm {

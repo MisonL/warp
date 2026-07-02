@@ -96,17 +96,13 @@ use crate::view_components::{DismissibleToast, ToastLink, ToastType};
 use crate::workflows::workflow::{Argument, Workflow};
 use crate::workflows::CloudWorkflow;
 use crate::workspace::{ToastStack, WorkspaceAction};
-use crate::{localization, send_telemetry_from_ctx, FeatureFlag, UserWorkspaces};
+use crate::{send_telemetry_from_ctx, FeatureFlag, UserWorkspaces};
 
 mod alias_argument_selector;
 mod alias_bar;
 mod argument_editor;
 pub mod env_var_selector;
 mod syntax_highlightable;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::id;
@@ -128,7 +124,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
 }
 
 const WORKFLOW_ICON_DIMENSIONS: f32 = 16.;
@@ -138,10 +135,6 @@ const WORKFLOW_PARAMETER_HIGHLIGHT_COLOR: u32 = 0x42C0FA4D;
 const MAX_ELEMENT_WIDTH: f32 = 800.;
 
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
-const TITLE_PLACEHOLDER_KEY: &str = "workflow.placeholder.title";
-const DESCRIPTION_PLACEHOLDER_KEY: &str = "workflow.placeholder.description";
-const COMMAND_PLACEHOLDER_KEY: &str = "workflow.placeholder.command";
-const AGENT_MODE_QUERY_PLACEHOLDER_KEY: &str = "workflow.placeholder.agent_mode_query";
 const DESCRIPTION_MARGIN_TOP: f32 = 10.;
 
 const CORE_HORIZONATAL_MARGIN: f32 = 24.;
@@ -163,26 +156,13 @@ const HORIZONTAL_TEXT_INPUT_PADDING: f32 = 10.;
 
 const EDITOR_FONT_SIZE: f32 = 14.;
 
-const CREATE_BUTTON_KEY: &str = "workflow.action.create";
-const SAVE_BUTTON_KEY: &str = "workflow.action.update";
-const CANCEL_BUTTON_KEY: &str = "settings.action.cancel";
 const BUTTON_PADDING: f32 = 12.;
 const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BUTTON_HEIGHT: f32 = 32.;
 
 const AI_ASSIST_BUTTON_SIZE: f32 = 92.;
-const AI_ASSIST_BUTTON_KEY: &str = "workflow.action.autofill";
-const AI_ASSIST_LOADING_KEY: &str = "workflow.action.loading";
-
-const ALIAS_HELP_KEY: &str = "workflow.aliases.help";
-
-const RUN_ON_DESKTOP_BUTTON_KEY: &str = "workflow.action.run_in_warp";
 const RUN_ON_DESKTOP_BUTTON_WIDTH: f32 = 108.;
-
-const UNSAVED_CHANGES_KEY: &str = "workflow.unsaved_changes.message";
-const KEEP_EDITING_KEY: &str = "workflow.unsaved_changes.keep_editing";
-const DISCARD_CHANGES_KEY: &str = "workflow.unsaved_changes.discard";
 const DIALOG_WIDTH: f32 = 460.;
 const MODAL_HORIZONTAL_MARGIN: f32 = 28.;
 
@@ -343,8 +323,7 @@ impl WorkflowView {
 
 impl WorkflowView {
     pub fn new_in_pane(ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration =
-            ctx.add_model(|ctx| PaneConfiguration::new(text(ctx, "workflow.title.untitled")));
+        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Untitled"));
 
         Self::new_internal(ctx, ContainerConfiguration::Pane(pane_configuration))
     }
@@ -361,12 +340,18 @@ impl WorkflowView {
         let header_font_size = appearance.header_font_size();
         let ui_font_family = appearance.ui_font_family();
         let monospace_font_family = appearance.monospace_font_family();
+        let title_placeholder =
+            crate::localization::text_for_app(ctx, "workflow.placeholder.title");
+        let description_placeholder =
+            crate::localization::text_for_app(ctx, "workflow.placeholder.description");
+        let command_placeholder =
+            crate::localization::text_for_app(ctx, "workflow.placeholder.command");
 
         let name_editor = Self::create_editor_handle(
             ctx,
             Some(header_font_size),
             Some(ui_font_family),
-            Some(text(ctx, TITLE_PLACEHOLDER_KEY)),
+            Some(&title_placeholder),
             false,
             true,
             true,
@@ -376,7 +361,7 @@ impl WorkflowView {
             ctx,
             Some(EDITOR_FONT_SIZE),
             Some(ui_font_family),
-            Some(text(ctx, DESCRIPTION_PLACEHOLDER_KEY)),
+            Some(&description_placeholder),
             false,
             false,
             true,
@@ -386,7 +371,7 @@ impl WorkflowView {
             ctx,
             Some(EDITOR_FONT_SIZE),
             Some(monospace_font_family),
-            Some(text(ctx, COMMAND_PLACEHOLDER_KEY)),
+            Some(&command_placeholder),
             true,
             false,
             true,
@@ -396,7 +381,7 @@ impl WorkflowView {
             ctx,
             Some(EDITOR_FONT_SIZE),
             Some(monospace_font_family),
-            Some(text(ctx, COMMAND_PLACEHOLDER_KEY)),
+            Some(&command_placeholder),
             true,
             false,
             true,
@@ -496,7 +481,10 @@ impl WorkflowView {
         self.is_for_agent_mode = is_for_agent_mode;
         if is_for_agent_mode {
             self.content_editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(text(ctx, AGENT_MODE_QUERY_PLACEHOLDER_KEY), ctx);
+                editor.set_placeholder_text(
+                    crate::localization::text_for_app(ctx, "workflow.placeholder.agent_mode_query"),
+                    ctx,
+                );
                 editor.set_font_family(Appearance::as_ref(ctx).ui_font_family(), ctx);
             });
         }
@@ -519,7 +507,10 @@ impl WorkflowView {
 
         if is_for_agent_mode {
             self.content_editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(text(ctx, AGENT_MODE_QUERY_PLACEHOLDER_KEY), ctx);
+                editor.set_placeholder_text(
+                    crate::localization::text_for_app(ctx, "workflow.placeholder.agent_mode_query"),
+                    ctx,
+                );
             });
         }
 
@@ -720,7 +711,10 @@ impl WorkflowView {
         self.is_for_agent_mode = workflow.model().data.is_agent_mode_workflow();
         if self.is_for_agent_mode {
             self.content_editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(text(ctx, AGENT_MODE_QUERY_PLACEHOLDER_KEY), ctx);
+                editor.set_placeholder_text(
+                    crate::localization::text_for_app(ctx, "workflow.placeholder.agent_mode_query"),
+                    ctx,
+                );
                 editor.set_font_family(Appearance::as_ref(ctx).ui_font_family(), ctx);
             });
         }
@@ -812,7 +806,10 @@ impl WorkflowView {
 
         if self.is_for_agent_mode {
             self.content_editor.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(text(ctx, AGENT_MODE_QUERY_PLACEHOLDER_KEY), ctx);
+                editor.set_placeholder_text(
+                    crate::localization::text_for_app(ctx, "workflow.placeholder.agent_mode_query"),
+                    ctx,
+                );
             });
         } else {
             self.content_editor_highlight_model
@@ -1587,7 +1584,10 @@ impl WorkflowView {
     fn save_aliases(&mut self, ctx: &mut ViewContext<Self>) {
         if let Err(e) = self.alias_bar.update(ctx, |bar, ctx| bar.save(ctx)) {
             log::error!("Error saving aliases: {e:?}");
-            self.display_error_toast(text(ctx, "workflow.toast.error_saving_aliases"), ctx);
+            self.display_error_toast(
+                crate::localization::text_for_app(ctx, "workflow.toast.error_saving_aliases"),
+                ctx,
+            );
         }
     }
 
@@ -1596,7 +1596,10 @@ impl WorkflowView {
 
         // Block saving if secrets are detected in the workflow when secret redaction is enabled.
         if self.workflow_contains_secrets(ctx) {
-            self.display_error_toast(text(ctx, "workflow.toast.contains_secrets"), ctx);
+            self.display_error_toast(
+                crate::localization::text_for_app(ctx, "workflow.toast.contains_secrets"),
+                ctx,
+            );
             return;
         }
 
@@ -1628,7 +1631,10 @@ impl WorkflowView {
                     id
                 } else {
                     log::error!("No client_id obtained for creating workflow");
-                    self.display_error_toast(text(ctx, "workflow.toast.could_not_create"), ctx);
+                    self.display_error_toast(
+                        crate::localization::text_for_app(ctx, "workflow.toast.could_not_create"),
+                        ctx,
+                    );
                     return;
                 };
 
@@ -1739,9 +1745,9 @@ impl WorkflowView {
         crate::workspace::ToastStack::handle(ctx).update(ctx, |stack, ctx| {
             stack.add_ephemeral_toast(
                 DismissibleToast::success(if self.is_for_agent_mode {
-                    text(ctx, "workflow.toast.prompt_copied")
+                    crate::localization::text_for_app(ctx, "workflow.toast.prompt_copied")
                 } else {
-                    text(ctx, "workflow.toast.command_copied")
+                    crate::localization::text_for_app(ctx, "workflow.toast.command_copied")
                 }),
                 window_id,
                 ctx,
@@ -1930,7 +1936,10 @@ impl WorkflowView {
             WorkflowViewMode::Edit => {
                 let mode_text = appearance
                     .ui_builder()
-                    .span(text(app, "workflow.mode.editing"))
+                    .span(crate::localization::text_for_app(
+                        app,
+                        "workflow.mode.editing",
+                    ))
                     .with_style(base_text_styles)
                     .build();
                 let edit_button = accent_icon_button(
@@ -1945,7 +1954,10 @@ impl WorkflowView {
             WorkflowViewMode::View => {
                 let mode_text = appearance
                     .ui_builder()
-                    .span(text(app, "workflow.mode.viewing"))
+                    .span(crate::localization::text_for_app(
+                        app,
+                        "workflow.mode.viewing",
+                    ))
                     .with_style(base_text_styles)
                     .build();
                 let edit_button = icon_button(
@@ -1963,9 +1975,13 @@ impl WorkflowView {
         if let Some((mode_text, mut edit_button)) = text_and_button {
             if matches!(editability, ContentEditability::RequiresLogin) {
                 let ui_builder = appearance.ui_builder().clone();
-                let tooltip_text = text(app, "workflow.tooltip.sign_in_to_edit");
+                let sign_in_to_edit =
+                    crate::localization::text_for_app(app, "workflow.tooltip.sign_in_to_edit");
                 edit_button = edit_button.with_tooltip(move || {
-                    ui_builder.tool_tip(tooltip_text.clone()).build().finish()
+                    ui_builder
+                        .tool_tip(sign_in_to_edit.clone())
+                        .build()
+                        .finish()
                 });
             }
             let edit_button = edit_button.build();
@@ -2178,11 +2194,15 @@ impl WorkflowView {
         .finish()
     }
 
-    fn render_section_header(&self, text: String, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_section_header(
+        &self,
+        text: impl Into<String>,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         Container::new(
             appearance
                 .ui_builder()
-                .span(text)
+                .span(text.into())
                 .with_style(UiComponentStyles {
                     font_size: Some(SECTION_FONT_SIZE),
                     font_weight: Some(Weight::Bold),
@@ -2198,11 +2218,12 @@ impl WorkflowView {
 
     fn render_alias_section(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder().clone();
-        let alias_help = text(app, ALIAS_HELP_KEY);
+        let alias_help_text = crate::localization::text_for_app(app, "workflow.aliases.help");
+        let aliases_title = crate::localization::text_for_app(app, "workflow.aliases.title");
 
         let help_icon = Hoverable::new(
             self.ui_state_handles.alias_header_tool_tip.clone(),
-            |state| {
+            move |state| {
                 let mut stack = Stack::new().with_child(
                     ConstrainedBox::new(
                         Icon::HelpCircle
@@ -2220,7 +2241,10 @@ impl WorkflowView {
 
                 if state.is_hovered() {
                     let tooltip = ConstrainedBox::new(
-                        ui_builder.tool_tip(alias_help.clone()).build().finish(),
+                        ui_builder
+                            .tool_tip(alias_help_text.clone())
+                            .build()
+                            .finish(),
                     )
                     .with_max_width(200.)
                     .finish();
@@ -2244,7 +2268,7 @@ impl WorkflowView {
             .with_children([
                 Flex::row()
                     .with_children([
-                        self.render_section_header(text(app, "workflow.aliases.title"), appearance),
+                        self.render_section_header(aliases_title, appearance),
                         Container::new(help_icon).with_margin_left(4.).finish(),
                     ])
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -2272,7 +2296,10 @@ impl WorkflowView {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_text_label(text(app, KEEP_EDITING_KEY))
+            .with_text_label(crate::localization::text_for_app(
+                app,
+                "workflow.unsaved_changes.keep_editing",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -2292,7 +2319,10 @@ impl WorkflowView {
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })
-            .with_text_label(text(app, DISCARD_CHANGES_KEY))
+            .with_text_label(crate::localization::text_for_app(
+                app,
+                "workflow.unsaved_changes.discard",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -2302,7 +2332,7 @@ impl WorkflowView {
 
         Container::new(
             Dialog::new(
-                text(app, UNSAVED_CHANGES_KEY),
+                crate::localization::text_for_app(app, "workflow.unsaved_changes.message"),
                 None,
                 dialog_styles(appearance),
             )
@@ -2370,8 +2400,12 @@ impl WorkflowView {
         let mut save_button = self.build_footer_button(
             ButtonVariant::Accent,
             match self.workflow_view_mode {
-                WorkflowViewMode::Create => text(app, CREATE_BUTTON_KEY),
-                WorkflowViewMode::Edit | WorkflowViewMode::View => text(app, SAVE_BUTTON_KEY),
+                WorkflowViewMode::Create => {
+                    crate::localization::text_for_app(app, "workflow.action.create")
+                }
+                WorkflowViewMode::Edit | WorkflowViewMode::View => {
+                    crate::localization::text_for_app(app, "workflow.action.update")
+                }
             },
             None,
             self.ui_state_handles.save_workflow_state.clone(),
@@ -2390,7 +2424,7 @@ impl WorkflowView {
 
         let mut cancel_button = self.build_footer_button(
             ButtonVariant::Secondary,
-            text(app, CANCEL_BUTTON_KEY),
+            crate::localization::text_for_app(app, "settings.action.cancel"),
             None,
             self.ui_state_handles.cancel_mouse_state.clone(),
             appearance,
@@ -2415,10 +2449,14 @@ impl WorkflowView {
         let mut button_row = Flex::row();
 
         let label_and_icon = match self.ai_metadata_assist_state {
-            AiAssistState::PreRequest => Some((text(app, AI_ASSIST_BUTTON_KEY), Icon::AiAssistant)),
-            AiAssistState::RequestInFlight => {
-                Some((text(app, AI_ASSIST_LOADING_KEY), Icon::Refresh))
-            }
+            AiAssistState::PreRequest => Some((
+                crate::localization::text_for_app(app, "workflow.action.autofill"),
+                Icon::AiAssistant,
+            )),
+            AiAssistState::RequestInFlight => Some((
+                crate::localization::text_for_app(app, "workflow.action.loading"),
+                Icon::Refresh,
+            )),
             AiAssistState::Generated => None,
         };
 
@@ -2452,7 +2490,7 @@ impl WorkflowView {
                     .finish();
 
                 let button_with_tool_tip = appearance.ui_builder().tool_tip_on_element(
-                    text(app, "workflow.tooltip.ai_assist"),
+                    crate::localization::text_for_app(app, "workflow.tooltip.ai_assist"),
                     self.ui_state_handles.ai_assist_tool_tip.clone(),
                     rendered_button,
                     ParentAnchor::TopMiddle,
@@ -2492,7 +2530,7 @@ impl WorkflowView {
                 let run_on_desktop_button = self
                     .build_footer_button(
                         ButtonVariant::Accent,
-                        text(app, RUN_ON_DESKTOP_BUTTON_KEY),
+                        crate::localization::text_for_app(app, "workflow.action.run_in_warp"),
                         Some((Icon::Laptop, TextAndIconAlignment::IconFirst)),
                         // Reuse the execute button's handle since it's only shown if running workflows is
                         // supported.
@@ -2536,7 +2574,7 @@ impl WorkflowView {
         ctx: &mut ViewContext<Self>,
         font_size_override: Option<f32>,
         font_family_override: Option<FamilyId>,
-        placeholder_text: Option<String>,
+        placeholder_text: Option<&str>,
         supports_vim_mode: bool,
         single_line: bool,
         soft_wrap: bool,
@@ -2587,7 +2625,7 @@ impl WorkflowView {
             editor.set_autogrow(soft_wrap);
 
             if let Some(text) = placeholder_text {
-                editor.set_placeholder_text(&text, ctx);
+                editor.set_placeholder_text(text, ctx);
             }
 
             editor
@@ -2635,44 +2673,45 @@ impl WorkflowView {
                             environment_variables: None,
                         };
 
-                        send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
+                        send_telemetry_from_ctx!(
+                            TelemetryEvent::AutoGenerateMetadataSuccess,
+                            ctx
+                        );
 
                         pane.populate_missing_field_with_suggestion(workflow, ctx);
                         ctx.notify();
                     }
                     Err(err) => {
-                        let message = err.user_facing_message(ctx);
+                        let message = err.user_facing_message();
                         if let GeneratedCommandMetadataError::RateLimited = err {
                             let current_user_id = pane.auth_state.user_id().unwrap_or_default();
                             if let Some(team) = UserWorkspaces::as_ref(ctx).current_team() {
                                 let current_user_email =
                                     pane.auth_state.user_email().unwrap_or_default();
-                                let has_admin_permissions =
-                                    team.has_admin_permissions(&current_user_email);
+                                let has_admin_permissions = team.has_admin_permissions(&current_user_email);
                                 if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
                                     if has_admin_permissions {
-                                        pane.display_upgrade_error(
-                                            Some(team.uid),
-                                            current_user_id,
-                                            ctx,
-                                        );
+                                        pane.display_upgrade_error(Some(team.uid), current_user_id, ctx);
                                     } else {
                                         pane.display_error_toast(
-                                            text(
-                                                ctx,
-                                                "workflow.toast.out_of_ai_credits_contact_admin",
-                                            ),
+                                            "Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.".to_string(),
                                             ctx,
                                         );
                                     }
                                 } else {
-                                    pane.display_error_toast(message.clone(), ctx);
+                                    pane.display_error_toast(
+                                        message.clone(),
+                                        ctx,
+                                    );
                                 }
                             } else {
                                 pane.display_upgrade_error(None, current_user_id, ctx);
                             }
                         } else {
-                            pane.display_error_toast(message.clone(), ctx);
+                            pane.display_error_toast(
+                                message.clone(),
+                                ctx,
+                            );
                         }
 
                         send_telemetry_from_ctx!(
@@ -2690,7 +2729,7 @@ impl WorkflowView {
                 AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
                     request_usage_model.refresh_request_usage_async(ctx);
                 });
-            },
+            }
         );
 
         self.ai_metadata_assist_state = AiAssistState::RequestInFlight;
@@ -2710,17 +2749,26 @@ impl WorkflowView {
 
         let window_id = ctx.window_id();
         let toast_link = if self.auth_state.is_anonymous_or_logged_out() {
-            ToastLink::new(text(ctx, "workflow.toast.upgrade_for_more_credits"))
-                .with_onclick_action(WorkspaceAction::AttemptLoginGatedAIUpgrade)
+            ToastLink::new(crate::localization::text_for_app(
+                ctx,
+                "workflow.toast.upgrade_for_more_credits",
+            ))
+            .with_onclick_action(WorkspaceAction::AttemptLoginGatedAIUpgrade)
         } else {
-            ToastLink::new(text(ctx, "workflow.toast.upgrade_for_more_credits"))
-                .with_href(upgrade_link)
+            ToastLink::new(crate::localization::text_for_app(
+                ctx,
+                "workflow.toast.upgrade_for_more_credits",
+            ))
+            .with_href(upgrade_link)
         };
 
         crate::workspace::ToastStack::handle(ctx).update(ctx, |stack, ctx| {
             stack.add_ephemeral_toast(
-                DismissibleToast::error(text(ctx, "workflow.toast.out_of_ai_credits"))
-                    .with_link(toast_link),
+                DismissibleToast::error(crate::localization::text_for_app(
+                    ctx,
+                    "workflow.toast.out_of_ai_credits",
+                ))
+                .with_link(toast_link),
                 window_id,
                 ctx,
             );
@@ -2817,10 +2865,10 @@ impl WorkflowView {
         };
 
         let appearance = Appearance::as_ref(app);
-        let banner_text = if deleted {
-            text(app, "workflow.trash_banner.no_access")
+        let text = if deleted {
+            crate::localization::text_for_app(app, "workflow.trash_banner.no_access")
         } else {
-            text(app, "workflow.trash_banner.moved_to_trash")
+            crate::localization::text_for_app(app, "workflow.trash_banner.moved_to_trash")
         };
 
         let mut stack = Stack::new();
@@ -2838,7 +2886,7 @@ impl WorkflowView {
                         .finish(),
                         appearance
                             .ui_builder()
-                            .span(banner_text)
+                            .span(text)
                             .with_style(UiComponentStyles {
                                 font_size: Some(appearance.ui_font_size() + 2.),
                                 ..Default::default()
@@ -2864,7 +2912,10 @@ impl WorkflowView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center);
 
             let ui_builder = appearance.ui_builder().clone();
-            let restore_tooltip = text(app, "workflow.trash_banner.restore_tooltip");
+            let restore_tooltip =
+                crate::localization::text_for_app(app, "workflow.trash_banner.restore_tooltip");
+            let restore_label =
+                crate::localization::text_for_app(app, "workflow.trash_banner.restore");
             action_row.add_child(
                 Align::new(
                     appearance
@@ -2879,7 +2930,7 @@ impl WorkflowView {
                                 .build()
                                 .finish()
                         })
-                        .with_text_label(text(app, "workflow.trash_banner.restore"))
+                        .with_text_label(restore_label)
                         .build()
                         .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::Untrash))
                         .finish(),
@@ -3189,10 +3240,13 @@ impl BackingView for WorkflowView {
         // Add "Copy Link" to menu
         if let Some(link) = self.workflow_link(ctx) {
             menu_items.push(
-                MenuItemFields::new(text(ctx, "drive.menu.copy_link"))
-                    .with_on_select_action(WorkflowAction::CopyLink(link))
-                    .with_icon(Icon::Link)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "drive.menu.copy_link",
+                ))
+                .with_on_select_action(WorkflowAction::CopyLink(link))
+                .with_icon(Icon::Link)
+                .into_item(),
             );
         }
 
@@ -3200,10 +3254,13 @@ impl BackingView for WorkflowView {
             if let Some(link) = self.workflow_link(ctx) {
                 if let Ok(url) = Url::parse(&link) {
                     menu_items.push(
-                        MenuItemFields::new(text(ctx, "drive.menu.open_on_desktop"))
-                            .with_on_select_action(WorkflowAction::OpenLinkOnDesktop(url))
-                            .with_icon(Icon::Laptop)
-                            .into_item(),
+                        MenuItemFields::new(crate::localization::text_for_app(
+                            ctx,
+                            "drive.menu.open_on_desktop",
+                        ))
+                        .with_on_select_action(WorkflowAction::OpenLinkOnDesktop(url))
+                        .with_icon(Icon::Laptop)
+                        .into_item(),
                     );
                 }
             }
@@ -3214,10 +3271,13 @@ impl BackingView for WorkflowView {
         // Add "Duplicate" to menu
         if space != Some(Space::Shared) {
             menu_items.push(
-                MenuItemFields::new(text(ctx, "drive.menu.duplicate"))
-                    .with_on_select_action(WorkflowAction::Duplicate)
-                    .with_icon(Icon::Duplicate)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "drive.menu.duplicate",
+                ))
+                .with_on_select_action(WorkflowAction::Duplicate)
+                .with_icon(Icon::Duplicate)
+                .into_item(),
             );
         }
 
@@ -3227,7 +3287,7 @@ impl BackingView for WorkflowView {
             && (!FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash())
         {
             menu_items.push(
-                MenuItemFields::new(text(ctx, "drive.menu.trash"))
+                MenuItemFields::new(crate::localization::text_for_app(ctx, "drive.menu.trash"))
                     .with_on_select_action(WorkflowAction::Trash)
                     .with_icon(Icon::Trash)
                     .into_item(),

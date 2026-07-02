@@ -1,6 +1,6 @@
 //! Inline config block rendered on plan cards when the conversation has
-//! an active `OrchestrationConfigSnapshot`. Shows the approval toggle,
-//! Cloud/Local picker, and run-wide config dropdowns.
+//! an active `OrchestrationConfigSnapshot`. Shows a "Use orchestration"
+//! toggle, Cloud/Local picker, and run-wide config dropdowns.
 
 use std::collections::HashMap;
 
@@ -47,7 +47,7 @@ use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
 use crate::ui_components::blended_colors;
 use crate::workspace::WorkspaceAction;
-use crate::{localization, BlocklistAIHistoryModel};
+use crate::BlocklistAIHistoryModel;
 
 /// True when the mode is remote and `environment_id` is non-empty.
 fn env_presence(execution_mode: &RunAgentsExecutionMode) -> bool {
@@ -105,10 +105,10 @@ fn render_pill_toggle(is_on: bool, theme: &WarpTheme) -> Box<dyn Element> {
     .finish()
 }
 
-const CONFIG_BLOCK_HEADER_KEY: &str = "agent.orchestration.config.header";
-const CONFIG_BLOCK_DESCRIPTION_KEY: &str = "agent.orchestration.config.description";
-const CONFIG_BLOCK_VIEW_DETAILS_KEY: &str = "agent.orchestration.config.view_details";
-const BASE_MODEL_HELPER_KEY: &str = "agent.orchestration.config.base_model_helper";
+const CONFIG_BLOCK_HEADER: &str = "Use orchestration";
+const CONFIG_BLOCK_DESCRIPTION: &str =
+    "Break this work into coordinated streams with multiple agents.";
+const BASE_MODEL_HELPER: &str = "The primary model all agents will use.";
 
 // ── Action type ─────────────────────────────────────────────────────
 
@@ -604,9 +604,9 @@ impl View for OrchestrationConfigBlockView {
 
         let mut column = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
-        // Header row plus pill toggle switch.
+        // Header row: "Use orchestration" + pill toggle switch
         let header_label = Text::new(
-            localization::text_for_app(app, CONFIG_BLOCK_HEADER_KEY),
+            CONFIG_BLOCK_HEADER.to_string(),
             appearance.ui_font_family(),
             16.,
         )
@@ -634,7 +634,7 @@ impl View for OrchestrationConfigBlockView {
 
         // Description
         let description = Text::new(
-            localization::text_for_app(app, CONFIG_BLOCK_DESCRIPTION_KEY),
+            CONFIG_BLOCK_DESCRIPTION.to_string(),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -642,7 +642,7 @@ impl View for OrchestrationConfigBlockView {
         .finish();
         column.add_child(Container::new(description).with_margin_top(8.).finish());
 
-        // Details row plus expandable controls (only when approved).
+        // "View details" row + expandable controls (only when approved)
         if self.is_approved {
             // Divider
             let divider = Container::new(
@@ -654,7 +654,7 @@ impl View for OrchestrationConfigBlockView {
             .finish();
             column.add_child(Container::new(divider).with_margin_top(8.).finish());
 
-            // Details link row.
+            // "View details" link row
             let chevron_icon = if self.details_expanded {
                 warp_core::ui::Icon::ChevronDown
             } else {
@@ -662,7 +662,7 @@ impl View for OrchestrationConfigBlockView {
             };
             let disabled_text_color = blended_colors::text_disabled(theme, theme.background());
             let details_text = Text::new(
-                localization::text_for_app(app, CONFIG_BLOCK_VIEW_DETAILS_KEY),
+                "View details".to_string(),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() + 1.,
             )
@@ -705,7 +705,6 @@ impl View for OrchestrationConfigBlockView {
                         self.edit_state.execution_mode.is_remote(),
                         &self.pickers,
                         appearance,
-                        app,
                         Some(active_seg_bg),
                         true,
                     ))
@@ -718,13 +717,12 @@ impl View for OrchestrationConfigBlockView {
                     &self.edit_state,
                     &self.pickers,
                     appearance,
-                    app,
                     true,
                 ));
 
                 // Helper text
                 let helper = Text::new(
-                    localization::text_for_app(app, BASE_MODEL_HELPER_KEY),
+                    BASE_MODEL_HELPER.to_string(),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size() - 1.,
                 )

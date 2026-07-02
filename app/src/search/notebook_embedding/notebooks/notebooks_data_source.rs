@@ -40,8 +40,6 @@ impl SyncDataSource for CloudNotebooksDataSource {
         app: &AppContext,
     ) -> Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper> {
         let query_str = query.text.as_str();
-        let accessibility_label_template =
-            crate::localization::text_for_app(app, "search.notebook.a11y.label");
         Ok(self
             .notebooks
             .clone()
@@ -59,7 +57,6 @@ impl SyncDataSource for CloudNotebooksDataSource {
                         cloud_notebook: notebook,
                         fuzzy_matched_notebook: match_result,
                         is_accessible,
-                        accessibility_label_template: accessibility_label_template.clone(),
                     }
                     .into()
                 })

@@ -132,15 +132,15 @@ impl SearchItem for UserQuerySearchItem {
         self.accept_result()
     }
 
-    fn accessibility_label(&self) -> String {
-        format!("Query: {}", self.query_text)
-    }
-
     fn accessibility_label_for_app(&self, app: &AppContext) -> String {
         localization::text_for_app_with_args(
             app,
             "terminal.input.user_query.a11y.label",
             &[("query", &self.query_text)],
         )
+    }
+
+    fn accessibility_label(&self) -> String {
+        format!("Query: {}", self.query_text)
     }
 }

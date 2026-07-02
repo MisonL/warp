@@ -57,21 +57,13 @@ pub struct Window(Rc<WindowState>);
 pub(crate) struct WindowManager {
     windows: HashMap<WindowId, Rc<Window>>,
     renderer_manager: Rc<RefCell<RendererManager>>,
-    use_real_display_for_integration_test: bool,
 }
 
 impl WindowManager {
     pub(crate) fn new() -> Self {
-        Self::new_with_real_display_for_integration_test(
-            std::env::var("WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS").is_ok(),
-        )
-    }
-
-    fn new_with_real_display_for_integration_test(use_real_display: bool) -> Self {
         Self {
             windows: Default::default(),
             renderer_manager: Rc::new(RefCell::new(RendererManager::new())),
-            use_real_display_for_integration_test: use_real_display,
         }
     }
 }
@@ -97,7 +89,6 @@ impl platform::WindowManager for WindowManager {
             callbacks,
             executor,
             Rc::clone(&self.renderer_manager),
-            self.use_real_display_for_integration_test,
         )?);
         self.windows.insert(window_id, Rc::clone(&window));
         Ok(())
@@ -275,11 +266,9 @@ pub(crate) struct IntegrationTestWindowManager {
 }
 
 impl IntegrationTestWindowManager {
-    pub(crate) fn new(use_real_display: bool) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            window_manager: WindowManager::new_with_real_display_for_integration_test(
-                use_real_display,
-            ),
+            window_manager: WindowManager::new(),
         }
     }
 }
@@ -511,7 +500,6 @@ impl Window {
         callbacks: WindowCallbacks,
         executor: Rc<executor::Foreground>,
         renderer_manager: Rc<RefCell<RendererManager>>,
-        use_real_display_for_integration_test: bool,
     ) -> Result<Self> {
         log::info!("Opening window with id {window_id}");
         // Wrap window creation in an autorelease pool. AppKit produces many
@@ -532,8 +520,8 @@ impl Window {
                 .to_ns_rect(),
             };
 
-            let test_mode =
-                cfg!(feature = "integration_tests") && !use_real_display_for_integration_test;
+            let test_mode = cfg!(feature = "integration_tests")
+                && std::env::var("WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS").is_err();
 
             // Pick the GPU: for `LowPower`, scan all devices for
             // an integrated GPU and fall back to the system default; otherwise use

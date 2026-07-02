@@ -10,10 +10,6 @@ use crate::localization;
 use crate::ui_components::buttons::close_button;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 #[derive(Default)]
 struct MouseStateHandles {
     close_button: MouseStateHandle,
@@ -52,7 +48,7 @@ impl GrabEditAccessModal {
         let ui_builder = appearance.ui_builder();
 
         let description = Text::new(
-            text(app, "cloud_object.grab_edit_access.description"),
+            localization::text_for_app(app, "cloud_object.grab_edit_access.description"),
             appearance.ui_font_family(),
             13.,
         )
@@ -70,7 +66,7 @@ impl GrabEditAccessModal {
             .finish();
 
         Dialog::new(
-            text(app, "cloud_object.grab_edit_access.title"),
+            localization::text_for_app(app, "cloud_object.grab_edit_access.title"),
             None,
             dialog_styles(appearance),
         )
@@ -83,7 +79,10 @@ impl GrabEditAccessModal {
                         ButtonVariant::Basic,
                         self.mouse_state_handles.cancel_button.clone(),
                     )
-                    .with_text_label(text(app, "cloud_object.grab_edit_access.cancel"))
+                    .with_text_label(localization::text_for_app(
+                        app,
+                        "cloud_object.grab_edit_access.cancel",
+                    ))
                     .build()
                     .on_click(|ctx, _, _| {
                         ctx.dispatch_typed_action(GrabEditAccessModalAction::Close)
@@ -100,7 +99,10 @@ impl GrabEditAccessModal {
                     ButtonVariant::Warn,
                     self.mouse_state_handles.edit_anyway_button.clone(),
                 )
-                .with_text_label(text(app, "cloud_object.grab_edit_access.edit_anyway"))
+                .with_text_label(localization::text_for_app(
+                    app,
+                    "cloud_object.grab_edit_access.edit_anyway",
+                ))
                 .build()
                 .on_click(|ctx, _, _| {
                     ctx.dispatch_typed_action(GrabEditAccessModalAction::GrabEditAccess)

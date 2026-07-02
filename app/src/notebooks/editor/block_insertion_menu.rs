@@ -19,7 +19,6 @@ use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{ObjectIdType, Space};
 use crate::drive::CloudObjectTypeAndId;
-use crate::localization;
 use crate::menu::{self, Menu, MenuItemFields};
 use crate::notebooks::telemetry::EmbeddedObjectInfo;
 use crate::search::notebook_embedding::searcher::EmbeddingSearchItemAction;
@@ -28,10 +27,6 @@ use crate::server::ids::SyncId;
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
-
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 /// The saved position ID for the block insertion button.
 const BLOCK_INSERT_BUTTON_ID: &str = "notebook_block_insertion_button";
@@ -102,10 +97,13 @@ impl BlockInsertionMenuState {
 
         if embedded_objects_enabled {
             menu.add_item(
-                MenuItemFields::new(text(ctx, "notebook.block.embed"))
-                    .with_icon(Icon::EmbedBlock)
-                    .with_on_select_action(EditorViewAction::OpenEmbeddedObjectSearch)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "notebook.block.embed",
+                ))
+                .with_icon(Icon::EmbedBlock)
+                .with_on_select_action(EditorViewAction::OpenEmbeddedObjectSearch)
+                .into_item(),
             );
         }
 
@@ -122,13 +120,16 @@ impl BlockInsertionMenuState {
         }
 
         menu.add_item(
-            MenuItemFields::new(text(ctx, "notebook.block.divider"))
-                .with_icon(Icon::HorizontalRuleBlock)
-                .with_on_select_action(EditorViewAction::InsertBlock(
-                    warp_editor::content::text::BlockType::Item(BufferBlockItem::HorizontalRule),
-                ))
-                .with_override_icon_color(Fill::Solid(appearance.theme().ui_warning_color()))
-                .into_item(),
+            MenuItemFields::new(crate::localization::text_for_app(
+                ctx,
+                "notebook.block.divider",
+            ))
+            .with_icon(Icon::HorizontalRuleBlock)
+            .with_on_select_action(EditorViewAction::InsertBlock(
+                warp_editor::content::text::BlockType::Item(BufferBlockItem::HorizontalRule),
+            ))
+            .with_override_icon_color(Fill::Solid(appearance.theme().ui_warning_color()))
+            .into_item(),
         );
 
         menu
@@ -238,12 +239,13 @@ impl RichTextEditorView {
 
     /// Insert an embedded notebook inline view at the current insertion menu source.
     fn insert_embedded_notebook(&mut self, id: &SyncId, ctx: &mut ViewContext<Self>) {
-        let untitled = text(ctx, "notebook.placeholder.untitled");
         let (title, link) = CloudModel::handle(ctx).read(ctx, |model, _| {
             let title = model
                 .get_notebook(id)
                 .map(|notebook| notebook.model().title.clone())
-                .unwrap_or_else(|| untitled.clone());
+                .unwrap_or_else(|| {
+                    crate::localization::text_for_app(ctx, "notebook.placeholder.untitled")
+                });
             let link = model
                 .get_by_uid(&CloudObjectTypeAndId::Notebook(*id).uid())
                 .and_then(|object| object.object_link());
@@ -298,7 +300,7 @@ impl RichTextEditorView {
     fn render_button(&self, stack: &mut Stack, app: &AppContext) {
         let appearance = Appearance::as_ref(app);
         let ui_builder = appearance.ui_builder().clone();
-        let tooltip = text(app, "notebook.block.insert_tooltip");
+        let tooltip = crate::localization::text_for_app(app, "notebook.block.insert_tooltip");
         let button = icon_button(
             appearance,
             Icon::Plus,

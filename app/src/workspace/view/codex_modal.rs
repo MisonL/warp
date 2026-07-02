@@ -49,10 +49,6 @@ const MODAL_HEIGHT: f32 = 395.;
 const LEFT_PANEL_WIDTH: f32 = 330.;
 const RIGHT_PANEL_WIDTH: f32 = 325.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
@@ -75,14 +71,16 @@ pub struct CodexModal {
 
 impl CodexModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let cta_label = text(ctx, "workspace.codex_modal.cta");
-        let cta_button = ctx.add_view(move |_| {
-            ActionButton::new(cta_label.clone(), WhiteButtonTheme)
-                .with_icon(Icon::OpenAILogo)
-                .with_full_width(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CodexModalAction::UseCodex);
-                })
+        let cta_button = ctx.add_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "workspace.codex_modal.cta"),
+                WhiteButtonTheme,
+            )
+            .with_icon(Icon::OpenAILogo)
+            .with_full_width(true)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CodexModalAction::UseCodex);
+            })
         });
 
         CodexModal {
@@ -97,7 +95,7 @@ impl CodexModal {
         let magenta: ColorU = theme.terminal_colors().normal.magenta.into();
         Container::new(
             Text::new(
-                text(app, "workspace.codex_modal.new_badge"),
+                localization::text_for_app(app, "workspace.codex_modal.new_badge"),
                 appearance.ui_font_family(),
                 12.,
             )
@@ -120,7 +118,7 @@ impl CodexModal {
 
         // Title
         let title = FormattedTextElement::from_str(
-            text(app, "workspace.codex_modal.title"),
+            localization::text_for_app(app, "workspace.codex_modal.title"),
             appearance.ui_font_family(),
             24.,
         )
@@ -133,7 +131,7 @@ impl CodexModal {
 
         // Description - first paragraph
         let description_1 = FormattedTextElement::from_str(
-            text(app, "workspace.codex_modal.description_1"),
+            localization::text_for_app(app, "workspace.codex_modal.description_1"),
             appearance.ui_font_family(),
             14.,
         )
@@ -145,7 +143,7 @@ impl CodexModal {
 
         // Description - second paragraph
         let description_2 = FormattedTextElement::from_str(
-            text(app, "workspace.codex_modal.description_2"),
+            localization::text_for_app(app, "workspace.codex_modal.description_2"),
             appearance.ui_font_family(),
             14.,
         )

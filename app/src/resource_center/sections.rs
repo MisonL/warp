@@ -61,22 +61,22 @@ pub fn sections(ctx: &mut ViewContext<ResourceCenterMainView>) -> Vec<Section> {
         section_name: FeatureSection::AdvancedSetup,
         items: vec![
             ContentItem {
-                title_key: "resource_center.content.custom_prompt.title",
-                description_key: "resource_center.content.custom_prompt.description",
+                title: "resource_center.content.custom_prompt.title",
+                description: "resource_center.content.custom_prompt.description",
                 url: "https://docs.warp.dev/terminal/appearance/prompt",
-                button_label_key: "resource_center.content.view_documentation",
+                button_label: "resource_center.content.view_documentation",
             },
             ContentItem {
-                title_key: "resource_center.content.ide.title",
-                description_key: "resource_center.content.ide.description",
+                title: "resource_center.content.ide.title",
+                description: "resource_center.content.ide.description",
                 url: "https://docs.warp.dev/terminal/integrations-and-plugins",
-                button_label_key: "resource_center.content.view_documentation",
+                button_label: "resource_center.content.view_documentation",
             },
             ContentItem {
-                title_key: "resource_center.content.how_warp_uses_warp.title",
-                description_key: "resource_center.content.how_warp_uses_warp.description",
+                title: "resource_center.content.how_warp_uses_warp.title",
+                description: "resource_center.content.how_warp_uses_warp.description",
                 url: "https://www.warp.dev/blog/how-warp-uses-warp",
-                button_label_key: "resource_center.content.read_article",
+                button_label: "resource_center.content.read_article",
             },
         ],
     };

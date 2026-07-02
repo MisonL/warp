@@ -162,23 +162,20 @@ impl<T: Action + Clone> Banner<T> {
         Self::new_internal(content, buttons, with_close_button)
     }
 
-    /// Creates a banner with a single permanent-dismissal button
+    /// Creates a banner with a single "Don't show me again" button
     /// that will permanently dismiss the banner when clicked, as well
     /// as a close button that will temporarily dismiss it when clicked.
-    pub fn new_permanently_dismissible(
-        content: BannerTextContent<T>,
-        permanent_dismissal_label: String,
-    ) -> Self {
+    pub fn new_permanently_dismissible(content: BannerTextContent<T>) -> Self {
         Self::new_with_buttons(
             content,
-            vec![Self::permanent_dismissal_button(permanent_dismissal_label)],
+            vec![Self::permanent_dismissal_button()],
             /* with_close_button */ true,
         )
     }
 
-    fn permanent_dismissal_button(label: String) -> BannerTextButton {
+    fn permanent_dismissal_button() -> BannerTextButton {
         BannerTextButton::new(
-            label,
+            String::from("Don't show me again"),
             Rc::new(|ctx, _, _| {
                 ctx.dispatch_typed_action(BannerAction::<T>::Dismiss(DismissalType::Permanent));
             }),
@@ -206,6 +203,19 @@ impl<T: Action + Clone> Banner<T> {
     pub fn set_content(&mut self, content: BannerTextContent<T>, ctx: &mut ViewContext<Self>) {
         self.text_content = content;
         ctx.notify();
+    }
+
+    /// Updates the label of an action button at the given index.
+    pub fn set_action_button_label(
+        &mut self,
+        index: usize,
+        label: &str,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if let Some(button) = self.end_buttons.get_mut(index) {
+            button.text = label.to_owned();
+            ctx.notify();
+        }
     }
 
     pub fn with_icon(mut self, icon: Icon) -> Self {

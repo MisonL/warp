@@ -46,10 +46,6 @@ const TITLE_FONT_SIZE: f32 = 16.;
 const OPTION_TITLE_FONT_SIZE: f32 = 14.;
 const OPTION_DESC_FONT_SIZE: f32 = 12.;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 /// The type of agent selected by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentType {
@@ -128,11 +124,11 @@ impl AgentTypeSelector {
         }
     }
 
-    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = Text::new(
-            text(app, "agent_management.agent_type_selector.title"),
+            "Choose your agent".to_string(),
             appearance.ui_font_family(),
             TITLE_FONT_SIZE,
         )
@@ -189,7 +185,6 @@ impl AgentTypeSelector {
     #[allow(clippy::too_many_arguments)]
     fn render_option(
         &self,
-        app: &AppContext,
         index: usize,
         icon: Icon,
         title_key: &'static str,
@@ -197,8 +192,9 @@ impl AgentTypeSelector {
         is_suggested: bool,
         mouse_state: MouseStateHandle,
         action: AgentTypeSelectorAction,
-        appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
         let font_family = appearance.ui_font_family();
@@ -222,8 +218,10 @@ impl AgentTypeSelector {
 
         let is_selected = self.selected_option_index == index;
         let action = action.clone();
-        let title = text(app, title_key);
-        let description = text(app, description_key);
+        let title = localization::text_for_app(app, title_key);
+        let description = localization::text_for_app(app, description_key);
+        let suggested_label =
+            localization::text_for_app(app, "agent_management.agent_type_selector.suggested");
         Hoverable::new(mouse_state, move |state| {
             let is_hovered = state.is_hovered() || state.is_clicked();
             let (background, border_color) = if is_hovered || is_selected {
@@ -266,14 +264,11 @@ impl AgentTypeSelector {
                 .with_child(title_text);
 
             if is_suggested {
-                let suggested_text = Text::new(
-                    text(app, "agent_management.agent_type_selector.suggested"),
-                    font_family,
-                    OPTION_DESC_FONT_SIZE,
-                )
-                .with_style(Properties::default().weight(Weight::Medium))
-                .with_color(badge_text_color)
-                .finish();
+                let suggested_text =
+                    Text::new(suggested_label.clone(), font_family, OPTION_DESC_FONT_SIZE)
+                        .with_style(Properties::default().weight(Weight::Medium))
+                        .with_color(badge_text_color)
+                        .finish();
 
                 let suggested = Container::new(suggested_text)
                     .with_horizontal_padding(8.)
@@ -335,7 +330,7 @@ impl AgentTypeSelector {
     fn render_modal(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
-        let header = Container::new(self.render_header(appearance, app))
+        let header = Container::new(self.render_header(appearance))
             .with_padding_top(HEADER_PADDING_TOP)
             .with_padding_bottom(HEADER_PADDING_BOTTOM)
             .with_padding_left(HEADER_PADDING_HORIZONTAL)
@@ -343,7 +338,6 @@ impl AgentTypeSelector {
             .finish();
 
         let cloud_agent_option = self.render_option(
-            app,
             0,
             Icon::OzCloud,
             "agent_management.agent_type_selector.cloud.title",
@@ -351,11 +345,10 @@ impl AgentTypeSelector {
             true,
             self.cloud_agent_mouse_state.clone(),
             AgentTypeSelectorAction::SelectCloudAgent,
-            appearance,
+            app,
         );
 
         let local_agent_option = self.render_option(
-            app,
             1,
             Icon::Oz,
             "agent_management.agent_type_selector.local.title",
@@ -363,7 +356,7 @@ impl AgentTypeSelector {
             false,
             self.local_agent_mouse_state.clone(),
             AgentTypeSelectorAction::SelectLocalAgent,
-            appearance,
+            app,
         );
 
         let options = Flex::column()

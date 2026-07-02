@@ -25,7 +25,6 @@ use crate::appearance::Appearance;
 use crate::context_chips::display::PromptDisplay;
 use crate::context_chips::spacing;
 use crate::features::FeatureFlag;
-use crate::localization;
 use crate::settings::{FontSettings, InputSettings};
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::grid_size_util::grid_compute_baseline_position_fn;
@@ -224,12 +223,7 @@ impl PromptRenderHelper {
         model.prompt_block()
     }
 
-    pub fn prompt_working_dir(
-        &self,
-        model: &TerminalModel,
-        sessions: &Sessions,
-        app: &AppContext,
-    ) -> String {
+    pub fn prompt_working_dir(&self, model: &TerminalModel, sessions: &Sessions) -> String {
         let block = self.prompt_block(model);
         let home_dir = block.and_then(|block| prompt::home_dir_for_block(block, sessions));
         if model.block_list().is_bootstrapped() {
@@ -238,7 +232,7 @@ impl PromptRenderHelper {
         // terminal session, we should display the "Starting shell..." message when
         // fetching the login_shell information.
         } else {
-            self.bootstrapping_shell_message(model, sessions, app)
+            self.bootstrapping_shell_message(model, sessions)
         }
     }
 
@@ -246,12 +240,7 @@ impl PromptRenderHelper {
         self.prompt_view.as_ref(app).has_open_chip_menu(app)
     }
 
-    fn bootstrapping_shell_message(
-        &self,
-        model: &TerminalModel,
-        sessions: &Sessions,
-        app: &AppContext,
-    ) -> String {
+    fn bootstrapping_shell_message(&self, model: &TerminalModel, sessions: &Sessions) -> String {
         use crate::terminal::event::RemoteServerSetupState;
 
         // If a remote server setup is in progress for the pending session,
@@ -259,48 +248,31 @@ impl PromptRenderHelper {
         if let Some(pending_session_id) = model.pending_session_id() {
             if let Some(state) = sessions.remote_server_setup_state(pending_session_id) {
                 return match state {
-                    RemoteServerSetupState::Checking => {
-                        localization::text_for_app(app, "terminal.status.starting_shell")
-                    }
+                    RemoteServerSetupState::Checking => "Starting shell...".to_string(),
                     RemoteServerSetupState::Installing {
                         progress_percent: Some(p),
-                    } => localization::text_for_app(
-                        app,
-                        "terminal.status.installing_warp_ssh_extension_with_progress",
-                    )
-                    .replace("{progress_percent}", &p.to_string()),
+                    } => format!("Installing Warp SSH Extension... ({p}%)"),
                     RemoteServerSetupState::Installing {
                         progress_percent: None,
-                    } => localization::text_for_app(
-                        app,
-                        "terminal.status.installing_warp_ssh_extension",
-                    ),
-                    RemoteServerSetupState::Updating => localization::text_for_app(
-                        app,
-                        "terminal.status.updating_warp_ssh_extension",
-                    ),
-                    RemoteServerSetupState::Initializing => {
-                        localization::text_for_app(app, "terminal.status.initializing")
+                    } => "Installing Warp SSH Extension...".to_string(),
+                    RemoteServerSetupState::Updating => {
+                        "Updating Warp SSH Extension...".to_string()
                     }
-                    RemoteServerSetupState::Ready => {
-                        localization::text_for_app(app, "terminal.status.starting_shell")
-                    }
-                    // Failed and Unsupported both fall back to the legacy SSH
+                    RemoteServerSetupState::Initializing => "Initializing...".to_string(),
+                    RemoteServerSetupState::Ready => "Starting shell...".to_string(),
+                    // Failed and Unsupported both fall back to the wrapper-only SSH
                     // flow, so we render the same generic prompt as a normal
                     // SSH session that doesn't have the remote-server extension.
                     RemoteServerSetupState::Failed { .. }
-                    | RemoteServerSetupState::Unsupported { .. } => {
-                        localization::text_for_app(app, "terminal.status.starting_shell")
-                    }
+                    | RemoteServerSetupState::Unsupported { .. } => "Starting shell...".to_string(),
                 };
             }
         }
 
         if !sessions.is_empty() {
-            localization::text_for_app(app, "terminal.status.starting_shell")
+            "Starting shell...".to_string()
         } else {
-            localization::text_for_app(app, "terminal.status.starting_shell_named")
-                .replace("{shell}", model.shell_launch_state().display_name())
+            format!("Starting {}...", model.shell_launch_state().display_name())
         }
     }
 
@@ -312,8 +284,7 @@ impl PromptRenderHelper {
         app: &AppContext,
     ) -> Text {
         let prompt_colors: PromptColors = appearance.theme().clone().into();
-        let prompt_message =
-            self.bootstrapping_shell_message(model, self.sessions.as_ref(app), app);
+        let prompt_message = self.bootstrapping_shell_message(model, self.sessions.as_ref(app));
         Text::new_inline(
             prompt_message,
             appearance.monospace_font_family(),
@@ -460,7 +431,7 @@ impl PromptRenderHelper {
             let prompt = PromptAndPadding {
                 element: PromptAndPaddingElement::Text(Box::new(
                     Text::new_inline(
-                        crate::localization::text_for_app(app, "terminal.prompt.loading"),
+                        "Loading prompt...",
                         appearance.monospace_font_family(),
                         appearance.monospace_font_size(),
                     )

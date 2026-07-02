@@ -40,7 +40,11 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 ) {
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::custom(
-            SettingActionPairDescriptions::new_localized_toggle(app, "settings.warp_drive.label"),
+            SettingActionPairDescriptions::from_label_key(
+                "Enable Warp Drive".to_owned(),
+                "Disable Warp Drive".to_owned(),
+                "settings.warp_drive.label",
+            ),
             builder(SettingsAction::WarpDrive(
                 WarpDriveSettingsPageAction::ToggleShowWarpDrive,
             )),

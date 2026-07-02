@@ -1,5 +1,5 @@
 use ai::agent::action::UploadArtifactRequest;
-use ai::skills::{ParsedSkill, SkillProvider, SkillScope};
+use ai::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{DirectoryWatcher, RepoMetadataModel};
 use warp_util::host_id::HostId;
@@ -9,84 +9,125 @@ use warp_util::standardized_path::StandardizedPath;
 use warpui::App;
 use watcher::HomeDirectoryWatcher;
 
-use super::{format_upload_artifact_text, parsed_skill_for_common_locations};
+use super::{
+    format_upload_artifact_text, parsed_skill_for_common_locations, read_skill_display_text,
+};
 use crate::ai::agent::UploadArtifactResult;
 use crate::ai::skills::SkillManager;
 use crate::settings::AISettings;
-use crate::test_util::settings::initialize_settings_for_tests;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 
 #[test]
 fn format_upload_artifact_text_includes_request_details() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        let request = UploadArtifactRequest {
-            file_path: "reports/daily.txt".to_string(),
-            description: Some("Daily summary".to_string()),
-        };
+    let request = UploadArtifactRequest {
+        file_path: "reports/daily.txt".to_string(),
+        description: Some("Daily summary".to_string()),
+    };
 
-        let text = app.read(|ctx| format_upload_artifact_text(&request, None, ctx));
+    let text = format_upload_artifact_text(&request, None);
 
-        assert_eq!(
-            text,
-            "Upload artifact: reports/daily.txt\nDescription: Daily summary"
-        );
-    });
+    assert_eq!(
+        text,
+        "Upload artifact: reports/daily.txt\nDescription: Daily summary"
+    );
 }
 
 #[test]
 fn format_upload_artifact_text_includes_success_summary() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        let request = UploadArtifactRequest {
-            file_path: "reports/daily.txt".to_string(),
-            description: Some("Daily summary".to_string()),
-        };
-        let result = UploadArtifactResult::Success {
-            artifact_uid: "artifact-123".to_string(),
-            filepath: Some("reports/daily.txt".to_string()),
-            mime_type: "text/plain".to_string(),
-            description: Some("Daily summary".to_string()),
-            size_bytes: 128,
-        };
+    let request = UploadArtifactRequest {
+        file_path: "reports/daily.txt".to_string(),
+        description: Some("Daily summary".to_string()),
+    };
+    let result = UploadArtifactResult::Success {
+        artifact_uid: "artifact-123".to_string(),
+        filepath: Some("reports/daily.txt".to_string()),
+        mime_type: "text/plain".to_string(),
+        description: Some("Daily summary".to_string()),
+        size_bytes: 128,
+    };
 
-        let text = app.read(|ctx| format_upload_artifact_text(&request, Some(&result), ctx));
+    let text = format_upload_artifact_text(&request, Some(&result));
 
-        assert_eq!(
-            text,
-            "Upload artifact: reports/daily.txt\nDescription: Daily summary\nStatus: uploaded artifact artifact-123\nUploaded file: reports/daily.txt"
-        );
-    });
+    assert_eq!(
+        text,
+        "Upload artifact: reports/daily.txt\nDescription: Daily summary\nStatus: uploaded artifact artifact-123\nUploaded file: reports/daily.txt"
+    );
 }
 
 #[test]
 fn format_upload_artifact_text_includes_terminal_status() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        let request = UploadArtifactRequest {
-            file_path: "reports/daily.txt".to_string(),
-            description: None,
-        };
+    let request = UploadArtifactRequest {
+        file_path: "reports/daily.txt".to_string(),
+        description: None,
+    };
 
-        let error_text = app.read(|ctx| {
-            format_upload_artifact_text(
-                &request,
-                Some(&UploadArtifactResult::Error(
-                    "permission denied".to_string(),
-                )),
-                ctx,
-            )
-        });
-        assert_eq!(
-            error_text,
-            "Upload artifact: reports/daily.txt\nStatus: upload failed: permission denied"
-        );
+    let error_text = format_upload_artifact_text(
+        &request,
+        Some(&UploadArtifactResult::Error(
+            "permission denied".to_string(),
+        )),
+    );
+    assert_eq!(
+        error_text,
+        "Upload artifact: reports/daily.txt\nStatus: upload failed: permission denied"
+    );
 
-        let cancelled_text = app.read(|ctx| {
-            format_upload_artifact_text(&request, Some(&UploadArtifactResult::Cancelled), ctx)
-        });
-        assert_eq!(cancelled_text, "Upload artifact: reports/daily.txt");
-    });
+    let cancelled_text =
+        format_upload_artifact_text(&request, Some(&UploadArtifactResult::Cancelled));
+    assert_eq!(cancelled_text, "Upload artifact: reports/daily.txt");
+}
+
+fn make_skill(name: &str) -> ParsedSkill {
+    ParsedSkill {
+        name: name.to_string(),
+        description: String::new(),
+        path: LocalOrRemotePath::Local(
+            std::path::PathBuf::from("/home/user/.agents/skills")
+                .join(name)
+                .join("SKILL.md"),
+        ),
+        content: String::new(),
+        line_range: None,
+        provider: SkillProvider::Agents,
+        scope: SkillScope::Home,
+    }
+}
+
+#[test]
+fn read_skill_display_text_shows_slash_command_when_skill_found() {
+    let skill = make_skill("hello-world");
+    let reference = SkillReference::Path(skill.path.clone());
+    assert_eq!(
+        read_skill_display_text(Some(&skill), &reference),
+        "/hello-world"
+    );
+}
+
+#[test]
+fn read_skill_display_text_no_double_slash_when_skill_not_found_with_path_reference() {
+    // When the skill is not in the manager the fallback is skill_reference.to_string(),
+    // which for a path reference is an absolute path starting with '/'.  The display
+    // text must NOT prepend an extra '/' — doing so would produce '//home/…'.
+    let path = LocalOrRemotePath::Local(std::path::PathBuf::from(
+        "/home/devbox/.warp-local/skills/hello-world/SKILL.md",
+    ));
+    let reference = SkillReference::Path(path);
+    let display = read_skill_display_text(None, &reference);
+    assert!(
+        !display.starts_with("//"),
+        "display text must not start with '//': {display}"
+    );
+    assert!(
+        display.starts_with('/'),
+        "display text should start with '/': {display}"
+    );
+}
+
+#[test]
+fn read_skill_display_text_bundled_id_fallback_when_skill_not_found() {
+    let reference = SkillReference::BundledSkillId("create-pr".to_string());
+    let display = read_skill_display_text(None, &reference);
+    assert_eq!(display, "@warp-skill:create-pr");
 }
 
 fn remote_location(host_id: &HostId, path: &str) -> LocalOrRemotePath {

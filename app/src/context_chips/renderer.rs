@@ -59,14 +59,14 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    fn new_with_tooltip_override(
+    pub fn new(
         kind: ContextChipKind,
         chip: ContextChip,
         value: ChipValue,
         styles: RendererStyles,
-        is_disabled: bool,
-        tooltip_override_text: Option<String>,
+        availability: ChipAvailability,
     ) -> Self {
+        let is_disabled = !availability.is_enabled();
         Self {
             kind,
             chip,
@@ -76,39 +76,8 @@ impl Renderer {
             tooltip_state_handle: Default::default(),
             remove_button_state_handle: Default::default(),
             is_disabled,
-            tooltip_override_text,
+            tooltip_override_text: None,
         }
-    }
-
-    pub fn new(
-        kind: ContextChipKind,
-        chip: ContextChip,
-        value: ChipValue,
-        styles: RendererStyles,
-        availability: ChipAvailability,
-    ) -> Self {
-        let is_disabled = !availability.is_enabled();
-        Self::new_with_tooltip_override(kind, chip, value, styles, is_disabled, None)
-    }
-
-    pub fn new_for_app(
-        kind: ContextChipKind,
-        chip: ContextChip,
-        value: ChipValue,
-        styles: RendererStyles,
-        availability: ChipAvailability,
-        app: &AppContext,
-    ) -> Self {
-        let is_disabled = !availability.is_enabled();
-        let tooltip_override_text = availability.tooltip_override_text_for_app(app);
-        Self::new_with_tooltip_override(
-            kind,
-            chip,
-            value,
-            styles,
-            is_disabled,
-            tooltip_override_text,
-        )
     }
 
     pub fn default_from_kind(
@@ -117,17 +86,7 @@ impl Renderer {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Option<Self> {
-        let chip = chip_kind.to_chip()?;
-        let placeholder_value = chip_kind.placeholder_value();
-        let styles = chip_kind.default_styles(appearance, false);
-        Some(Self::new_for_app(
-            chip_kind,
-            chip,
-            placeholder_value,
-            styles,
-            availability,
-            app,
-        ))
+        Self::default_from_kind_with_agent_view(chip_kind, availability, false, appearance, app)
     }
 
     pub fn default_from_kind_with_agent_view(
@@ -135,17 +94,24 @@ impl Renderer {
         availability: ChipAvailability,
         is_in_agent_view: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Self> {
         let chip = chip_kind.to_chip()?;
         let placeholder_value = chip_kind.placeholder_value();
         let styles = chip_kind.default_styles(appearance, is_in_agent_view);
-        Some(Self::new(
-            chip_kind,
+        let is_disabled = !availability.is_enabled();
+        let tooltip_override_text = availability.tooltip_override_text_for_app(app);
+        Some(Self {
+            kind: chip_kind,
             chip,
-            placeholder_value,
+            value: placeholder_value,
             styles,
-            availability,
-        ))
+            draggable_state: Default::default(),
+            tooltip_state_handle: Default::default(),
+            remove_button_state_handle: Default::default(),
+            is_disabled,
+            tooltip_override_text,
+        })
     }
 
     pub fn draggable_state(&self) -> DraggableState {

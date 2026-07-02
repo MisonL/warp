@@ -3,13 +3,14 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 
+use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent};
 use anyhow::Result;
 use cfg_if::cfg_if;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use onboarding::{
     AgentOnboardingEvent, AgentOnboardingView, OnboardingCopy, OnboardingIntention,
-    SelectedSettings,
+    SelectedSettings, AGENT_ONBOARDING_COPY_KEYS, AI_FEATURE_COPY_KEYS,
 };
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;
@@ -19,16 +20,17 @@ use session_sharing_protocol::common::SessionId;
 use settings::Setting as _;
 use url::Url;
 use warp_core::context_flag::ContextFlag;
+use warp_core::safe_error;
 use warp_core::user_preferences::GetUserPreferences as _;
-use warp_graphql::billing::StripeSubscriptionPlan;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Border, ChildAnchor, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
 };
-use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding};
+use warpui::keymap::{EditableBinding, FixedBinding, Keystroke};
 use warpui::platform::{WindowBounds, WindowStyle};
 use warpui::presenter::ChildView;
 use warpui::rendering::OnGPUDeviceSelected;
+use warpui::ui_components::components::UiComponentStyles;
 use warpui::windowing::WindowManager;
 use warpui::{
     id, AddWindowOptions, AppContext, DisplayId, Element, Entity, EntityId, FocusContext,
@@ -51,6 +53,7 @@ use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView, AuthViewVarian
 use crate::auth::login_slide::{LoginSlideEvent, LoginSlideSource, LoginSlideView};
 use crate::auth::needs_sso_link_view::NeedsSsoLinkView;
 use crate::auth::paste_auth_token_modal::{PasteAuthTokenModalEvent, PasteAuthTokenModalView};
+use crate::auth::provider_keys_modal::{ProviderKeysModalEvent, ProviderKeysModalView};
 #[cfg(target_family = "wasm")]
 use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
 use crate::auth::{AuthStateProvider, LoginFailureReason};
@@ -66,12 +69,11 @@ use crate::features::FeatureFlag;
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
+use crate::modal::{Modal, ModalEvent};
 use crate::notebooks::manager::NotebookSource;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
-use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::experiments::is_free_user_no_ai_experiment_active;
 use crate::server::ids::SyncId;
 use crate::server::server_api::auth::UserAuthenticationError;
 use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
@@ -80,6 +82,7 @@ use crate::settings::cloud_preferences_syncer::{
     CloudPreferencesSyncer, CloudPreferencesSyncerEvent,
 };
 use crate::settings::{apply_onboarding_settings, AISettings, QuakeModeSettings, ThemeSettings};
+use crate::settings_view::custom_inference_modal::{CustomEndpointModal, CustomEndpointModalEvent};
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{flags, OpenTeamsSettingsModalArgs, SettingsSection};
 use crate::terminal::available_shells::AvailableShell;
@@ -425,25 +428,19 @@ pub fn init(app: &mut AppContext) {
 
     app.register_fixed_bindings([
         FixedBinding::empty(
-            binding_description("Hide All Windows", "root_view.binding.hide_all_windows"),
+            "Hide All Windows",
             RootViewAction::ShowOrHideNonQuakeModeWindows,
             id!("RootView") & id!(flags::ACTIVATION_HOTKEY_FLAG),
         ),
         FixedBinding::empty(
-            binding_description(
-                "Show Dedicated Hotkey Window",
-                "root_view.binding.show_dedicated_hotkey_window",
-            ),
+            "Show Dedicated Hotkey Window",
             RootViewAction::ToggleQuakeModeWindow,
             id!("RootView")
                 & id!(flags::QUAKE_MODE_ENABLED_CONTEXT_FLAG)
                 & !id!(flags::QUAKE_WINDOW_OPEN_FLAG),
         ),
         FixedBinding::empty(
-            binding_description(
-                "Hide Dedicated Hotkey Window",
-                "root_view.binding.hide_dedicated_hotkey_window",
-            ),
+            "Hide Dedicated Hotkey Window",
             RootViewAction::ToggleQuakeModeWindow,
             id!("RootView")
                 & id!(flags::QUAKE_MODE_ENABLED_CONTEXT_FLAG)
@@ -455,7 +452,7 @@ pub fn init(app: &mut AppContext) {
         // Register a binding to toggle fullscreen on Linux and Windows.
         EditableBinding::new(
             "root_view:toggle_fullscreen",
-            binding_description("Toggle fullscreen", "root_view.binding.toggle_fullscreen"),
+            "Toggle fullscreen",
             RootViewAction::ToggleFullscreen,
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
@@ -464,10 +461,7 @@ pub fn init(app: &mut AppContext) {
         // Debug binding for onboarding state
         EditableBinding::new(
             "root_view:enter_onboarding_state",
-            binding_description(
-                "[Debug] Enter Onboarding State",
-                "root_view.binding.debug.enter_onboarding_state",
-            ),
+            "[Debug] Enter Onboarding State",
             RootViewAction::DebugEnterOnboardingState,
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
@@ -907,10 +901,7 @@ fn create_environment(arg: &CreateEnvironmentArg, ctx: &mut AppContext) {
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title(
-                            &text(ctx, "settings.environment.form.create_environment"),
-                            ctx,
-                        );
+                        pane_group.set_title("Create Environment", ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -943,10 +934,7 @@ fn create_environment_and_run(arg: &CreateEnvironmentArg, ctx: &mut AppContext) 
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title(
-                            &text(ctx, "settings.environment.form.create_environment"),
-                            ctx,
-                        );
+                        pane_group.set_title("Create Environment", ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -1071,7 +1059,7 @@ fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
 
 fn display_object_missing_error_in_window(window_id: WindowId, ctx: &mut AppContext) {
     crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-        let toast = DismissibleToast::error(text(
+        let toast = DismissibleToast::error(crate::localization::text_for_app(
             ctx,
             "workspace.toast.resource_not_found_or_access_denied",
         ));
@@ -1642,6 +1630,10 @@ pub struct RootView {
     /// settings to apply after a new user login / initial cloud load completes
     pending_post_auth_onboarding_settings: Option<SelectedSettings>,
     paste_auth_token_modal: Option<ViewHandle<PasteAuthTokenModalView>>,
+    /// BYOK "Add API key" modal.
+    add_api_key_modal: Option<ViewHandle<ProviderKeysModalView>>,
+    /// BYOK "Add custom endpoint" modal — reuses the settings `CustomEndpointModal`.
+    add_custom_endpoint_modal: Option<ViewHandle<Modal<CustomEndpointModal>>>,
 }
 
 impl RootView {
@@ -1742,6 +1734,8 @@ impl RootView {
             pending_tutorial: None,
             pending_post_auth_onboarding_settings: None,
             paste_auth_token_modal: None,
+            add_api_key_modal: None,
+            add_custom_endpoint_modal: None,
         };
 
         match &root_view.auth_onboarding_state {
@@ -1923,12 +1917,6 @@ impl RootView {
         true
     }
 
-    fn build_plan_yearly_price_cents(ctx: &AppContext) -> Option<i32> {
-        PricingInfoModel::as_ref(ctx)
-            .plan_pricing(&StripeSubscriptionPlan::Build)
-            .map(|p| p.yearly_plan_price_per_month_usd_cents)
-    }
-
     fn create_agent_onboarding_view(
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<AgentOnboardingView> {
@@ -1945,9 +1933,8 @@ impl RootView {
                 .ai_autonomy_settings()
                 .has_any_overrides();
 
-            let agent_price_cents = Self::build_plan_yearly_price_cents(ctx);
-
             let auth_state = current_onboarding_auth_state(ctx);
+            let copy = build_agent_onboarding_copy(ctx);
 
             AgentOnboardingView::new(
                 themes.clone(),
@@ -1956,27 +1943,11 @@ impl RootView {
                 default_model_id,
                 workspace_enforces_autonomy,
                 FeatureFlag::AgentView.is_enabled(),
-                is_free_user_no_ai_experiment_active(ctx),
-                agent_price_cents,
                 auth_state,
-                OnboardingCopy::localized(|key| text(ctx, key)),
+                copy,
                 ctx,
             )
         });
-
-        // Subscribe to pricing updates so the badge stays current.
-        let onboarding_view_for_pricing = onboarding_view.clone();
-        ctx.subscribe_to_model(
-            &PricingInfoModel::handle(ctx),
-            move |_, _, event, ctx| match event {
-                PricingInfoModelEvent::PricingInfoUpdated => {
-                    let cents = Self::build_plan_yearly_price_cents(ctx);
-                    onboarding_view_for_pricing.update(ctx, |view, ctx| {
-                        view.set_agent_price_cents(cents, ctx);
-                    });
-                }
-            },
-        );
 
         let onboarding_view_clone = onboarding_view.clone();
         ctx.subscribe_to_model(
@@ -1995,42 +1966,21 @@ impl RootView {
             },
         );
 
-        // Subscribe to workspace changes to update autonomy enforcement state and detect upgrades.
-        // TeamsChanged fires whenever the workspace/billing metadata poll returns, which is also
-        // when a free→paid upgrade would be reflected (customer_type changes).
+        // Subscribe to workspace changes to update autonomy enforcement state and auth/billing
+        // state (e.g. a free→paid upgrade reflected by the workspace/billing metadata poll).
         let onboarding_view_for_workspaces = onboarding_view.clone();
         ctx.subscribe_to_model(
             &UserWorkspaces::handle(ctx),
             move |_, user_workspaces, event, ctx| {
-                match event {
-                    UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess => {
-                        let workspace_enforces_autonomy = user_workspaces
-                            .as_ref(ctx)
-                            .ai_autonomy_settings()
-                            .has_any_overrides();
-                        onboarding_view_for_workspaces.update(ctx, |onboarding_view, ctx| {
-                            onboarding_view
-                                .set_workspace_enforces_autonomy(workspace_enforces_autonomy, ctx);
-                        });
-                    }
-                    UserWorkspacesEvent::TeamsChanged => {
-                        let new_locked = is_free_user_no_ai_experiment_active(ctx);
-                        let was_locked = onboarding_view_for_workspaces
-                            .as_ref(ctx)
-                            .free_user_no_ai_experiment(ctx);
-                        if was_locked && !new_locked {
-                            // User upgraded — skip the intention slide.
-                            onboarding_view_for_workspaces.update(ctx, |view, ctx| {
-                                view.set_free_user_no_ai_experiment(false, ctx);
-                                view.advance_to_agent_step(ctx);
-                            });
-                        } else {
-                            onboarding_view_for_workspaces.update(ctx, |view, ctx| {
-                                view.set_free_user_no_ai_experiment(new_locked, ctx);
-                            });
-                        }
-                    }
-                    _ => {}
+                if matches!(event, UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess) {
+                    let workspace_enforces_autonomy = user_workspaces
+                        .as_ref(ctx)
+                        .ai_autonomy_settings()
+                        .has_any_overrides();
+                    onboarding_view_for_workspaces.update(ctx, |onboarding_view, ctx| {
+                        onboarding_view
+                            .set_workspace_enforces_autonomy(workspace_enforces_autonomy, ctx);
+                    });
                 }
                 let auth_state = current_onboarding_auth_state(ctx);
                 onboarding_view_for_workspaces.update(ctx, |onboarding_view, ctx| {
@@ -2059,6 +2009,30 @@ impl RootView {
                             drop(manager.refresh_workspace_metadata(ctx));
                         });
                     }
+                }
+            },
+        );
+
+        // Gate the AI-access slide's "Next" on having a BYOK key/endpoint and
+        // surface how many are configured: seed from the current `ApiKeyManager`
+        // state and keep it in sync as the user adds keys/endpoints via the
+        // onboarding BYOK modals.
+        let keys = ApiKeyManager::as_ref(ctx).keys();
+        let (key_count, endpoint_count) = (keys.provider_key_count(), keys.custom_endpoints.len());
+        onboarding_view.update(ctx, |view, ctx| {
+            view.set_byok_status(key_count, endpoint_count, ctx);
+        });
+        let onboarding_view_for_keys = onboarding_view.clone();
+        ctx.subscribe_to_model(
+            &ApiKeyManager::handle(ctx),
+            move |_, api_key_manager, event, ctx| {
+                if matches!(event, ApiKeyManagerEvent::KeysUpdated) {
+                    let keys = api_key_manager.as_ref(ctx).keys();
+                    let (key_count, endpoint_count) =
+                        (keys.provider_key_count(), keys.custom_endpoints.len());
+                    onboarding_view_for_keys.update(ctx, |view, ctx| {
+                        view.set_byok_status(key_count, endpoint_count, ctx);
+                    });
                 }
             },
         );
@@ -2309,6 +2283,144 @@ impl RootView {
                 self.paste_auth_token_modal = Some(modal);
                 ctx.notify();
             }
+            AgentOnboardingEvent::AddApiKeyRequested => {
+                // Pre-fill the modal with any keys the user already saved so they
+                // persist across reopens and can be edited or cleared in place.
+                let existing = ApiKeyManager::as_ref(ctx).keys();
+                let (openai, anthropic, google) = (
+                    existing.openai.clone(),
+                    existing.anthropic.clone(),
+                    existing.google.clone(),
+                );
+                let modal = ctx.add_typed_action_view(move |ctx| {
+                    ProviderKeysModalView::new(openai, anthropic, google, ctx)
+                });
+                ctx.subscribe_to_view(&modal, |me, _, event, ctx| match event {
+                    ProviderKeysModalEvent::Cancelled => {
+                        me.add_api_key_modal = None;
+                        me.focus(ctx);
+                        ctx.notify();
+                    }
+                    ProviderKeysModalEvent::Save {
+                        openai,
+                        anthropic,
+                        google,
+                    } => {
+                        let (openai, anthropic, google) =
+                            (openai.clone(), anthropic.clone(), google.clone());
+                        // Replace rather than merge so an emptied field clears the
+                        // stored key, keeping the saved state and the modal in sync.
+                        ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
+                            manager.set_openai_key(openai, ctx);
+                            manager.set_anthropic_key(anthropic, ctx);
+                            manager.set_google_key(google, ctx);
+                        });
+                        me.add_api_key_modal = None;
+                        me.focus(ctx);
+                        ctx.notify();
+                    }
+                });
+                ctx.focus(&modal);
+                self.add_api_key_modal = Some(modal);
+                ctx.notify();
+            }
+            AgentOnboardingEvent::AddCustomEndpointRequested => {
+                // Pre-fill with the existing endpoint (if any) so its content
+                // persists across reopens and edits in place instead of silently
+                // adding a duplicate. Onboarding exposes a single endpoint; the
+                // settings page manages multiples later.
+                let existing = ApiKeyManager::as_ref(ctx)
+                    .keys()
+                    .custom_endpoints
+                    .first()
+                    .cloned();
+                let is_editing = existing.is_some();
+                let editing_index = is_editing.then_some(0);
+                let title = if is_editing {
+                    "Edit custom endpoint"
+                } else {
+                    "Add custom endpoint"
+                }
+                .to_string();
+                let body = ctx.add_typed_action_view(move |ctx| {
+                    CustomEndpointModal::new(existing.as_ref(), editing_index, ctx)
+                });
+                ctx.subscribe_to_view(&body, |me, _, event, ctx| match event {
+                    CustomEndpointModalEvent::Close => {
+                        me.add_custom_endpoint_modal = None;
+                        me.focus(ctx);
+                        ctx.notify();
+                    }
+                    CustomEndpointModalEvent::AddEndpoint {
+                        name,
+                        url,
+                        api_key,
+                        models,
+                    } => {
+                        let (name, url, api_key, models) =
+                            (name.clone(), url.clone(), api_key.clone(), models.clone());
+                        ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
+                            manager.add_custom_endpoint(name, url, api_key, models, ctx);
+                        });
+                        me.add_custom_endpoint_modal = None;
+                        me.focus(ctx);
+                        ctx.notify();
+                    }
+                    CustomEndpointModalEvent::SaveEndpoint {
+                        index,
+                        name,
+                        url,
+                        api_key,
+                        models,
+                    } => {
+                        let (index, name, url, api_key, models) = (
+                            *index,
+                            name.clone(),
+                            url.clone(),
+                            api_key.clone(),
+                            models.clone(),
+                        );
+                        ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
+                            manager.save_custom_endpoint(index, name, url, api_key, models, ctx);
+                        });
+                        me.add_custom_endpoint_modal = None;
+                        me.focus(ctx);
+                        ctx.notify();
+                    }
+                    CustomEndpointModalEvent::RemoveEndpoint { index } => {
+                        let index = *index;
+                        ApiKeyManager::handle(ctx).update(ctx, |manager, ctx| {
+                            manager.remove_custom_endpoint(index, ctx);
+                        });
+                        me.add_custom_endpoint_modal = None;
+                        me.focus(ctx);
+                        ctx.notify();
+                    }
+                });
+
+                let body_for_modal = body.clone();
+                let modal = ctx.add_typed_action_view(move |ctx| {
+                    Modal::new(Some(title), body_for_modal, ctx)
+                        .with_modal_style(UiComponentStyles {
+                            width: Some(560.),
+                            height: Some(600.),
+                            ..Default::default()
+                        })
+                        .with_background_opacity(100)
+                        .with_dismiss_on_click()
+                        .with_dismiss_keystroke(Keystroke::parse("escape").unwrap_or_default())
+                });
+                ctx.subscribe_to_view(&modal, |me, _, event, ctx| match event {
+                    ModalEvent::Close => {
+                        me.add_custom_endpoint_modal = None;
+                        me.focus(ctx);
+                        ctx.notify();
+                    }
+                });
+                body.update(ctx, |body, ctx| body.on_open(ctx));
+                self.add_custom_endpoint_modal = Some(modal);
+                ctx.notify();
+            }
             AgentOnboardingEvent::PrivacySettingsFromTerminalThemeSlideRequested => {
                 let AuthOnboardingState::Onboarding {
                     target,
@@ -2492,7 +2604,10 @@ impl RootView {
                 });
             }
             Err(error) => {
-                log::error!("Unable to parse AuthResult from url: {error}");
+                safe_error!(
+                    safe: ("Unable to parse AuthResult from url"),
+                    full: ("Unable to parse AuthResult from url: {error}")
+                );
                 self.auth_view.update(ctx, |view, ctx| {
                     view.last_login_failure_reason =
                         Some(LoginFailureReason::InvalidRedirectUrl { was_pasted: false });
@@ -2695,10 +2810,7 @@ impl RootView {
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title(
-                            &text(ctx, "settings.environment.form.create_environment"),
-                            ctx,
-                        );
+                        pane_group.set_title("Create Environment", ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -2743,10 +2855,7 @@ impl RootView {
             workspace
                 .active_tab_pane_group()
                 .update(ctx, |pane_group, ctx| {
-                    pane_group.set_title(
-                        &text(ctx, "settings.environment.form.create_environment"),
-                        ctx,
-                    );
+                    pane_group.set_title("Create Environment", ctx);
 
                     if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                         terminal_view.update(ctx, |_, ctx| {
@@ -3288,6 +3397,13 @@ impl RootView {
     }
 }
 
+fn build_agent_onboarding_copy(ctx: &AppContext) -> OnboardingCopy {
+    let keys = AGENT_ONBOARDING_COPY_KEYS
+        .iter()
+        .chain(AI_FEATURE_COPY_KEYS.iter());
+    OnboardingCopy::new(keys.map(|key| (*key, crate::localization::text_for_app(ctx, key))))
+}
+
 #[derive(Clone, Debug)]
 pub enum RootViewEvent {
     AuthOnboardingStateChanged,
@@ -3305,7 +3421,10 @@ impl View for RootView {
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
         if focus_ctx.is_self_focused() {
             self.focus(ctx);
-        } else if self.paste_auth_token_modal.is_some() {
+        } else if self.paste_auth_token_modal.is_some()
+            || self.add_api_key_modal.is_some()
+            || self.add_custom_endpoint_modal.is_some()
+        {
             // Modal is open — focus belongs to the editor inside it.
         } else if matches!(
             self.auth_onboarding_state,
@@ -3351,6 +3470,14 @@ impl View for RootView {
         stack.add_child(child);
 
         if let Some(modal) = &self.paste_auth_token_modal {
+            stack.add_child(ChildView::new(modal).finish());
+        }
+
+        if let Some(modal) = &self.add_api_key_modal {
+            stack.add_child(ChildView::new(modal).finish());
+        }
+
+        if let Some(modal) = &self.add_custom_endpoint_modal {
             stack.add_child(ChildView::new(modal).finish());
         }
 
@@ -3637,11 +3764,3 @@ impl AuthOnboardingTarget {
 #[cfg(test)]
 #[path = "root_view_tests.rs"]
 mod tests;
-
-fn text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
-
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback).with_dynamic_override(move |app| Some(text(app, key)))
-}

@@ -1,8 +1,8 @@
 /// Git credentials management for cloud agent sandboxes.
 ///
 /// This module handles:
-/// - Writing `~/.git-credentials` and `~/.config/gh/hosts.yml` so that `git`
-///   and the `gh` CLI can authenticate to GitHub without requiring environment
+/// - Writing provider credentials to `~/.git-credentials`, plus GitHub
+///   credentials to `~/.config/gh/hosts.yml`, without requiring environment
 ///   variables.
 /// - One-time git configuration (`credential.helper store`, SSH→HTTPS URL
 ///   rewrites).
@@ -16,31 +16,22 @@ use anyhow::{Context, Result};
 // Use the project's allowed Command wrapper (not std::process::Command, which is
 // disallowed by clippy rules because it flashes a terminal window on Windows).
 use command::blocking::Command as BlockingCommand;
-use warp_localization::{replace_placeholders, LocaleId};
 
-use crate::localization;
 use crate::server::server_api::ai::{AIClient, GitCredential};
 
 /// How long to wait between credential refresh attempts (~50 minutes, staying
-/// well ahead of the one-hour GitHub token expiry).
+/// well ahead of the shortest-lived one-hour token expiry).
 pub(crate) const GIT_CREDENTIALS_REFRESH_INTERVAL: Duration = Duration::from_secs(50 * 60);
 
 const DEFAULT_GIT_NAME: &str = "Oz";
 const DEFAULT_GIT_EMAIL: &str = "oz-agent@warp.dev";
+const GITHUB_HOST: &str = "github.com";
 const GH_HOSTS_FILENAME: &str = "hosts.yml";
-
-fn text(key: &str) -> String {
-    localization::text_for_locale(LocaleId::EnUs, key)
-}
-
-fn text_with_args(key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&text(key), args)
-        .expect("localized text template arguments must match the catalog")
-}
+const GLAB_HOST: &str = "gitlab.com";
+const GLAB_CONFIG_FILENAME: &str = "config.yml";
 
 fn home_dir() -> Result<PathBuf> {
-    dirs::home_dir()
-        .ok_or_else(|| anyhow::anyhow!(text("agent_sdk.driver.git_credentials.error.home_dir")))
+    dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))
 }
 
 /// Write `content` to `path` using owner-only (0600) permissions.
@@ -59,36 +50,30 @@ fn write_secret_file(path: &std::path::Path, content: &str) -> Result<()> {
             .truncate(true)
             .mode(0o600)
             .open(path)
-            .with_context(|| {
-                text_with_args(
-                    "agent_sdk.driver.git_credentials.error.open_for_writing",
-                    &[("path", &path.display().to_string())],
-                )
-            })?;
+            .with_context(|| format!("Failed to open {} for writing", path.display()))?;
         file.set_permissions(std::fs::Permissions::from_mode(0o600))
-            .with_context(|| {
-                text_with_args(
-                    "agent_sdk.driver.git_credentials.error.set_permissions",
-                    &[("path", &path.display().to_string())],
-                )
-            })?;
-        file.write_all(content.as_bytes()).with_context(|| {
-            text_with_args(
-                "agent_sdk.driver.git_credentials.error.write",
-                &[("path", &path.display().to_string())],
-            )
-        })?;
+            .with_context(|| format!("Failed to set permissions on {}", path.display()))?;
+        file.write_all(content.as_bytes())
+            .with_context(|| format!("Failed to write {}", path.display()))?;
     }
     #[cfg(not(unix))]
     {
-        std::fs::write(path, content).with_context(|| {
-            text_with_args(
-                "agent_sdk.driver.git_credentials.error.write",
-                &[("path", &path.display().to_string())],
-            )
-        })?;
+        std::fs::write(path, content)
+            .with_context(|| format!("Failed to write {}", path.display()))?;
     }
     Ok(())
+}
+
+fn git_credentials_file_content(credentials: &[GitCredential]) -> String {
+    let mut content = String::new();
+    for cred in credentials {
+        let userinfo = match &cred.username {
+            Some(username) => format!("{username}:{}", cred.token),
+            None => format!("x-access-token:{}", cred.token),
+        };
+        content.push_str(&format!("https://{}@{}\n", userinfo, cred.host));
+    }
+    content
 }
 
 /// Write `~/.git-credentials` with the given credentials.
@@ -106,24 +91,13 @@ fn write_git_credentials_file(credentials: &[GitCredential]) -> Result<()> {
     let home = home_dir()?;
     let path = home.join(".git-credentials");
     let tmp_path = home.join(".git-credentials.tmp");
-
-    let mut content = String::new();
-    for cred in credentials {
-        let userinfo = match &cred.username {
-            Some(username) => format!("{username}:{}", cred.token),
-            None => format!("x-access-token:{}", cred.token),
-        };
-        content.push_str(&format!("https://{}@{}\n", userinfo, cred.host));
-    }
-
+    let content = git_credentials_file_content(credentials);
     write_secret_file(&tmp_path, &content)?;
     std::fs::rename(&tmp_path, &path).with_context(|| {
-        text_with_args(
-            "agent_sdk.driver.git_credentials.error.rename",
-            &[
-                ("source", &tmp_path.display().to_string()),
-                ("destination", &path.display().to_string()),
-            ],
+        format!(
+            "Failed to rename {} to {}",
+            tmp_path.display(),
+            path.display()
         )
     })?;
 
@@ -142,7 +116,11 @@ fn write_git_credentials_file(credentials: &[GitCredential]) -> Result<()> {
 ///
 /// The write is atomic: a temporary file is written then renamed.
 fn write_gh_hosts_yml(credentials: &[GitCredential], home: &std::path::Path) -> Result<()> {
-    if credentials.is_empty() {
+    let github_credentials = credentials
+        .iter()
+        .filter(|credential| credential.host == GITHUB_HOST)
+        .collect::<Vec<_>>();
+    if github_credentials.is_empty() {
         return Ok(());
     }
     let gh_config_dir = home.join(".config").join("gh");
@@ -152,7 +130,7 @@ fn write_gh_hosts_yml(credentials: &[GitCredential], home: &std::path::Path) -> 
     let tmp_path = gh_config_dir.join(format!("{GH_HOSTS_FILENAME}.tmp"));
 
     let mut yaml = String::new();
-    for cred in credentials {
+    for cred in github_credentials {
         yaml.push_str(&format!("{}:\n", cred.host));
         yaml.push_str(&format!("    oauth_token: {}\n", cred.token));
         yaml.push_str("    git_protocol: https\n");
@@ -163,16 +141,77 @@ fn write_gh_hosts_yml(credentials: &[GitCredential], home: &std::path::Path) -> 
 
     write_secret_file(&tmp_path, &yaml)?;
     std::fs::rename(&tmp_path, &path).with_context(|| {
-        text_with_args(
-            "agent_sdk.driver.git_credentials.error.rename",
-            &[
-                ("source", &tmp_path.display().to_string()),
-                ("destination", &path.display().to_string()),
-            ],
+        format!(
+            "Failed to rename {} to {}",
+            tmp_path.display(),
+            path.display()
         )
     })?;
 
     Ok(())
+}
+
+/// Write `~/.config/glab-cli/config.yml` so the `glab` CLI is authenticated.
+///
+/// The YAML format for glab is:
+/// ```yaml
+/// hosts:
+///     gitlab.com:
+///         token: TOKEN
+///         git_protocol: https
+///         api_protocol: https
+/// ```
+///
+/// The write is atomic: a temporary file is written then renamed.
+fn write_glab_config(credentials: &[GitCredential], home: &std::path::Path) -> Result<()> {
+    let gitlab_credentials = credentials
+        .iter()
+        .filter(|credential| credential.host == GLAB_HOST)
+        .collect::<Vec<_>>();
+    if gitlab_credentials.is_empty() {
+        return Ok(());
+    }
+    let glab_config_dir = home.join(".config").join("glab-cli");
+    std::fs::create_dir_all(&glab_config_dir)
+        .with_context(|| format!("Failed to create {}", glab_config_dir.display()))?;
+    let path = glab_config_dir.join(GLAB_CONFIG_FILENAME);
+    let tmp_path = glab_config_dir.join(format!("{GLAB_CONFIG_FILENAME}.tmp"));
+
+    let mut yaml = String::new();
+    yaml.push_str("hosts:\n");
+    for cred in gitlab_credentials {
+        yaml.push_str(&format!("    {}:\n", cred.host));
+        yaml.push_str(&format!("        token: {}\n", cred.token));
+        yaml.push_str("        git_protocol: https\n");
+        yaml.push_str("        api_protocol: https\n");
+    }
+
+    write_secret_file(&tmp_path, &yaml)?;
+    std::fs::rename(&tmp_path, &path).with_context(|| {
+        format!(
+            "Failed to rename {} to {}",
+            tmp_path.display(),
+            path.display()
+        )
+    })?;
+
+    Ok(())
+}
+
+/// Formats non-sensitive metadata for verifying local credential injection.
+pub(crate) fn credential_diagnostics(credentials: &[GitCredential]) -> String {
+    credentials
+        .iter()
+        .map(|credential| {
+            format!(
+                "{}(token_present={}, username_present={})",
+                credential.host,
+                !credential.token.is_empty(),
+                credential.username.is_some()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub(crate) fn write_git_credentials(credentials: &[GitCredential]) -> Result<()> {
@@ -182,7 +221,22 @@ pub(crate) fn write_git_credentials(credentials: &[GitCredential]) -> Result<()>
     write_git_credentials_file(credentials)?;
     let home = home_dir()?;
     write_gh_hosts_yml(credentials, &home)?;
+    write_glab_config(credentials, &home)?;
+    log::info!(
+        "Wrote {} git credential(s) to the local credential store: {}",
+        credentials.len(),
+        credential_diagnostics(credentials)
+    );
     Ok(())
+}
+
+pub(crate) fn configure_git_credentials(credentials: &[GitCredential]) -> Result<()> {
+    if credentials.is_empty() {
+        return Ok(());
+    }
+    setup_git_config(credentials);
+    configure_git_identity(credentials);
+    write_git_credentials(credentials)
 }
 
 /// Run a git config command, logging a warning on failure rather than
@@ -273,21 +327,21 @@ pub(crate) fn configure_git_identity(credentials: &[GitCredential]) {
 /// Returns `Ok(())` on success (including when the server returns no
 /// credentials). Returns `Err` when the workload-token issuance or the server
 /// API call fails — these are transient failures worth retrying.
+#[tracing::instrument(name = "git_credentials::try_refresh", skip_all, err, fields(
+    tags.cloud_agent = true,
+    task_id,
+))]
 async fn try_refresh(task_id: &str, ai_client: &Arc<dyn AIClient>) -> Result<()> {
     let workload_token =
         warp_isolation_platform::issue_workload_token(Some(Duration::from_secs(5 * 60)))
             .await
-            .context(text(
-                "agent_sdk.driver.git_credentials.error.issue_workload_token",
-            ))?
+            .context("Failed to issue workload token for git credentials refresh")?
             .token;
 
     let credentials = ai_client
         .get_task_git_credentials(task_id.to_string(), workload_token)
         .await
-        .context(text(
-            "agent_sdk.driver.git_credentials.error.fetch_from_server",
-        ))?;
+        .context("Failed to fetch git credentials from server")?;
 
     if credentials.is_empty() {
         log::debug!("No git credentials returned during refresh; skipping file write");
@@ -295,14 +349,7 @@ async fn try_refresh(task_id: &str, ai_client: &Arc<dyn AIClient>) -> Result<()>
     }
 
     if let Err(e) = write_git_credentials(&credentials) {
-        let error = format!("{e:#}");
-        log::warn!(
-            "{}",
-            text_with_args(
-                "agent_sdk.driver.git_credentials.error.write_refreshed",
-                &[("error", &error)]
-            )
-        );
+        log::warn!("Failed to write refreshed git credentials: {e:#}");
     } else {
         log::info!("Git credentials refreshed successfully");
     }
@@ -315,7 +362,8 @@ async fn try_refresh(task_id: &str, ai_client: &Arc<dyn AIClient>) -> Result<()>
 /// On each iteration:
 /// 1. Issue a short-lived workload token.
 /// 2. Call `taskGitCredentials` to get a fresh token from the server.
-/// 3. Overwrite `~/.git-credentials` and `~/.config/gh/hosts.yml`.
+/// 3. Overwrite `~/.git-credentials` and refresh GitHub credentials in
+///    `~/.config/gh/hosts.yml`.
 ///
 /// On transient failure, the refresh is retried up to three times with
 /// exponential backoff (1 min, 2 min, 4 min), keeping all retries within the

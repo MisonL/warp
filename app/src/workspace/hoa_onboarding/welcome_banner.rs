@@ -28,23 +28,23 @@ struct FeatureItem {
 const FEATURE_ITEMS: &[FeatureItem] = &[
     FeatureItem {
         icon: Icon::LayoutAlt01,
-        title_key: "workspace.hoa_onboarding.welcome.feature.vertical_tabs.title",
-        description_key: "workspace.hoa_onboarding.welcome.feature.vertical_tabs.description",
+        title_key: "workspace.hoa.welcome.feature.vertical_tabs.title",
+        description_key: "workspace.hoa.welcome.feature.vertical_tabs.description",
     },
     FeatureItem {
         icon: Icon::Sliders,
-        title_key: "workspace.hoa_onboarding.welcome.feature.tab_configs.title",
-        description_key: "workspace.hoa_onboarding.welcome.feature.tab_configs.description",
+        title_key: "workspace.hoa.welcome.feature.tab_configs.title",
+        description_key: "workspace.hoa.welcome.feature.tab_configs.description",
     },
     FeatureItem {
         icon: Icon::Inbox,
-        title_key: "workspace.hoa_onboarding.welcome.feature.agent_inbox.title",
-        description_key: "workspace.hoa_onboarding.welcome.feature.agent_inbox.description",
+        title_key: "workspace.hoa.welcome.feature.agent_inbox.title",
+        description_key: "workspace.hoa.welcome.feature.agent_inbox.description",
     },
     FeatureItem {
         icon: Icon::MessageCheckSquare,
-        title_key: "workspace.hoa_onboarding.welcome.feature.code_review.title",
-        description_key: "workspace.hoa_onboarding.welcome.feature.code_review.description",
+        title_key: "workspace.hoa.welcome.feature.native_code_review.title",
+        description_key: "workspace.hoa.welcome.feature.native_code_review.description",
     },
 ];
 
@@ -85,9 +85,9 @@ pub fn render_welcome_banner(
         ),
     );
 
-    // Badge
+    // "New" badge
     let text = Text::new_inline(
-        localization::text_for_app(app, "workspace.hoa_onboarding.welcome.badge_new"),
+        localization::text_for_app(app, "workspace.hoa.welcome.badge.new"),
         appearance.ui_font_family(),
         14.,
     )
@@ -111,7 +111,7 @@ pub fn render_welcome_banner(
 
     // Title
     let title = Text::new(
-        localization::text_for_app(app, "workspace.hoa_onboarding.welcome.title"),
+        localization::text_for_app(app, "workspace.hoa.welcome.title"),
         appearance.ui_font_family(),
         20.,
     )

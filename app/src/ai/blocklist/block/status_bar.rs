@@ -24,9 +24,9 @@ use warpui::{
 use super::cli_controller::{CLISubagentController, CLISubagentEvent, UserTakeOverReason};
 use super::model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus};
 use super::view_impl::common::{
-    default_warping_message, render_switch_control_to_user_button, render_warping_indicator,
-    render_warping_indicator_base, waiting_for_user_input_message, AutoExecuteButtonProps,
-    ButtonProps, ForceRefreshButtonProps, MaybeShimmeringText, WarpingIndicatorProps, WarpingProps,
+    render_switch_control_to_user_button, render_warping_indicator, render_warping_indicator_base,
+    AutoExecuteButtonProps, ButtonProps, ForceRefreshButtonProps, MaybeShimmeringText,
+    WarpingIndicatorProps, WarpingProps, LOAD_OUTPUT_MESSAGE, WAITING_FOR_USER_INPUT_MESSAGE,
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
@@ -333,7 +333,7 @@ impl BlocklistAIStatusBar {
             ctx.notify();
         });
 
-        let agent_message_bar = ctx.add_view(|ctx| {
+        let agent_message_bar = ctx.add_typed_action_view(|ctx| {
             AgentMessageBar::new(
                 agent_view_controller.clone(),
                 ephemeral_message_model.clone(),
@@ -723,7 +723,7 @@ impl BlocklistAIStatusBar {
             if let Some(tip) = self.current_tip.as_ref() {
                 send_telemetry_from_app_ctx!(
                     TelemetryEvent::AgentTipShown {
-                        tip: crate::localization::text_for_app(ctx, tip.description_key)
+                        tip: tip.description.clone()
                     },
                     ctx
                 );
@@ -806,8 +806,8 @@ impl BlocklistAIStatusBar {
         );
         let default_warping_text = fallback_warping_text
             .as_deref()
-            .map(str::to_owned)
-            .unwrap_or_else(|| default_warping_message(app));
+            .unwrap_or(LOAD_OUTPUT_MESSAGE)
+            .to_owned();
         let secondary_element = if fallback_warping_text.is_some() {
             Some(render_fallback_explanation(model.as_ref(), app))
         } else {
@@ -839,8 +839,11 @@ impl BlocklistAIStatusBar {
                     ButtonProps {
                         button_handle: &self.state_handles.queue_next_prompt_button,
                         keystroke: self.queue_next_prompt_keystroke.as_ref(),
-                        is_active: QueuedQueryModel::as_ref(app)
-                            .is_queue_next_prompt_enabled(conversation.id()),
+                        is_active: QueuedQueryModel::as_ref(app).is_queue_next_prompt_enabled(
+                            conversation.id(),
+                            active_block,
+                            app,
+                        ),
                     },
                 ),
                 stop_button: Some(ButtonProps {
@@ -889,8 +892,7 @@ impl BlocklistAIStatusBar {
         }
 
         let progress = ambient_agent_model.agent_progress()?;
-        let progress_text =
-            crate::localization::text_for_app(app, progress.setup_status_text_key());
+        let progress_text = progress.setup_status_text(app);
         Some(render_warping_indicator_base(
             WarpingIndicatorProps {
                 icon: None,
@@ -926,13 +928,7 @@ impl BlocklistAIStatusBar {
         if let Some(auth_url) = ambient_agent_model.github_auth_url() {
             let error_message = ambient_agent_model
                 .github_auth_error_message()
-                .map(str::to_owned)
-                .unwrap_or_else(|| {
-                    crate::localization::text_for_app(
-                        app,
-                        "agent.cloud_mode_setup.github_auth_missing",
-                    )
-                });
+                .unwrap_or("Missing GitHub authentication.");
             return Some(render_wrapping_standard_message_bar(
                 CoreIcon::Triangle,
                 error_color,
@@ -958,7 +954,7 @@ impl BlocklistAIStatusBar {
                 color,
                 color,
                 vec![FormattedTextFragment::plain_text(
-                    crate::localization::text_for_app(app, "agent.cloud_mode_setup.cancelled"),
+                    "Cloud agent run cancelled",
                 )],
                 app,
             ));
@@ -997,6 +993,7 @@ fn latest_model_used_before_exchange<V: View>(
                 model_id: model_info.model_id.to_string(),
                 model_display_name: model_info.display_name.clone(),
                 is_fallback: model_info.is_fallback,
+                prompt_cache_expires_at: None,
             })
         })
 }
@@ -1010,11 +1007,8 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
 
-    let tip_description = crate::localization::text_for_app(app, tip.description_key);
-    let action_text = tip
-        .action
-        .clone()
-        .and_then(|action| action.display_text(app));
+    let tip_description = tip.description.clone();
+    let action_text = tip.action.clone().and_then(|action| action.display_text());
 
     let mut fragments = tip.to_formatted_text(app);
 
@@ -1024,7 +1018,7 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
     } else if let Some(link_target) = tip.link.clone() {
         fragments.push(FormattedTextFragment::plain_text(" "));
         fragments.push(FormattedTextFragment::hyperlink(
-            crate::localization::text_for_app(app, "auth.learn_more"),
+            crate::localization::text_for_app(app, "common.learn_more"),
             link_target,
         ));
     }
@@ -1085,12 +1079,10 @@ fn render_fallback_explanation<V: View>(
         .and_then(|base_id| llm_prefs.get_llm_info(base_id))
         .map(|info| info.base_model_name.as_str());
     let text = match primary_name {
-        Some(primary) => crate::localization::text_for_app_with_args(
-            app,
-            "agent.fallback.explanation_with_primary",
-            &[("primary", primary)],
-        ),
-        None => crate::localization::text_for_app(app, "agent.fallback.explanation"),
+        Some(primary) => {
+            format!("The primary model ({primary}) failed. Retrying with the fallback model.")
+        }
+        None => "The primary model failed. Retrying with the fallback model.".to_owned(),
     };
     let appearance = Appearance::as_ref(app);
     Text::new_inline(
@@ -1143,12 +1135,8 @@ fn resolve_fallback_warping_message<V: View>(
         return None;
     }
     Some(match display_name.as_deref() {
-        Some(name) => crate::localization::text_for_app_with_args(
-            app,
-            "agent.warping.status.with_model",
-            &[("name", name)],
-        ),
-        None => crate::localization::text_for_app(app, "agent.warping.status.with_another_model"),
+        Some(name) => format!("Warping with {name}."),
+        None => "Warping with another model.".to_owned(),
     })
 }
 
@@ -1186,11 +1174,7 @@ impl View for BlocklistAIStatusBar {
                     WarpingIndicatorProps {
                         icon: None,
                         warping_indicator_text: MaybeShimmeringText::Shimmering {
-                            text: crate::localization::text_for_app(
-                                app,
-                                "agent.warping.status.setting_up_environment",
-                            )
-                            .into(),
+                            text: "Setting up environment".into(),
                             shimmering_text_handle: self.shimmering_text_handle.clone(),
                         },
                         non_shimmering_text: None,
@@ -1217,13 +1201,13 @@ impl View for BlocklistAIStatusBar {
                     WarpingIndicatorProps {
                         icon: Some(icons::gray_clock_icon(appearance).finish()),
                         warping_indicator_text: MaybeShimmeringText::Static(
-                            waiting_for_user_input_message(app).into(),
+                            WAITING_FOR_USER_INPUT_MESSAGE.into(),
                         ),
                         non_shimmering_text: None,
                         non_shimmering_suffix: None,
                         buttons: Some(render_switch_control_to_user_button(
-                            crate::localization::text_for_app(app, "agent.warping.exit"),
-                            crate::localization::text_for_app(app, "agent.warping.exit_tooltip"),
+                            "Exit",
+                            "Exit agent input",
                             ButtonProps {
                                 button_handle: &self.state_handles.take_over_button,
                                 keystroke: self.set_terminal_input_keystroke.as_ref(),

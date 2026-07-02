@@ -54,7 +54,10 @@ impl AddRegexModal {
             };
             let mut editor = EditorView::single_line(options, ctx);
             editor.set_placeholder_text(
-                localization::text_for_app(ctx, "settings.privacy.name_placeholder"),
+                localization::text_for_app(
+                    ctx,
+                    "settings.privacy.custom_secret_redaction.placeholder.name",
+                ),
                 ctx,
             );
             editor
@@ -72,7 +75,10 @@ impl AddRegexModal {
             };
             let mut editor = EditorView::single_line(options, ctx);
             editor.set_placeholder_text(
-                localization::text_for_app(ctx, "settings.privacy.regex_placeholder"),
+                localization::text_for_app(
+                    ctx,
+                    "settings.privacy.custom_secret_redaction.placeholder.pattern",
+                ),
                 ctx,
             );
             editor
@@ -198,7 +204,7 @@ impl View for AddRegexModal {
         let is_submit_enabled = !pattern_text.trim().is_empty() && is_valid_regex;
 
         let name_label = Text::new(
-            localization::text_for_app(app, "settings.privacy.name_optional"),
+            "Name (optional)",
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -206,7 +212,7 @@ impl View for AddRegexModal {
         .finish();
 
         let regex_label = Text::new(
-            localization::text_for_app(app, "settings.privacy.regex_pattern"),
+            "Regex pattern",
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )

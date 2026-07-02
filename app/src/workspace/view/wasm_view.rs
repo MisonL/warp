@@ -22,10 +22,6 @@ use crate::{localization, BlocklistAIHistoryModel};
 
 const TRANSCRIPT_PANEL_WIDTH: f32 = 280.0;
 
-fn text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
-
 /// Builds the OZ runs URL for viewing all cloud runs.
 fn build_oz_runs_url() -> String {
     format!("{}/runs", ChannelState::oz_root_url())
@@ -46,17 +42,19 @@ impl Workspace {
     pub(super) fn build_open_in_warp_button(
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<ActionButton> {
-        ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new(text(_ctx, "workspace.wasm.open_in_warp"), PrimaryTheme).on_click(
-                move |ctx| {
-                    // Get the current URL and dispatch action to open it on desktop
-                    if let Some(url) = parse_current_url() {
-                        ctx.dispatch_typed_action(WorkspaceAction::OpenLinkOnDesktop(url));
-                    } else {
-                        log::warn!("Could not get URL for Open in Warp button");
-                    }
-                },
+        ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "workspace.wasm.open_in_warp"),
+                PrimaryTheme,
             )
+            .on_click(move |ctx| {
+                // Get the current URL and dispatch action to open it on desktop
+                if let Some(url) = parse_current_url() {
+                    ctx.dispatch_typed_action(WorkspaceAction::OpenLinkOnDesktop(url));
+                } else {
+                    log::warn!("Could not get URL for Open in Warp button");
+                }
+            })
         })
     }
 
@@ -64,9 +62,9 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<ActionButton> {
         let url = build_oz_runs_url();
-        ctx.add_typed_action_view(|_ctx| {
+        ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                text(_ctx, "workspace.wasm.view_all_cloud_runs"),
+                localization::text_for_app(ctx, "workspace.wasm.view_all_cloud_runs"),
                 SecondaryTheme,
             )
             .on_click(move |ctx| {
@@ -213,7 +211,7 @@ impl Workspace {
                     .cloned()
                 {
                     let details =
-                        ConversationDetailsData::from_task_id(task_id, Some(error_message), ctx);
+                        ConversationDetailsData::from_task_id(task_id, Some(error_message));
                     panel.set_conversation_details(details, ctx);
                     ctx.notify();
                     return;

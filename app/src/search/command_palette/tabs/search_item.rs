@@ -4,7 +4,6 @@ use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
 use crate::search::item::{IconLocation, SearchItem as SearchItemTrait};
@@ -17,49 +16,11 @@ use crate::ui_components::icons::Icon;
 pub struct SearchItem {
     tab: TabNavigationData,
     mru_rank: usize,
-    accessibility_copy: TabSearchItemAccessibilityCopy,
 }
 
 impl SearchItem {
-    pub fn new(
-        tab: TabNavigationData,
-        mru_rank: usize,
-        accessibility_copy: TabSearchItemAccessibilityCopy,
-    ) -> Self {
-        Self {
-            tab,
-            mru_rank,
-            accessibility_copy,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct TabSearchItemAccessibilityCopy {
-    selected_tab_template: String,
-    help_template: String,
-}
-
-impl TabSearchItemAccessibilityCopy {
-    pub fn new(app: &AppContext) -> Self {
-        Self {
-            selected_tab_template: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.selected_tab",
-            ),
-            help_template: localization::text_for_app(
-                app,
-                "search.command_palette.a11y.help.navigate_tab",
-            ),
-        }
-    }
-
-    fn selected_label(&self, title: &str) -> String {
-        self.selected_tab_template.replace("{title}", title)
-    }
-
-    fn help_message(&self, title: &str) -> String {
-        self.help_template.replace("{title}", title)
+    pub fn new(tab: TabNavigationData, mru_rank: usize) -> Self {
+        Self { tab, mru_rank }
     }
 }
 
@@ -75,7 +36,13 @@ impl SearchItemTrait for SearchItem {
         highlight_state: ItemHighlightState,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let color = highlight_state.icon_fill(appearance).into_solid();
+        let color = if let Some(tab_color) = self.tab.color {
+            tab_color
+                .to_ansi_color(&appearance.theme().terminal_colors().normal)
+                .into()
+        } else {
+            highlight_state.icon_fill(appearance).into_solid()
+        };
         render_search_item_icon(appearance, Icon::Navigation, color, highlight_state)
     }
 
@@ -93,7 +60,7 @@ impl SearchItemTrait for SearchItem {
         let appearance = Appearance::as_ref(app);
 
         let title_text = Text::new_inline(
-            format!("[Tab {}] {}", self.tab.tab_index, self.tab.title),
+            format!("{} · Tab {}", self.tab.title, self.tab.tab_index),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -138,10 +105,34 @@ impl SearchItemTrait for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        self.accessibility_copy.selected_label(&self.tab.title)
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.command_palette.a11y.selected_tab",
+            &[("title", &self.tab.title)],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.command_palette.a11y.selected_tab",
+            &[("title", &self.tab.title)],
+        )
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some(self.accessibility_copy.help_message(&self.tab.title))
+        Some(crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.command_palette.a11y.help.navigate_tab",
+            &[("title", &self.tab.title)],
+        ))
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(crate::localization::text_for_app_with_args(
+            app,
+            "search.command_palette.a11y.help.navigate_tab",
+            &[("title", &self.tab.title)],
+        ))
     }
 }

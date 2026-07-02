@@ -23,6 +23,8 @@ use warpui::ModelSpawner;
 #[cfg(not(target_family = "wasm"))]
 use warpui::SingletonEntity;
 
+use crate::localization;
+
 #[cfg(not(target_family = "wasm"))]
 use super::search_item::CodeSearchItem;
 #[cfg(not(target_family = "wasm"))]
@@ -86,12 +88,15 @@ impl CodeSymbolCache {
             spawner,
         };
 
-        ctx.subscribe_to_model(&RepoOutlines::handle(ctx), |me, event, ctx| match event {
-            RepoOutlinesEvent::OutlinesUpdated(repo_path) => {
-                me.symbol_cache.get_mut().remove(repo_path);
-                ctx.emit(());
-            }
-        });
+        ctx.subscribe_to_model(
+            &RepoOutlines::handle(ctx),
+            |me, _, event, ctx| match event {
+                RepoOutlinesEvent::OutlinesUpdated(repo_path) => {
+                    me.symbol_cache.get_mut().remove(repo_path);
+                    ctx.emit(());
+                }
+            },
+        );
 
         cache
     }
@@ -235,8 +240,8 @@ impl DataSourceRunError for CodeSearchError {
         "Code search failed".to_string()
     }
 
-    fn user_facing_error_text_key(&self) -> Option<&'static str> {
-        Some("agent.search_codebase.error.search_failed")
+    fn user_facing_error_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app(app, "search.ai_context_menu.code.error.generic")
     }
 
     fn telemetry_payload(&self) -> serde_json::Value {
