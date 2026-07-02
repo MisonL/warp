@@ -28,6 +28,7 @@ use crate::auth::AuthStateProvider;
 use crate::changelog_model::ChangelogModel;
 use crate::channel::ChannelState;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::resource_center::skip_tips_and_write_to_user_defaults;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
@@ -80,6 +81,10 @@ impl ResourceCenterMainView {
             section_views,
             tips_completed,
         }
+    }
+
+    pub fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        ctx.notify();
     }
 
     fn initialize_section_views(
@@ -340,7 +345,7 @@ impl ResourceCenterMainView {
         .finish()
     }
 
-    fn render_invite_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_invite_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let default_styles = UiComponentStyles {
             font_size: Some(DETAIL_FONT_SIZE),
             font_family_id: Some(appearance.ui_font_family()),
@@ -390,7 +395,7 @@ impl ResourceCenterMainView {
                 .with_text_and_icon_label(
                     TextAndIcon::new(
                         TextAndIconAlignment::IconFirst,
-                        "Invite a friend to Warp",
+                        localization::text_for_app(app, "resource_center.invite_friend"),
                         Icon::new(SEND_SVG_PATH, appearance.theme().accent()),
                         MainAxisSize::Max,
                         MainAxisAlignment::Center,
@@ -411,7 +416,11 @@ impl ResourceCenterMainView {
         .finish()
     }
 
-    fn render_skip_tips_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_skip_tips_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Container::new(
             Align::new(
                 Hoverable::new(self.button_mouse_states.skip_tips.clone(), |state| {
@@ -429,7 +438,10 @@ impl ResourceCenterMainView {
 
                     appearance
                         .ui_builder()
-                        .wrappable_text("Mark all as read", false)
+                        .wrappable_text(
+                            localization::text_for_app(app, "resource_center.mark_all_as_read"),
+                            false,
+                        )
                         .with_style(style)
                         .build()
                         .finish()
@@ -503,8 +515,8 @@ impl View for ResourceCenterMainView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let body = self.render_body(appearance);
-        let invite_button = self.render_invite_button(appearance);
-        let skip_tips = self.render_skip_tips_button(appearance);
+        let invite_button = self.render_invite_button(appearance, app);
+        let skip_tips = self.render_skip_tips_button(appearance, app);
 
         let mut main_page = Flex::column();
 

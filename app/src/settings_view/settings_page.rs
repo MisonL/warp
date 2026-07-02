@@ -1029,9 +1029,6 @@ pub(crate) fn render_settings_info_banner(
     .finish()
 }
 
-const WORKSPACE_OVERRIDE_TOOLTIP_TEXT: &str =
-    "This option is enforced by your organization's settings and cannot be customized.";
-
 pub struct InputListItem<SettingsPageAction: Action + Clone> {
     pub item: String,
     pub mouse_state_handle: MouseStateHandle,
@@ -1049,6 +1046,7 @@ pub fn render_input_list<SettingsPageAction: Action + Clone>(
     items: impl IntoIterator<Item = InputListItem<SettingsPageAction>>,
     handle: Option<&ViewHandle<SubmittableTextInput>>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let mut column = Flex::column();
 
@@ -1083,7 +1081,7 @@ pub fn render_input_list<SettingsPageAction: Action + Clone>(
             appearance,
         );
         let row_element = if let Some(tooltip_mouse_state) = item.tooltip_mouse_state {
-            render_workspace_override_row_tooltip(row_element, tooltip_mouse_state, appearance)
+            render_workspace_override_row_tooltip(row_element, tooltip_mouse_state, appearance, app)
         } else {
             row_element
         };
@@ -1133,13 +1131,17 @@ fn render_workspace_override_row_tooltip(
     child: Box<dyn Element>,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     Hoverable::new(mouse_state, |state| {
         let mut stack = Stack::new().with_child(child);
         if state.is_hovered() {
             let tooltip = appearance
                 .ui_builder()
-                .tool_tip(WORKSPACE_OVERRIDE_TOOLTIP_TEXT.to_string())
+                .tool_tip(localization::text_for_app(
+                    app,
+                    "settings.tooltip.organization_enforced",
+                ))
                 .build()
                 .finish();
             stack.add_positioned_child(

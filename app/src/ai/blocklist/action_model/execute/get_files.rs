@@ -169,9 +169,10 @@ impl GetFilesExecutor {
             // This should really never happen; it implies that we don't know what the
             // current working directory is, which is never the case.
             return ActionExecution::Sync(AIAgentActionResultType::GetFiles(
-                GetFilesResult::Error(
-                    "The search failed. Try another way to locate the relevant files.".to_string(),
-                ),
+                GetFilesResult::Error(localization::text_for_app(
+                    ctx,
+                    "agent.search_codebase.error.search_failed",
+                )),
             ));
         };
 
@@ -217,15 +218,20 @@ impl GetFilesExecutor {
                                 );
 
                                 let error_message = match e {
-                                    GetRelevantFilesError::Pending => {
-                                        "The current git repository is still being indexed, so search is unavailable right now. You can try again later".to_owned()
-                                    }
+                                    GetRelevantFilesError::Pending => localization::text_for_app(
+                                        ctx,
+                                        "agent.search_codebase.error.indexing",
+                                    ),
                                     GetRelevantFilesError::CreateFailed => {
-                                        "Relevant file search in the current directory is not available".to_owned()
+                                        localization::text_for_app(
+                                            ctx,
+                                            "agent.search_codebase.error.current_directory_unavailable",
+                                        )
                                     }
-                                    GetRelevantFilesError::Missing => {
-                                        "The current directory isn't within a git repository, which is necessary to search for relevant files.".to_owned()
-                                    }
+                                    GetRelevantFilesError::Missing => localization::text_for_app(
+                                        ctx,
+                                        "agent.search_codebase.error.missing_git_repo",
+                                    ),
                                 };
                                 ActionExecution::Sync(AIAgentActionResultType::GetFiles(
                                     GetFilesResult::Error(error_message),
@@ -249,8 +255,7 @@ impl GetFilesExecutor {
                         ),
                     Some(GetRelevantFilesStatus::Failed { .. }) => ActionExecution::Sync(
                         AIAgentActionResultType::GetFiles(GetFilesResult::Error(
-                            "The search failed. Try another way to locate the relevant files."
-                                .to_owned(),
+                            localization::text_for_app(ctx, "agent.search_codebase.error.search_failed"),
                         )),
                     ),
                     None => {

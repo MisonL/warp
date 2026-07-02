@@ -38,8 +38,6 @@ lazy_static! {
         };
 }
 
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search for a secret";
-
 pub struct ExternalSecretsMenu {
     scroll_state: ScrollStateHandle,
     list_state: UniformListState,
@@ -82,10 +80,10 @@ impl ExternalSecretsMenu {
         let mixer = ctx.add_model(|_| ExternalSecretSearchMixer::new());
 
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
+                "search.external_secrets.placeholder",
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,

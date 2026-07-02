@@ -13,6 +13,7 @@ use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakModelHandle
 
 use super::pty_controller::{EventLoopSender, PtyController};
 use crate::auth::auth_state::AuthStateProvider;
+use crate::localization;
 use crate::remote_server::auth_context::server_api_auth_context;
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use crate::remote_server::ssh_transport::SshTransport;
@@ -280,7 +281,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             Ok(true) => {
                 let socket_path = transport.socket_path().clone();
                 let warp_owns_control_master = transport.warp_owns_control_master();
-                let connection_label = connection_label_for_session_info(&session_info);
+                let connection_label = connection_label_for_session_info(&session_info, ctx);
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
@@ -515,7 +516,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             Ok(()) => {
                 let socket_path = transport.socket_path().clone();
                 let warp_owns_control_master = transport.warp_owns_control_master();
-                let connection_label = connection_label_for_session_info(&session_info);
+                let connection_label = connection_label_for_session_info(&session_info, ctx);
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
@@ -578,35 +579,53 @@ impl<T: EventLoopSender> RemoteServerController<T> {
     }
 }
 
-fn connection_label_for_session_info(session_info: &SessionInfo) -> String {
+fn connection_label_for_session_info(
+    session_info: &SessionInfo,
+    app: &impl AppContextLike,
+) -> String {
     let ssh_host = session_info
         .subshell_info
         .as_ref()
         .and_then(|info| info.ssh_connection_info.as_ref())
         .and_then(|ssh| ssh.host.as_deref());
 
-    connection_label_from_session_hosts(&session_info.user, &session_info.hostname, ssh_host)
+    connection_label_from_session_hosts(&session_info.user, &session_info.hostname, ssh_host, app)
 }
 
 fn connection_label_from_session_hosts(
     user: &str,
     hostname: &str,
     ssh_host: Option<&str>,
+    app: &impl AppContextLike,
 ) -> String {
     let host = ssh_host
         .filter(|host| !host.is_empty())
         .map(connection_label_from_ssh_host)
         .or_else(|| (!hostname.is_empty()).then(|| hostname.to_string()));
 
-    connection_label_from_user_and_host(user, host.as_deref())
+    connection_label_from_user_and_host(user, host.as_deref(), app)
 }
 
-fn connection_label_from_user_and_host(user: &str, host: Option<&str>) -> String {
+trait AppContextLike {
+    fn remote_host_unknown_text(&self) -> String;
+}
+
+impl<T: EventLoopSender> AppContextLike for ModelContext<'_, RemoteServerController<T>> {
+    fn remote_host_unknown_text(&self) -> String {
+        localization::text_for_app(self, "remote.host.unknown")
+    }
+}
+
+fn connection_label_from_user_and_host(
+    user: &str,
+    host: Option<&str>,
+    app: &impl AppContextLike,
+) -> String {
     match (user.is_empty(), host.filter(|host| !host.is_empty())) {
         (false, Some(host)) => format!("{user}@{host}"),
         (false, None) => user.to_string(),
         (true, Some(host)) => host.to_string(),
-        (true, None) => "Remote host".to_string(),
+        (true, None) => app.remote_host_unknown_text(),
     }
 }
 

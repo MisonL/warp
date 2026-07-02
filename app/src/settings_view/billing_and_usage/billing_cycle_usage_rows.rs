@@ -772,6 +772,7 @@ pub fn render_rows(
         source_filter,
         mouse_states,
         appearance,
+        app,
         on_filter_change,
     ) {
         column.add_child(header);
@@ -786,12 +787,16 @@ fn render_member_header(
     source_filter: SourceFilter,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
+    app: &AppContext,
     on_filter_change: FilterChangeFn,
 ) -> Option<Box<dyn Element>> {
     let show_toggle = visibility.granularity == UsageVisibilityGranularity::FullBreakdown
         && has_cloud_usage(entries);
 
-    let subheader = render_section_subheader("Members", appearance);
+    let subheader = render_section_subheader(
+        &crate::localization::text_for_app(app, "settings.billing.usage.members"),
+        appearance,
+    );
     let header = if show_toggle {
         Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)

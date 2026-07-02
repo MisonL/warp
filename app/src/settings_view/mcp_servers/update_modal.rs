@@ -234,11 +234,13 @@ impl UpdateModalBody {
         Container::new(title_row).with_margin_bottom(2.).finish()
     }
 
-    fn render_description(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_description(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         // Modal appears only when multiple updates are available
-        let description = format!(
-            "This server has {} updates available, which would you like to proceed with?",
-            self.update_options.len()
+        let update_count = self.update_options.len().to_string();
+        let description = localization::text_for_app_with_args(
+            app,
+            "settings.mcp.update.description",
+            &[("count", &update_count)],
         );
 
         Text::new(
@@ -274,9 +276,14 @@ impl UpdateModalBody {
                 ..
             } => {
                 let publisher_string = match publisher {
-                    Author::CurrentUser => "another device",
-                    Author::OtherUser { name } => name,
-                    Author::Unknown => "a team member",
+                    Author::CurrentUser => localization::text_for_app(
+                        app,
+                        "settings.mcp.update.publisher.another_device",
+                    ),
+                    Author::OtherUser { name } => name.clone(),
+                    Author::Unknown => {
+                        localization::text_for_app(app, "settings.mcp.update.publisher.team_member")
+                    }
                 };
                 let datetime = Local
                     .timestamp_opt(*new_version_ts, 0)
@@ -284,16 +291,31 @@ impl UpdateModalBody {
                     .unwrap_or_else(Local::now);
                 let formatted_time = localized_approx_duration_from_now(app, datetime);
                 (
-                    format!("Update from {publisher_string}"),
+                    localization::text_for_app_with_args(
+                        app,
+                        "settings.mcp.update.from",
+                        &[("publisher", &publisher_string)],
+                    ),
                     formatted_time.to_string(),
                 )
             }
             MCPServerUpdate::Gallery {
                 name, new_version, ..
-            } => (
-                format!("Update from {name}"),
-                format!("Version {new_version}"),
-            ),
+            } => {
+                let version = new_version.to_string();
+                (
+                    localization::text_for_app_with_args(
+                        app,
+                        "settings.mcp.update.from",
+                        &[("publisher", name)],
+                    ),
+                    localization::text_for_app_with_args(
+                        app,
+                        "settings.mcp.update.version",
+                        &[("version", &version)],
+                    ),
+                )
+            }
         };
 
         let content = Flex::column()
@@ -403,7 +425,7 @@ impl View for UpdateModalBody {
             .with_spacing(16.);
 
         content_column.add_child(self.render_title(appearance, ctx));
-        content_column.add_child(self.render_description(appearance));
+        content_column.add_child(self.render_description(appearance, ctx));
 
         // Add update options
         if self.update_options.is_empty() {

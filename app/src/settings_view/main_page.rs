@@ -48,10 +48,26 @@ use crate::workspaces::workspace::CustomerType;
 use crate::{report_if_error, send_telemetry_from_ctx, TelemetryEvent};
 
 const PHOTO_SIZE: f32 = 40.;
-const REFERRAL_CTA: &str = "Earn rewards by sharing Warp with friends & colleagues";
 const REGULAR_TEXT_FONT_SIZE: f32 = 12.;
 const VERTICAL_MARGIN: f32 = 24.;
-const LOG_OUT_TEXT: &str = "Log out";
+const LOG_OUT_TEXT_KEY: &str = "workspace.binding.log_out";
+const VERSION_LABEL_KEY: &str = "settings.account.version.label";
+const VERSION_STATUS_CHECKING_KEY: &str = "settings.account.version.status.checking";
+const VERSION_STATUS_DOWNLOADING_KEY: &str = "settings.account.version.status.downloading";
+const VERSION_STATUS_INSTALLED_UPDATE_KEY: &str =
+    "settings.account.version.status.installed_update";
+const VERSION_STATUS_UNABLE_TO_INSTALL_KEY: &str =
+    "settings.account.version.status.unable_to_install";
+const VERSION_STATUS_UNABLE_TO_LAUNCH_KEY: &str =
+    "settings.account.version.status.unable_to_launch";
+const VERSION_STATUS_UP_TO_DATE_KEY: &str = "settings.account.version.status.up_to_date";
+const VERSION_STATUS_UPDATE_AVAILABLE_KEY: &str =
+    "settings.account.version.status.update_available";
+const VERSION_STATUS_UPDATING_KEY: &str = "settings.account.version.status.updating";
+const VERSION_ACTION_CHECK_FOR_UPDATES_KEY: &str =
+    "settings.account.version.action.check_for_updates";
+const VERSION_ACTION_RELAUNCH_KEY: &str = "settings.account.version.action.relaunch";
+const VERSION_ACTION_UPDATE_MANUALLY_KEY: &str = "settings.account.version.action.update_manually";
 lazy_static! {
     static ref SETTINGS_SYNC_BINDINGS_ADDED: Arc<Mutex<bool>> = Default::default();
 }
@@ -815,11 +831,11 @@ impl SettingsWidget for EarnRewardsWidget {
         Container::new(
             self.render_row(
                 appearance,
-                REFERRAL_CTA,
+                &crate::localization::text_for_app(_app, "settings.account.referral_cta"),
                 appearance
                     .ui_builder()
                     .link(
-                        "Refer a friend".into(),
+                        crate::localization::text_for_app(_app, "settings.account.refer_a_friend"),
                         None,
                         Some(Box::new(move |ctx| {
                             ctx.dispatch_typed_action(WorkspaceAction::ShowReferralSettingsPage);
@@ -855,95 +871,120 @@ impl VersionInfoWidget {
             .with_opacity(60)
             .into();
         struct StatusContent {
-            text: &'static str,
+            text: String,
             color: ColorU,
         }
         struct CallToActionContent {
-            text: &'static str,
+            text: String,
             action: MainPageAction,
         }
 
-        let (status_content, call_to_action_content) =
-            if ContextFlag::PromptForVersionUpdates.is_enabled() {
-                let ansi_red: ColorU = appearance.theme().terminal_colors().bright.red.into();
-                match autoupdate::get_update_state(app) {
-                    AutoupdateStage::NoUpdateAvailable => (
-                        Some(StatusContent {
-                            text: "Up to date",
-                            color: faded_text_color,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Check for updates",
-                            action: MainPageAction::CheckForUpdate,
-                        }),
-                    ),
-                    AutoupdateStage::CheckingForUpdate => (
-                        Some(StatusContent {
-                            text: "checking for update...",
-                            color: faded_text_color,
-                        }),
-                        None,
-                    ),
-                    AutoupdateStage::DownloadingUpdate => (
-                        Some(StatusContent {
-                            text: "downloading update...",
-                            color: faded_text_color,
-                        }),
-                        None,
-                    ),
-                    AutoupdateStage::UpdateReady { .. } => (
-                        Some(StatusContent {
-                            text: "Update available",
-                            color: ansi_red,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Relaunch Warp",
-                            action: MainPageAction::Relaunch,
-                        }),
-                    ),
-                    AutoupdateStage::Updating { .. } => (
-                        Some(StatusContent {
-                            text: "Updating...",
-                            color: faded_text_color,
-                        }),
-                        None,
-                    ),
-                    AutoupdateStage::UpdatedPendingRestart { .. } => (
-                        Some(StatusContent {
-                            text: "Installed update",
-                            color: faded_text_color,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Relaunch Warp",
-                            action: MainPageAction::Relaunch,
-                        }),
-                    ),
-                    AutoupdateStage::UnableToUpdateToNewVersion { .. } => (
-                        Some(StatusContent {
-                            text: "A new version of Warp is available but can't be installed",
-                            color: ansi_red,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Update Warp manually",
-                            // note: the handler for this action is a no-op
-                            action: MainPageAction::DownloadUpdate,
-                        }),
-                    ),
-                    AutoupdateStage::UnableToLaunchNewVersion { .. } => (
-                        Some(StatusContent {
-                            text: "A new version of Warp is installed but can't be launched.",
-                            color: ansi_red,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Update Warp manually",
-                            // note: the handler for this action is a no-op
-                            action: MainPageAction::DownloadUpdate,
-                        }),
-                    ),
-                }
-            } else {
-                (None, None)
-            };
+        let (status_content, call_to_action_content) = if ContextFlag::PromptForVersionUpdates
+            .is_enabled()
+        {
+            let ansi_red: ColorU = appearance.theme().terminal_colors().bright.red.into();
+            match autoupdate::get_update_state(app) {
+                AutoupdateStage::NoUpdateAvailable => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(app, VERSION_STATUS_UP_TO_DATE_KEY),
+                        color: faded_text_color,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_ACTION_CHECK_FOR_UPDATES_KEY,
+                        ),
+                        action: MainPageAction::CheckForUpdate,
+                    }),
+                ),
+                AutoupdateStage::CheckingForUpdate => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(app, VERSION_STATUS_CHECKING_KEY),
+                        color: faded_text_color,
+                    }),
+                    None,
+                ),
+                AutoupdateStage::DownloadingUpdate => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_DOWNLOADING_KEY,
+                        ),
+                        color: faded_text_color,
+                    }),
+                    None,
+                ),
+                AutoupdateStage::UpdateReady { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_UPDATE_AVAILABLE_KEY,
+                        ),
+                        color: ansi_red,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(app, VERSION_ACTION_RELAUNCH_KEY),
+                        action: MainPageAction::Relaunch,
+                    }),
+                ),
+                AutoupdateStage::Updating { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(app, VERSION_STATUS_UPDATING_KEY),
+                        color: faded_text_color,
+                    }),
+                    None,
+                ),
+                AutoupdateStage::UpdatedPendingRestart { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_INSTALLED_UPDATE_KEY,
+                        ),
+                        color: faded_text_color,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(app, VERSION_ACTION_RELAUNCH_KEY),
+                        action: MainPageAction::Relaunch,
+                    }),
+                ),
+                AutoupdateStage::UnableToUpdateToNewVersion { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_UNABLE_TO_INSTALL_KEY,
+                        ),
+                        color: ansi_red,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_ACTION_UPDATE_MANUALLY_KEY,
+                        ),
+                        // note: the handler for this action is a no-op
+                        action: MainPageAction::DownloadUpdate,
+                    }),
+                ),
+                AutoupdateStage::UnableToLaunchNewVersion { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_UNABLE_TO_LAUNCH_KEY,
+                        ),
+                        color: ansi_red,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_ACTION_UPDATE_MANUALLY_KEY,
+                        ),
+                        // note: the handler for this action is a no-op
+                        action: MainPageAction::DownloadUpdate,
+                    }),
+                ),
+            }
+        } else {
+            (None, None)
+        };
 
         let mut first_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
@@ -952,7 +993,7 @@ impl VersionInfoWidget {
                     1.0,
                     Align::new(
                         Text::new_inline(
-                            "Version".to_string(),
+                            crate::localization::text_for_app(app, VERSION_LABEL_KEY),
                             appearance.ui_font_family(),
                             REGULAR_TEXT_FONT_SIZE,
                         )
@@ -1076,11 +1117,11 @@ struct LogoutWidget {
 }
 
 impl LogoutWidget {
-    fn render_logout_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_logout_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .button(ButtonVariant::Secondary, self.mouse_state.clone())
-            .with_text_label(LOG_OUT_TEXT.into())
+            .with_text_label(crate::localization::text_for_app(app, LOG_OUT_TEXT_KEY))
             .with_style(UiComponentStyles {
                 font_size: Some(14.),
                 padding: Some(Coords::uniform(8.).left(32.).right(32.)),
@@ -1249,10 +1290,10 @@ impl SettingsWidget for LogoutWidget {
         &self,
         _view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Container::new(
-            Align::new(self.render_logout_button(appearance))
+            Align::new(self.render_logout_button(appearance, app))
                 .left()
                 .finish(),
         )

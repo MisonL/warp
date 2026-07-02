@@ -15,21 +15,40 @@ pub enum MenuItem {
 // We allow dead_code here because the title is only read when compiling the
 // Mac bits.
 #[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MenuRole {
+    Standard,
+    Window,
+}
+
+// We allow dead_code here because the title is only read when compiling the
+// Mac bits.
+#[allow(dead_code)]
 pub struct Menu {
     pub title: String,
     pub menu_items: Vec<MenuItem>,
+    role: MenuRole,
 }
 
 impl Menu {
     pub fn new<S: Into<String>>(title: S, menu_items: Vec<MenuItem>) -> Self {
+        Self::with_role(title, menu_items, MenuRole::Standard)
+    }
+
+    pub fn window<S: Into<String>>(title: S, menu_items: Vec<MenuItem>) -> Self {
+        Self::with_role(title, menu_items, MenuRole::Window)
+    }
+
+    fn with_role<S: Into<String>>(title: S, menu_items: Vec<MenuItem>, role: MenuRole) -> Self {
         Menu {
             title: title.into(),
             menu_items,
+            role,
         }
     }
 
     pub fn is_window_menu(&self) -> bool {
-        &self.title == "Window"
+        self.role == MenuRole::Window
     }
 }
 

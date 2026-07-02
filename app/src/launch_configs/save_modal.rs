@@ -38,8 +38,6 @@ const MODAL_WIDTH: f32 = 660.;
 const SIDE_PADDING: f32 = 16.;
 const BUTTON_SIZE: f32 = 24.;
 const DOC_LINK_WIDTH: f32 = 120.;
-const SAVE_CONFIG_BUTTON_LABEL: &str = "Save Configuration";
-const OPEN_FILE_BUTTON_LABEL: &str = "Open YAML File";
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -342,11 +340,12 @@ impl LaunchConfigSaveModal {
     fn render_save_config_button(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
         disabled: bool,
     ) -> Box<dyn Element> {
         self.save_modal_button(
             appearance,
-            SAVE_CONFIG_BUTTON_LABEL.to_owned(),
+            localization::text_for_app(app, "launch_config.save_modal.action.save"),
             self.mouse_states.save_button_state.clone(),
             disabled,
         )
@@ -357,10 +356,14 @@ impl LaunchConfigSaveModal {
         .finish()
     }
 
-    fn render_open_file_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_open_file_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         self.save_modal_button(
             appearance,
-            OPEN_FILE_BUTTON_LABEL.to_owned(),
+            localization::text_for_app(app, "launch_config.save_modal.action.open_file"),
             self.mouse_states.open_file_button_state.clone(),
             false,
         )
@@ -384,15 +387,16 @@ impl LaunchConfigSaveModal {
     fn render_button_row(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
         save_config_disabled: bool,
     ) -> Box<dyn Element> {
         match LaunchConfigSaveAction::from_state(&self.save_state) {
-            LaunchConfigSaveAction::OpenFile => {
-                Self::add_button_padding(Container::new(self.render_open_file_button(appearance)))
-                    .finish()
-            }
+            LaunchConfigSaveAction::OpenFile => Self::add_button_padding(Container::new(
+                self.render_open_file_button(appearance, app),
+            ))
+            .finish(),
             LaunchConfigSaveAction::Save => Self::add_button_padding(Container::new(
-                self.render_save_config_button(appearance, save_config_disabled),
+                self.render_save_config_button(appearance, app, save_config_disabled),
             ))
             .finish(),
             LaunchConfigSaveAction::Close => Empty::new().finish(),
@@ -436,14 +440,14 @@ impl LaunchConfigSaveModal {
     }
 
     /// Renders the title of the modal
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let header = Flex::row()
             .with_child(
                 Shrinkable::new(
                     1.0,
                     Align::new(
                         Text::new_inline(
-                            "Save Current Configuration",
+                            localization::text_for_app(app, "launch_config.save_modal.title"),
                             appearance.header_font_family(),
                             appearance.header_font_size(),
                         )
@@ -522,7 +526,7 @@ impl LaunchConfigSaveModal {
 
         // Title of modal
         let header = Flex::column().with_child(
-            ConstrainedBox::new(self.render_header(appearance))
+            ConstrainedBox::new(self.render_header(appearance, app))
                 .with_max_height(60.)
                 .finish(),
         );
@@ -532,7 +536,10 @@ impl LaunchConfigSaveModal {
                 appearance
                     .ui_builder()
                     .link(
-                        "Link to Documentation".to_string(),
+                        localization::text_for_app(
+                            app,
+                            "launch_config.save_modal.documentation_link",
+                        ),
                         Some(
                             "https://docs.warp.dev/terminal/sessions/launch-configurations"
                                 .to_string(),
@@ -553,14 +560,22 @@ impl LaunchConfigSaveModal {
         let info = match &self.save_state {
             SaveState::Success => header
                 .with_child(
-                    self.render_formatted_text_line(appearance, vec![
-                        FormattedTextFragment::plain_text(localization::text_for_app(
-                            app,
-                            "launch_config.save_modal.success_prefix",
-                        )),
-                        FormattedTextFragment::inline_code(self.file_name.clone().unwrap_or_default()),
-                        FormattedTextFragment::plain_text(".")
-                    ])
+                    self.render_formatted_text_line(
+                        appearance,
+                        vec![
+                            FormattedTextFragment::plain_text(localization::text_for_app(
+                                app,
+                                "launch_config.save_modal.success_prefix",
+                            )),
+                            FormattedTextFragment::inline_code(
+                                self.file_name.clone().unwrap_or_default(),
+                            ),
+                            FormattedTextFragment::plain_text(localization::text_for_app(
+                                app,
+                                "launch_config.save_modal.sentence_suffix",
+                            )),
+                        ],
+                    )
                     .with_padding_bottom(24.)
                     .finish(),
                 )
@@ -569,35 +584,53 @@ impl LaunchConfigSaveModal {
                 self.render_text_block(
                     appearance,
                     match failure_type {
-                        FailureType::FileAlreadyExists => {
-                            "Failed to save. A launch configuration with the same name already exists.".to_string()
+                        FailureType::FileAlreadyExists => localization::text_for_app(
+                            app,
+                            "launch_config.save_modal.error.file_already_exists",
+                        ),
+                        FailureType::Other => {
+                            localization::text_for_app(app, "launch_config.save_modal.error.other")
                         }
-                        FailureType::Other => "An issue was encountered while saving.".to_string(),
                     },
                 )
                 .with_padding_bottom(24.)
                 .finish(),
             ),
             SaveState::NotSaved => {
-                let mut text = "This will save your current configuration of windows, tabs \
-                and panes to a file so you can easily open it again".to_string();
-                if self.open_modal_keybinding_str.is_empty() {
-                    text.push('.');
+                let text = if self.open_modal_keybinding_str.is_empty() {
+                    localization::text_for_app(app, "launch_config.save_modal.description")
                 } else {
-                    text.push_str(&format!(" with {}.", self.open_modal_keybinding_str));
-                }
+                    localization::text_for_app_with_args(
+                        app,
+                        "launch_config.save_modal.description_with_keybinding",
+                        &[("keybinding", &self.open_modal_keybinding_str)],
+                    )
+                };
                 header
                     .with_child(
-                        self.render_formatted_text_line(appearance, vec![
-                            FormattedTextFragment::plain_text(text)
-                        ]).finish()
+                        self.render_formatted_text_line(
+                            appearance,
+                            vec![FormattedTextFragment::plain_text(text)],
+                        )
+                        .finish(),
                     )
                     .with_child(
-                        self.render_formatted_text_line(appearance, vec![
-                            FormattedTextFragment::plain_text("\nThe YAML file is saved to "),
-                            FormattedTextFragment::inline_code(home_relative_path(&launch_configs_dir())),
-                            FormattedTextFragment::plain_text("."),
-                        ])
+                        self.render_formatted_text_line(
+                            appearance,
+                            vec![
+                                FormattedTextFragment::plain_text(localization::text_for_app(
+                                    app,
+                                    "launch_config.save_modal.path_prefix",
+                                )),
+                                FormattedTextFragment::inline_code(home_relative_path(
+                                    &launch_configs_dir(),
+                                )),
+                                FormattedTextFragment::plain_text(localization::text_for_app(
+                                    app,
+                                    "launch_config.save_modal.sentence_suffix",
+                                )),
+                            ],
+                        )
                         .with_padding_bottom(24.)
                         .finish(),
                     )
@@ -608,9 +641,11 @@ impl LaunchConfigSaveModal {
 
         ConstrainedBox::new(
             Container::new(
-                info.with_child(
-                    self.render_button_row(appearance, self.editor.as_ref(app).is_empty(app)),
-                )
+                info.with_child(self.render_button_row(
+                    appearance,
+                    app,
+                    self.editor.as_ref(app).is_empty(app),
+                ))
                 .finish(),
             )
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
@@ -662,12 +697,10 @@ impl View for LaunchConfigSaveModal {
             .finish()
     }
 
-    fn accessibility_contents(&self, _ctx: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Save Config Modal",
-            "Type the name of the file to which you want to save your
-            current configuration of windows, tabs, and panes. Use enter to save the
-            launch configuration, esc to quit the save configuration modal.",
+            localization::text_for_app(ctx, "launch_config.save_modal.a11y.title"),
+            localization::text_for_app(ctx, "launch_config.save_modal.a11y.description"),
             WarpA11yRole::PopoverRole,
         ))
     }

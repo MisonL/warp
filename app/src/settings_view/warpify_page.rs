@@ -27,6 +27,7 @@ use super::settings_page::{
 };
 use super::{flags, SettingsAction, SettingsSection, ToggleSettingActionPair};
 use crate::appearance::Appearance;
+use crate::localization::LocalizationUpdater;
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings::{ReuseExistingSshControlMaster, SshSettings};
 use crate::terminal::warpify::settings::{
@@ -73,11 +74,6 @@ const ITEM_VERTICAL_SPACING: f32 = 24.;
 const BUILT_IN_TEXT_INPUT_MARGIN: f32 = 10.;
 const SPACE_AFTER_TEXT_INPUT: f32 = ITEM_VERTICAL_SPACING - BUILT_IN_TEXT_INPUT_MARGIN;
 
-const SSH_REUSE_CONTROL_MASTER_DESCRIPTION: &str = "Attach to a live SSH ControlMaster you already have configured for the destination host instead of creating a Warp-owned one. Takes effect in new tabs.";
-
-const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str =
-    "Controls the installation behavior for Warp's SSH extension when a remote host doesn't have it installed.";
-
 /// This page lets users configure when they get asked to warpify a session. Some shell commands
 /// are recognized by default. Users can add new shell commands, or prevent the default ones from
 /// asking. Users can also enable the SSH wrapper, and add hosts to a denylist.
@@ -109,6 +105,9 @@ impl WarpifyPageView {
                 me.update_dropdown(ctx);
             }
             ctx.notify();
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         // Added commands can be specified by regex, while denied commands are strictly exact
@@ -158,11 +157,33 @@ impl WarpifyPageView {
         instance
     }
 
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.page = Self::build_page(ctx);
+        let placeholder =
+            localization::text_for_app(ctx, "settings.warpify.placeholder.command_regex");
+        self.add_added_commands_editor.update(ctx, |input, ctx| {
+            input.set_placeholder_text(placeholder.clone(), ctx);
+        });
+        self.add_denylisted_commands_editor
+            .update(ctx, |input, ctx| {
+                input.set_placeholder_text(placeholder, ctx);
+            });
+        self.ssh_extension_install_mode_dropdown =
+            Self::create_ssh_extension_install_mode_dropdown(ctx);
+        ctx.notify();
+    }
+
     fn build_page(ctx: &mut ViewContext<Self>) -> PageType<Self> {
         let mut categories = vec![
             Category::new("", vec![Box::new(TitleWidget::default())]),
-            Category::new("Subshells", vec![Box::new(SubshellsWidget::default())])
-                .with_subtitle("Subshells supported: bash, zsh, and fish."),
+            Category::new(
+                localization::text_for_app(ctx, "settings.warpify.category.subshells"),
+                vec![Box::new(SubshellsWidget::default())],
+            )
+            .with_subtitle(localization::text_for_app(
+                ctx,
+                "settings.warpify.category.subshells.subtitle",
+            )),
         ];
 
         let warpify_settings = WarpifySettings::as_ref(ctx);
@@ -171,8 +192,14 @@ impl WarpifyPageView {
             .is_supported_on_current_platform()
         {
             categories.push(
-                Category::new("SSH", vec![Box::new(SSHWidget::default())])
-                    .with_subtitle("Warpify your interactive SSH sessions."),
+                Category::new(
+                    localization::text_for_app(ctx, "settings.warpify.category.ssh"),
+                    vec![Box::new(SSHWidget::default())],
+                )
+                .with_subtitle(localization::text_for_app(
+                    ctx,
+                    "settings.warpify.category.ssh.subtitle",
+                )),
             );
         }
         PageType::new_categorized(categories, None)
@@ -290,7 +317,7 @@ impl WarpifyPageView {
         let items: Vec<DropdownItem<WarpifyPageAction>> = SshExtensionInstallMode::iter()
             .map(|mode| {
                 DropdownItem::new(
-                    mode.display_name(),
+                    localization::text_for_app(ctx, mode.translation_key()),
                     WarpifyPageAction::SetSshExtensionInstallMode(mode),
                 )
             })
@@ -557,7 +584,7 @@ impl SubshellsWidget {
 
         column.add_child(
             view.build_input_list(
-                "Added commands",
+                &localization::text_for_app(app, "settings.warpify.added_commands"),
                 &warpify_settings.added_subshell_commands,
                 &view.remove_added_command_button_states,
                 WarpifyPageAction::RemoveAddedCommand,
@@ -569,7 +596,7 @@ impl SubshellsWidget {
 
         column.add_child(
             view.build_input_list(
-                "Denylisted commands",
+                &localization::text_for_app(app, "settings.warpify.denylisted_commands"),
                 &warpify_settings.subshell_command_denylist,
                 &view.remove_denylisted_command_button_states,
                 WarpifyPageAction::RemoveDenylistedCommand,
@@ -638,7 +665,7 @@ impl SettingsWidget for SSHWidget {
             &WarpifySettings::as_ref(app).enable_ssh_warpification,
             move || {
                 render_body_item::<WarpifyPageAction>(
-                    "Warpify SSH Sessions".into(),
+                    localization::text_for_app(app, "settings.warpify.ssh_sessions.label"),
                     None,
                     LocalOnlyIconState::for_setting(
                         EnableSshWarpification::storage_key(),
@@ -671,10 +698,18 @@ impl SettingsWidget for SSHWidget {
                 &mut column,
                 &WarpifySettings::as_ref(app).ssh_extension_install_mode,
                 move || {
+                    let label = localization::text_for_app(
+                        app,
+                        "settings.warpify.ssh_extension_install_mode.label",
+                    );
+                    let description = localization::text_for_app(
+                        app,
+                        "settings.warpify.ssh_extension_install_mode.description",
+                    );
                     Container::new(render_dropdown_item(
                         appearance,
-                        "Install SSH extension",
-                        Some(SSH_EXTENSION_INSTALL_MODE_DESCRIPTION),
+                        &label,
+                        Some(&description),
                         None,
                         LocalOnlyIconState::for_setting(
                             SshExtensionInstallModeSetting::storage_key(),
@@ -700,7 +735,7 @@ impl SettingsWidget for SSHWidget {
             move || {
                 let mut column = Flex::column();
                 column.add_child(render_body_item::<WarpifyPageAction>(
-                    "Reuse existing SSH ControlMaster".into(),
+                    localization::text_for_app(app, "settings.warpify.reuse_control_master.label"),
                     None,
                     LocalOnlyIconState::for_setting(
                         ReuseExistingSshControlMaster::storage_key(),
@@ -728,7 +763,10 @@ impl SettingsWidget for SSHWidget {
                 ));
                 column.add_child(
                     ui_builder
-                        .paragraph(SSH_REUSE_CONTROL_MASTER_DESCRIPTION.to_owned())
+                        .paragraph(localization::text_for_app(
+                            app,
+                            "settings.warpify.reuse_control_master.description",
+                        ))
                         .with_style(UiComponentStyles {
                             font_color: Some(description_text_color.into_solid()),
                             margin: Some(

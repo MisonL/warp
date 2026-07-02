@@ -71,10 +71,24 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Selected {}.", self.launch_config.name)
+        self.launch_config.name.clone()
+    }
+
+    fn accessibility_label_for_app(&self, _app: &AppContext) -> String {
+        self.launch_config.name.clone()
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some("Press enter to use this launch configuration.".into())
+        Some(crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "search.command_palette.a11y.help.open_launch_config",
+        ))
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(crate::localization::text_for_app(
+            app,
+            "search.command_palette.a11y.help.open_launch_config",
+        ))
     }
 }

@@ -39,13 +39,15 @@ pub enum WorkingDirectoryMode {
 }
 
 impl WorkingDirectoryMode {
-    /// Returns the label that should be used for this mode when configuring
-    /// values in the settings view.
-    pub fn dropdown_item_label(&self) -> &'static str {
+    /// Returns the localization key that should be used for this mode when
+    /// configuring values in the settings view.
+    pub fn dropdown_item_label_key(&self) -> &'static str {
         match self {
-            WorkingDirectoryMode::HomeDir => "Home directory",
-            WorkingDirectoryMode::PreviousDir => "Previous session's directory",
-            WorkingDirectoryMode::CustomDir => "Custom directory",
+            WorkingDirectoryMode::HomeDir => "settings.features.working_directory.option.home",
+            WorkingDirectoryMode::PreviousDir => {
+                "settings.features.working_directory.option.previous"
+            }
+            WorkingDirectoryMode::CustomDir => "settings.features.working_directory.option.custom",
         }
     }
 }

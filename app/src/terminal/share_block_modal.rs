@@ -39,6 +39,7 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions,
 };
+use crate::localization::LocalizationUpdater;
 use crate::send_telemetry_from_ctx;
 use crate::server::block::{Block as ServerBlock, DisplaySetting};
 use crate::server::server_api::block::BlockClient;
@@ -66,8 +67,6 @@ const INNER_MARGIN: f32 = 20.;
 const MODAL_WIDTH: f32 = 862.;
 const BLOCK_TITLE_INPUT_WIDTH: f32 = 800.;
 
-const BLOCK_TITLE_PLACEHOLDER: &str = "Title (optional)";
-
 // TODO(vorporeal): This is 12 in the specs, but I think our 14pt font is a bit
 // taller than 14pt?
 const VERTICAL_SEPARATOR_HEIGHT: f32 = 32.;
@@ -76,15 +75,6 @@ const CHECKBOX_SIZE: f32 = 18.;
 const NEW_BUTTON_VERTICAL_PADDING: f32 = 10.;
 const NEW_BUTTON_HORIZONTAL_PADDING: f32 = 10.;
 const NEW_COPY_BUTTON_WIDTH: f32 = 80.;
-
-const COMMAND_AND_OUTPUT_OPTION: (&str, DisplaySetting) =
-    ("Command and Output", DisplaySetting::CommandAndOutput);
-const COMMAND_OPTION: (&str, DisplaySetting) = ("Command", DisplaySetting::Command);
-const OUTPUT_OPTION: (&str, DisplaySetting) = ("Output", DisplaySetting::Output);
-
-/// This default title is helpful for screen readers.
-const DEFAULT_EMBED_TITLE: &str = "embedded warp block";
-const BLOCK_CREATION_FAILED_MESSAGE: &str = "Something went wrong. Please try again.";
 
 #[derive(PartialEq)]
 enum ShareRequestState {
@@ -135,7 +125,6 @@ pub struct ShareBlockModal {
     scroll_state: ScrollStateHandle,
     block_title_editor: ViewHandle<EditorView>,
     embed_display_handles: EmbedDisplayHandles,
-    embed_display_options: Vec<(String, DisplaySetting)>,
     show_prompt: bool,
     obfuscate_secrets: ObfuscateSecrets,
     /// We abort the block title generation requests early if the user updated the title text field
@@ -201,7 +190,13 @@ impl ShareBlockModal {
                 },
                 ctx,
             );
-            editor.set_placeholder_text(BLOCK_TITLE_PLACEHOLDER, ctx);
+            editor.set_placeholder_text(
+                crate::localization::text_for_app(
+                    ctx,
+                    "terminal.share_block_modal.placeholder.title",
+                ),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&block_title_editor, move |me, _, event, ctx| {
@@ -225,10 +220,6 @@ impl ShareBlockModal {
             ..Default::default()
         };
 
-        let embed_display_options = [COMMAND_AND_OUTPUT_OPTION, COMMAND_OPTION, OUTPUT_OPTION]
-            .map(|(name, display_setting)| (name.to_string(), display_setting))
-            .to_vec();
-
         let ligature_handle = LigatureSettings::handle(ctx);
         ctx.subscribe_to_model(&ligature_handle, |_, _, _, ctx| ctx.notify());
 
@@ -239,6 +230,9 @@ impl ShareBlockModal {
             ) {
                 ctx.notify();
             }
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         Self {
@@ -251,11 +245,23 @@ impl ShareBlockModal {
             scroll_state: Default::default(),
             block_title_editor,
             embed_display_handles,
-            embed_display_options,
             show_prompt: false,
             obfuscate_secrets: get_secret_obfuscation_mode(ctx),
             title_generation_future_handle: None,
         }
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.block_title_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                crate::localization::text_for_app(
+                    ctx,
+                    "terminal.share_block_modal.placeholder.title",
+                ),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     fn toggle_show_prompt(&mut self, ctx: &mut ViewContext<Self>) {
@@ -305,13 +311,37 @@ impl ShareBlockModal {
         ctx.notify();
     }
 
+    fn display_options() -> [DisplaySetting; 3] {
+        [
+            DisplaySetting::CommandAndOutput,
+            DisplaySetting::Command,
+            DisplaySetting::Output,
+        ]
+    }
+
+    fn display_option_label(app: &AppContext, setting: &DisplaySetting) -> String {
+        match setting {
+            DisplaySetting::CommandAndOutput => crate::localization::text_for_app(
+                app,
+                "terminal.share_block_modal.display.command_and_output",
+            ),
+            DisplaySetting::Command => {
+                crate::localization::text_for_app(app, "terminal.share_block_modal.display.command")
+            }
+            DisplaySetting::Output => {
+                crate::localization::text_for_app(app, "terminal.share_block_modal.display.output")
+            }
+            DisplaySetting::Other(value) => value.clone(),
+        }
+    }
+
     fn current_display_setting(&self) -> DisplaySetting {
         let selected_idx = self
             .embed_display_handles
             .embed_display_state_handle
             .get_selected_idx()
             .unwrap_or(0);
-        self.embed_display_options[selected_idx].1.clone()
+        Self::display_options()[selected_idx].clone()
     }
 
     pub fn save_block(&mut self, share_type: ShareBlockType, ctx: &mut ViewContext<Self>) {
@@ -388,7 +418,10 @@ impl ShareBlockModal {
 
     fn display_failure_toast(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(ShareBlockModalEvent::ShowToast {
-            message: BLOCK_CREATION_FAILED_MESSAGE.to_string(),
+            message: crate::localization::text_for_app(
+                ctx,
+                "terminal.share_block_modal.toast.creation_failed",
+            ),
             flavor: ToastFlavor::Error,
         });
     }
@@ -505,7 +538,10 @@ impl ShareBlockModal {
             );
             ctx.clipboard().write(ClipboardContent::plain_text(link));
             ctx.emit(ShareBlockModalEvent::ShowToast {
-                message: "Link copied.".to_string(),
+                message: crate::localization::text_for_app(
+                    ctx,
+                    "terminal.share_block_modal.toast.link_copied",
+                ),
                 flavor: ToastFlavor::Default,
             });
         }
@@ -528,7 +564,10 @@ impl ShareBlockModal {
         let width = ServerBlock::embed_pixel_width(block);
         let mut title = self.block_title_editor.as_ref(app).buffer_text(app);
         if title.is_empty() {
-            title = DEFAULT_EMBED_TITLE.to_string();
+            title = crate::localization::text_for_app(
+                app,
+                "terminal.share_block_modal.embed.default_title",
+            );
         }
         let embed_link = escape_html_attribute(&embed_link);
         let title = escape_html_attribute(&title);
@@ -551,7 +590,10 @@ impl ShareBlockModal {
         ctx.clipboard()
             .write(ClipboardContent::plain_text(embed_snippet));
         ctx.emit(ShareBlockModalEvent::ShowToast {
-            message: "Embed code copied.".to_string(),
+            message: crate::localization::text_for_app(
+                ctx,
+                "terminal.share_block_modal.toast.embed_copied",
+            ),
             flavor: ToastFlavor::Success,
         });
     }
@@ -628,10 +670,15 @@ impl ShareBlockModal {
         }
     }
 
-    fn render_create_block_buttons_row(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_create_block_buttons_row(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let create_link_button = self.render_create_block_button(
             appearance,
-            "Create link",
+            app,
+            crate::localization::text_for_app(app, "terminal.share_block_modal.action.create_link"),
             Icon::Link,
             ButtonVariant::Accent,
             self.mouse_state_handles
@@ -641,7 +688,8 @@ impl ShareBlockModal {
         );
         let get_embed_button = self.render_create_block_button(
             appearance,
-            "Get embed",
+            app,
+            crate::localization::text_for_app(app, "terminal.share_block_modal.action.get_embed"),
             Icon::Code1,
             ButtonVariant::Basic,
             self.mouse_state_handles
@@ -658,7 +706,8 @@ impl ShareBlockModal {
     fn render_create_block_button(
         &self,
         appearance: &Appearance,
-        text_label: &str,
+        app: &AppContext,
+        text_label: String,
         icon: Icon,
         button_variant: ButtonVariant,
         mouse_state_handle: MouseStateHandle,
@@ -668,12 +717,15 @@ impl ShareBlockModal {
             TextAndIconAlignment::TextFirst,
             if let ShareRequestState::Pending(pending_share_type) = self.request_state {
                 if pending_share_type == share_type {
-                    "Creating block...".to_string()
+                    crate::localization::text_for_app(
+                        app,
+                        "terminal.share_block_modal.status.creating_block",
+                    )
                 } else {
-                    text_label.to_string()
+                    text_label.clone()
                 }
             } else {
-                text_label.to_string()
+                text_label.clone()
             },
             icon.to_warpui_icon(appearance.theme().active_ui_text_color()),
             MainAxisSize::Max,
@@ -737,19 +789,25 @@ impl ShareBlockModal {
                 .with_main_axis_size(MainAxisSize::Min)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(self.render_permalink_label(appearance, link_text))
-                .with_child(self.render_copy_button(ShareBlockModalAction::CopyLink, appearance))
+                .with_child(self.render_copy_button(
+                    ShareBlockModalAction::CopyLink,
+                    appearance,
+                    app,
+                ))
                 .finish();
             col.add_child(link_button_row);
         } else {
-            let embed_snippet = self
-                .generate_embed_snippet(app)
-                .unwrap_or("Error generating embed snippet".to_string());
+            let embed_snippet = self.generate_embed_snippet(app).unwrap_or_else(|| {
+                crate::localization::text_for_app(app, "terminal.share_block_modal.embed.error")
+            });
             col.add_child(self.render_embed_label(appearance, embed_snippet));
             col.add_child(
                 Align::new(
-                    Container::new(
-                        self.render_copy_button(ShareBlockModalAction::CopyEmbed, appearance),
-                    )
+                    Container::new(self.render_copy_button(
+                        ShareBlockModalAction::CopyEmbed,
+                        appearance,
+                        app,
+                    ))
                     .with_margin_top(8.)
                     .finish(),
                 )
@@ -805,10 +863,11 @@ impl ShareBlockModal {
         &self,
         action: ShareBlockModalAction,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let text_and_icon = TextAndIcon::new(
             TextAndIconAlignment::TextFirst,
-            "Copy".to_string(),
+            crate::localization::text_for_app(app, "terminal.share_block_modal.action.copy"),
             Icon::Copy.to_warpui_icon(appearance.theme().active_ui_text_color()),
             MainAxisSize::Max,
             MainAxisAlignment::Center,
@@ -844,7 +903,7 @@ impl ShareBlockModal {
                 ShareRequestState::Succeeded { link, .. } => {
                     self.render_success_footer(appearance, link.as_str(), app)
                 }
-                _ => Align::new(self.render_create_block_buttons_row(appearance))
+                _ => Align::new(self.render_create_block_buttons_row(appearance, app))
                     .right()
                     .finish(),
             })
@@ -882,7 +941,7 @@ impl ShareBlockModal {
             if link_generated {
                 self.block_title_editor.as_ref(app).buffer_text(app)
             } else {
-                "Share block".to_string()
+                crate::localization::text_for_app(app, "terminal.share_block_modal.title")
             },
             appearance.ui_font_family(),
             24.,
@@ -943,9 +1002,11 @@ impl ShareBlockModal {
                     self.embed_display_handles
                         .embed_display_mouse_states
                         .clone(),
-                    self.embed_display_options
+                    Self::display_options()
                         .iter()
-                        .map(|x| RadioButtonItem::text(x.0.clone()))
+                        .map(|setting| {
+                            RadioButtonItem::text(Self::display_option_label(app, setting))
+                        })
                         .collect(),
                     self.embed_display_handles
                         .embed_display_state_handle

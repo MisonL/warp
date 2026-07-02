@@ -95,12 +95,20 @@ pub(crate) enum ExpirationOption {
 }
 
 impl ExpirationOption {
-    fn display_text(&self) -> &'static str {
+    fn display_text(&self, app: &AppContext) -> String {
         match self {
-            ExpirationOption::OneDay => "1 day",
-            ExpirationOption::ThirtyDays => "30 days",
-            ExpirationOption::NinetyDays => "90 days",
-            ExpirationOption::Never => "Never",
+            ExpirationOption::OneDay => {
+                api_key_text(app, "settings.platform.api_keys.expiration.one_day")
+            }
+            ExpirationOption::ThirtyDays => {
+                api_key_text(app, "settings.platform.api_keys.expiration.thirty_days")
+            }
+            ExpirationOption::NinetyDays => {
+                api_key_text(app, "settings.platform.api_keys.expiration.ninety_days")
+            }
+            ExpirationOption::Never => {
+                api_key_text(app, "settings.platform.api_keys.expiration.never")
+            }
         }
     }
 
@@ -245,15 +253,7 @@ impl CreateApiKeyModal {
         });
 
         let default_expiration = ExpirationOption::NinetyDays;
-        let items: Vec<DropdownItem<CreateApiKeyModalAction>> = ExpirationOption::all()
-            .into_iter()
-            .map(|opt| {
-                DropdownItem::new(
-                    opt.display_text(),
-                    CreateApiKeyModalAction::SetExpiration(opt),
-                )
-            })
-            .collect();
+        let items = Self::localized_expiration_items(ctx);
         expiration_dropdown.update(ctx, |dropdown, ctx| {
             dropdown.set_items(items, ctx);
             dropdown.set_top_bar_max_width(INPUT_WIDTH);
@@ -302,8 +302,10 @@ impl CreateApiKeyModal {
                     Err(err) => {
                         log::error!("Failed to load agent identities: {err}");
                         ctx.emit(CreateApiKeyModalEvent::Error {
-                            message: "Failed to load agents. Please close and try again."
-                                .to_string(),
+                            message: localization::text_for_app(
+                                ctx,
+                                "settings.platform.api_keys.error.load_agents_failed",
+                            ),
                         });
                     }
                 }
@@ -346,7 +348,7 @@ impl CreateApiKeyModal {
         let name = self.name_editor.as_ref(ctx).buffer_text(ctx);
 
         let final_name = if name.trim().is_empty() {
-            "Warp API Key".to_string()
+            localization::text_for_app(ctx, "settings.platform.api_keys.default_name")
         } else {
             name.trim().to_string()
         };
@@ -370,7 +372,7 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message: crate::localization::text_for_app(
+                        message: localization::text_for_app(
                             ctx,
                             "settings.platform.api_keys.error.no_agent_selected",
                         ),
@@ -390,7 +392,7 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message: crate::localization::text_for_app(
+                        message: localization::text_for_app(
                             ctx,
                             "settings.platform.api_keys.error.no_current_team",
                         ),
@@ -425,7 +427,7 @@ impl CreateApiKeyModal {
                     Ok(warp_graphql::mutations::generate_api_key::GenerateApiKeyResult::Unknown) | Err(_) => {
                         me.request_state = RequestState::Idle;
                         ctx.emit(CreateApiKeyModalEvent::Error {
-                            message: crate::localization::text_for_app(
+                            message: localization::text_for_app(
                                 ctx,
                                 "settings.platform.api_keys.error.create_failed",
                             ),
@@ -449,6 +451,45 @@ impl CreateApiKeyModal {
         self.name_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
         });
+    }
+
+    fn title_key(&self) -> &'static str {
+        match self.request_state {
+            RequestState::Idle => "settings.platform.api_keys.modal_title.new",
+            RequestState::Pending => "settings.platform.api_keys.modal_title.new",
+            RequestState::Succeeded => "settings.platform.api_keys.modal_title.save",
+        }
+    }
+
+    pub fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.name_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.platform.api_keys.default_name"),
+                ctx,
+            );
+        });
+        let selected_expiration = self.expiration;
+        self.expiration_dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(Self::localized_expiration_items(ctx), ctx);
+            dropdown.set_selected_by_action(
+                CreateApiKeyModalAction::SetExpiration(selected_expiration),
+                ctx,
+            );
+        });
+        self.api_key_type_control.update(ctx, |_, ctx| ctx.notify());
+        ctx.notify();
+    }
+
+    fn localized_expiration_items(ctx: &AppContext) -> Vec<DropdownItem<CreateApiKeyModalAction>> {
+        ExpirationOption::all()
+            .into_iter()
+            .map(|opt| {
+                DropdownItem::new(
+                    opt.display_text(ctx),
+                    CreateApiKeyModalAction::SetExpiration(opt),
+                )
+            })
+            .collect()
     }
 
     pub fn on_open(&mut self, ctx: &mut ViewContext<Self>) {
@@ -505,7 +546,7 @@ impl CreateApiKeyModal {
         };
 
         let info = Text::new(
-            "This secret key is shown only once. Copy and store it securely.",
+            localization::text_for_app(app, "settings.platform.api_keys.secret_once"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -527,9 +568,9 @@ impl CreateApiKeyModal {
         .finish();
 
         let copy_label = if self.raw_key_copied {
-            "Copied"
+            localization::text_for_app(app, "settings.action.copied")
         } else {
-            "Copy"
+            localization::text_for_app(app, "settings.action.copy")
         };
         let copy_icon = if self.raw_key_copied {
             warp_core::ui::icons::Icon::Check.to_warpui_icon(appearance.theme().background())
@@ -916,7 +957,7 @@ impl TypedActionView for CreateApiKeyModal {
                 let window_id = ctx.window_id();
                 crate::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     let toast = crate::view_components::DismissibleToast::success(
-                        "Secret key copied.".to_string(),
+                        localization::text_for_app(ctx, "settings.platform.api_keys.secret_copied"),
                     );
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -968,6 +1009,18 @@ impl CreateApiKeyModalViewState {
     pub fn set_title<T: View>(&mut self, title: Option<String>, ctx: &mut ViewContext<T>) {
         self.state.view.update(ctx, |modal, ctx| {
             modal.set_title(title);
+            ctx.notify();
+        });
+        ctx.notify();
+    }
+
+    pub fn refresh_localized_text<T: View>(&mut self, ctx: &mut ViewContext<T>) {
+        self.state.view.update(ctx, |modal, ctx| {
+            let title_key = modal.body().read(ctx, |body, _| body.title_key());
+            modal.set_title(Some(localization::text_for_app(ctx, title_key)));
+            modal.body().update(ctx, |body, ctx| {
+                body.refresh_localized_text(ctx);
+            });
             ctx.notify();
         });
         ctx.notify();

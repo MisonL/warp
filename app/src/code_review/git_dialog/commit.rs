@@ -293,7 +293,7 @@ pub(super) fn apply_generated_commit_message(
 }
 
 /// Kicks off AI commit-message autogen request.
-/// The model runs the generation (local in-process, remote on the daemon) and  
+/// The model runs the generation (local in-process, remote on the daemon) and
 /// the result returns via `DiffStateModelEvent::CommitMessageGenerated`, applied by `apply_generated_commit_message`.
 pub(super) fn maybe_start_commit_message_autogen(me: &GitDialog, ctx: &mut ViewContext<GitDialog>) {
     if !should_send_git_ops_ai_request(ctx) {

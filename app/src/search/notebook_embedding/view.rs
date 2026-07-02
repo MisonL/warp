@@ -23,8 +23,6 @@ use crate::search::notebook_embedding::workflows::CloudWorkflowsDataSource;
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
 use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
 
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search for a reference";
-
 lazy_static! {
     static ref QUERY_RESULT_RENDERER_STYLES: QueryResultRendererStyles =
         QueryResultRendererStyles {
@@ -80,10 +78,10 @@ impl EmbeddingSearchMenu {
 
         let ui_font_family = Appearance::as_ref(ctx).ui_font_family();
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
+                "search.notebook_embedding.placeholder",
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,

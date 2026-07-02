@@ -107,6 +107,15 @@ pub struct StaticCommand {
 }
 
 impl StaticCommand {
+    pub fn description_key(&self) -> String {
+        let name = self.name.trim_start_matches('/').replace('-', "_");
+        format!("terminal.slash.command.{name}.description")
+    }
+
+    pub fn localized_description(&self, app: &warpui::AppContext) -> String {
+        crate::localization::text_for_app_or(app, &self.description_key(), self.description)
+    }
+
     pub fn matches_filter(&self, filter_text: &str) -> bool {
         if filter_text.is_empty() {
             return true;

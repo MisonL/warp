@@ -257,6 +257,10 @@ impl warpui::SingletonEntity for LocalizationUpdater {}
 fn notify_locale_changed_from_model(ctx: &mut ModelContext<LocalizationUpdater>) {
     ctx.emit(LocalizationEvent::LocaleChanged);
     ctx.invalidate_all_views();
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::refresh_localized_menus();
+    }
 }
 
 #[cfg(test)]

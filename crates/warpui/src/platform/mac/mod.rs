@@ -28,6 +28,10 @@ use objc2_foundation::NSString;
 pub use rendering::is_low_power_gpu_available;
 pub use window::{Window, WindowExt};
 
+pub fn refresh_localized_menus() {
+    app::refresh_localized_menus();
+}
+
 /// Create an autoreleased NSString from a string reference.
 pub fn make_nsstring<S>(s: S) -> id
 where

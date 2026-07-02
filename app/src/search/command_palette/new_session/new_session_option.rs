@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use warpui::Action;
+use warpui::{Action, AppContext};
 
 use crate::server::telemetry::AddTabWithShellSource;
 use crate::terminal::available_shells::AvailableShell;
@@ -37,6 +37,17 @@ impl fmt::Display for Direction {
                 Direction::Left => "Left",
             }
         )
+    }
+}
+
+impl Direction {
+    fn new_session_translation_key(&self) -> &'static str {
+        match self {
+            Direction::Down => "search.command_palette.new_session.split_down",
+            Direction::Right => "search.command_palette.new_session.split_right",
+            Direction::Up => "search.command_palette.new_session.split_up",
+            Direction::Left => "search.command_palette.new_session.split_left",
+        }
     }
 }
 
@@ -77,6 +88,25 @@ impl NewSessionOption {
     /// Returns the description (a.k.a. the top line in the command palette entry)
     pub fn description(&self) -> &str {
         self.description.as_str()
+    }
+
+    pub fn localized_description(&self, app: &AppContext) -> String {
+        let (key, shell) = match &self.config {
+            NewSessionConfig::NewTab(shell) => (
+                "search.command_palette.new_session.new_tab",
+                shell.short_name_for_app(app),
+            ),
+            NewSessionConfig::NewWindow(shell) => (
+                "search.command_palette.new_session.new_window",
+                shell.short_name_for_app(app),
+            ),
+            NewSessionConfig::Split(direction, shell) => (
+                direction.new_session_translation_key(),
+                shell.short_name_for_app(app),
+            ),
+        };
+
+        crate::localization::text_for_app_with_args(app, key, &[("shell", shell.as_ref())])
     }
 }
 
@@ -126,5 +156,9 @@ impl NewSessionOption {
     /// Returns the details (a.k.a. the second line in the command palette entry)
     pub fn details(&self) -> Cow<'_, str> {
         self.config.shell().details()
+    }
+
+    pub fn localized_details<'a>(&'a self, app: &'a AppContext) -> Cow<'a, str> {
+        self.config.shell().details_for_app(app)
     }
 }

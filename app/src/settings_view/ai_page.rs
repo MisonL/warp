@@ -148,7 +148,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Not;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
 
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 
@@ -4509,7 +4508,7 @@ impl SettingsWidget for GlobalAIWidget {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
                 Text::new_inline(
-                    "Warp Agent",
+                    ai_settings_text(app, "settings.ai.header.warp_agent"),
                     appearance.ui_font_family(),
                     PRIMARY_HEADER_FONT_SIZE,
                 )
@@ -5402,7 +5401,7 @@ impl AgentsWidget {
         let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
         let model_subheader = Container::new(render_custom_size_header(
             appearance,
-            "Models",
+            ai_settings_text(app, "settings.ai.agents.models.section"),
             14.0,
             Some(styles::header_font_color(is_any_ai_enabled, app)),
         ))
@@ -5446,7 +5445,7 @@ impl AgentsWidget {
         let max = cw.max;
 
         let label = Container::new(render_body_item_label::<AISettingsPageAction>(
-            "Context window (tokens)".to_string(),
+            ai_settings_text(app, "settings.ai.agents.context_window.label"),
             None,
             None,
             LocalOnlyIconState::Hidden,
@@ -5565,7 +5564,7 @@ impl AgentsWidget {
         let is_any_ai_enabled = ai_settings.is_any_ai_enabled(app);
         let permissions_subheader = Container::new(render_custom_size_header(
             appearance,
-            "Permissions",
+            ai_settings_text(app, "settings.ai.agents.permissions.section"),
             14.0,
             Some(styles::header_font_color(is_any_ai_enabled, app)),
         ))
@@ -5575,7 +5574,7 @@ impl AgentsWidget {
         let code_diff_setting =
             BlocklistAIPermissions::as_ref(app).get_apply_code_diffs_setting(app, None);
         let code_diffs = self.render_execution_profile_dropdown(
-            "Apply code diffs",
+            &ai_settings_text(app, "settings.execution_profile.editor.apply_code_diffs"),
             Icon::Code2,
             code_diff_setting.description(),
             &view.apply_code_diffs_dropdown_menu,
@@ -5588,7 +5587,7 @@ impl AgentsWidget {
             BlocklistAIPermissions::as_ref(app).get_read_files_setting(app, None);
         let mut read_files_flex = Flex::column().with_main_axis_size(MainAxisSize::Min);
         read_files_flex.add_child(self.render_execution_profile_dropdown(
-            "Read files",
+            &ai_settings_text(app, "agent.action.name.read_files"),
             Icon::Notebook,
             read_files_setting.description(),
             &view.read_files_dropdown_menu,
@@ -5618,7 +5617,7 @@ impl AgentsWidget {
             BlocklistAIPermissions::as_ref(app).get_execute_commands_setting(app, None);
         let mut execute_commands_flex = Flex::column().with_main_axis_size(MainAxisSize::Min);
         execute_commands_flex.add_child(self.render_execution_profile_dropdown(
-            "Execute commands",
+            &ai_settings_text(app, "settings.execution_profile.editor.execute_commands"),
             Icon::Terminal,
             execute_commands_setting.description(),
             &view.execute_commands_dropdown_menu,
@@ -5667,7 +5666,7 @@ impl AgentsWidget {
         {
             widget_children.push(
                 Container::new(render_settings_info_banner(
-                    "Some of your permissions are managed by your workspace.",
+                    &ai_settings_text(app, "settings.ai.agents.permissions.managed_by_workspace"),
                     None,
                     appearance,
                 ))
@@ -5681,7 +5680,10 @@ impl AgentsWidget {
         let write_to_pty_setting =
             BlocklistAIPermissions::as_ref(app).get_write_to_pty_setting(app, None);
         let write_to_pty = self.render_execution_profile_dropdown(
-            "Interact with running commands",
+            &ai_settings_text(
+                app,
+                "settings.execution_profile.editor.interact_with_running_commands",
+            ),
             Icon::Workflow,
             write_to_pty_setting.description(),
             &view.write_to_pty_autonomy_dropdown_menu,
@@ -5815,10 +5817,11 @@ impl AgentsWidget {
                 }),
             Some(&view.command_denylist_editor),
             appearance,
+            app,
         );
         render_ai_list(
-            "Command denylist",
-            "Regular expressions to match commands that the Warp Agent should always ask permission to execute.",
+            &ai_settings_text(app, "settings.ai.input.natural_language_denylist.label"),
+            &ai_settings_text(app, "settings.ai.agents.command_denylist.description"),
             list,
             view,
             ai_settings,
@@ -5849,11 +5852,12 @@ impl AgentsWidget {
                 }),
             Some(&view.command_allowlist_editor),
             appearance,
+            app,
         );
 
         render_ai_list(
-            "Command allowlist",
-            "Regular expressions to match commands that can be automatically executed by the Warp Agent.",
+            &ai_settings_text(app, "settings.execution_profile.editor.command_allowlist"),
+            &ai_settings_text(app, "settings.ai.agents.command_allowlist.description"),
             list,
             view,
             ai_settings,
@@ -5887,11 +5891,15 @@ impl AgentsWidget {
                 }),
             Some(&view.directory_allowlist_editor),
             appearance,
+            app,
         );
 
         render_ai_list(
-            "Directory allowlist",
-            "Give the agent file access to certain directories.",
+            &ai_settings_text(app, "settings.execution_profile.editor.directory_allowlist"),
+            &ai_settings_text(
+                app,
+                "settings.execution_profile.editor.directory_allowlist_description",
+            ),
             list,
             view,
             ai_settings,
@@ -5986,9 +5994,10 @@ impl AgentsWidget {
         );
 
         let codebase_context_description = vec![
-            FormattedTextFragment::plain_text(
-                "Allow the Warp Agent to generate an outline of your codebase that can be used for context. No code is ever stored on our servers. ",
-            ),
+            FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.agents.codebase_context.description",
+            )),
             FormattedTextFragment::hyperlink(
                 ai_settings_text(app, "settings.action.learn_more"),
                 "https://docs.warp.dev/agent-platform/capabilities/codebase-context",
@@ -6043,7 +6052,7 @@ impl AgentsWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let header = Container::new(render_body_item_label_with_icon::<AISettingsPageAction>(
-            "Call MCP servers".into(),
+            ai_settings_text(app, "settings.ai.agents.mcp.label"),
             Icon::Dataflow,
             Some(styles::header_font_color(
                 ai_settings.is_any_ai_enabled(app),
@@ -6059,16 +6068,20 @@ impl AgentsWidget {
 
         let subtext = {
             let subtext_fragments = vec![
-                FormattedTextFragment::plain_text(
-                    "You haven't added any MCP servers yet. Once you do, you'll be able to control how much autonomy the Warp Agent has when interacting with them. ",
-                ),
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.ai.agents.mcp_zero_state.description",
+                )),
                 FormattedTextFragment::hyperlink_action(
-                    "Add a server",
+                    ai_settings_text(app, "settings.ai.agents.mcp_zero_state.add_server"),
                     AISettingsPageAction::OpenMCPServerCollection,
                 ),
-                FormattedTextFragment::plain_text(" or "),
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.ai.agents.mcp_zero_state.or",
+                )),
                 FormattedTextFragment::hyperlink(
-                    "learn more about MCPs.",
+                    ai_settings_text(app, "settings.ai.agents.mcp_zero_state.learn_more"),
                     "https://docs.warp.dev/agent-platform/capabilities/mcp",
                 ),
             ];
@@ -6126,7 +6139,7 @@ impl AgentsWidget {
             BlocklistAIPermissions::as_ref(app).get_mcp_permissions_setting(app, None);
 
         let permission_setting = self.render_execution_profile_dropdown(
-            "Call MCP servers",
+            &ai_settings_text(app, "settings.ai.agents.mcp.label"),
             Icon::Dataflow,
             current_mcp_setting.description(),
             &view.mcp_permissions_dropdown_menu,
@@ -6140,8 +6153,8 @@ impl AgentsWidget {
             || current_mcp_setting == ActionPermission::AgentDecides
         {
             let allowlist = self.render_mcp_list(
-                "MCP allowlist",
-                "Allow the Warp Agent to call these MCP servers.",
+                &ai_settings_text(app, "settings.execution_profile.editor.mcp_allowlist"),
+                &ai_settings_text(app, "settings.ai.agents.mcp_allowlist.description"),
                 &view.mcp_allowlist_dropdown,
                 BlocklistAIPermissions::as_ref(app).get_mcp_allowlist(app, None),
                 view.mcp_allowlist_mouse_state_handles.clone(),
@@ -6157,8 +6170,8 @@ impl AgentsWidget {
             || current_mcp_setting == ActionPermission::AgentDecides
         {
             let denylist = self.render_mcp_list(
-                "MCP denylist",
-                "The Warp Agent will always ask for permission before calling any MCP servers on this list.",
+                &ai_settings_text(app, "settings.execution_profile.editor.mcp_denylist"),
+                &ai_settings_text(app, "settings.ai.agents.mcp_denylist.description"),
                 &view.mcp_denylist_dropdown,
                 BlocklistAIPermissions::as_ref(app).get_mcp_denylist(app, None),
                 view.mcp_denylist_mouse_state_handles.clone(),
@@ -6232,6 +6245,7 @@ impl AgentsWidget {
                 }),
             None,
             appearance,
+            app,
         );
 
         Container::new(Flex::column().with_children(vec![selector, items]).finish())
@@ -6416,7 +6430,7 @@ impl AIInputWidget {
                     "settings.ai.input.feedback.incorrect_detection",
                 )),
                 FormattedTextFragment::hyperlink(
-                    "Let us know",
+                    ai_settings_text(app, "settings.ai.input.feedback.link"),
                     "https://warpdotdev.typeform.com/to/offrTIpq",
                 ),
             ];
@@ -6469,22 +6483,20 @@ impl AIInputWidget {
                 .finish(),
             ])
         } else {
-            static NATURAL_LANGUAGE_DETECTION_DESCRIPTION_FRAGMENTS: LazyLock<
-                Vec<FormattedTextFragment>,
-            > = LazyLock::new(|| {
-                vec![
-                    FormattedTextFragment::plain_text(
-                        "Enabling natural language detection will detect when natural language is written in the terminal input, and then automatically switch to Agent Mode for AI queries.",
-                    ),
-                    FormattedTextFragment::plain_text(
-                        " Encountered an incorrect input detection? ",
-                    ),
-                    FormattedTextFragment::hyperlink(
-                        "Let us know",
-                        "https://warpdotdev.typeform.com/to/offrTIpq",
-                    ),
-                ]
-            });
+            let natural_language_detection_description_fragments = vec![
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.ai.input.natural_language_detection.description",
+                )),
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.ai.input.feedback.incorrect_input_detection",
+                )),
+                FormattedTextFragment::hyperlink(
+                    ai_settings_text(app, "settings.ai.input.feedback.link"),
+                    "https://warpdotdev.typeform.com/to/offrTIpq",
+                ),
+            ];
 
             section.add_children([
                 render_ai_setting_toggle::<AIAutoDetectionEnabled>(
@@ -6499,7 +6511,7 @@ impl AIInputWidget {
                 Container::new(
                     FormattedTextElement::new(
                         FormattedText::new([FormattedTextLine::Line(
-                            (*NATURAL_LANGUAGE_DETECTION_DESCRIPTION_FRAGMENTS).clone(),
+                            natural_language_detection_description_fragments.clone(),
                         )]),
                         CONTENT_FONT_SIZE,
                         appearance.ui_font_family(),
@@ -6630,23 +6642,20 @@ impl SettingsWidget for MCPServersWidget {
                         app,
                     ))
                     .with_child({
-                        static FILE_BASED_MCP_DESCRIPTION_FRAGMENTS: LazyLock<
-                            Vec<FormattedTextFragment>,
-                        > = LazyLock::new(|| {
-                            vec![
-                                FormattedTextFragment::plain_text(
-                                    "Automatically detect and spawn MCP servers from globally-scoped third-party AI agent configuration files (e.g. in your home directory). Servers detected inside a repository are never spawned automatically and must be enabled individually from the MCP settings page. ",
-                                ),
-                                FormattedTextFragment::hyperlink(
-                                    "See supported providers.",
-                                    "https://docs.warp.dev/agent-platform/capabilities/mcp#file-based-mcp-servers",
-                                ),
-                            ]
-                        });
+                        let file_based_mcp_description_fragments = vec![
+                            FormattedTextFragment::plain_text(ai_settings_text(
+                                app,
+                                "settings.ai.mcp.auto_spawn.description",
+                            )),
+                            FormattedTextFragment::hyperlink(
+                                ai_settings_text(app, "settings.ai.mcp.auto_spawn.supported_providers"),
+                                "https://docs.warp.dev/agent-platform/capabilities/mcp#file-based-mcp-servers",
+                            ),
+                        ];
                         Container::new(
                             FormattedTextElement::new(
                                 FormattedText::new([FormattedTextLine::Line(
-                                    (*FILE_BASED_MCP_DESCRIPTION_FRAGMENTS).clone(),
+                                    file_based_mcp_description_fragments,
                                 )]),
                                 CONTENT_FONT_SIZE,
                                 appearance.ui_font_family(),
@@ -6719,9 +6728,10 @@ impl AIFactWidget {
         );
 
         let rules_description = vec![
-            FormattedTextFragment::plain_text(
-                "Rules help the Warp Agent follow your conventions, whether for codebases or specific workflows. ",
-            ),
+            FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.knowledge.rules.description",
+            )),
             FormattedTextFragment::hyperlink(
                 ai_settings_text(app, "settings.action.learn_more"),
                 "https://docs.warp.dev/agent-platform/capabilities/rules",
@@ -7265,13 +7275,17 @@ impl SettingsWidget for CLIAgentWidget {
         );
 
         let description_fragments = vec![
-            FormattedTextFragment::plain_text(
-                "Show a toolbar with quick actions when running coding agents like ",
-            ),
+            FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.cli_agent_toolbar.description_prefix",
+            )),
             FormattedTextFragment::inline_code("claude"),
             FormattedTextFragment::plain_text(", "),
             FormattedTextFragment::inline_code("codex"),
-            FormattedTextFragment::plain_text(", or "),
+            FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.cli_agent_toolbar.description_or",
+            )),
             FormattedTextFragment::inline_code("gemini"),
             FormattedTextFragment::plain_text("."),
         ];
@@ -7496,9 +7510,10 @@ impl SettingsWidget for CLIAgentWidget {
             };
             let command_list_description = appearance
                 .ui_builder()
-                .paragraph(
-                    "Add regex patterns to show the coding agent toolbar for matching commands.",
-                )
+                .paragraph(ai_settings_text(
+                    app,
+                    "settings.ai.cli_agent_toolbar.commands.description",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.ui_font_size()),
                     font_color: Some(styles::description_font_color(true, app).into()),
@@ -7599,7 +7614,7 @@ impl SettingsWidget for AgentAttributionWidget {
                 .switch(self.toggle.clone())
                 .check(state.is_enabled)
                 .with_tooltip(TooltipConfig {
-                    text: "This option is enforced by your organization's settings and cannot be customized.".to_string(),
+                    text: ai_settings_text(app, "settings.tooltip.organization_enforced"),
                     styles: ui_builder.default_tool_tip_styles(),
                 })
                 .disable()
@@ -7625,7 +7640,7 @@ impl SettingsWidget for AgentAttributionWidget {
 
         let toggle_row = build_toggle_element(
             render_body_item_label::<AISettingsPageAction>(
-                "Enable agent attribution".to_string(),
+                ai_settings_text(app, "settings.ai.agent_attribution.enable"),
                 Some(styles::header_font_color(!state.is_disabled, app)),
                 None,
                 LocalOnlyIconState::Hidden,
@@ -8149,7 +8164,7 @@ impl ApiKeysWidget {
     fn render_api_key_input(
         &self,
         appearance: &Appearance,
-        label: &'static str,
+        label: String,
         editor: ViewHandle<EditorView>,
         is_enabled: bool,
         app: &AppContext,
@@ -8193,21 +8208,21 @@ impl ApiKeysWidget {
         let mut column = Flex::column().with_spacing(16.);
         column.add_child(self.render_api_key_input(
             appearance,
-            "OpenAI API key",
+            ai_settings_text(app, "settings.ai.api_keys.openai"),
             self.openai_api_key_editor.clone(),
             is_enabled,
             app,
         ));
         column.add_child(self.render_api_key_input(
             appearance,
-            "Anthropic API key",
+            ai_settings_text(app, "settings.ai.api_keys.anthropic"),
             self.anthropic_api_key_editor.clone(),
             is_enabled,
             app,
         ));
         column.add_child(self.render_api_key_input(
             appearance,
-            "Google API key",
+            ai_settings_text(app, "settings.ai.api_keys.google"),
             self.google_api_key_editor.clone(),
             is_enabled,
             app,
@@ -8434,7 +8449,7 @@ impl ApiKeysWidget {
             )
             .with_child(
                 Text::new_inline(
-                    "Premium or SuperGrok subscription",
+                    ai_settings_text(app, "settings.ai.grok.subscription.label"),
                     appearance.ui_font_family(),
                     CONTENT_FONT_SIZE,
                 )
@@ -8461,7 +8476,7 @@ impl ApiKeysWidget {
 
         let description = Container::new(
             Text::new(
-                "Connect your SuperGrok subscription to use Grok models in the Warp Agent through your xAI account.",
+                ai_settings_text(app, "settings.ai.grok.subscription.description"),
                 appearance.ui_font_family(),
                 CONTENT_FONT_SIZE,
             )
@@ -8479,12 +8494,16 @@ impl ApiKeysWidget {
 
         if let Some(tokens) = grok_tokens {
             let connected_text = match tokens.connected_at.map(DateTime::<Local>::from) {
-                Some(connected_at) => format!(
-                    "Connected on {}.",
-                    connected_at.format("%m/%d/%Y at %-I:%M%P")
+                Some(connected_at) => ai_settings_text_with_args(
+                    app,
+                    "settings.ai.grok.subscription.connected_on",
+                    &[(
+                        "connected_at",
+                        &connected_at.format("%m/%d/%Y at %-I:%M%P").to_string(),
+                    )],
                 ),
                 // Tokens stored before the connection time was tracked.
-                None => "Connected.".to_string(),
+                None => ai_settings_text(app, "settings.ai.grok.subscription.connected"),
             };
             let check = ConstrainedBox::new(
                 Icon::Check
@@ -8743,9 +8762,10 @@ impl SettingsWidget for ApiKeysWidget {
                             localization::text_for_app(app, "settings.ai.api_keys.contact_sales"),
                             "mailto:sales@warp.dev",
                         ),
-                        FormattedTextFragment::plain_text(
-                            " to enable bringing your own API keys on your Enterprise plan.",
-                        ),
+                        FormattedTextFragment::plain_text(localization::text_for_app(
+                            app,
+                            "settings.ai.api_keys.enterprise_enable_suffix",
+                        )),
                     ]
                 } else {
                     let current_user_email = auth_state.user_email().unwrap_or_default();
@@ -8754,14 +8774,23 @@ impl SettingsWidget for ApiKeysWidget {
                     if has_admin_permissions {
                         vec![
                             FormattedTextFragment::hyperlink(
-                                "Upgrade to the Build plan",
+                                localization::text_for_app(
+                                    app,
+                                    "settings.ai.api_keys.upgrade_build_plan",
+                                ),
                                 upgrade_url,
                             ),
-                            FormattedTextFragment::plain_text(" to use your own API keys."),
+                            FormattedTextFragment::plain_text(localization::text_for_app(
+                                app,
+                                "settings.ai.api_keys.use_own_keys_suffix",
+                            )),
                         ]
                     } else {
                         vec![FormattedTextFragment::plain_text(
-                            "Ask your team's admin to upgrade to the Build plan to use your own API keys.",
+                            localization::text_for_app(
+                                app,
+                                "settings.ai.api_keys.ask_admin_to_upgrade",
+                            ),
                         )]
                     }
                 }
@@ -8770,10 +8799,13 @@ impl SettingsWidget for ApiKeysWidget {
             {
                 vec![
                     FormattedTextFragment::hyperlink_action(
-                        "Create an account",
+                        localization::text_for_app(app, "settings.ai.api_keys.create_account"),
                         AISettingsPageAction::SignupAnonymousUser,
                     ),
-                    FormattedTextFragment::plain_text(" to use your own API keys."),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        app,
+                        "settings.ai.api_keys.use_own_keys_suffix",
+                    )),
                 ]
             } else {
                 let user_id = auth_state.user_id().unwrap_or_default();
@@ -8783,7 +8815,10 @@ impl SettingsWidget for ApiKeysWidget {
                         localization::text_for_app(app, "settings.ai.api_keys.upgrade_build_plan"),
                         upgrade_url,
                     ),
-                    FormattedTextFragment::plain_text(" to use your own API keys."),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        app,
+                        "settings.ai.api_keys.use_own_keys_suffix",
+                    )),
                 ]
             };
 
@@ -9049,10 +9084,12 @@ impl AwsBedrockWidget {
         let are_credentials_enabled = user_workspaces.is_aws_bedrock_credentials_enabled(app);
         let is_usage_enabled = is_section_enabled && are_credentials_enabled;
         let toggle_description = if is_admin_enforced {
-            "Warp loads and sends local AWS CLI credentials for Bedrock-supported models. This setting is managed by your organization.".to_string()
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.description_managed",
+            )
         } else {
-            "Warp loads and sends local AWS CLI credentials for Bedrock-supported models."
-                .to_string()
+            ai_settings_text(app, "settings.ai.aws_bedrock.credentials.description")
         };
 
         let mut column = Flex::column().with_spacing(16.).with_child(

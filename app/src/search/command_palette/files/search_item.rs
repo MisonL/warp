@@ -193,7 +193,11 @@ impl SearchItem for CreateFileSearchItem {
         let text_color = highlight_state.sub_text_fill(appearance).into_solid();
 
         let label = Text::new_inline(
-            format!("Create a file named {}…", &self.file_name),
+            crate::localization::text_for_app_with_args(
+                app,
+                "search.files.create_file",
+                &[("file", &self.file_name)],
+            ),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )

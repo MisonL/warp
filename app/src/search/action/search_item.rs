@@ -147,13 +147,42 @@ impl SearchItem for MatchedBinding {
     fn accessibility_label(&self) -> String {
         let trigger = self.binding.trigger.as_ref();
 
-        format!(
-            "Selected {}, {}.",
-            &self
-                .binding
-                .description
-                .in_context(DescriptionContext::Default),
-            trigger.map(Keystroke::normalized).unwrap_or_default()
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.a11y.item_with_binding",
+            &[
+                (
+                    "description",
+                    self.binding
+                        .description
+                        .in_context(DescriptionContext::Default),
+                ),
+                (
+                    "binding",
+                    &trigger.map(Keystroke::normalized).unwrap_or_default(),
+                ),
+            ],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let trigger = self.binding.trigger.as_ref();
+
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.item_with_binding",
+            &[
+                (
+                    "description",
+                    self.binding
+                        .description
+                        .in_context(DescriptionContext::Default),
+                ),
+                (
+                    "binding",
+                    &trigger.map(Keystroke::normalized).unwrap_or_default(),
+                ),
+            ],
         )
     }
 
@@ -161,12 +190,38 @@ impl SearchItem for MatchedBinding {
         self.binding
             .trigger
             .as_ref()
-            .map_or("Press enter to confirm.".into(), |trigger| {
-                format!(
-                    "Press enter to confirm. Use {} binding to run this action in the future.",
-                    trigger.normalized()
-                )
-            })
+            .map_or_else(
+                || {
+                    crate::localization::text_for_locale(
+                        warp_localization::LocaleId::EnUs,
+                        "search.a11y.help.confirm",
+                    )
+                },
+                |trigger| {
+                    crate::localization::text_for_locale_with_args(
+                        warp_localization::LocaleId::EnUs,
+                        "search.a11y.help.confirm_with_binding",
+                        &[("binding", &trigger.normalized())],
+                    )
+                },
+            )
+            .into()
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        self.binding
+            .trigger
+            .as_ref()
+            .map_or_else(
+                || crate::localization::text_for_app(app, "search.a11y.help.confirm"),
+                |trigger| {
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "search.a11y.help.confirm_with_binding",
+                        &[("binding", &trigger.normalized())],
+                    )
+                },
+            )
             .into()
     }
 }

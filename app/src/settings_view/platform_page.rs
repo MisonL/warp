@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::features::FeatureFlag;
 use warp_graphql::object_permissions::OwnerType;
@@ -32,11 +32,13 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
+use crate::localization::LocalizationUpdater;
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::search_bar::SearchBar;
 use crate::server::ids::ApiKeyUid;
 use crate::ui_components::icons::Icon;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const MODAL_WIDTH: f32 = 460.;
 const MODAL_HEIGHT: f32 = 320.;
@@ -89,6 +91,18 @@ fn compute_api_key_name_column_max_width(
     let available_table_width =
         (window_width - table_width_chrome).clamp(0., SETTINGS_PAGE_MAX_CONTENT_WIDTH);
     (available_table_width - min_non_resizable_columns_width).max(min_width)
+}
+
+fn format_api_key_date(app: &AppContext, datetime: DateTime<Utc>) -> String {
+    localization::text_for_app_with_args(
+        app,
+        "settings.platform.api_keys.date",
+        &[
+            ("year", &datetime.year().to_string()),
+            ("month", &datetime.month().to_string()),
+            ("day", &datetime.day().to_string()),
+        ],
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -172,10 +186,7 @@ impl PlatformPageView {
             };
             let mut editor = EditorView::single_line(options, ctx);
             editor.set_placeholder_text(
-                crate::localization::text_for_app(
-                    ctx,
-                    "settings.platform.api_keys.search_placeholder",
-                ),
+                localization::text_for_app(ctx, "settings.platform.api_keys.search_placeholder"),
                 ctx,
             );
             editor
@@ -193,7 +204,7 @@ impl PlatformPageView {
 
         let create_api_key_modal_view = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(crate::localization::text_for_app(
+                Some(localization::text_for_app(
                     ctx,
                     "settings.platform.api_keys.modal_title.new",
                 )),
@@ -231,6 +242,9 @@ impl PlatformPageView {
         ctx.subscribe_to_view(&create_api_key_modal_view, |me, _, event, ctx| {
             me.handle_modal_event(event, ctx);
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
         PlatformPageView {
             page: PageType::new_monolith(PlatformPageWidget::default(), None, true),
@@ -248,9 +262,19 @@ impl PlatformPageView {
         }
     }
 
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.api_key_search_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.platform.api_keys.search_placeholder"),
+                ctx,
+            );
+        });
+        self.create_api_key_modal_state.refresh_localized_text(ctx);
+    }
+
     fn show_create_api_key_modal(&mut self, ctx: &mut ViewContext<Self>) {
         self.create_api_key_modal_state.set_title(
-            Some(crate::localization::text_for_app(
+            Some(localization::text_for_app(
                 ctx,
                 "settings.platform.api_keys.modal_title.new",
             )),
@@ -284,7 +308,7 @@ impl PlatformPageView {
             }
             CreateApiKeyModalEvent::Created { api_key } => {
                 self.create_api_key_modal_state.set_title(
-                    Some(crate::localization::text_for_app(
+                    Some(localization::text_for_app(
                         ctx,
                         "settings.platform.api_keys.modal_title.save",
                     )),
@@ -343,7 +367,7 @@ impl PlatformPageView {
                 let window_id = ctx.window_id();
                 crate::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     let toast = crate::view_components::DismissibleToast::success(
-                        "API key deleted".to_string(),
+                        localization::text_for_app(ctx, "settings.platform.api_keys.deleted"),
                     );
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -513,12 +537,12 @@ impl PlatformPageWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let text = vec![
-            FormattedTextFragment::plain_text(crate::localization::text_for_app(
+            FormattedTextFragment::plain_text(localization::text_for_app(
                 app,
                 "settings.platform.api_keys.description",
             )),
             FormattedTextFragment::hyperlink(
-                crate::localization::text_for_app(app, "settings.platform.api_keys.documentation"),
+                localization::text_for_app(app, "settings.platform.api_keys.documentation"),
                 API_KEY_DOCS_URL,
             ),
         ];
@@ -555,7 +579,7 @@ impl PlatformPageWidget {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
                     Text::new_inline(
-                        crate::localization::text_for_app(app, "settings.platform.api_keys.title"),
+                        localization::text_for_app(app, "settings.platform.api_keys.title"),
                         appearance.ui_font_family(),
                         16.,
                     )
@@ -571,7 +595,7 @@ impl PlatformPageWidget {
                             ButtonVariant::Outlined,
                             self.create_api_key_button_mouse_state.clone(),
                         )
-                        .with_text_label(crate::localization::text_for_app(
+                        .with_text_label(localization::text_for_app(
                             app,
                             "settings.platform.api_keys.create_api_key",
                         ))
@@ -594,7 +618,7 @@ impl PlatformPageWidget {
             if view.is_loading {
                 // Render nothing (just the description) while loading
             } else {
-                col.add_child(self.render_zero_state(appearance));
+                col.add_child(self.render_zero_state(appearance, app));
             }
         } else {
             col.add_child(
@@ -616,10 +640,10 @@ impl PlatformPageWidget {
                 .collect();
 
             if filtered_api_keys.is_empty() {
-                col.add_child(self.render_no_search_results(appearance));
+                col.add_child(self.render_no_search_results(appearance, app));
             } else {
-                col.add_child(self.render_api_keys_header(appearance, view));
-                col.add_child(self.render_api_keys_rows(appearance, view, &filtered_api_keys));
+                col.add_child(self.render_api_keys_header(appearance, view, app));
+                col.add_child(self.render_api_keys_rows(appearance, view, &filtered_api_keys, app));
             }
         }
 
@@ -629,6 +653,7 @@ impl PlatformPageWidget {
         &self,
         appearance: &Appearance,
         view: &PlatformPageView,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let table_width_chrome = api_key_table_width_chrome();
         let show_scope_column =
@@ -640,29 +665,61 @@ impl PlatformPageWidget {
             .with_main_axis_size(MainAxisSize::Max);
         header_row.add_child(self.render_resizable_header_cell(
             appearance,
-            "Name",
+            localization::text_for_app(app, "settings.platform.api_keys.header.name"),
             view.api_key_table_column_widths.name.clone(),
             API_KEY_NAME_COLUMN_MIN_WIDTH,
             min_non_resizable_columns_width,
             table_width_chrome,
         ));
         header_row.add_child(
-            ConstrainedBox::new(self.render_header_cell(appearance, "Key"))
-                .with_width(API_KEY_KEY_COLUMN_WIDTH)
-                .finish(),
+            ConstrainedBox::new(self.render_header_cell(
+                appearance,
+                localization::text_for_app(app, "settings.platform.api_keys.header.key"),
+            ))
+            .with_width(API_KEY_KEY_COLUMN_WIDTH)
+            .finish(),
         );
         if show_scope_column {
             header_row.add_child(
-                Expanded::new(1., self.render_header_cell(appearance, "Scope")).finish(),
+                Expanded::new(
+                    1.,
+                    self.render_header_cell(
+                        appearance,
+                        localization::text_for_app(app, "settings.platform.api_keys.header.scope"),
+                    ),
+                )
+                .finish(),
             );
         }
-        header_row
-            .add_child(Expanded::new(1., self.render_header_cell(appearance, "Created")).finish());
         header_row.add_child(
-            Expanded::new(1., self.render_header_cell(appearance, "Last used")).finish(),
+            Expanded::new(
+                1.,
+                self.render_header_cell(
+                    appearance,
+                    localization::text_for_app(app, "settings.platform.api_keys.header.created"),
+                ),
+            )
+            .finish(),
         );
         header_row.add_child(
-            Expanded::new(1., self.render_header_cell(appearance, "Expires at")).finish(),
+            Expanded::new(
+                1.,
+                self.render_header_cell(
+                    appearance,
+                    localization::text_for_app(app, "settings.platform.api_keys.header.last_used"),
+                ),
+            )
+            .finish(),
+        );
+        header_row.add_child(
+            Expanded::new(
+                1.,
+                self.render_header_cell(
+                    appearance,
+                    localization::text_for_app(app, "settings.platform.api_keys.header.expires_at"),
+                ),
+            )
+            .finish(),
         );
         header_row.add_child(Expanded::new(0.5, self.render_header_cell(appearance, "")).finish());
 
@@ -676,7 +733,7 @@ impl PlatformPageWidget {
     fn render_resizable_header_cell(
         &self,
         appearance: &Appearance,
-        label: &str,
+        label: impl Into<String>,
         width_handle: ResizableStateHandle,
         min_width: f32,
         min_non_resizable_columns_width: f32,
@@ -686,6 +743,7 @@ impl PlatformPageWidget {
             .lock()
             .expect("API key header width handle should lock")
             .size();
+        let label = label.into();
         let header_cell = ConstrainedBox::new(
             Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -726,25 +784,26 @@ impl PlatformPageWidget {
         appearance: &Appearance,
         view: &PlatformPageView,
         api_keys: &[&APIKeyProperties],
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut col = Flex::column();
         for key in api_keys.iter() {
-            col.add_child(self.render_api_key_row(appearance, view, key));
+            col.add_child(self.render_api_key_row(appearance, view, key, app));
         }
         col.finish()
     }
 
-    fn render_header_cell(&self, appearance: &Appearance, label: &str) -> Box<dyn Element> {
+    fn render_header_cell(
+        &self,
+        appearance: &Appearance,
+        label: impl Into<String>,
+    ) -> Box<dyn Element> {
         Container::new(
-            Text::new_inline(
-                label.to_string(),
-                appearance.ui_font_family(),
-                CONTENT_FONT_SIZE,
-            )
-            .with_style(Properties::default().weight(Weight::Semibold))
-            .with_color(appearance.theme().nonactive_ui_text_color().into())
-            .with_clip(ClipConfig::end())
-            .finish(),
+            Text::new_inline(label.into(), appearance.ui_font_family(), CONTENT_FONT_SIZE)
+                .with_style(Properties::default().weight(Weight::Semibold))
+                .with_color(appearance.theme().nonactive_ui_text_color().into())
+                .with_clip(ClipConfig::end())
+                .finish(),
         )
         .with_padding(Padding::uniform(8.))
         .finish()
@@ -754,16 +813,17 @@ impl PlatformPageWidget {
         appearance: &Appearance,
         view: &PlatformPageView,
         key: &APIKeyProperties,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        let created = format_approx_duration_from_now_utc(key.created_at);
+        let created = localized_approx_duration_from_now_utc(app, key.created_at);
         let last_used = key
             .last_used_at
-            .map(format_approx_duration_from_now_utc)
-            .unwrap_or_else(|| "Never".to_owned());
+            .map(|dt| localized_approx_duration_from_now_utc(app, dt))
+            .unwrap_or_else(|| localization::text_for_app(app, "settings.platform.api_keys.never"));
         let expires_at = key
             .expires_at
-            .map(|dt| format!("{}", dt.format("%b %-d, %Y")))
-            .unwrap_or_else(|| "Never".to_owned());
+            .map(|dt| format_api_key_date(app, dt))
+            .unwrap_or_else(|| localization::text_for_app(app, "settings.platform.api_keys.never"));
         let name_column_width = view.api_key_table_column_widths.name_width();
         let key_column_width = API_KEY_KEY_COLUMN_WIDTH;
         let mut row = Flex::row()
@@ -804,9 +864,15 @@ impl PlatformPageWidget {
         );
         if FeatureFlag::TeamApiKeys.is_enabled() || FeatureFlag::NamedAgents.is_enabled() {
             let scope_display = match key.scope {
-                ApiKeyScope::Personal => "Personal",
-                ApiKeyScope::Team => "Team",
-                ApiKeyScope::Agent => "Agent",
+                ApiKeyScope::Personal => {
+                    localization::text_for_app(app, "settings.platform.api_keys.type.personal")
+                }
+                ApiKeyScope::Team => {
+                    localization::text_for_app(app, "settings.platform.api_keys.type.team")
+                }
+                ApiKeyScope::Agent => {
+                    localization::text_for_app(app, "settings.platform.api_keys.type.agent")
+                }
             };
             row.add_child(
                 Expanded::new(
@@ -876,7 +942,7 @@ impl PlatformPageWidget {
             .finish()
     }
 
-    fn render_zero_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_zero_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Container::new(
             Align::new(
                 Flex::column()
@@ -894,7 +960,10 @@ impl PlatformPageWidget {
                     .with_child(
                         Container::new(
                             Text::new(
-                                "No API Keys",
+                                localization::text_for_app(
+                                    app,
+                                    "settings.platform.api_keys.empty.title",
+                                ),
                                 appearance.ui_font_family(),
                                 SUBHEADER_FONT_SIZE,
                             )
@@ -908,7 +977,10 @@ impl PlatformPageWidget {
                     .with_child(
                         Container::new(
                             Text::new(
-                                "Create a key to manage external access to Warp",
+                                localization::text_for_app(
+                                    app,
+                                    "settings.platform.api_keys.empty.description",
+                                ),
                                 appearance.ui_font_family(),
                                 CONTENT_FONT_SIZE,
                             )
@@ -926,13 +998,14 @@ impl PlatformPageWidget {
         .finish()
     }
 
-    fn render_no_search_results(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_no_search_results(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Container::new(
             Text::new(
-                crate::localization::text_for_locale(
-                    warp_localization::LocaleId::EnUs,
-                    "settings.platform.api_keys.no_search_results",
-                ),
+                localization::text_for_app(app, "settings.platform.api_keys.no_search_results"),
                 appearance.ui_font_family(),
                 CONTENT_FONT_SIZE,
             )

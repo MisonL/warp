@@ -7,8 +7,9 @@ use warpui::elements::{
     Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::Element;
+use warpui::{AppContext, Element};
 
+use crate::localization;
 use crate::settings_view::billing_and_usage::billing_cycle_usage_common::{
     aggregate_segments, cost_type_color, format_cost_cents, format_credits,
     render_breakdown_tooltip, render_section_subheader, BarSegment, BillingUsageMouseStates,
@@ -350,12 +351,16 @@ pub fn render_team_totals_block(
     visibility: &UsageVisibility,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let mut column = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     column.add_child(
-        Container::new(render_section_subheader("Team", appearance))
-            .with_margin_bottom(8.)
-            .finish(),
+        Container::new(render_section_subheader(
+            &localization::text_for_app(app, "settings.billing.usage.team"),
+            appearance,
+        ))
+        .with_margin_bottom(8.)
+        .finish(),
     );
     column.add_child(render_team_totals_section(
         entries,

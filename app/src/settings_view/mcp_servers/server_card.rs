@@ -381,6 +381,18 @@ impl ServerCardView {
         &self.render_options
     }
 
+    fn localized_status_line(&self, app: &AppContext) -> Option<String> {
+        let status_line = self.render_options.status_line.as_deref()?;
+        let key = match status_line {
+            "Offline" => "settings.mcp.card.status.offline",
+            "Starting server..." => "settings.mcp.card.status.starting_server",
+            "Authenticating..." => "settings.mcp.card.status.authenticating",
+            "Shutting down..." => "settings.mcp.card.status.shutting_down",
+            _ => return Some(status_line.to_owned()),
+        };
+        Some(crate::localization::text_for_app(app, key))
+    }
+
     fn render_server_icon_and_status(&self, appearance: &Appearance) -> Box<dyn Element> {
         // TODO(aeybel) will want to use gallery ids instead of title in the future
         // pending data model for the gallery items
@@ -473,13 +485,14 @@ impl ServerCardView {
         &self,
         tools: &[String],
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let text_color =
             blended_colors::text_sub(appearance.theme(), appearance.theme().background());
 
         if tools.is_empty() {
             return Text::new(
-                "No tools available".to_string(),
+                crate::localization::text_for_app(app, "settings.mcp.card.tools.none_available"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -683,11 +696,11 @@ impl ServerCardView {
             );
         }
 
-        if let Some(status_line) = &self.render_options.status_line {
+        if let Some(status_line) = self.localized_status_line(app) {
             info_column = info_column.with_child(
                 FormattedTextElement::new(
                     FormattedText::new([FormattedTextLine::Line(vec![
-                        FormattedTextFragment::plain_text(status_line.clone()),
+                        FormattedTextFragment::plain_text(status_line),
                     ])]),
                     appearance.ui_builder().ui_font_size(),
                     appearance.ui_font_family(),
@@ -755,7 +768,10 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::Code1,
-                        "Show logs".to_string(),
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.mcp.card.action.show_logs",
+                        ),
                         self.mouse_handles.show_logs_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -770,7 +786,7 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::LogOut,
-                        "Log out".to_string(),
+                        crate::localization::text_for_app(app, "settings.mcp.card.action.log_out"),
                         self.mouse_handles.logout_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -785,7 +801,10 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::Share,
-                        "Share server".to_string(),
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.mcp.card.action.share_server",
+                        ),
                         self.mouse_handles.share_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -800,7 +819,7 @@ impl ServerCardView {
                     self.build_icon_button(
                         appearance,
                         Icon::Pencil,
-                        "Edit".to_string(),
+                        crate::localization::text_for_app(app, "settings.mcp.card.action.edit"),
                         self.mouse_handles.edit_icon_button.clone(),
                     )
                     .on_click(move |ctx, _, _| {
@@ -812,7 +831,8 @@ impl ServerCardView {
         }
 
         if self.render_options.show_update_available_icon_button {
-            actions_row = actions_row.with_child(self.render_update_available_icon(appearance));
+            actions_row =
+                actions_row.with_child(self.render_update_available_icon(appearance, app));
         }
 
         if self.render_options.show_view_logs_text_button {
@@ -905,13 +925,17 @@ impl ServerCardView {
             .finish()
     }
 
-    fn render_update_available_icon(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_update_available_icon(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let item_id = self.item_id;
         let update_available_button = self
             .build_icon_button(
                 appearance,
                 Icon::Refresh,
-                "Server update available".to_string(),
+                crate::localization::text_for_app(app, "settings.mcp.card.action.update_available"),
                 self.mouse_handles.update_icon_button.clone(),
             )
             .on_click(move |ctx, _, _| {
@@ -1042,7 +1066,7 @@ impl View for ServerCardView {
             info_column = self.add_subtitle_lines(info_column, appearance, app);
 
             if let Some(tools) = &self.tools {
-                let tools_info_row = self.render_tools_expandable(tools, appearance);
+                let tools_info_row = self.render_tools_expandable(tools, appearance, app);
                 info_column = info_column.with_child(tools_info_row)
             }
 

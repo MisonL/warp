@@ -2039,7 +2039,10 @@ fn ghost_text_shows_queue_hint_during_agent_requested_lrc() {
             input.agent_mode_hint_text(ctx)
         });
         assert!(
-            hint.starts_with("Queue a follow up for the running agent"),
+            hint.starts_with(&crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "terminal.input.hint.queue_follow_up",
+            )),
             "expected queue hint, got {hint:?}"
         );
     });

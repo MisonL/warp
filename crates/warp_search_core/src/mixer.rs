@@ -540,6 +540,9 @@ pub type DataSourceRunErrorWrapper = Box<dyn DataSourceRunError>;
 
 pub trait DataSourceRunError: 'static + Send + Sync + std::fmt::Debug {
     fn user_facing_error(&self) -> String;
+    fn user_facing_error_for_app(&self, _app: &AppContext) -> String {
+        self.user_facing_error()
+    }
     fn telemetry_payload(&self) -> serde_json::Value;
     fn as_any(&self) -> &dyn Any;
 }

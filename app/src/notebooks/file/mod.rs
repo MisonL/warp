@@ -975,7 +975,7 @@ impl FileNotebookView {
         #[cfg(not(target_family = "wasm"))]
         if matches!(self.file_state, FileState::Loaded(_)) && self.is_remote_disconnected(app) {
             let banner =
-                crate::code::local_code_editor::render_remote_disconnected_banner(appearance);
+                crate::code::local_code_editor::render_remote_disconnected_banner(appearance, app);
             let mut col = Flex::column();
             col.add_child(banner);
             col.add_child(Shrinkable::new(1., styles::wrap_body(body)).finish());

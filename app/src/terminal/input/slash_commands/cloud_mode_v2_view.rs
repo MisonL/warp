@@ -893,18 +893,14 @@ impl CloudModeV2SlashCommandView {
         let theme = appearance.theme();
         let menu_bg = inline_styles::menu_background_color(app);
         let label = if self.mixer.as_ref(app).is_loading() {
-            "Loading..."
+            crate::localization::text_for_app(app, "common.loading")
         } else {
-            "No results"
+            crate::localization::text_for_app(app, "terminal.cloud_mode_v2_history.no_results")
         };
         Container::new(
-            Text::new(
-                label.to_owned(),
-                appearance.ui_font_family(),
-                ITEM_FONT_SIZE,
-            )
-            .with_color(theme.disabled_text_color(Fill::Solid(menu_bg)).into_solid())
-            .finish(),
+            Text::new(label, appearance.ui_font_family(), ITEM_FONT_SIZE)
+                .with_color(theme.disabled_text_color(Fill::Solid(menu_bg)).into_solid())
+                .finish(),
         )
         .with_horizontal_padding(MENU_HORIZONTAL_PADDING)
         .with_vertical_padding(ROW_VERTICAL_PADDING)

@@ -139,7 +139,7 @@ impl KeybindingsView {
     fn build_bindings(ctx: &AppContext) -> Vec<CommandBinding> {
         ctx.get_key_bindings()
             .filter_map(|lens| CommandBinding::from_lens(lens, ctx))
-            .chain(get_additional_keybindings())
+            .chain(get_additional_keybindings(ctx))
             .filter(|a| {
                 a.trigger.is_some()
                     && !a
@@ -174,6 +174,27 @@ impl KeybindingsView {
         .collect();
         self.bindings = Some(bindings);
         self.binding_results = Some(filtered);
+        ctx.notify();
+    }
+
+    pub fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        let bindings = Self::build_bindings(ctx);
+        let search_term = self.search_editor.as_ref(ctx).buffer_text(ctx);
+        let filtered: Vec<CommandBinding> = filter_bindings_including_keystroke(
+            bindings.iter(),
+            &search_term,
+            DescriptionContext::Default,
+        )
+        .map(|(_, binding)| binding.clone())
+        .collect();
+        self.bindings = Some(bindings);
+        self.binding_results = Some(filtered);
+        self.search_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
+                ctx,
+            );
+        });
         ctx.notify();
     }
 
@@ -318,7 +339,7 @@ impl KeybindingsView {
             .finish()
     }
 
-    fn render_subheader(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_subheader(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let bindings = self
             .bindings
             .as_ref()
@@ -349,7 +370,14 @@ impl KeybindingsView {
                         .build()
                         .finish(),
                 )
-                .with_child(self.render_text("To toggle this panel".into(), None, appearance))
+                .with_child(self.render_text(
+                    localization::text_for_app(
+                        app,
+                        "resource_center.keybindings.toggle_this_panel",
+                    ),
+                    None,
+                    appearance,
+                ))
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .finish();
 
@@ -364,7 +392,7 @@ impl KeybindingsView {
             appearance
                 .ui_builder()
                 .link(
-                    "here.".into(),
+                    localization::text_for_app(app, "resource_center.keybindings.settings_link"),
                     None,
                     Some(Box::new(|ctx| {
                         ctx.dispatch_typed_action(WorkspaceAction::ConfigureKeybindingSettings {
@@ -387,7 +415,10 @@ impl KeybindingsView {
         Container::new(
             column
                 .with_child(self.render_text(
-                    "Go to settings > keyboard shortcuts to configure custom keybindings".into(),
+                    localization::text_for_app(
+                        app,
+                        "resource_center.keybindings.settings_instructions",
+                    ),
                     None,
                     appearance,
                 ))
@@ -405,6 +436,7 @@ impl KeybindingsView {
         &self,
         section: KeybindingSection,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let mut bindings = self.get_bindings_by_section(section.clone()).peekable();
 
@@ -415,11 +447,21 @@ impl KeybindingsView {
             Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
         let title = match section {
-            KeybindingSection::Essentials => "Essentials",
-            KeybindingSection::Blocks => "Blocks",
-            KeybindingSection::InputEditor => "Input Editor",
-            KeybindingSection::Terminal => "Terminal",
-            KeybindingSection::Fundamentals => "Fundamentals",
+            KeybindingSection::Essentials => {
+                localization::text_for_app(app, "resource_center.keybindings.section.essentials")
+            }
+            KeybindingSection::Blocks => {
+                localization::text_for_app(app, "resource_center.keybindings.section.blocks")
+            }
+            KeybindingSection::InputEditor => {
+                localization::text_for_app(app, "resource_center.keybindings.section.input_editor")
+            }
+            KeybindingSection::Terminal => {
+                localization::text_for_app(app, "resource_center.keybindings.section.terminal")
+            }
+            KeybindingSection::Fundamentals => {
+                localization::text_for_app(app, "resource_center.keybindings.section.fundamentals")
+            }
         };
 
         let mut section_header = self.render_text(
@@ -483,12 +525,12 @@ impl KeybindingsView {
         Some(binding_list.finish())
     }
 
-    fn render_body(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_body(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let keybinding_sections = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_children(
                 all::<KeybindingSection>()
-                    .filter_map(|section| self.render_section(section, appearance))
+                    .filter_map(|section| self.render_section(section, appearance, app))
                     .map(|child| {
                         Container::new(child)
                             .with_margin_bottom(SECTION_SPACING)
@@ -541,8 +583,8 @@ impl View for KeybindingsView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let search_bar = ChildView::new(&self.search_bar).finish();
-        let subheader = self.render_subheader(appearance);
-        let body = self.render_body(appearance);
+        let subheader = self.render_subheader(appearance, app);
+        let body = self.render_body(appearance, app);
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)

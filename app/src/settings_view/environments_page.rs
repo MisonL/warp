@@ -50,7 +50,7 @@ use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::root_view::CreateEnvironmentArg;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
@@ -339,9 +339,28 @@ impl EnvironmentsPageView {
         });
     }
 
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.pane_configuration.update(ctx, |pane_config, ctx| {
+            pane_config.set_title(
+                localization::text_for_app(ctx, "settings.environment.page.title"),
+                ctx,
+            );
+        });
+        self.search_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.environment.search.placeholder"),
+                ctx,
+            );
+        });
+        ctx.notify();
+    }
+
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         ctx.subscribe_to_model(&Appearance::handle(ctx), |view, _, _, ctx| {
             view.update_search_editor_text_colors(ctx);
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |view, _, _, ctx| {
+            view.refresh_localized_text(ctx);
         });
         // Subscribe to CloudModel to refresh when environments change.
         // Per-object events are suppressed during the initial load at the source,
@@ -1440,7 +1459,7 @@ impl EnvironmentsPageWidget {
 
         let github_button_action = if dropdown_state.is_loading {
             None
-        } else if dropdown_state.load_error_message.is_some() {
+        } else if dropdown_state.has_load_error() {
             Some(EnvironmentsPageAction::RetryFetchGithubRepos)
         } else if dropdown_state.auth_url.is_some() {
             Some(EnvironmentsPageAction::StartGithubAuth)
@@ -1453,7 +1472,7 @@ impl EnvironmentsPageWidget {
                 localization::text_for_app(app, "settings.environment.empty_state.loading"),
                 false,
             )
-        } else if dropdown_state.load_error_message.is_some() {
+        } else if dropdown_state.has_load_error() {
             (
                 localization::text_for_app(app, "settings.environment.empty_state.retry"),
                 true,

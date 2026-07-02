@@ -15070,8 +15070,10 @@ impl Workspace {
                 me.handoff_environment_creation_modal = None;
                 me.toast_stack.update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!(
-                            "Failed to create environment: {error_message}"
+                        DismissibleToast::error(localization::text_for_app_with_args(
+                            ctx,
+                            "workspace.toast.failed_to_create_environment",
+                            &[("error", error_message.as_str())],
                         )),
                         ctx,
                     );
@@ -15198,8 +15200,10 @@ impl Workspace {
                 me.handoff_environment_creation_modal = None;
                 me.toast_stack.update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!(
-                            "Failed to create environment: {error_message}"
+                        DismissibleToast::error(localization::text_for_app_with_args(
+                            ctx,
+                            "workspace.toast.failed_to_create_environment",
+                            &[("error", error_message.as_str())],
                         )),
                         ctx,
                     );
@@ -21856,8 +21860,10 @@ impl Workspace {
                         if is_incoming_version_past_current(new_version.soft_cutoff.as_deref()) {
                             VERSION_DEPRECATION_WITHOUT_PERMISSIONS_BANNER_TEXT.to_owned()
                         } else {
-                            "A new version is available but Warp is unable to perform the update."
-                                .to_owned()
+                            localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.unable_to_update.description",
+                            )
                         };
 
                     Some(WorkspaceBannerFields {
@@ -21867,7 +21873,10 @@ impl Workspace {
                         description,
                         secondary_button: None,
                         button: Some(WorkspaceBannerButtonDetails {
-                            text: "Update Warp manually".to_string(),
+                            text: localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.update_manually",
+                            ),
                             action: WorkspaceAction::DownloadNewVersion,
                             variant: BannerButtonVariant::Outlined,
                             icon: None,
@@ -21882,7 +21891,10 @@ impl Workspace {
                         if is_incoming_version_past_current(new_version.soft_cutoff.as_deref()) {
                             VERSION_DEPRECATION_WITHOUT_PERMISSIONS_BANNER_TEXT.to_owned()
                         } else {
-                            "Warp was unable to launch the new installed version.".to_owned()
+                            localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.unable_to_launch.description",
+                            )
                         };
 
                     Some(WorkspaceBannerFields {
@@ -21892,7 +21904,10 @@ impl Workspace {
                         description,
                         secondary_button: None,
                         button: Some(WorkspaceBannerButtonDetails {
-                            text: "Update Warp manually".to_string(),
+                            text: localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.update_manually",
+                            ),
                             action: WorkspaceAction::DownloadNewVersion,
                             variant: BannerButtonVariant::Outlined,
                             icon: None,

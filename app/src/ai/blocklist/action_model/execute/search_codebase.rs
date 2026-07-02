@@ -230,7 +230,10 @@ impl SearchCodebaseExecutor {
                 return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
                     SearchCodebaseResult::Failed {
                         reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-                        message: "The search failed because the codebase is not available. Try another way to locate the relevant files.".to_owned(),
+                        message: localization::text_for_app(
+                            ctx,
+                            "agent.search_codebase.error.codebase_unavailable",
+                        ),
                     },
                 ));
             };
@@ -346,10 +349,15 @@ impl SearchCodebaseExecutor {
                         ctx
                     );
                 });
-                return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Failed {
-                    message: "The search failed because the codebase is not available. Try another way to locate the relevant files.".to_owned(),
-                    reason: SearchCodebaseFailureReason::CodebaseNotIndexed
-                }));
+                return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
+                    SearchCodebaseResult::Failed {
+                        message: localization::text_for_app(
+                            ctx,
+                            "agent.search_codebase.error.codebase_unavailable",
+                        ),
+                        reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
+                    },
+                ));
             };
 
             // Add the repo root as a temporary permission; if the user gave us permission to

@@ -44,6 +44,7 @@ use crate::auth::auth_manager::LoginGatedFeature;
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::auth::{AuthManager, AuthStateProvider, UserUid};
+use crate::localization::LocalizationUpdater;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
@@ -66,8 +67,8 @@ use crate::workspaces::workspace::{CustomerType, Workspace};
 use crate::{localization, send_telemetry_from_ctx, WorkspaceAction};
 
 const HEADER_FONT_SIZE: f32 = 16.;
-const OVERVIEW_TAB_TEXT: &str = "Overview";
-const USAGE_HISTORY_TAB_TEXT: &str = "Usage History";
+const OVERVIEW_TAB_TEXT_KEY: &str = "settings.billing.tab.overview";
+const USAGE_HISTORY_TAB_TEXT_KEY: &str = "settings.billing.tab.usage_history";
 
 /// The threshold below which we only show the "Buy more" button (not "New agent").
 use crate::ai::request_usage_model::AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD;
@@ -119,30 +120,28 @@ pub enum BillingUsageTab {
 impl BillingUsageTab {
     pub fn get_tab_from_label(label: &str) -> Self {
         match label {
-            OVERVIEW_TAB_TEXT => BillingUsageTab::Overview,
-            USAGE_HISTORY_TAB_TEXT => BillingUsageTab::UsageHistory,
+            _ if label == BillingUsageTab::Overview.label() => BillingUsageTab::Overview,
+            _ if label == BillingUsageTab::UsageHistory.label() => BillingUsageTab::UsageHistory,
             _ => BillingUsageTab::Overview,
         }
     }
 
     pub fn label(&self) -> &str {
         match self {
-            BillingUsageTab::Overview => OVERVIEW_TAB_TEXT,
-            BillingUsageTab::UsageHistory => USAGE_HISTORY_TAB_TEXT,
+            BillingUsageTab::Overview => "Overview",
+            BillingUsageTab::UsageHistory => "Usage History",
         }
     }
 
     pub fn label_for_app(&self, app: &AppContext) -> String {
         match self {
-            BillingUsageTab::Overview => billing_text(app, "settings.billing.tab.overview"),
-            BillingUsageTab::UsageHistory => {
-                billing_text(app, "settings.billing.tab.usage_history")
-            }
+            BillingUsageTab::Overview => billing_text(app, OVERVIEW_TAB_TEXT_KEY),
+            BillingUsageTab::UsageHistory => billing_text(app, USAGE_HISTORY_TAB_TEXT_KEY),
         }
     }
 
     pub fn get_tab_from_label_for_app(label: &str, app: &AppContext) -> Self {
-        if label == billing_text(app, "settings.billing.tab.usage_history") {
+        if label == billing_text(app, USAGE_HISTORY_TAB_TEXT_KEY) {
             BillingUsageTab::UsageHistory
         } else {
             BillingUsageTab::Overview
@@ -264,6 +263,9 @@ impl BillingAndUsagePageView {
 
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, _, ctx| {
             ctx.notify()
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         ctx.subscribe_to_model(&PricingInfoModel::handle(ctx), |me, _handle, event, ctx| {
@@ -405,7 +407,36 @@ impl BillingAndUsagePageView {
         me.update_addon_credits_options(ctx);
         me.refresh_addon_credits_settings(ctx);
         me.update_prorated_mouse_states(ctx);
+        me.refresh_localized_text(ctx);
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.overage_limit_modal_state
+            .view
+            .update(ctx, |modal, ctx| {
+                modal.set_title(Some(billing_text(
+                    ctx,
+                    "settings.billing.overage_limit.modal_title",
+                )));
+                ctx.notify();
+            });
+        self.addon_credit_modal_state
+            .view
+            .update(ctx, |modal, ctx| {
+                modal.set_title(Some(billing_text(
+                    ctx,
+                    "settings.billing.addon_credits.modal_title",
+                )));
+                ctx.notify();
+            });
+        self.load_more_button.update(ctx, |button, ctx| {
+            button.set_label(
+                billing_text(ctx, "settings.billing.usage_history.load_more"),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     fn refresh_addon_credits_settings(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1399,7 +1430,7 @@ impl BillingAndUsagePageView {
         let spend_limit_text = if let Some(cents) = usage_settings.max_monthly_spend_cents {
             format!("${:.2}", cents as f64 / 100.0)
         } else {
-            "Not set".to_string()
+            billing_text(app, "settings.billing.value.not_set")
         };
 
         let info_icon = render_info_icon(
@@ -1408,14 +1439,15 @@ impl BillingAndUsagePageView {
                 mouse_state: self.ubp_info_icon_mouse_state.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some(
-                    "Sets the monthly overage spending limit beyond the plan amount".to_string(),
-                ),
+                tooltip_override_text: Some(billing_text(
+                    app,
+                    "settings.billing.overage_limit.tooltip",
+                )),
             },
         );
 
         let label = Text::new_inline(
-            "Monthly overage spending limit",
+            billing_text(app, "settings.billing.overage_limit.label"),
             appearance.ui_font_family(),
             12.,
         )
@@ -2918,7 +2950,11 @@ impl BillingAndUsagePageView {
             .with_child(
                 appearance
                     .ui_builder()
-                    .paragraph(format!("Resets {formatted_next_refresh_time}"))
+                    .paragraph(billing_text_with_args(
+                        app,
+                        "settings.billing.usage.resets",
+                        &[("date", &formatted_next_refresh_time)],
+                    ))
                     .with_style(UiComponentStyles {
                         font_color: Some(blended_colors::text_sub(
                             appearance.theme(),

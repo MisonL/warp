@@ -194,10 +194,11 @@ impl MCPServersEditPageView {
             me.handle_delete_confirmation_event(event, ctx);
         });
 
-        let editing_disabled_banner = ctx.add_typed_action_view(|_| {
-            Banner::new_without_close(BannerTextContent::plain_text(
-                "Only team admins and the creator of the MCP server can edit the MCP server.",
-            ))
+        let editing_disabled_banner = ctx.add_typed_action_view(|ctx| {
+            Banner::new_without_close(BannerTextContent::plain_text(localization::text_for_app(
+                ctx,
+                "settings.mcp.edit.editing_disabled",
+            )))
             .with_icon(Icon::Warning)
         });
 
@@ -320,11 +321,15 @@ impl MCPServersEditPageView {
     fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let title = if self.server_card_item_id.is_none() {
-            "Add New MCP Server".to_string()
+            localization::text_for_app(app, "settings.mcp.edit.title.add")
         } else if let Some(name) = self.server_model.name() {
-            format!("Edit {name} MCP Server")
+            localization::text_for_app_with_args(
+                app,
+                "settings.mcp.edit.title.edit_named",
+                &[("name", &name)],
+            )
         } else {
-            "Edit MCP Server".to_string()
+            localization::text_for_app(app, "settings.mcp.edit.title.edit")
         };
 
         let ui_builder = appearance.ui_builder().clone();
@@ -634,25 +639,29 @@ impl MCPServersEditPageView {
                 );
             });
 
-            return Err("No MCP Server specified.".to_string());
+            return Err(localization::text_for_app(
+                ctx,
+                "settings.mcp.edit.error.no_server_specified",
+            ));
         }
 
         if parsed_templatable_mcp_servers.len() > 1 {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error(
-                        "Cannot add multiple MCP servers while editing a single server."
-                            .to_string(),
-                    ),
+                    DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "settings.mcp.edit.error.multiple_servers_in_single_edit",
+                    )),
                     window_id,
                     ctx,
                 );
             });
 
-            return Err(
-                "Cannot add multiple MCP servers while editing a single server.".to_string(),
-            );
+            return Err(localization::text_for_app(
+                ctx,
+                "settings.mcp.edit.error.multiple_servers_in_single_edit",
+            ));
         }
 
         Ok(parsed_templatable_mcp_servers[0].clone())

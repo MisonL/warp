@@ -2169,7 +2169,7 @@ impl View for LocalCodeEditorView {
         let base: Box<dyn Element> =
             if self.base_content_version.is_some() && self.is_remote_disconnected(app) {
                 let appearance = Appearance::as_ref(app);
-                let banner = render_remote_disconnected_banner(appearance);
+                let banner = render_remote_disconnected_banner(appearance, app);
                 let mut col = Flex::column().with_child(banner);
 
                 let editor_view = ChildView::new(&self.editor).finish();
@@ -2479,7 +2479,10 @@ pub fn render_unsaved_changes_banner(
 
 /// Renders a banner indicating that the remote SSH session is disconnected
 /// and save / auto-reload are unavailable.
-pub fn render_remote_disconnected_banner(appearance: &Appearance) -> Box<dyn Element> {
+pub fn render_remote_disconnected_banner(
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let row = Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_main_axis_size(MainAxisSize::Max)
@@ -2501,7 +2504,7 @@ pub fn render_remote_disconnected_banner(appearance: &Appearance) -> Box<dyn Ele
             Shrinkable::new(
                 1.,
                 Text::new(
-                    "Remote host disconnected. You will not be able to see updates and save changes.",
+                    localization::text_for_app(app, "remote.host.disconnected_save_unavailable"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )

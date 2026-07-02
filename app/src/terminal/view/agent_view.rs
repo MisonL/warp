@@ -13,6 +13,7 @@ use crate::ai::blocklist::agent_view::{
 use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
+use crate::localization;
 use crate::persistence::ModelEvent;
 use crate::server::telemetry::TelemetryAgentViewEntryOrigin;
 use crate::terminal::input::message_bar::{Message, MessageItem};
@@ -63,10 +64,10 @@ impl TerminalView {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error(
-                        "Cannot start a new conversation while agent is monitoring a command."
-                            .to_string(),
-                    ),
+                    DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "terminal.input.toast.cannot_start_conversation_agent_monitoring",
+                    )),
                     window_id,
                     ctx,
                 );

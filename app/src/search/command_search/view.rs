@@ -56,7 +56,6 @@ use crate::terminal::resizable_data::{ModalType, ResizableData, DEFAULT_UNIVERSA
 use crate::terminal::{History, HistoryEvent};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search your history, workflows, and more";
 const PANEL_POSITION_ID: &str = "CommandSearchViewPanel";
 const DETAILS_PANEL_MARGIN: f32 = 4.;
 const MIN_WIDTH_RATIO: f32 = 0.25;
@@ -142,10 +141,10 @@ impl CommandSearchView {
         let mixer = ctx.add_model(|_| CommandSearchMixer::new());
 
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
+                "search.command_search.placeholder",
                 |result_index, result| {
                     QueryResultRenderer::new(
                         result,
@@ -508,13 +507,25 @@ impl CommandSearchView {
 
             let (a11y_content, a11y_help_content) = if was_immediately_executed {
                 (
-                    "Result executed".to_owned(),
-                    "Press Cmd-Up to navigate to the command's output.".to_owned(),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_executed",
+                    ),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_executed_help",
+                    ),
                 )
             } else {
                 (
-                    "Result accepted.".to_owned(),
-                    "You can edit the command here before pressing Enter to execute it.".to_owned(),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_accepted",
+                    ),
+                    crate::localization::text_for_app(
+                        ctx,
+                        "search.command_search.a11y.result_accepted_help",
+                    ),
                 )
             };
             ctx.emit_a11y_content(AccessibilityContent::new(
@@ -609,7 +620,13 @@ impl CommandSearchView {
                             current_user_id,
                         )
                     } else {
-                        self.render_error_header_text("Looks like you're out of credits. Contact a team admin to upgrade for more credits.".to_string(), appearance)
+                        self.render_error_header_text(
+                            crate::localization::text_for_app(
+                                app,
+                                "search.command_search.out_of_credits_contact_admin",
+                            ),
+                            appearance,
+                        )
                     }
                 } else {
                     self.render_error_header_text(message, appearance)
@@ -674,7 +691,7 @@ impl CommandSearchView {
             appearance
                 .ui_builder()
                 .link(
-                    "Upgrade".into(),
+                    crate::localization::text_for_app(app, "search.command_search.upgrade"),
                     None,
                     Some(Box::new(move |ctx| {
                         ctx.dispatch_typed_action(CommandSearchAction::AttemptLoginGatedUpgrade);
@@ -686,7 +703,7 @@ impl CommandSearchView {
             appearance
                 .ui_builder()
                 .link(
-                    "Upgrade".into(),
+                    crate::localization::text_for_app(app, "search.command_search.upgrade"),
                     None,
                     Some(Box::new(move |ctx| {
                         ctx.dispatch_typed_action(CommandSearchAction::OpenUpgradeLink(
@@ -726,7 +743,10 @@ impl CommandSearchView {
         row.add_child(
             appearance
                 .ui_builder()
-                .span(" for more credits.")
+                .span(crate::localization::text_for_app(
+                    app,
+                    "search.command_search.out_of_credits_suffix",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.monospace_font_size()),
                     font_family_id: Some(appearance.ui_font_family()),
@@ -839,7 +859,7 @@ impl CommandSearchView {
                         .unwrap_or(false);
                     column.add_child(self.render_error_header(
                         app,
-                        error.user_facing_error(),
+                        error.user_facing_error_for_app(app),
                         is_ratelimit_error,
                         appearance,
                     ));
@@ -994,10 +1014,10 @@ impl View for CommandSearchView {
         }
     }
 
-    fn accessibility_contents(&self, _ctx: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, ctx: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Command Search".to_owned(),
-            "Search your history, workflows, and more.  Use the Up and Down arrows to browse search results after typing.  Press Enter to accept a selected result, inserting it into the terminal input.  Press Escape to close.".to_owned(),
+            crate::localization::text_for_app(ctx, "search.command_search.title"),
+            crate::localization::text_for_app(ctx, "search.command_search.a11y.description"),
             WarpA11yRole::MenuRole,
         ))
     }

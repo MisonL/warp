@@ -66,6 +66,7 @@ use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_WARP_AI_MENU_KEY};
 use crate::appearance::Appearance;
 use crate::drive::settings::WarpDriveSettings;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::pane_group::SplitPaneState;
 use crate::settings::{
     AISettings, DebugSettings, EnforceMinimumContrast, PrivacySettings, TerminalSpacing,
@@ -148,11 +149,6 @@ const LINEAR_SCROLLING: ScrollingAcceleration = ScrollingAcceleration::Polynomia
 /// Without making the vertical size fixed, for some reason some elements (bookmark, block filter, shared session avatar)
 /// have a height that extends down to the bottom of the window when there's a horizontal scroll bar, which messes with the on-hover behavior.
 const BLOCK_HOVER_BUTTON_HEIGHT: f32 = 28.;
-
-const TAG_AGENT_FOR_ASSISTANCE_TEXT: &str = "Tag agent for assistance";
-
-const SAVE_AS_WORKFLOW_TEXT: &str = "Save as Workflow";
-const SAVE_AS_WORKFLOW_SECRETS_TEXT: &str = "Blocks containing secrets cannot be saved.";
 
 enum ScrollingAcceleration {
     Polynomial(f32),
@@ -1162,7 +1158,10 @@ impl BlockListElement {
                 if has_active_long_running_command && active_block.index() == block_index {
                     (
                         Some(TerminalAction::SetInputModeAgent),
-                        TAG_AGENT_FOR_ASSISTANCE_TEXT.to_owned(),
+                        crate::localization::text_for_app(
+                            app,
+                            "terminal.block_hover.tag_agent_for_assistance",
+                        ),
                     )
                 } else {
                     (
@@ -1223,7 +1222,10 @@ impl BlockListElement {
                 render_hoverable_block_button(
                     icon,
                     Some(ToolbeltButtonTooltip {
-                        label: SAVE_AS_WORKFLOW_SECRETS_TEXT.to_owned(),
+                        label: crate::localization::text_for_app(
+                            app,
+                            "terminal.block_hover.save_as_workflow_secrets",
+                        ),
                         tool_tip_below_button: should_render_tooltip_below_button,
                     }),
                     false,
@@ -1243,7 +1245,10 @@ impl BlockListElement {
                 render_hoverable_block_button(
                     icon,
                     Some(ToolbeltButtonTooltip {
-                        label: SAVE_AS_WORKFLOW_TEXT.to_owned(),
+                        label: crate::localization::text_for_app(
+                            app,
+                            "terminal.menu.save_as_workflow",
+                        ),
                         tool_tip_below_button: should_render_tooltip_below_button,
                     }),
                     false,
@@ -3411,16 +3416,21 @@ impl Element for BlockListElement {
                     // we want to show different text in the separator if this is an individual conversation
                     // restored from the command palette
                     let banner_intro_text = if is_historical_conversation_restoration {
-                        "Conversation restored".to_string()
+                        localization::text_for_app(app, "terminal.block_list.separator.restored")
                     } else {
-                        "Previous session".to_string()
+                        localization::text_for_app(
+                            app,
+                            "terminal.block_list.separator.previous_session",
+                        )
                     };
 
                     let separator_text =
                         if let Some(ts) = (*model).block_list().restored_session_ts() {
-                            format!(
-                                "{banner_intro_text} from {}",
-                                ts.format("%a %b %-d at %-I:%M %p")
+                            let timestamp = ts.format("%a %b %-d at %-I:%M %p").to_string();
+                            localization::text_for_app_with_args(
+                                app,
+                                "terminal.block_list.separator.with_timestamp",
+                                &[("text", &banner_intro_text), ("timestamp", &timestamp)],
                             )
                         } else {
                             banner_intro_text

@@ -495,7 +495,7 @@ use crate::terminal::waterfall_gap_element::WaterfallGapElement;
 use crate::terminal::{
     block_list_element::BlockHoverAction,
     // find::{Event as FindEvent, Find, FindDirection},
-    input::{Event as InputEvent, Input, INPUT_A11Y_HELPER, INPUT_A11Y_LABEL},
+    input::{Event as InputEvent, Input, INPUT_A11Y_HELPER_KEY, INPUT_A11Y_LABEL_KEY},
     model::block::SerializedBlock,
     shell::ShellType,
     terminal_size_element::TerminalSizeElement,
@@ -23480,6 +23480,7 @@ impl TerminalView {
         filter_mouse_state: MouseStateHandle,
         has_active_filter: bool,
         tool_tip_below_button: bool,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let icon = Container::new(
@@ -23510,7 +23511,7 @@ impl TerminalView {
             render_hoverable_block_button(
                 icon,
                 Some(ToolbeltButtonTooltip {
-                    label: "Filter block output".to_string(),
+                    label: localization::text_for_app(app, "terminal.block_filter.placeholder"),
                     tool_tip_below_button,
                 }),
                 should_disable_filter_button,
@@ -24259,6 +24260,7 @@ impl TerminalView {
                                     mouse_state,
                                     has_active_filter,
                                     i == 0,
+                                    app,
                                     Appearance::as_ref(app),
                                 ))
                             } else {
@@ -26180,17 +26182,17 @@ impl TypedActionView for TerminalView {
             }
             FocusInputAndClearSelection => {
                 Custom(AccessibilityContent::new(
-                    INPUT_A11Y_LABEL,
+                    crate::localization::text_for_app(ctx, INPUT_A11Y_LABEL_KEY),
                     // TODO (a11y) use bindings from user settings
-                    INPUT_A11Y_HELPER,
+                    crate::localization::text_for_app(ctx, INPUT_A11Y_HELPER_KEY),
                     WarpA11yRole::TextareaRole,
                 ))
             }
             KeyDown(key) => {
                 let label = if key.eq("\x1b") {
-                    INPUT_A11Y_LABEL
+                    crate::localization::text_for_app(ctx, INPUT_A11Y_LABEL_KEY)
                 } else {
-                    key
+                    key.to_string()
                 };
                 Custom(AccessibilityContent::new_without_help(
                     label,

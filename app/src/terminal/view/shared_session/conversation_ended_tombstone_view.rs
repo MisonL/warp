@@ -365,12 +365,17 @@ impl ConversationEndedTombstoneView {
         view
     }
 
-    fn render_header(&self, is_transcript: bool, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(
+        &self,
+        is_transcript: bool,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         if is_transcript {
             return Text::new(
-                "You're viewing a snapshot",
+                shared_session_text(app, "terminal.shared_session.snapshot.title"),
                 appearance.overline_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -402,7 +407,7 @@ impl ConversationEndedTombstoneView {
             .display_data
             .title
             .clone()
-            .unwrap_or_else(|| "Agent task".to_string());
+            .unwrap_or_else(|| shared_session_text(app, "terminal.shared_session.agent_task"));
         Flex::row()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -425,12 +430,15 @@ impl ConversationEndedTombstoneView {
             .finish()
     }
 
-    fn render_snapshot_subtitle(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_snapshot_subtitle(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "This shared conversation shows the state when you opened it. \
-                 If the agent is still running, refresh to see the latest progress.",
+                shared_session_text(app, "terminal.shared_session.snapshot.description"),
                 appearance.overline_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -442,29 +450,49 @@ impl ConversationEndedTombstoneView {
         .finish()
     }
 
-    fn render_metadata_row(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_metadata_row(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
         let mut parts: Vec<String> = Vec::new();
 
         if let Some(dir) = &self.display_data.working_directory {
             let display_dir = home_relative_path(Path::new(dir));
-            parts.push(format!("Directory: {display_dir}"));
+            parts.push(crate::localization::text_for_app_with_args(
+                app,
+                "terminal.shared_session.metadata.directory",
+                &[("directory", &display_dir)],
+            ));
         }
 
         if let Some(source) = &self.display_data.source {
-            parts.push(format!("Source: {source}"));
+            parts.push(crate::localization::text_for_app_with_args(
+                app,
+                "terminal.shared_session.metadata.source",
+                &[("source", source)],
+            ));
         }
 
         if let Some(skill) = &self.display_data.skill_name {
-            parts.push(format!("Skill: {skill}"));
+            parts.push(crate::localization::text_for_app_with_args(
+                app,
+                "terminal.shared_session.metadata.skill_value",
+                &[("skill", skill)],
+            ));
         }
 
         if let Some(run_time) = &self.display_data.run_time {
-            parts.push(format!("Run time: {run_time}"));
+            parts.push(crate::localization::text_for_app_with_args(
+                app,
+                "terminal.shared_session.metadata.run_time",
+                &[("run_time", run_time)],
+            ));
         }
 
         if let Some(credits) = &self.display_data.credits {
-            parts.push(format!("Credits used: {credits}"));
+            parts.push(crate::localization::text_for_app_with_args(
+                app,
+                "terminal.shared_session.metadata.credits_used",
+                &[("credits", credits)],
+            ));
         }
 
         if parts.is_empty() {
@@ -595,15 +623,15 @@ impl View for ConversationEndedTombstoneView {
         let mut left_column = Flex::column()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_child(self.render_header(is_transcript, appearance));
+            .with_child(self.render_header(is_transcript, appearance, app));
 
         if is_transcript {
-            left_column.add_child(self.render_snapshot_subtitle(appearance));
+            left_column.add_child(self.render_snapshot_subtitle(appearance, app));
         }
 
         let metadata_margin_top = if is_transcript { 12. } else { 4. };
         left_column.add_child(
-            Container::new(self.render_metadata_row(appearance))
+            Container::new(self.render_metadata_row(appearance, app))
                 .with_margin_top(metadata_margin_top)
                 .finish(),
         );

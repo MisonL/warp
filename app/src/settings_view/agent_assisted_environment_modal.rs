@@ -32,6 +32,7 @@ use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewCon
 
 use crate::appearance::Appearance;
 use crate::localization;
+use crate::localization::LocalizationUpdater;
 use crate::modal::MODAL_BACKDROP_OPACITY;
 use crate::themes::theme::Blend;
 use crate::ui_components::buttons::icon_button;
@@ -149,6 +150,10 @@ impl AgentAssistedEnvironmentModal {
             create_button,
         };
 
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
+
         #[cfg(all(
             feature = "local_fs",
             not(target_family = "wasm"),
@@ -181,6 +186,33 @@ impl AgentAssistedEnvironmentModal {
 
         me.update_create_button_disabled_state(ctx);
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.add_repo_button.update(ctx, |button, ctx| {
+            button.set_label(
+                agent_assisted_environment_text(
+                    ctx,
+                    "settings.environment.agent_assisted.add_repo",
+                ),
+                ctx,
+            );
+        });
+        self.cancel_button.update(ctx, |button, ctx| {
+            button.set_label(
+                agent_assisted_environment_text(ctx, "settings.action.cancel"),
+                ctx,
+            );
+        });
+        self.create_button.update(ctx, |button, ctx| {
+            button.set_label(
+                agent_assisted_environment_text(
+                    ctx,
+                    "settings.environment.form.create_environment",
+                ),
+                ctx,
+            );
+        });
     }
 
     pub fn is_visible(&self) -> bool {
@@ -338,19 +370,32 @@ impl AgentAssistedEnvironmentModal {
             .finish()
     }
 
-    fn render_selected_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_selected_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let mut col = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_spacing(8.);
 
-        col.add_child(self.render_section_title("Selected repos", appearance));
+        col.add_child(self.render_section_title(
+            &agent_assisted_environment_text(
+                app,
+                "settings.environment.agent_assisted.selected_repos",
+            ),
+            appearance,
+        ));
 
         if self.selected_repo_paths.is_empty() {
             col.add_child(
                 Text::new(
-                    "No repos selected yet",
+                    agent_assisted_environment_text(
+                        app,
+                        "settings.environment.agent_assisted.no_repos_selected",
+                    ),
                     appearance.ui_font_family(),
                     appearance.ui_font_size() * 0.95,
                 )
@@ -413,7 +458,11 @@ impl AgentAssistedEnvironmentModal {
         col.finish()
     }
 
-    fn render_available_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_available_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let mut col = Flex::column()
@@ -426,7 +475,13 @@ impl AgentAssistedEnvironmentModal {
             .with_child(
                 Expanded::new(
                     1.,
-                    self.render_section_title("Available indexed repos", appearance),
+                    self.render_section_title(
+                        &agent_assisted_environment_text(
+                            app,
+                            "settings.environment.agent_assisted.available_indexed_repos",
+                        ),
+                        appearance,
+                    ),
                 )
                 .finish(),
             )
@@ -446,12 +501,21 @@ impl AgentAssistedEnvironmentModal {
         if self.available_repos.is_empty() {
             let text = if cfg!(all(feature = "local_fs", not(target_family = "wasm"))) {
                 if self.available_repos_loading {
-                    "Loading locally indexed repos…"
+                    agent_assisted_environment_text(
+                        app,
+                        "settings.environment.agent_assisted.loading_indexed_repos",
+                    )
                 } else {
-                    "No locally indexed repos found yet. Index a repo, then try again."
+                    agent_assisted_environment_text(
+                        app,
+                        "settings.environment.agent_assisted.no_indexed_repos",
+                    )
                 }
             } else {
-                "Local repo selection is unavailable in this build."
+                agent_assisted_environment_text(
+                    app,
+                    "settings.environment.agent_assisted.local_repo_unavailable",
+                )
             };
 
             col.add_child(
@@ -521,7 +585,10 @@ impl AgentAssistedEnvironmentModal {
         if !has_any_available {
             col.add_child(
                 Text::new(
-                    "All locally indexed repos are already selected.",
+                    agent_assisted_environment_text(
+                        app,
+                        "settings.environment.agent_assisted.all_repos_selected",
+                    ),
                     appearance.ui_font_family(),
                     appearance.ui_font_size() * 0.95,
                 )
@@ -629,11 +696,13 @@ impl AgentAssistedEnvironmentModal {
 
     fn render_dialog(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let description = if FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
-            "Select locally indexed repos to provide context for the environment creation agent."
+            agent_assisted_environment_text(
+                app,
+                "settings.environment.agent_assisted.description_indexed",
+            )
         } else {
-            "Select repos to provide context for the environment creation agent."
-        }
-        .to_string();
+            agent_assisted_environment_text(app, "settings.environment.agent_assisted.description")
+        };
 
         let close_button = icon_button(
             appearance,
@@ -650,12 +719,12 @@ impl AgentAssistedEnvironmentModal {
         let content = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_spacing(16.)
-            .with_child(self.render_selected_section(appearance))
-            .with_child(self.render_available_section(appearance))
+            .with_child(self.render_selected_section(appearance, app))
+            .with_child(self.render_available_section(appearance, app))
             .finish();
 
         let dialog = Dialog::new(
-            "Select repos for your environment".to_string(),
+            agent_assisted_environment_text(app, "settings.environment.agent_assisted.title"),
             Some(description),
             dialog_styles(appearance),
         )
