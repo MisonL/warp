@@ -1,5 +1,6 @@
-use super::*;
 use chrono::TimeZone;
+
+use super::*;
 
 #[test]
 fn test_format_sigfigs() {

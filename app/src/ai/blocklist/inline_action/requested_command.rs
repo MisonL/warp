@@ -48,10 +48,8 @@ use crate::ai::blocklist::{
     AIBlock, BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIHistoryModel,
     ClientIdentifiers,
 };
-use crate::cmd_or_ctrl_shift;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
 use crate::editor::InteractionState;
-use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
 use crate::settings::InputModeSettings;
 use crate::terminal::block_list_viewport::InputMode;
@@ -65,6 +63,7 @@ use crate::view_components::compactible_action_button::{
     MEDIUM_SIZE_SWITCH_THRESHOLD, SMALL_SIZE_SWITCH_THRESHOLD,
 };
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
+use crate::{cmd_or_ctrl_shift, localization};
 
 /// The vertical padding applied to the requested command row's content body.
 /// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.

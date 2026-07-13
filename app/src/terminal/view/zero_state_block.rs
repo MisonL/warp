@@ -20,7 +20,6 @@ use crate::ai::blocklist::agent_view::{
     ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE, ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
 };
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::settings::{AISettings, AISettingsChangedEvent, InputModeSettings};
 use crate::terminal::event::BlockType;
 use crate::terminal::input::message_bar::common::render_standard_message;
@@ -33,7 +32,7 @@ use crate::ui_components::blended_colors;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::tab_settings::{TabSettings, TabSettingsChangedEvent};
 use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
-use crate::WorkspaceAction;
+use crate::{localization, WorkspaceAction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalViewZeroStateAction {

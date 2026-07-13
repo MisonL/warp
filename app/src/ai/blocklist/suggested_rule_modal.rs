@@ -24,10 +24,8 @@ use crate::editor::{
     EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent, InteractionState,
     PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
-use crate::localization;
 use crate::modal::{Modal, ModalEvent};
 use crate::network::NetworkStatus;
-use crate::send_telemetry_from_ctx;
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
@@ -36,6 +34,7 @@ use crate::server::telemetry::TelemetryEvent;
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, send_telemetry_from_ctx};
 
 const MAX_EDITOR_HEIGHT: f32 = 240.;
 

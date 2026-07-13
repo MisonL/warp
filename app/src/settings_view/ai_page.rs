@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use ::ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent, ApiKeys, AwsCredentialsState};
 #[cfg(not(target_family = "wasm"))]
 use ::ai::grok_subscription::oauth::{self, ManualCodeExchange};
@@ -7,7 +9,6 @@ use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
 use regex::Regex;
 use settings::{Setting, ToggleableSetting};
-use std::time::SystemTime;
 use strum::IntoEnumIterator;
 use warp_core::channel::ChannelState;
 use warp_core::context_flag::ContextFlag;
