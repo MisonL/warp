@@ -11,6 +11,7 @@ use warpui::{AppContext, SingletonEntity, WeakViewHandle};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::localization;
 use crate::server::ids::ServerId;
 use crate::server::server_api::object::GuestIdentifier;
 use crate::terminal::shared_session::join_link;
@@ -28,6 +29,20 @@ mod style;
 pub use cloud_objects::drive::sharing::{
     LinkSharingSubjectType, SharingAccessLevel, Subject, TeamKind, UserKind,
 };
+
+pub(crate) fn localized_access_level_label(
+    app: &AppContext,
+    access_level: SharingAccessLevel,
+) -> String {
+    localization::text_for_app(
+        app,
+        match access_level {
+            SharingAccessLevel::View => "drive.sharing.access.view",
+            SharingAccessLevel::Edit => "drive.sharing.access.edit",
+            SharingAccessLevel::Full => "drive.sharing.access.full",
+        },
+    )
+}
 
 /// Identifier for an object that's shareable via the Warp Drive ACL model. Not all sharing in Warp
 /// is _currently_ tied into this model (e.g. block sharing).
@@ -110,7 +125,10 @@ impl SubjectExt for Subject {
             Subject::User(kind) => kind.name(app),
             Subject::PendingUser { email } => email.clone().map(Cow::from),
             Subject::Team(kind) => kind.display_name(app).map(Cow::from),
-            Subject::AnyoneWithLink(_) => Some(Cow::from("Anyone with the link")),
+            Subject::AnyoneWithLink(_) => Some(Cow::Owned(localization::text_for_app(
+                app,
+                "drive.sharing.anyone_with_link",
+            ))),
         }
     }
 

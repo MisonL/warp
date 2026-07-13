@@ -53,14 +53,7 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentPtyWriteMode,
     AIAgentText, AIAgentTextSection, CancellationReason, ProgrammingLanguage, WebSearchStatus,
 };
-use crate::ai::blocklist::block::view_impl::common::{
-    render_query_text, UserQueryProps, BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
-    BLOCKED_ACTION_MESSAGE_FOR_READING_FILES, BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE,
-    BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND,
-    LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB, LOAD_OUTPUT_MESSAGE_FOR_GREP,
-    LOAD_OUTPUT_MESSAGE_FOR_READING_FILES, LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE,
-    LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH,
-};
+use crate::ai::blocklist::block::view_impl::common::{render_query_text, UserQueryProps};
 use crate::ai::blocklist::block::TextLocation;
 use crate::ai::blocklist::code_block::CodeSnippetButtonHandles;
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
@@ -127,7 +120,6 @@ lazy_static! {
 const HAS_PENDING_CLI_ACTION_CONTEXT_KEY: &str = "HasPendingCLIAgentAction";
 const HAS_PENDING_NON_TRANSFER_CONTROL_ACTION_CONTEXT_KEY: &str =
     "HasPendingNonTransferControlCLIAgentAction";
-const BLOCKED_ACTION_MESSAGE_FOR_TRANSFER_CONTROL: &str = "Agent is asking you to take control.";
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -241,7 +233,7 @@ impl CLISubagentView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let allow_button = CompactibleSplitActionButton::new(
-            "Allow".to_string(),
+            crate::localization::text_for_app(ctx, "agent.cli.action.allow"),
             Some(KeystrokeSource::Fixed(ACCEPT_KEYSTROKE.clone())),
             ButtonSize::Small,
             CLISubagentAction::ExecuteBlockedAction,
@@ -253,7 +245,7 @@ impl CLISubagentView {
         );
 
         let reject_button = CompactibleActionButton::new(
-            "Refine".to_string(),
+            crate::localization::text_for_app(ctx, "agent.cli.action.refine"),
             Some(KeystrokeSource::Fixed(REJECT_KEYSTROKE.clone())),
             ButtonSize::Small,
             CLISubagentAction::RejectBlockedAction {
@@ -265,7 +257,7 @@ impl CLISubagentView {
         );
 
         let take_over_button = CompactibleActionButton::new(
-            "Take over".to_string(),
+            crate::localization::text_for_app(ctx, "agent.cli.action.take_over"),
             Some(KeystrokeSource::Binding(
                 SET_INPUT_MODE_TERMINAL_ACTION_NAME,
             )),
@@ -278,7 +270,7 @@ impl CLISubagentView {
             ctx,
         );
         let transfer_control_button = CompactibleActionButton::new(
-            "Take control".to_string(),
+            crate::localization::text_for_app(ctx, "agent.cli.action.take_control"),
             Some(KeystrokeSource::Binding(
                 SET_INPUT_MODE_TERMINAL_ACTION_NAME,
             )),
@@ -1300,8 +1292,10 @@ impl View for CLISubagentView {
             AIAgentActionType::WriteToLongRunningShellCommand { input, mode, .. } => {
                 Some(render_blocked_action(
                     BlockedActionProps {
-                        header: BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND
-                            .to_string(),
+                        header: crate::localization::text_for_app(
+                            app,
+                            "agent.cli.blocked_action.write_to_long_running_shell_command",
+                        ),
                         description: Some(render_write_to_pty_input(
                             WriteToPtyInputProps {
                                 input: input.clone(),
@@ -1336,7 +1330,10 @@ impl View for CLISubagentView {
             AIAgentActionType::TransferShellCommandControlToUser { ref reason } => {
                 Some(render_blocked_action(
                     BlockedActionProps {
-                        header: BLOCKED_ACTION_MESSAGE_FOR_TRANSFER_CONTROL.to_string(),
+                        header: crate::localization::text_for_app(
+                            app,
+                            "agent.cli.blocked_action.transfer_control",
+                        ),
                         description: Some(render_transfer_control_reason(reason, app)),
                         is_allow_menu_open: false,
                         allow_menu: None,
@@ -1351,7 +1348,8 @@ impl View for CLISubagentView {
             | AIAgentActionType::Grep { .. }
             | AIAgentActionType::FileGlobV2 { .. } => Some(render_blocked_action(
                 BlockedActionProps {
-                    header: get_blocked_action_header(action.action.clone()).unwrap_or_default(),
+                    header: get_blocked_action_header(action.action.clone(), app)
+                        .unwrap_or_default(),
                     description: render_search_action_input(action.action.clone(), app),
                     is_allow_menu_open: self.is_allow_menu_open,
                     allow_menu: Some(&self.allow_menu),
@@ -1570,14 +1568,24 @@ fn should_show_read_files_speedbump(app: &AppContext) -> bool {
         && *AISettings::as_ref(app).should_show_agent_mode_autoread_files_speedbump
 }
 
-fn get_action_loading_text(action: AIAgentActionType) -> Option<String> {
+fn get_action_loading_text(action: AIAgentActionType, app: &AppContext) -> Option<String> {
     match action {
-        AIAgentActionType::SearchCodebase(_) => {
-            Some(LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE.to_string())
-        }
-        AIAgentActionType::ReadFiles(_) => Some(LOAD_OUTPUT_MESSAGE_FOR_READING_FILES.to_string()),
-        AIAgentActionType::Grep { .. } => Some(LOAD_OUTPUT_MESSAGE_FOR_GREP.to_string()),
-        AIAgentActionType::FileGlobV2 { .. } => Some(LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB.to_string()),
+        AIAgentActionType::SearchCodebase(_) => Some(crate::localization::text_for_app(
+            app,
+            "agent.warping.status.searching_codebase",
+        )),
+        AIAgentActionType::ReadFiles(_) => Some(crate::localization::text_for_app(
+            app,
+            "agent.warping.status.reading_files",
+        )),
+        AIAgentActionType::Grep { .. } => Some(crate::localization::text_for_app(
+            app,
+            "agent.warping.status.grepping",
+        )),
+        AIAgentActionType::FileGlobV2 { .. } => Some(crate::localization::text_for_app(
+            app,
+            "agent.warping.status.finding_files",
+        )),
         _ => None,
     }
 }
@@ -1596,7 +1604,7 @@ fn render_action(action: AIAgentActionType, app: &AppContext) -> Option<Box<dyn 
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
 
-    let text = get_action_loading_text(action.clone())?;
+    let text = get_action_loading_text(action.clone(), app)?;
     let icon = get_action_icon(action)?;
 
     let icon = Container::new(
@@ -1636,9 +1644,13 @@ fn render_web_search(query: Option<String>, app: &AppContext) -> Box<dyn Element
     let theme = appearance.theme();
 
     let text = if let Some(q) = query {
-        format!("Searching the web for \"{q}\"")
+        crate::localization::text_for_app_with_args(
+            app,
+            "agent.warping.status.searching_web_for_query",
+            &[("query", &q)],
+        )
     } else {
-        LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH.to_string()
+        crate::localization::text_for_app(app, "agent.warping.status.searching_web")
     };
 
     let icon = Container::new(
@@ -1933,20 +1945,25 @@ fn render_transfer_control_reason(reason: &str, app: &AppContext) -> Box<dyn Ele
         .finish()
 }
 
-fn get_blocked_action_header(action: AIAgentActionType) -> Option<String> {
+fn get_blocked_action_header(action: AIAgentActionType, app: &AppContext) -> Option<String> {
     match action {
         AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND.to_string())
+            Some(crate::localization::text_for_app(
+                app,
+                "agent.cli.blocked_action.write_to_long_running_shell_command",
+            ))
         }
-        AIAgentActionType::ReadFiles(..) => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_READING_FILES.to_string())
-        }
-        AIAgentActionType::SearchCodebase(..) => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE.to_string())
-        }
-        AIAgentActionType::Grep { .. } | AIAgentActionType::FileGlobV2 { .. } => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB.to_string())
-        }
+        AIAgentActionType::ReadFiles(..) => Some(crate::localization::text_for_app(
+            app,
+            "agent.cli.blocked_action.reading_files",
+        )),
+        AIAgentActionType::SearchCodebase(..) => Some(crate::localization::text_for_app(
+            app,
+            "agent.cli.blocked_action.searching_codebase",
+        )),
+        AIAgentActionType::Grep { .. } | AIAgentActionType::FileGlobV2 { .. } => Some(
+            crate::localization::text_for_app(app, "agent.cli.blocked_action.grep_or_file_glob"),
+        ),
         _ => None,
     }
 }

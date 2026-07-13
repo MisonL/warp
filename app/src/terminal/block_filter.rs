@@ -182,7 +182,7 @@ impl BlockFilterEditor {
                 ctx,
             );
             editor.set_placeholder_text(
-                &crate::localization::text_for_app(ctx, "terminal.block_filter.placeholder"),
+                crate::localization::text_for_app(ctx, "terminal.block_filter.placeholder"),
                 ctx,
             );
             editor

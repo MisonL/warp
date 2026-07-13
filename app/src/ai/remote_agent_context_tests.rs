@@ -5,6 +5,7 @@ use watcher::HomeDirectoryWatcher;
 
 use super::*;
 use crate::settings::AISettings;
+use crate::test_util::settings::initialize_localization_for_tests;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 
 fn bundled_skill(
@@ -74,6 +75,7 @@ fn snapshot() -> RemoteAgentContextSnapshot {
 }
 
 fn setup_context_models(app: &mut App) {
+    initialize_localization_for_tests(app);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(AISettings::new_with_defaults);
     app.add_singleton_model(|_| DetectedRepositories::default());

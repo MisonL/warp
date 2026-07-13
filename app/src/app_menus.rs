@@ -39,21 +39,6 @@ use crate::{auth, localization, report_if_error};
 
 type CheckmarkStatusGetter = dyn 'static + Fn(&mut AppContext) -> bool;
 
-const ENABLE_SHELL_DEBUG_MODE_MENU_ITEM_NAME: &str =
-    "Enable Shell Debug Mode (-x) for New Sessions";
-const DISABLE_SHELL_DEBUG_MODE_MENU_ITEM_NAME: &str =
-    "Disable Shell Debug Mode (-x) for New Sessions";
-const ENABLE_IN_BAND_GENERATORS_MENU_ITEM_NAME: &str = "Enable In-band Generators for New Sessions";
-const DISABLE_IN_BAND_GENERATORS_MENU_ITEM_NAME: &str =
-    "Disable in-band generators for new sessions";
-const ENABLE_PTY_RECORDING: &str = "Enable PTY Recording Mode (warp.pty.recording)";
-const DISABLE_PTY_RECORDING: &str = "Disable PTY Recording Mode (warp.pty.recording)";
-const SHOW_BOOTSTRAP_BLOCK_MENU_ITEM_NAME: &str = "Show Initialization Block";
-const HIDE_BOOTSTRAP_BLOCK_MENU_ITEM_NAME: &str = "Hide Initialization Block";
-const SHOW_IN_BAND_COMMAND_BLOCKS_MENU_ITEM_NAME: &str = "Show In-band Command Blocks";
-const HIDE_IN_BAND_COMMAND_BLOCKS_MENU_ITEM_NAME: &str = "Hide In-band Command Blocks";
-const SHOW_SSH_COMMAND_BLOCKS_MENU_ITEM_NAME: &str = "Show Warpified SSH Blocks";
-const HIDE_SSH_COMMAND_BLOCKS_MENU_ITEM_NAME: &str = "Hide Warpified SSH Blocks";
 const SETTINGS_CSV_FILE_NAME: &str = "warp_default_settings.csv";
 const MAX_RECENT_REPOS_IN_MENU: usize = 10;
 
@@ -576,7 +561,7 @@ fn make_new_blocks_menu(ctx: &AppContext) -> Menu {
         updateable_custom_item_without_checkmark(CustomAction::CopyBlockOutput, ctx),
     ]);
 
-    let debug_items = block_menu_debug_items();
+    let debug_items = block_menu_debug_items(ctx);
     if !debug_items.is_empty() {
         items.push(MenuItem::Separator);
         items.extend(debug_items);
@@ -630,14 +615,14 @@ fn make_new_drive_menu(ctx: &AppContext) -> Menu {
 }
 
 /// Returns [`MenuItem`]s that aid debugging to be included in the Block menu.
-fn block_menu_debug_items() -> Vec<MenuItem> {
+fn block_menu_debug_items(ctx: &AppContext) -> Vec<MenuItem> {
     let mut items = vec![];
     if FeatureFlag::ToggleBootstrapBlock.is_enabled() {
-        items.push(toggle_bootstrap_block_menu_item());
+        items.push(toggle_bootstrap_block_menu_item(ctx));
     }
 
     items.push(MenuItem::Custom(CustomMenuItem::new(
-        SHOW_IN_BAND_COMMAND_BLOCKS_MENU_ITEM_NAME,
+        &menu_text(ctx, "app_menu.debug.show_in_band_command_blocks"),
         move |ctx| {
             let handle = BlockVisibilitySettings::handle(ctx);
             handle.update(ctx, |block_visibility_settings, ctx| {
@@ -656,9 +641,9 @@ fn block_menu_debug_items() -> Vec<MenuItem> {
             let name = if BlockVisibilitySettings::handle(ctx).read(ctx, |settings, _ctx| {
                 *settings.should_show_in_band_command_blocks.value()
             }) {
-                HIDE_IN_BAND_COMMAND_BLOCKS_MENU_ITEM_NAME.to_owned()
+                menu_text(ctx, "app_menu.debug.hide_in_band_command_blocks")
             } else {
-                SHOW_IN_BAND_COMMAND_BLOCKS_MENU_ITEM_NAME.to_owned()
+                menu_text(ctx, "app_menu.debug.show_in_band_command_blocks")
             };
 
             MenuItemPropertyChanges {
@@ -670,7 +655,7 @@ fn block_menu_debug_items() -> Vec<MenuItem> {
     )));
 
     items.push(MenuItem::Custom(CustomMenuItem::new(
-        SHOW_SSH_COMMAND_BLOCKS_MENU_ITEM_NAME,
+        &menu_text(ctx, "app_menu.debug.show_warpified_ssh_blocks"),
         move |ctx| {
             let handle = BlockVisibilitySettings::handle(ctx);
             handle.update(ctx, |block_visibility_settings, ctx| {
@@ -687,9 +672,9 @@ fn block_menu_debug_items() -> Vec<MenuItem> {
             let name = if BlockVisibilitySettings::handle(ctx).read(ctx, |settings, _ctx| {
                 *settings.should_show_ssh_block.value()
             }) {
-                HIDE_SSH_COMMAND_BLOCKS_MENU_ITEM_NAME.to_owned()
+                menu_text(ctx, "app_menu.debug.hide_warpified_ssh_blocks")
             } else {
-                SHOW_SSH_COMMAND_BLOCKS_MENU_ITEM_NAME.to_owned()
+                menu_text(ctx, "app_menu.debug.show_warpified_ssh_blocks")
             };
 
             MenuItemPropertyChanges {
@@ -703,9 +688,9 @@ fn block_menu_debug_items() -> Vec<MenuItem> {
     items
 }
 
-fn toggle_bootstrap_block_menu_item() -> MenuItem {
+fn toggle_bootstrap_block_menu_item(ctx: &AppContext) -> MenuItem {
     MenuItem::Custom(CustomMenuItem::new(
-        SHOW_BOOTSTRAP_BLOCK_MENU_ITEM_NAME,
+        &menu_text(ctx, "app_menu.debug.show_initialization_block"),
         move |ctx| {
             BlockVisibilitySettings::handle(ctx).update(ctx, |block_visibility_settings, ctx| {
                 let new_value = !block_visibility_settings
@@ -723,9 +708,9 @@ fn toggle_bootstrap_block_menu_item() -> MenuItem {
             let name = if BlockVisibilitySettings::handle(ctx).read(ctx, |settings, _ctx| {
                 *settings.should_show_bootstrap_block.value()
             }) {
-                HIDE_BOOTSTRAP_BLOCK_MENU_ITEM_NAME.to_owned()
+                menu_text(ctx, "app_menu.debug.hide_initialization_block")
             } else {
-                SHOW_BOOTSTRAP_BLOCK_MENU_ITEM_NAME.to_owned()
+                menu_text(ctx, "app_menu.debug.show_initialization_block")
             };
 
             MenuItemPropertyChanges {
@@ -755,7 +740,7 @@ fn debug_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
 
     if FeatureFlag::DebugMode.is_enabled() {
         debug_menu_items.push(MenuItem::Custom(CustomMenuItem::new(
-            ENABLE_SHELL_DEBUG_MODE_MENU_ITEM_NAME,
+            &menu_text(ctx, "app_menu.debug.enable_shell_debug_mode"),
             move |ctx| {
                 DebugSettings::handle(ctx).update(ctx, |debug_settings, ctx| {
                     let new_value = !debug_settings.is_shell_debug_mode_enabled.value();
@@ -771,9 +756,9 @@ fn debug_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
                 let name = if DebugSettings::handle(ctx).read(ctx, |settings, _ctx| {
                     *settings.is_shell_debug_mode_enabled.value()
                 }) {
-                    DISABLE_SHELL_DEBUG_MODE_MENU_ITEM_NAME.to_owned()
+                    menu_text(ctx, "app_menu.debug.disable_shell_debug_mode")
                 } else {
-                    ENABLE_SHELL_DEBUG_MODE_MENU_ITEM_NAME.to_owned()
+                    menu_text(ctx, "app_menu.debug.enable_shell_debug_mode")
                 };
 
                 MenuItemPropertyChanges {
@@ -785,7 +770,7 @@ fn debug_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
         )));
 
         debug_menu_items.push(MenuItem::Custom(CustomMenuItem::new(
-            ENABLE_PTY_RECORDING,
+            &menu_text(ctx, "app_menu.debug.enable_pty_recording"),
             move |ctx| {
                 DebugSettings::handle(ctx).update(ctx, |debug_settings, ctx| {
                     let new_value = !debug_settings.recording_mode.value();
@@ -796,9 +781,9 @@ fn debug_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
                 let name = if DebugSettings::handle(ctx)
                     .read(ctx, |settings, _ctx| *settings.recording_mode.value())
                 {
-                    DISABLE_PTY_RECORDING.to_owned()
+                    menu_text(ctx, "app_menu.debug.disable_pty_recording")
                 } else {
-                    ENABLE_PTY_RECORDING.to_owned()
+                    menu_text(ctx, "app_menu.debug.enable_pty_recording")
                 };
 
                 MenuItemPropertyChanges {
@@ -810,7 +795,7 @@ fn debug_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
         )));
 
         debug_menu_items.push(MenuItem::Custom(CustomMenuItem::new(
-            ENABLE_IN_BAND_GENERATORS_MENU_ITEM_NAME,
+            &menu_text(ctx, "app_menu.debug.enable_in_band_generators"),
             move |ctx| {
                 DebugSettings::handle(ctx).update(ctx, |debug_settings, ctx| {
                     let new_value = !debug_settings
@@ -830,9 +815,9 @@ fn debug_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
                         .are_in_band_generators_for_all_sessions_enabled
                         .value()
                 }) {
-                    DISABLE_IN_BAND_GENERATORS_MENU_ITEM_NAME.to_owned()
+                    menu_text(ctx, "app_menu.debug.disable_in_band_generators")
                 } else {
-                    ENABLE_IN_BAND_GENERATORS_MENU_ITEM_NAME.to_owned()
+                    menu_text(ctx, "app_menu.debug.enable_in_band_generators")
                 };
 
                 MenuItemPropertyChanges {
@@ -844,7 +829,7 @@ fn debug_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
         )));
 
         if !FeatureFlag::ToggleBootstrapBlock.is_enabled() {
-            debug_menu_items.push(toggle_bootstrap_block_menu_item());
+            debug_menu_items.push(toggle_bootstrap_block_menu_item(ctx));
         }
 
         debug_menu_items.push(MenuItem::Custom(CustomMenuItem::new(

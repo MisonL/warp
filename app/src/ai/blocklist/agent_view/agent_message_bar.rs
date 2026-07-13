@@ -56,7 +56,7 @@ use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::tab_settings::{TabSettings, TabSettingsChangedEvent};
 #[cfg(not(target_family = "wasm"))]
 use crate::workspace::WorkspaceAction;
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 const FIGMA_ICON_SIZE: f32 = 14.;
 
@@ -390,14 +390,14 @@ impl View for AgentMessageBar {
             Some(FigmaMcpStatus::NotInstalled) => {
                 message.items.push(figma_chip(
                     self.mouse_states.figma_install_button.clone(),
-                    "Get Figma MCP",
+                    localization::text_for_app(app, "agent.message_bar.figma.get_mcp"),
                     Some(InputAction::FigmaAddButtonClicked),
                 ));
             }
             Some(FigmaMcpStatus::Installed) => {
                 message.items.push(figma_chip(
                     self.mouse_states.figma_enable_button.clone(),
-                    "Enable Figma MCP",
+                    localization::text_for_app(app, "agent.message_bar.figma.enable_mcp"),
                     Some(InputAction::FigmaEnableButtonClicked),
                 ));
             }
@@ -405,7 +405,7 @@ impl View for AgentMessageBar {
                 message.items.push(
                     figma_chip(
                         self.mouse_states.figma_enable_button.clone(),
-                        "Enabling...",
+                        localization::text_for_app(app, "agent.message_bar.figma.enabling"),
                         None,
                     )
                     .with_is_disabled(true),
@@ -457,6 +457,10 @@ pub struct AgentMessageArgs<'a> {
 }
 
 impl AttachedContextArgs for AgentMessageArgs<'_> {
+    fn app(&self) -> &AppContext {
+        self.app
+    }
+
     fn terminal_model(&self) -> &TerminalModel {
         self.terminal_model
     }
@@ -493,7 +497,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for BootstrappingMessageProducer {
         {
             None
         } else {
-            Some(Message::from_text("Starting shell..."))
+            Some(Message::from_text(localization::text_for_app(
+                args.app,
+                "terminal.status.starting_shell",
+            )))
         }
     }
 }
@@ -544,7 +551,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             items.push(MessageItem::clickable(
                 vec![
                     MessageItem::keystroke(resume_keystroke),
-                    MessageItem::text("to resume conversation"),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        "agent.message_bar.resume_conversation",
+                    )),
                 ],
                 |ctx| {
                     ctx.dispatch_typed_action(TerminalAction::ResumeConversation);
@@ -573,7 +583,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
                         background_color: bg_color_override_for_shortcuts_and_commands,
                     },
                     MessageItem::Text {
-                        content: "for help".into(),
+                        content: localization::text_for_app(app, "agent.message_bar.help").into(),
                         color: color_override_for_shortcuts_and_commands,
                     },
                 ],
@@ -597,7 +607,8 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
                         background_color: bg_color_override_for_shortcuts_and_commands,
                     },
                     MessageItem::Text {
-                        content: "for commands".into(),
+                        content: localization::text_for_app(app, "agent.message_bar.commands")
+                            .into(),
                         color: color_override_for_shortcuts_and_commands,
                     },
                 ],
@@ -627,7 +638,11 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
                             background_color: bg_color_override_for_shortcuts_and_commands,
                         },
                         MessageItem::Text {
-                            content: "send task to the cloud".into(),
+                            content: localization::text_for_app(
+                                app,
+                                "agent.message_bar.send_task_to_cloud",
+                            )
+                            .into(),
                             color: color_override_for_shortcuts_and_commands,
                         },
                     ],
@@ -654,7 +669,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
                 items.push(MessageItem::clickable(
                     vec![
                         MessageItem::keystroke(conversations_keystroke),
-                        MessageItem::text("open conversation"),
+                        MessageItem::text(localization::text_for_app(
+                            app,
+                            "agent.message_bar.open_conversation",
+                        )),
                     ],
                     |ctx| {
                         ctx.dispatch_typed_action(InputAction::ToggleConversationsMenu);
@@ -678,7 +696,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             items.push(MessageItem::clickable(
                 vec![
                     MessageItem::keystroke(code_review_keystroke),
-                    MessageItem::text("for code review"),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        "agent.message_bar.code_review",
+                    )),
                 ],
                 |ctx| {
                     ctx.dispatch_typed_action(WorkspaceAction::ToggleRightPanel);
@@ -703,13 +724,16 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
                     MessageItem::keystroke(
                         Keystroke::parse("cmdorctrl-alt-p").expect("keystroke should parse"),
                     ),
-                    MessageItem::text(if is_plan_for_this_conversation_open {
-                        "to hide plan"
-                    } else if plan_count > 1 {
-                        "to view plans"
-                    } else {
-                        "to view plan"
-                    }),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        if is_plan_for_this_conversation_open {
+                            "agent.message_bar.hide_plan"
+                        } else if plan_count > 1 {
+                            "agent.message_bar.view_plans"
+                        } else {
+                            "agent.message_bar.view_plan"
+                        },
+                    )),
                 ],
                 |ctx| {
                     ctx.dispatch_typed_action(TerminalAction::ToggleAIDocumentPane);
@@ -728,7 +752,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             items.push(MessageItem::clickable(
                 vec![
                     MessageItem::keystroke(fork_keystroke),
-                    MessageItem::text("to fork and continue"),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        "agent.message_bar.fork_and_continue",
+                    )),
                 ],
                 |ctx| {
                     ctx.dispatch_typed_action(
@@ -840,10 +867,13 @@ impl MessageProvider<AgentMessageArgs<'_>> for ForkSlashCommandMessageProducer {
         // Cmd/Ctrl+Enter. Other fork-like commands open in the current pane with Enter and a new
         // pane with Cmd/Ctrl+Enter.
         let primary_to_new_pane = command_name == commands::FORK.name || is_continue_locally;
-        let (primary_label, secondary_label) = if primary_to_new_pane {
-            (" new pane", " new tab")
+        let (primary_label_key, secondary_label_key) = if primary_to_new_pane {
+            ("agent.message_bar.new_pane", "agent.message_bar.new_tab")
         } else {
-            (" current pane", " new pane")
+            (
+                "agent.message_bar.current_pane",
+                "agent.message_bar.new_pane",
+            )
         };
 
         Some(Message::new(vec![
@@ -851,9 +881,9 @@ impl MessageProvider<AgentMessageArgs<'_>> for ForkSlashCommandMessageProducer {
                 key: "enter".to_owned(),
                 ..Default::default()
             }),
-            MessageItem::text(primary_label),
+            MessageItem::text(localization::text_for_app(args.app, primary_label_key)),
             MessageItem::keystroke(modifier_keystroke),
-            MessageItem::text(secondary_label),
+            MessageItem::text(localization::text_for_app(args.app, secondary_label_key)),
         ]))
     }
 }
@@ -872,7 +902,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for HideShortcutsMessageProducer {
                     key: "?".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text("to hide help"),
+                MessageItem::text(localization::text_for_app(
+                    args.app,
+                    "agent.message_bar.hide_help",
+                )),
             ],
             |ctx| {
                 ctx.dispatch_typed_action(InputAction::ToggleAgentViewShortcuts);
@@ -904,12 +937,21 @@ impl MessageProvider<AgentMessageArgs<'_>> for AutodetectedBashModeMessageProduc
 
         let message = match keybinding_name_to_keystroke(SET_INPUT_MODE_AGENT_ACTION_NAME, app) {
             Some(keystroke) => Message::new(vec![
-                MessageItem::text("autodetected shell command, "),
+                MessageItem::text(localization::text_for_app(
+                    app,
+                    "agent.message_bar.autodetected_shell_command_prefix",
+                )),
                 MessageItem::keystroke(keystroke),
-                MessageItem::text(" to override"),
+                MessageItem::text(localization::text_for_app(
+                    app,
+                    "agent.message_bar.override",
+                )),
             ])
             .with_text_color(appearance.theme().ansi_fg_blue()),
-            None => Message::from_text("autodetected shell command"),
+            None => Message::from_text(localization::text_for_app(
+                app,
+                "agent.message_bar.autodetected_shell_command",
+            )),
         };
 
         Some(message)
@@ -924,6 +966,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ExitCloudHandoffModeMessageProduc
             input_buffer_model,
             handoff_compose_state,
             appearance,
+            app,
             ..
         } = args;
         if !handoff_compose_state.is_active() {
@@ -957,7 +1000,8 @@ impl MessageProvider<AgentMessageArgs<'_>> for ExitCloudHandoffModeMessageProduc
                 background_color: None,
             },
             MessageItem::Text {
-                content: "to hand off to cloud".into(),
+                content: localization::text_for_app(app, "agent.message_bar.handoff_to_cloud")
+                    .into(),
                 color: Some(active_color),
             },
             MessageItem::Keystroke {
@@ -969,7 +1013,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ExitCloudHandoffModeMessageProduc
                 background_color: dismiss_key_bg,
             },
             MessageItem::Text {
-                content: "to dismiss".into(),
+                content: localization::text_for_app(app, "agent.message_bar.dismiss").into(),
                 color: Some(dismiss_text_color),
             },
         ]))
@@ -1001,7 +1045,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for ExitBashModeMessageProducer {
                     color: None,
                     background_color: None,
                 },
-                MessageItem::text("to exit shell mode"),
+                MessageItem::text(localization::text_for_app(
+                    app,
+                    "agent.message_bar.exit_shell_mode",
+                )),
             ])
             .with_text_color(text_color),
         )
@@ -1013,7 +1060,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ExitBashModeMessageProducer {
 /// When `action` is `None`, the chip is returned without an action (caller should disable it).
 fn figma_chip(
     mouse_state: MouseStateHandle,
-    label: &'static str,
+    label: String,
     action: Option<InputAction>,
 ) -> MessageItem {
     let items = vec![

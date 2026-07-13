@@ -269,12 +269,15 @@ impl RuleEditorView {
             .finish()
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let title = if self.ai_fact.is_none() {
-            "Add Rule"
-        } else {
-            "Edit Rule"
-        };
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let title = localization::text_for_app(
+            app,
+            if self.ai_fact.is_none() {
+                "ai.facts.rule_editor.title.add"
+            } else {
+                "ai.facts.rule_editor.title.edit"
+            },
+        );
         Container::new(
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
@@ -400,7 +403,7 @@ impl View for RuleEditorView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut col = Flex::column()
-            .with_child(self.render_header(appearance))
+            .with_child(self.render_header(appearance, app))
             .with_child(self.render_form(appearance, app));
 
         if let Some(ai_fact) = &self.ai_fact {

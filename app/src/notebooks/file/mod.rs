@@ -753,9 +753,13 @@ impl FileNotebookView {
             EditorViewEvent::Focused => ctx.emit(FileNotebookEvent::Pane(PaneEvent::FocusSelf)),
             EditorViewEvent::RunWorkflow(workflow) => {
                 let workflow_type = workflow.named_workflow(|| {
-                    self.location
-                        .as_ref()
-                        .map(|location| format!("Command from {}", location.name))
+                    self.location.as_ref().map(|location| {
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            "notebook.workflow.command_from",
+                            &[("title", &location.name)],
+                        )
+                    })
                 });
                 let source = workflow.source.unwrap_or(WorkflowSource::Notebook {
                     notebook_id: None,
@@ -869,17 +873,27 @@ impl FileNotebookView {
     }
 
     /// Render an error state for when loading the source file failed.
-    fn render_error(&self, source: &SourceFile, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_error(
+        &self,
+        source: &SourceFile,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let error_text_color = appearance
             .theme()
             .sub_text_color(appearance.theme().background());
+        let display_name = source.display_name();
         let error = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::Center)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
                 appearance
                     .ui_builder()
-                    .paragraph(format!("Could not read {}", source.display_name()))
+                    .paragraph(crate::localization::text_for_app_with_args(
+                        app,
+                        "notebook.file.error.could_not_read",
+                        &[("file", &display_name)],
+                    ))
                     .with_style(self.state_style(appearance))
                     .build()
                     .finish(),
@@ -968,7 +982,7 @@ impl FileNotebookView {
         let body = match &self.file_state {
             FileState::NoFile => self.render_no_file(appearance, app),
             FileState::Loading(source) => self.render_loading(source, appearance, app),
-            FileState::Error(source) => self.render_error(source, appearance),
+            FileState::Error(source) => self.render_error(source, appearance, app),
             FileState::Loaded(_) => ChildView::new(&self.editor).finish(),
         };
 
@@ -1148,7 +1162,7 @@ impl BackingView for FileNotebookView {
             .focus_handle
             .as_ref()
             .is_some_and(|h| h.is_maximized(ctx));
-        let mut actions = vec![MenuItemFields::toggle_pane_action(is_maximized)
+        let mut actions = vec![MenuItemFields::toggle_pane_action(is_maximized, ctx)
             .with_on_select_action(FileNotebookAction::ToggleMaximized)
             .into_item()];
 

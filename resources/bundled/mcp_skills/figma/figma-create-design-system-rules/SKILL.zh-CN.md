@@ -1,6 +1,6 @@
 ---
 name: figma-create-design-system-rules
-description: Generates custom design system rules for the user's codebase. Use when user says "create design system rules", "generate rules for my project", "set up design rules", "customize design system guidelines", or wants to establish project-specific conventions for Figma-to-code workflows. Requires Figma MCP server connection.
+description: 为用户代码库生成自定义设计系统规则。适用于用户想创建设计系统规则、为项目生成规则、设置设计规则，或为 Figma 到代码工作流建立项目专属约定时。需要 Figma MCP 服务器连接。
 description_zh_CN: 为用户代码库生成自定义设计系统规则。适用于用户想创建设计系统规则、为项目生成规则、设置设计规则，或为 Figma 到代码工作流建立项目专属约定时。需要 Figma MCP 服务器连接。
 disable-model-invocation: false
 ---
@@ -163,7 +163,7 @@ Cursor 规则要包 YAML frontmatter：
 
 ```markdown
 ---
-description: Rules for implementing Figma designs using the Figma MCP server. Covers component organization, styling conventions, design tokens, asset handling, and the required Figma-to-code workflow.
+description: 使用 Figma MCP 服务器实现 Figma 设计的规则。涵盖组件组织、样式约定、设计 token、素材处理和必需的 Figma 到代码工作流。
 globs: "src/components/**"
 alwaysApply: false
 ---

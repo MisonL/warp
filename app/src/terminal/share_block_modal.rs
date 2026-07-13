@@ -93,6 +93,14 @@ pub enum ShareBlockType {
     Permalink,
 }
 
+struct ShareBlockButtonConfig {
+    text_label: String,
+    icon: Icon,
+    button_variant: ButtonVariant,
+    mouse_state_handle: MouseStateHandle,
+    share_type: ShareBlockType,
+}
+
 #[derive(Default)]
 struct MouseStateHandles {
     close_modal_hover_state: MouseStateHandle,
@@ -678,24 +686,36 @@ impl ShareBlockModal {
         let create_link_button = self.render_create_block_button(
             appearance,
             app,
-            crate::localization::text_for_app(app, "terminal.share_block_modal.action.create_link"),
-            Icon::Link,
-            ButtonVariant::Accent,
-            self.mouse_state_handles
-                .create_link_button_mouse_state
-                .clone(),
-            ShareBlockType::Permalink,
+            ShareBlockButtonConfig {
+                text_label: crate::localization::text_for_app(
+                    app,
+                    "terminal.share_block_modal.action.create_link",
+                ),
+                icon: Icon::Link,
+                button_variant: ButtonVariant::Accent,
+                mouse_state_handle: self
+                    .mouse_state_handles
+                    .create_link_button_mouse_state
+                    .clone(),
+                share_type: ShareBlockType::Permalink,
+            },
         );
         let get_embed_button = self.render_create_block_button(
             appearance,
             app,
-            crate::localization::text_for_app(app, "terminal.share_block_modal.action.get_embed"),
-            Icon::Code1,
-            ButtonVariant::Basic,
-            self.mouse_state_handles
-                .get_embed_button_mouse_state
-                .clone(),
-            ShareBlockType::HtmlEmbed,
+            ShareBlockButtonConfig {
+                text_label: crate::localization::text_for_app(
+                    app,
+                    "terminal.share_block_modal.action.get_embed",
+                ),
+                icon: Icon::Code1,
+                button_variant: ButtonVariant::Basic,
+                mouse_state_handle: self
+                    .mouse_state_handles
+                    .get_embed_button_mouse_state
+                    .clone(),
+                share_type: ShareBlockType::HtmlEmbed,
+            },
         );
         Flex::row()
             .with_child(get_embed_button)
@@ -707,12 +727,15 @@ impl ShareBlockModal {
         &self,
         appearance: &Appearance,
         app: &AppContext,
-        text_label: String,
-        icon: Icon,
-        button_variant: ButtonVariant,
-        mouse_state_handle: MouseStateHandle,
-        share_type: ShareBlockType,
+        config: ShareBlockButtonConfig,
     ) -> Box<dyn Element> {
+        let ShareBlockButtonConfig {
+            text_label,
+            icon,
+            button_variant,
+            mouse_state_handle,
+            share_type,
+        } = config;
         let text_and_icon = TextAndIcon::new(
             TextAndIconAlignment::TextFirst,
             if let ShareRequestState::Pending(pending_share_type) = self.request_state {

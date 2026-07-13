@@ -115,7 +115,11 @@ impl View for AwsBedrockCredentialsErrorView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
                     Text::new(
-                        format!("Running `{}`...", self.login_command),
+                        crate::localization::text_for_app_with_args(
+                            app,
+                            "agent.aws_bedrock_credentials.running_command",
+                            &[("command", &self.login_command)],
+                        ),
                         appearance.ui_font_family(),
                         14.,
                     )
@@ -142,7 +146,7 @@ impl View for AwsBedrockCredentialsErrorView {
 
         let make_alert_text = || {
             Text::new(
-                "AWS credentials expired or missing",
+                crate::localization::text_for_app(app, "agent.aws_bedrock_credentials.title"),
                 appearance.ui_font_family(),
                 14.,
             )
@@ -153,10 +157,13 @@ impl View for AwsBedrockCredentialsErrorView {
 
         let make_detail_text = || {
             Text::new(
-                format!(
-                    "Failed to authenticate with AWS Bedrock when using {}. \
-                     Run `{}` to refresh credentials.",
-                    self.model_name, self.login_command
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.aws_bedrock_credentials.description",
+                    &[
+                        ("model", &self.model_name),
+                        ("command", &self.login_command),
+                    ],
                 ),
                 appearance.ui_font_family(),
                 14.,
@@ -191,7 +198,7 @@ impl View for AwsBedrockCredentialsErrorView {
             .finish();
 
             let checkbox_label = Text::new(
-                "Always run automatically",
+                crate::localization::text_for_app(app, "agent.aws_bedrock_credentials.auto_login"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() - 1.,
             )

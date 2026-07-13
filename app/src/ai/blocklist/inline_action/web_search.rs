@@ -41,9 +41,13 @@ impl WebSearchView {
         let loading_icon = yellow_running_icon(appearance);
 
         let text = if let Some(q) = query {
-            format!("Searching the web for \"{q}\"")
+            localization::text_for_app_with_args(
+                app,
+                "agent.web_search.searching_query",
+                &[("query", q)],
+            )
         } else {
-            "Searching the web".to_string()
+            localization::text_for_app(app, "agent.web_search.searching")
         };
 
         super::search_results_common::render_loading_header(text, loading_icon, app)
@@ -56,9 +60,13 @@ impl WebSearchView {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let title_text = if query.is_empty() {
-            "Searched the web".to_string()
+            localization::text_for_app(app, "agent.web_search.searched")
         } else {
-            format!("Searched the web for \"{query}\"")
+            localization::text_for_app_with_args(
+                app,
+                "agent.web_search.searched_query",
+                &[("query", query)],
+            )
         };
 
         let body = if self.collapsible.is_expanded {
@@ -109,7 +117,7 @@ impl WebSearchView {
 
         if pages.is_empty() {
             let no_results = Text::new_inline(
-                "No URLs found".to_string(),
+                localization::text_for_app(app, "agent.web_search.no_urls_found"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )

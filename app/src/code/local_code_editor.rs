@@ -1846,7 +1846,10 @@ impl LocalCodeEditorView {
                         Shrinkable::new(
                             1.,
                             Text::new_inline(
-                                "Add as context",
+                                localization::text_for_app(
+                                    app,
+                                    "code.selection_tooltip.add_as_context",
+                                ),
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )

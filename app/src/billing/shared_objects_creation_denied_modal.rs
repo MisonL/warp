@@ -14,14 +14,13 @@ use super::shared_objects_creation_denied_body::{
 };
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::DriveObjectType;
+use crate::localization;
 use crate::modal::{Modal, ModalEvent};
 use crate::server::ids::ServerId;
 use crate::themes::theme::Fill;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::CustomerType;
-
-const DEFAULT_LIMIT_REACHED_MODAL_HEADER: &str = "Shared object limit reached";
 
 pub struct SharedObjectsCreationDeniedModal {
     shared_objects_creation_denied_modal: ViewHandle<Modal<SharedObjectsCreationDeniedBody>>,
@@ -65,7 +64,10 @@ impl SharedObjectsCreationDeniedModal {
 
         let shared_objects_creation_denied_modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(DEFAULT_LIMIT_REACHED_MODAL_HEADER.into()),
+                Some(localization::text_for_app(
+                    ctx,
+                    "drive.shared_objects_limit.title.default",
+                )),
                 shared_objects_creation_denied_body,
                 ctx,
             )

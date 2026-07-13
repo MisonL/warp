@@ -1,6 +1,6 @@
 ---
 name: modify-settings
-description: 借助内置 JSON schema 查看或修改 Warp 应用设置。
+description: 借助内置 JSON Schema 查看或修改 Warp 应用设置。
 ---
 
 # modify-settings
@@ -9,13 +9,13 @@ description: 借助内置 JSON schema 查看或修改 Warp 应用设置。
 
 ## Settings Schema
 
-描述所有可用设置的 JSON schema 内置在：
+描述所有可用设置的 JSON Schema 内置在：
 
 ```sh
 {{settings_schema_path}}
 ```
 
-该 schema 遵循 JSON Schema draft 2020-12，设置按 `properties` 分层组织。每个设置包含：
+该 Schema 遵循 JSON Schema draft 2020-12，设置按 `properties` 分层组织。每个设置包含：
 
 - **`description`**：设置控制的内容
 - **`type`**：值类型，例如 `string`、`boolean`、`integer`
@@ -30,7 +30,7 @@ description: 借助内置 JSON schema 查看或修改 Warp 应用设置。
 grep -i "font" {{settings_schema_path}}
 ```
 
-找到候选 key 后，运行内置脚本获取完整 dotted path、设置属性和父级上下文。这一点很关键，因为 schema 中可能有多个相似 key，例如多个 `input`。不要只根据 grep 输出推断嵌套层级。
+找到候选键后，运行内置脚本获取完整点分路径、设置属性和父级上下文。这一点很关键，因为 Schema 中可能有多个相似键，例如多个 `input`。不要只根据 grep 输出推断嵌套层级。
 
 ```sh
 python3 <skill_dir>/scripts/find_setting.py {{settings_schema_path}} <key_name>
@@ -46,7 +46,7 @@ python3 <skill_dir>/scripts/find_setting.py {{settings_schema_path}} <key_name>
 {{settings_file_path}}
 ```
 
-设置使用 dotted TOML section header，对应 schema 层级。始终从 schema 追踪完整嵌套路径到 TOML；每个中间 `properties` 都对应一层 section。例如：
+设置使用点分 TOML 段落标题，对应 Schema 层级。始终从 Schema 追踪完整嵌套路径到 TOML；每个中间 `properties` 都对应一层段落。例如：
 
 `properties.appearance.properties.font_size` 对应：
 
@@ -62,12 +62,12 @@ font_size = 14
 theme = "light"
 ```
 
-常见错误是少算一层。写 TOML section header 前必须数清完整深度。
+常见错误是少算一层。写 TOML 段落标题前必须数清完整深度。
 
 如果设置文件还不存在，则创建它。Warp 会热重载此文件，改动会立即生效。
 
 ## 工作流
 
-1. **查找设置**：用 `grep` 找候选 key，再运行 Python 路径追踪脚本获取完整 dotted path 和有效值。不要只依赖 grep 输出推断嵌套。
+1. **查找设置**：用 `grep` 找候选键，再运行 Python 路径追踪脚本获取完整点分路径和有效值。不要只依赖 grep 输出推断嵌套。
 2. **读取当前值**：检查 settings 文件中该设置是否已配置。
-3. **应用改动**：用 schema 中的有效值在 TOML 文件中新增或更新设置。
+3. **应用改动**：用 Schema 中的有效值在 TOML 文件中新增或更新设置。

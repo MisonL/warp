@@ -230,8 +230,7 @@ fn render_permission_row<T: DropdownItemAction>(
     label: &str,
     dropdown: &ViewHandle<Dropdown<T>>,
     info_text: &str,
-    show_workspace_override_tooltip: bool,
-    tooltip_mouse_state: MouseStateHandle,
+    workspace_override_tooltip: Option<MouseStateHandle>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let icon_elem = Container::new(
@@ -253,7 +252,7 @@ fn render_permission_row<T: DropdownItemAction>(
         .with_child(label_elem)
         .finish();
     let dropdown_element = ChildView::new(dropdown).finish();
-    let dropdown_row = if show_workspace_override_tooltip {
+    let dropdown_row = if let Some(tooltip_mouse_state) = workspace_override_tooltip {
         wrap_disabled_with_workspace_override_tooltip(
             dropdown_element,
             tooltip_mouse_state,
@@ -497,10 +496,11 @@ pub fn render_permissions_section(
             &localization::text_for_app(app, "settings.execution_profile.editor.apply_code_diffs"),
             &view.apply_code_diffs_dropdown,
             profile_data.apply_code_diffs.description(),
-            !ai_settings.is_code_diffs_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .apply_code_diffs_tooltip_mouse_state
-                .clone(),
+            (!ai_settings.is_code_diffs_permissions_editable(app)).then(|| {
+                view.tooltip_mouse_state_handles
+                    .apply_code_diffs_tooltip_mouse_state
+                    .clone()
+            }),
             app,
         ),
         render_permission_row(
@@ -509,10 +509,11 @@ pub fn render_permissions_section(
             &localization::text_for_app(app, "settings.execution_profile.editor.read_files"),
             &view.read_files_dropdown,
             profile_data.read_files.description(),
-            !ai_settings.is_read_files_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .read_files_tooltip_mouse_state
-                .clone(),
+            (!ai_settings.is_read_files_permissions_editable(app)).then(|| {
+                view.tooltip_mouse_state_handles
+                    .read_files_tooltip_mouse_state
+                    .clone()
+            }),
             app,
         ),
     ]);
@@ -534,10 +535,11 @@ pub fn render_permissions_section(
         &localization::text_for_app(app, "settings.execution_profile.editor.execute_commands"),
         &view.execute_commands_dropdown,
         profile_data.execute_commands.description(),
-        !ai_settings.is_execute_commands_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .execute_commands_tooltip_mouse_state
-            .clone(),
+        (!ai_settings.is_execute_commands_permissions_editable(app)).then(|| {
+            view.tooltip_mouse_state_handles
+                .execute_commands_tooltip_mouse_state
+                .clone()
+        }),
         app,
     ));
 
@@ -575,10 +577,11 @@ pub fn render_permissions_section(
         ),
         &view.write_to_pty_dropdown,
         profile_data.write_to_pty.description(),
-        !ai_settings.is_write_to_pty_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .write_to_pty_tooltip_mouse_state
-            .clone(),
+        (!ai_settings.is_write_to_pty_permissions_editable(app)).then(|| {
+            view.tooltip_mouse_state_handles
+                .write_to_pty_tooltip_mouse_state
+                .clone()
+        }),
         app,
     ));
 
@@ -589,10 +592,11 @@ pub fn render_permissions_section(
             &localization::text_for_app(app, "settings.execution_profile.editor.computer_use"),
             &view.computer_use_dropdown,
             profile_data.computer_use.description(),
-            !ai_settings.is_computer_use_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .computer_use_tooltip_mouse_state
-                .clone(),
+            (!ai_settings.is_computer_use_permissions_editable(app)).then(|| {
+                view.tooltip_mouse_state_handles
+                    .computer_use_tooltip_mouse_state
+                    .clone()
+            }),
             app,
         ));
     }
@@ -603,10 +607,11 @@ pub fn render_permissions_section(
         &localization::text_for_app(app, "settings.execution_profile.editor.ask_questions"),
         &view.ask_user_question_dropdown,
         profile_data.ask_user_question.description(),
-        !ai_settings.is_ask_user_question_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .ask_user_question_tooltip_mouse_state
-            .clone(),
+        (!ai_settings.is_ask_user_question_permissions_editable(app)).then(|| {
+            view.tooltip_mouse_state_handles
+                .ask_user_question_tooltip_mouse_state
+                .clone()
+        }),
         app,
     ));
     column.add_child(render_permission_row(
@@ -618,10 +623,11 @@ pub fn render_permissions_section(
         ),
         &view.run_agents_dropdown,
         profile_data.run_agents.description(),
-        !ai_settings.is_run_agents_permissions_editable(app),
-        view.tooltip_mouse_state_handles
-            .run_agents_tooltip_mouse_state
-            .clone(),
+        (!ai_settings.is_run_agents_permissions_editable(app)).then(|| {
+            view.tooltip_mouse_state_handles
+                .run_agents_tooltip_mouse_state
+                .clone()
+        }),
         app,
     ));
 
@@ -631,10 +637,11 @@ pub fn render_permissions_section(
         &localization::text_for_app(app, "settings.execution_profile.editor.call_mcp_servers"),
         &view.call_mcp_servers_dropdown,
         profile_data.mcp_permissions.description(),
-        !ai_settings.is_mcp_permission_editable(app), // Use MCP override for this permission
-        view.tooltip_mouse_state_handles
-            .call_mcp_servers_tooltip_mouse_state
-            .clone(),
+        (!ai_settings.is_mcp_permission_editable(app)).then(|| {
+            view.tooltip_mouse_state_handles
+                .call_mcp_servers_tooltip_mouse_state
+                .clone()
+        }),
         app,
     ));
 

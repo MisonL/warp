@@ -3128,15 +3128,35 @@ fn test_unified_new_session_menu_uses_new_worktree_config_label_and_order() {
                 .iter()
                 .position(|label| label == "---")
                 .expect("expected a separator in the new-session menu");
+            let new_worktree_config_label =
+                localization::text_for_app(ctx, "workspace.menu.new_worktree_config");
+            let new_tab_config_label =
+                localization::text_for_app(ctx, "workspace.menu.new_tab_config");
 
             assert_eq!(
                 labels.get(separator_index + 1),
-                Some(&"New worktree config".to_string())
+                Some(&new_worktree_config_label)
             );
-            assert_eq!(
-                labels.get(separator_index + 2),
-                Some(&"New tab config".to_string())
-            );
+            assert_eq!(labels.get(separator_index + 2), Some(&new_tab_config_label));
+
+            let menu_items = workspace.unified_new_session_menu_items(ctx);
+            let new_worktree_config_item = menu_items
+                .get(separator_index + 1)
+                .expect("expected new worktree config item");
+            let MenuItem::Item(fields) = new_worktree_config_item else {
+                panic!("expected new worktree config item fields");
+            };
+            assert_eq!(fields.identifier(), Some("new_worktree_config"));
+            assert!(fields.on_select_action().is_none());
+
+            assert!(matches!(
+                menu_items
+                    .get(separator_index + 2)
+                    .and_then(MenuItem::item_on_select_action),
+                Some(WorkspaceAction::SelectNewSessionMenuItem(
+                    NewSessionMenuItem::CreateNewTabConfig
+                ))
+            ));
         });
     });
 }

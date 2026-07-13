@@ -45,6 +45,7 @@ use crate::ai::harness_availability::{
 };
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::workspace::WorkspaceAction;
 use crate::BlocklistAIHistoryModel;
@@ -104,11 +105,6 @@ fn render_pill_toggle(is_on: bool, theme: &WarpTheme) -> Box<dyn Element> {
     .with_height(18.)
     .finish()
 }
-
-const CONFIG_BLOCK_HEADER: &str = "Use orchestration";
-const CONFIG_BLOCK_DESCRIPTION: &str =
-    "Break this work into coordinated streams with multiple agents.";
-const BASE_MODEL_HELPER: &str = "The primary model all agents will use.";
 
 // ── Action type ─────────────────────────────────────────────────────
 
@@ -606,7 +602,7 @@ impl View for OrchestrationConfigBlockView {
 
         // Header row: "Use orchestration" + pill toggle switch
         let header_label = Text::new(
-            CONFIG_BLOCK_HEADER.to_string(),
+            localization::text_for_app(app, "agent.orchestration.config.header"),
             appearance.ui_font_family(),
             16.,
         )
@@ -634,7 +630,7 @@ impl View for OrchestrationConfigBlockView {
 
         // Description
         let description = Text::new(
-            CONFIG_BLOCK_DESCRIPTION.to_string(),
+            localization::text_for_app(app, "agent.orchestration.config.description"),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -662,7 +658,7 @@ impl View for OrchestrationConfigBlockView {
             };
             let disabled_text_color = blended_colors::text_disabled(theme, theme.background());
             let details_text = Text::new(
-                "View details".to_string(),
+                localization::text_for_app(app, "agent.orchestration.config.view_details"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() + 1.,
             )
@@ -707,6 +703,7 @@ impl View for OrchestrationConfigBlockView {
                         appearance,
                         Some(active_seg_bg),
                         true,
+                        app,
                     ))
                     .with_margin_top(12.)
                     .finish(),
@@ -717,12 +714,13 @@ impl View for OrchestrationConfigBlockView {
                     &self.edit_state,
                     &self.pickers,
                     appearance,
+                    app,
                     true,
                 ));
 
                 // Helper text
                 let helper = Text::new(
-                    BASE_MODEL_HELPER.to_string(),
+                    localization::text_for_app(app, "agent.orchestration.config.base_model_helper"),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size() - 1.,
                 )

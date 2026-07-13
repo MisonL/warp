@@ -638,8 +638,13 @@ impl InputSuggestions {
         }
 
         if let Some(text) = self.get_selected_item_text() {
+            let selected = localization::text_for_app_with_args(
+                ctx,
+                "input_suggestions.a11y.selected",
+                &[("text", text)],
+            );
             ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                format!("Selected: {text}"),
+                selected,
                 WarpA11yRole::MenuItemRole,
             ));
         }
@@ -664,7 +669,7 @@ impl InputSuggestions {
         ctx: &mut ViewContext<Self>,
     ) {
         ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-            "Closed suggestions.",
+            localization::text_for_app(ctx, "input_suggestions.a11y.closed"),
             WarpA11yRole::UserAction,
         ));
         ctx.emit(Event::CloseSuggestion {
@@ -720,7 +725,7 @@ impl InputSuggestions {
                     Align::new(
                         Container::new(
                             Text::new_inline(
-                                String::from("No suggestions"),
+                                localization::text_for_app(ctx, "input_suggestions.no_suggestions"),
                                 appearance.monospace_font_family(),
                                 appearance.monospace_font_size(),
                             )
@@ -1105,12 +1110,11 @@ impl View for InputSuggestions {
             .finish()
     }
 
-    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Command suggestions.",
+            localization::text_for_app(app, "input_suggestions.a11y.command_suggestions"),
             // TODO use bindings from user settings
-            "Navigate with tab and shift-tab, and confirm with enter. Execute selected command \
-                with command + enter. Esc leaves the suggestions menu.",
+            localization::text_for_app(app, "input_suggestions.a11y.help"),
             WarpA11yRole::MenuRole,
         ))
     }

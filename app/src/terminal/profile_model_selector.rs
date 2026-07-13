@@ -82,12 +82,6 @@ const MAX_PROFILE_NAME_WIDTH_SCALE_FACTOR: f32 = 10.0;
 
 const PROFILE_SELECTOR_POSITION_ID: &str = "profile_selector";
 
-const PROFILE_PICKER_TOOLTIP: &str = "Choose an AI execution profile";
-const MODEL_PICKER_TOOLTIP: &str = "Choose an agent model";
-const MODEL_LOCKED_FOR_FOLLOWUP_TOOLTIP: &str = "Follow-ups use the original run's model";
-const MODEL_REQUIRES_EDIT_ACCESS_TOOLTIP: &str = "Request edit access to change model";
-const HARNESS_DEFAULT_MODEL_LABEL: &str = "default";
-
 pub fn calculate_scaled_font_size(appearance: &warp_core::ui::appearance::Appearance) -> f32 {
     if FeatureFlag::AgentView.is_enabled() {
         udi_font_size(appearance)
@@ -268,7 +262,10 @@ impl ProfileModelSelector {
                 ),
                 is_blurred: false,
             })
-            .with_tooltip(PROFILE_PICKER_TOOLTIP)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "settings.ai.profile_selector.tooltip",
+            ))
             .with_size(ButtonSize::UDIButton)
             .with_icon(Icon::Psychology)
         });
@@ -296,24 +293,33 @@ impl ProfileModelSelector {
                 ),
                 is_blurred: false,
             })
-            .with_tooltip(MODEL_PICKER_TOOLTIP)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.tooltip",
+            ))
             .with_size(ButtonSize::UDIButton)
         });
 
-        let profile_compact_button = ctx.add_typed_action_view(|_| {
+        let profile_compact_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::Psychology)
-                .with_tooltip(PROFILE_PICKER_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "settings.ai.profile_selector.tooltip",
+                ))
                 .with_size(ButtonSize::UDIButton)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(ProfileModelSelectorAction::ToggleProfileMenu);
                 })
         });
 
-        let model_compact_button = ctx.add_typed_action_view(|_| {
+        let model_compact_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::Neurology)
-                .with_tooltip(MODEL_PICKER_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "settings.ai.model_selector.tooltip",
+                ))
                 .with_size(ButtonSize::UDIButton)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(ProfileModelSelectorAction::ToggleModelMenu);
@@ -713,25 +719,31 @@ impl ProfileModelSelector {
 
         // Non-Oz runs lock silently: the harness owns model selection, and the
         // user already knows that, so no tooltip is shown.
-        let model_tooltip: Option<&str> = if self.is_locked_for_cloud_followup(ctx) {
-            Some(MODEL_LOCKED_FOR_FOLLOWUP_TOOLTIP)
+        let model_tooltip: Option<String> = if self.is_locked_for_cloud_followup(ctx) {
+            Some(localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.followup_original_model",
+            ))
         } else if self.is_locked_for_non_oz_run(ctx) {
             None
         } else {
-            Some(MODEL_PICKER_TOOLTIP)
+            Some(localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.tooltip",
+            ))
         };
         let locked = self.is_model_locked(ctx);
         self.model_button.update(ctx, |button, ctx| {
             button.set_label(model_name, ctx);
             button.set_disabled(locked, ctx);
-            match model_tooltip {
+            match model_tooltip.as_deref() {
                 Some(t) => button.set_tooltip(Some(t), ctx),
                 None => button.clear_tooltip(ctx),
             }
         });
         self.model_compact_button.update(ctx, |button, ctx| {
             button.set_disabled(locked, ctx);
-            match model_tooltip {
+            match model_tooltip.as_deref() {
                 Some(t) => button.set_tooltip(Some(t), ctx),
                 None => button.clear_tooltip(ctx),
             }
@@ -886,7 +898,9 @@ impl ProfileModelSelector {
     fn harness_model_display_name(&self, app: &AppContext) -> String {
         self.active_harness_model_info(app)
             .map(|info| info.display_name.clone())
-            .unwrap_or_else(|| HARNESS_DEFAULT_MODEL_LABEL.to_string())
+            .unwrap_or_else(|| {
+                localization::text_for_app(app, "settings.ai.model_selector.default_model")
+            })
     }
 
     fn refresh_harness_model_menu(&mut self, ctx: &mut ViewContext<Self>) {
@@ -913,8 +927,11 @@ impl ProfileModelSelector {
             model_id: String::new(),
             reasoning_level: None,
         };
-        let mut default_fields =
-            MenuItemFields::new(HARNESS_DEFAULT_MODEL_LABEL).with_on_select_action(default_action);
+        let mut default_fields = MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "settings.ai.model_selector.default_model",
+        ))
+        .with_on_select_action(default_action);
         if default_selected {
             default_fields = default_fields.with_icon(Icon::Check);
         } else {
@@ -1607,6 +1624,8 @@ impl ProfileModelSelector {
             .with_vertical_padding(vertical_padding)
             .with_horizontal_padding(horizontal_padding)
             .finish();
+        let profile_picker_tooltip =
+            localization::text_for_app(app, "settings.ai.profile_selector.tooltip");
 
         Hoverable::new(self.profile_mouse_state.clone(), move |state| {
             if state.is_hovered() {
@@ -1619,7 +1638,7 @@ impl ProfileModelSelector {
 
                 let tooltip = appearance
                     .ui_builder()
-                    .tool_tip(PROFILE_PICKER_TOOLTIP.to_owned());
+                    .tool_tip(profile_picker_tooltip.clone());
                 let mut stack = Stack::new();
                 stack.add_child(button_with_hover);
                 stack.add_positioned_overlay_child(
@@ -1755,6 +1774,12 @@ impl ProfileModelSelector {
         let is_locked_for_non_oz = self.is_locked_for_non_oz_run(app);
         let is_locked = is_locked_for_followup || is_locked_for_non_oz;
         let can_interact = has_edit_access && !is_locked;
+        let model_picker_tooltip =
+            localization::text_for_app(app, "settings.ai.model_selector.tooltip");
+        let model_locked_for_followup_tooltip =
+            localization::text_for_app(app, "settings.ai.model_selector.followup_original_model");
+        let model_requires_edit_access_tooltip =
+            localization::text_for_app(app, "settings.ai.model_selector.request_edit_access");
 
         let hoverable = Hoverable::new(self.model_mouse_state.clone(), move |state| {
             if state.is_hovered() && can_interact {
@@ -1767,7 +1792,7 @@ impl ProfileModelSelector {
 
                 let tooltip = appearance
                     .ui_builder()
-                    .tool_tip(MODEL_PICKER_TOOLTIP.to_owned());
+                    .tool_tip(model_picker_tooltip.clone());
                 let mut stack = Stack::new();
                 stack.add_child(button_with_hover);
                 stack.add_positioned_overlay_child(
@@ -1782,16 +1807,16 @@ impl ProfileModelSelector {
                 stack.finish()
             } else if state.is_hovered() {
                 // Non-Oz runs lock silently — skip the tooltip entirely.
-                let tooltip_text: Option<&str> = if is_locked_for_followup {
-                    Some(MODEL_LOCKED_FOR_FOLLOWUP_TOOLTIP)
+                let tooltip_text: Option<String> = if is_locked_for_followup {
+                    Some(model_locked_for_followup_tooltip.clone())
                 } else if is_locked_for_non_oz {
                     None
                 } else {
-                    Some(MODEL_REQUIRES_EDIT_ACCESS_TOOLTIP)
+                    Some(model_requires_edit_access_tooltip.clone())
                 };
 
                 if let Some(text) = tooltip_text {
-                    let tooltip = appearance.ui_builder().tool_tip(text.to_owned());
+                    let tooltip = appearance.ui_builder().tool_tip(text);
                     let mut stack = Stack::new();
                     stack.add_child(button_with_save_position);
                     stack.add_positioned_overlay_child(
@@ -1951,7 +1976,10 @@ impl ProfileModelSelector {
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(self.render_model_spec_value_label("Cost".to_string(), app))
+                .with_child(self.render_model_spec_value_label(
+                    localization::text_for_app(app, "terminal.input.models.spec.cost"),
+                    app,
+                ))
                 .with_child(
                     Expanded::new(
                         1.,
@@ -1962,7 +1990,10 @@ impl ProfileModelSelector {
                             .with_child(
                                 Container::new(
                                     Text::new(
-                                        "Billed to API".to_string(),
+                                        localization::text_for_app(
+                                            app,
+                                            "terminal.input.models.spec.billed_to_api",
+                                        ),
                                         appearance.ui_font_family(),
                                         14.,
                                     )

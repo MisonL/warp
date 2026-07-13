@@ -9,6 +9,7 @@ use std::path::PathBuf;
 pub use view::{InlineReposMenuEvent, InlineReposMenuView};
 use warpui::keymap::Keystroke;
 
+use crate::localization;
 use crate::terminal::input::inline_menu::{
     default_navigation_message_items, InlineMenuAction, InlineMenuMessageArgs, InlineMenuRowAction,
     InlineMenuType,
@@ -51,7 +52,11 @@ impl InlineMenuAction for AcceptRepo {
                         background_color: bg_color_override_for_shortcuts_and_commands,
                     },
                     MessageItem::Text {
-                        content: " cd to repo".into(),
+                        content: localization::text_for_app(
+                            args.app,
+                            "terminal.inline_menu.action.cd_to_repo",
+                        )
+                        .into(),
                         color: color_override_for_shortcuts_and_commands,
                     },
                 ],

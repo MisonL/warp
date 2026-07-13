@@ -70,3 +70,43 @@ fn localized_task_status_message_keeps_unknown_errors() {
         "provider exploded"
     );
 }
+
+#[test]
+fn localized_task_status_message_localizes_canonical_driver_errors() {
+    let canonical_inner = localization::text_for_locale_with_args(
+        LocaleId::EnUs,
+        "agent_sdk.driver.error_classification.bootstrap_error.pty_spawn_failed_with_reason",
+        &[("reason", "Argument list too long")],
+    );
+    let canonical = localization::text_for_locale_with_args(
+        LocaleId::EnUs,
+        "agent_sdk.driver.error_classification.bootstrap_failed",
+        &[("error", &canonical_inner)],
+    );
+
+    let localized = localized_task_status_message_for_locale(LocaleId::ZhCn, &canonical);
+
+    assert!(localized.contains("终端会话启动失败"));
+    assert!(localized.contains("shell 启动失败"));
+    assert!(localized.contains("Argument list too long"));
+}
+
+#[test]
+fn localized_task_status_message_localizes_driver_errors_with_repeated_arguments() {
+    let canonical = localization::text_for_locale_with_args(
+        LocaleId::EnUs,
+        "agent_sdk.driver.error_classification.conversation_harness_mismatch",
+        &[
+            ("conversation_id", "conversation-123"),
+            ("expected", "claude"),
+            ("got", "codex"),
+        ],
+    );
+
+    let localized = localized_task_status_message_for_locale(LocaleId::ZhCn, &canonical);
+
+    assert!(localized.contains("conversation-123"));
+    assert!(localized.contains("claude"));
+    assert!(localized.contains("codex"));
+    assert!(!localized.contains("was produced by"));
+}

@@ -9,10 +9,12 @@ use futures::channel::oneshot::channel;
 use futures::future::BoxFuture;
 use tokio::sync::Mutex;
 use vec1::vec1;
+use warp_localization::LocaleId;
 use warp_managed_secrets::client::IdentityTokenOptions;
 use warp_managed_secrets::ManagedSecretManager;
 use warpui::{ModelContext, ModelHandle, SingletonEntity};
 
+use crate::localization;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::event::{AfterBlockCompletedEvent, BlockType, UserBlockCompleted};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
@@ -42,43 +44,72 @@ impl std::fmt::Display for LoadAwsCredentialsError {
     }
 }
 
-fn aws_profile_reference_for_message(profile: &str, capitalize_first_word: bool) -> String {
+fn aws_profile_reference_for_message(
+    profile: &str,
+    capitalize_first_word: bool,
+    locale: LocaleId,
+) -> String {
     let profile = profile.trim();
-    if profile.is_empty() {
-        if capitalize_first_word {
-            "The default AWS profile".to_string()
-        } else {
-            "the default AWS profile".to_string()
-        }
-    } else {
-        let article = if capitalize_first_word { "The" } else { "the" };
-        format!("{article} AWS profile `{profile}`")
+    match (profile.is_empty(), capitalize_first_word) {
+        (true, true) => localization::text_for_locale(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.profile.default_capitalized",
+        ),
+        (true, false) => localization::text_for_locale(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.profile.default",
+        ),
+        (false, true) => localization::text_for_locale_with_args(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.profile.named_capitalized",
+            &[("profile", profile)],
+        ),
+        (false, false) => localization::text_for_locale_with_args(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.profile.named",
+            &[("profile", profile)],
+        ),
     }
 }
 
-fn user_facing_aws_credentials_error_message(err: &CredentialsError, profile: &str) -> String {
+fn user_facing_aws_credentials_error_message(
+    err: &CredentialsError,
+    profile: &str,
+    locale: LocaleId,
+) -> String {
     match err {
-        CredentialsError::CredentialsNotLoaded(_) => format!(
-            "AWS credentials were not found for {}. Log in with the AWS CLI or update your AWS credentials configuration, then refresh.",
-            aws_profile_reference_for_message(profile, false)
+        CredentialsError::CredentialsNotLoaded(_) => localization::text_for_locale_with_args(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.not_configured",
+            &[(
+                "profile",
+                &aws_profile_reference_for_message(profile, false, locale),
+            )],
         ),
-        CredentialsError::ProviderTimedOut(_) => {
-            "Timed out while loading AWS credentials. Refresh and try again.".to_string()
-        }
-        CredentialsError::InvalidConfiguration(_) => format!(
-            "{} is invalid or incomplete in your local AWS configuration. Update your AWS profile settings and credentials, then refresh.",
-            aws_profile_reference_for_message(profile, true)
+        CredentialsError::ProviderTimedOut(_) => localization::text_for_locale(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.timeout",
         ),
-        CredentialsError::ProviderError(_) => {
-            "Unable to load AWS credentials from your configured provider. Refresh your AWS login and try again."
-                .to_string()
-        }
-        CredentialsError::Unhandled(_) => {
-            "Unexpected error while loading AWS credentials. Refresh your AWS login and try again."
-                .to_string()
-        }
-        _ => "Unable to load AWS credentials. Refresh your AWS login and try again."
-            .to_string(),
+        CredentialsError::InvalidConfiguration(_) => localization::text_for_locale_with_args(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.invalid_configuration",
+            &[(
+                "profile",
+                &aws_profile_reference_for_message(profile, true, locale),
+            )],
+        ),
+        CredentialsError::ProviderError(_) => localization::text_for_locale(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.provider_error",
+        ),
+        CredentialsError::Unhandled(_) => localization::text_for_locale(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.unexpected",
+        ),
+        _ => localization::text_for_locale(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.unable_to_load",
+        ),
     }
 }
 
@@ -133,6 +164,7 @@ fn aws_credentials_state_for_error(err: LoadAwsCredentialsError) -> AwsCredentia
 ///   (checks AWS_PROFILE env var, then uses "default").
 pub async fn load_aws_credentials_from_sdk(
     profile: &str,
+    locale: LocaleId,
 ) -> Result<AwsCredentials, LoadAwsCredentialsError> {
     let region_provider = aws_config::meta::region::RegionProviderChain::default_provider();
     let loader =
@@ -149,7 +181,7 @@ pub async fn load_aws_credentials_from_sdk(
         .ok_or(LoadAwsCredentialsError::NotConfigured)?;
 
     let creds = provider.provide_credentials().await.map_err(|e| {
-        let message = user_facing_aws_credentials_error_message(&e, profile);
+        let message = user_facing_aws_credentials_error_message(&e, profile, locale);
         log::warn!("{e}");
         // TODO(isaiah): turn this full SDK dump back down to debug once we've resolved
         // the current customer-facing AWS credential issue and no longer need prod-visible
@@ -267,13 +299,14 @@ fn refresh_aws_credentials_local_chain(
     }
 
     let profile = (*AISettings::as_ref(ctx).aws_bedrock_profile).clone();
+    let locale = localization::current_locale(ctx);
 
     manager.set_aws_credentials_state(AwsCredentialsState::Refreshing, ctx);
 
     let (tx, rx) = channel();
     // credential fetch from aws cli's disk cache
     let _ = ctx.spawn(
-        async move { load_aws_credentials_from_sdk(&profile).await },
+        async move { load_aws_credentials_from_sdk(&profile, locale).await },
         move |manager, result, ctx| {
             let (new_state, tx_result) = match result {
                 Ok(credentials) => (
@@ -285,7 +318,23 @@ fn refresh_aws_credentials_local_chain(
                 ),
                 Err(err) => {
                     let state = aws_credentials_state_for_error(err);
-                    let (_, message, _) = state.user_facing_components();
+                    let message = match &state {
+                        AwsCredentialsState::Missing => localization::text_for_locale(
+                            locale,
+                            "settings.ai.aws_bedrock.credentials.status.missing.detail",
+                        ),
+                        AwsCredentialsState::Disabled => localization::text_for_locale(
+                            locale,
+                            "settings.ai.aws_bedrock.credentials.status.disabled.detail",
+                        ),
+                        AwsCredentialsState::Failed { message } => message.clone(),
+                        AwsCredentialsState::Refreshing | AwsCredentialsState::Loaded { .. } => {
+                            localization::text_for_locale(
+                                locale,
+                                "settings.ai.aws_bedrock.credentials.error.unexpected",
+                            )
+                        }
+                    };
                     (state, Err(message))
                 }
             };
@@ -294,8 +343,12 @@ fn refresh_aws_credentials_local_chain(
         },
     );
     Box::pin(async move {
-        rx.await
-            .unwrap_or_else(|_| Err("Credential refresh was interrupted".to_string()))
+        rx.await.unwrap_or_else(|_| {
+            Err(localization::text_for_locale(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.refresh_interrupted",
+            ))
+        })
     })
 }
 
@@ -319,10 +372,12 @@ fn refresh_aws_credentials_oidc(
         }
     }
 
+    let locale = localization::current_locale(ctx);
     let Some(task_id) = task_id else {
-        let message = "AWS Bedrock inference requires an ambient task ID before credentials \
-                       can be minted"
-            .to_string();
+        let message = localization::text_for_locale(
+            locale,
+            "settings.ai.aws_bedrock.credentials.error.oidc_task_id_required",
+        );
         manager.set_aws_credentials_state(
             AwsCredentialsState::Failed {
                 message: message.clone(),
@@ -345,9 +400,10 @@ fn refresh_aws_credentials_oidc(
     let (tx, rx) = channel();
     let _ = ctx.spawn(
         async move {
-            let token = token_future
-                .await
-                .context("Failed to mint AWS Bedrock task identity token")?;
+            let token = token_future.await.context(localization::text_for_locale(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.oidc_mint_token_failed",
+            ))?;
 
             let client = sts_client(&region).await;
             let session_name = aws_role_session_name(&task_id);
@@ -365,10 +421,17 @@ fn refresh_aws_credentials_oidc(
                         .as_service_error()
                         .map(|e| e.to_string())
                         .unwrap_or_else(|| err.to_string());
-                    anyhow::anyhow!("STS AssumeRoleWithWebIdentity failed: {detail}")
+                    anyhow::anyhow!(localization::text_for_locale_with_args(
+                        locale,
+                        "settings.ai.aws_bedrock.credentials.error.oidc_sts_failed",
+                        &[("detail", &detail)],
+                    ))
                 })?
                 .credentials
-                .context("STS response did not include credentials")?;
+                .context(localization::text_for_locale(
+                    locale,
+                    "settings.ai.aws_bedrock.credentials.error.oidc_missing_credentials",
+                ))?;
 
             anyhow::Ok(AwsCredentials::new(
                 credentials.access_key_id().to_string(),
@@ -405,8 +468,12 @@ fn refresh_aws_credentials_oidc(
         },
     );
     Box::pin(async move {
-        rx.await
-            .unwrap_or_else(|_| Err("Credential refresh was interrupted".to_string()))
+        rx.await.unwrap_or_else(|_| {
+            Err(localization::text_for_locale(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.refresh_interrupted",
+            ))
+        })
     })
 }
 

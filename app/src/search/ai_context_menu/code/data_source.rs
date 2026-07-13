@@ -23,12 +23,11 @@ use warpui::ModelSpawner;
 #[cfg(not(target_family = "wasm"))]
 use warpui::SingletonEntity;
 
-use crate::localization;
-
 #[cfg(not(target_family = "wasm"))]
 use super::search_item::CodeSearchItem;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::outline::{OutlineStatus, RepoOutlines, RepoOutlinesEvent};
+use crate::localization;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 #[cfg(not(target_family = "wasm"))]

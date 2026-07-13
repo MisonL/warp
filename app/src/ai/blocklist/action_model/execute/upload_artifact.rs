@@ -8,6 +8,8 @@ mod tests;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 #[cfg(not(target_family = "wasm"))]
+use warp_localization::LocaleId;
+#[cfg(not(target_family = "wasm"))]
 use warpui::SingletonEntity;
 use warpui::{Entity, EntityId, ModelContext, ModelHandle};
 
@@ -21,15 +23,20 @@ use crate::{
         blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions},
         paths::host_native_absolute_path,
     },
+    localization,
     server::server_api::ServerApiProvider,
 };
 
 #[cfg(not(target_family = "wasm"))]
-fn format_upload_artifact_error(err: &anyhow::Error) -> String {
+fn format_upload_artifact_error(err: &anyhow::Error, locale: LocaleId) -> String {
     let error_chain = format!("{err:#}");
 
     if error_chain != err.to_string() {
-        format!("Artifact upload failed: {error_chain}")
+        localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.driver.output.upload_artifact_failed",
+            &[("error", &error_chain)],
+        )
     } else {
         error_chain
     }
@@ -121,9 +128,10 @@ impl UploadArtifactExecutor {
 
             let Some(server_conversation_token) = server_conversation_token else {
                 return ActionExecution::<()>::Sync(AIAgentActionResultType::UploadArtifact(
-                    UploadArtifactResult::Error(
-                        "Current conversation has not been synced to the server yet".to_string(),
-                    ),
+                    UploadArtifactResult::Error(localization::text_for_app(
+                        ctx,
+                        "agent.output.upload_artifact.current_conversation_not_synced",
+                    )),
                 ))
                 .into();
             };
@@ -135,6 +143,7 @@ impl UploadArtifactExecutor {
             let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
             let server_api = ServerApiProvider::as_ref(ctx).get();
             let description = request.description.clone();
+            let locale = localization::current_locale(ctx);
 
             ActionExecution::new_async(
                 async move {
@@ -145,10 +154,14 @@ impl UploadArtifactExecutor {
                         conversation_id: Some(server_conversation_token),
                         description,
                     };
-                    let association = uploader.resolve_upload_association(&request).await?;
-                    uploader.upload_with_association(request, association).await
+                    let association = uploader
+                        .resolve_upload_association(&request, locale)
+                        .await?;
+                    uploader
+                        .upload_with_association(request, association, locale)
+                        .await
                 },
-                |result, _ctx| match result {
+                move |result, _ctx| match result {
                     Ok(upload) => {
                         AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Success {
                             artifact_uid: upload.artifact.artifact_uid,
@@ -159,7 +172,7 @@ impl UploadArtifactExecutor {
                         })
                     }
                     Err(err) => AIAgentActionResultType::UploadArtifact(
-                        UploadArtifactResult::Error(format_upload_artifact_error(&err)),
+                        UploadArtifactResult::Error(format_upload_artifact_error(&err, locale)),
                     ),
                 },
             )

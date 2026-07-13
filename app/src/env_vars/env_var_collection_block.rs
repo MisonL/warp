@@ -147,10 +147,7 @@ impl EnvVarCollectionBlock {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let cancel_button = CompactibleActionButton::new(
-            crate::localization::text_for_locale(
-                warp_localization::LocaleId::EnUs,
-                ENV_VAR_COLLECTION_CANCEL_LABEL_KEY,
-            ),
+            crate::localization::text_for_app(ctx, ENV_VAR_COLLECTION_CANCEL_LABEL_KEY),
             Some(KeystrokeSource::Fixed(
                 CANCEL_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),
@@ -162,10 +159,7 @@ impl EnvVarCollectionBlock {
         );
 
         let accept_button = CompactibleActionButton::new(
-            crate::localization::text_for_locale(
-                warp_localization::LocaleId::EnUs,
-                ENV_VAR_COLLECTION_ACCEPT_LABEL_KEY,
-            ),
+            crate::localization::text_for_app(ctx, ENV_VAR_COLLECTION_ACCEPT_LABEL_KEY),
             Some(KeystrokeSource::Fixed(
                 ACCEPT_ENV_VAR_COLLECTION_KEYSTROKE.clone(),
             )),

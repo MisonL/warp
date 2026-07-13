@@ -9,7 +9,7 @@ use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
     ClippedScrollStateHandle, Container, Element, Flex, MouseStateHandle, ParentElement, Text,
 };
-use warpui::{SingletonEntity, ViewContext};
+use warpui::{AppContext, SingletonEntity, ViewContext};
 
 use crate::code_review::git_dialog::{
     render_branch_section, render_file_changes_box, should_send_git_ops_ai_request, show_toast,
@@ -18,6 +18,7 @@ use crate::code_review::git_dialog::{
 use crate::code_review::telemetry_event::{
     CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
 };
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::util::git::{FileChangeEntry, PrInfo};
 use crate::view_components::{DismissibleToast, ToastLink};
@@ -37,16 +38,16 @@ pub struct PrState {
     changes_scroll_state: ClippedScrollStateHandle,
 }
 
-pub(super) fn confirm_label_for() -> &'static str {
-    "Create PR"
+pub(super) fn confirm_label_for(app: &AppContext) -> String {
+    localization::text_for_app(app, "code_review.git.create_pr")
 }
 
 pub(super) fn confirm_icon_for() -> Icon {
     Icon::Github
 }
 
-fn loading_label_for() -> &'static str {
-    "Creating\u{2026}"
+fn loading_label_for(app: &AppContext) -> String {
+    localization::text_for_app(app, "code_review.git_dialog.pr.creating")
 }
 
 /// PR mode has no prerequisites beyond a branch with commits; confirm is
@@ -123,7 +124,7 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     // `gh pr create --fill`.
     let autogenerate_content = should_send_git_ops_ai_request(ctx);
 
-    me.set_loading(loading_label_for(), ctx);
+    me.set_loading(loading_label_for(ctx), ctx);
 
     me.diff_state_model().update(ctx, |m, ctx| {
         m.create_pr(branch_name, autogenerate_content, ctx);
@@ -145,7 +146,7 @@ pub(super) fn finish_create_pr(
         Ok(pr_info) => show_pr_created_toast(pr_info, ctx),
         Err(err) => {
             log::error!("Failed to create PR: {err}");
-            show_toast(user_facing_git_error(&err.to_string()), ctx);
+            show_toast(user_facing_git_error(&err.to_string(), ctx), ctx);
         }
     }
     send_telemetry_from_ctx!(
@@ -182,29 +183,37 @@ pub(super) fn show_pr_created_toast(pr_info: &PrInfo, ctx: &mut ViewContext<GitD
 pub(super) fn render_body(
     state: &PrState,
     branch_name: &str,
-    appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
     let base_branch = state
         .base_branch_name
         .as_deref()
-        .unwrap_or("default branch");
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| {
+            localization::text_for_app(app, "code_review.git_dialog.pr.default_branch")
+        });
     let branch_name = format!("{branch_name} \u{2192} {base_branch}");
     Flex::column()
         .with_child(
-            Container::new(render_branch_section(branch_name, appearance))
+            Container::new(render_branch_section(branch_name, appearance, app))
                 .with_margin_bottom(16.)
                 .finish(),
         )
-        .with_child(render_changes_section(state, appearance))
+        .with_child(render_changes_section(state, appearance, app))
         .finish()
 }
 
-fn render_changes_section(state: &PrState, appearance: &Appearance) -> Box<dyn Element> {
+fn render_changes_section(
+    state: &PrState,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
     let main_color = theme.main_text_color(theme.surface_1()).into_solid();
 
     let label = Text::new(
-        "Changes",
+        localization::text_for_app(app, "code_review.git_dialog.changes"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -218,6 +227,7 @@ fn render_changes_section(state: &PrState, appearance: &Appearance) -> Box<dyn E
         &state.changes_scroll_state,
         GitDialogAction::Pr(PrSubAction::ToggleChangesExpanded),
         appearance,
+        app,
     );
 
     Flex::column()

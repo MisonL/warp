@@ -65,7 +65,7 @@ impl Omnibar {
             let appearance = Appearance::as_ref(ctx);
             dropdown.set_items(
                 BlockType::all()
-                    .map(|block_type| conversion_item(block_type, appearance))
+                    .map(|block_type| conversion_item(block_type, appearance, ctx))
                     .collect_vec(),
                 ctx,
             );
@@ -221,7 +221,7 @@ impl Omnibar {
 
     /// Reset the conversion dropdown to the selected block type.
     fn reset_conversion_menu(&self, block_type: BlockType, ctx: &mut ViewContext<Self>) {
-        let block_name = block_type.label();
+        let block_name = block_type.localized_label(ctx);
         self.block_conversion_dropdown.update(ctx, |dropdown, ctx| {
             dropdown.set_selected_by_name(block_name, ctx);
         });
@@ -440,15 +440,23 @@ impl TypedActionView for Omnibar {
                 .as_ref(ctx)
                 .style_toggle_a11y(BufferTextStyle::InlineCode),
             OmnibarAction::ConvertBlock(style) => {
+                let block = BlockType::from(style).localized_label(ctx);
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    format!("Convert to {}", BlockType::from(style).label()),
+                    crate::localization::text_for_app_with_args(
+                        ctx,
+                        "notebook.editor.a11y.convert_to",
+                        &[("block", &block)],
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }
             OmnibarAction::OpenLinkEditor => ActionAccessibilityContent::from_debug(),
-            OmnibarAction::UnstyleLink => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Remove link", WarpA11yRole::UserAction),
-            ),
+            OmnibarAction::UnstyleLink => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    crate::localization::text_for_app(ctx, "notebook.editor.a11y.remove_link"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
         }
     }
 }
@@ -457,9 +465,11 @@ impl TypedActionView for Omnibar {
 fn conversion_item(
     block_type: BlockType,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> CompactDropdownItem<OmnibarAction> {
     let action = OmnibarAction::ConvertBlock(block_type.into());
-    let mut item = CompactDropdownItem::new(block_type.icon(), block_type.label(), action);
+    let mut item =
+        CompactDropdownItem::new(block_type.icon(), block_type.localized_label(app), action);
     if let Some(icon_fill) = block_type.icon_color(appearance) {
         item = item.with_icon_color(icon_fill);
     }

@@ -204,7 +204,7 @@ impl View for AddRegexModal {
         let is_submit_enabled = !pattern_text.trim().is_empty() && is_valid_regex;
 
         let name_label = Text::new(
-            "Name (optional)",
+            crate::localization::text_for_app(app, "settings.privacy.name_optional"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -212,7 +212,7 @@ impl View for AddRegexModal {
         .finish();
 
         let regex_label = Text::new(
-            "Regex pattern",
+            crate::localization::text_for_app(app, "settings.privacy.regex_pattern"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )

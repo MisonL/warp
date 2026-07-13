@@ -442,7 +442,10 @@ impl HoaOnboardingFlow {
             .finish();
 
         let checkbox_label = Text::new_inline(
-            "Switch back to horizontal tabs".to_string(),
+            localization::text_for_app(
+                app,
+                "workspace.hoa_onboarding.vertical_tabs.switch_horizontal",
+            ),
             appearance.ui_font_family(),
             12.,
         )

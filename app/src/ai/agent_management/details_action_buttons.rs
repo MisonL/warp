@@ -2,11 +2,14 @@
 
 use warp_core::ui::theme::AnsiColorIdentifier;
 use warpui::elements::{ChildView, CrossAxisAlignment, Empty, Flex, ParentElement};
-use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
+use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::{AgentConversationEntryId, AgentRunDisplayStatus};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
+use crate::localization::{self, LocalizationUpdater};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
 use crate::view_components::copyable_text_field::COPY_FEEDBACK_DURATION;
@@ -111,49 +114,52 @@ pub struct ConversationActionButtonsRow {
 
 impl ConversationActionButtonsRow {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let open_button = ctx.add_typed_action_view(|_| {
+        let open_button = ctx.add_typed_action_view(|ctx| {
             Self::make_action_button(
                 Icon::LinkExternal,
-                "Open conversation",
+                localization::text_for_app(ctx, "conversation_details.tooltip.open_conversation"),
                 None,
                 AgentDetailsAction::Open,
             )
         });
 
-        let cancel_task_button = ctx.add_typed_action_view(|_| {
+        let cancel_task_button = ctx.add_typed_action_view(|ctx| {
             Self::make_action_button(
                 Icon::StopFilled,
-                "Cancel task",
+                localization::text_for_app(ctx, "conversation_details.tooltip.cancel_task"),
                 Some(AnsiColorIdentifier::Red),
                 AgentDetailsAction::CancelTask,
             )
         });
 
-        let fork_conversation_button = ctx.add_typed_action_view(|_| {
+        let fork_conversation_button = ctx.add_typed_action_view(|ctx| {
             Self::make_action_button(
                 Icon::ArrowSplit,
-                "Fork conversation",
+                localization::text_for_app(ctx, "conversation_details.tooltip.fork_conversation"),
                 None,
                 AgentDetailsAction::ForkConversation,
             )
         });
 
-        let view_details_button = ctx.add_typed_action_view(|_| {
+        let view_details_button = ctx.add_typed_action_view(|ctx| {
             Self::make_action_button(
                 Icon::Info,
-                "View details",
+                localization::text_for_app(ctx, "conversation_details.tooltip.view_details"),
                 None,
                 AgentDetailsAction::ViewDetails,
             )
         });
 
-        let copy_link_button = ctx.add_typed_action_view(|_| {
+        let copy_link_button = ctx.add_typed_action_view(|ctx| {
             Self::make_action_button(
                 Icon::Link,
-                "Copy link to run",
+                localization::text_for_app(ctx, "conversation_details.tooltip.copy_link_to_run"),
                 None,
                 AgentDetailsAction::CopyLink,
             )
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |this, _, _, ctx| {
+            this.refresh_localized_tooltips(ctx);
         });
 
         Self {
@@ -172,6 +178,48 @@ impl ConversationActionButtonsRow {
         ctx.notify();
     }
 
+    fn refresh_localized_tooltips(&self, ctx: &mut ViewContext<Self>) {
+        for (button, key) in [
+            (
+                &self.open_button,
+                "conversation_details.tooltip.open_conversation",
+            ),
+            (
+                &self.cancel_task_button,
+                "conversation_details.tooltip.cancel_task",
+            ),
+            (
+                &self.fork_conversation_button,
+                "conversation_details.tooltip.fork_conversation",
+            ),
+            (
+                &self.view_details_button,
+                "conversation_details.tooltip.view_details",
+            ),
+            (
+                &self.copy_link_button,
+                "conversation_details.tooltip.copy_link_to_run",
+            ),
+        ] {
+            button.update(ctx, |button, ctx| {
+                button.set_tooltip(Some(localization::text_for_app(ctx, key)), ctx);
+            });
+        }
+        ctx.notify();
+    }
+
+    #[cfg(test)]
+    fn tooltip_for_test(&self, action: AgentDetailsAction, app: &AppContext) -> Option<String> {
+        let button = match action {
+            AgentDetailsAction::Open => &self.open_button,
+            AgentDetailsAction::CancelTask => &self.cancel_task_button,
+            AgentDetailsAction::ForkConversation => &self.fork_conversation_button,
+            AgentDetailsAction::ViewDetails => &self.view_details_button,
+            AgentDetailsAction::CopyLink => &self.copy_link_button,
+        };
+        button.as_ref(app).tooltip_for_test().map(str::to_string)
+    }
+
     /// Returns true if no buttons will be rendered.
     pub fn is_empty(&self) -> bool {
         self.config.is_empty()
@@ -179,7 +227,7 @@ impl ConversationActionButtonsRow {
 
     fn make_action_button(
         icon: Icon,
-        tooltip: &str,
+        tooltip: String,
         icon_color: Option<AnsiColorIdentifier>,
         action: AgentDetailsAction,
     ) -> ActionButton {
@@ -196,6 +244,10 @@ impl ConversationActionButtonsRow {
         button
     }
 }
+
+#[cfg(test)]
+#[path = "details_action_buttons_tests.rs"]
+mod tests;
 
 impl Entity for ConversationActionButtonsRow {
     type Event = AgentDetailsButtonEvent;

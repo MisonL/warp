@@ -151,12 +151,12 @@ impl AutoHandoffSleepModal {
         hero_stack.finish()
     }
 
-    fn render_badge(appearance: &Appearance) -> Box<dyn Element> {
+    fn render_badge(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let red = appearance.theme().terminal_colors().normal.red;
         let text_color: ColorU = red.into();
         let background_color = appearance.theme().ansi_overlay_2(red);
         let text = Text::new_inline(
-            "Run Connection Lost".to_string(),
+            auto_handoff_sleep_text(app, "workspace.auto_handoff_sleep.badge"),
             appearance.ui_font_family(),
             14.,
         )
@@ -195,10 +195,9 @@ impl AutoHandoffSleepModal {
         .finish()
     }
 
-    fn render_description(appearance: &Appearance) -> Box<dyn Element> {
+    fn render_description(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Text::new(
-            "Give Warp the option to automatically move active local agents to the cloud when \
-             your computer sleeps.",
+            auto_handoff_sleep_text(app, "workspace.auto_handoff_sleep.description"),
             appearance.ui_font_family(),
             14.,
         )
@@ -227,11 +226,11 @@ impl AutoHandoffSleepModal {
                     Flex::column()
                         .with_cross_axis_alignment(CrossAxisAlignment::Start)
                         .with_spacing(8.)
-                        .with_child(Self::render_badge(appearance))
+                        .with_child(Self::render_badge(appearance, app))
                         .with_child(Self::render_title(appearance, app))
                         .finish(),
                 )
-                .with_child(Self::render_description(appearance))
+                .with_child(Self::render_description(appearance, app))
                 .with_child(footer)
                 .finish(),
         )

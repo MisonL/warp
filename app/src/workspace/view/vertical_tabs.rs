@@ -1871,7 +1871,10 @@ fn render_groups(
         } else {
             return Container::new(
                 Text::new_inline(
-                    "No tabs match your search.",
+                    localization::text_for_app(
+                        app,
+                        "workspace.vertical_tabs.empty.no_search_results",
+                    ),
                     appearance.ui_font_family(),
                     12.,
                 )
@@ -5448,31 +5451,50 @@ fn default_compact_subtitle(primary: VerticalTabsPrimaryInfo) -> VerticalTabsCom
 }
 
 fn subtitle_options_for_primary(
+    app: &AppContext,
     primary: VerticalTabsPrimaryInfo,
-) -> [(VerticalTabsCompactSubtitle, &'static str); 2] {
+) -> [(VerticalTabsCompactSubtitle, String); 2] {
     match primary {
         VerticalTabsPrimaryInfo::Command => [
-            (VerticalTabsCompactSubtitle::Branch, "Branch"),
+            (
+                VerticalTabsCompactSubtitle::Branch,
+                localization::text_for_app(app, "workspace.vertical_tabs.settings.branch"),
+            ),
             (
                 VerticalTabsCompactSubtitle::WorkingDirectory,
-                "Working Directory",
+                localization::text_for_app(
+                    app,
+                    "workspace.vertical_tabs.settings.working_directory",
+                ),
             ),
         ],
         VerticalTabsPrimaryInfo::WorkingDirectory => [
-            (VerticalTabsCompactSubtitle::Branch, "Branch"),
+            (
+                VerticalTabsCompactSubtitle::Branch,
+                localization::text_for_app(app, "workspace.vertical_tabs.settings.branch"),
+            ),
             (
                 VerticalTabsCompactSubtitle::Command,
-                "Command / Conversation",
+                localization::text_for_app(
+                    app,
+                    "workspace.vertical_tabs.settings.command_conversation",
+                ),
             ),
         ],
         VerticalTabsPrimaryInfo::Branch => [
             (
                 VerticalTabsCompactSubtitle::Command,
-                "Command / Conversation",
+                localization::text_for_app(
+                    app,
+                    "workspace.vertical_tabs.settings.command_conversation",
+                ),
             ),
             (
                 VerticalTabsCompactSubtitle::WorkingDirectory,
-                "Working Directory",
+                localization::text_for_app(
+                    app,
+                    "workspace.vertical_tabs.settings.working_directory",
+                ),
             ),
         ],
     }
@@ -5515,7 +5537,7 @@ pub(super) fn render_settings_popup(
     let sub_text = theme.sub_text_color(theme.background());
     let view_as_header = Container::new(
         Text::new_inline(
-            "View as".to_string(),
+            localization::text_for_app(app, "workspace.vertical_tabs.settings.view_as"),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5534,7 +5556,7 @@ pub(super) fn render_settings_popup(
                 Expanded::new(
                     1.,
                     render_popup_text_segment(
-                        "Panes",
+                        localization::text_for_app(app, "workspace.vertical_tabs.settings.panes"),
                         matches!(current_granularity, VerticalTabsDisplayGranularity::Panes),
                         state.panes_segment_mouse_state.clone(),
                         VerticalTabsDisplayGranularity::Panes,
@@ -5548,7 +5570,7 @@ pub(super) fn render_settings_popup(
                 Expanded::new(
                     1.,
                     render_popup_text_segment(
-                        "Tabs",
+                        localization::text_for_app(app, "workspace.vertical_tabs.settings.tabs"),
                         matches!(current_granularity, VerticalTabsDisplayGranularity::Tabs),
                         state.tabs_segment_mouse_state.clone(),
                         VerticalTabsDisplayGranularity::Tabs,
@@ -5574,7 +5596,7 @@ pub(super) fn render_settings_popup(
 
     let tab_item_header = Container::new(
         Text::new_inline(
-            "Tab item".to_string(),
+            localization::text_for_app(app, "workspace.vertical_tabs.settings.tab_item"),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5586,7 +5608,7 @@ pub(super) fn render_settings_popup(
     .finish();
 
     let focused_session_option = render_tab_item_mode_option(
-        "Focused session",
+        localization::text_for_app(app, "workspace.vertical_tabs.settings.focused_session"),
         matches!(
             current_tab_item_mode,
             VerticalTabsTabItemMode::FocusedSession
@@ -5599,7 +5621,7 @@ pub(super) fn render_settings_popup(
 
     let summary_option = if FeatureFlag::VerticalTabsSummaryMode.is_enabled() {
         Some(render_tab_item_mode_option(
-            "Summary",
+            localization::text_for_app(app, "workspace.vertical_tabs.settings.summary"),
             matches!(current_tab_item_mode, VerticalTabsTabItemMode::Summary),
             state.summary_option_mouse_state.clone(),
             VerticalTabsTabItemMode::Summary,
@@ -5612,7 +5634,7 @@ pub(super) fn render_settings_popup(
 
     let density_header = Container::new(
         Text::new_inline(
-            "Density".to_string(),
+            localization::text_for_app(app, "workspace.vertical_tabs.settings.density"),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5689,7 +5711,7 @@ pub(super) fn render_settings_popup(
 
     let pane_title_header = Container::new(
         Text::new_inline(
-            "Pane title as".to_string(),
+            localization::text_for_app(app, "workspace.vertical_tabs.settings.pane_title_as"),
             appearance.ui_font_family(),
             SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
         )
@@ -5701,7 +5723,7 @@ pub(super) fn render_settings_popup(
     .finish();
 
     let command_option = render_primary_info_option(
-        "Command / Conversation",
+        localization::text_for_app(app, "workspace.vertical_tabs.settings.command_conversation"),
         matches!(current_primary_info, VerticalTabsPrimaryInfo::Command),
         state.command_option_mouse_state.clone(),
         VerticalTabsPrimaryInfo::Command,
@@ -5710,7 +5732,7 @@ pub(super) fn render_settings_popup(
     );
 
     let directory_option = render_primary_info_option(
-        "Working Directory",
+        localization::text_for_app(app, "workspace.vertical_tabs.settings.working_directory"),
         matches!(
             current_primary_info,
             VerticalTabsPrimaryInfo::WorkingDirectory
@@ -5722,7 +5744,7 @@ pub(super) fn render_settings_popup(
     );
 
     let branch_option = render_primary_info_option(
-        "Branch",
+        localization::text_for_app(app, "workspace.vertical_tabs.settings.branch"),
         matches!(current_primary_info, VerticalTabsPrimaryInfo::Branch),
         state.branch_option_mouse_state.clone(),
         VerticalTabsPrimaryInfo::Branch,
@@ -5760,7 +5782,10 @@ pub(super) fn render_settings_popup(
 
             let subtitle_header = Container::new(
                 Text::new_inline(
-                    "Additional metadata".to_string(),
+                    localization::text_for_app(
+                        app,
+                        "workspace.vertical_tabs.settings.additional_metadata",
+                    ),
                     appearance.ui_font_family(),
                     SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
                 )
@@ -5772,14 +5797,14 @@ pub(super) fn render_settings_popup(
             .finish();
             popup_col.add_child(subtitle_header);
 
-            let options = subtitle_options_for_primary(current_primary_info);
+            let options = subtitle_options_for_primary(app, current_primary_info);
             let mouse_states = [
                 state.subtitle_option_1_mouse_state.clone(),
                 state.subtitle_option_2_mouse_state.clone(),
             ];
             for (i, (value, label)) in options.iter().enumerate() {
                 popup_col.add_child(render_compact_subtitle_option(
-                    label,
+                    label.clone(),
                     current_subtitle == *value,
                     mouse_states[i].clone(),
                     *value,
@@ -5794,7 +5819,7 @@ pub(super) fn render_settings_popup(
 
             let show_header = Container::new(
                 Text::new_inline(
-                    "Show".to_string(),
+                    localization::text_for_app(app, "workspace.vertical_tabs.settings.show"),
                     appearance.ui_font_family(),
                     SETTINGS_POPUP_MENU_ITEM_FONT_SIZE,
                 )
@@ -5811,14 +5836,17 @@ pub(super) fn render_settings_popup(
             let pr_link_info_tooltip = if show_pr_link && pr_validation_suppressed {
                 Some(ShowToggleInfoTooltip {
                     mouse_state: state.show_pr_link_info_tooltip_mouse_state.clone(),
-                    tooltip_text: "Requires the GitHub CLI to be installed and authenticated",
+                    tooltip_text: localization::text_for_app(
+                        app,
+                        "workspace.vertical_tabs.settings.github_cli_required",
+                    ),
                 })
             } else {
                 None
             };
 
             popup_col.add_child(render_show_toggle_option(
-                "PR link",
+                localization::text_for_app(app, "workspace.vertical_tabs.settings.pr_link"),
                 show_pr_link,
                 state.show_pr_link_mouse_state.clone(),
                 WorkspaceAction::ToggleVerticalTabsShowPrLink,
@@ -5827,7 +5855,7 @@ pub(super) fn render_settings_popup(
                 theme,
             ));
             popup_col.add_child(render_show_toggle_option(
-                "Diff stats",
+                localization::text_for_app(app, "workspace.vertical_tabs.settings.diff_stats"),
                 show_diff_stats,
                 state.show_diff_stats_mouse_state.clone(),
                 WorkspaceAction::ToggleVerticalTabsShowDiffStats,
@@ -5840,7 +5868,10 @@ pub(super) fn render_settings_popup(
     popup_col.add_child(make_divider(theme));
 
     popup_col.add_child(render_show_toggle_option(
-        "Show details on hover",
+        localization::text_for_app(
+            app,
+            "workspace.vertical_tabs.settings.show_details_on_hover",
+        ),
         show_details_on_hover,
         state.show_details_on_hover_mouse_state.clone(),
         WorkspaceAction::ToggleVerticalTabsShowDetailsOnHover,
@@ -5868,7 +5899,7 @@ pub(super) fn render_settings_popup(
 }
 
 fn render_compact_subtitle_option(
-    label: &str,
+    label: String,
     is_selected: bool,
     mouse_state: MouseStateHandle,
     value: VerticalTabsCompactSubtitle,
@@ -5879,7 +5910,6 @@ fn render_compact_subtitle_option(
     const FONT_SIZE: f32 = 12.;
     const GAP: f32 = 8.;
 
-    let label = label.to_string();
     let main_text = theme.main_text_color(theme.background());
     Hoverable::new(mouse_state, move |hover_state| {
         let check_icon: Box<dyn Element> = if is_selected {
@@ -5921,7 +5951,7 @@ fn render_compact_subtitle_option(
 }
 
 fn render_tab_item_mode_option(
-    label: &str,
+    label: String,
     is_selected: bool,
     mouse_state: MouseStateHandle,
     value: VerticalTabsTabItemMode,
@@ -5932,7 +5962,6 @@ fn render_tab_item_mode_option(
     const FONT_SIZE: f32 = 12.;
     const GAP: f32 = 8.;
 
-    let label = label.to_string();
     let main_text = theme.main_text_color(theme.background());
     Hoverable::new(mouse_state, move |hover_state| {
         let check_icon: Box<dyn Element> = if is_selected {
@@ -5974,7 +6003,7 @@ fn render_tab_item_mode_option(
 }
 
 fn render_primary_info_option(
-    label: &str,
+    label: String,
     is_selected: bool,
     mouse_state: MouseStateHandle,
     value: VerticalTabsPrimaryInfo,
@@ -5985,7 +6014,6 @@ fn render_primary_info_option(
     const FONT_SIZE: f32 = 12.;
     const GAP: f32 = 8.;
 
-    let label = label.to_string();
     let main_text = theme.main_text_color(theme.background());
     Hoverable::new(mouse_state, move |hover_state| {
         let check_icon: Box<dyn Element> = if is_selected {
@@ -6028,11 +6056,11 @@ fn render_primary_info_option(
 
 struct ShowToggleInfoTooltip {
     mouse_state: MouseStateHandle,
-    tooltip_text: &'static str,
+    tooltip_text: String,
 }
 
 fn render_show_toggle_option(
-    label: &str,
+    label: String,
     is_enabled: bool,
     mouse_state: MouseStateHandle,
     action: WorkspaceAction,
@@ -6046,7 +6074,6 @@ fn render_show_toggle_option(
     const INFO_ICON_SIZE: f32 = 12.;
     const INFO_GAP: f32 = 4.;
 
-    let label = label.to_string();
     let main_text = theme.main_text_color(theme.background());
     let info_color = theme.sub_text_color(theme.background());
     let ui_builder = appearance.ui_builder().clone();
@@ -6164,14 +6191,13 @@ fn render_popup_segment(
 }
 
 fn render_popup_text_segment(
-    label: &str,
+    label: String,
     is_selected: bool,
     mouse_state: MouseStateHandle,
     granularity: VerticalTabsDisplayGranularity,
     appearance: &Appearance,
     theme: &WarpTheme,
 ) -> Box<dyn Element> {
-    let label = label.to_string();
     let main_text = theme.main_text_color(theme.background());
     let sub_text = theme.sub_text_color(theme.background());
     Hoverable::new(mouse_state, move |hover_state| {

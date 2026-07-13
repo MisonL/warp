@@ -1112,9 +1112,9 @@ impl UseAgentToolbar {
             })
             .with_size(button_size)
         });
-        let dont_show_again_button = ctx.add_typed_action_view(|_| {
+        let dont_show_again_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                "Don't show again",
+                localization::text_for_app(ctx, "terminal.use_agent_footer.action.dont_show_again"),
                 AgentFooterButtonTheme::new(Some(terminal_model.clone())),
             )
             .on_click(|ctx| {

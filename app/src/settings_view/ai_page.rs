@@ -1,4 +1,4 @@
-use ::ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent, ApiKeys};
+use ::ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent, ApiKeys, AwsCredentialsState};
 #[cfg(not(target_family = "wasm"))]
 use ::ai::grok_subscription::oauth::{self, ManualCodeExchange};
 use chrono::{DateTime, Local};
@@ -7,6 +7,7 @@ use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
 use regex::Regex;
 use settings::{Setting, ToggleableSetting};
+use std::time::SystemTime;
 use strum::IntoEnumIterator;
 use warp_core::channel::ChannelState;
 use warp_core::context_flag::ContextFlag;
@@ -95,6 +96,10 @@ use crate::settings::{
 };
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::terminal::CLIAgent;
+use crate::util::time_format::{
+    localized_month_day, localized_month_day_time, localized_month_day_year_time,
+    localized_time_of_day,
+};
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, DangerSecondaryTheme, SecondaryTheme,
 };
@@ -115,6 +120,89 @@ fn ai_settings_text(app: &AppContext, key: &str) -> String {
 
 fn ai_settings_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) -> String {
     localization::text_for_app_with_args(app, key, args)
+}
+
+fn format_aws_credentials_status_timestamp(app: &AppContext, time: SystemTime) -> String {
+    let datetime: DateTime<Local> = time.into();
+    if datetime.date_naive() == Local::now().date_naive() {
+        localized_time_of_day(app, datetime)
+    } else {
+        localized_month_day_time(app, datetime)
+    }
+}
+
+fn aws_credentials_status_components(app: &AppContext) -> (String, String, Icon) {
+    match ApiKeyManager::as_ref(app).aws_credentials_state() {
+        AwsCredentialsState::Missing => (
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.status.missing.title",
+            ),
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.status.missing.detail",
+            ),
+            Icon::Key,
+        ),
+        AwsCredentialsState::Disabled => (
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.status.disabled.title",
+            ),
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.status.disabled.detail",
+            ),
+            Icon::Key,
+        ),
+        AwsCredentialsState::Refreshing => (
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.status.refreshing.title",
+            ),
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.status.refreshing.detail",
+            ),
+            Icon::RefreshCw04,
+        ),
+        AwsCredentialsState::Loaded {
+            credentials,
+            loaded_at,
+        } => {
+            let loaded_at = format_aws_credentials_status_timestamp(app, *loaded_at);
+            let detail_text = if let Some(expires_at) = credentials.expires_at() {
+                let expires_at = format_aws_credentials_status_timestamp(app, expires_at);
+                ai_settings_text_with_args(
+                    app,
+                    "settings.ai.aws_bedrock.credentials.status.loaded.detail_with_expiration",
+                    &[("loaded_at", &loaded_at), ("expires_at", &expires_at)],
+                )
+            } else {
+                ai_settings_text_with_args(
+                    app,
+                    "settings.ai.aws_bedrock.credentials.status.loaded.detail",
+                    &[("loaded_at", &loaded_at)],
+                )
+            };
+            (
+                ai_settings_text(
+                    app,
+                    "settings.ai.aws_bedrock.credentials.status.loaded.title",
+                ),
+                detail_text,
+                Icon::CheckCircleBroken,
+            )
+        }
+        AwsCredentialsState::Failed { message } => (
+            ai_settings_text(
+                app,
+                "settings.ai.aws_bedrock.credentials.status.failed.title",
+            ),
+            message.clone(),
+            Icon::AlertTriangle,
+        ),
+    }
 }
 
 /// Identifies which subpage of the AI settings the user is viewing.
@@ -4780,8 +4868,8 @@ impl SettingsWidget for UsageWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let ai_request_usage_model = AIRequestUsageModel::as_ref(app);
-        let next_refresh_time = ai_request_usage_model.next_refresh_time();
-        let formatted_next_refresh_time = next_refresh_time.format("%b %d").to_string();
+        let next_refresh_time = ai_request_usage_model.next_refresh_time_local();
+        let formatted_next_refresh_time = localized_month_day(app, next_refresh_time);
         let workspace_is_delinquent_due_to_payment_issue = UserWorkspaces::as_ref(app)
             .current_team()
             .map(|team| team.billing_metadata.is_delinquent_due_to_payment_issue())
@@ -6599,10 +6687,7 @@ impl SettingsWidget for MCPServersWidget {
         .finish();
 
         let mcp_description = vec![
-            FormattedTextFragment::plain_text(
-                "Add MCP servers to extend the Warp Agent's capabilities. \
-            MCP servers expose data sources or tools to agents through a standardized interface, essentially acting like plugins. ",
-            ),
+            FormattedTextFragment::plain_text(ai_settings_text(app, "settings.ai.mcp.description")),
             FormattedTextFragment::hyperlink(
                 ai_settings_text(app, "settings.action.learn_more"),
                 "https://docs.warp.dev/agent-platform/capabilities/mcp",
@@ -8499,7 +8584,7 @@ impl ApiKeysWidget {
                     "settings.ai.grok.subscription.connected_on",
                     &[(
                         "connected_at",
-                        &connected_at.format("%m/%d/%Y at %-I:%M%P").to_string(),
+                        &localized_month_day_year_time(app, connected_at),
                     )],
                 ),
                 // Tokens stored before the connection time was tracked.
@@ -8686,7 +8771,7 @@ impl SettingsWidget for ApiKeysWidget {
                 column.add_child(
                     Container::new(
                         Text::new_inline(
-                            "Custom endpoints",
+                            ai_settings_text(app, "settings.ai.custom_endpoint.section"),
                             appearance.ui_font_family(),
                             CONTENT_FONT_SIZE,
                         )
@@ -9163,9 +9248,7 @@ impl AwsBedrockWidget {
                 styles::header_font_color(are_credentials_enabled, app),
                 styles::description_font_color(are_credentials_enabled, app),
             );
-            let (title_text, detail_text, icon) = ApiKeyManager::as_ref(app)
-                .aws_credentials_state()
-                .user_facing_components();
+            let (title_text, detail_text, icon) = aws_credentials_status_components(app);
 
             let icon = Container::new(
                 ConstrainedBox::new(icon.to_warpui_icon(title_color).finish())

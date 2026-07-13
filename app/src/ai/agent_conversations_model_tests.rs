@@ -40,7 +40,9 @@ use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions};
 use crate::server::ids::ServerId;
 use crate::server::server_api::presigned_upload::HttpStatusError;
 use crate::test_util::ai_agent_tasks::{create_api_task, create_message};
-use crate::test_util::settings::initialize_history_persistence_for_tests;
+use crate::test_util::settings::{
+    initialize_history_persistence_for_tests, initialize_localization_for_tests,
+};
 use crate::workspace::WorkspaceAction;
 
 /// Creates a test task with specified creator UID and updated_at time
@@ -1916,6 +1918,7 @@ fn test_file_artifact_filter_matches_only_items_with_file_artifacts() {
 #[test]
 fn test_task_status_maps_blocked_state_to_blocked() {
     App::test((), |mut app| async move {
+        initialize_localization_for_tests(&mut app);
         let now = Utc::now();
         let mut task = create_test_task(&make_uuid(999), "user-a", now);
         task.state = AmbientAgentTaskState::Blocked;

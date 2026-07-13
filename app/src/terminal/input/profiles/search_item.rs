@@ -10,11 +10,10 @@ use warpui::{AppContext, Element, SingletonEntity as _};
 
 use crate::ai::execution_profiles::profiles::ClientProfileId;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::inline_menu::styles as inline_styles;
 use crate::terminal::input::profiles::data_source::SelectProfileMenuItem;
-
-const MANAGE_PROFILES_LABEL: &str = "Manage profiles";
 
 #[derive(Debug, Clone)]
 enum ProfileSearchItemKind {
@@ -108,7 +107,10 @@ impl SearchItem for ProfileSearchItem {
                 is_selected,
                 ..
             } => (profile_name.clone(), *is_selected),
-            ProfileSearchItemKind::ManageProfiles => (MANAGE_PROFILES_LABEL.to_owned(), false),
+            ProfileSearchItemKind::ManageProfiles => (
+                localization::text_for_app(app, "terminal.profile_model_selector.manage_profiles"),
+                false,
+            ),
         };
 
         let mut label = Text::new_inline(label_text, appearance.ui_font_family(), font_size)
@@ -183,7 +185,22 @@ impl SearchItem for ProfileSearchItem {
             ProfileSearchItemKind::Profile { profile_name, .. } => {
                 format!("Profile: {profile_name}")
             }
-            ProfileSearchItemKind::ManageProfiles => MANAGE_PROFILES_LABEL.to_string(),
+            ProfileSearchItemKind::ManageProfiles => "Manage profiles".to_string(),
+        }
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        match &self.kind {
+            ProfileSearchItemKind::Profile { profile_name, .. } => {
+                localization::text_for_app_with_args(
+                    app,
+                    "search.a11y.type.profile",
+                    &[("name", profile_name)],
+                )
+            }
+            ProfileSearchItemKind::ManageProfiles => {
+                localization::text_for_app(app, "terminal.profile_model_selector.manage_profiles")
+            }
         }
     }
 }

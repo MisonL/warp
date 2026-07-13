@@ -31,6 +31,7 @@ use super::WorkflowSource;
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::editor::Event as EditorEvent;
+use crate::localization;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::themes::theme::{self, Blend, WarpTheme};
@@ -750,18 +751,27 @@ impl CategoriesView {
         }
     }
 
-    fn render_empty_list_placeholder(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let no_workflows_text =
-            CategoriesView::text_label("No matching workflows found.", appearance);
+    fn render_empty_list_placeholder(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        let no_workflows_text = CategoriesView::text_label(
+            localization::text_for_app(app, "workflows.empty.no_matches"),
+            appearance,
+        );
 
         let mut workflow_documentation_link_text =
-            Flex::row().with_child(CategoriesView::text_label("Try ", appearance));
+            Flex::row().with_child(CategoriesView::text_label(
+                localization::text_for_app(app, "workflows.empty.try_prefix"),
+                appearance,
+            ));
 
         workflow_documentation_link_text.add_child(
             appearance
                 .ui_builder()
                 .link(
-                    "creating your own workflow".into(),
+                    localization::text_for_app(app, "workflows.empty.create_link"),
                     Some(
                         "https://docs.warp.dev/knowledge-and-collaboration/warp-drive/workflows"
                             .into(),
@@ -1003,7 +1013,7 @@ impl CategoriesView {
             .finish()
     }
 
-    fn render_workflow_list(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_workflow_list(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let workflows: Vec<_> = self
             .filtered_workflows()
             .map(|workflow_with_highlight| {
@@ -1016,7 +1026,7 @@ impl CategoriesView {
             .collect();
 
         if workflows.is_empty() {
-            return self.render_empty_list_placeholder(appearance);
+            return self.render_empty_list_placeholder(app, appearance);
         }
 
         let selected_index = self.selected_workflow_index;
@@ -1205,10 +1215,10 @@ impl View for CategoriesView {
         "WorkflowsView"
     }
 
-    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Workflows",
-            "Search or use arrow up and arrow down keys to navigate and find a workflow. Use enter to confirm the workflow and esc to quit.",
+            localization::text_for_app(app, "workflows.a11y.title"),
+            localization::text_for_app(app, "workflows.a11y.description"),
             WarpA11yRole::MenuRole,
         ))
     }
@@ -1228,7 +1238,8 @@ impl View for CategoriesView {
                                     .with_width(150.)
                                     .finish(),
                                 // The list of workflows.
-                                Shrinkable::new(1., self.render_workflow_list(appearance)).finish(),
+                                Shrinkable::new(1., self.render_workflow_list(app, appearance))
+                                    .finish(),
                             ])
                             .with_main_axis_size(MainAxisSize::Max)
                             .finish(),

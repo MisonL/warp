@@ -709,7 +709,7 @@ impl BackingView for TerminalView {
 
             let is_maximized = self.split_pane_state(ctx).is_maximized();
             items.push(
-                MenuItemFields::toggle_pane_action(is_maximized)
+                MenuItemFields::toggle_pane_action(is_maximized, ctx)
                     .with_on_select_action(TerminalAction::ToggleMaximizePane)
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         TOGGLE_MAXIMIZE_PANE_BINDING_NAME,

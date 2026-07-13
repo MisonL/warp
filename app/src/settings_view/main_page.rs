@@ -313,7 +313,7 @@ impl MainSettingsPageView {
 
         widgets.push(Box::new(LogoutWidget::default()));
 
-        let page = PageType::new_uncategorized(widgets, Some("Account"));
+        let page = PageType::new_uncategorized(widgets, Some("settings.nav.account"));
 
         MainSettingsPageView { page, auth_state }
     }
@@ -1010,7 +1010,7 @@ impl VersionInfoWidget {
                 appearance
                     .ui_builder()
                     .link(
-                        call_to_action_content.text.into(),
+                        call_to_action_content.text,
                         None,
                         Some(Box::new(move |ctx| {
                             ctx.dispatch_typed_action(call_to_action_content.action.clone());

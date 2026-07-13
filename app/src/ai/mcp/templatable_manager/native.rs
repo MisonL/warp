@@ -799,10 +799,10 @@ impl TemplatableMCPServerManager {
                 if let Some(window_id) = WindowManager::as_ref(ctx).active_window() {
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "PATH required to launch MCP server. Please open a new terminal session to autopopulate PATH."
-                                    .to_string(),
-                            ),
+                            DismissibleToast::error(crate::localization::text_for_app(
+                                ctx,
+                                "settings.mcp.toast.path_required",
+                            )),
                             window_id,
                             ctx,
                         );
@@ -928,7 +928,11 @@ impl TemplatableMCPServerManager {
                                     manager.pending_oauth_csrf.insert(csrf_state, uuid);
                                 }
                                 ctx.open_url(&auth_url);
-                                manager.change_server_state(uuid, MCPServerState::Authenticating, ctx);
+                                manager.change_server_state(
+                                    uuid,
+                                    MCPServerState::Authenticating,
+                                    ctx,
+                                );
                             })
                             .await
                             .map_err(|err| {
@@ -947,9 +951,13 @@ impl TemplatableMCPServerManager {
                                 if let Some(active_window_id) = ctx.windows().active_window() {
                                     ToastStack::handle(ctx).update(ctx, |stack, ctx| {
                                         stack.add_ephemeral_toast(
-                                            DismissibleToast::default(format!(
-                                                "Successfully authenticated {server_name} MCP server"
-                                            )),
+                                            DismissibleToast::default(
+                                                crate::localization::text_for_app_with_args(
+                                                    ctx,
+                                                    "settings.mcp.toast.authenticated_server",
+                                                    &[("server_name", &server_name)],
+                                                ),
+                                            ),
                                             active_window_id,
                                             ctx,
                                         );

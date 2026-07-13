@@ -28,13 +28,14 @@ use crate::editor::{
     TextOptions,
 };
 use crate::keyboard::{write_custom_keybinding, UserDefinedKeybinding};
+use crate::localization::{self, LocalizationUpdater};
 use crate::search_bar::SearchBar;
 use crate::settings::CloudPreferencesSettings;
 use crate::util::bindings::{
     filter_bindings_including_keystroke, reset_keybinding_to_default, set_custom_keybinding,
     CommandBinding,
 };
-use crate::{localization, send_telemetry_from_ctx, themes, TelemetryEvent};
+use crate::{send_telemetry_from_ctx, themes, TelemetryEvent};
 
 const FONT_DELTA: f32 = 2.;
 const CANCEL_SAVE_BUTTONS_SPACING: f32 = 4.0;
@@ -532,6 +533,10 @@ impl KeybindingsView {
 
         let search_bar = ctx.add_typed_action_view(|_| SearchBar::new(search_editor.clone()));
 
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
+
         let page = PageType::new_monolith(KeybindingsWidget::default(), None, false);
         Self {
             page,
@@ -580,6 +585,57 @@ impl KeybindingsView {
             EditorEvent::Escape => ctx.focus_self(),
             _ => {}
         }
+    }
+
+    fn build_bindings(ctx: &AppContext) -> Vec<CommandBinding> {
+        // Materialize dynamic descriptions before sorting and deduplicating so
+        // all comparisons use concrete text for the current locale.
+        let lenses: Vec<_> = ctx.editable_bindings().collect();
+        lenses
+            .into_iter()
+            .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
+            .sorted_by(|a, b| {
+                // Sort by description then name so duplicate action variants are adjacent.
+                a.description
+                    .in_context(DescriptionContext::Default)
+                    .cmp(b.description.in_context(DescriptionContext::Default))
+                    .then(a.name.cmp(&b.name))
+            })
+            // Editable bindings may be registered once per view with the same persisted
+            // name and description. Show one row for those equivalent registrations while
+            // retaining bindings that share a name but have different semantics.
+            .dedup_by(|a, b| a.name == b.name && a.description == b.description)
+            .collect()
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.modifying_row.take().is_some() {
+            ctx.enable_key_bindings_dispatching();
+        }
+
+        let bindings = Self::build_bindings(ctx);
+        let search_term = self.search_editor.as_ref(ctx).buffer_text(ctx);
+        self.rows = Some(
+            filter_bindings_including_keystroke(
+                bindings.iter(),
+                &search_term,
+                DescriptionContext::Default,
+            )
+            .map(KeybindingRow::from)
+            .collect(),
+        );
+        self.conflict_map = bindings
+            .iter()
+            .map(|binding| binding.trigger.clone())
+            .collect();
+        self.bindings = Some(bindings);
+        self.search_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     fn binding_row_clicked(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
@@ -770,64 +826,10 @@ impl SettingsPageMeta for KeybindingsView {
     fn on_page_selected(&mut self, allow_steal_focus: bool, ctx: &mut ViewContext<Self>) {
         // Reset previous modifying_row state.
         self.modifying_row = None;
-        // `from_editable_lens` materializes any dynamic description resolver
-        // before caching, so the dedup below (which compares descriptions)
-        // sees concrete strings.
-        let lenses: Vec<_> = ctx.editable_bindings().collect();
-        self.bindings = Some(
-            lenses
-                .into_iter()
-                .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
-                .sorted_by(|a, b| {
-                    // Sort by description then name so that we can deduplicate bindings by name.
-                    a.description
-                        .in_context(DescriptionContext::Default)
-                        .cmp(b.description.in_context(DescriptionContext::Default))
-                        .then(a.name.cmp(&b.name))
-                })
-                // Effectively, editable bindings can only be used by one view, because the
-                // corresponding context predicate and typed action are view-specific.
-                //
-                // If multiple views need equivalent bindings, we handle this by declaring
-                // duplicates with the same name and description, but different actions and
-                // predicates. Because bindings are saved/loaded by name, changes to one binding
-                // will affect the others. To reduce clutter, only show one binding for a given name
-                // and description.
-                //
-                // There are some bindings with the same name, but different descriptions. Because
-                // we sort by description first, those bindings won't be deduplicated. This is
-                // alright for now, since those bindings have slightly different semantics despite
-                // being linked (e.g. find in block vs. find in terminal).
-                //
-                // TODO: Long-term, we should instead refactor TypedActionView so that common
-                // bindings can be declared once and handled by multiple views.
-                .dedup_by(|a, b| a.name == b.name && a.description == b.description)
-                .collect(),
-        );
-        self.rows = Some(
-            self.bindings
-                .iter()
-                .flatten()
-                .map(|b| (None, b))
-                .map(KeybindingRow::from)
-                .collect(),
-        );
-
-        // Populate the conflict map at startup.
-        self.conflict_map = self
-            .bindings
-            .iter()
-            .flatten()
-            .map(|binding| binding.trigger.clone())
-            .collect();
-
         self.search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
-            editor.set_placeholder_text(
-                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
-                ctx,
-            );
         });
+        self.refresh_localized_text(ctx);
 
         if allow_steal_focus {
             ctx.focus(&self.search_editor);

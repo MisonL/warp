@@ -195,7 +195,7 @@ impl View for RewindConfirmationDialog {
             )
             .with_child(
                 Text::new_inline(
-                    "Rewinding does not affect files edited manually or via shell commands.",
+                    localization::text_for_app(app, "workspace.rewind.manual_files_note"),
                     appearance.ui_font_family(),
                     12.,
                 )

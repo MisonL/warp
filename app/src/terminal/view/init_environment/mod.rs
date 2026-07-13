@@ -20,9 +20,6 @@ use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
 use crate::appearance::Appearance;
 use crate::localization;
 
-const EXPLANATION_TEXT: &str = "Would you like to create an environment for this project so you can run cloud agents in it? The agent will guide you through choosing GitHub repos, configuring a Docker image, and specifying startup commands.";
-const NO_REPOS_HELP_TEXT: &str = "If you want to create an environment with repos, rerun this command and pass in file paths or GitHub links as arguments, e.g. \"/create-environment <filepath> <GitHub URL>\".";
-
 #[derive(Debug, Clone)]
 pub enum InitEnvironmentBlockAction {
     StartSetup,
@@ -115,7 +112,7 @@ impl InitEnvironmentBlock {
         // Add help text if we don't have any repos to make it clearer
         if self.repos.is_empty() && !self.use_current_dir {
             let help_text = Text::new(
-                NO_REPOS_HELP_TEXT,
+                localization::text_for_app(app, "terminal.init_environment.no_repos_help"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() - 2.,
             )
@@ -132,10 +129,13 @@ impl InitEnvironmentBlock {
 
         RenderableAction::new_with_element(content.finish(), app)
             .with_header(
-                HeaderConfig::new(EXPLANATION_TEXT, app)
-                    .with_icon(yellow_stop_icon(appearance))
-                    .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
-                    .with_soft_wrap_title(),
+                HeaderConfig::new(
+                    localization::text_for_app(app, "terminal.init_environment.explanation"),
+                    app,
+                )
+                .with_icon(yellow_stop_icon(appearance))
+                .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
+                .with_soft_wrap_title(),
             )
             .with_background_color(theme.surface_1().into_solid())
             .render(app)
@@ -157,11 +157,14 @@ impl View for InitEnvironmentBlock {
 
         let rendered_step = match &self.setup_state {
             SetupState::Pending { action_view } => self.render_pending_step(action_view, app),
-            SetupState::Skipped => RenderableAction::new("Environment setup cancelled", app)
-                .with_icon(cancelled_icon(appearance).finish())
-                .with_content_item_spacing()
-                .render(app)
-                .finish(),
+            SetupState::Skipped => RenderableAction::new(
+                &localization::text_for_app(app, "terminal.init_environment.cancelled"),
+                app,
+            )
+            .with_icon(cancelled_icon(appearance).finish())
+            .with_content_item_spacing()
+            .render(app)
+            .finish(),
         };
         Container::new(rendered_step).with_padding_top(16.).finish()
     }

@@ -6,7 +6,7 @@ use warpui::elements::{
     Align, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Icon,
     MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement as _, Radius,
 };
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::platform::Cursor;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -32,7 +32,12 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:new_tab",
-        "Terminal session",
+        BindingDescription::new("Terminal session").with_dynamic_override(|app| {
+            Some(localization::text_for_app(
+                app,
+                "pane.get_started.binding.terminal_session",
+            ))
+        }),
         GetStartedAction::TerminalSession,
     )
     .with_context_predicate(id!("GetStartedView"))
@@ -60,7 +65,9 @@ pub struct GetStartedView {
 
 impl GetStartedView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Get started"));
+        let pane_configuration = ctx.add_model(|ctx| {
+            PaneConfiguration::new(localization::text_for_app(ctx, "pane.get_started.title"))
+        });
         let project_buttons = ctx.add_typed_action_view(ProjectButtons::new);
         ctx.subscribe_to_view(&project_buttons, Self::handle_project_buttons_event);
 
@@ -208,6 +215,22 @@ impl GetStartedView {
             }
         }
 
+        let home_dir = dirs::home_dir()
+            .map(|dir| dir.display().to_string())
+            .unwrap_or("~".to_string());
+        let new_session_label = localization::text_for_app_with_args(
+            app,
+            "pane.get_started.new_session_in",
+            &[("path", home_dir.as_str())],
+        );
+        let new_session_shortcut =
+            keybinding_name_to_display_string("workspace:new_tab", app).unwrap_or_default();
+        let new_session_button_label = if new_session_shortcut.is_empty() {
+            format!(" {new_session_label}")
+        } else {
+            format!(" {new_session_label}  {new_session_shortcut}")
+        };
+
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_children([
@@ -272,14 +295,7 @@ impl GetStartedView {
                     })
                     .with_text_and_icon_label(TextAndIcon::new(
                         TextAndIconAlignment::IconFirst,
-                        format!(
-                            " New session in {}  {}",
-                            dirs::home_dir()
-                                .map(|dir| dir.display().to_string())
-                                .unwrap_or("~".to_string()),
-                            keybinding_name_to_display_string("workspace:new_tab", app)
-                                .unwrap_or_default()
-                        ),
+                        new_session_button_label,
                         ui::Icon::Terminal.to_warpui_icon(theme.foreground()),
                         MainAxisSize::Min,
                         MainAxisAlignment::Center,
@@ -359,9 +375,9 @@ impl BackingView for GetStartedView {
     fn render_header_content(
         &self,
         _ctx: &view::HeaderRenderContext<'_>,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> view::HeaderContent {
-        view::HeaderContent::simple("Get started")
+        view::HeaderContent::simple(localization::text_for_app(app, "pane.get_started.title"))
     }
 
     fn set_focus_handle(&mut self, focus_handle: PaneFocusHandle, _ctx: &mut ViewContext<Self>) {

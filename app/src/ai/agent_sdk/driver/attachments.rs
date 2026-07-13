@@ -10,11 +10,13 @@ use mime_guess::from_path;
 use tokio::fs;
 use tokio_util::io::StreamReader;
 use warp_core::features::FeatureFlag;
+use warp_localization::LocaleId;
 
 use crate::ai::agent_sdk::retry::with_bounded_retry;
 use crate::ai::ambient_agents::task::{AttachmentInput, TaskAttachment};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::attachment_utils::MAX_ATTACHMENT_SIZE_BYTES;
+use crate::localization;
 use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::presigned_upload::HttpStatusError;
 use crate::server::server_api::ServerApi;
@@ -37,6 +39,7 @@ pub(crate) async fn fetch_and_download_attachments(
     http_client: Arc<ServerApi>,
     task_id: String,
     attachments_dir: PathBuf,
+    locale: LocaleId,
 ) -> anyhow::Result<Option<String>> {
     if !FeatureFlag::AmbientAgentsImageUpload.is_enabled() {
         return Ok(None);
@@ -45,7 +48,10 @@ pub(crate) async fn fetch_and_download_attachments(
     let attachments = ai_client
         .get_task_attachments(task_id.clone())
         .await
-        .context("Failed to fetch task attachments")?;
+        .context(localization::text_for_locale(
+            locale,
+            "agent_sdk.driver.attachments.error.fetch_task",
+        ))?;
 
     log::info!("Fetched {} task attachments", attachments.len());
 
@@ -53,7 +59,7 @@ pub(crate) async fn fetch_and_download_attachments(
         return Ok(None);
     }
 
-    download_and_write_attachments(attachments, &attachments_dir, &http_client).await?;
+    download_and_write_attachments(attachments, &attachments_dir, &http_client, locale).await?;
 
     Ok(Some(attachments_dir.to_string_lossy().into_owned()))
 }
@@ -73,6 +79,7 @@ pub(crate) async fn fetch_and_download_handoff_snapshot_attachments(
     http_client: &http_client::Client,
     task_id: AmbientAgentTaskId,
     attachments_dir: PathBuf,
+    locale: LocaleId,
 ) -> anyhow::Result<Option<String>> {
     if !FeatureFlag::OzHandoff.is_enabled() {
         log::error!(
@@ -85,7 +92,10 @@ pub(crate) async fn fetch_and_download_handoff_snapshot_attachments(
     let attachments = ai_client
         .get_handoff_snapshot_attachments(&task_id)
         .await
-        .context("Failed to fetch handoff snapshot attachments")?;
+        .context(localization::text_for_locale(
+            locale,
+            "agent_sdk.driver.attachments.error.fetch_handoff_snapshot",
+        ))?;
 
     if attachments.is_empty() {
         return Ok(None);
@@ -94,12 +104,15 @@ pub(crate) async fn fetch_and_download_handoff_snapshot_attachments(
     let handoff_dir = attachments_dir.join("handoff");
     fs::create_dir_all(&handoff_dir)
         .await
-        .context("Failed to create handoff attachments directory")?;
+        .context(localization::text_for_locale(
+            locale,
+            "agent_sdk.driver.attachments.error.create_handoff_directory",
+        ))?;
 
     let attempts = attachments.len();
     let download_futures = attachments.into_iter().map(|attachment| {
         let file_path = handoff_dir.join(&attachment.file_id);
-        download_handoff_entry(attachment, file_path, http_client)
+        download_handoff_entry(attachment, file_path, http_client, locale)
     });
     let results = join_all(download_futures).await;
 
@@ -143,10 +156,14 @@ async fn download_and_write_attachments(
     attachments: Vec<TaskAttachment>,
     attachment_dir: &Path,
     http_client: &ServerApi,
+    locale: LocaleId,
 ) -> anyhow::Result<()> {
     fs::create_dir_all(attachment_dir)
         .await
-        .context("Failed to create attachments directory")?;
+        .context(localization::text_for_locale(
+            locale,
+            "agent_sdk.driver.attachments.error.create_directory",
+        ))?;
     log::info!(
         "Created attachments directory at: {}",
         attachment_dir.display()
@@ -155,7 +172,7 @@ async fn download_and_write_attachments(
     let http = http_client.http_client();
     let download_futures = attachments
         .into_iter()
-        .map(|attachment| download_task_attachment(attachment, attachment_dir, http));
+        .map(|attachment| download_task_attachment(attachment, attachment_dir, http, locale));
     let results = join_all(download_futures).await;
 
     let mut successful = 0;
@@ -179,11 +196,19 @@ async fn download_task_attachment(
     attachment: TaskAttachment,
     attachment_dir: &Path,
     http_client: &http_client::Client,
+    locale: LocaleId,
 ) -> anyhow::Result<()> {
+    let file_id = attachment.file_id.to_string();
     let safe_filename = Path::new(&attachment.filename)
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or_else(|| anyhow::anyhow!("Invalid filename for file_id={}", attachment.file_id))?
+        .ok_or_else(|| {
+            anyhow::anyhow!(localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.driver.attachments.error.invalid_filename",
+                &[("file_id", &file_id)],
+            ))
+        })?
         .to_string();
 
     let file_path = attachment_dir.join(&safe_filename);
@@ -193,7 +218,7 @@ async fn download_task_attachment(
         file_path.display()
     );
 
-    download_attachment(http_client, &attachment.download_url, &file_path).await?;
+    download_attachment(http_client, &attachment.download_url, &file_path, locale).await?;
 
     log::info!("Successfully wrote attachment to: {}", file_path.display());
     Ok(())
@@ -206,6 +231,7 @@ async fn download_handoff_entry(
     attachment: TaskAttachment,
     file_path: PathBuf,
     http_client: &http_client::Client,
+    locale: LocaleId,
 ) -> Result<(), (String, String)> {
     // Factor `file_id` and `download_url` out before the retry closure so `attachment` is fully
     // consumed up-front. The closure borrows the two fields it needs as references.
@@ -214,7 +240,7 @@ async fn download_handoff_entry(
         download_url,
         ..
     } = attachment;
-    download_attachment(http_client, &download_url, &file_path)
+    download_attachment(http_client, &download_url, &file_path, locale)
         .await
         .map_err(|e| (file_id, format!("{e:#}")))
 }
@@ -227,6 +253,7 @@ async fn download_attachment(
     http_client: &http_client::Client,
     download_url: &str,
     file_path: &Path,
+    locale: LocaleId,
 ) -> anyhow::Result<()> {
     let operation = format!("download attachment '{}'", file_path.display());
 
@@ -235,39 +262,55 @@ async fn download_attachment(
         http_client: &http_client::Client,
         download_url: &str,
         file_path: &Path,
+        locale: LocaleId,
     ) -> anyhow::Result<()> {
-        let response = http_client
-            .get(download_url)
-            .send()
-            .await
-            .context("Failed to send download request")?;
+        let response =
+            http_client
+                .get(download_url)
+                .send()
+                .await
+                .context(localization::text_for_locale(
+                    locale,
+                    "agent_sdk.driver.attachments.error.send_download_request",
+                ))?;
 
         if !response.status().is_success() {
             let status = response.status();
+            let status_text = status.to_string();
             let body = response.text().await.unwrap_or_default();
             return Err(anyhow::Error::new(HttpStatusError {
                 status: status.as_u16(),
                 body: body.clone(),
             })
-            .context(format!("Download failed with status {status}: {body}")));
+            .context(localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.driver.attachments.error.download_status",
+                &[("status", &status_text), ("body", &body)],
+            )));
         }
 
         // Stream the response body directly to disk instead of buffering the full payload
         // in memory.
         let mut file = fs::File::create(file_path)
             .await
-            .context("Failed to create file")?;
+            .context(localization::text_for_locale(
+                locale,
+                "agent_sdk.driver.attachments.error.create_file",
+            ))?;
         let mut response_stream =
             StreamReader::new(response.bytes_stream().map_err(std::io::Error::other));
         tokio::io::copy(&mut response_stream, &mut file)
             .await
-            .context("Failed to write file")?;
+            .context(localization::text_for_locale(
+                locale,
+                "agent_sdk.driver.attachments.error.write_file",
+            ))?;
 
         Ok(())
     }
 
     with_bounded_retry(&operation, || async {
-        attempt(http_client, download_url, file_path).await
+        attempt(http_client, download_url, file_path, locale).await
     })
     .await
 }
@@ -278,12 +321,16 @@ async fn download_attachment(
 pub fn process_attachment(
     attachment_path: &PathBuf,
     index: usize,
+    locale: LocaleId,
 ) -> anyhow::Result<AttachmentInput> {
     let file_bytes = std::fs::read(attachment_path).map_err(|e| {
-        anyhow::anyhow!(
-            "Failed to read attachment file '{}': {e}",
-            attachment_path.display()
-        )
+        let path = attachment_path.display().to_string();
+        let error = e.to_string();
+        anyhow::anyhow!(localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.driver.attachments.error.read_attachment_file",
+            &[("path", &path), ("error", &error)],
+        ))
     })?;
 
     // Detect MIME type from file data using infer crate, fall back to file extension
@@ -301,10 +348,12 @@ pub fn process_attachment(
     });
 
     if file_bytes.len() > MAX_ATTACHMENT_SIZE_BYTES {
-        return Err(anyhow::anyhow!(
-            "File is too large ({}MB). Maximum size is 10MB.",
-            file_bytes.len() / (1024 * 1024)
-        ));
+        let size_mb = (file_bytes.len() / (1024 * 1024)).to_string();
+        return Err(anyhow::anyhow!(localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.driver.attachments.error.file_too_large",
+            &[("size_mb", &size_mb)],
+        )));
     }
 
     let base64_data = general_purpose::STANDARD.encode(&file_bytes);

@@ -901,7 +901,11 @@ fn create_environment(arg: &CreateEnvironmentArg, ctx: &mut AppContext) {
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+                        let title = crate::localization::text_for_app(
+                            ctx,
+                            "agent_management.cloud_setup.workflow.create_environment",
+                        );
+                        pane_group.set_title(&title, ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -934,7 +938,11 @@ fn create_environment_and_run(arg: &CreateEnvironmentArg, ctx: &mut AppContext) 
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+                        let title = crate::localization::text_for_app(
+                            ctx,
+                            "agent_management.cloud_setup.workflow.create_environment",
+                        );
+                        pane_group.set_title(&title, ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -2810,7 +2818,11 @@ impl RootView {
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+                        let title = crate::localization::text_for_app(
+                            ctx,
+                            "agent_management.cloud_setup.workflow.create_environment",
+                        );
+                        pane_group.set_title(&title, ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -2855,7 +2867,11 @@ impl RootView {
             workspace
                 .active_tab_pane_group()
                 .update(ctx, |pane_group, ctx| {
-                    pane_group.set_title("Create Environment", ctx);
+                    let title = crate::localization::text_for_app(
+                        ctx,
+                        "agent_management.cloud_setup.workflow.create_environment",
+                    );
+                    pane_group.set_title(&title, ctx);
 
                     if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                         terminal_view.update(ctx, |_, ctx| {

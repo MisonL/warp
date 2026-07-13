@@ -4,6 +4,7 @@ use std::io::Write as _;
 
 use serde_json::json;
 use warp_cli::mcp::MCPSpec;
+use warp_localization::LocaleId;
 
 use crate::ai::ambient_agents::AgentConfigSnapshot;
 
@@ -26,7 +27,7 @@ fn loads_json_and_validates_mcp_servers() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     assert_eq!(loaded.file.model_id.as_deref(), Some("gpt-4o"));
     assert_eq!(loaded.file.environment_id.as_deref(), Some("env-123"));
@@ -46,7 +47,7 @@ mcp_servers:
 "#;
 
     let file = write_temp(".yaml", contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     assert_eq!(loaded.file.model_id.as_deref(), Some("gpt-4o"));
     assert!(loaded.file.mcp_servers.as_ref().unwrap().contains_key("s"));
@@ -61,7 +62,7 @@ fn unknown_keys_are_rejected() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let err = super::load_config_file(file.path()).unwrap_err();
+    let err = super::load_config_file(file.path(), LocaleId::EnUs).unwrap_err();
     let err_str = format!("{err:#}");
     assert!(err_str.contains("Supported keys"));
 }
@@ -75,9 +76,22 @@ fn mcp_must_be_under_mcp_servers_key() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let err = super::load_config_file(file.path()).unwrap_err();
+    let err = super::load_config_file(file.path(), LocaleId::EnUs).unwrap_err();
     let err_str = format!("{err:#}");
     assert!(err_str.contains("Supported keys"));
+}
+
+#[test]
+fn unknown_keys_error_uses_requested_locale() {
+    let contents = json!({
+        "typo_model": "oops"
+    })
+    .to_string();
+
+    let file = write_temp(".json", &contents);
+    let err = super::load_config_file(file.path(), LocaleId::ZhCn).unwrap_err();
+    let err_str = format!("{err:#}");
+    assert!(err_str.contains("支持的键"));
 }
 
 #[test]
@@ -91,7 +105,7 @@ fn merge_precedence_cli_over_file_and_merges_mcp() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     let cli = AgentConfigSnapshot {
         name: Some("cli-name".to_string()),
@@ -127,7 +141,7 @@ fn file_empty_mcp_servers_is_loaded_as_empty_map() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     assert!(loaded.file.mcp_servers.is_some());
     assert!(loaded.file.mcp_servers.as_ref().unwrap().is_empty());
@@ -144,10 +158,10 @@ fn mcp_servers_map_converts_to_runtime_specs() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     let map = loaded.file.mcp_servers.as_ref().unwrap();
-    let specs = super::mcp_specs_from_mcp_servers(map).unwrap();
+    let specs = super::mcp_specs_from_mcp_servers(map, LocaleId::EnUs).unwrap();
 
     assert!(specs.iter().any(|s| matches!(s, MCPSpec::Uuid(_))));
     assert!(specs.iter().any(|s| matches!(s, MCPSpec::Json(_))));
@@ -161,7 +175,7 @@ fn loads_computer_use_enabled_from_json() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     assert_eq!(loaded.file.computer_use_enabled, Some(true));
 }
@@ -171,7 +185,7 @@ fn loads_computer_use_enabled_from_yaml() {
     let contents = "computer_use_enabled: false\n";
 
     let file = write_temp(".yaml", contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     assert_eq!(loaded.file.computer_use_enabled, Some(false));
 }
@@ -184,7 +198,7 @@ fn merge_precedence_cli_computer_use_enabled_over_file() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     let cli = AgentConfigSnapshot {
         computer_use_enabled: Some(true),
@@ -204,7 +218,7 @@ fn merge_precedence_file_computer_use_enabled_when_cli_none() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     let cli = AgentConfigSnapshot::default();
 

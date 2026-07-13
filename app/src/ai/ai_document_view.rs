@@ -134,7 +134,6 @@ impl From<PaneEvent> for AIDocumentEvent {
 }
 
 pub const DEFAULT_PLANNING_DOCUMENT_TITLE_KEY: &str = "ai_document.title.default";
-pub const DEFAULT_PLANNING_DOCUMENT_TITLE: &str = "Planning document";
 
 /// Entry for the version history dropdown menu.
 struct VersionMenuEntry {

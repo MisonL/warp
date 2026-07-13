@@ -1242,11 +1242,10 @@ impl AgentInputFooter {
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Could not automatically install plugin. \
-                     Please click the chip again for manual installation steps."
-                        .to_owned(),
-                ),
+                DismissibleToast::error(crate::localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.plugin_auto_install_failed_manual",
+                )),
                 window_id,
                 ctx,
             );
@@ -2444,7 +2443,10 @@ fn render_ftu_callout(
                     Expanded::new(
                         1.,
                         Text::new(
-                            "Now using Full Terminal Agent's default model.",
+                            crate::localization::text_for_app(
+                                app,
+                                "agent.input_footer.full_terminal_default_model",
+                            ),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size() - 2.,
                         )

@@ -15,18 +15,16 @@ use warp::integration_testing::subshell::{
     enter_remote_server_ssh_command, enter_ssh_password, setup_gcloud_sdk,
     wait_for_remote_server_password_prompt,
 };
-use warp::integration_testing::terminal::util::{
-    current_shell_starter_and_version, ExpectedExitStatus,
-};
+use warp::integration_testing::terminal::util::ExpectedExitStatus;
 use warp::integration_testing::terminal::{
     execute_command_for_single_terminal_in_tab, run_completer,
     wait_until_bootstrapped_single_pane_for_tab,
 };
-use warp::terminal::shell::ShellType;
 use warp::terminal::warpify::settings::{SshExtensionInstallMode, SshExtensionInstallModeSetting};
 use warpui_core::integration::TestStep;
 
 use super::{new_builder, Builder};
+use crate::util::can_run_gcloud_ssh_tests;
 
 /// Common builder configuration for remote server tests: enables the
 /// `SshRemoteServer` feature flag for these tests and sets the install mode to
@@ -39,8 +37,7 @@ fn remote_server_builder() -> Builder {
             if !cfg!(target_os = "linux") {
                 return false;
             }
-            let (starter, _) = current_shell_starter_and_version();
-            starter.shell_type() != ShellType::PowerShell
+            can_run_gcloud_ssh_tests()
         })
         .with_user_defaults(HashMap::from([(
             SshExtensionInstallModeSetting::storage_key().to_owned(),

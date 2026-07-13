@@ -30,6 +30,7 @@ use warpui::App;
 
 use super::*;
 use crate::persistence::model::{ModelTokenUsage, PRIMARY_AGENT_CATEGORY};
+use crate::test_util::settings::initialize_localization_for_tests;
 
 fn placeholder_usage_info() -> ConversationUsageInfo {
     ConversationUsageInfo {
@@ -51,6 +52,7 @@ fn placeholder_usage_info() -> ConversationUsageInfo {
 /// when `ctx.notify()` runs (theme lookups, etc.). Keep this minimal: the
 /// goal is to satisfy the runtime, not to mirror the full production app.
 fn initialize_test_app(app: &mut App) {
+    initialize_localization_for_tests(app);
     app.add_singleton_model(|_| Appearance::mock());
 }
 

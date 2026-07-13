@@ -138,7 +138,7 @@ struct TooltipMouseStateHandles {
 pub mod manager;
 pub use manager::*;
 
-pub const HEADER_TEXT: &str = "Profile Editor";
+pub const HEADER_TEXT_KEY: &str = "settings.execution_profile.editor.pane_title";
 
 #[derive(Debug, Clone)]
 pub enum ExecutionProfileEditorViewEvent {
@@ -278,26 +278,37 @@ pub struct ExecutionProfileEditorView {
 
 impl ExecutionProfileEditorView {
     pub fn new(profile_id: ClientProfileId, ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(HEADER_TEXT));
+        let pane_configuration = ctx.add_model(|ctx| {
+            PaneConfiguration::new(localization::text_for_app(ctx, HEADER_TEXT_KEY))
+        });
 
         let apply_code_diffs_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Agent decides",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.agent_decides",
+                        ),
                         ExecutionProfileEditorViewAction::SetApplyCodeDiffs {
                             permission: ActionPermission::AgentDecides,
                         },
                     ),
                     DropdownItem::new(
-                        "Always allow",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_allow",
+                        ),
                         ExecutionProfileEditorViewAction::SetApplyCodeDiffs {
                             permission: ActionPermission::AlwaysAllow,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetApplyCodeDiffs {
                             permission: ActionPermission::AlwaysAsk,
                         },
@@ -313,19 +324,28 @@ impl ExecutionProfileEditorView {
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Agent decides",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.agent_decides",
+                        ),
                         ExecutionProfileEditorViewAction::SetReadFiles {
                             permission: ActionPermission::AgentDecides,
                         },
                     ),
                     DropdownItem::new(
-                        "Always allow",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_allow",
+                        ),
                         ExecutionProfileEditorViewAction::SetReadFiles {
                             permission: ActionPermission::AlwaysAllow,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetReadFiles {
                             permission: ActionPermission::AlwaysAsk,
                         },
@@ -341,19 +361,28 @@ impl ExecutionProfileEditorView {
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Agent decides",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.agent_decides",
+                        ),
                         ExecutionProfileEditorViewAction::SetExecuteCommands {
                             permission: ActionPermission::AgentDecides,
                         },
                     ),
                     DropdownItem::new(
-                        "Always allow",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_allow",
+                        ),
                         ExecutionProfileEditorViewAction::SetExecuteCommands {
                             permission: ActionPermission::AlwaysAllow,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetExecuteCommands {
                             permission: ActionPermission::AlwaysAsk,
                         },
@@ -369,19 +398,28 @@ impl ExecutionProfileEditorView {
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Always allow",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_allow",
+                        ),
                         ExecutionProfileEditorViewAction::SetWriteToPty {
                             permission: WriteToPtyPermission::AlwaysAllow,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetWriteToPty {
                             permission: WriteToPtyPermission::AlwaysAsk,
                         },
                     ),
                     DropdownItem::new(
-                        "Ask on first write",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.ask_on_first_write",
+                        ),
                         ExecutionProfileEditorViewAction::SetWriteToPty {
                             permission: WriteToPtyPermission::AskOnFirstWrite,
                         },
@@ -397,19 +435,28 @@ impl ExecutionProfileEditorView {
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Agent decides",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.agent_decides",
+                        ),
                         ExecutionProfileEditorViewAction::SetCallMcpServers {
                             permission: ActionPermission::AgentDecides,
                         },
                     ),
                     DropdownItem::new(
-                        "Always allow",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_allow",
+                        ),
                         ExecutionProfileEditorViewAction::SetCallMcpServers {
                             permission: ActionPermission::AlwaysAllow,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetCallMcpServers {
                             permission: ActionPermission::AlwaysAsk,
                         },
@@ -425,19 +472,28 @@ impl ExecutionProfileEditorView {
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Never",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.never",
+                        ),
                         ExecutionProfileEditorViewAction::SetComputerUse {
                             permission: super::ComputerUsePermission::Never,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetComputerUse {
                             permission: super::ComputerUsePermission::AlwaysAsk,
                         },
                     ),
                     DropdownItem::new(
-                        "Always allow",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_allow",
+                        ),
                         ExecutionProfileEditorViewAction::SetComputerUse {
                             permission: super::ComputerUsePermission::AlwaysAllow,
                         },
@@ -453,19 +509,28 @@ impl ExecutionProfileEditorView {
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Never ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.never_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetAskUserQuestion {
                             permission: super::AskUserQuestionPermission::Never,
                         },
                     ),
                     DropdownItem::new(
-                        "Ask unless auto-approve",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.ask_unless_auto_approve",
+                        ),
                         ExecutionProfileEditorViewAction::SetAskUserQuestion {
                             permission: super::AskUserQuestionPermission::AskExceptInAutoApprove,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetAskUserQuestion {
                             permission: super::AskUserQuestionPermission::AlwaysAsk,
                         },
@@ -481,19 +546,28 @@ impl ExecutionProfileEditorView {
             dropdown.set_items(
                 vec![
                     DropdownItem::new(
-                        "Never",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.never",
+                        ),
                         ExecutionProfileEditorViewAction::SetRunAgents {
                             permission: RunAgentsPermission::NeverAllow,
                         },
                     ),
                     DropdownItem::new(
-                        "Always allow",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_allow",
+                        ),
                         ExecutionProfileEditorViewAction::SetRunAgents {
                             permission: RunAgentsPermission::AlwaysAllow,
                         },
                     ),
                     DropdownItem::new(
-                        "Always ask",
+                        localization::text_for_app(
+                            ctx,
+                            "settings.execution_profile.permission.always_ask",
+                        ),
                         ExecutionProfileEditorViewAction::SetRunAgents {
                             permission: RunAgentsPermission::AlwaysAsk,
                         },
@@ -506,13 +580,19 @@ impl ExecutionProfileEditorView {
 
         let mcp_allowlist_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = FilterableDropdown::new(ctx);
-            dropdown.set_menu_header_to_static("Select MCP servers");
+            dropdown.set_menu_header_to_static(localization::text_for_app(
+                ctx,
+                "settings.execution_profile.editor.select_mcp_servers",
+            ));
             dropdown
         });
 
         let mcp_denylist_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = FilterableDropdown::new(ctx);
-            dropdown.set_menu_header_to_static("Select MCP servers");
+            dropdown.set_menu_header_to_static(localization::text_for_app(
+                ctx,
+                "settings.execution_profile.editor.select_mcp_servers",
+            ));
             dropdown
         });
 
@@ -1806,10 +1886,10 @@ impl BackingView for ExecutionProfileEditorView {
     fn render_header_content(
         &self,
         _ctx: &view::HeaderRenderContext<'_>,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> view::HeaderContent {
         view::HeaderContent::Standard(view::StandardHeader {
-            title: HEADER_TEXT.into(),
+            title: localization::text_for_app(app, HEADER_TEXT_KEY),
             title_secondary: None,
             title_style: None,
             title_clip_config: warpui::text_layout::ClipConfig::start(),

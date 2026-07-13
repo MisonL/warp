@@ -60,9 +60,10 @@ impl Slide for OzLaunchSlide {
 
     fn modal_subtext_paragraphs(&self) -> Vec<FormattedTextLine> {
         vec![FormattedTextLine::Line(vec![
-            FormattedTextFragment::plain_text(
-                "Infinitely scalable coding agent — run in local sessions or in the cloud.",
-            ),
+            FormattedTextFragment::plain_text(localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "workspace.launch_modal.oz.modal_subtext",
+            )),
         ])]
     }
 
@@ -277,8 +278,14 @@ impl Slide for OzLaunchSlide {
 
     fn checkbox_config(&self) -> Option<CheckboxConfig> {
         Some(CheckboxConfig {
-            label: "Sync conversations to cloud".to_string(),
-            description: "Agent conversations stored in the cloud can be shared with anyone with one click, and allow conversations to be continued across devices and on logout.".to_string(),
+            label: localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "workspace.launch_modal.oz.checkbox.sync_conversations",
+            ),
+            description: localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "workspace.launch_modal.oz.checkbox.description",
+            ),
         })
     }
 

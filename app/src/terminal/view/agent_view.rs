@@ -13,7 +13,6 @@ use crate::ai::blocklist::agent_view::{
 use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
-use crate::localization;
 use crate::persistence::ModelEvent;
 use crate::server::telemetry::TelemetryAgentViewEntryOrigin;
 use crate::terminal::input::message_bar::{Message, MessageItem};
@@ -27,7 +26,7 @@ use crate::terminal::view::{
 use crate::terminal::TerminalView;
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-use crate::TelemetryEvent;
+use crate::{localization, TelemetryEvent};
 
 pub const ENTER_AGAIN_TO_SEND_MESSAGE_ID: &str = "enter_again_to_send";
 
@@ -318,7 +317,10 @@ impl TerminalView {
                         key: "enter".to_owned(),
                         ..Default::default()
                     }),
-                    MessageItem::text("again to send to agent"),
+                    MessageItem::text(localization::text_for_app(
+                        ctx,
+                        "terminal.agent_view.confirmation.send_to_agent",
+                    )),
                 ])
                 .with_text_color(appearance.theme().ansi_fg_magenta());
                 self.ephemeral_message_model.update(ctx, |model, ctx| {

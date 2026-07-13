@@ -1,5 +1,4 @@
 use std::default::Default;
-use std::fmt;
 use std::path::PathBuf;
 #[cfg(feature = "local_fs")]
 use std::{fs::copy, io::Write};
@@ -35,10 +34,6 @@ const BUTTON_PADDING: f32 = 12.;
 const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BORDER_WIDTH: f32 = 1.;
-
-const IMAGE_PICKER_BUTTON_PRE_SELECT_TEXT: &str = "Select an image";
-const IMAGE_PICKER_BUTTON_SELECTING_TEXT: &str = "Selecting image...";
-const IMAGE_PICKER_BUTTON_POST_SELECT_TEXT: &str = "Select a new image";
 
 #[derive(Default)]
 struct MouseStateHandles {
@@ -78,15 +73,17 @@ pub enum ThemeCreatorImageState {
     Uploaded,
 }
 
-impl fmt::Display for ThemeCreatorImageState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl ThemeCreatorImageState {
+    fn label(&self, app: &AppContext) -> String {
         match self {
-            ThemeCreatorImageState::Empty => write!(f, "{IMAGE_PICKER_BUTTON_PRE_SELECT_TEXT}"),
+            ThemeCreatorImageState::Empty => {
+                localization::text_for_app(app, "settings.theme_creator.select_image")
+            }
             ThemeCreatorImageState::Uploading => {
-                write!(f, "{IMAGE_PICKER_BUTTON_SELECTING_TEXT}")
+                localization::text_for_app(app, "settings.theme_creator.selecting_image")
             }
             ThemeCreatorImageState::Uploaded => {
-                write!(f, "{IMAGE_PICKER_BUTTON_POST_SELECT_TEXT}")
+                localization::text_for_app(app, "settings.theme_creator.select_new_image")
             }
         }
     }
@@ -568,7 +565,7 @@ impl View for ThemeCreatorBody {
             Container::new(
                 if let ThemeCreatorImageState::Uploading = self.image_state {
                     image_picker_button
-                        .with_centered_text_label(self.image_state.to_string())
+                        .with_centered_text_label(self.image_state.label(app))
                         .disabled()
                         .build()
                         .finish()
@@ -577,7 +574,7 @@ impl View for ThemeCreatorBody {
                         .with_text_and_icon_label(
                             TextAndIcon::new(
                                 TextAndIconAlignment::TextFirst,
-                                self.image_state.to_string(),
+                                self.image_state.label(app),
                                 Icon::new("bundled/svg/upload-01.svg", ColorU::white()),
                                 MainAxisSize::Max,
                                 MainAxisAlignment::Center,

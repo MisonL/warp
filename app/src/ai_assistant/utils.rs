@@ -14,6 +14,7 @@ use super::panel::AIAssistantAction;
 use super::requests::Requests;
 use super::transcript::CodeBlockMouseStateHandles;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 
 const PREPARED_RESPONSE_FONT_SIZE: f32 = 11.;
@@ -325,6 +326,8 @@ pub fn render_request_limit_info(
     let num_requests_remaining = request_model.as_ref(app).num_remaining_reqs();
     let request_limit = request_model.as_ref(app).request_limit();
     let next_refresh_time = request_model.as_ref(app).serialized_time_until_refresh();
+    let num_requests_used = num_requests_used.to_string();
+    let request_limit = request_limit.to_string();
 
     // Always show the remaining requests count.
     let mut row = Flex::row()
@@ -333,7 +336,11 @@ pub fn render_request_limit_info(
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_child(
             Text::new_inline(
-                format!("Credits used: {num_requests_used} / {request_limit}.",),
+                localization::text_for_app_with_args(
+                    app,
+                    "ai_assistant.request_limit.credits_used",
+                    &[("used", &num_requests_used), ("limit", &request_limit)],
+                ),
                 appearance.ui_font_family(),
                 REQUEST_LIMIT_INFO_FONT_SIZE,
             )

@@ -23,9 +23,14 @@ fn orchestrator_participant() -> OrchestrationParticipant {
     }
 }
 
+fn initialize_app(app: &mut App) {
+    initialize_history_persistence_for_tests(app);
+}
+
 #[test]
 fn child_conversation_card_data_for_success_result_returns_conversation_id_and_title() {
     App::test((), |mut app| async move {
+        initialize_app(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -59,54 +64,80 @@ fn child_conversation_card_data_for_success_result_returns_conversation_id_and_t
 
 #[test]
 fn start_agent_copy_uses_local_labels_for_local_children() {
-    let execution_mode = StartAgentExecutionMode::local_harness("claude-code".to_string());
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let execution_mode = StartAgentExecutionMode::local_harness("claude-code".to_string());
 
-    assert_eq!(start_agent_success_suffix(&execution_mode), " locally.");
-    assert_eq!(
-        start_agent_error_prefix(&execution_mode),
-        "Failed to start agent "
-    );
-    assert_eq!(
-        start_agent_cancelled_prefix(&execution_mode),
-        "Start agent "
-    );
-    assert_eq!(
-        start_agent_in_progress_prefix(&execution_mode),
-        "Starting agent "
-    );
+        app.read(|ctx| {
+            assert_eq!(
+                start_agent_success_suffix(&execution_mode, ctx),
+                crate::localization::text_for_app(
+                    ctx,
+                    "agent.orchestration.started_agent_suffix.local",
+                )
+            );
+            assert_eq!(
+                start_agent_error_prefix(&execution_mode, ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.failed_start_agent")
+            );
+            assert_eq!(
+                start_agent_cancelled_prefix(&execution_mode, ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.start_agent")
+            );
+            assert_eq!(
+                start_agent_in_progress_prefix(&execution_mode, ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.starting_agent")
+            );
+        });
+    });
 }
 
 #[test]
 fn start_agent_copy_uses_remote_labels_for_remote_children() {
-    let execution_mode = StartAgentExecutionMode::Remote {
-        environment_id: "env-123".to_string(),
-        skill_references: vec![],
-        model_id: String::new(),
-        computer_use_enabled: false,
-        worker_host: String::new(),
-        harness_type: String::new(),
-        title: String::new(),
-        auth_secret_name: None,
-    };
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let execution_mode = StartAgentExecutionMode::Remote {
+            environment_id: "env-123".to_string(),
+            skill_references: vec![],
+            model_id: String::new(),
+            computer_use_enabled: false,
+            worker_host: String::new(),
+            harness_type: String::new(),
+            title: String::new(),
+            auth_secret_name: None,
+        };
 
-    assert_eq!(start_agent_success_suffix(&execution_mode), " remotely.");
-    assert_eq!(
-        start_agent_error_prefix(&execution_mode),
-        "Failed to start remote agent "
-    );
-    assert_eq!(
-        start_agent_cancelled_prefix(&execution_mode),
-        "Start remote agent "
-    );
-    assert_eq!(
-        start_agent_in_progress_prefix(&execution_mode),
-        "Starting remote agent "
-    );
+        app.read(|ctx| {
+            assert_eq!(
+                start_agent_success_suffix(&execution_mode, ctx),
+                crate::localization::text_for_app(
+                    ctx,
+                    "agent.orchestration.started_agent_suffix.remote",
+                )
+            );
+            assert_eq!(
+                start_agent_error_prefix(&execution_mode, ctx),
+                crate::localization::text_for_app(
+                    ctx,
+                    "agent.orchestration.failed_start_remote_agent",
+                )
+            );
+            assert_eq!(
+                start_agent_cancelled_prefix(&execution_mode, ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.start_remote_agent")
+            );
+            assert_eq!(
+                start_agent_in_progress_prefix(&execution_mode, ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.starting_remote_agent")
+            );
+        });
+    });
 }
 
 #[test]
 fn child_conversation_card_data_for_success_result_without_available_title_uses_placeholder() {
     App::test((), |mut app| async move {
+        initialize_app(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -121,13 +152,55 @@ fn child_conversation_card_data_for_success_result_without_available_title_uses_
             agent_id: "child-agent-id".to_string(),
             version: StartAgentVersion::V1,
         };
-        let actual = app.read(|ctx| child_conversation_card_data_for_result(&result, ctx));
+        let (actual, expected_title) = app.read(|ctx| {
+            (
+                child_conversation_card_data_for_result(&result, ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.generating_title"),
+            )
+        });
         assert_eq!(
             actual,
             Some(ChildConversationCardData {
                 conversation_id,
                 agent_name: "Agent".to_string(),
-                title: "Generating title...".to_string(),
+                title: expected_title,
+                status: ConversationStatus::InProgress,
+            })
+        );
+    });
+}
+
+#[test]
+fn child_conversation_card_placeholder_uses_current_language() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
+        let conversation_id = history_model.update(&mut app, |history_model, ctx| {
+            let conversation_id =
+                history_model.start_new_conversation(EntityId::new(), false, false, false, ctx);
+            history_model.set_server_conversation_token_for_conversation(
+                conversation_id,
+                "child-agent-id".to_string(),
+            );
+            conversation_id
+        });
+        let result = StartAgentResult::Success {
+            agent_id: "child-agent-id".to_string(),
+            version: StartAgentVersion::V1,
+        };
+
+        let (actual, expected_title) = app.read(|ctx| {
+            (
+                child_conversation_card_data_for_result(&result, ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.generating_title"),
+            )
+        });
+        assert_eq!(
+            actual,
+            Some(ChildConversationCardData {
+                conversation_id,
+                agent_name: "Agent".to_string(),
+                title: expected_title,
                 status: ConversationStatus::InProgress,
             })
         );
@@ -172,6 +245,7 @@ fn child_conversation_card_data_returns_none_for_unknown_agent_id() {
 #[test]
 fn agent_display_name_from_id_returns_child_agent_name() {
     App::test((), |mut app| async move {
+        initialize_app(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -196,6 +270,7 @@ fn agent_display_name_from_id_returns_child_agent_name() {
 #[test]
 fn agent_display_name_from_id_returns_orchestrator_label() {
     App::test((), |mut app| async move {
+        initialize_app(&mut app);
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
         history_model.update(&mut app, |history_model, ctx| {
             let conversation_id =
@@ -207,20 +282,32 @@ fn agent_display_name_from_id_returns_orchestrator_label() {
             conversation.set_agent_name("Agent 0".to_string());
         });
 
-        let actual = app.read(|ctx| {
-            agent_display_name_from_id("orchestrator-agent-id", Some("orchestrator-agent-id"), ctx)
+        let (actual, expected) = app.read(|ctx| {
+            (
+                agent_display_name_from_id(
+                    "orchestrator-agent-id",
+                    Some("orchestrator-agent-id"),
+                    ctx,
+                ),
+                crate::localization::text_for_app(ctx, "agent.orchestration.orchestrator"),
+            )
         });
-        assert_eq!(actual, "Orchestrator");
+        assert_eq!(actual, expected);
     });
 }
 
 #[test]
 fn agent_display_name_from_id_returns_unknown_fallback() {
-    App::test((), |app| async move {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
         app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
-        let actual =
-            app.read(|ctx| agent_display_name_from_id("missing-agent-id", Some("other-id"), ctx));
-        assert_eq!(actual, "Unknown agent");
+        let (actual, expected) = app.read(|ctx| {
+            (
+                agent_display_name_from_id("missing-agent-id", Some("other-id"), ctx),
+                crate::localization::text_for_app(ctx, "agent.orchestration.unknown_agent"),
+            )
+        });
+        assert_eq!(actual, expected);
     });
 }
 #[test]

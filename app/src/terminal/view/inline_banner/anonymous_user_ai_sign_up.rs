@@ -4,21 +4,17 @@ use warpui::elements::{
 };
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use super::{
     INLINE_BANNER_BUTTON_HOVER_OPACITY, INLINE_BANNER_BUTTON_PADDING,
     INLINE_BANNER_MARGIN_BETWEEN_BUTTONS, INLINE_BANNER_RIGHT_MARGIN,
 };
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::view::{InlineBannerId, TerminalAction};
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon as UiIcon;
-
-const TITLE: &str = "Login for AI";
-const CONTENT: &str =
-    "AI features are unavailable for logged-out users. Create an account to use AI.";
-const SIGN_UP_BUTTON_TEXT: &str = "Sign Up";
 
 // Layout constants for three-column banner
 const ICON_SIZE_OFFSET: f32 = 3.0;
@@ -48,12 +44,18 @@ impl AnonymousUserAISignUpBannerState {
         }
     }
 
-    pub fn render(&self, appearance: &Appearance) -> Box<dyn Element> {
+    pub fn render(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let title = localization::text_for_app(app, "terminal.inline_banner.anonymous_ai.title");
+        let content =
+            localization::text_for_app(app, "terminal.inline_banner.anonymous_ai.content");
+        let sign_up =
+            localization::text_for_app(app, "terminal.inline_banner.anonymous_ai.sign_up");
+
         render_three_column_inline_banner(
             appearance,
-            TITLE,
-            CONTENT,
-            SIGN_UP_BUTTON_TEXT,
+            &title,
+            &content,
+            &sign_up,
             self.sign_up_button_mouse_state.clone(),
             self.close_button_mouse_state.clone(),
         )

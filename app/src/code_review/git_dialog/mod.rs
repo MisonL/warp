@@ -9,6 +9,8 @@
 //! + confirm async, extend `GitDialogMode`, add the per-mode action and
 //! outcome variant, and wire up dispatch.
 
+use std::borrow::Cow;
+
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
@@ -126,56 +128,59 @@ fn should_send_git_ops_ai_request(app: &AppContext) -> bool {
 /// Maps a raw git error string to a user-friendly toast message. Known
 /// failure modes get dedicated copy; anything else falls back to a generic
 /// message (the raw error is always logged separately at the call site).
-fn user_facing_git_error(raw: &str) -> &'static str {
+fn user_facing_git_error(raw: &str, app: &AppContext) -> String {
     let lower = raw.to_lowercase();
     if lower.contains("no changes added to commit") {
         // Distinct from a clean tree: changes exist but nothing is staged
         // (e.g. "include unstaged" off with an empty index).
-        "No staged changes to commit."
+        localization::text_for_app(
+            app,
+            "code_review.git_dialog.error.no_staged_changes_to_commit",
+        )
     } else if lower.contains("nothing to commit") {
-        "No changes to commit."
+        localization::text_for_app(app, "code_review.git_dialog.error.no_changes_to_commit")
     } else if lower.contains("please tell me who you are")
         || lower.contains("author identity unknown")
     {
-        "Git identity not configured. Set user.name and user.email."
+        localization::text_for_app(app, "code_review.git_dialog.error.git_identity_missing")
     } else if lower.contains("updates were rejected")
         || lower.contains("non-fast-forward")
         || lower.contains("fetch first")
     {
-        "Remote has new changes \u{2014} pull before pushing."
+        localization::text_for_app(app, "code_review.git_dialog.error.remote_has_new_changes")
     } else if lower.contains("does not appear to be a git repository")
         || lower.contains("no configured push destination")
         || lower.contains("no such remote")
     {
-        "No remote configured for this branch."
+        localization::text_for_app(app, "code_review.git_dialog.error.no_remote_configured")
     } else if lower.contains("authentication failed")
         || lower.contains("permission denied (publickey)")
     {
-        "Authentication failed. Check your Git credentials."
+        localization::text_for_app(app, "code_review.git_dialog.error.authentication_failed")
     } else if lower.contains("could not resolve host")
         || lower.contains("network is unreachable")
         || lower.contains("connection timed out")
     {
-        "Network error. Check your connection."
+        localization::text_for_app(app, "code_review.git_dialog.error.network")
     } else if lower.contains("repository not found") {
-        "Remote repository not found."
+        localization::text_for_app(app, "code_review.git_dialog.error.remote_not_found")
     } else if lower.contains("failed to execute gh command") {
         // `run_gh_command` wraps spawn failures with this prefix, which is
         // the reliable "gh binary missing" signal.
-        "GitHub CLI (gh) not installed. See https://cli.github.com/."
+        localization::text_for_app(app, "code_review.git_dialog.error.gh_not_installed")
     } else if lower.contains("not logged in")
         || lower.contains("authentication required")
         || lower.contains("gh auth login")
     {
         // Phrases mirror `context_chips::current_prompt::is_gh_auth_error`,
         // which has been vetted against real `gh` failure output.
-        "GitHub CLI not authenticated. Run `gh auth login`."
+        localization::text_for_app(app, "code_review.git_dialog.error.gh_not_authenticated")
     } else if lower.contains("another git operation is in progress") {
         // Daemon-side guard for a repo mid-merge/rebase/cherry-pick or with a
         // held index lock (see `git_operation_in_progress`).
-        "Another git operation is in progress. Finish or abort it first."
+        localization::text_for_app(app, "code_review.git_dialog.error.operation_in_progress")
     } else {
-        "Git operation failed."
+        localization::text_for_app(app, "code_review.git_dialog.error.generic")
     }
 }
 
@@ -189,6 +194,7 @@ fn user_facing_git_error(raw: &str) -> &'static str {
 fn render_branch_section(
     branch_name: impl Into<String>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let branch_name = branch_name.into();
     let theme = appearance.theme();
@@ -196,7 +202,7 @@ fn render_branch_section(
     let sub_color = theme.sub_text_color(theme.surface_1()).into_solid();
 
     let label = Text::new(
-        "Branch",
+        localization::text_for_app(app, "code_review.git_dialog.branch"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -272,6 +278,7 @@ fn render_file_changes_box(
     scroll_state: &ClippedScrollStateHandle,
     on_toggle: GitDialogAction,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let main_color = theme.main_text_color(theme.surface_1()).into_solid();
@@ -280,11 +287,16 @@ fn render_file_changes_box(
     let total_additions: usize = file_changes.iter().map(|f| f.additions).sum();
     let total_deletions: usize = file_changes.iter().map(|f| f.deletions).sum();
 
+    let files_label = localization::text_for_app(
+        app,
+        if total_files == 1 {
+            "code_review.git_dialog.file_singular"
+        } else {
+            "code_review.git_dialog.file_plural"
+        },
+    );
     let files_text = Text::new(
-        format!(
-            "{total_files} {}",
-            if total_files == 1 { "file" } else { "files" }
-        ),
+        format!("{total_files} {files_label}"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -490,8 +502,11 @@ impl GitDialog {
         // segmented intent selector inside the dialog is the sole UI that
         // communicates which of commit / commit-and-push / commit-and-create-PR
         // will actually run on click.
-        let (confirm_button, cancel_button, close_button) =
-            Self::build_dialog_buttons("Confirm", None, ctx);
+        let (confirm_button, cancel_button, close_button) = Self::build_dialog_buttons(
+            localization::text_for_app(ctx, "code_review.git_dialog.confirm"),
+            None,
+            ctx,
+        );
         ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
         let state = commit::new_state(
             repo_location.to_local_path(),
@@ -529,7 +544,7 @@ impl GitDialog {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let (confirm_button, cancel_button, close_button) = Self::build_dialog_buttons(
-            push::confirm_label(publish),
+            push::confirm_label(publish, ctx),
             Some(push::confirm_icon(publish)),
             ctx,
         );
@@ -554,8 +569,11 @@ impl GitDialog {
         base_branch_name: Option<String>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let (confirm_button, cancel_button, close_button) =
-            Self::build_dialog_buttons(pr::confirm_label_for(), Some(pr::confirm_icon_for()), ctx);
+        let (confirm_button, cancel_button, close_button) = Self::build_dialog_buttons(
+            pr::confirm_label_for(ctx),
+            Some(pr::confirm_icon_for()),
+            ctx,
+        );
         ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
         let state = pr::new_state(base_branch_name);
         let mut this = Self {
@@ -577,7 +595,7 @@ impl GitDialog {
     }
 
     fn build_dialog_buttons(
-        confirm_label: &'static str,
+        confirm_label: impl Into<Cow<'static, str>>,
         confirm_icon: Option<Icon>,
         ctx: &mut ViewContext<Self>,
     ) -> (
@@ -585,8 +603,9 @@ impl GitDialog {
         ViewHandle<ActionButton>,
         ViewHandle<ActionButton>,
     ) {
+        let confirm_label = confirm_label.into();
         let confirm_button = ctx.add_typed_action_view(move |_ctx| {
-            let mut button = ActionButton::new(confirm_label, SecondaryTheme)
+            let mut button = ActionButton::new(confirm_label.clone(), SecondaryTheme)
                 .with_size(ButtonSize::Small)
                 .with_height(32.);
             if let Some(icon) = confirm_icon {
@@ -704,10 +723,15 @@ impl GitDialog {
 
     /// Disables cancel/confirm/close and swaps the confirm label while the
     /// async op is running.
-    fn set_loading(&mut self, loading_label: &'static str, ctx: &mut ViewContext<Self>) {
+    fn set_loading(
+        &mut self,
+        loading_label: impl Into<Cow<'static, str>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let loading_label = loading_label.into();
         self.loading = true;
-        self.confirm_button.update(ctx, |b, ctx| {
-            b.set_label(loading_label, ctx);
+        self.confirm_button.update(ctx, move |b, ctx| {
+            b.set_label(loading_label.clone(), ctx);
             b.set_disabled(true, ctx);
         });
         self.cancel_button.update(ctx, |b, ctx| {
@@ -740,18 +764,19 @@ impl GitDialog {
         });
     }
 
-    fn title(&self) -> &'static str {
-        match &self.mode {
-            GitDialogMode::Commit(_) => "Commit your changes",
+    fn title(&self, app: &AppContext) -> String {
+        let key = match &self.mode {
+            GitDialogMode::Commit(_) => "code_review.git_dialog.title.commit",
             GitDialogMode::Push(state) => {
                 if state.publish {
-                    "Publish branch"
+                    "code_review.git_dialog.title.publish"
                 } else {
-                    "Push changes"
+                    "code_review.git_dialog.title.push"
                 }
             }
-            GitDialogMode::CreatePr(_) => "Create pull request",
-        }
+            GitDialogMode::CreatePr(_) => "code_review.git_dialog.title.create_pr",
+        };
+        localization::text_for_app(app, key)
     }
 
     fn header_icon(&self) -> Icon {
@@ -769,11 +794,10 @@ impl GitDialog {
     }
 
     fn render_body(&self, app: &AppContext) -> Box<dyn Element> {
-        let appearance = Appearance::as_ref(app);
         match &self.mode {
             GitDialogMode::Commit(state) => commit::render_body(state, &self.branch_name, app),
-            GitDialogMode::Push(state) => push::render_body(state, &self.branch_name, appearance),
-            GitDialogMode::CreatePr(state) => pr::render_body(state, &self.branch_name, appearance),
+            GitDialogMode::Push(state) => push::render_body(state, &self.branch_name, app),
+            GitDialogMode::CreatePr(state) => pr::render_body(state, &self.branch_name, app),
         }
     }
 
@@ -810,8 +834,9 @@ impl GitDialog {
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
         .finish();
 
+        let title = self.title(app);
         let dialog = Dialog::new(
-            self.title().to_string(),
+            title,
             None,
             UiComponentStyles {
                 width: Some(460.),

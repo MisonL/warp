@@ -243,8 +243,27 @@ fn to_request_round_trips_request_fields() {
 }
 
 mod format_terminal_state_tests {
+    use settings::Setting;
+    use warpui::SingletonEntity;
+
     use super::super::{format_terminal_state, StatusKind};
     use super::*;
+    use crate::test_util::settings::initialize_settings_for_tests;
+
+    fn format_terminal_state_for_test(result: RunAgentsResult) -> (String, StatusKind) {
+        warpui::App::test((), |mut app| async move {
+            initialize_settings_for_tests(&mut app);
+            app.update(|ctx| {
+                crate::settings::LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    settings
+                        .app_language
+                        .set_value(crate::settings::AppLanguage::English, ctx)
+                        .expect("language setting should update");
+                });
+            });
+            app.read(|ctx| format_terminal_state(&result, ctx))
+        })
+    }
 
     fn launched(name: &str, agent_id: &str) -> RunAgentsAgentOutcome {
         RunAgentsAgentOutcome {
@@ -276,7 +295,7 @@ mod format_terminal_state_tests {
     #[test]
     fn launched_singular_uses_singular_label() {
         let result = launched_result(vec![launched("child", "a-1")]);
-        let (label, kind) = format_terminal_state(&result);
+        let (label, kind) = format_terminal_state_for_test(result);
         assert_eq!(label, "Spawned 1 agent");
         assert!(matches!(kind, StatusKind::Success));
     }
@@ -288,7 +307,7 @@ mod format_terminal_state_tests {
             launched("b", "a-2"),
             launched("c", "a-3"),
         ]);
-        let (label, kind) = format_terminal_state(&result);
+        let (label, kind) = format_terminal_state_for_test(result);
         assert_eq!(label, "Spawned 3 agents");
         assert!(matches!(kind, StatusKind::Success));
     }
@@ -300,7 +319,7 @@ mod format_terminal_state_tests {
             failed("b", "boom"),
             launched("c", "a-3"),
         ]);
-        let (label, kind) = format_terminal_state(&result);
+        let (label, kind) = format_terminal_state_for_test(result);
         assert_eq!(label, "Spawned 2 of 3 agents");
         assert!(matches!(kind, StatusKind::Mixed));
     }
@@ -312,7 +331,7 @@ mod format_terminal_state_tests {
             failed("b", "boom"),
             failed("c", "boom"),
         ]);
-        let (label, kind) = format_terminal_state(&result);
+        let (label, kind) = format_terminal_state_for_test(result);
         assert_eq!(label, "Failed to spawn 3 agents");
         assert!(matches!(kind, StatusKind::Failure));
     }
@@ -320,14 +339,14 @@ mod format_terminal_state_tests {
     #[test]
     fn single_failed_uses_singular_failure_label() {
         let result = launched_result(vec![failed("a", "boom")]);
-        let (label, kind) = format_terminal_state(&result);
+        let (label, kind) = format_terminal_state_for_test(result);
         assert_eq!(label, "Failed to spawn agent");
         assert!(matches!(kind, StatusKind::Failure));
     }
 
     #[test]
     fn failure_with_error_includes_error_text() {
-        let (label, kind) = format_terminal_state(&RunAgentsResult::Failure {
+        let (label, kind) = format_terminal_state_for_test(RunAgentsResult::Failure {
             error: "server rejected request".to_string(),
         });
         assert_eq!(
@@ -339,7 +358,7 @@ mod format_terminal_state_tests {
 
     #[test]
     fn failure_with_empty_error_uses_short_label() {
-        let (label, kind) = format_terminal_state(&RunAgentsResult::Failure {
+        let (label, kind) = format_terminal_state_for_test(RunAgentsResult::Failure {
             error: String::new(),
         });
         assert_eq!(label, "Failed to start orchestration");
@@ -348,7 +367,7 @@ mod format_terminal_state_tests {
 
     #[test]
     fn denied_with_reason_appends_reason() {
-        let (label, kind) = format_terminal_state(&RunAgentsResult::Denied {
+        let (label, kind) = format_terminal_state_for_test(RunAgentsResult::Denied {
             reason: "disapproved".to_string(),
         });
         assert!(label.contains("disapproved"));
@@ -357,7 +376,7 @@ mod format_terminal_state_tests {
 
     #[test]
     fn denied_without_reason_uses_short_label() {
-        let (label, kind) = format_terminal_state(&RunAgentsResult::Denied {
+        let (label, kind) = format_terminal_state_for_test(RunAgentsResult::Denied {
             reason: String::new(),
         });
         assert!(!label.contains("()"));
@@ -366,7 +385,7 @@ mod format_terminal_state_tests {
 
     #[test]
     fn cancelled_uses_cancelled_status() {
-        let (label, kind) = format_terminal_state(&RunAgentsResult::Cancelled);
+        let (label, kind) = format_terminal_state_for_test(RunAgentsResult::Cancelled);
         assert_eq!(label, "Spawn agents cancelled");
         assert!(matches!(kind, StatusKind::Cancelled));
     }

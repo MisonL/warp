@@ -138,7 +138,10 @@ impl StartupShellView {
     ) {
         dropdown.update(ctx, |dropdown, ctx| {
             let mut items = vec![DropdownItem::new(
-                "Default",
+                crate::localization::text_for_app(
+                    ctx,
+                    "settings.features.default_shell.option.default",
+                ),
                 NewSessionShellAction::Set(AvailableShell::default()),
             )];
             let shell_to_index = AvailableShells::handle(ctx).read(ctx, |model, _| {
@@ -156,7 +159,10 @@ impl StartupShellView {
             });
 
             items.push(DropdownItem::new(
-                "Custom",
+                crate::localization::text_for_app(
+                    ctx,
+                    "settings.features.default_shell.option.custom",
+                ),
                 NewSessionShellAction::ShowCustomPathInput,
             ));
             let custom_index = items.len() - 1;

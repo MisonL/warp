@@ -96,7 +96,7 @@ use crate::view_components::{DismissibleToast, ToastLink, ToastType};
 use crate::workflows::workflow::{Argument, Workflow};
 use crate::workflows::CloudWorkflow;
 use crate::workspace::{ToastStack, WorkspaceAction};
-use crate::{send_telemetry_from_ctx, FeatureFlag, UserWorkspaces};
+use crate::{localization, send_telemetry_from_ctx, FeatureFlag, UserWorkspaces};
 
 mod alias_argument_selector;
 mod alias_bar;
@@ -323,7 +323,9 @@ impl WorkflowView {
 
 impl WorkflowView {
     pub fn new_in_pane(ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Untitled"));
+        let pane_configuration = ctx.add_model(|ctx| {
+            PaneConfiguration::new(localization::text_for_app(ctx, "workflow.title.untitled"))
+        });
 
         Self::new_internal(ctx, ContainerConfiguration::Pane(pane_configuration))
     }
@@ -2673,45 +2675,44 @@ impl WorkflowView {
                             environment_variables: None,
                         };
 
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::AutoGenerateMetadataSuccess,
-                            ctx
-                        );
+                        send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
 
                         pane.populate_missing_field_with_suggestion(workflow, ctx);
                         ctx.notify();
                     }
                     Err(err) => {
-                        let message = err.user_facing_message();
+                        let message = err.user_facing_message(ctx);
                         if let GeneratedCommandMetadataError::RateLimited = err {
                             let current_user_id = pane.auth_state.user_id().unwrap_or_default();
                             if let Some(team) = UserWorkspaces::as_ref(ctx).current_team() {
                                 let current_user_email =
                                     pane.auth_state.user_email().unwrap_or_default();
-                                let has_admin_permissions = team.has_admin_permissions(&current_user_email);
+                                let has_admin_permissions =
+                                    team.has_admin_permissions(&current_user_email);
                                 if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
                                     if has_admin_permissions {
-                                        pane.display_upgrade_error(Some(team.uid), current_user_id, ctx);
+                                        pane.display_upgrade_error(
+                                            Some(team.uid),
+                                            current_user_id,
+                                            ctx,
+                                        );
                                     } else {
                                         pane.display_error_toast(
-                                            "Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.".to_string(),
+                                            localization::text_for_app(
+                                                ctx,
+                                                "workflow.toast.out_of_ai_credits_contact_admin",
+                                            ),
                                             ctx,
                                         );
                                     }
                                 } else {
-                                    pane.display_error_toast(
-                                        message.clone(),
-                                        ctx,
-                                    );
+                                    pane.display_error_toast(message.clone(), ctx);
                                 }
                             } else {
                                 pane.display_upgrade_error(None, current_user_id, ctx);
                             }
                         } else {
-                            pane.display_error_toast(
-                                message.clone(),
-                                ctx,
-                            );
+                            pane.display_error_toast(message.clone(), ctx);
                         }
 
                         send_telemetry_from_ctx!(
@@ -2729,7 +2730,7 @@ impl WorkflowView {
                 AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
                     request_usage_model.refresh_request_usage_async(ctx);
                 });
-            }
+            },
         );
 
         self.ai_metadata_assist_state = AiAssistState::RequestInFlight;

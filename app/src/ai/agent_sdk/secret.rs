@@ -16,6 +16,7 @@ use warp_cli::GlobalOptions;
 use warp_core::features::FeatureFlag;
 use warp_graphql::managed_secrets::{ManagedSecret, ManagedSecretType};
 use warp_graphql::object::SpaceType;
+use warp_localization::LocaleId;
 use warp_managed_secrets::client::SecretOwner;
 use warp_managed_secrets::{ManagedSecretManager, ManagedSecretValue};
 use warpui::platform::TerminationMode;
@@ -42,24 +43,51 @@ struct SecretInfo {
 
 impl TableFormat for SecretInfo {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("Name"),
-            Cell::new("Scope"),
-            Cell::new("Type"),
-            Cell::new("Created"),
-            Cell::new("Updated"),
-        ]
+        secret_info_header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        secret_info_header_for_locale(locale)
     }
 
     fn row(&self) -> Vec<Cell> {
+        self.row_for_locale(LocaleId::EnUs)
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
         vec![
             Cell::new(&self.name),
-            Cell::new(&self.scope),
-            Cell::new(format_secret_type(&self.secret_type)),
+            Cell::new(localized_secret_scope(locale, &self.scope)),
+            Cell::new(format_secret_type(locale, &self.secret_type)),
             Cell::new(format_approx_duration_from_now_utc(self.created_at)),
             Cell::new(format_approx_duration_from_now_utc(self.updated_at)),
         ]
     }
+}
+
+fn secret_info_header_for_locale(locale: LocaleId) -> Vec<Cell> {
+    vec![
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.secret.table.name",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.secret.table.scope",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.secret.table.type",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.secret.table.created",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.secret.table.updated",
+        )),
+    ]
 }
 
 /// Run secret-related commands.
@@ -69,7 +97,10 @@ pub fn run(
     command: SecretCommand,
 ) -> Result<()> {
     if !FeatureFlag::WarpManagedSecrets.is_enabled() {
-        return Err(anyhow::anyhow!("This feature is not enabled"));
+        return Err(anyhow::anyhow!(localization::text_for_app(
+            ctx,
+            "agent_sdk.common.error.feature_not_enabled"
+        )));
     }
 
     match command {
@@ -195,7 +226,10 @@ fn create_secret(ctx: &mut AppContext, args: CreateSecretArgs) -> Result<()> {
         },
         None => {
             let name = args.name.ok_or_else(|| {
-                anyhow::anyhow!("Secret name is required. Usage: oz secret create <NAME>")
+                anyhow::anyhow!(localization::text_for_app(
+                    ctx,
+                    "agent_sdk.secret.error.name_required"
+                ))
             })?;
             (
                 name,
@@ -221,11 +255,12 @@ fn create_secret_with_input(
     description: Option<String>,
     scope: ObjectScope,
 ) -> Result<()> {
+    let locale = localization::current_locale(ctx);
     ManagedSecretManager::handle(ctx).update(ctx, move |_manager, ctx| {
         // Perform as much validation as possible up-front, before prompting the user for a secret.
         // It's a bad UX if we make them type in a secret and then fail on something we could have
         // checked beforehand.
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
+        let refresh_future = super::common::refresh_workspace_metadata(ctx, locale);
         ctx.spawn(refresh_future, move |manager, refresh_result, ctx| {
             if let Err(err) = refresh_result {
                 super::report_fatal_error(err, ctx);
@@ -268,7 +303,14 @@ fn create_secret_with_input(
             );
             ctx.spawn(create_future, move |_, result, ctx| match result {
                 Ok(secret) => {
-                    println!("Secret '{}' created", secret.name);
+                    println!(
+                        "{}",
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent_sdk.secret.output.created",
+                            &[("name", &secret.name)]
+                        )
+                    );
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
                 }
                 Err(err) => {
@@ -288,8 +330,9 @@ fn delete_secret(ctx: &mut AppContext, args: DeleteSecretArgs) -> Result<()> {
     let team = args.scope.team;
     let personal = args.scope.personal;
 
+    let locale = localization::current_locale(ctx);
     ManagedSecretManager::handle(ctx).update(ctx, move |_manager, ctx| {
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
+        let refresh_future = super::common::refresh_workspace_metadata(ctx, locale);
         let name = name.clone();
         ctx.spawn(refresh_future, move |manager, refresh_result, ctx| {
             if let Err(err) = refresh_result {
@@ -315,28 +358,38 @@ fn delete_secret(ctx: &mut AppContext, args: DeleteSecretArgs) -> Result<()> {
             if !force {
                 if !io::stdin().is_terminal() {
                     super::report_fatal_error(
-                        anyhow::anyhow!(
-                            "Refusing to delete secret without confirmation in non-interactive mode (use --force to bypass)"
-                        ),
+                        anyhow::anyhow!(localization::text_for_app(
+                            ctx,
+                            "agent_sdk.secret.error.delete_non_interactive_requires_force"
+                        )),
                         ctx,
                     );
                     return;
                 }
 
                 let scope = match owner {
-                    Owner::User { .. } => "personal",
-                    Owner::Team { .. } => "team",
+                    Owner::User { .. } => {
+                        localization::text_for_app(ctx, "agent_sdk.secret.scope.personal")
+                    }
+                    Owner::Team { .. } => {
+                        localization::text_for_app(ctx, "agent_sdk.secret.scope.team")
+                    }
                 };
 
-                let should_delete = match Confirm::new(&format!("Delete {scope} secret '{name}'?"))
+                let prompt = localization::text_for_app_with_args(
+                    ctx,
+                    "agent_sdk.secret.confirm.delete",
+                    &[("scope", &scope), ("name", &name)],
+                );
+                let help = localization::text_for_app(ctx, "agent_sdk.secret.confirm.delete_help");
+                let should_delete = match Confirm::new(&prompt)
                     .with_default(false)
-                    .with_help_message("This action cannot be undone")
+                    .with_help_message(&help)
                     .prompt()
                 {
                     Ok(should_delete) => should_delete,
                     Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                        ctx
-                            .terminate_app(TerminationMode::ForceTerminate, None);
+                        ctx.terminate_app(TerminationMode::ForceTerminate, None);
                         return;
                     }
                     Err(err) => {
@@ -346,9 +399,14 @@ fn delete_secret(ctx: &mut AppContext, args: DeleteSecretArgs) -> Result<()> {
                 };
 
                 if !should_delete {
-                    println!("Deletion cancelled");
-                    ctx
-                        .terminate_app(TerminationMode::ForceTerminate, None);
+                    println!(
+                        "{}",
+                        localization::text_for_app(
+                            ctx,
+                            "agent_sdk.secret.confirm.delete_cancelled"
+                        )
+                    );
+                    ctx.terminate_app(TerminationMode::ForceTerminate, None);
                     return;
                 }
             }
@@ -356,9 +414,15 @@ fn delete_secret(ctx: &mut AppContext, args: DeleteSecretArgs) -> Result<()> {
             let delete_future = manager.delete_secret(secret_owner, name.clone());
             ctx.spawn(delete_future, move |_, result, ctx| match result {
                 Ok(()) => {
-                    println!("Secret '{name}' deleted");
-                    ctx
-                        .terminate_app(TerminationMode::ForceTerminate, None);
+                    println!(
+                        "{}",
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent_sdk.secret.output.deleted",
+                            &[("name", &name)]
+                        )
+                    );
+                    ctx.terminate_app(TerminationMode::ForceTerminate, None);
                 }
                 Err(err) => {
                     super::report_fatal_error(err, ctx);
@@ -372,9 +436,10 @@ fn delete_secret(ctx: &mut AppContext, args: DeleteSecretArgs) -> Result<()> {
 
 /// Update a secret.
 fn update_secret(ctx: &mut AppContext, args: UpdateSecretArgs) -> Result<()> {
+    let locale = localization::current_locale(ctx);
     ManagedSecretManager::handle(ctx).update(ctx, move |_manager, ctx| {
         // Perform as much validation as possible up-front, before prompting the user for a secret.
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
+        let refresh_future = super::common::refresh_workspace_metadata(ctx, locale);
         ctx.spawn(refresh_future, move |manager, refresh_result, ctx| {
             if let Err(err) = refresh_result {
                 super::report_fatal_error(err, ctx);
@@ -432,7 +497,11 @@ fn update_secret(ctx: &mut AppContext, args: UpdateSecretArgs) -> Result<()> {
                         Some(t) => t,
                         None => {
                             super::report_fatal_error(
-                                anyhow::anyhow!("Secret '{}' not found", args.name),
+                                anyhow::anyhow!(localization::text_for_app_with_args(
+                                    ctx,
+                                    "agent_sdk.secret.error.not_found",
+                                    &[("name", &args.name)]
+                                )),
                                 ctx,
                             );
                             return;
@@ -440,7 +509,7 @@ fn update_secret(ctx: &mut AppContext, args: UpdateSecretArgs) -> Result<()> {
                     };
 
                     let managed_secret_value =
-                        match make_secret_value_from_gql_type(secret_type, &secret_value) {
+                        match make_secret_value_from_gql_type(secret_type, &secret_value, ctx) {
                             Ok(v) => v,
                             Err(err) => {
                                 super::report_fatal_error(err, ctx);
@@ -455,7 +524,14 @@ fn update_secret(ctx: &mut AppContext, args: UpdateSecretArgs) -> Result<()> {
                     );
                     ctx.spawn(update_future, move |_, result, ctx| match result {
                         Ok(secret) => {
-                            println!("Secret '{}' updated", secret.name);
+                            println!(
+                                "{}",
+                                localization::text_for_app_with_args(
+                                    ctx,
+                                    "agent_sdk.secret.output.updated",
+                                    &[("name", &secret.name)]
+                                )
+                            );
                             ctx.terminate_app(TerminationMode::ForceTerminate, None);
                         }
                         Err(err) => {
@@ -473,7 +549,14 @@ fn update_secret(ctx: &mut AppContext, args: UpdateSecretArgs) -> Result<()> {
                 );
                 ctx.spawn(update_future, move |_, result, ctx| match result {
                     Ok(secret) => {
-                        println!("Secret '{}' updated", secret.name);
+                        println!(
+                            "{}",
+                            localization::text_for_app_with_args(
+                                ctx,
+                                "agent_sdk.secret.output.updated",
+                                &[("name", &secret.name)]
+                            )
+                        );
                         ctx.terminate_app(TerminationMode::ForceTerminate, None);
                     }
                     Err(err) => {
@@ -494,6 +577,7 @@ fn list_secrets(
     _args: ListSecretsArgs,
 ) -> Result<()> {
     ManagedSecretManager::handle(ctx).update(ctx, |manager, ctx| {
+        let locale = localization::current_locale(ctx);
         ctx.spawn(manager.list_secrets(), move |_, result, ctx| match result {
             Ok(secrets) => {
                 let secret_infos = secrets.into_iter().map(|secret| {
@@ -515,7 +599,14 @@ fn list_secrets(
                     }
                 });
 
-                output::print_list(secret_infos, output_format);
+                if let Err(err) = output::write_list_for_locale(
+                    secret_infos,
+                    output_format,
+                    std::io::stdout(),
+                    locale,
+                ) {
+                    log::warn!("Unable to write to stdout: {err}");
+                }
 
                 ctx.terminate_app(TerminationMode::ForceTerminate, None);
             }
@@ -530,7 +621,11 @@ fn list_secrets(
 fn read_simple_secret_value(args: &ValueArgs, app: &AppContext) -> Result<Option<String>> {
     if let Some(value_file) = args.value_file.as_ref() {
         let value = fs::read_to_string(value_file).with_context(|| {
-            format!("Failed to read secret value from: {}", value_file.display())
+            localization::text_for_app_with_args(
+                app,
+                "agent_sdk.secret.error.read_value_file_failed",
+                &[("path", &value_file.display().to_string())],
+            )
         })?;
         if value.is_empty() {
             Ok(None)
@@ -587,6 +682,7 @@ fn make_simple_secret_value(secret_type: SecretType, raw: &str) -> ManagedSecret
 fn make_secret_value_from_gql_type(
     gql_type: ManagedSecretType,
     raw: &str,
+    app: &AppContext,
 ) -> Result<ManagedSecretValue> {
     match gql_type {
         ManagedSecretType::RawValue | ManagedSecretType::Dotenvx => {
@@ -595,16 +691,18 @@ fn make_secret_value_from_gql_type(
         ManagedSecretType::AnthropicApiKey => Ok(ManagedSecretValue::anthropic_api_key(raw)),
         ManagedSecretType::AnthropicBedrockAccessKey => {
             // Bedrock access key secrets cannot be updated through the generic raw-string path.
-            Err(anyhow::anyhow!(
-                "Bedrock access key secrets cannot be updated via `--value`; re-create the secret instead"
-            ))
+            Err(anyhow::anyhow!(localization::text_for_app(
+                app,
+                "agent_sdk.secret.error.bedrock_access_key_update_value"
+            )))
         }
         ManagedSecretType::AnthropicBedrockApiKey => {
             // Bedrock secrets cannot be updated through the generic raw-string path.
             // The caller should use the dedicated Bedrock creation flow instead.
-            Err(anyhow::anyhow!(
-                "Bedrock API key secrets cannot be updated via `--value`; re-create the secret instead"
-            ))
+            Err(anyhow::anyhow!(localization::text_for_app(
+                app,
+                "agent_sdk.secret.error.bedrock_api_key_update_value"
+            )))
         }
         ManagedSecretType::OpenaiApiKey => Ok(ManagedSecretValue::openai_api_key(raw, None)),
     }
@@ -684,9 +782,10 @@ fn read_bedrock_secret_value(
         Some(k) if !k.is_empty() => k,
         _ => {
             if !io::stdin().is_terminal() {
-                return Err(anyhow::anyhow!(
-                    "Bedrock secrets require --bedrock-api-key and --region in non-interactive mode"
-                ));
+                return Err(anyhow::anyhow!(localization::text_for_app(
+                    app,
+                    "agent_sdk.secret.error.bedrock_non_interactive_required"
+                )));
             }
             let prompt = localization::text_for_app(app, "agent_sdk.secret.prompt.bedrock_api_key");
             let result = Password::new(&prompt)
@@ -708,9 +807,10 @@ fn read_bedrock_secret_value(
         Some(r) if !r.is_empty() => r,
         _ => {
             if !io::stdin().is_terminal() {
-                return Err(anyhow::anyhow!(
-                    "Bedrock secrets require --bedrock-api-key and --region in non-interactive mode"
-                ));
+                return Err(anyhow::anyhow!(localization::text_for_app(
+                    app,
+                    "agent_sdk.secret.error.bedrock_non_interactive_required"
+                )));
             }
             let prompt = localization::text_for_app(app, "agent_sdk.secret.prompt.aws_region");
             let result = inquire::Text::new(&prompt).prompt();
@@ -742,15 +842,14 @@ fn read_bedrock_access_key_secret_value(
     region: Option<String>,
     app: &AppContext,
 ) -> Result<Option<ManagedSecretValue>> {
-    // Error message used for all three required fields when running non-interactively.
-    // --session-token is intentionally omitted because it is optional.
-    const NON_INTERACTIVE_REQUIRED_MSG: &str = "Bedrock access key secrets require --access-key-id, --secret-access-key, and --region in non-interactive mode";
-
     let access_key_id = match access_key_id {
         Some(v) if !v.is_empty() => v,
         _ => {
             if !io::stdin().is_terminal() {
-                return Err(anyhow::anyhow!(NON_INTERACTIVE_REQUIRED_MSG));
+                return Err(anyhow::anyhow!(localization::text_for_app(
+                    app,
+                    "agent_sdk.secret.error.bedrock_access_key_non_interactive_required"
+                )));
             }
             let prompt =
                 localization::text_for_app(app, "agent_sdk.secret.prompt.aws_access_key_id");
@@ -769,7 +868,10 @@ fn read_bedrock_access_key_secret_value(
         Some(v) if !v.is_empty() => v,
         _ => {
             if !io::stdin().is_terminal() {
-                return Err(anyhow::anyhow!(NON_INTERACTIVE_REQUIRED_MSG));
+                return Err(anyhow::anyhow!(localization::text_for_app(
+                    app,
+                    "agent_sdk.secret.error.bedrock_access_key_non_interactive_required"
+                )));
             }
             let prompt =
                 localization::text_for_app(app, "agent_sdk.secret.prompt.aws_secret_access_key");
@@ -824,7 +926,10 @@ fn read_bedrock_access_key_secret_value(
         Some(r) if !r.is_empty() => r,
         _ => {
             if !io::stdin().is_terminal() {
-                return Err(anyhow::anyhow!(NON_INTERACTIVE_REQUIRED_MSG));
+                return Err(anyhow::anyhow!(localization::text_for_app(
+                    app,
+                    "agent_sdk.secret.error.bedrock_access_key_non_interactive_required"
+                )));
             }
             let prompt = localization::text_for_app(app, "agent_sdk.secret.prompt.aws_region");
             match inquire::Text::new(&prompt).prompt() {
@@ -866,13 +971,34 @@ fn find_secret_type(
         .map(|s| s.type_)
 }
 
-fn format_secret_type(type_: &ManagedSecretType) -> String {
+fn format_secret_type(locale: LocaleId, type_: &ManagedSecretType) -> String {
     match type_ {
-        ManagedSecretType::RawValue => "Raw Value".to_string(),
-        ManagedSecretType::Dotenvx => "dotenvx".to_string(),
-        ManagedSecretType::AnthropicApiKey => "Anthropic API Key".to_string(),
-        ManagedSecretType::AnthropicBedrockAccessKey => "Anthropic Bedrock Access Key".to_string(),
-        ManagedSecretType::AnthropicBedrockApiKey => "Anthropic Bedrock API Key".to_string(),
-        ManagedSecretType::OpenaiApiKey => "OpenAI API Key".to_string(),
+        ManagedSecretType::RawValue => {
+            localization::text_for_locale(locale, "agent_sdk.secret.type.raw_value")
+        }
+        ManagedSecretType::Dotenvx => {
+            localization::text_for_locale(locale, "agent_sdk.secret.type.dotenvx")
+        }
+        ManagedSecretType::AnthropicApiKey => {
+            localization::text_for_locale(locale, "agent_sdk.secret.type.anthropic_api_key")
+        }
+        ManagedSecretType::AnthropicBedrockAccessKey => localization::text_for_locale(
+            locale,
+            "agent_sdk.secret.type.anthropic_bedrock_access_key",
+        ),
+        ManagedSecretType::AnthropicBedrockApiKey => {
+            localization::text_for_locale(locale, "agent_sdk.secret.type.anthropic_bedrock_api_key")
+        }
+        ManagedSecretType::OpenaiApiKey => {
+            localization::text_for_locale(locale, "agent_sdk.secret.type.openai_api_key")
+        }
+    }
+}
+
+fn localized_secret_scope(locale: LocaleId, scope: &str) -> String {
+    match scope {
+        "Personal" => localization::text_for_locale(locale, "agent_sdk.secret.scope.personal"),
+        "Team" => localization::text_for_locale(locale, "agent_sdk.secret.scope.team"),
+        _ => scope.to_owned(),
     }
 }

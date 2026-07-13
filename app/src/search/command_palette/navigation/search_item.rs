@@ -128,7 +128,7 @@ impl crate::search::item::SearchItem for SearchItem {
         let description = self
             .navigation_data()
             .command_context()
-            .a11y_description()
+            .a11y_description_for_app(app)
             .unwrap_or_default();
         crate::localization::text_for_app_with_args(
             app,

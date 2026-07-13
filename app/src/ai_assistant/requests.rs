@@ -240,9 +240,16 @@ impl Requests {
                             cache_request_limit_info(request_limit_info, ctx);
                             model.request_limit_info = request_limit_info;
                             let next_time = if let Some(next_refresh_time) = model.serialized_time_until_refresh() {
-                                format!("after {next_refresh_time}")
+                                crate::localization::text_for_app_with_args(
+                                    ctx,
+                                    "ai_assistant.request_limit.after_time",
+                                    &[("time", &next_refresh_time)],
+                                )
                             } else {
-                                String::from("later")
+                                crate::localization::text_for_app(
+                                    ctx,
+                                    "ai_assistant.request_limit.later",
+                                )
                             };
 
                             let auth_state = AuthStateProvider::as_ref(ctx).get();
@@ -252,17 +259,39 @@ impl Requests {
                                 if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
                                     if has_admin_permissions {
                                         let upgrade_url = UserWorkspaces::upgrade_link_for_team(team.uid);
-                                        format!("It seems you're out of credits. Please try again {next_time}.\n\n[Upgrade]({upgrade_url}) for more credits.")
+                                        crate::localization::text_for_app_with_args(
+                                            ctx,
+                                            "ai_assistant.request_limit.out_of_credits_upgrade",
+                                            &[
+                                                ("next_time", &next_time),
+                                                ("upgrade_url", &upgrade_url),
+                                            ],
+                                        )
                                     } else {
-                                        format!("It seems you're out of credits. Please try again {next_time}.\n\nContact a team admin to upgrade for more credits.")
+                                        crate::localization::text_for_app_with_args(
+                                            ctx,
+                                            "ai_assistant.request_limit.out_of_credits_contact_admin",
+                                            &[("next_time", &next_time)],
+                                        )
                                     }
                                 } else {
-                                    format!("It seems you're out of credits. Please try again {next_time}.")
+                                    crate::localization::text_for_app_with_args(
+                                        ctx,
+                                        "ai_assistant.request_limit.out_of_credits",
+                                        &[("next_time", &next_time)],
+                                    )
                                 }
                             } else {
                                 let user_id = auth_state.user_id().unwrap_or_default();
                                 let upgrade_url = UserWorkspaces::upgrade_link(user_id);
-                                format!("It seems you're out of credits. Please try again {next_time}.\n\n[Upgrade]({upgrade_url}) for more credits.")
+                                crate::localization::text_for_app_with_args(
+                                    ctx,
+                                    "ai_assistant.request_limit.out_of_credits_upgrade",
+                                    &[
+                                        ("next_time", &next_time),
+                                        ("upgrade_url", &upgrade_url),
+                                    ],
+                                )
                             };
                             let response_in_markdown = markdown_segments_from_text(
                                 transcript_part_index,

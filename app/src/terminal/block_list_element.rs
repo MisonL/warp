@@ -92,6 +92,7 @@ use crate::terminal::{grid_renderer, SizeInfo};
 use crate::themes::theme::{Fill, WarpTheme};
 use crate::ui_components::{self, icons as UIIcon};
 use crate::util::color::Opacity;
+use crate::util::time_format::localized_weekday_month_day_time;
 
 /// The number of pixels at the bottom of padding where selection scrolling is performed.
 const BOTTOM_VERTICAL_MARGIN: f32 = 10.0;
@@ -3426,7 +3427,7 @@ impl Element for BlockListElement {
 
                     let separator_text =
                         if let Some(ts) = (*model).block_list().restored_session_ts() {
-                            let timestamp = ts.format("%a %b %-d at %-I:%M %p").to_string();
+                            let timestamp = localized_weekday_month_day_time(app, *ts);
                             localization::text_for_app_with_args(
                                 app,
                                 "terminal.block_list.separator.with_timestamp",

@@ -800,6 +800,11 @@ jobs:
           # Sentry SDK binary releases).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify Windows installer
+        if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        run: ./script/windows/check_installer.ps1
+
   # A final job that collects the results of all of the parallel CI jobs and
   # makes sure that all of them pass.
   #

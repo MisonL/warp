@@ -14,7 +14,7 @@ fn schedule_info() -> ScheduleInfo {
         paused: true,
         last_ran: Some(Utc.with_ymd_and_hms(2026, 1, 2, 3, 4, 5).unwrap()),
         next_run: None,
-        scope: super::super::common::OWNER_SCOPE_TEAM.to_string(),
+        scope: "Team".to_string(),
         prompt: "Run checks".to_string(),
         last_spawn_error: Some("failed".to_string()),
         agent_config: AgentConfigSnapshot::default(),
@@ -30,6 +30,8 @@ fn schedule_list_text_localizes_status_rows() {
         "agent_sdk.schedule.value.last_ran_with_error",
     )
     .replace("{timestamp}", "");
+    let localized_scope =
+        crate::localization::text_for_locale(LocaleId::ZhCn, "agent_sdk.secret.scope.team");
     let mut output = Vec::new();
 
     write_list_for_locale(
@@ -43,4 +45,5 @@ fn schedule_list_text_localizes_status_rows() {
     let rendered = String::from_utf8(output).unwrap();
     assert!(rendered.contains(&localized_paused));
     assert!(rendered.contains(&localized_error_prefix));
+    assert!(rendered.contains(&localized_scope));
 }

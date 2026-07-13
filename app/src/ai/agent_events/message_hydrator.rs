@@ -156,10 +156,12 @@ impl MessageHydrator {
                     let sleep_duration = self
                         .retry_delay
                         .min(deadline.saturating_duration_since(Instant::now()));
-                    if sleep_duration.is_zero() {
+                    if sleep_duration.is_zero() && !self.retry_delay.is_zero() {
                         return Err(message_read_timeout_error(message_id, last_error));
                     }
-                    Timer::after(sleep_duration).await;
+                    if !sleep_duration.is_zero() {
+                        Timer::after(sleep_duration).await;
+                    }
                 }
                 Either::Left((Err(err), _)) => return Err(err),
                 Either::Right(_) => return Err(message_read_timeout_error(message_id, last_error)),

@@ -1,6 +1,6 @@
 ---
 name: figma-implement-design
-description: Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions "implement design", "generate code", "implement component", provides Figma URLs, or asks to build components matching Figma specs. For Figma canvas writes via `use_figma`, use `figma-use`.
+description: 将 Figma 设计转换为可用于生产的应用代码，并尽量保持 1:1 视觉还原。适用于从 Figma 文件实现 UI、生成代码、实现组件，或根据 Figma 规格构建组件时。若要通过 `use_figma` 写入画布，请使用 `figma-use`。
 description_zh_CN: 将 Figma 设计转换为可用于生产的应用代码，并尽量保持 1:1 视觉还原。适用于从 Figma 文件实现 UI、生成代码、实现组件，或根据 Figma 规格构建组件时。
 disable-model-invocation: false
 ---

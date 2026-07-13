@@ -309,6 +309,40 @@ impl Display for SettingsSection {
 }
 
 impl SettingsSection {
+    pub fn nav_label(&self, app: &AppContext) -> String {
+        localization::text_for_app(app, self.nav_label_key())
+    }
+
+    fn nav_label_key(&self) -> &'static str {
+        match self {
+            SettingsSection::About => "settings.nav.about",
+            SettingsSection::Account => "settings.nav.account",
+            SettingsSection::MCPServers => "settings.nav.mcp_servers",
+            SettingsSection::BillingAndUsage => "settings.nav.billing_and_usage",
+            SettingsSection::Appearance => "settings.nav.appearance",
+            SettingsSection::Features => "settings.nav.features",
+            SettingsSection::Keybindings => "settings.nav.keyboard_shortcuts",
+            SettingsSection::Privacy => "settings.nav.privacy",
+            SettingsSection::Referrals => "settings.nav.referrals",
+            SettingsSection::Scripting => "settings.nav.scripting",
+            SettingsSection::SharedBlocks => "settings.nav.shared_blocks",
+            SettingsSection::Teams => "settings.nav.teams",
+            SettingsSection::WarpDrive => "settings.nav.warp_drive",
+            SettingsSection::Warpify => "settings.nav.warpify",
+            SettingsSection::AI => "settings.nav.ai",
+            SettingsSection::WarpAgent => "settings.nav.warp_agent",
+            SettingsSection::AgentProfiles => "settings.nav.agent_profiles",
+            SettingsSection::AgentMCPServers => "settings.nav.agent_mcp_servers",
+            SettingsSection::Knowledge => "settings.nav.knowledge",
+            SettingsSection::ThirdPartyCLIAgents => "settings.nav.third_party_cli_agents",
+            SettingsSection::Code => "settings.nav.code",
+            SettingsSection::CodeIndexing => "settings.nav.code_indexing",
+            SettingsSection::EditorAndCodeReview => "settings.nav.editor_and_code_review",
+            SettingsSection::CloudEnvironments => "settings.nav.cloud_environments",
+            SettingsSection::OzCloudAPIKeys => "settings.nav.oz_cloud_api_keys",
+        }
+    }
+
     /// Returns true if this section is a subpage under any umbrella.
     pub fn is_subpage(&self) -> bool {
         self.is_ai_subpage() || self.is_code_subpage() || self.is_cloud_platform_subpage()
@@ -1214,7 +1248,9 @@ pub struct SettingsView {
 
 impl SettingsView {
     pub fn new(page: Option<SettingsSection>, ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Settings"));
+        let pane_configuration = ctx.add_model(|ctx| {
+            PaneConfiguration::new(localization::text_for_app(ctx, "settings.title"))
+        });
 
         let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
         // Main settings page with accounts info
@@ -1403,19 +1439,19 @@ impl SettingsView {
         let mut nav_items = vec![
             SettingsNavItem::Page(SettingsSection::Account),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
-                "Agents",
+                "settings.nav.umbrella.agents",
                 SettingsSection::ai_subpages().to_vec(),
             )),
             SettingsNavItem::Page(SettingsSection::BillingAndUsage),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
-                "Code",
+                "settings.nav.umbrella.code",
                 vec![
                     SettingsSection::CodeIndexing,
                     SettingsSection::EditorAndCodeReview,
                 ],
             )),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
-                "Cloud platform",
+                "settings.nav.umbrella.cloud_platform",
                 vec![
                     SettingsSection::CloudEnvironments,
                     SettingsSection::OzCloudAPIKeys,
@@ -1787,7 +1823,7 @@ impl SettingsView {
         if split_pane_state.is_in_split_pane() {
             let is_maximized = split_pane_state.is_maximized();
             items.push(
-                MenuItemFields::toggle_pane_action(is_maximized)
+                MenuItemFields::toggle_pane_action(is_maximized, ctx)
                     .with_on_select_action(SettingsAction::ToggleMaximizePane)
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:toggle_maximize_pane",
@@ -2556,7 +2592,7 @@ impl View for SettingsView {
                     {
                         let page_active = section == self.current_settings_page;
                         buttons.add_child(
-                            page.render_page_button(appearance, *match_data, page_active)
+                            page.render_page_button(appearance, app, *match_data, page_active)
                                 .on_click(move |ctx, _, _| {
                                     ctx.dispatch_typed_action(SettingsAction::SelectAndRefresh(
                                         section,
@@ -2589,7 +2625,7 @@ impl View for SettingsView {
                     // across the full clickable area, not just the text.
                     buttons.add_child(
                         umbrella
-                            .render_umbrella_row(appearance)
+                            .render_umbrella_row(appearance, app)
                             .on_click(move |ctx, _, _| {
                                 ctx.dispatch_typed_action(SettingsAction::ToggleUmbrella(
                                     nav_index,
@@ -2620,9 +2656,9 @@ impl View for SettingsView {
                             }
 
                             let is_active = subpage_section == self.current_settings_page;
-                            if let Some(hoverable) = umbrella
-                                .render_subpage_button(sub_idx, appearance, match_data, is_active)
-                            {
+                            if let Some(hoverable) = umbrella.render_subpage_button(
+                                sub_idx, appearance, app, match_data, is_active,
+                            ) {
                                 buttons.add_child(
                                     hoverable
                                         .on_click(move |ctx, _, _| {
@@ -2911,9 +2947,9 @@ impl BackingView for SettingsView {
     fn render_header_content(
         &self,
         _ctx: &view::HeaderRenderContext<'_>,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> view::HeaderContent {
-        view::HeaderContent::simple("Settings")
+        view::HeaderContent::simple(localization::text_for_app(app, "settings.title"))
     }
 
     fn set_focus_handle(&mut self, focus_handle: PaneFocusHandle, _ctx: &mut ViewContext<Self>) {

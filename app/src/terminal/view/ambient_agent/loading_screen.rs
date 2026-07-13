@@ -157,10 +157,13 @@ fn render_tier_limits_footer(
         return None;
     }
 
-    let mut fragments = vec![FormattedTextFragment::plain_text(format!(
-        "Your agent is currently running on a {} machine. ",
-        specs
-    ))];
+    let mut fragments = vec![FormattedTextFragment::plain_text(
+        localization::text_for_app_with_args(
+            app,
+            "terminal.ambient_agent.tier.current_machine",
+            &[("specs", &specs)],
+        ),
+    )];
 
     // Get the upgrade URL for the current team
     let upgrade_url = UserWorkspaces::as_ref(app)
@@ -172,7 +175,7 @@ fn render_tier_limits_footer(
         upgrade_url,
     ));
     fragments.push(FormattedTextFragment::plain_text(
-        " for more powerful cloud agents.",
+        localization::text_for_app(app, "terminal.ambient_agent.tier.upgrade_suffix"),
     ));
 
     let formatted_text = FormattedText::new(vec![FormattedTextLine::Line(fragments)]);

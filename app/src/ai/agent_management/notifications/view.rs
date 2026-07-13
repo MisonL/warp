@@ -350,11 +350,11 @@ impl View for NotificationMailboxView {
         let mut column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_main_axis_size(MainAxisSize::Min)
-            .with_child(self.render_header(appearance))
+            .with_child(self.render_header(appearance, app))
             .with_child(self.render_filter_bar(notifications, app));
 
         if notifications.filtered_count(self.active_filter) == 0 {
-            column.add_child(self.render_empty_state(appearance));
+            column.add_child(self.render_empty_state(appearance, app));
         } else {
             let theme = appearance.theme();
 
@@ -415,12 +415,15 @@ impl View for NotificationMailboxView {
 }
 
 impl NotificationMailboxView {
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let label = appearance
             .ui_builder()
-            .wrappable_text("Notifications".to_string(), false)
+            .wrappable_text(
+                localization::text_for_app(app, "agent_management.notifications.title"),
+                false,
+            )
             .with_style(UiComponentStyles {
                 font_size: Some(14.),
                 font_color: Some(theme.main_text_color(theme.surface_2()).into()),
@@ -551,13 +554,16 @@ impl NotificationMailboxView {
             .finish()
     }
 
-    fn render_empty_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_empty_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         Container::new(
             appearance
                 .ui_builder()
-                .wrappable_text("No notifications".to_string(), false)
+                .wrappable_text(
+                    localization::text_for_app(app, "agent_management.notifications.empty"),
+                    false,
+                )
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     font_color: Some(theme.sub_text_color(theme.surface_2()).into()),

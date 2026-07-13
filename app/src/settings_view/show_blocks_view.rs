@@ -32,6 +32,7 @@ use crate::localization;
 use crate::menu::{Event as MenuEvent, Event, Menu, MenuItem, MenuItemFields};
 use crate::server::block::Block;
 use crate::server::server_api::block::BlockClient;
+use crate::util::time_format::localized_weekday_month_day_year_time;
 use crate::view_components::ToastFlavor;
 
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
@@ -251,11 +252,8 @@ impl UserOwnedBlock {
                 .finish(),
         )
         .finish();
-        let executed_at = self
-            .time_started
-            .with_timezone(&Local)
-            .format("%a, %b %-d %Y at %-I:%M %p")
-            .to_string();
+        let executed_at =
+            localized_weekday_month_day_year_time(app, self.time_started.with_timezone(&Local));
         let timestamp_row = Container::new(
             appearance
                 .ui_builder()

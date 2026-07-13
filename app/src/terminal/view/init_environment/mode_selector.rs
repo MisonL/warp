@@ -126,11 +126,11 @@ impl EnvironmentSetupModeSelector {
         }
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = Text::new(
-            "Choose how you'd like to set up your environment".to_string(),
+            localization::text_for_app(app, "terminal.init_environment.mode_selector.title"),
             appearance.ui_font_family(),
             TITLE_FONT_SIZE,
         )
@@ -333,7 +333,7 @@ impl EnvironmentSetupModeSelector {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let header = Container::new(self.render_header(appearance))
+        let header = Container::new(self.render_header(appearance, app))
             .with_padding_top(HEADER_PADDING_TOP)
             .with_padding_bottom(HEADER_PADDING_BOTTOM)
             .with_padding_left(HEADER_PADDING_HORIZONTAL)

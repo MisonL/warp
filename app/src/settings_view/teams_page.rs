@@ -1563,7 +1563,11 @@ impl TeamsPageView {
         // Verify no invalid domains before continuing
         let invalid_domains = editor.get_list_of_invalid_words(ctx);
         if !invalid_domains.is_empty() {
-            let error = format!("Invalid domains: {}", invalid_domains.len());
+            let error = teams_text_with_args(
+                ctx,
+                "settings.teams.error.invalid_domains",
+                &[("count", &invalid_domains.len().to_string())],
+            );
             self.show_error(error, None, ctx);
             return;
         }
@@ -1583,7 +1587,11 @@ impl TeamsPageView {
             .collect();
 
         self.show_success(
-            format!("Domain restrictions added: {}", unique_domains.len()),
+            teams_text_with_args(
+                ctx,
+                "settings.teams.success.added_domain_restrictions",
+                &[("count", &unique_domains.len().to_string())],
+            ),
             ctx,
         );
         self.user_workspaces
@@ -1610,7 +1618,11 @@ impl TeamsPageView {
         // Verify no invalid emails before continuing
         let invalid_emails = editor.get_list_of_invalid_words(ctx);
         if !invalid_emails.is_empty() {
-            let error = format!("Invalid emails: {}", invalid_emails.len());
+            let error = teams_text_with_args(
+                ctx,
+                "settings.teams.error.invalid_emails",
+                &[("count", &invalid_emails.len().to_string())],
+            );
             self.show_error(error, None, ctx);
             return;
         }
@@ -1630,9 +1642,13 @@ impl TeamsPageView {
             .collect();
 
         let message = if unique_emails.len() == 1 {
-            "Your invite is on the way!".to_string()
+            teams_text(ctx, "settings.teams.success.invite_one")
         } else {
-            format!("Your {} invites are on the way!", unique_emails.len())
+            teams_text_with_args(
+                ctx,
+                "settings.teams.success.invite_many",
+                &[("count", &unique_emails.len().to_string())],
+            )
         };
         self.show_success(message, ctx);
         self.user_workspaces

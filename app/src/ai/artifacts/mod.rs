@@ -325,9 +325,16 @@ pub fn open_screenshot_lightbox<V: warpui::View>(
         ctx.spawn(
             async move { ai_client.get_artifact_download(&uid).await },
             move |_me, result, ctx| {
-                if let Some(image) =
-                    screenshot_lightbox_image_from_download_result(result, &uid_for_callback, i)
-                {
+                let failed_to_load_label = crate::localization::text_for_app(
+                    ctx,
+                    "agent_management.artifact.screenshot.failed_to_load",
+                );
+                if let Some(image) = screenshot_lightbox_image_from_download_result(
+                    result,
+                    &uid_for_callback,
+                    i,
+                    &failed_to_load_label,
+                ) {
                     ctx.dispatch_typed_action(&WorkspaceAction::UpdateLightboxImage {
                         index: i,
                         image,
@@ -342,6 +349,7 @@ fn screenshot_lightbox_image_from_download_result(
     result: anyhow::Result<ArtifactDownloadResponse>,
     uid_for_callback: &str,
     index: usize,
+    failed_to_load_label: &str,
 ) -> Option<LightboxImage> {
     match result {
         Ok(ArtifactDownloadResponse::Screenshot { data, .. }) => Some(LightboxImage {
@@ -360,7 +368,7 @@ fn screenshot_lightbox_image_from_download_result(
             log::warn!("Failed to load screenshot artifact {index}: {e}");
             Some(LightboxImage {
                 source: LightboxImageSource::Loading,
-                description: Some("Failed to load".to_string()),
+                description: Some(failed_to_load_label.to_string()),
             })
         }
     }

@@ -51,9 +51,10 @@ impl View for TransferOwnershipConfirmationModal {
         let email = self.new_owner_email.as_deref().unwrap_or_default();
 
         let description_text = Text::new(
-            format!(
-                "Are you sure you want to transfer team ownership to {}? You will no longer be the owner and will not be able to take any administrative actions for this team.",
-                email
+            crate::localization::text_for_app_with_args(
+                app,
+                "settings.transfer_ownership.description",
+                &[("email", email)],
             ),
             appearance.ui_font_family(),
             14.,

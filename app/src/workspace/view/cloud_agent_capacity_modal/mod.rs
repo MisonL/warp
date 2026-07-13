@@ -25,7 +25,7 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::CustomerType;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 const MODAL_WIDTH: f32 = 360.;
 const MODAL_HEIGHT: f32 = 532.;
@@ -124,16 +124,20 @@ impl CloudAgentCapacityModal {
         let appearance = Appearance::handle(app).as_ref(app);
         let theme = appearance.theme();
         let neutral_bg = blended_colors::neutral_1(theme);
-        let (title_text, mut explanation_text) = match self.variant {
+        let (title_key, description_key, upgrade_suffix_key) = match self.variant {
             CloudAgentCapacityModalVariant::ConcurrentLimit => (
-                "Concurrent cloud agent limit reached",
-                "This cloud run is queued because your team has reached the maximum number of concurrent cloud agents. It will start automatically when another cloud run finishes.".to_string(),
+                "workspace.cloud_agent_capacity.concurrent_limit.title",
+                "workspace.cloud_agent_capacity.concurrent_limit.description",
+                "workspace.cloud_agent_capacity.concurrent_limit.upgrade_suffix",
             ),
             CloudAgentCapacityModalVariant::OutOfCredits => (
-                "You're out of AI credits",
-                "This cloud run stopped because your team has used all available AI credits for the current billing period.".to_string(),
+                "workspace.cloud_agent_capacity.out_of_credits.title",
+                "workspace.cloud_agent_capacity.out_of_credits.description",
+                "workspace.cloud_agent_capacity.out_of_credits.upgrade_suffix",
             ),
         };
+        let title_text = localization::text_for_app(app, title_key);
+        let mut explanation_text = localization::text_for_app(app, description_key);
 
         // Title
         let title = FormattedTextElement::from_str(title_text, appearance.ui_font_family(), 24.)
@@ -145,15 +149,8 @@ impl CloudAgentCapacityModal {
         let can_upgrade = Self::can_upgrade(customer_type, self.variant);
         let show_cta = Self::should_show_cta(customer_type, self.variant);
         if can_upgrade {
-            let upgrade_suffix = match self.variant {
-                CloudAgentCapacityModalVariant::ConcurrentLimit => {
-                    " Upgrade your plan for more concurrent cloud agents."
-                }
-                CloudAgentCapacityModalVariant::OutOfCredits => {
-                    " Upgrade your plan to continue running cloud agents."
-                }
-            };
-            explanation_text.push_str(upgrade_suffix);
+            let upgrade_suffix = localization::text_for_app(app, upgrade_suffix_key);
+            explanation_text.push_str(&upgrade_suffix);
         }
         let subtitle =
             FormattedTextElement::from_str(explanation_text, appearance.ui_font_family(), 14.)
@@ -182,19 +179,23 @@ impl CloudAgentCapacityModal {
             let pricing_text = if customer_type == CustomerType::Free {
                 if let Some(pricing) = plan_pricing {
                     let price = pricing.yearly_plan_price_per_month_usd_cents / 100;
-                    format!(
-                        "Paid plans start at ${price}/month and include everything in your free trial plus:"
+                    localization::text_for_app_with_args(
+                        app,
+                        "workspace.cloud_agent_capacity.pricing.free_with_price",
+                        &[("price", &price.to_string())],
                     )
                 } else {
-                    "Paid plans include everything in your free trial plus:".to_string()
+                    localization::text_for_app(app, "workspace.cloud_agent_capacity.pricing.free")
                 }
             } else if let Some(pricing) = plan_pricing {
                 let price = pricing.yearly_plan_price_per_month_usd_cents / 100;
-                format!(
-                    "The Business plan starts at ${price}/month and includes everything on your current plan plus:"
+                localization::text_for_app_with_args(
+                    app,
+                    "workspace.cloud_agent_capacity.pricing.business_with_price",
+                    &[("price", &price.to_string())],
                 )
             } else {
-                "The Business plan includes everything on your current plan plus:".to_string()
+                localization::text_for_app(app, "workspace.cloud_agent_capacity.pricing.business")
             };
 
             let pricing = FormattedTextElement::new(
@@ -212,16 +213,30 @@ impl CloudAgentCapacityModal {
             // Credits text from plan pricing
             let credits_text = if let Some(limit) = plan_pricing.and_then(|plan| plan.request_limit)
             {
-                format!("{} AI credits per month", limit.separate_with_commas())
+                localization::text_for_app_with_args(
+                    app,
+                    "workspace.cloud_agent_capacity.benefit.ai_credits",
+                    &[("credits", &limit.separate_with_commas())],
+                )
             } else {
-                "Extended AI credits per month".to_string()
+                localization::text_for_app(
+                    app,
+                    "workspace.cloud_agent_capacity.benefit.extended_ai_credits",
+                )
             };
 
             // Benefits list based on plan type
             let mut benefits = vec![
-                format!("{} the number of concurrent cloud agents", agent_multiplier),
+                localization::text_for_app_with_args(
+                    app,
+                    "workspace.cloud_agent_capacity.benefit.concurrent_agents",
+                    &[("multiplier", agent_multiplier)],
+                ),
                 credits_text,
-                "Bring your own API key".to_string(),
+                localization::text_for_app(
+                    app,
+                    "workspace.cloud_agent_capacity.benefit.bring_own_api_key",
+                ),
             ];
             for extra in extra_benefits {
                 benefits.push(extra.to_string());
@@ -276,9 +291,9 @@ impl CloudAgentCapacityModal {
         let content = content.finish();
         let cta_button = if show_cta {
             let cta_button_label = if can_upgrade {
-                "Upgrade plan"
+                localization::text_for_app(app, "workspace.cloud_agent_capacity.cta.upgrade_plan")
             } else {
-                "Open billing"
+                localization::text_for_app(app, "workspace.cloud_agent_capacity.cta.open_billing")
             };
             Some(
                 appearance
@@ -293,7 +308,7 @@ impl CloudAgentCapacityModal {
                         width: Some(296.),
                         ..Default::default()
                     })
-                    .with_centered_text_label(cta_button_label.to_string())
+                    .with_centered_text_label(cta_button_label)
                     .build()
                     .with_cursor(Cursor::PointingHand)
                     .on_click(|ctx, _, _| {

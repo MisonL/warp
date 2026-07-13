@@ -9,7 +9,18 @@ use warpui::{AppContext, SingletonEntity};
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::user::PrincipalType;
 use crate::auth::AuthStateProvider;
+use crate::localization;
 use crate::workspaces::user_workspaces::UserWorkspaces;
+
+fn print_localized_text(app: &AppContext, key: &str) {
+    let message = localization::text_for_app(app, key);
+    println!("{message}");
+}
+
+fn print_localized_text_with_args(app: &AppContext, key: &str, args: &[(&str, &str)]) {
+    let message = localization::text_for_app_with_args(app, key, args);
+    println!("{message}");
+}
 
 /// Kick off a device authorization login flow and handle auth events.
 pub fn login(ctx: &mut AppContext) -> Result<()> {
@@ -33,19 +44,27 @@ pub fn login(ctx: &mut AppContext) -> Result<()> {
                     let auth_state = AuthStateProvider::as_ref(ctx).get();
                     match (auth_state.username_for_display(), auth_state.user_email()) {
                         (Some(username), Some(email)) if username != email => {
-                            println!("You are already logged in as {username} ({email}).")
+                            print_localized_text_with_args(
+                                ctx,
+                                "agent_sdk.admin.login.already_logged_in_with_email",
+                                &[("username", &username), ("email", &email)],
+                            );
                         }
                         (Some(name), _) | (None, Some(name)) => {
-                            println!("You are already logged in as {name}.")
+                            print_localized_text_with_args(
+                                ctx,
+                                "agent_sdk.admin.login.already_logged_in_as",
+                                &[("name", &name)],
+                            );
                         }
                         (None, None) => {
-                            println!("You are already logged in.")
+                            print_localized_text(ctx, "agent_sdk.admin.login.already_logged_in");
                         }
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
                 } else {
                     // Device auth succeeded.
-                    println!("Logged in successfully");
+                    print_localized_text(ctx, "agent_sdk.admin.login.success");
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
                 }
             }
@@ -59,10 +78,15 @@ pub fn login(ctx: &mut AppContext) -> Result<()> {
                 } else {
                     // Device auth failed.
                     let err_msg = match event {
-                        AuthManagerEvent::AuthFailed(err) => {
-                            format!("Authentication failed: {err:#}")
-                        }
-                        _ => "Authentication failed".to_string(),
+                        AuthManagerEvent::AuthFailed(err) => localization::text_for_app_with_args(
+                            ctx,
+                            "agent_sdk.admin.login.authentication_failed_with_error",
+                            &[("error", &format!("{err:#}"))],
+                        ),
+                        _ => localization::text_for_app(
+                            ctx,
+                            "agent_sdk.admin.login.authentication_failed",
+                        ),
                     };
                     ctx.terminate_app(
                         TerminationMode::ForceTerminate,
@@ -76,10 +100,19 @@ pub fn login(ctx: &mut AppContext) -> Result<()> {
                 user_code,
             } => {
                 if let Some(url) = verification_url_complete {
-                    println!("To log in, open this URL in your browser:\n{url}");
+                    print_localized_text_with_args(
+                        ctx,
+                        "agent_sdk.admin.login.open_url",
+                        &[("url", url)],
+                    );
                 } else {
-                    println!(
-                        "To log in, visit {verification_url} and enter this code: {user_code}"
+                    print_localized_text_with_args(
+                        ctx,
+                        "agent_sdk.admin.login.enter_code",
+                        &[
+                            ("verification_url", verification_url),
+                            ("user_code", user_code),
+                        ],
                     );
                 }
             }
@@ -136,7 +169,12 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
                 .map(String::from)
                 .unwrap_or(s)
         })
-        .ok_or_else(|| anyhow::anyhow!("Could not determine user ID. Are you logged in?"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(localization::text_for_app(
+                ctx,
+                "agent_sdk.admin.whoami.missing_user_id",
+            ))
+        })?;
 
     let mut info = WhoamiOutput {
         uid,
@@ -156,8 +194,9 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
     // Refresh workspace metadata before reading team info, so we don't print
     // stale or missing team data if the metadata hasn't been fetched yet.
     let runner = ctx.add_singleton_model(|_| WhoamiRunner);
+    let locale = localization::current_locale(ctx);
     runner.update(ctx, move |_, ctx| {
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
+        let refresh_future = super::common::refresh_workspace_metadata(ctx, locale);
         ctx.spawn(refresh_future, move |_, result, ctx| {
             if let Err(err) = result {
                 // Do not prevent showing user info if fetching team metadata fails.
@@ -172,7 +211,10 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
 
             match output_format {
                 OutputFormat::Json => {
-                    match serde_json::to_string(&info).context("whoami output should serialize") {
+                    match serde_json::to_string(&info).context(localization::text_for_app(
+                        ctx,
+                        "agent_sdk.admin.whoami.error.serialize",
+                    )) {
                         Ok(json) => println!("{json}"),
                         Err(err) => {
                             ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(err)));
@@ -182,33 +224,57 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
                 }
                 OutputFormat::Pretty => {
                     match principal_type {
-                        PrincipalType::User => println!("User ID: {}", info.uid),
-                        PrincipalType::ServiceAccount => {
-                            println!("Service account ID: {}", info.uid)
-                        }
+                        PrincipalType::User => print_localized_text_with_args(
+                            ctx,
+                            "agent_sdk.admin.whoami.user_id",
+                            &[("uid", &info.uid)],
+                        ),
+                        PrincipalType::ServiceAccount => print_localized_text_with_args(
+                            ctx,
+                            "agent_sdk.admin.whoami.service_account_id",
+                            &[("uid", &info.uid)],
+                        ),
                     }
                     if let Some(name) = &info.display_name {
-                        println!("Display Name: {name}");
+                        print_localized_text_with_args(
+                            ctx,
+                            "agent_sdk.admin.whoami.display_name",
+                            &[("name", name)],
+                        );
                     }
                     if let Some(email) = &info.email {
-                        println!("Email: {email}");
+                        print_localized_text_with_args(
+                            ctx,
+                            "agent_sdk.admin.whoami.email",
+                            &[("email", email)],
+                        );
                     }
                     if let Some(team_uid) = &info.team_uid {
-                        println!("Team ID: {team_uid}");
+                        print_localized_text_with_args(
+                            ctx,
+                            "agent_sdk.admin.whoami.team_id",
+                            &[("team_uid", team_uid)],
+                        );
                     }
                     if let Some(team_name) = &info.team_name {
-                        println!("Team Name: {team_name}");
+                        print_localized_text_with_args(
+                            ctx,
+                            "agent_sdk.admin.whoami.team_name",
+                            &[("team_name", team_name)],
+                        );
                     }
                 }
                 OutputFormat::Text => {
                     println!("{}:{}", info.principal_type, info.uid);
                 }
                 OutputFormat::Ndjson => {
+                    let error_message = localization::text_for_app(
+                        ctx,
+                        "agent_sdk.admin.whoami.ndjson_unsupported",
+                    );
                     ctx.terminate_app(
                         TerminationMode::ForceTerminate,
-                        Some(Err(anyhow::anyhow!(
-                            "`whoami` does not support `--output-format ndjson`"
-                        ))),
+                        Some(Err(anyhow::anyhow!(error_message))),
                     );
                     return;
                 }
@@ -225,13 +291,13 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
 pub fn logout(ctx: &mut AppContext) -> Result<()> {
     let auth_state = AuthStateProvider::as_ref(ctx).get();
     if !auth_state.is_logged_in() {
-        println!("You are not logged in.");
+        print_localized_text(ctx, "agent_sdk.admin.logout.not_logged_in");
         ctx.terminate_app(TerminationMode::ForceTerminate, None);
         return Ok(());
     }
 
     crate::auth::log_out(ctx);
-    println!("Logged out successfully.");
+    print_localized_text(ctx, "agent_sdk.admin.logout.success");
     ctx.terminate_app(TerminationMode::ForceTerminate, None);
     Ok(())
 }

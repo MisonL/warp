@@ -28,6 +28,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::safe_triangle::SafeTriangle;
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::icon_button_with_color;
@@ -437,6 +438,7 @@ impl<A> RightSideIconConfig<A> {
 #[derive(Clone, Default)]
 pub struct MenuItemFields<A: Action + Clone> {
     element: MenuItemLabel,
+    identifier: Option<&'static str>,
     timestamp: Option<DateTime<Local>>,
     on_select_action: Option<A>,
     key_shortcut_label: Option<String>,
@@ -479,6 +481,7 @@ impl<A: Action + Clone> std::fmt::Debug for MenuItemFields<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MenuItemFields")
             .field("element", &self.element)
+            .field("identifier", &self.identifier)
             .field("on_select_action", &self.on_select_action)
             .field("key_shortcut_label", &self.key_shortcut_label)
             .field("disabled", &self.disabled)
@@ -490,6 +493,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
     pub fn new<T: Into<String>>(label: T) -> Self {
         MenuItemFields {
             element: MenuItemLabel::Text(label.into()),
+            identifier: None,
             timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
@@ -520,6 +524,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
     pub fn new_submenu<T: Into<String>>(label: T) -> Self {
         MenuItemFields {
             element: MenuItemLabel::Text(label.into()),
+            identifier: None,
             timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
@@ -553,6 +558,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 primary_text: text.into(),
                 secondary_text: label.into(),
             },
+            identifier: None,
             timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
@@ -589,6 +595,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 primary_text: title.into(),
                 secondary_text: subtitle.into(),
             },
+            identifier: None,
             timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
@@ -623,6 +630,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 color: icon_color,
                 alt_text: icon_label,
             },
+            identifier: None,
             timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
@@ -656,6 +664,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                 label: label.into(),
                 max_lines,
             },
+            identifier: None,
             timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
@@ -686,6 +695,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
     pub fn new_with_custom_label(builder: CustomMenuItemLabelFn, label: Option<String>) -> Self {
         MenuItemFields {
             element: MenuItemLabel::Custom { builder, label },
+            identifier: None,
             timestamp: None,
             on_select_action: None,
             key_shortcut_label: None,
@@ -713,12 +723,13 @@ impl<A: Action + Clone> MenuItemFields<A> {
         }
     }
 
-    pub fn toggle_pane_action(is_maximized: bool) -> Self {
-        Self::new(if is_maximized {
-            "Minimize pane"
+    pub fn toggle_pane_action(is_maximized: bool, ctx: &AppContext) -> Self {
+        let key = if is_maximized {
+            "terminal.menu.minimize_pane"
         } else {
-            "Maximize pane"
-        })
+            "terminal.menu.maximize_pane"
+        };
+        Self::new(localization::text_for_app(ctx, key))
     }
 
     /// Creates a [`MenuItemFields`] where the `on_select_action` is of a
@@ -732,6 +743,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
     ) -> MenuItemFields<B> {
         MenuItemFields {
             timestamp: self.timestamp,
+            identifier: self.identifier,
             on_select_action,
             element: self.element,
             key_shortcut_label: self.key_shortcut_label,
@@ -772,6 +784,15 @@ impl<A: Action + Clone> MenuItemFields<A> {
 
     pub fn on_select_action(&self) -> Option<&A> {
         self.on_select_action.as_ref()
+    }
+
+    pub fn identifier(&self) -> Option<&'static str> {
+        self.identifier
+    }
+
+    pub fn with_identifier(mut self, identifier: &'static str) -> Self {
+        self.identifier = Some(identifier);
+        self
     }
 
     pub fn no_highlight_on_hover(mut self) -> Self {
@@ -2536,28 +2557,42 @@ impl<A: Action + Clone> SubMenu<A> {
     fn action_accessibility_contents(
         &mut self,
         action: &MenuAction,
-        _: &mut ViewContext<Menu<A>>,
+        ctx: &mut ViewContext<Menu<A>>,
     ) -> ActionAccessibilityContent {
         use ActionAccessibilityContent::*;
         use MenuAction::*;
 
         match action {
             Select(_) => {
+                let item_selected_text = |item: &str| {
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "menu.a11y.item_selected",
+                        &[("item", item)],
+                    )
+                };
+                let item_expanded_text = |item: &str| {
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "menu.a11y.item_expanded",
+                        &[("item", item)],
+                    )
+                };
                 let menu_item = match self.selected_item() {
                     Some(item) => match item {
-                        MenuItem::Item(fields) => format!("{} Selected", fields.get_a11y_text()),
+                        MenuItem::Item(fields) => item_selected_text(fields.get_a11y_text()),
                         MenuItem::ItemsRow { items } => {
                             let selected_item_text = items
                                 .get(self.selected_item_index.unwrap_or_default())
                                 .map_or_else(|| "", |item| item.get_a11y_text());
-                            format!("{selected_item_text} Selected")
+                            item_selected_text(selected_item_text)
                         }
                         MenuItem::Separator => String::from(""),
                         MenuItem::Submenu { fields, .. } => {
-                            format!("{} Expanded", fields.get_a11y_text())
+                            item_expanded_text(fields.get_a11y_text())
                         }
                         MenuItem::Header { fields, .. } => {
-                            format!("{} Selected", fields.get_a11y_text())
+                            item_selected_text(fields.get_a11y_text())
                         }
                     },
                     None => String::from(""),
@@ -2565,9 +2600,9 @@ impl<A: Action + Clone> SubMenu<A> {
 
                 let instructions = if matches!(self.selected_item(), Some(MenuItem::Submenu { .. }))
                 {
-                    "Press the up key or the down key to select a menu item. Press the right key to open the submenu"
+                    localization::text_for_app(ctx, "menu.a11y.instructions.submenu")
                 } else {
-                    "Press the up key or the down key to select a menu item"
+                    localization::text_for_app(ctx, "menu.a11y.instructions.default")
                 };
 
                 Custom(AccessibilityContent::new(
@@ -2577,23 +2612,23 @@ impl<A: Action + Clone> SubMenu<A> {
                 ))
             }
             OpenSubmenu => Custom(AccessibilityContent::new(
-                String::from("Submenu Expanded"),
-                "Press the right key to open the selected submenu",
+                localization::text_for_app(ctx, "menu.a11y.submenu_expanded"),
+                localization::text_for_app(ctx, "menu.a11y.open_submenu_help"),
                 WarpA11yRole::TextRole,
             )),
             CloseSubmenu(_) => Custom(AccessibilityContent::new(
-                String::from("Submenu Closed"),
-                "Removing focus from a submenu will close the submenu",
+                localization::text_for_app(ctx, "menu.a11y.submenu_closed"),
+                localization::text_for_app(ctx, "menu.a11y.close_submenu_help"),
                 WarpA11yRole::TextRole,
             )),
             Close(_) => Custom(AccessibilityContent::new(
-                String::from("Menu Closed"),
-                "Press the escape key to close the menu",
+                localization::text_for_app(ctx, "menu.a11y.menu_closed"),
+                localization::text_for_app(ctx, "menu.a11y.close_menu_help"),
                 WarpA11yRole::TextRole,
             )),
             Enter => Custom(AccessibilityContent::new(
-                String::from("Action Selected"),
-                "Press the enter key to execute the selected menu item action",
+                localization::text_for_app(ctx, "menu.a11y.action_selected"),
+                localization::text_for_app(ctx, "menu.a11y.action_selected_help"),
                 WarpA11yRole::TextRole,
             )),
             HoverSubmenuLeafNode { .. }

@@ -146,13 +146,16 @@ impl FreeTierLimitHitModal {
                 .with_child(
                     Flex::column()
                         .with_cross_axis_alignment(CrossAxisAlignment::Start)
-                        .with_child(
-                            Container::new(
-                                FormattedTextElement::from_str(
-                                    "You’re out of credits",
-                                    appearance.ui_font_family(),
-                                    24.,
-                                )
+	                        .with_child(
+	                            Container::new(
+	                                FormattedTextElement::from_str(
+	                                    localization::text_for_app(
+	                                        app,
+	                                        "workspace.free_tier_limit.title",
+	                                    ),
+	                                    appearance.ui_font_family(),
+	                                    24.,
+	                                )
                                 .with_color(blended_colors::text_main(
                                     theme,
                                     blended_colors::neutral_1(theme),
@@ -163,13 +166,16 @@ impl FreeTierLimitHitModal {
                             .with_margin_bottom(12.)
                             .finish(),
                         )
-                        .with_child(
-                            Container::new(
-                                FormattedTextElement::from_str(
-                                    "To continue using AI, please upgrade your plan.",
-                                    appearance.ui_font_family(),
-                                    14.,
-                                )
+	                        .with_child(
+	                            Container::new(
+	                                FormattedTextElement::from_str(
+	                                    localization::text_for_app(
+	                                        app,
+	                                        "workspace.free_tier_limit.description",
+	                                    ),
+	                                    appearance.ui_font_family(),
+	                                    14.,
+	                                )
                                 .with_color(blended_colors::text_sub(
                                     theme,
                                     blended_colors::neutral_1(theme),
@@ -179,16 +185,24 @@ impl FreeTierLimitHitModal {
                             .with_margin_bottom(16.)
                             .finish(),
                         )
-                        .with_child(
-                            Container::new({
-                                let benefits_text = if let Some(plan) = Self::get_build_plan_details(app) {
-                                    let price = plan.monthly_plan_price_per_month_usd_cents / 100;
-                                    format!("The Build plan is ${price}/month which includes everything in the free tier plus:")
-                                } else {
-                                    "The Build plan includes everything in the free tier plus:".to_string()
-                                };
-                                let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
-                                    FormattedTextFragment::plain_text(benefits_text),
+	                        .with_child(
+	                            Container::new({
+	                                let benefits_text = if let Some(plan) = Self::get_build_plan_details(app) {
+	                                    let price = plan.monthly_plan_price_per_month_usd_cents / 100;
+	                                    let price = price.to_string();
+	                                    localization::text_for_app_with_args(
+	                                        app,
+	                                        "workspace.free_tier_limit.build_plan_with_price",
+	                                        &[("price", &price)],
+	                                    )
+	                                } else {
+	                                    localization::text_for_app(
+	                                        app,
+	                                        "workspace.free_tier_limit.build_plan",
+	                                    )
+	                                };
+	                                let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
+	                                    FormattedTextFragment::plain_text(benefits_text),
                                 ])]);
                                 FormattedTextElement::new(
                                     formatted_text,
@@ -203,26 +217,37 @@ impl FreeTierLimitHitModal {
                             .with_margin_bottom(8.)
                             .finish(),
                         )
-                        .with_child(
-                            Container::new({
-                                let credits_text = if let Some(plan) = Self::get_build_plan_details(app) {
-                                    let limit = plan.request_limit.unwrap_or(1500);
-                                    format!("{} Credits per month", limit.separate_with_commas())
-                                } else {
-                                    "Extended Credits per month".to_string()
-                                };
-                                Self::render_checklist_item_dynamic(credits_text, appearance, theme)
-                            })
+	                        .with_child(
+	                            Container::new({
+	                                let credits_text = if let Some(plan) = Self::get_build_plan_details(app) {
+	                                    let limit = plan.request_limit.unwrap_or(1500);
+	                                    let credits = limit.separate_with_commas();
+	                                    localization::text_for_app_with_args(
+	                                        app,
+	                                        "workspace.free_tier_limit.benefit.credits",
+	                                        &[("credits", &credits)],
+	                                    )
+	                                } else {
+	                                    localization::text_for_app(
+	                                        app,
+	                                        "workspace.free_tier_limit.benefit.extended_credits",
+	                                    )
+	                                };
+	                                Self::render_checklist_item_dynamic(credits_text, appearance, theme)
+	                            })
                             .with_margin_bottom(8.)
                             .finish(),
                         )
                         .with_child(
                             Container::new(
-                                Self::render_checklist_item_dynamic(
-                                    "Access to frontier OpenAI, Anthropic, and Google models".to_string(),
-                                    appearance,
-                                    theme,
-                                )
+	                                Self::render_checklist_item_dynamic(
+	                                    localization::text_for_app(
+	                                        app,
+	                                        "workspace.free_tier_limit.benefit.frontier_models",
+	                                    ),
+	                                    appearance,
+	                                    theme,
+	                                )
                             )
                             .with_margin_bottom(8.)
                             .finish(),
@@ -234,10 +259,13 @@ impl FreeTierLimitHitModal {
                                         app,
                                         "workspace.free_tier_limit.access_to_prefix",
                                     )),
-                                    FormattedTextFragment::hyperlink(
-                                        "Reload Credits".to_string(),
-                                        "https://docs.warp.dev/support-and-community/plans-and-billing/add-on-credits".to_string(),
-                                    ),
+	                                    FormattedTextFragment::hyperlink(
+	                                        localization::text_for_app(
+	                                            app,
+	                                            "workspace.free_tier_limit.benefit.reload_credits_link",
+	                                        ),
+	                                        "https://docs.warp.dev/support-and-community/plans-and-billing/add-on-credits".to_string(),
+	                                    ),
                                 ])]);
                                 Flex::row()
                                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -276,11 +304,14 @@ impl FreeTierLimitHitModal {
                         )
                         .with_child(
                             Container::new({
-                                let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
-                                    FormattedTextFragment::hyperlink(
-                                        "Extended cloud agents access".to_string(),
-                                        "https://www.warp.dev/oz".to_string(),
-                                    ),
+	                                let formatted_text = FormattedText::new([FormattedTextLine::Line(vec![
+	                                    FormattedTextFragment::hyperlink(
+	                                        localization::text_for_app(
+	                                            app,
+	                                            "workspace.free_tier_limit.benefit.extended_cloud_agents",
+	                                        ),
+	                                        "https://www.warp.dev/oz".to_string(),
+	                                    ),
                                 ])]);
                                 Flex::row()
                                     .with_cross_axis_alignment(CrossAxisAlignment::Center)

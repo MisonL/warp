@@ -51,6 +51,7 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::ui_components::tab_selector::{self, SettingsTab};
+use crate::util::time_format::{localized_month_day_time, localized_month_day_year};
 use crate::view_components::action_button::{ActionButton, PrimaryTheme, SecondaryTheme};
 use crate::view_components::ToastFlavor;
 use crate::workspaces::update_manager::TeamUpdateManager;
@@ -205,7 +206,7 @@ impl GrantBucket {
             .all(|e| e.date_naive() == first.date_naive())
         {
             let local = first.with_timezone(&Local);
-            let date = local.format("%b %d, %Y").to_string();
+            let date = localized_month_day_year(app, local);
             billing_text_with_args(app, "settings.billing.credits.expires", &[("date", &date)])
         } else {
             String::new()
@@ -805,10 +806,7 @@ impl BillingAndUsagePageV2View {
         let outline_color = theme.outline().into_solid();
 
         if has_base_credits {
-            let reset_str = ai_model
-                .next_refresh_time_local()
-                .format("%b %d at %-I:%M %p")
-                .to_string();
+            let reset_str = localized_month_day_time(app, ai_model.next_refresh_time_local());
             let reset_str = billing_text_with_args(
                 app,
                 "settings.billing.usage.resets",

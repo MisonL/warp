@@ -422,6 +422,25 @@ fn status_message_with_args(
     TaskStatusUpdate::message(message)
 }
 
+fn status_message_with_error_code(
+    locale: LocaleId,
+    key: &str,
+    error_code: PlatformErrorCode,
+) -> TaskStatusUpdate {
+    TaskStatusUpdate::with_error_code(localization::text_for_locale(locale, key), error_code)
+}
+
+fn status_message_with_args_and_error_code(
+    locale: LocaleId,
+    key: &str,
+    args: &[(&str, &str)],
+    error_code: PlatformErrorCode,
+) -> TaskStatusUpdate {
+    let message = replace_placeholders(&localization::text_for_locale(locale, key), args)
+        .expect("localized task status template arguments must match the catalog");
+    TaskStatusUpdate::with_error_code(message, error_code)
+}
+
 /// Maps a conversation-level error to a terminal task update. In-flight recoveries
 /// surface as `TransientError`, so an `Error` status is always terminal here — the
 /// `will_attempt_resume` rendering hint is deliberately ignored.
@@ -448,44 +467,52 @@ pub(crate) fn classify_renderable_error(
         } => (
             AgentTaskState::Failed,
             Some(TaskStatusUpdate::with_error_code(
-                user_display_message.as_deref().unwrap_or(
-                    "Your team has run out of credits. Purchase more credits to continue.",
-                ),
+                user_display_message.clone().unwrap_or_else(|| {
+                    localization::text_for_locale(LocaleId::EnUs, "agent.task_status.quota_limit")
+                }),
                 PlatformErrorCode::InsufficientCredits,
             )),
         ),
         RenderableAIError::ServerOverloaded => (
             AgentTaskState::Error,
-            Some(TaskStatusUpdate::with_error_code(
-                "Warp is temporarily overloaded. Please try again shortly.",
+            Some(status_message_with_error_code(
+                LocaleId::EnUs,
+                "agent.task_status.server_overloaded",
                 PlatformErrorCode::ResourceUnavailable,
             )),
         ),
         RenderableAIError::InternalWarpError => (
             AgentTaskState::Error,
-            Some(TaskStatusUpdate::with_error_code(
-                "An internal error occurred during the conversation. Please try again.",
+            Some(status_message_with_error_code(
+                LocaleId::EnUs,
+                "agent.task_status.internal_error",
                 PlatformErrorCode::InternalError,
             )),
         ),
         RenderableAIError::ContextWindowExceeded(msg) => (
             AgentTaskState::Failed,
-            Some(TaskStatusUpdate::with_error_code(
-                format!("Context window exceeded: {msg}"),
+            Some(status_message_with_args_and_error_code(
+                LocaleId::EnUs,
+                "agent.task_status.context_window_exceeded",
+                &[("message", msg)],
                 PlatformErrorCode::InternalError,
             )),
         ),
         RenderableAIError::InvalidApiKey { provider, .. } => (
             AgentTaskState::Failed,
-            Some(TaskStatusUpdate::with_error_code(
-                format!("Invalid API key for {provider}. Update your API key in settings."),
+            Some(status_message_with_args_and_error_code(
+                LocaleId::EnUs,
+                "agent.task_status.invalid_api_key",
+                &[("provider", provider)],
                 PlatformErrorCode::AuthenticationRequired,
             )),
         ),
         RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { model_name } => (
             AgentTaskState::Failed,
-            Some(TaskStatusUpdate::with_error_code(
-                format!("AWS Bedrock credentials expired or invalid for {model_name}."),
+            Some(status_message_with_args_and_error_code(
+                LocaleId::EnUs,
+                "agent.task_status.aws_bedrock_credentials_expired_or_invalid",
+                &[("model_name", model_name)],
                 PlatformErrorCode::AuthenticationRequired,
             )),
         ),

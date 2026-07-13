@@ -71,8 +71,6 @@ use crate::view_components::compactible_split_action_button::CompactibleSplitAct
 use crate::view_components::dropdown::DropdownEvent;
 use crate::view_components::{FilterableDropdownEvent, FilterableDropdownOrientation};
 
-const RUN_AGENTS_CARD_TITLE: &str = "Can I start additional agents for this task?";
-
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
@@ -996,7 +994,7 @@ impl View for RunAgentsCardView {
         // because restored blocks have no pending action status.
         if self.block_model.is_restored() {
             return render_status_only_card(
-                "Spawn agents cancelled".to_string(),
+                crate::localization::text_for_app(app, "agent.orchestration.run_agents.cancelled"),
                 appearance,
                 StatusKind::Cancelled,
                 app,
@@ -1008,7 +1006,10 @@ impl View for RunAgentsCardView {
         // and the action is queued for user confirmation).
         if !matches!(status, Some(AIActionStatus::Blocked)) {
             return render_status_only_card(
-                "Configuring agents\u{2026}".to_string(),
+                crate::localization::text_for_app(
+                    app,
+                    "agent.orchestration.run_agents.configuring",
+                ),
                 appearance,
                 StatusKind::Spawning,
                 app,
@@ -1274,9 +1275,12 @@ fn render_confirmation_card(
 
 fn render_header(handles: &RunAgentsCardHandles, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
-    let mut config = HeaderConfig::new(RUN_AGENTS_CARD_TITLE, app)
-        .with_icon(icons::yellow_stop_icon(appearance))
-        .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)));
+    let mut config = HeaderConfig::new(
+        crate::localization::text_for_app(app, "agent.orchestration.run_agents.title"),
+        app,
+    )
+    .with_icon(icons::yellow_stop_icon(appearance))
+    .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)));
 
     if let (Some(reject), Some(accept)) = (
         handles.reject_button.as_ref(),
@@ -1298,7 +1302,7 @@ fn render_body(state: &RunAgentsEditState, app: &AppContext) -> Box<dyn Element>
     let theme = appearance.theme();
     let mut column = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
-    column.add_child(render_summary(state, appearance));
+    column.add_child(render_summary(state, appearance, app));
     column.add_child(render_agents_section(state, app));
 
     Container::new(column.finish())
@@ -1309,12 +1313,18 @@ fn render_body(state: &RunAgentsEditState, app: &AppContext) -> Box<dyn Element>
         .finish()
 }
 
-fn render_summary(state: &RunAgentsEditState, appearance: &Appearance) -> Box<dyn Element> {
+fn render_summary(
+    state: &RunAgentsEditState,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
     let summary = if state.summary.trim().is_empty() {
-        format!(
-            "Spawn {} agent(s) to address this task.",
-            state.agent_run_configs.len()
+        let count = state.agent_run_configs.len().to_string();
+        localization::text_for_app_with_args(
+            app,
+            "agent.orchestration.run_agents.summary_default",
+            &[("count", &count)],
         )
     } else {
         state.summary.clone()
@@ -1336,8 +1346,13 @@ fn render_summary(state: &RunAgentsEditState, appearance: &Appearance) -> Box<dy
 fn render_agents_section(state: &RunAgentsEditState, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
+    let count = state.agent_run_configs.len().to_string();
     let label = Text::new(
-        format!("Agents ({})", state.agent_run_configs.len()),
+        localization::text_for_app_with_args(
+            app,
+            "agent.orchestration.run_agents.agents_count",
+            &[("count", &count)],
+        ),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 1.,
     )
@@ -1364,11 +1379,14 @@ fn render_terminal_state(
     appearance: &Appearance,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let (label, kind) = format_terminal_state(result);
+    let (label, kind) = format_terminal_state(result, app);
     render_status_only_card(label, appearance, kind, app)
 }
 
-pub(crate) fn format_terminal_state(result: &RunAgentsResult) -> (String, StatusKind) {
+pub(crate) fn format_terminal_state(
+    result: &RunAgentsResult,
+    app: &AppContext,
+) -> (String, StatusKind) {
     match result {
         RunAgentsResult::Launched { agents, .. } => {
             let total = agents.len();
@@ -1378,47 +1396,76 @@ pub(crate) fn format_terminal_state(result: &RunAgentsResult) -> (String, Status
                 .count();
             if launched == total {
                 let label = if total == 1 {
-                    "Spawned 1 agent".to_string()
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.orchestration.run_agents.spawned_one",
+                    )
                 } else {
-                    format!("Spawned {total} agents")
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.orchestration.run_agents.spawned_count",
+                        &[("count", &total.to_string())],
+                    )
                 };
                 (label, StatusKind::Success)
             } else if launched == 0 {
                 // Every child failed to launch: surface a terminal failure
                 // rather than the in-progress-looking mixed state.
                 let label = if total == 1 {
-                    "Failed to spawn agent".to_string()
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.orchestration.run_agents.failed_spawn_one",
+                    )
                 } else {
-                    format!("Failed to spawn {total} agents")
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.orchestration.run_agents.failed_spawn_count",
+                        &[("count", &total.to_string())],
+                    )
                 };
                 (label, StatusKind::Failure)
             } else {
                 (
-                    format!("Spawned {launched} of {total} agents"),
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.orchestration.run_agents.spawned_partial",
+                        &[
+                            ("launched", &launched.to_string()),
+                            ("total", &total.to_string()),
+                        ],
+                    ),
                     StatusKind::Mixed,
                 )
             }
         }
         RunAgentsResult::Denied { reason } => {
             let body = if reason.is_empty() {
-                "Orchestration is currently disabled. Re-enable on the plan card to launch."
-                    .to_string()
+                crate::localization::text_for_app(app, "agent.orchestration.run_agents.denied")
             } else {
-                format!(
-                    "Orchestration is currently disabled. Re-enable on the plan card to launch. ({reason})"
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.orchestration.run_agents.denied_with_reason",
+                    &[("reason", reason)],
                 )
             };
             (body, StatusKind::Cancelled)
         }
         RunAgentsResult::Failure { error } => {
             let label = if error.is_empty() {
-                "Failed to start orchestration".to_string()
+                crate::localization::text_for_app(app, "agent.orchestration.run_agents.failure")
             } else {
-                format!("Failed to start orchestration: {error}")
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.orchestration.run_agents.failure_with_error",
+                    &[("error", error)],
+                )
             };
             (label, StatusKind::Failure)
         }
-        RunAgentsResult::Cancelled => ("Spawn agents cancelled".to_string(), StatusKind::Cancelled),
+        RunAgentsResult::Cancelled => (
+            crate::localization::text_for_app(app, "agent.orchestration.run_agents.cancelled"),
+            StatusKind::Cancelled,
+        ),
     }
 }
 
@@ -1438,9 +1485,14 @@ fn render_spawning_card(
 ) -> Box<dyn Element> {
     let total = snapshot.agent_count;
     let label = if total == 1 {
-        "Spawning 1 agent\u{2026}".to_string()
+        localization::text_for_app(app, "agent.orchestration.run_agents.spawning_one")
     } else {
-        format!("Spawning {total} agents\u{2026}")
+        let count = total.to_string();
+        localization::text_for_app_with_args(
+            app,
+            "agent.orchestration.run_agents.spawning_count",
+            &[("count", &count)],
+        )
     };
     render_status_only_card(label, appearance, StatusKind::Spawning, app)
 }
@@ -1504,6 +1556,7 @@ fn render_editor(
             appearance,
             None,
             false,
+            app,
         ))
         .with_margin_top(12.)
         .finish(),
@@ -1512,6 +1565,7 @@ fn render_editor(
         &state.orch,
         &handles.pickers,
         appearance,
+        app,
     ));
 
     if let Some(reason) = oc::accept_disabled_reason_with_auth(&state.orch, app) {

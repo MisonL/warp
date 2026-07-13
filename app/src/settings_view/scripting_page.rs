@@ -19,6 +19,7 @@ use super::settings_page::{
 use super::{SettingsSection, ToggleState};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::report_if_error;
 use crate::settings::{LocalControlMode, LocalControlModeSetting, LocalControlSettings};
 #[cfg(target_os = "macos")]
@@ -71,7 +72,7 @@ impl ScriptingSettingsPageView {
             vec![Box::new(LocalControlModeWidget)];
 
         Self {
-            page: PageType::new_uncategorized(widgets, Some("Scripting")),
+            page: PageType::new_uncategorized(widgets, Some("settings.nav.scripting")),
             local_only_icon_tooltip_states: RefCell::new(HashMap::new()),
             local_control_mode_dropdown,
             #[cfg(target_os = "macos")]
@@ -90,7 +91,7 @@ impl ScriptingSettingsPageView {
                     .into_iter()
                     .map(|mode| {
                         DropdownItem::new(
-                            mode.as_dropdown_label(),
+                            localization::text_for_app(ctx, mode.dropdown_label_key()),
                             ScriptingSettingsPageAction::SetLocalControlMode(mode),
                         )
                     })
@@ -120,8 +121,10 @@ impl ScriptingSettingsPageView {
                 match result {
                     Ok(()) => {
                         let command_name = ChannelState::channel().warpctrl_command_name();
-                        let message = format!(
-                            "Successfully installed the Warp Control CLI! You can now run '{command_name}' from the command line."
+                        let message = localization::text_for_app_with_args(
+                            ctx,
+                            "workspace.toast.warp_control_cli_installed",
+                            &[("command", command_name)],
                         );
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
@@ -132,7 +135,12 @@ impl ScriptingSettingsPageView {
                         });
                     }
                     Err(error) => {
-                        let message = format!("Failed to install Warp Control command: {error}");
+                        let error = error.to_string();
+                        let message = localization::text_for_app_with_args(
+                            ctx,
+                            "workspace.toast.warp_control_cli_install_failed",
+                            &[("error", &error)],
+                        );
                         log::warn!("{message}");
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_persistent_toast(
@@ -219,31 +227,32 @@ impl SettingsWidget for WarpControlCliInstallWidget {
     type View = ScriptingSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "warp control cli command warpctrl install scripting"
+        "warp control cli command warpctrl install scripting 安装 命令 脚本"
     }
 
     fn render(
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let installed = cli_install::is_warpctrl_installed();
         let disabled = view.warpctrl_installing || installed;
-        let label = if view.warpctrl_installing {
-            "Installing…"
+        let label_key = if view.warpctrl_installing {
+            "settings.scripting.warp_control_cli.installing"
         } else if installed {
-            "Installed"
+            "settings.scripting.warp_control_cli.installed"
         } else {
-            "Install"
+            "settings.scripting.warp_control_cli.install"
         };
+        let label = localization::text_for_app(app, label_key);
         let mut button = appearance
             .ui_builder()
             .button(
                 ButtonVariant::Secondary,
                 self.install_button_mouse_state.clone(),
             )
-            .with_text_label(label.to_owned());
+            .with_text_label(label);
         if disabled {
             button = button.disabled();
         }
@@ -259,13 +268,16 @@ impl SettingsWidget for WarpControlCliInstallWidget {
         };
 
         render_body_item::<ScriptingSettingsPageAction>(
-            "Warp Control CLI command".into(),
+            localization::text_for_app(app, "settings.scripting.warp_control_cli.title"),
             None,
             LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
             button,
-            Some("Install the warpctrl command for scripting Warp from your terminal.".to_owned()),
+            Some(localization::text_for_app(
+                app,
+                "settings.scripting.warp_control_cli.description",
+            )),
         )
     }
 }
@@ -275,7 +287,7 @@ impl SettingsWidget for LocalControlModeWidget {
     type View = ScriptingSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "scripting warp control automation warpctrl local cli scripts disabled enabled"
+        "scripting warp control automation warpctrl local cli scripts disabled enabled 脚本 自动化 本地 控制 禁用 启用"
     }
 
     fn render(
@@ -285,7 +297,7 @@ impl SettingsWidget for LocalControlModeWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<ScriptingSettingsPageAction>(
-            "warpctrl CLI".into(),
+            localization::text_for_app(app, "settings.scripting.local_control.title"),
             None,
             LocalOnlyIconState::for_setting(
                 LocalControlModeSetting::storage_key(),
@@ -296,7 +308,10 @@ impl SettingsWidget for LocalControlModeWidget {
             ToggleState::Enabled,
             appearance,
             ChildView::new(&view.local_control_mode_dropdown).finish(),
-            Some("warpctrl allows for scripting Warp's UI. Use with care.".to_owned()),
+            Some(localization::text_for_app(
+                app,
+                "settings.scripting.local_control.description",
+            )),
         )
     }
 }

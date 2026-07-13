@@ -114,11 +114,15 @@ use crate::{
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {
-        static EXTRA_META_KEYS_LEFT_TEXT: &str = "Left Option key is Meta";
-        static EXTRA_META_KEYS_RIGHT_TEXT: &str = "Right Option key is Meta";
+        fn extra_meta_keys_left_fallback() -> &'static str { "Left Option key is Meta" }
+        fn extra_meta_keys_right_fallback() -> &'static str { "Right Option key is Meta" }
+        fn extra_meta_keys_left_label_key() -> &'static str { "settings.features.extra_meta_keys.left_option" }
+        fn extra_meta_keys_right_label_key() -> &'static str { "settings.features.extra_meta_keys.right_option" }
     } else {
-        static EXTRA_META_KEYS_LEFT_TEXT: &str = "Left Alt key is Meta";
-        static EXTRA_META_KEYS_RIGHT_TEXT: &str = "Right Alt key is Meta";
+        fn extra_meta_keys_left_fallback() -> &'static str { "Left Alt key is Meta" }
+        fn extra_meta_keys_right_fallback() -> &'static str { "Right Alt key is Meta" }
+        fn extra_meta_keys_left_label_key() -> &'static str { "settings.features.extra_meta_keys.left_alt" }
+        fn extra_meta_keys_right_label_key() -> &'static str { "settings.features.extra_meta_keys.right_alt" }
     }
 }
 
@@ -173,8 +177,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             context,
             flags::RESTORE_SESSION_CONTEXT_FLAG,
         ),
-        ToggleSettingActionPair::new(
-            EXTRA_META_KEYS_LEFT_TEXT,
+        ToggleSettingActionPair::new_localized(
+            extra_meta_keys_left_fallback(),
+            extra_meta_keys_left_label_key(),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleLeftMetaKey,
             )),
@@ -186,8 +191,9 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .extra_meta_keys
                 .is_supported_on_current_platform(),
         ),
-        ToggleSettingActionPair::new(
-            EXTRA_META_KEYS_RIGHT_TEXT,
+        ToggleSettingActionPair::new_localized(
+            extra_meta_keys_right_fallback(),
+            extra_meta_keys_right_label_key(),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleRightMetaKey,
             )),
@@ -2306,22 +2312,22 @@ impl FeaturesPageView {
             let mut dropdown = Dropdown::new(ctx);
 
             let top = DropdownItem::new(
-                "Pin to top",
+                localization::text_for_app(ctx, "settings.features.quake_mode.pin_position.top"),
                 FeaturesPageAction::QuakeEditorSetPinPosition(QuakeModePinPosition::Top),
             );
 
             let bottom = DropdownItem::new(
-                "Pin to bottom",
+                localization::text_for_app(ctx, "settings.features.quake_mode.pin_position.bottom"),
                 FeaturesPageAction::QuakeEditorSetPinPosition(QuakeModePinPosition::Bottom),
             );
 
             let left = DropdownItem::new(
-                "Pin to left",
+                localization::text_for_app(ctx, "settings.features.quake_mode.pin_position.left"),
                 FeaturesPageAction::QuakeEditorSetPinPosition(QuakeModePinPosition::Left),
             );
 
             let right = DropdownItem::new(
-                "Pin to right",
+                localization::text_for_app(ctx, "settings.features.quake_mode.pin_position.right"),
                 FeaturesPageAction::QuakeEditorSetPinPosition(QuakeModePinPosition::Right),
             );
 
@@ -3464,7 +3470,7 @@ impl FeaturesPageView {
         self.graphics_backend_dropdown.update(ctx, |dropdown, ctx| {
             if let Some(window) = ctx.windows().platform_window(ctx.window_id()) {
                 let mut items = vec![DropdownItem::new(
-                    "Default",
+                    localization::text_for_app(ctx, "settings.action.default"),
                     FeaturesPageAction::SetPreferredGraphicsBackend(None),
                 )];
                 items.extend(window.supported_backends().into_iter().map(|backend| {
@@ -3796,7 +3802,10 @@ impl FeaturesPageView {
                         .with_child(
                             Container::new(
                                 Text::new_inline(
-                                    "Width %",
+                                    localization::text_for_app(
+                                        app,
+                                        "settings.features.quake_mode.width",
+                                    ),
                                     appearance.ui_font_family(),
                                     appearance.ui_font_size(),
                                 )
@@ -3834,7 +3843,10 @@ impl FeaturesPageView {
                         .with_child(
                             Container::new(
                                 Text::new_inline(
-                                    "Height %",
+                                    localization::text_for_app(
+                                        app,
+                                        "settings.features.quake_mode.height",
+                                    ),
                                     appearance.ui_font_family(),
                                     appearance.ui_font_size(),
                                 )
@@ -4015,7 +4027,10 @@ impl FeaturesPageView {
                 Container::new(
                     Align::new(
                         Text::new_inline(
-                            "When a command takes longer than",
+                            localization::text_for_app(
+                                app,
+                                "settings.features.notifications.long_running.prefix",
+                            ),
                             appearance.ui_font_family(),
                             font_size,
                         )
@@ -4495,7 +4510,7 @@ fn init_display_count_dropdown(
     ctx: &mut ViewContext<Dropdown<FeaturesPageAction>>,
 ) {
     let no_preference = DropdownItem::new(
-        "Active Screen",
+        localization::text_for_app(ctx, "settings.features.quake_mode.pin_screen.active_screen"),
         //|| {
         FeaturesPageAction::QuakeEditorSetPinScreen(None), //}
     );
@@ -4640,7 +4655,10 @@ impl SettingsWidget for SessionRestorationWidget {
 
         if app.is_wayland() {
             let message = Text::new_inline(
-                "Window positions won't be restored on Wayland. ",
+                localization::text_for_app(
+                    app,
+                    "settings.features.session_restoration.wayland_warning",
+                ),
                 appearance.ui_font_family(),
                 CONTENT_FONT_SIZE,
             )
@@ -5390,7 +5408,10 @@ impl SettingsWidget for DesktopNotificationsWidget {
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(
                         Text::new_inline(
-                            "Toast notifications stay visible for",
+                            localization::text_for_app(
+                                app,
+                                "settings.features.notifications.toast_duration.label",
+                            ),
                             appearance.ui_font_family(),
                             font_size,
                         )
@@ -5612,7 +5633,7 @@ impl SettingsWidget for ExtraMetaKeysWidget {
             .borrow_mut();
         Flex::column()
             .with_child(render_body_item::<FeaturesPageAction>(
-                EXTRA_META_KEYS_LEFT_TEXT.into(),
+                localization::text_for_app(app, extra_meta_keys_left_label_key()),
                 None,
                 LocalOnlyIconState::for_setting(
                     crate::terminal::keys_settings::ExtraMetaKeys::storage_key(),
@@ -5633,7 +5654,7 @@ impl SettingsWidget for ExtraMetaKeysWidget {
                 None,
             ))
             .with_child(render_body_item::<FeaturesPageAction>(
-                EXTRA_META_KEYS_RIGHT_TEXT.into(),
+                localization::text_for_app(app, extra_meta_keys_right_label_key()),
                 None,
                 LocalOnlyIconState::for_setting(
                     crate::terminal::keys_settings::ExtraMetaKeys::storage_key(),
@@ -7069,7 +7090,10 @@ impl SmartSelectWidget {
         Flex::column()
             .with_child(
                 ui_builder
-                    .label("Characters considered part of a word".to_string())
+                    .label(localization::text_for_app(
+                        app,
+                        "settings.features.smart_select.word_characters.label",
+                    ))
                     .with_style(UiComponentStyles {
                         margin: Some(Coords {
                             top: 10.0,

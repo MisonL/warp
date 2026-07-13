@@ -42,6 +42,49 @@ const LOCALIZABLE_TASK_STATUS_PATTERNS: &[(&str, &str)] = &[
         "model_name",
     ),
 ];
+const LOCALIZABLE_DRIVER_ERROR_KEYS: &[&str] = &[
+    "agent_sdk.driver.error_classification.aws_bedrock_credentials_failed",
+    "agent_sdk.driver.error_classification.bootstrap_error.internal",
+    "agent_sdk.driver.error_classification.bootstrap_error.pty_spawn_failed",
+    "agent_sdk.driver.error_classification.bootstrap_error.pty_spawn_failed_with_reason",
+    "agent_sdk.driver.error_classification.bootstrap_error.timed_out",
+    "agent_sdk.driver.error_classification.bootstrap_failed",
+    "agent_sdk.driver.error_classification.cloud_provider_setup_failed",
+    "agent_sdk.driver.error_classification.config_build_failed",
+    "agent_sdk.driver.error_classification.conversation_blocked",
+    "agent_sdk.driver.error_classification.conversation_cancelled",
+    "agent_sdk.driver.error_classification.conversation_harness_mismatch",
+    "agent_sdk.driver.error_classification.conversation_load_failed",
+    "agent_sdk.driver.error_classification.conversation_resume_state_missing",
+    "agent_sdk.driver.error_classification.environment_not_found",
+    "agent_sdk.driver.error_classification.environment_setup_failed",
+    "agent_sdk.driver.error_classification.harness_auth_check_failed",
+    "agent_sdk.driver.error_classification.harness_command_failed",
+    "agent_sdk.driver.error_classification.harness_config_setup_failed",
+    "agent_sdk.driver.error_classification.harness_runtime_failure_detected",
+    "agent_sdk.driver.error_classification.harness_setup_failed",
+    "agent_sdk.driver.error_classification.internal_error",
+    "agent_sdk.driver.error_classification.invalid_working_directory",
+    "agent_sdk.driver.error_classification.managed_mcp_resolution_failed",
+    "agent_sdk.driver.error_classification.mcp_json_parse_error",
+    "agent_sdk.driver.error_classification.mcp_missing_variables",
+    "agent_sdk.driver.error_classification.mcp_server_not_found",
+    "agent_sdk.driver.error_classification.mcp_startup_failed",
+    "agent_sdk.driver.error_classification.not_logged_in",
+    "agent_sdk.driver.error_classification.profile_not_found",
+    "agent_sdk.driver.error_classification.prompt_resolution_failed",
+    "agent_sdk.driver.error_classification.saved_prompt_not_found",
+    "agent_sdk.driver.error_classification.secrets_fetch_failed",
+    "agent_sdk.driver.error_classification.share_disabled",
+    "agent_sdk.driver.error_classification.share_failed",
+    "agent_sdk.driver.error_classification.share_internal",
+    "agent_sdk.driver.error_classification.share_interrupted",
+    "agent_sdk.driver.error_classification.share_timeout",
+    "agent_sdk.driver.error_classification.skill_resolution_failed",
+    "agent_sdk.driver.error_classification.task_harness_mismatch",
+    "agent_sdk.driver.error_classification.team_metadata_refresh_timeout",
+    "agent_sdk.driver.error_classification.warp_drive_sync_failed",
+];
 const LOCALIZABLE_AGENT_ACTION_NAME_KEYS: &[&str] = &[
     "agent.action.name.ask_user_question",
     "agent.action.name.call_mcp_tool",
@@ -96,8 +139,85 @@ pub fn localized_task_status_message_for_locale(locale: LocaleId, message: &str)
         localization::text_for_locale(locale, "agent.task_status.cancelled")
     } else {
         localized_canonical_task_status_message(locale, message)
+            .or_else(|| localized_canonical_driver_error_message(locale, message))
             .unwrap_or_else(|| message.to_owned())
     }
+}
+
+fn localized_canonical_driver_error_message(locale: LocaleId, message: &str) -> Option<String> {
+    LOCALIZABLE_DRIVER_ERROR_KEYS.iter().find_map(|key| {
+        let canonical = localization::text_for_locale(LocaleId::EnUs, key);
+        if canonical == message {
+            return Some(localization::text_for_locale(locale, key));
+        }
+
+        let args = extract_template_args(&canonical, message)?;
+        let localized_args = args
+            .into_iter()
+            .map(|(name, value)| {
+                let value = match (*key, name.as_str()) {
+                    ("agent_sdk.driver.error_classification.bootstrap_failed", "error") => {
+                        localized_canonical_driver_error_message(locale, &value).unwrap_or(value)
+                    }
+                    _ => value,
+                };
+                (name, value)
+            })
+            .collect::<Vec<_>>();
+        let arg_refs = localized_args
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+            .collect::<Vec<_>>();
+        Some(localization::text_for_locale_with_args(
+            locale, key, &arg_refs,
+        ))
+    })
+}
+
+fn extract_template_args(pattern: &str, message: &str) -> Option<Vec<(String, String)>> {
+    let mut args = Vec::<(String, String)>::new();
+    let mut pattern_cursor = 0;
+    let mut message_cursor = 0;
+
+    while let Some(relative_start) = pattern[pattern_cursor..].find('{') {
+        let placeholder_start = pattern_cursor + relative_start;
+        let literal = &pattern[pattern_cursor..placeholder_start];
+        let remaining_message = message.get(message_cursor..)?;
+        if !remaining_message.starts_with(literal) {
+            return None;
+        }
+        message_cursor += literal.len();
+
+        let placeholder_end = pattern[placeholder_start..].find('}')? + placeholder_start;
+        let name = &pattern[placeholder_start + 1..placeholder_end];
+        let remaining_pattern = &pattern[placeholder_end + 1..];
+        let next_placeholder = remaining_pattern
+            .find('{')
+            .unwrap_or(remaining_pattern.len());
+        let next_literal = &remaining_pattern[..next_placeholder];
+        let remaining_message = message.get(message_cursor..)?;
+        let value_len = if next_literal.is_empty() {
+            if next_placeholder < remaining_pattern.len() {
+                return None;
+            }
+            remaining_message.len()
+        } else {
+            remaining_message.find(next_literal)?
+        };
+        let value = remaining_message[..value_len].to_owned();
+
+        if let Some((_, existing)) = args.iter().find(|(existing_name, _)| existing_name == name) {
+            if existing != &value {
+                return None;
+            }
+        } else {
+            args.push((name.to_owned(), value));
+        }
+        message_cursor += value_len;
+        pattern_cursor = placeholder_end + 1;
+    }
+
+    (pattern[pattern_cursor..] == message[message_cursor..]).then_some(args)
 }
 
 fn localized_canonical_task_status_message(locale: LocaleId, message: &str) -> Option<String> {

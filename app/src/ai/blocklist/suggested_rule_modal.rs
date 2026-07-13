@@ -24,6 +24,7 @@ use crate::editor::{
     EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent, InteractionState,
     PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 use crate::modal::{Modal, ModalEvent};
 use crate::network::NetworkStatus;
 use crate::send_telemetry_from_ctx;
@@ -36,7 +37,6 @@ use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-const HEADER_TEXT: &str = "Suggested rule";
 const MAX_EDITOR_HEIGHT: f32 = 240.;
 
 pub fn init(app: &mut AppContext) {
@@ -94,34 +94,41 @@ impl SuggestedRuleModal {
 
         let view_handle = view.clone();
         let modal = ctx.add_typed_action_view(|ctx| {
-            Modal::new(Some(HEADER_TEXT.to_string()), view, ctx)
-                .with_modal_style(UiComponentStyles {
-                    width: Some(510.),
-                    background: Some(background.into()),
-                    ..Default::default()
-                })
-                .with_header_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 8.,
-                        bottom: 0.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    font_size: Some(16.),
-                    font_weight: Some(Weight::Bold),
-                    ..Default::default()
-                })
-                .with_body_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 0.,
-                        bottom: 24.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    ..Default::default()
-                })
-                .with_background_opacity(100)
-                .with_dismiss_on_click()
+            Modal::new(
+                Some(localization::text_for_app(
+                    ctx,
+                    "agent.suggested_rule.title",
+                )),
+                view,
+                ctx,
+            )
+            .with_modal_style(UiComponentStyles {
+                width: Some(510.),
+                background: Some(background.into()),
+                ..Default::default()
+            })
+            .with_header_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 8.,
+                    bottom: 0.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                font_size: Some(16.),
+                font_weight: Some(Weight::Bold),
+                ..Default::default()
+            })
+            .with_body_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 0.,
+                    bottom: 24.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                ..Default::default()
+            })
+            .with_background_opacity(100)
+            .with_dismiss_on_click()
         });
 
         ctx.subscribe_to_view(&modal, |me, _, event, ctx| {
@@ -563,7 +570,7 @@ impl SuggestedRuleView {
             .finish()
     }
 
-    fn render_rule_form(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_rule_form(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let editor_bg = blended_colors::neutral_4(appearance.theme());
         let editor_border =
             Border::all(1.).with_border_fill(blended_colors::neutral_2(appearance.theme()));
@@ -573,7 +580,10 @@ impl SuggestedRuleView {
         let editor_margin = 16.;
 
         Flex::column()
-            .with_child(self.render_label("Name".to_string(), appearance))
+            .with_child(self.render_label(
+                localization::text_for_app(app, "agent.suggested_rule.name"),
+                appearance,
+            ))
             .with_child(
                 Container::new(ChildView::new(&self.name_editor).finish())
                     .with_background(editor_bg)
@@ -584,7 +594,10 @@ impl SuggestedRuleView {
                     .with_margin_bottom(editor_margin)
                     .finish(),
             )
-            .with_child(self.render_label("Rule".to_string(), appearance))
+            .with_child(self.render_label(
+                localization::text_for_app(app, "agent.suggested_rule.rule"),
+                appearance,
+            ))
             .with_child(
                 ConstrainedBox::new(
                     Container::new(
@@ -644,7 +657,7 @@ impl View for SuggestedRuleView {
         };
 
         Flex::column()
-            .with_child(self.render_rule_form(appearance))
+            .with_child(self.render_rule_form(app, appearance))
             .with_child(
                 Container::new(
                     Align::new(ChildView::new(add_edit_button).finish())

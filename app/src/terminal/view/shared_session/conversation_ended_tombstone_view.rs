@@ -4,6 +4,7 @@ use warp_core::paths::home_relative_path;
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
+use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, MainAxisSize, Padding, ParentElement, Radius, Shrinkable, Text,
@@ -29,7 +30,9 @@ use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::ai::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
-use crate::util::time_format::human_readable_precise_duration;
+use crate::util::time_format::{
+    localized_human_readable_precise_duration, localized_human_readable_precise_duration_for_locale,
+};
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
 use crate::workspace::WorkspaceAction;
 
@@ -102,7 +105,7 @@ impl TombstoneDisplayData {
             let last_exchange = conversation.latest_exchange()?;
             let finish_time = last_exchange.finish_time?;
             let duration = finish_time.signed_duration_since(first_exchange.start_time);
-            Some(human_readable_precise_duration(duration))
+            Some(localized_human_readable_precise_duration(ctx, duration))
         })();
 
         Self {
@@ -119,7 +122,7 @@ impl TombstoneDisplayData {
         }
     }
 
-    fn enrich_from_task(&mut self, task: AmbientAgentTask) {
+    fn enrich_from_task(&mut self, task: AmbientAgentTask, locale: LocaleId) {
         // Use task title if we don't have a conversation title.
         if self.title.is_none() {
             self.title = Some(task.title.clone());
@@ -144,7 +147,9 @@ impl TombstoneDisplayData {
         // the full credit cost (inference + compute). This matches what we show in
         // the details panel.
         if let Some(run_time) = task.run_time() {
-            self.run_time = Some(human_readable_precise_duration(run_time));
+            self.run_time = Some(localized_human_readable_precise_duration_for_locale(
+                locale, run_time,
+            ));
         }
         if let Some(credits) = task.credits_used() {
             self.credits = Some(format_credits(credits));
@@ -347,7 +352,8 @@ impl ConversationEndedTombstoneView {
                 async move { ai_client.get_ambient_agent_task(&task_id).await },
                 |me, result, ctx| match result {
                     Ok(task) => {
-                        me.display_data.enrich_from_task(task);
+                        me.display_data
+                            .enrich_from_task(task, localization::current_locale(ctx));
                         me.artifact_buttons_view.update(ctx, |row, ctx| {
                             row.update_artifacts(&me.display_data.artifacts, ctx);
                         });

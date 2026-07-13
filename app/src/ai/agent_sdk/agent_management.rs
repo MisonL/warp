@@ -108,7 +108,7 @@ impl AgentManagementRunner {
 
             if matches!(output_format, OutputFormat::Json) || args.json_output.force_json_output() {
                 let response = ai_client.list_agents_raw().await?;
-                super::output::print_raw_json(response, &args.json_output)?;
+                super::output::print_raw_json_for_locale(response, &args.json_output, locale)?;
             } else {
                 let mut agents = ai_client.list_agents().await?;
                 sort_agents(&mut agents, args.sort_by, args.sort_order);
@@ -131,7 +131,7 @@ impl AgentManagementRunner {
         let future = async move {
             if matches!(output_format, OutputFormat::Json) || args.json_output.force_json_output() {
                 let response = ai_client.get_agent_raw(&args.uid).await?;
-                super::output::print_raw_json(response, &args.json_output)?;
+                super::output::print_raw_json_for_locale(response, &args.json_output, locale)?;
             } else {
                 let agent = ai_client.get_agent(&args.uid).await?;
                 print_single_agent(&agent, output_format, locale)?;
@@ -162,7 +162,7 @@ impl AgentManagementRunner {
             };
             if matches!(output_format, OutputFormat::Json) || json_output.force_json_output() {
                 let response = ai_client.create_agent_raw(request).await?;
-                super::output::print_raw_json(response, &json_output)?;
+                super::output::print_raw_json_for_locale(response, &json_output, locale)?;
             } else {
                 let agent = ai_client.create_agent(request).await?;
                 print_single_agent(&agent, output_format, locale)?;
@@ -248,7 +248,7 @@ impl AgentManagementRunner {
 
             if matches!(output_format, OutputFormat::Json) || json_output.force_json_output() {
                 let response = ai_client.update_agent_raw(&uid, request).await?;
-                super::output::print_raw_json(response, &json_output)?;
+                super::output::print_raw_json_for_locale(response, &json_output, locale)?;
             } else {
                 let agent = ai_client.update_agent(&uid, request).await?;
                 print_single_agent(&agent, output_format, locale)?;
@@ -484,7 +484,7 @@ fn print_agents(
         }
         OutputFormat::Ndjson => {
             for agent in agents {
-                super::output::write_json_line(agent, std::io::stdout())?;
+                super::output::write_json_line_for_locale(agent, std::io::stdout(), locale)?;
             }
         }
         OutputFormat::Json => unreachable!("JSON output is handled by the raw API path"),
@@ -530,7 +530,7 @@ fn print_single_agent(
             )?;
         }
         OutputFormat::Ndjson => {
-            super::output::write_json_line(agent, std::io::stdout())?;
+            super::output::write_json_line_for_locale(agent, std::io::stdout(), locale)?;
         }
         OutputFormat::Json => unreachable!("JSON output is handled by the raw API path"),
     }
@@ -576,15 +576,17 @@ fn print_delete_result(
             writeln!(stdout, "{uid}")?;
         }
         OutputFormat::Ndjson => {
-            super::output::write_json_line(
+            super::output::write_json_line_for_locale(
                 &DeleteAgentResult { uid, deleted: true },
                 std::io::stdout(),
+                locale,
             )?;
         }
         OutputFormat::Json => {
-            super::output::write_json(
+            super::output::write_json_for_locale(
                 &DeleteAgentResult { uid, deleted: true },
                 std::io::stdout(),
+                locale,
             )?;
         }
     }

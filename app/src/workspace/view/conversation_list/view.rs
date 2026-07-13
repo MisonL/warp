@@ -53,8 +53,6 @@ use crate::workspace::view::conversation_list::item::{
     STATIC_ITEM_MIN_HEIGHT,
 };
 use crate::workspace::{ToastStack, WorkspaceAction};
-
-const VIEW_ALL_LABEL: &str = "View all";
 /// Maximum number of past items to show before the user toggles "view all".
 const INITIAL_MAX_PAST_ITEMS: usize = 10;
 
@@ -275,12 +273,15 @@ impl ConversationListView {
 
         // We use this as both the "view all" and "show less" button
         // (switching out the text on-toggle).
-        let toggle_view_all_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new(VIEW_ALL_LABEL, SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(ConversationListViewAction::ToggleViewAll);
-                })
+        let toggle_view_all_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                crate::localization::text_for_app(ctx, "workspace.conversation_list.view_all"),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(ConversationListViewAction::ToggleViewAll);
+            })
         });
 
         let item_overflow_menu = ctx.add_typed_action_view(|_| {
@@ -1005,9 +1006,10 @@ impl TypedActionView for ConversationListView {
                 if !conversation_is_done {
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Conversations cannot be deleted while in progress.".to_string(),
-                            ),
+                            DismissibleToast::error(localization::text_for_app(
+                                ctx,
+                                "workspace.conversation_list.error.delete_in_progress",
+                            )),
                             window_id,
                             ctx,
                         );
@@ -1021,7 +1023,9 @@ impl TypedActionView for ConversationListView {
                     .as_ref(ctx)
                     .get_item_by_id(&id, ctx)
                     .map(|entry| entry.display.title)
-                    .unwrap_or_else(|| "Conversation".to_string());
+                    .unwrap_or_else(|| {
+                        localization::text_for_app(ctx, "conversation_details.title.conversation")
+                    });
                 ctx.emit(Event::ShowDeleteConfirmationDialog {
                     conversation_id: *conversation_id,
                     conversation_title,
@@ -1182,10 +1186,10 @@ impl TypedActionView for ConversationListView {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "Conversations cannot be deleted while in progress."
-                                        .to_string(),
-                                ),
+                                DismissibleToast::error(localization::text_for_app(
+                                    ctx,
+                                    "workspace.conversation_list.error.delete_in_progress",
+                                )),
                                 window_id,
                                 ctx,
                             );
@@ -1251,9 +1255,9 @@ impl TypedActionView for ConversationListView {
                 self.view_all = !self.view_all;
 
                 let label = if self.view_all {
-                    "Show less"
+                    crate::localization::text_for_app(ctx, "workspace.conversation_list.show_less")
                 } else {
-                    VIEW_ALL_LABEL
+                    crate::localization::text_for_app(ctx, "workspace.conversation_list.view_all")
                 };
                 self.toggle_view_all_button
                     .update(ctx, |button, ctx| button.set_label(label, ctx));
@@ -1330,7 +1334,10 @@ impl View for ConversationListView {
         } else if self.item_count() == 0 {
             Container::new(
                 Text::new_inline(
-                    "No matching conversations",
+                    localization::text_for_app(
+                        app,
+                        "workspace.conversation_list.no_matching_conversations",
+                    ),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )

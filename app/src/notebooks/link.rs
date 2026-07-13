@@ -14,6 +14,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, Win
 
 use super::file::is_markdown_file;
 use crate::drive::OpenWarpDriveObjectArgs;
+use crate::localization;
 use crate::terminal::model::session::Session;
 use crate::uri::parse_url_paths::{get_item_data_from_warp_link, WarpWebLink};
 #[cfg(feature = "local_fs")]
@@ -46,19 +47,34 @@ pub enum LinkTarget {
 
 impl LinkTarget {
     /// A secondary action to show in the tooltip for this link.
-    pub fn secondary_action(&self) -> Option<SecondaryAction> {
+    pub fn secondary_action(&self, ctx: &AppContext) -> Option<SecondaryAction> {
         match self {
             LinkTarget::LocalDirectory { .. } => Some(SecondaryAction {
-                label: "New session".into(),
-                tooltip: Some("Open a new terminal session in this directory".into()),
-                accessibility_content: "Open in terminal session".into(),
+                label: Cow::Owned(localization::text_for_app(
+                    ctx,
+                    "notebook.link.action.new_session",
+                )),
+                tooltip: Some(Cow::Owned(localization::text_for_app(
+                    ctx,
+                    "notebook.link.action.new_session_tooltip",
+                ))),
+                accessibility_content: Cow::Owned(localization::text_for_app(
+                    ctx,
+                    "notebook.link.action.open_in_terminal_session",
+                )),
             }),
             LinkTarget::LocalFile {
                 is_markdown: true, ..
             } => Some(SecondaryAction {
-                label: "Open in editor".into(),
+                label: Cow::Owned(localization::text_for_app(
+                    ctx,
+                    "notebook.link.action.open_in_editor",
+                )),
                 tooltip: None,
-                accessibility_content: "Edit Markdown file".into(),
+                accessibility_content: Cow::Owned(localization::text_for_app(
+                    ctx,
+                    "notebook.link.action.edit_markdown_file",
+                )),
             }),
             LinkTarget::Url(_) | LinkTarget::LocalFile { .. } => None,
         }

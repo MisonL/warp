@@ -124,11 +124,11 @@ impl AgentTypeSelector {
         }
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = Text::new(
-            "Choose your agent".to_string(),
+            localization::text_for_app(app, "agent_management.agent_type_selector.title"),
             appearance.ui_font_family(),
             TITLE_FONT_SIZE,
         )
@@ -330,7 +330,7 @@ impl AgentTypeSelector {
     fn render_modal(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
-        let header = Container::new(self.render_header(appearance))
+        let header = Container::new(self.render_header(appearance, app))
             .with_padding_top(HEADER_PADDING_TOP)
             .with_padding_bottom(HEADER_PADDING_BOTTOM)
             .with_padding_left(HEADER_PADDING_HORIZONTAL)

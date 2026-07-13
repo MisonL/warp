@@ -11,6 +11,7 @@ use warpui::{AppContext, ModelContext, SingletonEntity};
 use super::common::{EnvironmentChoice, ResolveConfigurationError};
 use super::integration_output;
 use super::oauth_flow::poll_oauth_until_terminal;
+use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 
 pub fn run(
@@ -42,6 +43,7 @@ impl IntegrationCommandRunner {
         let provider_slugs: Vec<String> = providers.into_iter().map(|p| p.slug()).collect();
 
         let integrations_client = ServerApiProvider::as_ref(ctx).get_integrations_client();
+        let locale = localization::current_locale(ctx);
 
         let list_future = async move {
             integrations_client
@@ -53,7 +55,11 @@ impl IntegrationCommandRunner {
             list_future,
             move |_, result: anyhow::Result<SimpleIntegrationsOutput>, ctx| match result {
                 Ok(output) => {
-                    integration_output::print_integrations(&output, global_options.output_format);
+                    integration_output::print_integrations(
+                        &output,
+                        global_options.output_format,
+                        locale,
+                    );
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
                 }
                 Err(err) => {
@@ -64,8 +70,9 @@ impl IntegrationCommandRunner {
     }
 
     fn create(&self, args: CreateIntegrationArgs, ctx: &mut ModelContext<Self>) {
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
-        let warp_drive_sync_future = super::common::refresh_warp_drive(ctx);
+        let locale = localization::current_locale(ctx);
+        let refresh_future = super::common::refresh_workspace_metadata(ctx, locale);
+        let warp_drive_sync_future = super::common::refresh_warp_drive(ctx, locale);
         let setup_future = future::try_join(refresh_future, warp_drive_sync_future);
 
         ctx.spawn(setup_future, move |runner, setup_result, ctx| {
@@ -75,7 +82,7 @@ impl IntegrationCommandRunner {
             }
 
             let loaded_file = match args.config_file.file.as_deref() {
-                Some(path) => match super::config_file::load_config_file(path) {
+                Some(path) => match super::config_file::load_config_file(path, locale) {
                     Ok(file) => Some(file),
                     Err(err) => {
                         ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(err)));
@@ -90,7 +97,7 @@ impl IntegrationCommandRunner {
             let is_update = false;
 
             let cli_mcp_servers =
-                match super::mcp_config::build_mcp_servers_from_specs(&args.mcp_specs) {
+                match super::mcp_config::build_mcp_servers_from_specs(&args.mcp_specs, locale) {
                     Ok(mcp_servers) => mcp_servers,
                     Err(err) => {
                         ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(err)));
@@ -154,15 +161,31 @@ impl IntegrationCommandRunner {
             let environment_uid = match EnvironmentChoice::resolve_for_create(environment_args, ctx)
             {
                 Ok(EnvironmentChoice::None) => {
-                    eprintln!("Creating integration without an environment.");
+                    eprintln!(
+                        "{}",
+                        localization::text_for_app(
+                            ctx,
+                            "agent_sdk.integration.create.no_environment"
+                        )
+                    );
                     None
                 }
                 Ok(EnvironmentChoice::Environment { id, .. }) => {
-                    eprintln!("Creating integration with environment {id}.");
+                    eprintln!(
+                        "{}",
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "agent_sdk.integration.create.with_environment",
+                            &[("id", &id)]
+                        )
+                    );
                     Some(id)
                 }
                 Err(ResolveConfigurationError::Canceled) => {
-                    eprintln!("Integration creation canceled.");
+                    eprintln!(
+                        "{}",
+                        localization::text_for_app(ctx, "agent_sdk.integration.create.canceled")
+                    );
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
                     return;
                 }
@@ -204,14 +227,24 @@ impl IntegrationCommandRunner {
         attempt: u32,
     ) {
         const MAX_CREATE_ATTEMPTS: u32 = 8;
-        let action = if is_update { "update" } else { "creation" };
+        let locale = localization::current_locale(ctx);
+        let action_key = if is_update {
+            "agent_sdk.integration.action.update"
+        } else {
+            "agent_sdk.integration.action.creation"
+        };
+        let action = localization::text_for_locale(locale, action_key);
 
         if attempt > MAX_CREATE_ATTEMPTS {
+            let maximum = MAX_CREATE_ATTEMPTS.to_string();
             ctx.terminate_app(
                 TerminationMode::ForceTerminate,
                 Some(Err(anyhow::anyhow!(
-                    "Exceeded maximum number of integration creation attempts ({}). Retry.",
-                    MAX_CREATE_ATTEMPTS
+                    localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.integration.error.max_attempts",
+                        &[("maximum", &maximum)]
+                    )
                 ))),
             );
             return;
@@ -257,7 +290,14 @@ impl IntegrationCommandRunner {
                         match (auth_url, tx_id) {
                             (Some(auth_url), Some(tx_id)) => {
                                 // We have another auth step: open URL and poll txId.
-                                println!("Authorize the provider here: {auth_url}\n");
+                                println!(
+                                    "{}\n",
+                                    localization::text_for_locale_with_args(
+                                        locale,
+                                        "agent_sdk.integration.auth.authorize_here",
+                                        &[("auth_url", &auth_url)]
+                                    )
+                                );
                                 ctx.open_url(&auth_url);
 
                                 let integrations_client = ServerApiProvider::as_ref(ctx)
@@ -265,7 +305,7 @@ impl IntegrationCommandRunner {
                                 let tx_id = tx_id.into_inner();
 
                                 let poll_future =
-                                    poll_oauth_until_terminal(integrations_client, tx_id);
+                                    poll_oauth_until_terminal(integrations_client, tx_id, locale);
 
                                 let next_integration_type = integration_type.clone();
                                 let next_environment_uid = environment_uid.clone();
@@ -302,13 +342,23 @@ impl IntegrationCommandRunner {
                                             Ok(OauthConnectTxStatus::Failed) => {
                                                 ctx.terminate_app(
                                                     TerminationMode::ForceTerminate,
-                                                    Some(Err(anyhow::anyhow!("OAuth authorization failed."))),
+                                                    Some(Err(anyhow::anyhow!(
+                                                        localization::text_for_locale(
+                                                            locale,
+                                                            "agent_sdk.integration.error.oauth_failed"
+                                                        )
+                                                    ))),
                                                 );
                                             }
                                             Ok(OauthConnectTxStatus::Expired) => {
                                                 ctx.terminate_app(
                                                     TerminationMode::ForceTerminate,
-                                                    Some(Err(anyhow::anyhow!("OAuth authorization expired."))),
+                                                    Some(Err(anyhow::anyhow!(
+                                                        localization::text_for_locale(
+                                                            locale,
+                                                            "agent_sdk.integration.error.oauth_expired"
+                                                        )
+                                                    ))),
                                                 );
                                             }
                                             Ok(OauthConnectTxStatus::Pending)
@@ -316,13 +366,25 @@ impl IntegrationCommandRunner {
                                                 // Should not be returned by poll_oauth_until_terminal.
                                                 ctx.terminate_app(
                                                     TerminationMode::ForceTerminate,
-                                                    Some(Err(anyhow::anyhow!("Unexpected non-terminal OAuth status returned"))),
+                                                    Some(Err(anyhow::anyhow!(
+                                                        localization::text_for_locale(
+                                                            locale,
+                                                            "agent_sdk.integration.error.oauth_non_terminal"
+                                                        )
+                                                    ))),
                                                 );
                                             }
                                             Err(err) => {
+                                                let error = err.to_string();
                                                 ctx.terminate_app(
                                                     TerminationMode::ForceTerminate,
-                                                    Some(Err(anyhow::anyhow!("Error polling OAuth status: {err}"))),
+                                                    Some(Err(anyhow::anyhow!(
+                                                        localization::text_for_locale_with_args(
+                                                            locale,
+                                                            "agent_sdk.integration.error.oauth_poll",
+                                                            &[("error", &error)]
+                                                        )
+                                                    ))),
                                                 );
                                             }
                                         }
@@ -330,10 +392,22 @@ impl IntegrationCommandRunner {
                                 );
                             }
                             (Some(auth_url), None) => {
-                                println!("Authorize the provider here: {auth_url}\n");
+                                println!(
+                                    "{}\n",
+                                    localization::text_for_locale_with_args(
+                                        locale,
+                                        "agent_sdk.integration.auth.authorize_here",
+                                        &[("auth_url", &auth_url)]
+                                    )
+                                );
                                 ctx.open_url(&auth_url);
                                 println!(
-                                    "After authorizing, re-run the command to continue the integration {action} process.",
+                                    "{}",
+                                    localization::text_for_locale_with_args(
+                                        locale,
+                                        "agent_sdk.integration.auth.rerun_to_continue",
+                                        &[("action", &action)]
+                                    )
                                 );
                                 ctx.terminate_app(
                                     TerminationMode::ForceTerminate,
@@ -343,7 +417,12 @@ impl IntegrationCommandRunner {
                             (None, Some(_)) => {
                                 ctx.terminate_app(
                                     TerminationMode::ForceTerminate,
-                                    Some(Err(anyhow::anyhow!("Server did not return an authURL for the integration creation process."))),
+                                    Some(Err(anyhow::anyhow!(
+                                        localization::text_for_locale(
+                                            locale,
+                                            "agent_sdk.integration.error.missing_auth_url"
+                                        )
+                                    ))),
                                 );
                             }
                             (None, None) => {
@@ -356,7 +435,13 @@ impl IntegrationCommandRunner {
                                 } else {
                                     ctx.terminate_app(
                                         TerminationMode::ForceTerminate,
-                                        Some(Err(anyhow::anyhow!("Integration creation reported failure: {}", output.message))),
+                                        Some(Err(anyhow::anyhow!(
+                                            localization::text_for_locale_with_args(
+                                                locale,
+                                                "agent_sdk.integration.error.reported_failure",
+                                                &[("message", &output.message)]
+                                            )
+                                        ))),
                                     );
                                 }
                             }
@@ -374,8 +459,9 @@ impl IntegrationCommandRunner {
     }
 
     fn update(&self, args: UpdateIntegrationArgs, ctx: &mut ModelContext<Self>) {
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
-        let warp_drive_sync_future = super::common::refresh_warp_drive(ctx);
+        let locale = localization::current_locale(ctx);
+        let refresh_future = super::common::refresh_workspace_metadata(ctx, locale);
+        let warp_drive_sync_future = super::common::refresh_warp_drive(ctx, locale);
         let setup_future = future::try_join(refresh_future, warp_drive_sync_future);
 
         ctx.spawn(setup_future, move |runner, setup_result, ctx| {
@@ -385,7 +471,7 @@ impl IntegrationCommandRunner {
             }
 
             let loaded_file = match args.config_file.file.as_deref() {
-                Some(path) => match super::config_file::load_config_file(path) {
+                Some(path) => match super::config_file::load_config_file(path, locale) {
                     Ok(file) => Some(file),
                     Err(err) => {
                         ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(err)));
@@ -402,7 +488,7 @@ impl IntegrationCommandRunner {
             let is_update = true;
 
             let cli_mcp_servers =
-                match super::mcp_config::build_mcp_servers_from_specs(&args.mcp_specs) {
+                match super::mcp_config::build_mcp_servers_from_specs(&args.mcp_specs, locale) {
                     Ok(mcp_servers) => mcp_servers,
                     Err(err) => {
                         ctx.terminate_app(TerminationMode::ForceTerminate, Some(Err(err)));

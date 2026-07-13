@@ -106,6 +106,36 @@ impl CommandContext {
             }
         }
     }
+
+    pub fn a11y_description_for_app(&self, app: &AppContext) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::LastRunCommand {
+                last_run_command, ..
+            } => Some(crate::localization::text_for_app_with_args(
+                app,
+                "search.navigation.a11y.last_run_command",
+                &[("command", last_run_command)],
+            )),
+            Self::LastRunAIBlock { prompt } => Some(crate::localization::text_for_app_with_args(
+                app,
+                "search.navigation.a11y.last_ai_interaction",
+                &[("prompt", prompt)],
+            )),
+            Self::RunningCommand { running_command } => {
+                Some(crate::localization::text_for_app_with_args(
+                    app,
+                    "search.navigation.a11y.running_command",
+                    &[("command", running_command)],
+                ))
+            }
+            Self::RunningAIBlock { prompt } => Some(crate::localization::text_for_app_with_args(
+                app,
+                "search.navigation.a11y.running_ai_interaction",
+                &[("prompt", prompt)],
+            )),
+        }
+    }
 }
 
 impl SessionNavigationData {

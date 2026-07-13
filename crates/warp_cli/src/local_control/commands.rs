@@ -21,6 +21,7 @@ use crate::local_control::{
     SurfaceSettingsCommand, SurfaceToggleCommand, TabActivateArgs, TabCloseArgs, TabColorCommand,
     TabCommand, TargetArgs, ThemeCommand, WindowCommand,
 };
+use crate::localization::{text, text_with_args};
 
 pub(super) fn run_surface_command(
     command: SurfaceCommand,
@@ -134,28 +135,49 @@ pub(super) fn run_surface_command(
 
 fn render_human_readable(action: ActionKind, data: &serde_json::Value) -> String {
     match action {
-        ActionKind::AppPing => format!(
-            "Warp instance {} is reachable (protocol version {})",
-            value_or_unknown(data, "instance_id"),
-            value_or_unknown(data, "protocol_version")
+        ActionKind::AppPing => text_with_args(
+            "warpctrl.output.app_ping",
+            &[
+                ("instance_id", &value_or_unknown(data, "instance_id")),
+                (
+                    "protocol_version",
+                    &value_or_unknown(data, "protocol_version"),
+                ),
+            ],
         ),
-        ActionKind::AppVersion => format!(
-            "Warp instance {}\nchannel: {}\napp_id: {}\nprotocol_version: {}",
-            value_or_unknown(data, "instance_id"),
-            value_or_unknown(data, "channel"),
-            value_or_unknown(data, "app_id"),
-            value_or_unknown(data, "protocol_version")
+        ActionKind::AppVersion => text_with_args(
+            "warpctrl.output.app_version",
+            &[
+                ("instance_id", &value_or_unknown(data, "instance_id")),
+                ("channel", &value_or_unknown(data, "channel")),
+                ("app_id", &value_or_unknown(data, "app_id")),
+                (
+                    "protocol_version",
+                    &value_or_unknown(data, "protocol_version"),
+                ),
+            ],
         ),
-        ActionKind::TabCreate => format!(
-            "Created tab {} in window {} (active index {}, tab count {})",
-            nested_value_or_unknown(data, &["tab", "id"]),
-            nested_value_or_unknown(data, &["window", "id"]),
-            nested_value_or_unknown(data, &["tab", "active_index"]),
-            nested_value_or_unknown(data, &["tab", "count"])
+        ActionKind::TabCreate => text_with_args(
+            "warpctrl.output.tab_created",
+            &[
+                ("tab_id", &nested_value_or_unknown(data, &["tab", "id"])),
+                (
+                    "window_id",
+                    &nested_value_or_unknown(data, &["window", "id"]),
+                ),
+                (
+                    "active_index",
+                    &nested_value_or_unknown(data, &["tab", "active_index"]),
+                ),
+                (
+                    "tab_count",
+                    &nested_value_or_unknown(data, &["tab", "count"]),
+                ),
+            ],
         ),
-        ActionKind::PaneSplit => format!(
-            "Split created pane {}",
-            nested_value_or_unknown(data, &["pane", "id"])
+        ActionKind::PaneSplit => text_with_args(
+            "warpctrl.output.pane_split",
+            &[("pane_id", &nested_value_or_unknown(data, &["pane", "id"]))],
         ),
         _ => serde_json::to_string_pretty(data).unwrap_or_else(|_| data.to_string()),
     }
@@ -249,7 +271,8 @@ fn render_instance_list(
         OutputFormat::Ndjson => write_json_line(&output),
         OutputFormat::Pretty | OutputFormat::Text => {
             if output.instances.is_empty() {
-                println!("No running Warp instances with local control were found.");
+                let message = text("warpctrl.output.instance_list.empty");
+                println!("{message}");
                 return Ok(());
             }
             for instance in &output.instances {

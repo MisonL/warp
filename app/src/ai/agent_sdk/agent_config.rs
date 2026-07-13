@@ -3,16 +3,27 @@
 use warp_cli::agent::ListAgentSkillsArgs;
 use warp_graphql::queries::get_oauth_connect_tx_status::OauthConnectTxStatus;
 use warp_graphql::queries::user_repo_auth_status::UserRepoAuthStatusEnum;
+use warp_localization::{replace_placeholders, LocaleId};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::oauth_flow::poll_oauth_until_terminal;
 use crate::ai::cloud_environments::GithubRepo;
+use crate::localization;
 use crate::server::server_api::ai::AgentSkillItem;
 use crate::server::server_api::ServerApiProvider;
 
 const MAX_LINE_WIDTH: usize = 90;
 const MAX_AUTH_ATTEMPTS: u32 = 8;
+
+fn text_for_locale(locale: LocaleId, key: &str) -> String {
+    localization::text_for_locale(locale, key)
+}
+
+fn text_for_locale_with_args(locale: LocaleId, key: &str, args: &[(&str, &str)]) -> String {
+    replace_placeholders(&text_for_locale(locale, key), args)
+        .expect("localized text template arguments must match the catalog")
+}
 
 /// Singleton model that runs async work for agent CLI commands.
 struct AgentConfigRunner;
@@ -74,13 +85,16 @@ impl AgentConfigRunner {
         repo_spec: Option<String>,
         ctx: &mut ModelContext<Self>,
     ) {
+        let locale = localization::current_locale(ctx);
         if attempt > MAX_AUTH_ATTEMPTS {
+            let max_attempts = MAX_AUTH_ATTEMPTS.to_string();
             ctx.terminate_app(
                 TerminationMode::ForceTerminate,
-                Some(Err(anyhow::anyhow!(
-                    "Exceeded maximum number of authorization attempts ({}). Please try again later.",
-                    MAX_AUTH_ATTEMPTS
-                ))),
+                Some(Err(anyhow::anyhow!(text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.agent_config.error.max_auth_attempts",
+                    &[("max_attempts", &max_attempts)]
+                )))),
             );
             return;
         }
@@ -110,16 +124,27 @@ impl AgentConfigRunner {
                             UserRepoAuthStatusEnum::Success => {}
                             UserRepoAuthStatusEnum::NoInstallationOrAccessForRepo => {
                                 if !status.is_public {
+                                    let repo = format!("{}/{}", status.owner, status.repo);
                                     eprintln!(
-                                        "Cannot access private repo {}/{}",
-                                        status.owner, status.repo,
+                                        "{}",
+                                        text_for_locale_with_args(
+                                            locale,
+                                            "agent_sdk.agent_config.error.cannot_access_private_repo",
+                                            &[("repo", &repo)]
+                                        )
                                     );
                                     has_blocking_private_issues = true;
                                 }
                                 // Public repos without auth are fine - no warning needed
                             }
                             UserRepoAuthStatusEnum::UserNotConnectedToGithub => {
-                                eprintln!("User not connected to GitHub");
+                                eprintln!(
+                                    "{}",
+                                    text_for_locale(
+                                        locale,
+                                        "agent_sdk.agent_config.error.github_not_connected"
+                                    )
+                                );
                                 has_blocking_private_issues = true;
                                 break;
                             }
@@ -135,15 +160,29 @@ impl AgentConfigRunner {
                     // Handle OAuth flow if server provides auth_url + tx_id
                     match (response.auth_url, response.tx_id) {
                         (Some(auth_url), Some(tx_id)) => {
-                            println!("\nAuthorization required for private repository access.");
-                            println!("Opening browser for GitHub authorization: {auth_url}\n");
+                            println!(
+                                "\n{}",
+                                text_for_locale(
+                                    locale,
+                                    "agent_sdk.agent_config.output.authorization_required"
+                                )
+                            );
+                            println!(
+                                "{}\n",
+                                text_for_locale_with_args(
+                                    locale,
+                                    "agent_sdk.agent_config.output.opening_browser",
+                                    &[("auth_url", &auth_url)]
+                                )
+                            );
                             ctx.open_url(&auth_url);
 
                             let integrations_client = ServerApiProvider::handle(ctx)
                                 .as_ref(ctx)
                                 .get_integrations_client();
                             let tx_id = tx_id.into_inner();
-                            let poll_future = poll_oauth_until_terminal(integrations_client, tx_id);
+                            let poll_future =
+                                poll_oauth_until_terminal(integrations_client, tx_id, locale);
 
                             let next_attempt = attempt + 1;
 
@@ -156,49 +195,64 @@ impl AgentConfigRunner {
                                     Ok(OauthConnectTxStatus::Failed) => {
                                         ctx.terminate_app(
                                             TerminationMode::ForceTerminate,
-                                            Some(Err(anyhow::anyhow!(
-                                                "GitHub authorization failed. Please try again."
-                                            ))),
+                                            Some(Err(anyhow::anyhow!(text_for_locale(
+                                                locale,
+                                                "agent_sdk.agent_config.error.github_authorization_failed"
+                                            )))),
                                         );
                                     }
                                     Ok(OauthConnectTxStatus::Expired) => {
                                         ctx.terminate_app(
                                             TerminationMode::ForceTerminate,
-                                            Some(Err(anyhow::anyhow!(
-                                                "GitHub authorization expired. Please try again."
-                                            ))),
+                                            Some(Err(anyhow::anyhow!(text_for_locale(
+                                                locale,
+                                                "agent_sdk.agent_config.error.github_authorization_expired"
+                                            )))),
                                         );
                                     }
                                     Ok(_) => {
                                         ctx.terminate_app(
                                             TerminationMode::ForceTerminate,
-                                            Some(Err(anyhow::anyhow!(
-                                                "Unexpected OAuth status"
-                                            ))),
+                                            Some(Err(anyhow::anyhow!(text_for_locale(
+                                                locale,
+                                                "agent_sdk.agent_config.error.unexpected_oauth_status"
+                                            )))),
                                         );
                                     }
                                     Err(err) => {
                                         ctx.terminate_app(
                                             TerminationMode::ForceTerminate,
-                                            Some(Err(anyhow::anyhow!(
-                                                "Error polling OAuth status: {err}"
-                                            ))),
+                                            Some(Err(err)),
                                         );
                                     }
                                 }
                             });
                         }
                         (Some(auth_url), None) => {
-                            println!("\nAuthorize access here: {auth_url}\n");
-                            println!("After authorizing, please re-run this command.");
+                            println!(
+                                "\n{}\n",
+                                text_for_locale_with_args(
+                                    locale,
+                                    "agent_sdk.agent_config.output.authorize_access_here",
+                                    &[("auth_url", &auth_url)]
+                                )
+                            );
+                            println!(
+                                "{}",
+                                text_for_locale(
+                                    locale,
+                                    "agent_sdk.agent_config.output.rerun_after_authorizing"
+                                )
+                            );
                             ctx.terminate_app(TerminationMode::ForceTerminate, None);
                         }
                         _ => {
                             ctx.terminate_app(
                                 TerminationMode::ForceTerminate,
-                                Some(Err(anyhow::anyhow!(
-                                    "Cannot list agents: authorization required but no auth flow provided"
-                                ))),
+                                Some(Err(anyhow::anyhow!(text_for_locale(
+                                    locale,
+                                    "agent_sdk.agent_config.error.no_auth_flow"
+                                )))),
                             );
                         }
                     }
@@ -206,7 +260,10 @@ impl AgentConfigRunner {
                 Err(e) => {
                     ctx.terminate_app(
                         TerminationMode::ForceTerminate,
-                        Some(Err(e.context("Failed to check GitHub auth status"))),
+                        Some(Err(e.context(text_for_locale(
+                            locale,
+                            "agent_sdk.agent_config.error.check_github_auth_status_failed",
+                        )))),
                     );
                 }
             }
@@ -215,18 +272,31 @@ impl AgentConfigRunner {
 
     fn fetch_and_display_agents(&self, repo: Option<String>, ctx: &mut ModelContext<Self>) {
         let ai_client = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
 
         if repo.is_some() {
-            println!("Fetching agent skills from the specified repository...");
+            println!(
+                "{}",
+                text_for_locale(
+                    locale,
+                    "agent_sdk.agent_config.output.fetching_from_repository"
+                )
+            );
         } else {
-            println!("Fetching agent skills from your Warp environments...");
+            println!(
+                "{}",
+                text_for_locale(
+                    locale,
+                    "agent_sdk.agent_config.output.fetching_from_environments"
+                )
+            );
         }
 
         let list_future = async move { ai_client.list_skills(repo).await };
 
-        ctx.spawn(list_future, |_, result, ctx| match result {
+        ctx.spawn(list_future, move |_, result, ctx| match result {
             Ok(agents) => {
-                Self::print_agents_table(&agents);
+                Self::print_agents_table(&agents, locale);
                 ctx.terminate_app(TerminationMode::ForceTerminate, None);
             }
             Err(err) => {
@@ -236,16 +306,30 @@ impl AgentConfigRunner {
     }
 
     /// Print a list of agents in a card-style format.
-    fn print_agents_table(agents: &[AgentSkillItem]) {
+    fn print_agents_table(agents: &[AgentSkillItem], locale: LocaleId) {
         if agents.is_empty() {
-            println!("No skills found.");
+            println!(
+                "{}",
+                text_for_locale(locale, "agent_sdk.agent_config.output.no_agents_found")
+            );
             return;
         }
 
         if agents.len() == 1 {
-            println!("\nAgent:");
+            println!(
+                "\n{}",
+                text_for_locale(locale, "agent_sdk.agent_config.output.agent_header")
+            );
         } else {
-            println!("\nAgents ({}):", agents.len());
+            let count = agents.len().to_string();
+            println!(
+                "\n{}",
+                text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.agent_config.output.agents_header",
+                    &[("count", &count)]
+                )
+            );
         }
 
         for agent in agents {
@@ -255,12 +339,16 @@ impl AgentConfigRunner {
                 let mut table = super::output::standard_table();
 
                 // ID
-                table.add_row(vec![format!("ID: {}", variant.id)]);
+                table.add_row(vec![text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.agent_config.field.id",
+                    &[("id", &variant.id)],
+                )]);
 
                 // Description
                 if !variant.description.is_empty() {
                     let description_cell = super::text_layout::render_labeled_wrapped_field(
-                        "Description",
+                        &text_for_locale(locale, "agent_sdk.agent_config.field.description"),
                         &variant.description,
                         MAX_LINE_WIDTH,
                     );
@@ -277,7 +365,7 @@ impl AgentConfigRunner {
                         truncated
                     };
                     let prompt_cell = super::text_layout::render_labeled_wrapped_field(
-                        "Base Prompt",
+                        &text_for_locale(locale, "agent_sdk.agent_config.field.base_prompt"),
                         &truncated_prompt,
                         MAX_LINE_WIDTH,
                     );
@@ -285,9 +373,11 @@ impl AgentConfigRunner {
                 }
 
                 // Source
-                table.add_row(vec![format!(
-                    "Source: {}/{}",
-                    variant.source.owner, variant.source.name
+                let source = format!("{}/{}", variant.source.owner, variant.source.name);
+                table.add_row(vec![text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.agent_config.field.source",
+                    &[("source", &source)],
                 )]);
 
                 // Environments
@@ -297,7 +387,12 @@ impl AgentConfigRunner {
                         .iter()
                         .map(|e| format!("{} ({})", e.name, e.uid))
                         .collect();
-                    table.add_row(vec![format!("Environments: {}", env_entries.join(", "))]);
+                    let environments = env_entries.join(", ");
+                    table.add_row(vec![text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.agent_config.field.environments",
+                        &[("environments", &environments)],
+                    )]);
                 }
 
                 println!("{table}");

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::marker::PhantomData;
 
 use warp_editor::editor::NavigationKey;
@@ -55,7 +56,7 @@ pub struct FilterableDropdown<A: DropdownItemAction = ()> {
     selected_item: Option<MenuItem<DropdownAction>>,
     items: Vec<MenuItem<DropdownAction>>,
     orientation: FilterableDropdownOrientation,
-    static_menu_header: Option<&'static str>,
+    static_menu_header: Option<Cow<'static, str>>,
     button_variant: ButtonVariant,
     style_override: Option<UiComponentStyles>,
     hovered_style_override: Option<UiComponentStyles>,
@@ -428,7 +429,7 @@ where
     }
 
     fn render_closed_top_bar(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let (selected_item_text, font_family_id) = match self.static_menu_header {
+        let (selected_item_text, font_family_id) = match &self.static_menu_header {
             Some(header) => (header.to_string(), None),
             None => match self.selected_item.clone() {
                 Some(MenuItem::Item(fields)) => {
@@ -728,8 +729,8 @@ where
         });
     }
 
-    pub fn set_menu_header_to_static(&mut self, header: &'static str) {
-        self.static_menu_header = Some(header);
+    pub fn set_menu_header_to_static(&mut self, header: impl Into<Cow<'static, str>>) {
+        self.static_menu_header = Some(header.into());
     }
 
     /// Test-only: drive the filter input with `query` and re-filter the list,

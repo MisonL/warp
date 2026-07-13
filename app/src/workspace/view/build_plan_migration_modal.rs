@@ -194,7 +194,10 @@ impl BuildPlanMigrationModal {
             UserWorkspacesEvent::UpdateWorkspaceSettingsRejected(_err) => {
                 self.is_updating = false;
                 ctx.emit(BuildPlanMigrationModalEvent::ShowToast {
-                    message: "Failed to enable auto-reload. Please try updating your settings in Billing & usage.".to_string(),
+                    message: localization::text_for_app(
+                        ctx,
+                        "workspace.build_plan_migration.toast.auto_reload_failed",
+                    ),
                     flavor: ToastFlavor::Error,
                 });
                 ctx.notify();
@@ -223,11 +226,13 @@ impl BuildPlanMigrationModal {
                         .iter()
                         .enumerate()
                         .map(|(i, option)| {
+                            let price = (option.price_usd_cents / 100).to_string();
+                            let credits = option.credits.separate_with_commas();
                             DropdownItem::new(
-                                format!(
-                                    "${} / {} credits",
-                                    option.price_usd_cents / 100,
-                                    option.credits.separate_with_commas(),
+                                localization::text_for_app_with_args(
+                                    ctx,
+                                    "workspace.build_plan_migration.reload_denomination",
+                                    &[("price", price.as_str()), ("credits", credits.as_str())],
                                 ),
                                 BuildPlanMigrationModalViewAction::SelectReloadDenomination(i),
                             )
@@ -241,7 +246,11 @@ impl BuildPlanMigrationModal {
         ctx.notify();
     }
 
-    fn render_auto_reload_controls(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_auto_reload_controls(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let check_color = theme.background().into_solid();
 
@@ -267,12 +276,20 @@ impl BuildPlanMigrationModal {
             })
             .finish();
 
-        let label = FormattedTextElement::from_str("Auto-reload", appearance.ui_font_family(), 12.)
-            .with_color(blended_colors::text_sub(
-                theme,
-                blended_colors::neutral_4(theme),
-            ))
-            .finish();
+        let label = FormattedTextElement::new(
+            FormattedText::new([FormattedTextLine::Line(vec![
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    app,
+                    "settings.billing.addon_credits.auto_reload.label",
+                )),
+            ])]),
+            12.,
+            appearance.ui_font_family(),
+            appearance.ui_font_family(),
+            blended_colors::text_sub(theme, blended_colors::neutral_4(theme)),
+            HighlightedHyperlink::default(),
+        )
+        .finish();
 
         let checkbox_row = Flex::row()
             .with_child(checkbox)
@@ -303,11 +320,15 @@ impl BuildPlanMigrationModal {
             .finish()
     }
 
-    fn render_get_started_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_get_started_button(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         let button_text = if self.is_updating {
-            "Saving...".to_string()
+            localization::text_for_app(app, "workspace.build_plan_migration.saving")
         } else {
-            "Get Started".to_string()
+            localization::text_for_app(app, "workspace.build_plan_migration.get_started")
         };
 
         let button_font_color = self.is_updating.then_some(
@@ -351,11 +372,15 @@ impl BuildPlanMigrationModal {
         button.finish()
     }
 
-    fn render_right_panel_content(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_right_panel_content(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = Self::create_text(
-            "Use auto-reload to never miss a beat.".to_string(),
+            localization::text_for_app(app, "workspace.build_plan_migration.auto_reload.title"),
             appearance.ui_font_family(),
             16.,
             blended_colors::text_main(theme, blended_colors::neutral_2(theme)),
@@ -363,7 +388,10 @@ impl BuildPlanMigrationModal {
         );
 
         let description = Self::create_text(
-            "Auto-reload will automatically purchase credits at your selected rate when your account balance reaches 100 credits. Your monthly spend limit is set at your legacy plan's monthly cost and can be updated in Settings > Billing & usage.".to_string(),
+            localization::text_for_app(
+                app,
+                "workspace.build_plan_migration.auto_reload.description",
+            ),
             appearance.ui_font_family(),
             14.,
             blended_colors::text_sub(theme, blended_colors::neutral_4(theme)),
@@ -390,8 +418,8 @@ impl BuildPlanMigrationModal {
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
                         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .with_main_axis_size(MainAxisSize::Max)
-                        .with_child(self.render_auto_reload_controls(appearance))
-                        .with_child(self.render_get_started_button(appearance))
+                        .with_child(self.render_auto_reload_controls(app, appearance))
+                        .with_child(self.render_get_started_button(app, appearance))
                         .finish(),
                 )
                 .finish(),
@@ -418,7 +446,7 @@ impl BuildPlanMigrationModal {
 
         let content_panel = Shrinkable::new(
             1.,
-            Container::new(self.render_right_panel_content(appearance))
+            Container::new(self.render_right_panel_content(app, appearance))
                 .with_uniform_padding(PANEL_PADDING)
                 .with_background(blended_colors::neutral_2(theme))
                 .with_border(Border::left(1.).with_border_color(blended_colors::neutral_4(theme)))
@@ -515,13 +543,13 @@ impl BuildPlanMigrationModal {
             .unwrap_or((2000, 1800));
 
         let title_text = if is_business {
-            "Welcome to the New Business Plan"
+            localization::text_for_app(app, "workspace.build_plan_migration.title.business")
         } else {
-            "Welcome to Warp Build"
+            localization::text_for_app(app, "workspace.build_plan_migration.title.build")
         };
 
         let title = Self::create_text(
-            title_text.to_string(),
+            title_text,
             font_family,
             24.,
             blended_colors::text_main(theme, blended_colors::neutral_2(theme)),
@@ -529,37 +557,49 @@ impl BuildPlanMigrationModal {
         );
 
         let intro_text = if is_business {
-            "Your workspace has been updated to the new Warp Business Plan as the legacy Business plan is sunset."
+            localization::text_for_app(app, "workspace.build_plan_migration.intro.business")
         } else {
-            "Your workspace has been updated to the Warp Build Plan as the legacy Pro, Turbo, and Lightspeed plans are sunset."
+            localization::text_for_app(app, "workspace.build_plan_migration.intro.build")
         };
 
-        let intro = Self::create_text(intro_text.to_string(), font_family, 14., text_color, None);
+        let intro = Self::create_text(intro_text, font_family, 14., text_color, None);
 
         let pricing_header = Self::create_text(
             if is_business {
-                "The new Business plan is a primarily usage-based plan, starting at:"
+                localization::text_for_app(
+                    app,
+                    "workspace.build_plan_migration.pricing_header.business",
+                )
             } else {
-                "Warp Build is a primarily usage-based plan, starting at:"
-            }
-            .to_string(),
+                localization::text_for_app(
+                    app,
+                    "workspace.build_plan_migration.pricing_header.build",
+                )
+            },
             font_family,
             14.,
             text_color,
             None,
         );
 
+        let monthly_price = (base_plan_prices.0 / 100).to_string();
         let price_monthly = Self::create_bullet_item(
-            format!("${} per user per month", base_plan_prices.0 / 100),
+            localization::text_for_app_with_args(
+                app,
+                "workspace.build_plan_migration.price.monthly",
+                &[("price", monthly_price.as_str())],
+            ),
             font_family,
             14.,
             text_color,
         );
 
+        let annual_price = (base_plan_prices.1 / 100).to_string();
         let price_annual = Self::create_bullet_item(
-            format!(
-                "${} per user per month for annual plans",
-                base_plan_prices.1 / 100
+            localization::text_for_app_with_args(
+                app,
+                "workspace.build_plan_migration.price.annual",
+                &[("price", annual_price.as_str())],
             ),
             font_family,
             14.,
@@ -568,21 +608,28 @@ impl BuildPlanMigrationModal {
 
         let features_header = Self::create_text(
             if is_business {
-                "The new Business plan comes with:"
+                localization::text_for_app(
+                    app,
+                    "workspace.build_plan_migration.features_header.business",
+                )
             } else {
-                "Build comes with:"
-            }
-            .to_string(),
+                localization::text_for_app(
+                    app,
+                    "workspace.build_plan_migration.features_header.build",
+                )
+            },
             font_family,
             14.,
             text_color,
             None,
         );
 
+        let base_credits_limit = base_credits_limit.separate_with_commas();
         let base_credits = Self::create_bullet_item(
-            format!(
-                "{} base credits per month",
-                base_credits_limit.separate_with_commas()
+            localization::text_for_app_with_args(
+                app,
+                "workspace.build_plan_migration.feature.base_credits",
+                &[("credits", base_credits_limit.as_str())],
             ),
             font_family,
             14.,
@@ -590,14 +637,20 @@ impl BuildPlanMigrationModal {
         );
 
         let reload_credits = Self::create_bullet_item(
-            "Access to Reload credits and volume-based discounts".to_string(),
+            localization::text_for_app(
+                app,
+                "workspace.build_plan_migration.feature.reload_credits",
+            ),
             font_family,
             14.,
             text_color,
         );
 
         let byok = Self::create_bullet_item(
-            "Bring your own API key".to_string(),
+            localization::text_for_app(
+                app,
+                "workspace.build_plan_migration.feature.bring_own_api_key",
+            ),
             font_family,
             14.,
             text_color,
@@ -611,7 +664,7 @@ impl BuildPlanMigrationModal {
 
         if is_business {
             let sso = Self::create_bullet_item(
-                "SAML-based SSO".to_string(),
+                localization::text_for_app(app, "workspace.build_plan_migration.feature.saml_sso"),
                 font_family,
                 14.,
                 text_color,
@@ -619,7 +672,10 @@ impl BuildPlanMigrationModal {
             features_list.add_child(sso);
 
             let zdr = Self::create_bullet_item(
-                "Automatically enforced team-wide Zero Data Retention".to_string(),
+                localization::text_for_app(
+                    app,
+                    "workspace.build_plan_migration.feature.zero_data_retention",
+                ),
                 font_family,
                 14.,
                 text_color,
@@ -627,8 +683,12 @@ impl BuildPlanMigrationModal {
             features_list.add_child(zdr);
         }
 
-        let and_more =
-            Self::create_bullet_item("And more...".to_string(), font_family, 14., text_color);
+        let and_more = Self::create_bullet_item(
+            localization::text_for_app(app, "workspace.build_plan_migration.feature.and_more"),
+            font_family,
+            14.,
+            text_color,
+        );
         features_list.add_child(and_more);
 
         let learn_more_fragments = vec![
@@ -636,8 +696,14 @@ impl BuildPlanMigrationModal {
                 app,
                 "workspace.build_plan_migration.learn_more.prefix",
             )),
-            FormattedTextFragment::hyperlink("pricing page", "https://www.warp.dev/pricing"),
-            FormattedTextFragment::plain_text("."),
+            FormattedTextFragment::hyperlink(
+                localization::text_for_app(app, "workspace.build_plan_migration.learn_more.link"),
+                "https://www.warp.dev/pricing",
+            ),
+            FormattedTextFragment::plain_text(localization::text_for_app(
+                app,
+                "workspace.build_plan_migration.learn_more.suffix",
+            )),
         ];
         let learn_more = Container::new(
             FormattedTextElement::new(
@@ -794,8 +860,10 @@ impl TypedActionView for BuildPlanMigrationModal {
                 let workspaces = UserWorkspaces::as_ref(ctx);
                 let Some(team_uid) = workspaces.current_team_uid() else {
                     ctx.emit(BuildPlanMigrationModalEvent::ShowToast {
-                        message: "Oops, something went wrong; your team data could not be found."
-                            .to_string(),
+                        message: localization::text_for_app(
+                            ctx,
+                            "workspace.build_plan_migration.toast.team_data_missing",
+                        ),
                         flavor: ToastFlavor::Error,
                     });
                     return;

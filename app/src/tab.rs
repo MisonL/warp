@@ -57,8 +57,8 @@ use crate::{localization, BlocklistAIHistoryModel};
 pub const TAB_BAR_BORDER_HEIGHT: f32 = 1.0;
 const TAB_INDICATOR_HEIGHT: f32 = 14.0;
 
-/// Label for the tab right-click menu's "Move to group" submenu parent.
-pub const MOVE_TO_GROUP_LABEL: &str = "Move to group";
+/// Stable identifier for the tab right-click menu's "Move to group" submenu parent.
+pub const MOVE_TO_GROUP_IDENTIFIER: &str = "move_to_group";
 
 /// True when the user has opted into vertical tabs and the feature flag is on.
 /// Exposed so binding-description overrides in `workspace/mod.rs` and context-
@@ -636,7 +636,14 @@ impl TabData {
         .into_item()];
         let has_other_groups = tab_groups.keys().any(|gid| Some(*gid) != self.group_id);
         if has_other_groups {
-            menu_items.push(MenuItemFields::new_submenu(MOVE_TO_GROUP_LABEL).into_item());
+            menu_items.push(
+                MenuItemFields::new_submenu(localization::text_for_app(
+                    ctx,
+                    "tab.menu.move_to_group",
+                ))
+                .with_identifier(MOVE_TO_GROUP_IDENTIFIER)
+                .into_item(),
+            );
         }
         if self.group_id.is_some() {
             menu_items.push(

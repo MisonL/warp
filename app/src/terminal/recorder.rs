@@ -5,6 +5,7 @@ use async_broadcast::InactiveReceiver;
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
 
+use crate::localization;
 use crate::settings::{DebugSettings, DebugSettingsChangedEvent};
 use crate::view_components::{DismissibleToast, ToastLink};
 use crate::workspace::{ToastStack, WorkspaceAction};
@@ -164,7 +165,7 @@ impl PtyRecorder {
                 let path_str = path.to_string_lossy().into_owned();
                 toast = toast
                     .with_link(
-                        ToastLink::new("Open".to_string())
+                        ToastLink::new(localization::text_for_app(ctx, "common.open"))
                             .with_onclick_action(WorkspaceAction::OpenInExplorer { path }),
                     )
                     .with_on_body_click(move |ctx| {

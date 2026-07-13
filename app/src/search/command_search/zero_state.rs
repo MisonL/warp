@@ -11,6 +11,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use crate::appearance::Appearance;
 use crate::drive::settings::{WarpDriveSettings, WarpDriveSettingsChangedEvent};
+use crate::localization;
 use crate::search::{FilterChipRenderer, QueryFilter};
 use crate::settings::{AISettings, AISettingsChangedEvent};
 
@@ -192,7 +193,7 @@ impl View for CommandSearchZeroStateView {
 
         let command_search_text = Container::new(
             Text::new_inline(
-                "Command Search",
+                localization::text_for_app(app, "search.command_search.title"),
                 appearance.ui_font_family(),
                 styles::header_text_font_size(appearance),
             )
@@ -214,7 +215,7 @@ impl View for CommandSearchZeroStateView {
             .with_child(
                 Container::new(
                     Text::new_inline(
-                        "I'm looking for...",
+                        localization::text_for_app(app, "search.command_search.looking_for"),
                         appearance.ui_font_family(),
                         styles::subheader_text_font_size(appearance),
                     )
@@ -233,7 +234,7 @@ impl View for CommandSearchZeroStateView {
             .with_child(
                 Container::new(
                     Text::new_inline(
-                        "Example queries",
+                        localization::text_for_app(app, "search.command_search.example_queries"),
                         appearance.ui_font_family(),
                         styles::subheader_text_font_size(appearance),
                     )

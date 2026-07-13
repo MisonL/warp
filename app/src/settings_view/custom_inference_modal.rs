@@ -650,7 +650,7 @@ impl View for CustomEndpointModal {
 
         let label_font_family = appearance.ui_font_family();
         let label_text_color = theme.active_ui_text_color().into();
-        let label = move |text: &'static str| {
+        let label = move |text: String| {
             Text::new(text, label_font_family, LABEL_FONT_SIZE)
                 .with_color(label_text_color)
                 .finish()
@@ -672,7 +672,7 @@ impl View for CustomEndpointModal {
         column.add_child(
             Container::new(
                 Text::new(
-                    "Provide your endpoint details below. You can add as many models from the endpoint as you'd like and can also provide aliases for the model picker in your input.",
+                    localization::text_for_app(app, "settings.ai.custom_endpoint.description"),
                     appearance.ui_font_family(),
                     LABEL_FONT_SIZE,
                 )
@@ -686,9 +686,12 @@ impl View for CustomEndpointModal {
 
         // Endpoint name
         column.add_child(
-            Container::new(label("Endpoint name"))
-                .with_margin_bottom(4.)
-                .finish(),
+            Container::new(label(localization::text_for_app(
+                app,
+                "settings.ai.custom_endpoint.name",
+            )))
+            .with_margin_bottom(4.)
+            .finish(),
         );
         column.add_child(
             Container::new(
@@ -705,9 +708,12 @@ impl View for CustomEndpointModal {
 
         // Endpoint URL
         column.add_child(
-            Container::new(label("Endpoint URL"))
-                .with_margin_bottom(4.)
-                .finish(),
+            Container::new(label(localization::text_for_app(
+                app,
+                "settings.ai.custom_endpoint.url",
+            )))
+            .with_margin_bottom(4.)
+            .finish(),
         );
         let url_border_fill = if self.url_has_error {
             theme.ui_error_color().into()
@@ -731,9 +737,12 @@ impl View for CustomEndpointModal {
 
         // API key
         column.add_child(
-            Container::new(label("API key"))
-                .with_margin_bottom(4.)
-                .finish(),
+            Container::new(label(localization::text_for_app(
+                app,
+                "settings.ai.custom_endpoint.api_key",
+            )))
+            .with_margin_bottom(4.)
+            .finish(),
         );
         column.add_child(
             Container::new(
@@ -755,14 +764,20 @@ impl View for CustomEndpointModal {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(MODEL_ROW_SPACING)
             .with_child(
-                ConstrainedBox::new(label("Model name"))
-                    .with_width(MODEL_INPUT_WIDTH)
-                    .finish(),
+                ConstrainedBox::new(label(localization::text_for_app(
+                    app,
+                    "settings.ai.custom_endpoint.model_name",
+                )))
+                .with_width(MODEL_INPUT_WIDTH)
+                .finish(),
             )
             .with_child(
-                ConstrainedBox::new(label("Model alias (optional)"))
-                    .with_width(MODEL_INPUT_WIDTH)
-                    .finish(),
+                ConstrainedBox::new(label(localization::text_for_app(
+                    app,
+                    "settings.ai.custom_endpoint.model_alias_optional",
+                )))
+                .with_width(MODEL_INPUT_WIDTH)
+                .finish(),
             );
         if has_remove_model_button {
             model_labels.add_child(

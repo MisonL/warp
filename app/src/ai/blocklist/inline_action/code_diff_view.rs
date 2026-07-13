@@ -101,15 +101,6 @@ use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
 use crate::{cmd_or_ctrl_shift, localization, send_telemetry_from_ctx, TelemetryEvent};
 
-const REQUESTED_EDIT_REFINE_LABEL: &str = "Refine";
-const REQUESTED_EDIT_ACCEPT_LABEL: &str = "Accept";
-const REQUESTED_EDIT_ACCEPT_AND_AUTOEXECUTE_LABEL: &str = "Auto-approve";
-const REQUESTED_EDIT_EDIT_LABEL: &str = "Edit";
-const REQUESTED_EDIT_MINIMIZE_LABEL: &str = "Done";
-const SUGGESTED_EDIT_ACCEPT_LABEL: &str = "Accept";
-const SUGGESTED_EDIT_ACCEPT_AND_CONTINUE_LABEL: &str = "Accept and continue with agent";
-const SUGGESTED_EDIT_ITERATE_WITH_AGENT_LABEL: &str = "Iterate with agent";
-const SUGGESTED_EDIT_DISMISS_LABEL: &str = "Dismiss";
 const MAX_EDITOR_HEIGHT: f32 = 500.;
 const INLINE_EDITOR_HEIGHT: f32 = 94.;
 const INLINE_EDITOR_HEIGHT_EXPANDED: f32 = 400.;
@@ -508,7 +499,10 @@ impl CodeDiffView {
             self.accept_split_button_menu.update(ctx, |menu, ctx| {
                 menu.set_items(
                     vec![MenuItemFields::new_multiline(
-                        SUGGESTED_EDIT_ACCEPT_AND_CONTINUE_LABEL,
+                        localization::text_for_app(
+                            ctx,
+                            "agent.code_diff.accept_and_continue_with_agent",
+                        ),
                         2,
                     )
                     .with_on_select_action(
@@ -530,15 +524,15 @@ impl CodeDiffView {
             .unwrap_or_default();
 
             let accept_item = MenuItemFields::new_with_label(
-                REQUESTED_EDIT_ACCEPT_LABEL,
-                accept_keystroke.as_str(),
+                localization::text_for_app(ctx, "agent.code_diff.accept"),
+                accept_keystroke,
             )
             .with_on_select_action(CodeDiffViewAction::TryAccept)
             .into_item();
 
             let auto_item = MenuItemFields::new_with_label(
-                REQUESTED_EDIT_ACCEPT_AND_AUTOEXECUTE_LABEL,
-                auto_keystroke.as_str(),
+                localization::text_for_app(ctx, "agent.code_diff.auto_approve"),
+                auto_keystroke,
             )
             .with_on_select_action(CodeDiffViewAction::AcceptAndAutoExecute)
             .into_item();
@@ -633,9 +627,13 @@ impl CodeDiffView {
                     safe: ("Failed to save file for accepted AgentMode diffs"),
                     full: ("Failed to save file for accepted AgentMode diffs for {}: {}", file_path_clone, error)
                 );
-                let toast = DismissibleToast::error(format!(
-                    "Failed to save file {file_path_clone}"
-                ));
+                let toast = DismissibleToast::error(
+                    crate::localization::text_for_app_with_args(
+                        ctx,
+                        "agent.code_diff.toast.failed_save_file_with_path",
+                        &[("file_path", &file_path_clone.to_string())],
+                    ),
+                );
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -783,12 +781,12 @@ impl CodeDiffView {
             .collect();
 
         let cancel_button_label = if is_passive {
-            SUGGESTED_EDIT_DISMISS_LABEL
+            localization::text_for_app(ctx, "agent.code_diff.dismiss")
         } else {
-            REQUESTED_EDIT_REFINE_LABEL
+            localization::text_for_app(ctx, "agent.code_diff.refine")
         };
         let cancel_button = CompactibleActionButton::new(
-            cancel_button_label.to_string(),
+            cancel_button_label,
             Some(KeystrokeSource::Fixed(
                 CANCEL_REQUESTED_EDIT_KEYSTROKE.clone(),
             )),
@@ -800,7 +798,7 @@ impl CodeDiffView {
         );
 
         let edit_button = CompactibleActionButton::new(
-            REQUESTED_EDIT_EDIT_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.code_diff.edit"),
             Some(KeystrokeSource::Binding(EDIT_REQUESTED_EDIT_NAME)),
             ButtonSize::Small,
             CodeDiffViewAction::Edit,
@@ -810,7 +808,7 @@ impl CodeDiffView {
         );
 
         let minimize_button = CompactibleActionButton::new(
-            REQUESTED_EDIT_MINIMIZE_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.code_diff.done"),
             Some(KeystrokeSource::Fixed(
                 MINIMIZE_REQUESTED_EDIT_KEYSTROKE.clone(),
             )),
@@ -822,7 +820,7 @@ impl CodeDiffView {
         );
 
         let iterate_with_agent_button = CompactibleActionButton::new(
-            SUGGESTED_EDIT_ITERATE_WITH_AGENT_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.code_diff.iterate_with_agent"),
             Some(KeystrokeSource::Binding(SET_INPUT_MODE_AGENT_ACTION_NAME)),
             ButtonSize::Small,
             CodeDiffViewAction::IterateOnPassiveDiffWithAgent,
@@ -832,11 +830,7 @@ impl CodeDiffView {
         );
 
         let accept_and_autoexecute_split_button = CompactibleSplitActionButton::new(
-            if is_passive {
-                SUGGESTED_EDIT_ACCEPT_LABEL.to_string()
-            } else {
-                REQUESTED_EDIT_ACCEPT_LABEL.to_string()
-            },
+            localization::text_for_app(ctx, "agent.code_diff.accept"),
             Some(accept_keystroke_source(is_passive)),
             ButtonSize::Small,
             CodeDiffViewAction::TryAccept,
@@ -1774,9 +1768,9 @@ impl CodeDiffView {
             .finish();
             col.add_child(title);
         }
-        if let Some(subtitle) = self.display_mode().title() {
+        if let Some(subtitle) = self.display_mode().title(app) {
             let subtitle = Text::new_inline(
-                subtitle.to_string(),
+                subtitle,
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -1996,7 +1990,7 @@ impl CodeDiffView {
         if Self::is_rename_without_changes(diff_type) {
             let placeholder = Container::new(
                 Text::new(
-                    "File renamed without changes",
+                    localization::text_for_app(app, "agent.code_diff.file_renamed_without_changes"),
                     appearance.monospace_font_family(),
                     appearance.monospace_font_size(),
                 )
@@ -2177,7 +2171,7 @@ impl CodeDiffView {
 
         if self.display_mode.is_embedded() {
             let label = if self.is_passive {
-                SUGGESTED_EDIT_DISMISS_LABEL.to_string()
+                localization::text_for_app(ctx, "agent.code_diff.dismiss")
             } else {
                 localization::text_for_app(ctx, "agent.code_diff.cancel")
             };
@@ -2561,7 +2555,10 @@ impl CodeDiffView {
         let formatted_text = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(vec![
                 FormattedTextFragment::hyperlink(
-                    "Manage suggested code banner settings",
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.active.suggested_code_banners.manage",
+                    ),
                     "Settings > AI",
                 ),
             ])]),

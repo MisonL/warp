@@ -279,11 +279,11 @@ impl CodeReviewDiffMenu {
             .finish()
     }
 
-    fn render_empty_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_empty_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "No matches",
+                crate::localization::text_for_app(app, "code_review.diff_menu.no_matches"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -298,7 +298,7 @@ impl CodeReviewDiffMenu {
     fn render_rows(&self, ctx: &AppContext) -> Box<dyn Element> {
         if self.filtered.is_empty() {
             if !self.search_query.is_empty() {
-                return self.render_empty_state(Appearance::as_ref(ctx));
+                return self.render_empty_state(Appearance::as_ref(ctx), ctx);
             }
             return Empty::new().finish();
         }

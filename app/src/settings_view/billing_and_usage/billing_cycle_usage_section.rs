@@ -17,6 +17,7 @@ use warpui::{
 
 use crate::ai::AIRequestUsageModel;
 use crate::auth::{AuthManager, AuthStateProvider};
+use crate::localization;
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::settings_view::admin_actions::AdminActions;
 use crate::settings_view::billing_and_usage::billing_cycle_usage_common::{
@@ -32,6 +33,9 @@ use crate::settings_view::billing_and_usage_page_v2::{
     BONUS_CREDITS_DOT_COLOR, PAYG_CREDITS_DOT_COLOR,
 };
 use crate::ui_components::icons::Icon;
+use crate::util::time_format::{
+    localized_month_day, localized_month_day_time, localized_month_day_year,
+};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{
@@ -225,7 +229,7 @@ impl BillingCycleUsageSectionView {
             .summaries
             .iter()
             .map(|summary| {
-                let label = format_period_range(summary.period_start, summary.period_end);
+                let label = format_period_range(ctx, summary.period_start, summary.period_end);
                 MenuItem::Item(MenuItemFields::new(label).with_on_select_action(
                     BillingCycleUsageAction::SelectPeriod(Some(summary.period_end)),
                 ))
@@ -410,9 +414,9 @@ impl BillingCycleUsageSectionView {
             let use_selector =
                 visibility.max_prior_cycles != MaxPriorCycles::None && summary_count > 1;
             let period_element = if use_selector {
-                self.render_period_selector(workspace, appearance)
+                self.render_period_selector(workspace, appearance, app)
             } else {
-                self.render_period_range_static(workspace, appearance)
+                self.render_period_range_static(workspace, appearance, app)
             };
             right_side.add_child(period_element);
         }
@@ -423,7 +427,7 @@ impl BillingCycleUsageSectionView {
         column.add_child(row.finish());
 
         let resets_text = self.render_resets_label(appearance, app);
-        let legend = workspace.and_then(|workspace| self.render_legend(workspace, appearance));
+        let legend = workspace.and_then(|workspace| self.render_legend(workspace, appearance, app));
         if resets_text.is_some() || legend.is_some() {
             let mut secondary_row = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -441,7 +445,6 @@ impl BillingCycleUsageSectionView {
         Container::new(column.finish()).finish()
     }
 
-    /// "Resets May 27, 11:24 PM EDT"
     fn render_resets_label(
         &self,
         appearance: &Appearance,
@@ -451,10 +454,15 @@ impl BillingCycleUsageSectionView {
             return None;
         }
         let theme = appearance.theme();
-        let reset_str = AIRequestUsageModel::as_ref(app)
-            .next_refresh_time_local()
-            .format("Resets %b %d, %-I:%M %p")
-            .to_string();
+        let reset_time = localized_month_day_time(
+            app,
+            AIRequestUsageModel::as_ref(app).next_refresh_time_local(),
+        );
+        let reset_str = localization::text_for_app_with_args(
+            app,
+            "settings.billing.usage.resets",
+            &[("date", &reset_time)],
+        );
         Some(
             Text::new_inline(
                 reset_str,
@@ -471,14 +479,15 @@ impl BillingCycleUsageSectionView {
         &self,
         workspace: &Workspace,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let label = self
             .current_summary(workspace)
-            .map(|s| format_period_range(s.period_start, s.period_end))
+            .map(|s| format_period_range(app, s.period_start, s.period_end))
             .or_else(|| {
                 workspace.billing_cycle_usage.as_ref().map(|data| {
-                    format_period_range(data.current_period_start, data.current_period_end)
+                    format_period_range(app, data.current_period_start, data.current_period_end)
                 })
             })
             .unwrap_or_default();
@@ -495,12 +504,13 @@ impl BillingCycleUsageSectionView {
         &self,
         workspace: &Workspace,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let bg = theme.background();
         let label = self
             .current_summary(workspace)
-            .map(|s| format_period_range(s.period_start, s.period_end))
+            .map(|s| format_period_range(app, s.period_start, s.period_end))
             .unwrap_or_default();
 
         let mouse_state = self.period_selector_mouse_state.clone();
@@ -555,6 +565,7 @@ impl BillingCycleUsageSectionView {
         &self,
         workspace: &Workspace,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let summary = self.current_summary(workspace)?;
         if summary.entries.is_empty() {
@@ -588,7 +599,7 @@ impl BillingCycleUsageSectionView {
                         .finish(),
                 );
             }
-            row.add_child(self.render_legend_entry(bucket.clone(), appearance));
+            row.add_child(self.render_legend_entry(bucket.clone(), appearance, app));
         }
         Some(row.finish())
     }
@@ -597,6 +608,7 @@ impl BillingCycleUsageSectionView {
         &self,
         cost_type: AiCreditsUsageAndCostType,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let (color, label) = legend_style_for(cost_type.clone());
         let theme = appearance.theme();
@@ -646,7 +658,7 @@ impl BillingCycleUsageSectionView {
             stack.add_child(entry);
             if state.is_hovered() {
                 stack.add_positioned_overlay_child(
-                    render_aggregate_legend_tooltip(appearance),
+                    render_aggregate_legend_tooltip(appearance, app),
                     OffsetPositioning::offset_from_parent(
                         vec2f(0., 6.),
                         ParentOffsetBounds::WindowByPosition,
@@ -780,11 +792,10 @@ fn legend_style_for(cost_type: AiCreditsUsageAndCostType) -> (ColorU, &'static s
     }
 }
 
-fn render_aggregate_legend_tooltip(appearance: &Appearance) -> Box<dyn Element> {
+fn render_aggregate_legend_tooltip(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
     let theme = appearance.theme();
     let text = Text::new_inline(
-        "Other team members' usage across add-on, pay-as-you-go, and cloud-only credits."
-            .to_string(),
+        localization::text_for_app(app, "settings.billing.credits.legend.combined_tooltip"),
         appearance.ui_font_family(),
         12.,
     )
@@ -803,16 +814,23 @@ fn render_aggregate_legend_tooltip(appearance: &Appearance) -> Box<dyn Element> 
         .finish()
 }
 
-fn format_period_range(start: DateTime<Utc>, end: DateTime<Utc>) -> String {
+fn format_period_range(app: &AppContext, start: DateTime<Utc>, end: DateTime<Utc>) -> String {
     let start = start.with_timezone(&Local);
     let end = end.with_timezone(&Local);
+    let separator = localization::text_for_app(app, "time.range.separator");
     if start.year() == end.year() {
-        format!("{} - {}", start.format("%b %d"), end.format("%b %d, %Y"))
+        format!(
+            "{}{}{}",
+            localized_month_day(app, start),
+            separator,
+            localized_month_day_year(app, end)
+        )
     } else {
         format!(
-            "{} - {}",
-            start.format("%b %d, %Y"),
-            end.format("%b %d, %Y")
+            "{}{}{}",
+            localized_month_day_year(app, start),
+            separator,
+            localized_month_day_year(app, end)
         )
     }
 }

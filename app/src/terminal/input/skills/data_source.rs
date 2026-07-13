@@ -43,12 +43,18 @@ impl InlineMenuAction for AcceptSkill {
         // If no item is selected, show "No skills found" message with escape hint
         if args.inline_menu_model.selected_item().is_none() {
             return Some(Message::new(vec![
-                MessageItem::text("No skills found"),
+                MessageItem::text(localization::text_for_app(
+                    args.app,
+                    "terminal.input.skills.no_skills_found",
+                )),
                 MessageItem::keystroke(Keystroke {
                     key: "escape".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(" to dismiss"),
+                MessageItem::text(localization::text_for_app(
+                    args.app,
+                    "terminal.inline_menu.navigation.to_dismiss",
+                )),
             ]));
         }
 
@@ -349,7 +355,7 @@ impl SearchItem for SkillSearchItem {
             let badge_text_color =
                 inline_styles::disabled_text_color(theme, background_color.into());
             let badge_text = Text::new_inline(
-                "Project Skill".to_string(),
+                localization::text_for_app(app, "terminal.skills.project_skill"),
                 appearance.ui_font_family(),
                 badge_font_size,
             )

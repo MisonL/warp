@@ -10,6 +10,7 @@ use super::editor::scroll::ScrollWheelBehavior;
 use super::editor::view::CodeEditorView;
 use super::editor::NavBarBehavior;
 use crate::editor::InteractionState;
+use crate::localization;
 
 /// Whether a view is displayed in a full pane or embedded in another view, like the blocklist.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -89,9 +90,12 @@ impl DisplayMode {
         !matches!(self, DisplayMode::InlineBanner { .. })
     }
 
-    pub fn title(&self) -> Option<&str> {
+    pub fn title(&self, ctx: &AppContext) -> Option<String> {
         match self {
-            DisplayMode::InlineBanner { .. } => Some("Suggested fixes based on your last command:"),
+            DisplayMode::InlineBanner { .. } => Some(localization::text_for_app(
+                ctx,
+                "code.diff_viewer.suggested_fixes_title",
+            )),
             _ => None,
         }
     }

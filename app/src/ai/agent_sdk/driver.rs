@@ -29,6 +29,7 @@ use warp_cli::skill::SkillSpec;
 use warp_core::features::FeatureFlag;
 use warp_core::{report_error, report_if_error, safe_debug, safe_error, safe_info};
 use warp_graphql::ai::AgentTaskState;
+use warp_localization::LocaleId;
 use warp_managed_secrets::ManagedSecretValue;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::r#async::{FutureExt, TimeoutError};
@@ -283,6 +284,8 @@ pub struct AgentDriverOptions {
     pub task_id: Option<AmbientAgentTaskId>,
     /// Parent run ID for child orchestration flows, if this task was spawned by another run.
     pub parent_run_id: Option<String>,
+    /// Locale used for task status messages reported by this driver.
+    pub locale: LocaleId,
     /// Whether the agent run should share its session.
     pub should_share: bool,
     /// How long to keep the session alive after the agent run completes, if at all.
@@ -339,6 +342,9 @@ pub struct AgentDriver {
 
     // The associated task ID for this agent run, if any.
     task_id: Option<AmbientAgentTaskId>,
+
+    // Locale used for task status messages reported directly by this driver.
+    locale: LocaleId,
 
     /// Harness adapter for the running agent. This is only set if:
     /// - The harness has started successfully.
@@ -620,6 +626,7 @@ impl AgentDriver {
             working_dir,
             task_id,
             parent_run_id,
+            locale,
             should_share,
             idle_on_complete,
             secrets,
@@ -746,6 +753,7 @@ impl AgentDriver {
             resolved_env_vars,
             output_format: OutputFormat::default(),
             task_id,
+            locale,
             harness: None,
             idle_on_complete,
             restored_conversation_id,
@@ -790,6 +798,7 @@ impl AgentDriver {
             resolved_env_vars: Arc::new(HashMap::new()),
             output_format: OutputFormat::default(),
             task_id: None,
+            locale: LocaleId::EnUs,
             harness: None,
             idle_on_complete: None,
             restored_conversation_id: None,
@@ -1227,6 +1236,7 @@ impl AgentDriver {
 
         // Stall for user-configured timeout, else 20 seconds (configured in [`AgentDriverOptions`]).
         let timeout = self.mcp_startup_timeout;
+        let locale = self.locale;
         let (tx, rx) = oneshot::channel::<()>();
         let mut tx = Some(tx);
 
@@ -1257,11 +1267,20 @@ impl AgentDriver {
                 }
                 MCPServerState::FailedToStart => {
                     pending_servers.remove(uuid);
-                    let error = TemplatableMCPServerManager::as_ref(ctx)
+                    let detail = match TemplatableMCPServerManager::as_ref(ctx)
                         .get_server_error_message(*uuid)
-                        .map(|message| format!(": {message}"))
-                        .unwrap_or_default();
-                    let detail = format!("'{name}' failed to start{error}");
+                    {
+                        Some(error) => localization::text_for_locale_with_args(
+                            locale,
+                            "agent_sdk.driver.mcp_startup.detail.failed_to_start_with_error",
+                            &[("name", &name), ("error", error)],
+                        ),
+                        None => localization::text_for_locale_with_args(
+                            locale,
+                            "agent_sdk.driver.mcp_startup.detail.failed_to_start",
+                            &[("name", &name)],
+                        ),
+                    };
                     log::warn!("MCP server {detail}");
                     if let Ok(mut failed_servers) = failed_for_subscription.lock() {
                         failed_servers.push(detail);
@@ -1316,11 +1335,14 @@ impl AgentDriver {
                 .map(|failed_servers| failed_servers.clone())
                 .unwrap_or_default();
             details.sort();
-            details.extend(
-                still_starting
-                    .iter()
-                    .map(|name| format!("'{name}' did not start within {}s", timeout.as_secs())),
-            );
+            details.extend(still_starting.iter().map(|name| {
+                let seconds = timeout.as_secs().to_string();
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.driver.mcp_startup.detail.timed_out",
+                    &[("name", name), ("seconds", &seconds)],
+                )
+            }));
 
             if details.is_empty() {
                 Ok(())
@@ -1375,17 +1397,20 @@ impl AgentDriver {
         // Surface the degradation on the run itself. The server currently only
         // persists status messages on terminal state transitions, so this is
         // best-effort until message-only updates are supported.
-        let (task_id, ai_client) = foreground
+        let (task_id, ai_client, locale) = foreground
             .spawn(|me, ctx| {
                 (
                     me.task_id,
                     ServerApiProvider::as_ref(ctx).get_ai_client().clone(),
+                    me.locale,
                 )
             })
             .await?;
         if let Some(task_id) = task_id {
-            let message = format!(
-                "Warning: some MCP servers were unavailable during startup ({details}); continuing without their tools."
+            let message = localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.driver.mcp_startup.warning.degraded",
+                &[("details", &details)],
             );
             if let Err(err) = ai_client
                 .update_agent_task(
@@ -3797,6 +3822,10 @@ pub(super) async fn report_driver_error(
             anyhow!(e).context(format!("Failed to report driver error for task {task_id}"))
         );
     }
+}
+
+pub(super) fn localized_driver_error_message(err: &AgentDriverError, locale: LocaleId) -> String {
+    error_classification::localized_driver_error_message(err, locale)
 }
 
 /// Stamps `parent_agent_id` (= parent's `run_id` under v2) onto the

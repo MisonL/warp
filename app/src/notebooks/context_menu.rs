@@ -214,7 +214,7 @@ where
         if split_pane_state.is_in_split_pane() {
             let is_maximized = split_pane_state.is_maximized();
             items.push(
-                MenuItemFields::toggle_pane_action(is_maximized)
+                MenuItemFields::toggle_pane_action(is_maximized, ctx)
                     .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
                         PaneEvent::ToggleMaximized,
                     )))

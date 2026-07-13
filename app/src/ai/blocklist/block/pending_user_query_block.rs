@@ -179,7 +179,7 @@ impl View for PendingUserQueryBlock {
         .finish();
 
         let queued_badge = Text::new(
-            "Queued",
+            crate::localization::text_for_app(app, "agent.pending_user_query.badge.queued"),
             appearance.ui_font_family(),
             appearance.monospace_font_size().max(4.) - 2.,
         )

@@ -1,12 +1,12 @@
 ---
 name: warpctrl
-description: Control and inspect the currently running local Warp application with the warpctrl CLI. Use this skill whenever the user asks the agent to manipulate Warp's own windows, tabs, panes, sessions, input buffer, themes, or UI surfaces; open a file in Warp; inspect local Warp state; or explain how to invoke Warp Control manually.
-description_zh_CN: 使用 warpctrl CLI 控制和检查当前正在运行的本地 Warp 应用。用户要操作 Warp 自身的窗口、标签页、窗格、会话、输入框、主题或 UI 表面；在 Warp 中打开文件；检查本地 Warp 状态；或说明如何手动调用 Warp Control 时使用此 skill。
+description: 使用 warpctrl CLI 控制和检查当前正在运行的本地 Warp 应用。用户要操作 Warp 自身的窗口、标签页、窗格、会话、输入框、主题或 UI 表面；在 Warp 中打开文件；检查本地 Warp 状态；或说明如何手动调用 Warp Control 时使用此技能。
+description_zh_CN: 使用 warpctrl CLI 控制和检查当前正在运行的本地 Warp 应用。用户要操作 Warp 自身的窗口、标签页、窗格、会话、输入框、主题或 UI 表面；在 Warp 中打开文件；检查本地 Warp 状态；或说明如何手动调用 Warp Control 时使用此技能。
 ---
 
 # Warp Control
 
-使用 `{{warpctrl_binary_name}}` 检查或控制提供此 skill 的、已经运行的本地 Warp 应用。本 skill 中的命令名和 wrapper 路径会按当前 Warp 渠道注入，因此不要检查运行中的进程，也不要猜测当前活动渠道。
+使用 `{{warpctrl_binary_name}}` 检查或控制提供此技能的、已经运行的本地 Warp 应用。本技能中的命令名和包装器路径会按当前 Warp 渠道注入，因此不要检查运行中的进程，也不要猜测当前活动渠道。
 
 当请求要改变 Warp 自身，而不是用户项目或操作系统时，优先使用 `{{warpctrl_binary_name}}`。例如创建 Warp 标签页、拆分窗格、在 Warp 输入框中暂存文本、打开 Warp 设置，或聚焦 Warp 窗口。
 
@@ -23,13 +23,13 @@ Warp Control 会随 Warp 应用一起打包。它不是单独的独立二进制�
 首次在任务中调用 Warp Control 前，优先使用最短可用路径，并避免不必要的安装研究：
 
 1. 如果 `command -v {{warpctrl_binary_name}}` 成功，后续任务都使用 `{{warpctrl_binary_name}}`。除非后续命令失败，否则不要检查打包 wrapper 或验证符号链接。
-2. 如果 `command -v {{warpctrl_binary_name}}` 失败，验证 `{{warpctrl_wrapper_path}}` 存在且可执行。如果它缺失，告诉用户此 Warp 构建不包含预期 wrapper，然后停止。
-3. 检查 `/usr/local/bin/{{warpctrl_binary_name}}`。只有当它是一个符号链接，且解析结果精确指向 `{{warpctrl_wrapper_path}}` 打包 wrapper 时，才视为设置完成。
-4. 如果预期符号链接缺失、损坏或指向别处，使用 `ask_user_question` 工具询问用户是否要安装它：在 `/usr/local/bin/{{warpctrl_binary_name}}` 创建指向 `{{warpctrl_wrapper_path}}` 的链接。提供 **Install command** 作为推荐选项，**Not now** 作为备选项。没有明确同意时，不要创建或替换符号链接。
+2. 如果 `command -v {{warpctrl_binary_name}}` 失败，验证 `{{warpctrl_wrapper_path}}` 存在且可执行。如果它缺失，告诉用户此 Warp 构建不包含预期包装器，然后停止。
+3. 检查 `/usr/local/bin/{{warpctrl_binary_name}}`。只有当它是一个符号链接，且解析结果精确指向 `{{warpctrl_wrapper_path}}` 打包包装器时，才视为设置完成。
+4. 如果预期符号链接缺失、损坏或指向别处，使用 `ask_user_question` 工具询问用户是否要安装它：在 `/usr/local/bin/{{warpctrl_binary_name}}` 创建指向 `{{warpctrl_wrapper_path}}` 的链接。提供 **安装命令** 作为推荐选项，**暂不安装** 作为备选项。没有明确同意时，不要创建或替换符号链接。
 5. 用户同意后，只创建或更新这个预期符号链接：运行 `ln -sf "{{warpctrl_wrapper_path}}" "/usr/local/bin/{{warpctrl_binary_name}}"`。先尝试不提权执行。如果 macOS 权限阻止修改，再通过 `osascript` 以管理员权限运行同一命令；不要直接索要或暴露用户密码。
 6. 用 `command -v {{warpctrl_binary_name}}`、`readlink /usr/local/bin/{{warpctrl_binary_name}}` 和 `{{warpctrl_binary_name}} app version` 验证结果。
 
-如果用户选择 **Not now**，不要创建符号链接。本次任务直接使用 `{{warpctrl_wrapper_path}}` 打包 wrapper。
+如果用户选择 **暂不安装**，不要创建符号链接。本次任务直接使用 `{{warpctrl_wrapper_path}}` 打包包装器。
 
 Warp UI 也在 Command Palette 中提供 **Install Warp Control CLI command** 和 **Uninstall Warp Control CLI command**，并在 **Settings > Scripting** 下提供安装控制项。
 

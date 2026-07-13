@@ -47,7 +47,11 @@ impl BillingAndUsageDispatchView {
             ctx.notify();
         });
 
-        let page = PageType::new_monolith(BillingAndUsageWidget, Some("Billing and Usage"), true);
+        let page = PageType::new_monolith(
+            BillingAndUsageWidget,
+            Some("settings.nav.billing_and_usage"),
+            true,
+        );
 
         Self { page, v1, v2 }
     }
@@ -146,7 +150,7 @@ impl SettingsWidget for BillingAndUsageWidget {
     type View = BillingAndUsageDispatchView;
 
     fn search_terms(&self) -> &str {
-        "plan billing a.i. ai usage limit credits balance overview"
+        "plan billing a.i. ai usage limit credits balance overview 计划 账单 用量 限额 额度 余额 概览"
     }
 
     fn render(

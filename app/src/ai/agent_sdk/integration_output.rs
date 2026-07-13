@@ -8,14 +8,20 @@ use warp_graphql::queries::get_simple_integrations::{
     ListedSimpleIntegrationConfig, SimpleIntegration, SimpleIntegrationConnectionStatus,
     SimpleIntegrationsOutput,
 };
+use warp_localization::LocaleId;
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
+use crate::localization;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 
 const MAX_LINE_WIDTH: usize = 90;
 
 /// Print simple integrations.
-pub fn print_integrations(graphql_output: &SimpleIntegrationsOutput, output_format: OutputFormat) {
+pub fn print_integrations(
+    graphql_output: &SimpleIntegrationsOutput,
+    output_format: OutputFormat,
+    locale: LocaleId,
+) {
     if let Some(message) = &graphql_output.message {
         eprintln!("{message}");
         return;
@@ -24,7 +30,10 @@ pub fn print_integrations(graphql_output: &SimpleIntegrationsOutput, output_form
     let integrations = &graphql_output.integrations;
 
     if integrations.is_empty() {
-        println!("No integrations found.");
+        println!(
+            "{}",
+            localization::text_for_locale(locale, "agent_sdk.integration.output.none_found")
+        );
         return;
     }
 
@@ -33,20 +42,39 @@ pub fn print_integrations(graphql_output: &SimpleIntegrationsOutput, output_form
             // Convert to serializable format and use common output utilities
             let integration_infos: Vec<IntegrationInfo> = integrations
                 .iter()
-                .map(IntegrationInfo::from_graphql)
+                .map(|integration| IntegrationInfo::from_graphql(integration, locale))
                 .collect();
-            output::print_list(integration_infos, output_format);
+            if let Err(err) = output::write_list_for_locale(
+                integration_infos,
+                output_format,
+                std::io::stdout(),
+                locale,
+            ) {
+                eprintln!("{err:#}");
+            }
         }
         OutputFormat::Pretty | OutputFormat::Text => {
             // Use the existing card-style layout for pretty/text output
             if integrations.len() == 1 {
-                println!("\nIntegration:");
+                println!(
+                    "\n{}",
+                    localization::text_for_locale(
+                        locale,
+                        "agent_sdk.integration.output.integration_header"
+                    )
+                );
             } else {
-                println!("\nIntegrations:");
+                println!(
+                    "\n{}",
+                    localization::text_for_locale(
+                        locale,
+                        "agent_sdk.integration.output.integrations_header"
+                    )
+                );
             }
 
             for integration in integrations {
-                print_integration_card(integration);
+                print_integration_card(integration, locale);
             }
         }
     }
@@ -143,7 +171,7 @@ fn mcp_server_display_lines(config: &ListedSimpleIntegrationConfig) -> Vec<Strin
         .collect()
 }
 
-fn print_integration_card(integration: &SimpleIntegration) {
+fn print_integration_card(integration: &SimpleIntegration, locale: LocaleId) {
     let mut table = Table::new();
     table.load_preset(UTF8_FULL);
 
@@ -157,13 +185,10 @@ fn print_integration_card(integration: &SimpleIntegration) {
     );
     table.add_row(vec![title_row]);
 
-    // Row 2: Status: <emoji> Status description
-    let emoji = status_emoji(integration.connection_status);
-    let explanation = status_explanation(integration.connection_status);
-    let status_text = format!("{emoji} {explanation}");
+    let explanation = status_explanation(integration.connection_status, locale);
     let status_row = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
-        "Status",
-        &status_text,
+        &localization::text_for_locale(locale, "agent_sdk.integration.field.status"),
+        &explanation,
         MAX_LINE_WIDTH,
     );
     table.add_row(vec![status_row]);
@@ -173,10 +198,10 @@ fn print_integration_card(integration: &SimpleIntegration) {
         Some(ListedSimpleIntegrationConfig {
             environment_uid, ..
         }) if !environment_uid.is_empty() => environment_uid.clone(),
-        _ => "(none)".to_string(),
+        _ => localization::text_for_locale(locale, "agent_sdk.common.value.none"),
     };
     let env_row = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
-        "Environment",
+        &localization::text_for_locale(locale, "agent_sdk.integration.field.environment"),
         &env_value,
         MAX_LINE_WIDTH,
     );
@@ -186,7 +211,7 @@ fn print_integration_card(integration: &SimpleIntegration) {
     if let Some(ListedSimpleIntegrationConfig { model_id, .. }) = &integration.integration_config {
         if !model_id.is_empty() {
             let model_row = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
-                "Model",
+                &localization::text_for_locale(locale, "agent_sdk.integration.field.model"),
                 model_id,
                 MAX_LINE_WIDTH,
             );
@@ -199,7 +224,7 @@ fn print_integration_card(integration: &SimpleIntegration) {
     {
         if !base_prompt.is_empty() {
             let base_prompt_row = crate::ai::agent_sdk::text_layout::render_labeled_wrapped_field(
-                "Base prompt",
+                &localization::text_for_locale(locale, "agent_sdk.integration.field.base_prompt"),
                 base_prompt,
                 MAX_LINE_WIDTH,
             );
@@ -211,7 +236,11 @@ fn print_integration_card(integration: &SimpleIntegration) {
     if let Some(config) = &integration.integration_config {
         let lines = mcp_server_display_lines(config);
         if !lines.is_empty() {
-            let row = render_labeled_wrapped_lines("MCP servers", &lines, MAX_LINE_WIDTH);
+            let row = render_labeled_wrapped_lines(
+                &localization::text_for_locale(locale, "agent_sdk.integration.field.mcp_servers"),
+                &lines,
+                MAX_LINE_WIDTH,
+            );
             table.add_row(vec![row]);
         }
     }
@@ -221,7 +250,11 @@ fn print_integration_card(integration: &SimpleIntegration) {
     if let Some(created) = integration.created_at {
         let dt = created.utc();
         let formatted = format_approx_duration_from_now_utc(dt);
-        created_updated.push_str(&format!("Created: {formatted}"));
+        created_updated.push_str(&localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.integration.field.created_with_value",
+            &[("created", &formatted)],
+        ));
     }
     if let Some(updated) = integration.updated_at {
         let dt = updated.utc();
@@ -229,7 +262,11 @@ fn print_integration_card(integration: &SimpleIntegration) {
         if !created_updated.is_empty() {
             created_updated.push_str(" | ");
         }
-        created_updated.push_str(&format!("Updated: {formatted}"));
+        created_updated.push_str(&localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.integration.field.updated_with_value",
+            &[("updated", &formatted)],
+        ));
     }
     if !created_updated.is_empty() {
         let wrapped =
@@ -241,30 +278,23 @@ fn print_integration_card(integration: &SimpleIntegration) {
     println!("{table}");
 }
 
-fn status_emoji(status: SimpleIntegrationConnectionStatus) -> &'static str {
+fn status_explanation(status: SimpleIntegrationConnectionStatus, locale: LocaleId) -> String {
     match status {
-        SimpleIntegrationConnectionStatus::NotConnected => "❌",
-        // TODO(bens): these warning emojis render weirdly, maybe switch?
-        SimpleIntegrationConnectionStatus::ConnectionError => "⚠️",
-        SimpleIntegrationConnectionStatus::IntegrationNotConfigured => "⚠️",
-        SimpleIntegrationConnectionStatus::NotEnabled => "⚠️",
-        SimpleIntegrationConnectionStatus::Active => "✅",
-    }
-}
-
-fn status_explanation(status: SimpleIntegrationConnectionStatus) -> &'static str {
-    match status {
-        SimpleIntegrationConnectionStatus::NotConnected => "This integration is not connected.",
+        SimpleIntegrationConnectionStatus::NotConnected => {
+            localization::text_for_locale(locale, "agent_sdk.integration.status.not_connected")
+        }
         SimpleIntegrationConnectionStatus::ConnectionError => {
-            "This provider is connected but there is an error."
+            localization::text_for_locale(locale, "agent_sdk.integration.status.connection_error")
         }
         SimpleIntegrationConnectionStatus::IntegrationNotConfigured => {
-            "Connection is active, but the agent integration has not been configured yet."
+            localization::text_for_locale(locale, "agent_sdk.integration.status.not_configured")
         }
         SimpleIntegrationConnectionStatus::NotEnabled => {
-            "Integration is configured but currently disabled."
+            localization::text_for_locale(locale, "agent_sdk.integration.status.not_enabled")
         }
-        SimpleIntegrationConnectionStatus::Active => "Integration is connected and enabled.",
+        SimpleIntegrationConnectionStatus::Active => {
+            localization::text_for_locale(locale, "agent_sdk.integration.status.active")
+        }
     }
 }
 
@@ -285,10 +315,10 @@ struct IntegrationInfo {
 }
 
 impl IntegrationInfo {
-    fn from_graphql(integration: &SimpleIntegration) -> Self {
+    fn from_graphql(integration: &SimpleIntegration, locale: LocaleId) -> Self {
         let provider =
             crate::ai::agent_sdk::text_layout::title_case_identifier(&integration.provider_slug);
-        let status = status_explanation(integration.connection_status).to_string();
+        let status = status_explanation(integration.connection_status, locale);
 
         let environment_uid = integration.integration_config.as_ref().and_then(|config| {
             if config.environment_uid.is_empty() {
@@ -311,11 +341,15 @@ impl IntegrationInfo {
 
         let created_at_formatted = created_at
             .map(format_approx_duration_from_now_utc)
-            .unwrap_or_else(|| "Unknown".to_string());
+            .unwrap_or_else(|| {
+                localization::text_for_locale(locale, "agent_sdk.common.value.unknown")
+            });
 
         let updated_at_formatted = updated_at
             .map(format_approx_duration_from_now_utc)
-            .unwrap_or_else(|| "Unknown".to_string());
+            .unwrap_or_else(|| {
+                localization::text_for_locale(locale, "agent_sdk.common.value.unknown")
+            });
 
         Self {
             provider,
@@ -333,24 +367,56 @@ impl IntegrationInfo {
 
 impl TableFormat for IntegrationInfo {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("Provider"),
-            Cell::new("Description"),
-            Cell::new("Status"),
-            Cell::new("Environment"),
-            Cell::new("Created"),
-            Cell::new("Updated"),
-        ]
+        integration_header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        integration_header_for_locale(locale)
     }
 
     fn row(&self) -> Vec<Cell> {
+        self.row_for_locale(LocaleId::EnUs)
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
         vec![
             Cell::new(&self.provider),
             Cell::new(&self.description),
             Cell::new(&self.status),
-            Cell::new(self.environment_uid.as_deref().unwrap_or("(none)")),
+            Cell::new(self.environment_uid.clone().unwrap_or_else(|| {
+                localization::text_for_locale(locale, "agent_sdk.common.value.none")
+            })),
             Cell::new(&self.created_at_formatted),
             Cell::new(&self.updated_at_formatted),
         ]
     }
+}
+
+fn integration_header_for_locale(locale: LocaleId) -> Vec<Cell> {
+    vec![
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.integration.table.provider",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.integration.table.description",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.integration.table.status",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.integration.table.environment",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.integration.table.created",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.integration.table.updated",
+        )),
+    ]
 }

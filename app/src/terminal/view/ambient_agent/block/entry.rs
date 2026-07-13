@@ -28,7 +28,6 @@ use crate::terminal::{BlockListSettings, TerminalManager, TerminalView};
 use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icon_with_status::{render_icon_with_status, IconWithStatusVariant};
-const DEFAULT_CLOUD_AGENT_TITLE: &str = "New cloud agent";
 
 #[derive(Default)]
 struct StateHandles {
@@ -136,8 +135,12 @@ impl AmbientAgentEntryBlock {
 
     fn meaningful_title(title: &str) -> Option<String> {
         let title = title.trim();
-        (!title.is_empty() && !title.eq_ignore_ascii_case(DEFAULT_CLOUD_AGENT_TITLE))
-            .then(|| title.to_owned())
+        (!title.is_empty()
+            && !title.eq_ignore_ascii_case(&localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "terminal.agent_title.new_cloud_agent",
+            )))
+        .then(|| title.to_owned())
     }
 
     fn title_from_task_data(&self, app: &AppContext) -> Option<String> {

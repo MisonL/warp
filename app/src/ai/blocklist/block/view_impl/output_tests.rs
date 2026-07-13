@@ -2,6 +2,7 @@ use ai::agent::action::UploadArtifactRequest;
 use ai::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{DirectoryWatcher, RepoMetadataModel};
+use warp_localization::LocaleId;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::remote_path::RemotePath;
@@ -24,7 +25,7 @@ fn format_upload_artifact_text_includes_request_details() {
         description: Some("Daily summary".to_string()),
     };
 
-    let text = format_upload_artifact_text(&request, None);
+    let text = format_upload_artifact_text(&request, None, LocaleId::EnUs);
 
     assert_eq!(
         text,
@@ -46,7 +47,7 @@ fn format_upload_artifact_text_includes_success_summary() {
         size_bytes: 128,
     };
 
-    let text = format_upload_artifact_text(&request, Some(&result));
+    let text = format_upload_artifact_text(&request, Some(&result), LocaleId::EnUs);
 
     assert_eq!(
         text,
@@ -66,15 +67,41 @@ fn format_upload_artifact_text_includes_terminal_status() {
         Some(&UploadArtifactResult::Error(
             "permission denied".to_string(),
         )),
+        LocaleId::EnUs,
     );
     assert_eq!(
         error_text,
         "Upload artifact: reports/daily.txt\nStatus: upload failed: permission denied"
     );
 
-    let cancelled_text =
-        format_upload_artifact_text(&request, Some(&UploadArtifactResult::Cancelled));
+    let cancelled_text = format_upload_artifact_text(
+        &request,
+        Some(&UploadArtifactResult::Cancelled),
+        LocaleId::EnUs,
+    );
     assert_eq!(cancelled_text, "Upload artifact: reports/daily.txt");
+}
+
+#[test]
+fn format_upload_artifact_text_uses_selected_locale() {
+    let request = UploadArtifactRequest {
+        file_path: "reports/daily.txt".to_string(),
+        description: Some("Daily summary".to_string()),
+    };
+    let result = UploadArtifactResult::Success {
+        artifact_uid: "artifact-123".to_string(),
+        filepath: Some("reports/daily.txt".to_string()),
+        mime_type: "text/plain".to_string(),
+        description: Some("Daily summary".to_string()),
+        size_bytes: 128,
+    };
+
+    let text = format_upload_artifact_text(&request, Some(&result), LocaleId::ZhCn);
+
+    assert_eq!(
+        text,
+        "上传产物：reports/daily.txt\n描述：Daily summary\n状态：已上传产物 artifact-123\n已上传文件：reports/daily.txt"
+    );
 }
 
 fn make_skill(name: &str) -> ParsedSkill {

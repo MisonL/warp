@@ -26,7 +26,7 @@ use super::model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus};
 use super::view_impl::common::{
     render_switch_control_to_user_button, render_warping_indicator, render_warping_indicator_base,
     AutoExecuteButtonProps, ButtonProps, ForceRefreshButtonProps, MaybeShimmeringText,
-    WarpingIndicatorProps, WarpingProps, LOAD_OUTPUT_MESSAGE, WAITING_FOR_USER_INPUT_MESSAGE,
+    WarpingIndicatorProps, WarpingProps,
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{
@@ -804,11 +804,11 @@ impl BlocklistAIStatusBar {
             model.as_ref(),
             app,
         );
-        let default_warping_text = fallback_warping_text
-            .as_deref()
-            .unwrap_or(LOAD_OUTPUT_MESSAGE)
-            .to_owned();
-        let secondary_element = if fallback_warping_text.is_some() {
+        let has_fallback_warping_text = fallback_warping_text.is_some();
+        let default_warping_text = fallback_warping_text.unwrap_or_else(|| {
+            crate::localization::text_for_app(app, "agent.warping.status.default")
+        });
+        let secondary_element = if has_fallback_warping_text {
             Some(render_fallback_explanation(model.as_ref(), app))
         } else {
             self.render_tip(app)
@@ -928,7 +928,13 @@ impl BlocklistAIStatusBar {
         if let Some(auth_url) = ambient_agent_model.github_auth_url() {
             let error_message = ambient_agent_model
                 .github_auth_error_message()
-                .unwrap_or("Missing GitHub authentication.");
+                .map(str::to_owned)
+                .unwrap_or_else(|| {
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.cloud_mode_setup.github_auth_missing",
+                    )
+                });
             return Some(render_wrapping_standard_message_bar(
                 CoreIcon::Triangle,
                 error_color,
@@ -954,7 +960,7 @@ impl BlocklistAIStatusBar {
                 color,
                 color,
                 vec![FormattedTextFragment::plain_text(
-                    "Cloud agent run cancelled",
+                    crate::localization::text_for_app(app, "agent.cloud_mode_setup.cancelled"),
                 )],
                 app,
             ));
@@ -1008,7 +1014,10 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
     let theme = appearance.theme();
 
     let tip_description = tip.description.clone();
-    let action_text = tip.action.clone().and_then(|action| action.display_text());
+    let action_text = tip
+        .action
+        .clone()
+        .and_then(|action| action.display_text(app));
 
     let mut fragments = tip.to_formatted_text(app);
 
@@ -1079,10 +1088,12 @@ fn render_fallback_explanation<V: View>(
         .and_then(|base_id| llm_prefs.get_llm_info(base_id))
         .map(|info| info.base_model_name.as_str());
     let text = match primary_name {
-        Some(primary) => {
-            format!("The primary model ({primary}) failed. Retrying with the fallback model.")
-        }
-        None => "The primary model failed. Retrying with the fallback model.".to_owned(),
+        Some(primary) => crate::localization::text_for_app_with_args(
+            app,
+            "agent.fallback.explanation_with_primary",
+            &[("primary", primary)],
+        ),
+        None => crate::localization::text_for_app(app, "agent.fallback.explanation"),
     };
     let appearance = Appearance::as_ref(app);
     Text::new_inline(
@@ -1135,8 +1146,12 @@ fn resolve_fallback_warping_message<V: View>(
         return None;
     }
     Some(match display_name.as_deref() {
-        Some(name) => format!("Warping with {name}."),
-        None => "Warping with another model.".to_owned(),
+        Some(name) => crate::localization::text_for_app_with_args(
+            app,
+            "agent.warping.status.with_model",
+            &[("name", name)],
+        ),
+        None => crate::localization::text_for_app(app, "agent.warping.status.with_another_model"),
     })
 }
 
@@ -1174,7 +1189,11 @@ impl View for BlocklistAIStatusBar {
                     WarpingIndicatorProps {
                         icon: None,
                         warping_indicator_text: MaybeShimmeringText::Shimmering {
-                            text: "Setting up environment".into(),
+                            text: crate::localization::text_for_app(
+                                app,
+                                "agent.warping.status.setting_up_environment",
+                            )
+                            .into(),
                             shimmering_text_handle: self.shimmering_text_handle.clone(),
                         },
                         non_shimmering_text: None,
@@ -1201,13 +1220,17 @@ impl View for BlocklistAIStatusBar {
                     WarpingIndicatorProps {
                         icon: Some(icons::gray_clock_icon(appearance).finish()),
                         warping_indicator_text: MaybeShimmeringText::Static(
-                            WAITING_FOR_USER_INPUT_MESSAGE.into(),
+                            crate::localization::text_for_app(
+                                app,
+                                "agent.warping.status.waiting_for_user_input",
+                            )
+                            .into(),
                         ),
                         non_shimmering_text: None,
                         non_shimmering_suffix: None,
                         buttons: Some(render_switch_control_to_user_button(
-                            "Exit",
-                            "Exit agent input",
+                            crate::localization::text_for_app(app, "agent.warping.exit"),
+                            crate::localization::text_for_app(app, "agent.warping.exit_tooltip"),
                             ButtonProps {
                                 button_handle: &self.state_handles.take_over_button,
                                 keystroke: self.set_terminal_input_keystroke.as_ref(),

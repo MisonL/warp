@@ -52,14 +52,14 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentActionTypeDiscriminants, AIAgentExchange, AIAgentInput,
     CancellationReason, CreateDocumentsResult, EditDocumentsResult, RequestCommandOutputResult,
 };
-use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
+use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE_KEY;
 use crate::ai::blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model_events::ModelEventDispatcher;
 use crate::terminal::TerminalModel;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, TelemetryEvent};
 
 /// The status of an action from an AI output.
 #[derive(Clone, Debug)]
@@ -1343,6 +1343,8 @@ impl BlocklistAIActionModel {
                 let titles = conversation.get_document_titles_for_action(&result.id);
 
                 let doc_model = AIDocumentModel::handle(ctx);
+                let default_document_title =
+                    localization::text_for_app(ctx, DEFAULT_PLANNING_DOCUMENT_TITLE_KEY);
                 doc_model.update(ctx, |doc_model, doc_ctx| {
                     for (index, doc_context) in created_documents.iter_mut().enumerate() {
                         // If a user is re-opening a shared session that they previously closed in the current warp session,
@@ -1353,7 +1355,7 @@ impl BlocklistAIActionModel {
                             .as_ref()
                             .and_then(|t| t.get(index))
                             .cloned()
-                            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
+                            .unwrap_or_else(|| default_document_title.clone());
 
                         doc_model.restore_document(
                             doc_context.document_id,

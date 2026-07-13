@@ -2,11 +2,13 @@ use comfy_table::Cell;
 use serde::Serialize;
 use warp_cli::agent::AgentProfileCommand;
 use warp_cli::GlobalOptions;
+use warp_localization::LocaleId;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::cloud_object::model::generic_string_model::StringModel;
+use crate::localization;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 
@@ -32,6 +34,7 @@ impl ProfilesCommandRunner {
     fn list(&self, global_options: GlobalOptions, ctx: &mut ModelContext<Self>) {
         // Ensure initial cloud sync completes so profiles from the server are available.
         let initial_sync = UpdateManager::as_ref(ctx).initial_load_complete();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(initial_sync, move |_, _, ctx| {
             let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
@@ -45,13 +48,15 @@ impl ProfilesCommandRunner {
                     let name = profile.data().display_name().to_string();
                     let id = match profile.sync_id() {
                         Some(SyncId::ServerId(server_id)) => server_id.to_string(),
-                        _ => "Unsynced".to_string(),
+                        _ => {
+                            localization::text_for_locale(locale, "agent_sdk.common.value.unsynced")
+                        }
                     };
                     ProfileInfo { id, name }
                 })
                 .collect();
 
-            output::print_list(profiles, global_options.output_format);
+            output::print_list_for_locale(profiles, global_options.output_format, locale);
 
             ctx.terminate_app(warpui::platform::TerminationMode::ForceTerminate, None);
         });
@@ -73,6 +78,19 @@ struct ProfileInfo {
 impl TableFormat for ProfileInfo {
     fn header() -> Vec<Cell> {
         vec![Cell::new("ID"), Cell::new("Name")]
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        vec![
+            Cell::new(localization::text_for_locale(
+                locale,
+                "agent_sdk.profiles.table.id",
+            )),
+            Cell::new(localization::text_for_locale(
+                locale,
+                "agent_sdk.profiles.table.name",
+            )),
+        ]
     }
 
     fn row(&self) -> Vec<Cell> {

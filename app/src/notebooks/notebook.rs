@@ -815,10 +815,10 @@ impl NotebookView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(
-                            "This notebook cannot be saved because its content contains secrets"
-                                .to_string(),
-                        ),
+                        DismissibleToast::error(crate::localization::text_for_app(
+                            ctx,
+                            "notebook.error.content_contains_secrets",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -1766,10 +1766,10 @@ impl NotebookView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(
-                            "This notebook cannot be saved because its title contains secrets"
-                                .to_string(),
-                        ),
+                        DismissibleToast::error(crate::localization::text_for_app(
+                            ctx,
+                            "notebook.error.title_contains_secrets",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -1844,8 +1844,14 @@ impl NotebookView {
 
     fn run_notebook_workflow(&self, workflow: &NotebookWorkflow, ctx: &mut ViewContext<Self>) {
         // If the notebook workflow was anonymous, synthesize metadata for it.
-        let workflow_type =
-            workflow.named_workflow(|| Some(format!("Command from {}", self.title(ctx))));
+        let workflow_type = workflow.named_workflow(|| {
+            let title = self.title(ctx);
+            Some(crate::localization::text_for_app_with_args(
+                ctx,
+                "notebook.workflow.command_from",
+                &[("title", &title)],
+            ))
+        });
 
         let notebook_id = self.server_id(ctx);
         let source = workflow.source.unwrap_or_else(|| {

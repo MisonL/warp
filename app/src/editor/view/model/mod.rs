@@ -45,6 +45,7 @@ use warpui::{AppContext, Entity, ModelAsRef, ModelContext, ModelHandle, Singleto
 use self::buffer::Peer;
 use super::{movement, PlainTextEditorViewAction, SelectionInsertion, ValidInputType};
 use crate::editor::RangeExt;
+use crate::localization;
 use crate::vim_registers::VimRegisters;
 
 lazy_static! {
@@ -513,9 +514,10 @@ impl EditorModel {
                 };
                 AccessibilityContent::new(delta, format!(", {action}"), WarpA11yRole::UserAction)
             }
-            (true, false) => {
-                AccessibilityContent::new_without_help("Unselected", WarpA11yRole::UserAction)
-            }
+            (true, false) => AccessibilityContent::new_without_help(
+                localization::text_for_app(ctx, "editor.a11y.unselected"),
+                WarpA11yRole::UserAction,
+            ),
         }
     }
 

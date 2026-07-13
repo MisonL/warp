@@ -11,9 +11,7 @@ use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_settings::{
     HeaderToolbarChipSelection, TabSettings, TabSettingsChangedEvent,
 };
-use crate::{report_if_error, Appearance};
-
-const MODAL_TITLE: &str = "Edit toolbar";
+use crate::{localization, report_if_error, Appearance};
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -242,10 +240,12 @@ impl View for HeaderToolbarInlineEditor {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let available_section_label =
+            localization::text_for_app(app, "workspace.header_toolbar.editor.available_items");
         render_chip_editor_sections(
             &self.chip_configurator,
             ChipEditorSectionsConfig {
-                available_section_label: "Available items",
+                available_section_label: available_section_label.as_str(),
                 is_at_defaults: is_toolbar_editor_at_defaults(&self.chip_configurator),
                 reset_action: HeaderToolbarInlineEditorAction::ResetDefault,
                 activate_action: HeaderToolbarInlineEditorAction::Activate,
@@ -253,6 +253,7 @@ impl View for HeaderToolbarInlineEditor {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }
@@ -336,11 +337,14 @@ impl View for HeaderToolbarEditorModal {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let title = localization::text_for_app(app, "workspace.header_toolbar.editor.title");
+        let available_section_label =
+            localization::text_for_app(app, "workspace.header_toolbar.editor.available_items");
         render_chip_editor_modal(
             &self.chip_configurator,
             ChipEditorModalConfig {
-                title: MODAL_TITLE,
-                available_section_label: "Available items",
+                title: title.as_str(),
+                available_section_label: available_section_label.as_str(),
                 is_at_defaults: self.is_at_defaults(),
                 is_dirty: self.is_dirty,
                 cancel_action: HeaderToolbarEditorAction::Cancel,

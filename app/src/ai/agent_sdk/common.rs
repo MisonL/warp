@@ -9,6 +9,7 @@ use futures::TryFutureExt;
 use inquire::{InquireError, Select};
 use warp_cli::agent::Harness;
 use warp_cli::environment::{EnvironmentCreateArgs, EnvironmentUpdateArgs};
+use warp_localization::LocaleId;
 use warpui::r#async::FutureExt;
 use warpui::{AppContext, GetSingletonModelHandle, SingletonEntity as _, UpdateModel};
 
@@ -19,6 +20,7 @@ use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::auth::auth_state::AuthStateProvider;
 use crate::cloud_object::{CloudObject, CloudObjectLookup as _, Owner};
+use crate::localization;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ai::AIClient;
@@ -49,12 +51,15 @@ pub fn validate_agent_mode_base_model_id(
             .map(|id| id.to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        Err(anyhow::anyhow!(
-            "Unknown model id '{model_id}'. Try one of: {suggestions}"
-        ))
+        Err(anyhow::anyhow!(localization::text_for_app_with_args(
+            ctx,
+            "agent_sdk.common.error.unknown_model_id",
+            &[("model_id", model_id), ("suggestions", &suggestions)]
+        )))
     }
 }
 
+#[cfg(test)]
 pub(super) fn parse_ambient_task_id(
     run_id: &str,
     error_prefix: &str,
@@ -64,11 +69,33 @@ pub(super) fn parse_ambient_task_id(
         .map_err(|err| anyhow::anyhow!("{error_prefix} '{run_id}': {err}"))
 }
 
+pub(super) fn parse_ambient_task_id_for_locale(
+    run_id: &str,
+    error_prefix: &str,
+    locale: LocaleId,
+) -> anyhow::Result<AmbientAgentTaskId> {
+    run_id.parse::<AmbientAgentTaskId>().map_err(|err| {
+        let error = err.to_string();
+        anyhow::anyhow!(localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.common.error.invalid_ambient_task_id",
+            &[
+                ("prefix", error_prefix),
+                ("run_id", run_id),
+                ("error", &error),
+            ],
+        ))
+    })
+}
+
 pub(super) fn set_ambient_task_context_from_run_id(
     ctx: &AppContext,
     run_id: &str,
 ) -> anyhow::Result<AmbientAgentTaskId> {
-    let task_id = parse_ambient_task_id(run_id, "Invalid run ID")?;
+    let locale = localization::current_locale(ctx);
+    let error_prefix =
+        localization::text_for_locale(locale, "agent_sdk.common.error.invalid_run_id");
+    let task_id = parse_ambient_task_id_for_locale(run_id, &error_prefix, locale)?;
     ServerApiProvider::handle(ctx)
         .as_ref(ctx)
         .get()
@@ -85,7 +112,12 @@ pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyh
     if team_flag {
         let team_id = UserWorkspaces::as_ref(ctx)
             .current_team_uid()
-            .ok_or_else(|| anyhow::anyhow!("User is not on a team"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(localization::text_for_app(
+                    ctx,
+                    "agent_sdk.common.error.user_not_on_team"
+                ))
+            })?;
         return Ok(Owner::Team { team_uid: team_id });
     }
 
@@ -93,7 +125,12 @@ pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyh
         let user_id = AuthStateProvider::as_ref(ctx)
             .get()
             .user_id()
-            .ok_or_else(|| anyhow::anyhow!("User should be logged in"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(localization::text_for_app(
+                    ctx,
+                    "agent_sdk.common.error.user_not_logged_in"
+                ))
+            })?;
         return Ok(Owner::User { user_uid: user_id });
     }
 
@@ -106,7 +143,12 @@ pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyh
     let user_id = AuthStateProvider::as_ref(ctx)
         .get()
         .user_id()
-        .ok_or_else(|| anyhow::anyhow!("User should be logged in"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(localization::text_for_app(
+                ctx,
+                "agent_sdk.common.error.user_not_logged_in"
+            ))
+        })?;
     Ok(Owner::User { user_uid: user_id })
 }
 
@@ -116,6 +158,7 @@ pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyh
 /// other operations that depend on team membership.
 pub fn refresh_workspace_metadata<C>(
     ctx: &mut C,
+    locale: LocaleId,
 ) -> impl Future<Output = anyhow::Result<()>> + Send + 'static
 where
     C: GetSingletonModelHandle + UpdateModel,
@@ -127,9 +170,12 @@ where
     });
 
     async move {
-        let _ = refresh_future
-            .await
-            .map_err(|_| anyhow::anyhow!("Timed out refreshing team metadata"))?;
+        let _ = refresh_future.await.map_err(|_| {
+            anyhow::anyhow!(localization::text_for_locale(
+                locale,
+                "agent_sdk.driver.error.team_metadata_refresh_timeout"
+            ))
+        })?;
         Ok(())
     }
 }
@@ -137,11 +183,17 @@ where
 /// Refresh Warp Drive before executing an operation.
 pub fn refresh_warp_drive(
     ctx: &AppContext,
+    locale: LocaleId,
 ) -> impl Future<Output = anyhow::Result<()>> + Send + 'static {
     UpdateManager::as_ref(ctx)
         .initial_load_complete()
         .with_timeout(WARP_DRIVE_SYNC_TIMEOUT)
-        .map_err(|_| anyhow::anyhow!("Timed out waiting for Warp Drive to sync"))
+        .map_err(move |_| {
+            anyhow::anyhow!(localization::text_for_locale(
+                locale,
+                "agent_sdk.common.error.warp_drive_sync_timeout"
+            ))
+        })
 }
 
 /// Fetch the conversation's server metadata and validate that its harness matches the caller's
@@ -156,6 +208,7 @@ pub(super) async fn fetch_and_validate_conversation_harness(
     ai_client: Arc<dyn AIClient>,
     conversation_id: &str,
     args_harness: Harness,
+    locale: LocaleId,
 ) -> Result<ServerAIConversationMetadata, AgentDriverError> {
     let metadata = ai_client
         .list_ai_conversation_metadata(Some(vec![conversation_id.to_string()]))
@@ -164,8 +217,10 @@ pub(super) async fn fetch_and_validate_conversation_harness(
         .into_iter()
         .next()
         .ok_or_else(|| {
-            AgentDriverError::ConversationLoadFailed(format!(
-                "conversation {conversation_id} not found or not accessible"
+            AgentDriverError::ConversationLoadFailed(localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.common.error.conversation_not_found_or_not_accessible",
+                &[("conversation_id", conversation_id)],
             ))
         })?;
 

@@ -8,7 +8,6 @@ use warp::integration_testing::subshell::{
     enter_local_subshell_command, enter_remote_subshell_command, enter_ssh_password,
     setup_gcloud_sdk, trigger_subshell_bootstrap, wait_for_password_prompt,
 };
-use warp::integration_testing::terminal::util::current_shell_starter_and_version;
 use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for_tab;
 use warp::integration_testing::view_getters::single_input_view_for_tab;
 use warp::root_view::SubshellCommandArg;
@@ -20,7 +19,7 @@ use warpui_core::windowing::WindowManager;
 use warpui_core::{async_assert, UpdateModel};
 
 use super::{new_builder, Builder};
-use crate::util::skip_if_powershell_core_2303;
+use crate::util::{can_run_gcloud_ssh_tests, skip_if_powershell_core_2303};
 
 /// Generates an integration test that asserts that a local subshell of the given shell type can be
 /// successfully bootstrapped.
@@ -54,10 +53,7 @@ macro_rules! generate_can_bootstrap_remote_subshell_for_shell {
         pub fn $fn_name() -> Builder {
             new_builder()
                 // TODO(CORE-2333) PowerShell has no SSH wrapper.
-                .set_should_run_test(|| {
-                    let (starter, _) = current_shell_starter_and_version();
-                    starter.shell_type() != ShellType::PowerShell
-                })
+                .set_should_run_test(can_run_gcloud_ssh_tests)
                 .with_user_defaults(HashMap::from([(
                     AddedSubshellCommands::storage_key().to_owned(),
                     serde_json::to_string(&vec![ssh_command($shell, false)])

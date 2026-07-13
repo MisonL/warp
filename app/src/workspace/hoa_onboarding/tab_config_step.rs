@@ -88,27 +88,34 @@ where
         state.directory_button_mouse_state,
         handlers.on_open_directory_picker,
         Some(callout_bg),
+        app,
         appearance,
     );
 
     let worktree_section = session_config_rendering::render_worktree_checkbox_with_background(
-        state.enable_worktree,
-        state.is_git_repo,
-        state.worktree_checkbox_mouse_state,
-        state.worktree_tooltip_mouse_state,
+        session_config_rendering::CheckboxRenderConfig::new(
+            state.enable_worktree,
+            state.is_git_repo,
+            state.worktree_checkbox_mouse_state,
+            state.worktree_tooltip_mouse_state,
+        )
+        .with_background(callout_bg),
         handlers.on_toggle_worktree,
-        Some(callout_bg),
+        app,
         appearance,
     );
 
     let autogenerate_section =
         session_config_rendering::render_autogenerate_worktree_branch_name_checkbox_with_background(
-            state.autogenerate_worktree_branch_name,
-            state.enable_worktree,
-            state.autogenerate_checkbox_mouse_state,
-            state.autogenerate_tooltip_mouse_state,
+            session_config_rendering::CheckboxRenderConfig::new(
+                state.autogenerate_worktree_branch_name,
+                state.enable_worktree,
+                state.autogenerate_checkbox_mouse_state,
+                state.autogenerate_tooltip_mouse_state,
+            )
+            .with_background(callout_bg),
             handlers.on_toggle_autogenerate,
-            Some(callout_bg),
+            app,
             appearance,
         );
 

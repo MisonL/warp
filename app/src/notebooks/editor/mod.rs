@@ -132,18 +132,6 @@ impl BlockType {
         }
     }
 
-    fn label(self) -> &'static str {
-        match self {
-            BlockType::Text => "Text",
-            BlockType::Header(size) => size.label(),
-            BlockType::RunnableCommand => "Command",
-            BlockType::UnorderedList => "Bulleted list",
-            BlockType::OrderedList => "Numbered list",
-            BlockType::Code => "Code",
-            BlockType::TaskList => "To-do list",
-        }
-    }
-
     fn localized_label(self, app: &AppContext) -> String {
         let key = match self {
             BlockType::Text => "notebook.block.text",

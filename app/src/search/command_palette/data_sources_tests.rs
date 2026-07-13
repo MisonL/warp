@@ -25,6 +25,7 @@ use crate::server::server_api::ServerApiProvider;
 use crate::server::sync_queue::SyncQueue;
 use crate::settings::AISettings;
 use crate::system::SystemStats;
+use crate::test_util::settings::initialize_localization_for_tests;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::{CloudWorkflowModel, WorkflowId};
 use crate::workspaces::team_tester::TeamTesterStatus;
@@ -78,6 +79,7 @@ fn mock_server_notebook(id: NotebookId, owner: Owner) -> ServerNotebook {
 }
 
 fn initialize_app(app: &mut App) {
+    initialize_localization_for_tests(app);
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());

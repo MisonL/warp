@@ -32,6 +32,7 @@ use warpui::{
 use super::editor::view::{CodeEditorRenderOptions, CodeEditorView};
 use super::global_buffer_model::GlobalBufferModel;
 use crate::editor::InteractionState;
+use crate::localization;
 use crate::search::result_renderer::ItemHighlightState;
 
 /// Maximum height for the find references card.
@@ -644,7 +645,7 @@ fn render_reference_entry(
             } else {
                 // Show loading indicator when line_content is None
                 Text::new_inline(
-                    "Loading...",
+                    localization::text_for_app(app, "code.find_references.loading"),
                     appearance.monospace_font_family(),
                     appearance.monospace_font_size(),
                 )

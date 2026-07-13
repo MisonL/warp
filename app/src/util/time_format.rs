@@ -54,6 +54,129 @@ pub fn localized_approx_duration_from_now_utc_for_locale(
     localized_human_readable_approx_duration_for_locale(locale, Utc::now().sub(datetime), false)
 }
 
+pub fn localized_month_day(app: &AppContext, datetime: DateTime<Local>) -> String {
+    localized_month_day_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_month_day_for_locale(locale: LocaleId, datetime: DateTime<Local>) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%b %d").to_string(),
+        LocaleId::ZhCn => datetime.format("%m月%d日").to_string(),
+    }
+}
+
+pub fn localized_month_day_year(app: &AppContext, datetime: DateTime<Local>) -> String {
+    localized_month_day_year_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_month_day_year_for_locale(locale: LocaleId, datetime: DateTime<Local>) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%b %d, %Y").to_string(),
+        LocaleId::ZhCn => datetime.format("%Y年%m月%d日").to_string(),
+    }
+}
+
+pub fn localized_month_day_time(app: &AppContext, datetime: DateTime<Local>) -> String {
+    localized_month_day_time_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_month_day_time_for_locale(locale: LocaleId, datetime: DateTime<Local>) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%b %d at %-I:%M %p").to_string(),
+        LocaleId::ZhCn => datetime.format("%m月%d日 %H:%M").to_string(),
+    }
+}
+
+pub fn localized_month_day_year_time(app: &AppContext, datetime: DateTime<Local>) -> String {
+    localized_month_day_year_time_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_month_day_year_time_for_locale(
+    locale: LocaleId,
+    datetime: DateTime<Local>,
+) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%m/%d/%Y at %-I:%M%P").to_string(),
+        LocaleId::ZhCn => datetime.format("%Y年%m月%d日 %H:%M").to_string(),
+    }
+}
+
+pub fn localized_numeric_date_time(app: &AppContext, datetime: DateTime<Local>) -> String {
+    localized_numeric_date_time_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_numeric_date_time_for_locale(
+    locale: LocaleId,
+    datetime: DateTime<Local>,
+) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%-m/%-d/%y %-I:%M %p").to_string(),
+        LocaleId::ZhCn => datetime.format("%Y-%m-%d %H:%M").to_string(),
+    }
+}
+
+pub fn localized_weekday_month_day_year_time(
+    app: &AppContext,
+    datetime: DateTime<Local>,
+) -> String {
+    localized_weekday_month_day_year_time_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_weekday_month_day_year_time_for_locale(
+    locale: LocaleId,
+    datetime: DateTime<Local>,
+) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%a, %b %-d %Y at %-I:%M %p").to_string(),
+        LocaleId::ZhCn => datetime.format("%Y年%m月%d日 %H:%M").to_string(),
+    }
+}
+
+pub fn localized_weekday_month_day_time(app: &AppContext, datetime: DateTime<Local>) -> String {
+    localized_weekday_month_day_time_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_weekday_month_day_time_for_locale(
+    locale: LocaleId,
+    datetime: DateTime<Local>,
+) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%a %b %-d at %-I:%M %p").to_string(),
+        LocaleId::ZhCn => datetime.format("%Y-%m-%d %H:%M").to_string(),
+    }
+}
+
+pub fn localized_weekday_month_day_time_with_seconds(
+    app: &AppContext,
+    datetime: DateTime<Local>,
+) -> String {
+    localized_weekday_month_day_time_with_seconds_for_locale(
+        localization::current_locale(app),
+        datetime,
+    )
+}
+
+pub fn localized_weekday_month_day_time_with_seconds_for_locale(
+    locale: LocaleId,
+    datetime: DateTime<Local>,
+) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%a %b %-d at %-I:%M:%S %p").to_string(),
+        LocaleId::ZhCn => datetime.format("%Y-%m-%d %H:%M:%S").to_string(),
+    }
+}
+
+pub fn localized_time_of_day(app: &AppContext, datetime: DateTime<Local>) -> String {
+    localized_time_of_day_for_locale(localization::current_locale(app), datetime)
+}
+
+pub fn localized_time_of_day_for_locale(locale: LocaleId, datetime: DateTime<Local>) -> String {
+    match locale {
+        LocaleId::EnUs => datetime.format("%l:%M%P").to_string(),
+        LocaleId::ZhCn => datetime.format("%H:%M").to_string(),
+    }
+}
+
 /// Format a duration into a human-readable string, e.g. "3.14 sec".
 /// Compared to [`human_readable_approx_duration`], this method is for higher-precision, smaller
 /// values.

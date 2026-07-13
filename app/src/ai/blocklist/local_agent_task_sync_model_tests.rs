@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use session_sharing_protocol::common::SessionId;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
+use warp_localization::LocaleId;
 use warpui::App;
 
 use super::super::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
@@ -159,6 +160,30 @@ fn transient_network_error_is_error_with_internal_and_debug_details() {
         Some(PlatformErrorCode::InternalError),
         Some("Debug info: stream completed with an unfinished exchange"),
     );
+}
+
+#[test]
+fn canonical_renderable_errors_match_the_english_catalog() {
+    let cases = [
+        (
+            RenderableAIError::ServerOverloaded,
+            "agent.task_status.server_overloaded",
+        ),
+        (
+            RenderableAIError::InternalWarpError,
+            "agent.task_status.internal_error",
+        ),
+    ];
+
+    for (error, key) in cases {
+        let (_, update) = classify_renderable_error(&error);
+        assert_eq!(
+            update
+                .expect("classification should include a status message")
+                .message,
+            crate::localization::text_for_locale(LocaleId::EnUs, key)
+        );
+    }
 }
 
 // --- map_conversation_status ---

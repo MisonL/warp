@@ -8,6 +8,7 @@ use warp_cli::artifact::{
     ArtifactCommand, DownloadArtifactArgs, GetArtifactArgs, UploadArtifactArgs,
 };
 use warp_cli::GlobalOptions;
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
@@ -15,6 +16,7 @@ use super::artifact_upload::{
     CompletedFileArtifactUpload, FileArtifactUploadRequest, FileArtifactUploader,
 };
 use crate::ai::artifact_download::{download_artifact_bytes, download_destination};
+use crate::localization;
 #[cfg(test)]
 use crate::server::server_api::ai::FileArtifactRecord;
 use crate::server::server_api::ai::{AIClient, ArtifactDownloadResponse};
@@ -59,12 +61,13 @@ impl ArtifactCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
-            async move { get_artifact(ai_client, &args.artifact_uid).await },
+            async move { get_artifact(ai_client, &args.artifact_uid, locale).await },
             move |_, result, ctx| match result {
                 Ok(artifact) => {
-                    if let Err(err) = write_get_output(&artifact, output_format) {
+                    if let Err(err) = write_get_output(&artifact, output_format, locale) {
                         super::report_fatal_error(err, ctx);
                         return;
                     }
@@ -83,12 +86,13 @@ impl ArtifactCommandRunner {
     ) {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
-            async move { download_artifact(ai_client, server_api, args).await },
+            async move { download_artifact(ai_client, server_api, args, locale).await },
             move |_, result, ctx| match result {
                 Ok(output) => {
-                    if let Err(err) = write_download_output(&output, output_format) {
+                    if let Err(err) = write_download_output(&output, output_format, locale) {
                         super::report_fatal_error(err, ctx);
                         return;
                     }
@@ -108,17 +112,22 @@ impl ArtifactCommandRunner {
         let server_api = ServerApiProvider::as_ref(ctx).get();
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
         let uploader = FileArtifactUploader::new(ai_client, server_api.clone());
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
-                let request = FileArtifactUploadRequest::try_from(args)?;
-                let association = uploader.resolve_upload_association(&request).await?;
+                let request = FileArtifactUploadRequest::from_args(args, locale)?;
+                let association = uploader
+                    .resolve_upload_association(&request, locale)
+                    .await?;
                 server_api.set_ambient_agent_task_id(Some(association.ambient_task_id));
-                uploader.upload_with_association(request, association).await
+                uploader
+                    .upload_with_association(request, association, locale)
+                    .await
             },
             move |_, result, ctx| match result {
                 Ok(artifact) => {
-                    if let Err(err) = write_upload_output(&artifact, output_format) {
+                    if let Err(err) = write_upload_output(&artifact, output_format, locale) {
                         super::report_fatal_error(err, ctx);
                         return;
                     }
@@ -139,19 +148,27 @@ impl SingletonEntity for ArtifactCommandRunner {}
 async fn get_artifact(
     ai_client: Arc<dyn AIClient>,
     artifact_uid: &str,
+    locale: LocaleId,
 ) -> Result<ArtifactDownloadResponse> {
     ai_client
         .get_artifact_download(artifact_uid)
         .await
-        .with_context(|| format!("Failed to get artifact '{artifact_uid}'"))
+        .with_context(|| {
+            localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.artifact.error.get_failed",
+                &[("artifact_uid", artifact_uid)],
+            )
+        })
 }
 
 async fn download_artifact(
     ai_client: Arc<dyn AIClient>,
     server_api: Arc<ServerApi>,
     args: DownloadArtifactArgs,
+    locale: LocaleId,
 ) -> Result<DownloadArtifactOutput> {
-    let artifact = get_artifact(ai_client, &args.artifact_uid).await?;
+    let artifact = get_artifact(ai_client, &args.artifact_uid, locale).await?;
     let path = download_destination(&artifact, args.out);
     download_artifact_bytes(server_api.http_client(), &artifact, &path).await?;
     let path = std::path::absolute(&path).unwrap_or(path);
@@ -218,52 +235,133 @@ struct UploadArtifactOutput {
 fn write_get_output(
     artifact: &ArtifactDownloadResponse,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let mut stdout = std::io::stdout();
-    write_get_output_to(&mut stdout, artifact, output_format)
+    write_get_output_to(&mut stdout, artifact, output_format, locale)
 }
 
 fn write_get_output_to<W: std::io::Write>(
     output: &mut W,
     artifact: &ArtifactDownloadResponse,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let output_record = ArtifactMetadataOutput::new(artifact);
 
     match output_format {
         OutputFormat::Json | OutputFormat::Ndjson => {
-            serde_json::to_writer(&mut *output, &output_record)
-                .context("unable to write JSON output")?;
+            serde_json::to_writer(&mut *output, &output_record).context(
+                localization::text_for_locale(locale, "agent_sdk.output.error.write_json"),
+            )?;
             writeln!(&mut *output)?;
         }
         OutputFormat::Pretty => {
-            writeln!(&mut *output, "Artifact UID: {}", output_record.artifact_uid)?;
             writeln!(
                 &mut *output,
-                "Artifact type: {}",
-                output_record.artifact_type
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.artifact_uid",
+                    &[("value", &output_record.artifact_uid)]
+                )
             )?;
-            writeln!(&mut *output, "Created at: {}", output_record.created_at)?;
-            writeln!(&mut *output, "Download URL: {}", output_record.download_url)?;
-            writeln!(&mut *output, "Expires at: {}", output_record.expires_at)?;
-            writeln!(&mut *output, "Content type: {}", output_record.content_type)?;
-            if let Some(filepath) = output_record.filepath {
-                writeln!(&mut *output, "Filepath: {filepath}")?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.artifact_type",
+                    &[("value", &output_record.artifact_type)]
+                )
+            )?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.created_at",
+                    &[("value", &output_record.created_at)]
+                )
+            )?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.download_url",
+                    &[("value", &output_record.download_url)]
+                )
+            )?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.expires_at",
+                    &[("value", &output_record.expires_at)]
+                )
+            )?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.content_type",
+                    &[("value", &output_record.content_type)]
+                )
+            )?;
+            if let Some(filepath) = output_record.filepath.as_deref() {
+                writeln!(
+                    &mut *output,
+                    "{}",
+                    localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.artifact.output.filepath",
+                        &[("value", filepath)]
+                    )
+                )?;
             }
-            if let Some(filename) = output_record.filename {
-                writeln!(&mut *output, "Filename: {filename}")?;
+            if let Some(filename) = output_record.filename.as_deref() {
+                writeln!(
+                    &mut *output,
+                    "{}",
+                    localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.artifact.output.filename",
+                        &[("value", filename)]
+                    )
+                )?;
             }
-            if let Some(description) = output_record.description {
-                writeln!(&mut *output, "Description: {description}")?;
+            if let Some(description) = output_record.description.as_deref() {
+                writeln!(
+                    &mut *output,
+                    "{}",
+                    localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.artifact.output.description",
+                        &[("value", description)]
+                    )
+                )?;
             }
             if let Some(size_bytes) = output_record.size_bytes {
-                writeln!(&mut *output, "Size bytes: {size_bytes}")?;
+                let value = size_bytes.to_string();
+                writeln!(
+                    &mut *output,
+                    "{}",
+                    localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.artifact.output.size_bytes",
+                        &[("value", &value)]
+                    )
+                )?;
             }
         }
         OutputFormat::Text => {
             writeln!(
                 &mut *output,
-                "Artifact UID\tArtifact type\tCreated at\tDownload URL\tExpires at\tContent type\tFilepath\tFilename\tDescription\tSize bytes"
+                "{}",
+                localization::text_for_locale(locale, "agent_sdk.artifact.output.get_text_header")
             )?;
             writeln!(
                 &mut *output,
@@ -291,34 +389,69 @@ fn write_get_output_to<W: std::io::Write>(
 fn write_download_output(
     output_record: &DownloadArtifactOutput,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let mut stdout = std::io::stdout();
-    write_download_output_to(&mut stdout, output_record, output_format)
+    write_download_output_to(&mut stdout, output_record, output_format, locale)
 }
 
 fn write_download_output_to<W: std::io::Write>(
     output: &mut W,
     output_record: &DownloadArtifactOutput,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     match output_format {
         OutputFormat::Json | OutputFormat::Ndjson => {
-            serde_json::to_writer(&mut *output, output_record)
-                .context("unable to write JSON output")?;
+            serde_json::to_writer(&mut *output, output_record).context(
+                localization::text_for_locale(locale, "agent_sdk.output.error.write_json"),
+            )?;
             writeln!(&mut *output)?;
         }
         OutputFormat::Pretty => {
-            writeln!(&mut *output, "Artifact downloaded")?;
-            writeln!(&mut *output, "Artifact UID: {}", output_record.artifact_uid)?;
             writeln!(
                 &mut *output,
-                "Artifact type: {}",
-                output_record.artifact_type
+                "{}",
+                localization::text_for_locale(locale, "agent_sdk.artifact.output.downloaded")
             )?;
-            writeln!(&mut *output, "Path: {}", output_record.path.display())?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.artifact_uid",
+                    &[("value", &output_record.artifact_uid)]
+                )
+            )?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.artifact_type",
+                    &[("value", &output_record.artifact_type)]
+                )
+            )?;
+            let path = output_record.path.display().to_string();
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.path",
+                    &[("value", &path)]
+                )
+            )?;
         }
         OutputFormat::Text => {
-            writeln!(&mut *output, "Artifact UID\tArtifact type\tPath")?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale(
+                    locale,
+                    "agent_sdk.artifact.output.download_text_header"
+                )
+            )?;
             writeln!(
                 &mut *output,
                 "{}\t{}\t{}",
@@ -335,15 +468,17 @@ fn write_download_output_to<W: std::io::Write>(
 fn write_upload_output(
     artifact: &CompletedFileArtifactUpload,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let mut stdout = std::io::stdout();
-    write_upload_output_to(&mut stdout, artifact, output_format)
+    write_upload_output_to(&mut stdout, artifact, output_format, locale)
 }
 
 fn write_upload_output_to<W: std::io::Write>(
     output: &mut W,
     artifact: &CompletedFileArtifactUpload,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let output_record = UploadArtifactOutput {
         artifact_uid: artifact.artifact.artifact_uid.clone(),
@@ -355,33 +490,76 @@ fn write_upload_output_to<W: std::io::Write>(
 
     match output_format {
         OutputFormat::Json | OutputFormat::Ndjson => {
-            serde_json::to_writer(&mut *output, &output_record)
-                .context("unable to write JSON output")?;
+            serde_json::to_writer(&mut *output, &output_record).context(
+                localization::text_for_locale(locale, "agent_sdk.output.error.write_json"),
+            )?;
             writeln!(&mut *output)?;
         }
         OutputFormat::Pretty => {
-            writeln!(&mut *output, "Artifact uploaded")?;
-            writeln!(&mut *output, "Artifact UID: {}", output_record.artifact_uid)?;
-            writeln!(&mut *output, "Filepath: {}", output_record.filepath)?;
             writeln!(
                 &mut *output,
-                "Description: {}",
-                output_record.description.as_deref().unwrap_or("")
+                "{}",
+                localization::text_for_locale(locale, "agent_sdk.artifact.output.uploaded")
             )?;
-            writeln!(&mut *output, "MIME type: {}", output_record.mime_type)?;
             writeln!(
                 &mut *output,
-                "Size bytes: {}",
-                output_record
-                    .size_bytes
-                    .map(|size| size.to_string())
-                    .unwrap_or_default()
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.artifact_uid",
+                    &[("value", &output_record.artifact_uid)]
+                )
+            )?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.filepath",
+                    &[("value", &output_record.filepath)]
+                )
+            )?;
+            let description = output_record.description.as_deref().unwrap_or("");
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.description",
+                    &[("value", description)]
+                )
+            )?;
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.mime_type",
+                    &[("value", &output_record.mime_type)]
+                )
+            )?;
+            let size_bytes = output_record
+                .size_bytes
+                .map(|size| size.to_string())
+                .unwrap_or_default();
+            writeln!(
+                &mut *output,
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.artifact.output.size_bytes",
+                    &[("value", &size_bytes)]
+                )
             )?;
         }
         OutputFormat::Text => {
             writeln!(
                 &mut *output,
-                "Artifact UID\tFilepath\tDescription\tMIME type\tSize bytes"
+                "{}",
+                localization::text_for_locale(
+                    locale,
+                    "agent_sdk.artifact.output.upload_text_header"
+                )
             )?;
             writeln!(
                 &mut *output,

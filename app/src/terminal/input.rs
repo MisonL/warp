@@ -505,11 +505,6 @@ enum InputPrefixMode {
 
 const VIM_STATUS_BAR_BOTTOM_PADDING: f32 = 20.;
 
-const DYNAMIC_ENUM_GENERATE_MESSAGE: &str = "Run the following command to generate variants:";
-const DYNAMIC_ENUM_RUN_MESSAGE: &str = "Run command";
-const DYNAMIC_ENUM_PENDING_MESSAGE: &str = "Command pending...";
-const DYNAMIC_ENUM_FAILURE_MESSAGE: &str = "Command failed";
-const DYNAMIC_ENUM_NO_RESULTS_MESSAGE: &str = "Command returned no results";
 const DYNAMIC_ENUM_MENU_PADDING: f32 = 10.;
 const DYNAMIC_ENUM_MENU_HEIGHT_OFFSET: f32 = 25.;
 const DYNAMIC_ENUM_HORIZONTAL_TEXT_PADDING: f32 = 5.;
@@ -2278,7 +2273,11 @@ impl Input {
                     event
                 {
                     let window_id = ctx.window_id();
-                    let toast_message = format!("Failed to prepare cloud handoff: {error_message}");
+                    let toast_message = localization::text_for_app_with_args(
+                        ctx,
+                        "terminal.input.cloud_handoff.prepare_failed",
+                        &[("error", error_message.as_str())],
+                    );
                     ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                         ts.add_ephemeral_toast(
                             DismissibleToast::error(toast_message),
@@ -3604,7 +3603,7 @@ impl Input {
             }
             BuyCreditsBannerEvent::ShowAutoReloadError { error_message } => {
                 ctx.emit(Event::ShowToast {
-                    message: error_message.to_string(),
+                    message: error_message.clone(),
                     flavor: ToastFlavor::Error,
                 });
             }
@@ -4257,14 +4256,16 @@ impl Input {
         if !skipped_files.is_empty() {
             let window_id = ctx.window_id();
             let message = if skipped_files.len() == 1 {
-                format!(
-                    "{} was not attached — exceeds 10MB limit.",
-                    skipped_files[0]
+                localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.toast.attachment_skipped.singular",
+                    &[("filename", skipped_files[0].as_str())],
                 )
             } else {
-                format!(
-                    "{} files were not attached — exceed 10MB limit.",
-                    skipped_files.len()
+                localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.toast.attachment_skipped.plural",
+                    &[("count", &skipped_files.len().to_string())],
                 )
             };
             ToastStack::handle(ctx).update(ctx, |ts, ctx| {
@@ -4682,7 +4683,10 @@ impl Input {
                     ctx.dispatch_typed_action_deferred(action);
                 } else {
                     ctx.emit(Event::ShowToast {
-                        message: "Couldn't navigate to conversation.".to_string(),
+                        message: localization::text_for_app(
+                            ctx,
+                            "terminal.input.toast.could_not_navigate_to_conversation",
+                        ),
                         flavor: ToastFlavor::Error,
                     });
                 }
@@ -5572,7 +5576,7 @@ impl Input {
             Err(error) => {
                 // Show error toast if skill not found
                 let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
                         DismissibleToast::error(error.to_string()),
                         window_id,
@@ -5708,10 +5712,13 @@ impl Input {
         if file_exists {
             let window_id = ctx.window_id();
             let display_path = file_path.display().to_string();
-            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                let toast = DismissibleToast::default(format!(
-                    "File {display_path} already exists and will be overwritten"
-                ));
+            let message = localization::text_for_app_with_args(
+                ctx,
+                "terminal.input.conversation_export.overwrite_warning",
+                &[("path", &display_path)],
+            );
+            ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
+                let toast = DismissibleToast::default(message);
                 toast_stack.add_ephemeral_toast(toast, window_id, ctx);
             });
         }
@@ -5722,10 +5729,13 @@ impl Input {
                 // Show success toast
                 let window_id = ctx.window_id();
                 let display_path = file_path.display().to_string();
+                let message = localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.conversation_export.success",
+                    &[("path", &display_path)],
+                );
                 ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
-                    let toast = DismissibleToast::default(format!(
-                        "Conversation exported to {display_path}"
-                    ));
+                    let toast = DismissibleToast::default(message);
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
             }
@@ -5733,25 +5743,40 @@ impl Input {
                 // Show error toast with user-friendly message
                 let user_message = match e.kind() {
                     std::io::ErrorKind::PermissionDenied => {
-                        format!(
-                            "Permission denied writing to {}. Check file permissions.",
-                            file_path.display()
+                        let display_path = file_path.display().to_string();
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.input.conversation_export.error.permission_denied",
+                            &[("path", &display_path)],
                         )
                     }
                     std::io::ErrorKind::NotFound => {
-                        format!(
-                            "Directory not found: {}",
-                            file_path
-                                .parent()
-                                .map(|p| p.display().to_string())
-                                .unwrap_or_default()
+                        let display_path = file_path
+                            .parent()
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_default();
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.input.conversation_export.error.directory_not_found",
+                            &[("path", &display_path)],
                         )
                     }
                     std::io::ErrorKind::AlreadyExists => {
-                        format!("File {} already exists", file_path.display())
+                        let display_path = file_path.display().to_string();
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.input.conversation_export.error.file_exists",
+                            &[("path", &display_path)],
+                        )
                     }
                     _ => {
-                        format!("Failed to export to {}: {}", file_path.display(), e)
+                        let display_path = file_path.display().to_string();
+                        let error = e.to_string();
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.input.conversation_export.error.failed",
+                            &[("path", &display_path), ("error", &error)],
+                        )
                     }
                 };
 
@@ -7266,11 +7291,14 @@ impl Input {
 
                 // Block user submissions while a requested command is actively running
                 let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                let message = localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.toast.command_already_running",
+                    &[("command", &truncated_command)],
+                );
+                ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!(
-                            "Cannot run `{truncated_command}` (command already running)."
-                        )),
+                        DismissibleToast::error(message),
                         window_id,
                         ctx,
                     );
@@ -7976,13 +8004,17 @@ impl Input {
         // Emit the a11y content as the last step so that it overwrites any of the a11y content
         // emitted by the editor (if multiple `AccessibilityContent`s are emitted within the same
         // event loop, the last one wins).
-        let mut accessibility_text = format!("Workflow command {} inserted.", &command_to_insert);
+        let mut accessibility_text = localization::text_for_app_with_args(
+            ctx,
+            "terminal.input.a11y.workflow_command_inserted",
+            &[("command", &command_to_insert)],
+        );
         if let Some(a11y_content) = self.selected_workflow_a11y_text(ctx) {
             let _ = write!(accessibility_text, " {a11y_content}");
         }
         ctx.emit_a11y_content(AccessibilityContent::new(
             accessibility_text,
-            "Press shift-tab to select the next workflow argument",
+            localization::text_for_app(ctx, "terminal.input.a11y.select_next_workflow_argument"),
             WarpA11yRole::UserAction,
         ));
 
@@ -13321,10 +13353,10 @@ impl Input {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                             ts.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "No agent harnesses are available. Contact your team admin."
-                                        .to_string(),
-                                ),
+                                DismissibleToast::error(localization::text_for_app(
+                                    ctx,
+                                    "terminal.input.toast.no_agent_harnesses",
+                                )),
                                 window_id,
                                 ctx,
                             );
@@ -13375,9 +13407,10 @@ impl Input {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                             ts.add_ephemeral_toast(
-                                DismissibleToast::default(
-                                    "Preparing handoff — try again in a moment.".to_owned(),
-                                )
+                                DismissibleToast::default(localization::text_for_app(
+                                    ctx,
+                                    "terminal.input.toast.preparing_handoff",
+                                ))
                                 .with_object_id("local-to-cloud-handoff-not-ready".to_owned()),
                                 window_id,
                                 ctx,
@@ -14153,9 +14186,10 @@ impl Input {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(
-                            "Cannot send queries as a read-only viewer.".to_string(),
-                        ),
+                        DismissibleToast::error(localization::text_for_app(
+                            ctx,
+                            "terminal.input.toast.read_only_viewer",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -14561,9 +14595,10 @@ impl Input {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "Too many attachments for this conversation.".to_string(),
-                                ),
+                                DismissibleToast::error(localization::text_for_app(
+                                    ctx,
+                                    "terminal.input.toast.too_many_attachments",
+                                )),
                                 window_id,
                                 ctx,
                             );

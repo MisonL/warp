@@ -1462,7 +1462,7 @@ impl View for EnvVarCollectionView {
 
         if self.dialog_open_states.unsaved_changes_dialog_open {
             stack.add_positioned_child(
-                self.render_unsaved_changes_dialog(appearance),
+                self.render_unsaved_changes_dialog(appearance, app),
                 dialog_position,
             )
         } else if self.dialog_open_states.secrets_dialog_open {

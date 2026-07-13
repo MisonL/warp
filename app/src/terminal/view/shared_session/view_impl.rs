@@ -994,7 +994,10 @@ impl TerminalView {
             ctx,
         );
         self.show_persistent_toast(
-            "Sharing ended due to inactivity".to_owned(),
+            localization::text_for_app(
+                ctx,
+                "terminal.shared_session.toast.sharing_ended_inactivity",
+            ),
             ToastFlavor::Error,
             ctx,
         );

@@ -1,10 +1,31 @@
 use std::collections::HashSet;
+use std::ffi::OsString;
 
 use clap_complete::aot::Shell;
 use local_control::protocol::{ActionKind, ControlError, ErrorCode};
 use serde_json::json;
+use serial_test::serial;
 
 use super::*;
+
+fn set_env_var(name: &str, value: &str) -> Option<OsString> {
+    let previous = std::env::var_os(name);
+    // Safety: tests that mutate process environment are marked `serial` so we
+    // do not race with other environment readers or writers in this crate.
+    unsafe { std::env::set_var(name, value) };
+    previous
+}
+
+fn restore_env_var(name: &str, previous: Option<OsString>) {
+    match previous {
+        // Safety: tests that mutate process environment are marked `serial` so
+        // we do not race with other environment readers or writers in this crate.
+        Some(value) => unsafe { std::env::set_var(name, value) },
+        // Safety: tests that mutate process environment are marked `serial` so
+        // we do not race with other environment readers or writers in this crate.
+        None => unsafe { std::env::remove_var(name) },
+    }
+}
 
 #[test]
 fn parses_typed_create_and_setting_list_params() {
@@ -283,7 +304,10 @@ fn structured_error_output_uses_stable_error_code() {
 }
 
 #[test]
-fn renders_human_readable_tab_create_output() {
+#[serial]
+fn renders_human_readable_tab_create_output_uses_current_locale() {
+    let previous_language = set_env_var("LANGUAGE", "en_US");
+
     let rendered = render_human_readable_for_test(
         local_control::protocol::ActionKind::TabCreate,
         &json!({
@@ -300,6 +324,26 @@ fn renders_human_readable_tab_create_output() {
     assert_eq!(
         rendered,
         "Created tab tab_123 in window window_123 (active index 2, tab count 3)"
+    );
+
+    set_env_var("LANGUAGE", "zh_CN");
+    let rendered = render_human_readable_for_test(
+        local_control::protocol::ActionKind::TabCreate,
+        &json!({
+            "tab": {
+                "id": "tab_123",
+                "active_index": 2,
+                "count": 3
+            },
+            "window": {
+                "id": "window_123"
+            }
+        }),
+    );
+    restore_env_var("LANGUAGE", previous_language);
+    assert_eq!(
+        rendered,
+        "已在窗口 window_123 中创建标签页 tab_123（活动索引 2，标签页总数 3）"
     );
 }
 

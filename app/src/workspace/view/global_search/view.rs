@@ -2341,8 +2341,8 @@ impl GlobalSearchView {
     fn render_pre_search_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::Search,
-            "Global search",
-            "Search in files across your current directories.",
+            localization::text_for_app(app, "global_search.zero_state.title"),
+            localization::text_for_app(app, "global_search.zero_state.description"),
             app,
         )
     }
@@ -2350,8 +2350,8 @@ impl GlobalSearchView {
     fn render_unavailable_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::AlertTriangle,
-            "Global search unavailable",
-            "Global search requires access to your local workspace. Open a new session or navigate to an active session to view.",
+            localization::text_for_app(app, "global_search.unavailable.title"),
+            localization::text_for_app(app, "global_search.unavailable.local_workspace_required"),
             app,
         )
     }
@@ -2359,16 +2359,16 @@ impl GlobalSearchView {
     fn render_remote_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::AlertTriangle,
-            "Global search unavailable",
-            "Global search isn't available for this remote session.",
+            localization::text_for_app(app, "global_search.unavailable.title"),
+            localization::text_for_app(app, "global_search.unavailable.remote_session"),
             app,
         )
     }
     fn render_remote_loading_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::Loading,
-            "Connecting to remote session",
-            "Global search will be available once the connection is ready.",
+            localization::text_for_app(app, "global_search.remote_loading.title"),
+            localization::text_for_app(app, "global_search.remote_loading.description"),
             app,
         )
     }
@@ -2376,8 +2376,8 @@ impl GlobalSearchView {
     fn render_unsupported_session_state(&self, app: &AppContext) -> Box<dyn Element> {
         self.render_zero_state(
             Icon::AlertTriangle,
-            "Global search unavailable",
-            "Global search doesn't currently work in Git Bash or WSL.",
+            localization::text_for_app(app, "global_search.unavailable.title"),
+            localization::text_for_app(app, "global_search.unavailable.unsupported_session"),
             app,
         )
     }

@@ -917,15 +917,22 @@ impl AuthSecretFtuxView {
             .with_spacing(FORM_FIELD_SPACING);
 
         column.add_child(
-            Container::new(self.render_field_label("NAME", app))
-                .with_padding_top(CONTENT_SECTION_SPACING)
-                .finish(),
+            Container::new(self.render_field_label(
+                &localization::text_for_app(app, "terminal.auth_secret.field.name"),
+                app,
+            ))
+            .with_padding_top(CONTENT_SECTION_SPACING)
+            .finish(),
         );
         column.add_child(self.render_editor_container(&self.name_editor, app));
 
         for (idx, field) in info.fields.iter().enumerate() {
             let label = if field.optional {
-                format!("{} (optional)", field.label)
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.auth_secret.optional_label",
+                    &[("label", field.label)],
+                )
             } else {
                 field.label.to_string()
             };

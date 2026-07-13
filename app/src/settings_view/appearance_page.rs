@@ -2901,10 +2901,10 @@ impl SettingsWidget for ThemeSelectWidget {
             .with_child(
                 appearance
                     .ui_builder()
-                    .span(
-                        "Automatically switch between light and dark themes when your system does."
-                            .to_string(),
-                    )
+                    .span(crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.theme.sync_with_os.description",
+                    ))
                     .with_style(
                         UiComponentStyles::default().set_margin(Coords::default().bottom(10.)),
                     )
@@ -3004,13 +3004,14 @@ impl SettingsWidget for CustomAppIconWidget {
                     appearance
                         .ui_builder()
                         .wrappable_text(
-                            "You may need to restart Warp for MacOS to apply the preferred icon style.",
+                            crate::localization::text_for_app(
+                                app,
+                                "settings.appearance.app_icon.restart_required_macos",
+                            ),
                             true,
                         )
                         .with_style(UiComponentStyles {
-                            font_color: Some(
-                                theme.sub_text_color(theme.background()).into_solid(),
-                            ),
+                            font_color: Some(theme.sub_text_color(theme.background()).into_solid()),
                             margin: Some(Coords::default().bottom(8.)),
                             ..Default::default()
                         })
@@ -3197,7 +3198,10 @@ impl SettingsWidget for WindowOpacityWidget {
                 .with_child(
                     Container::new(
                         FormattedTextElement::from_str(
-                            "Transparency is not supported with your graphics drivers.",
+                            crate::localization::text_for_app(
+                                app,
+                                "settings.appearance.window.opacity.unsupported",
+                            ),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -3211,8 +3215,10 @@ impl SettingsWidget for WindowOpacityWidget {
         }
 
         let opacity_value = *window_settings.background_opacity;
+        let opacity_label =
+            crate::localization::text_for_app(app, "settings.appearance.window.opacity.label");
         let mut col = Flex::column().with_child(render_body_item::<AppearancePageAction>(
-            format!("Window Opacity: {opacity_value}"),
+            format!("{opacity_label}: {opacity_value}"),
             // TODO(CORE-3384) add AdditionalInfo here.
             None,
             LocalOnlyIconState::for_setting(
@@ -3306,6 +3312,8 @@ impl SettingsWidget for WindowBlurWidget {
     ) -> Box<dyn Element> {
         let window_settings = WindowSettings::as_ref(app);
         let blur_value = *window_settings.background_blur_radius;
+        let blur_label =
+            crate::localization::text_for_app(app, "settings.appearance.window.blur_radius.label");
         let label_info = AdditionalInfo {
             mouse_state: self.info_button.clone(),
             on_click_action: Some(AppearancePageAction::OpenUrl(
@@ -3317,7 +3325,7 @@ impl SettingsWidget for WindowBlurWidget {
 
         Flex::column()
             .with_child(render_body_item::<AppearancePageAction>(
-                format!("Window Blur Radius: {blur_value}"),
+                format!("{blur_label}: {blur_value}"),
                 Some(label_info),
                 LocalOnlyIconState::for_setting(
                     BackgroundBlurRadius::storage_key(),
@@ -3964,7 +3972,10 @@ impl TerminalFontWidget {
         line_height.add_child(
             appearance
                 .ui_builder()
-                .label("Line height".to_string())
+                .label(crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.text.line_height.label",
+                ))
                 .with_style(UiComponentStyles {
                     margin: Some(Coords {
                         left: 12.,
@@ -4132,7 +4143,10 @@ impl SettingsWidget for TerminalFontWidget {
         font_weight.add_child(
             appearance
                 .ui_builder()
-                .label("Font weight".to_string())
+                .label(crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.text.font_weight.label",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(CONTENT_FONT_SIZE),
                     ..Default::default()
@@ -4155,7 +4169,10 @@ impl SettingsWidget for TerminalFontWidget {
         font_size.add_child(
             appearance
                 .ui_builder()
-                .label("Font size (px)".to_string())
+                .label(crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.text.font_size_px.label",
+                ))
                 .with_style(UiComponentStyles {
                     margin: Some(Coords {
                         left: 2.,
@@ -5050,7 +5067,10 @@ impl SettingsWidget for DirectoryTabColorsWidget {
             .with_spacing(4.)
             .with_child(
                 Text::new(
-                    "Directory tab colors",
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.tabs.directory_colors.label",
+                    ),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -5060,7 +5080,10 @@ impl SettingsWidget for DirectoryTabColorsWidget {
             )
             .with_child(
                 Text::new(
-                    "Automatically color tabs based on the directory or repo you're working in.",
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.tabs.directory_colors.description",
+                    ),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -5295,7 +5318,10 @@ impl SettingsWidget for AltScreenPaddingWidget {
                     Container::new(
                         Align::new(
                             Text::new(
-                                "Uniform padding (px)",
+                                crate::localization::text_for_app(
+                                    app,
+                                    "settings.appearance.full_screen_apps.uniform_padding_px.label",
+                                ),
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )

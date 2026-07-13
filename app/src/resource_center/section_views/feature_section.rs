@@ -15,16 +15,15 @@ use super::{
     ELLIPSE_SVG_PATH, ICON_PADDING, ITEM_PADDING_BOTTOM, SCROLLBAR_OFFSET, SECTION_SPACING,
 };
 use crate::appearance::Appearance;
-use crate::localization;
 use crate::resource_center::main_page::ActionTarget;
 use crate::resource_center::{
     complete_tips_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults, FeatureItem,
     FeatureSectionData, Tip, TipsCompleted,
 };
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::themes::theme::Fill;
+use crate::{localization, send_telemetry_from_ctx};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FeatureSection {

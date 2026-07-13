@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use warp_cli::agent::OutputFormat;
+use warp_localization::LocaleId;
 
 use super::*;
 
@@ -66,6 +67,7 @@ fn write_get_output_to_writes_json_output() {
         &mut output,
         &sample_file_download_response(),
         OutputFormat::Json,
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -83,6 +85,7 @@ fn write_get_output_to_writes_ndjson_output() {
         &mut output,
         &sample_file_download_response(),
         OutputFormat::Ndjson,
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -100,6 +103,7 @@ fn write_get_output_to_writes_pretty_output() {
         &mut output,
         &sample_file_download_response(),
         OutputFormat::Pretty,
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -117,6 +121,7 @@ fn write_get_output_to_writes_text_output() {
         &mut output,
         &sample_file_download_response(),
         OutputFormat::Text,
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -133,7 +138,13 @@ fn write_download_output_to_writes_pretty_output() {
     let output_record = DownloadArtifactOutput::new(&artifact, path.clone());
     let mut output = Vec::new();
 
-    write_download_output_to(&mut output, &output_record, OutputFormat::Pretty).unwrap();
+    write_download_output_to(
+        &mut output,
+        &output_record,
+        OutputFormat::Pretty,
+        LocaleId::EnUs,
+    )
+    .unwrap();
 
     assert_eq!(
         String::from_utf8(output).unwrap(),
@@ -201,7 +212,13 @@ fn download_destination_defaults_pdf_to_artifact_uid_with_extension() {
 fn write_upload_output_to_writes_json_output() {
     let mut output = Vec::new();
 
-    write_upload_output_to(&mut output, &sample_completed_upload(), OutputFormat::Json).unwrap();
+    write_upload_output_to(
+        &mut output,
+        &sample_completed_upload(),
+        OutputFormat::Json,
+        LocaleId::EnUs,
+    )
+    .unwrap();
 
     assert_eq!(
         String::from_utf8(output).unwrap(),
@@ -217,6 +234,7 @@ fn write_upload_output_to_writes_ndjson_output() {
         &mut output,
         &sample_completed_upload(),
         OutputFormat::Ndjson,
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -234,6 +252,7 @@ fn write_upload_output_to_writes_pretty_output() {
         &mut output,
         &sample_completed_upload(),
         OutputFormat::Pretty,
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -247,7 +266,13 @@ fn write_upload_output_to_writes_pretty_output() {
 fn write_upload_output_to_writes_text_output() {
     let mut output = Vec::new();
 
-    write_upload_output_to(&mut output, &sample_completed_upload(), OutputFormat::Text).unwrap();
+    write_upload_output_to(
+        &mut output,
+        &sample_completed_upload(),
+        OutputFormat::Text,
+        LocaleId::EnUs,
+    )
+    .unwrap();
 
     assert_eq!(
         String::from_utf8(output).unwrap(),

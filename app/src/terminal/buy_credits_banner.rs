@@ -217,7 +217,10 @@ impl BuyCreditsBanner {
                 if self.banner_auto_reload_update_in_flight {
                     self.banner_auto_reload_update_in_flight = false;
                     ctx.emit(BuyCreditsBannerEvent::ShowAutoReloadError {
-                        error_message: "Failed to enable auto-reload for your team. Please try again in Settings > Billing and Usage.",
+                        error_message: localization::text_for_app(
+                            ctx,
+                            "settings.billing.buy_credits_banner.auto_reload_failed",
+                        ),
                     });
                     ctx.notify();
                 }
@@ -593,14 +596,18 @@ impl BuyCreditsBanner {
             if is_at_monthly_limit || would_purchase_exceed_limit {
                 // Create formatted text with clickable hyperlink
                 let warning_text_fragments = vec![
-                    FormattedTextFragment::plain_text(
-                        "Purchasing these credits would take you over your monthly spend limit. ",
-                    ),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        app,
+                        "settings.billing.out_of_credits.exceed_limit.prefix",
+                    )),
                     FormattedTextFragment::hyperlink_action(
                         localization::text_for_app(app, "terminal.buy_credits.action.increase_it"),
                         Action::ManageBilling,
                     ),
-                    FormattedTextFragment::plain_text(" to continue."),
+                    FormattedTextFragment::plain_text(localization::text_for_app(
+                        app,
+                        "settings.billing.out_of_credits.exceed_limit.suffix",
+                    )),
                 ];
 
                 let formatted_warning = FormattedTextElement::new(
@@ -628,9 +635,9 @@ impl BuyCreditsBanner {
             } else {
                 // Default message when not at limit
                 let banner_description = if has_admin_permissions {
-                    "Add more credits to your account to continue using Oz agents."
+                    localization::text_for_app(app, "settings.billing.out_of_credits.admin")
                 } else {
-                    "Contact a team admin to purchase more credits to continue."
+                    localization::text_for_app(app, "settings.billing.out_of_credits.non_admin")
                 };
 
                 banner_text_children.push(
@@ -828,7 +835,7 @@ pub enum BuyCreditsBannerEvent {
     OpenBillingAndUsage,
     RefocusInput,
     OpenAutoReloadModal { purchased_credits: i32 },
-    ShowAutoReloadError { error_message: &'static str },
+    ShowAutoReloadError { error_message: String },
 }
 
 impl Entity for BuyCreditsBanner {

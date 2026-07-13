@@ -4,7 +4,7 @@ use anyhow::Result;
 use onboarding::callout::{
     OnboardingCalloutView, OnboardingCalloutViewEvent, OnboardingKeybindings,
 };
-use onboarding::OnboardingIntention;
+use onboarding::{OnboardingCopy, OnboardingIntention};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use rust_embed::RustEmbed;
@@ -28,6 +28,74 @@ use warpui_core::{
 pub struct Assets;
 
 pub static ASSETS: Assets = Assets;
+
+fn default_callout_copy() -> OnboardingCopy {
+    const KEYS: &[&str] = &[
+        "onboarding.callout.agent_mode.back_to_terminal",
+        "onboarding.callout.agent_mode.initialize",
+        "onboarding.callout.agent_mode.skip_initialization",
+        "onboarding.callout.agent_mode.title",
+        "onboarding.callout.agent_mode.with_project_body",
+        "onboarding.callout.agent_mode.without_project_body",
+        "onboarding.callout.meet_input.body",
+        "onboarding.callout.meet_input.title",
+        "onboarding.callout.talk_to_agent.body",
+        "onboarding.callout.talk_to_agent.prompt",
+        "onboarding.callout.talk_to_agent.title",
+        "onboarding.callout.terminal_command.placeholder",
+        "onboarding.callout.terminal_mode.body",
+        "onboarding.callout.terminal_mode.enable_nld",
+        "onboarding.callout.terminal_mode.title",
+        "onboarding.callout.terminal_mode.welcome_title",
+        "onboarding.common.finish",
+        "onboarding.common.next",
+        "onboarding.common.skip",
+        "onboarding.common.submit",
+    ];
+
+    OnboardingCopy::new(
+        KEYS.iter()
+            .map(|key| (*key, default_callout_text(key).to_string())),
+    )
+}
+
+fn default_callout_text(key: &str) -> &str {
+    match key {
+        "onboarding.callout.agent_mode.back_to_terminal" => "Back to terminal",
+        "onboarding.callout.agent_mode.initialize" => "Initialize",
+        "onboarding.callout.agent_mode.skip_initialization" => "Skip initialization",
+        "onboarding.callout.agent_mode.title" => "You're in agent mode",
+        "onboarding.callout.agent_mode.with_project_body" => {
+            "Agent mode gives your questions and tasks their own conversation, so you can ask follow-ups without leaving your terminal workflow.\n\nSubmit the query below to have the agent initialize this project, or clear the input and start your own!"
+        }
+        "onboarding.callout.agent_mode.without_project_body" => {
+            "Agent mode gives your questions and tasks their own conversation, so you can ask follow-ups without leaving your terminal workflow. Press {keybinding} to return to terminal mode at any point."
+        }
+        "onboarding.callout.meet_input.body" => {
+            "Your terminal input accepts both terminal commands and agent prompts and automatically detects which you're using. Use {keybinding} to lock the input to Agent mode (natural language) or Terminal mode (commands)."
+        }
+        "onboarding.callout.meet_input.title" => "Meet the Warp input",
+        "onboarding.callout.talk_to_agent.body" => {
+            "You can type in natural language to engage the agent. Submit the query below to start: What tests exist in this repo, how are they structured, and what do they cover?"
+        }
+        "onboarding.callout.talk_to_agent.prompt" => {
+            "What tests exist in this repo, how are they structured, and what do they cover?"
+        }
+        "onboarding.callout.talk_to_agent.title" => "Talk to the agent",
+        "onboarding.callout.terminal_command.placeholder" => "Run a command...",
+        "onboarding.callout.terminal_mode.body" => {
+            "Run commands here, just like a regular terminal. If you type a question or task using natural language, Warp can suggest opening it in agent mode. You can always override using {keybinding}."
+        }
+        "onboarding.callout.terminal_mode.enable_nld" => "Enable Natural Language Detection",
+        "onboarding.callout.terminal_mode.title" => "You're in terminal mode",
+        "onboarding.callout.terminal_mode.welcome_title" => "Welcome to terminal mode",
+        "onboarding.common.finish" => "Finish",
+        "onboarding.common.next" => "Next",
+        "onboarding.common.skip" => "Skip",
+        "onboarding.common.submit" => "Submit",
+        _ => key,
+    }
+}
 
 impl AssetProvider for Assets {
     fn get(&self, path: &str) -> Result<Cow<'_, [u8]>> {
@@ -57,6 +125,7 @@ impl OnboardingExampleView {
                 OnboardingIntention::AgentDrivenDevelopment,
                 false, // initial_natural_language_detection_enabled
                 keybindings,
+                default_callout_copy(),
                 ctx,
             )
         });

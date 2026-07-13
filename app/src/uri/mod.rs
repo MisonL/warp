@@ -590,7 +590,10 @@ impl WindowBehaviorHint {
 enum WindowActivationFallbackBehavior {
     /// If the primary window picked to handle the URL is not the active one, send a native push
     /// notification.
-    Notify { title: String, description: String },
+    Notify {
+        title_key: &'static str,
+        description_key: &'static str,
+    },
     /// Create a new window to handle the URI.
     NewWindow {
         /// Close the former "primary window" as determined by [`get_primary_window`]. This should
@@ -607,7 +610,10 @@ impl WindowActivationFallbackBehavior {
     #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
     fn resolve(self, primary_window_id: WindowId, ctx: &mut AppContext) -> Option<WindowId> {
         match self {
-            WindowActivationFallbackBehavior::Notify { title, description } => {
+            WindowActivationFallbackBehavior::Notify {
+                title_key,
+                description_key,
+            } => {
                 if ctx
                     .windows()
                     .active_window()
@@ -621,6 +627,8 @@ impl WindowActivationFallbackBehavior {
                     .map(|mut views| views.swap_remove(0))
                 {
                     view_handle.update(ctx, |_, ctx| {
+                        let title = crate::localization::text_for_app(ctx, title_key);
+                        let description = crate::localization::text_for_app(ctx, description_key);
                         ctx.send_desktop_notification(
                             UserNotification::new(title, description, None),
                             |_, err, ctx| {
@@ -1134,8 +1142,8 @@ impl Action {
             | Self::FocusCloudMode
             | Self::AutoHandoffToCloud { .. } => W::default(),
             Self::NewTab => W::ShowPrimaryWindow(WindowActivationFallbackBehavior::Notify {
-                title: "New tab created".to_owned(),
-                description: "Go to Warp to see your new tab.".to_owned(),
+                title_key: "uri.notification.new_tab_created.title",
+                description_key: "uri.notification.new_tab_created.description",
             }),
             Self::NewWindow => W::Nothing,
         }

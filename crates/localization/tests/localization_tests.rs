@@ -31,6 +31,13 @@ const STABLE_DESKTOP_ENTRY: &str =
 const LOCAL_BIN_SOURCE: &str = include_str!("../../../app/src/bin/local.rs");
 const OSS_BIN_SOURCE: &str = include_str!("../../../app/src/bin/oss.rs");
 const CLI_INFO_PLIST: &str = include_str!("../../../app/assets/resources/mac/CLI-Info.plist");
+const WINDOWS_INSTALLER_SOURCE: &str =
+    include_str!("../../../script/windows/windows-installer.iss");
+const WINDOWS_INSTALLER_ZH_CN_MESSAGES: &str =
+    include_str!("../../../script/windows/languages/ChineseSimplified.isl");
+const WINDOWS_INSTALLER_CHECK_SOURCE: &str =
+    include_str!("../../../script/windows/check_installer.ps1");
+const CI_WORKFLOW_SOURCE: &str = include_str!("../../../.github/workflows/ci.yml");
 const LAUNCH_CONFIG_SAVE_MODAL_SOURCE: &str =
     include_str!("../../../app/src/launch_configs/save_modal.rs");
 const USER_CONFIG_NATIVE_SOURCE: &str = include_str!("../../../app/src/user_config/native.rs");
@@ -71,6 +78,9 @@ const UI_LITERAL_PATTERNS: &[&str] = &[
     "DismissibleToast::error(",
     "DismissibleToast::success(",
     "DismissibleToast::default(",
+    "MessageItem::text(",
+    "AccessibilityContent::new(",
+    "CompactibleActionButton::new(",
     "tool_tip(",
     "with_tooltip(",
     "FormattedTextFragment::plain_text(",
@@ -291,6 +301,77 @@ fn mac_plist_development_regions_use_language_codes() {
             "{name} should not spell out the development region"
         );
     }
+}
+
+#[test]
+fn windows_installer_localizes_simplified_chinese_surfaces() {
+    assert!(
+        WINDOWS_INSTALLER_SOURCE.contains(
+            "Name: \"chinesesimplified\"; MessagesFile: \"languages\\ChineseSimplified.isl\""
+        ),
+        "Windows installer should use the bundled Simplified Chinese messages"
+    );
+    assert!(
+        WINDOWS_INSTALLER_ZH_CN_MESSAGES.contains("LanguageName=简体中文")
+            && WINDOWS_INSTALLER_ZH_CN_MESSAGES.contains("LanguageID=$0804")
+            && WINDOWS_INSTALLER_ZH_CN_MESSAGES.contains("SetupAppTitle=安装"),
+        "bundled Windows installer messages should be the Simplified Chinese catalog"
+    );
+
+    for (key, english, simplified_chinese) in [
+        ("AddToPath", "Add %1 to PATH", "将 %1 添加到 PATH"),
+        ("OpenInNewTab", "Open %1 in new tab", "在新标签页中打开 %1"),
+        (
+            "OpenInNewWindow",
+            "Open %1 in new window",
+            "在新窗口中打开 %1",
+        ),
+    ] {
+        assert!(
+            WINDOWS_INSTALLER_SOURCE.contains(&format!("english.{key}={english}")),
+            "Windows installer should define the English {key} custom message"
+        );
+        assert!(
+            WINDOWS_INSTALLER_SOURCE
+                .contains(&format!("chinesesimplified.{key}={simplified_chinese}")),
+            "Windows installer should define the Simplified Chinese {key} custom message"
+        );
+    }
+
+    for localized_reference in [
+        "Description: \"{cm:AddToPath,{#MyAppName}}\"",
+        "ValueData: \"{cm:OpenInNewTab,{#MyAppName}}\"",
+        "ValueData: \"{cm:OpenInNewWindow,{#MyAppName}}\"",
+    ] {
+        assert!(
+            WINDOWS_INSTALLER_SOURCE.contains(localized_reference),
+            "Windows installer should use localized message reference {localized_reference}"
+        );
+    }
+
+    for direct_english in [
+        "Description: \"Add Warp to PATH\"",
+        "ValueData: \"Open {#MyAppName} in new tab\"",
+        "ValueData: \"Open {#MyAppName} in new window\"",
+    ] {
+        assert!(
+            !WINDOWS_INSTALLER_SOURCE.contains(direct_english),
+            "Windows installer should not keep direct English UI text {direct_english}"
+        );
+    }
+}
+
+#[test]
+fn ci_compiles_the_windows_installer_script() {
+    assert!(
+        WINDOWS_INSTALLER_CHECK_SOURCE.contains("windows-installer.iss")
+            && WINDOWS_INSTALLER_CHECK_SOURCE.contains("& $iscc.Source @iscc_args"),
+        "Windows installer check should invoke ISCC for the production installer script"
+    );
+    assert!(
+        CI_WORKFLOW_SOURCE.contains("./script/windows/check_installer.ps1"),
+        "Windows release compilation CI should run the installer compiler check"
+    );
 }
 
 #[test]
@@ -942,6 +1023,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.input.agent_hint.setup_microservice_docker",
         "terminal.input.agent_hint.troubleshoot_kubernetes",
         "terminal.input.binding.new_agent_conversation",
+        "terminal.input.cloud_handoff.prepare_failed",
         "terminal.input.conversation_export.error.directory_not_found",
         "terminal.input.conversation_export.error.failed",
         "terminal.input.conversation_export.error.file_exists",
@@ -961,6 +1043,8 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "terminal.input.toast.image_limit.singular",
         "terminal.input.toast.images_removed.plural",
         "terminal.input.toast.images_removed.singular",
+        "terminal.input.toast.no_agent_harnesses",
+        "terminal.input.toast.preparing_handoff",
         "terminal.input.toast.read_only_viewer",
         "terminal.input.toast.skill_not_found",
         "terminal.input.toast.too_many_attachments",
@@ -2851,6 +2935,7 @@ fn bundled_appearance_catalogs_include_theme_and_icon_copy() {
         "workspace.toast.no_terminal_pane_for_context",
         "workspace.toast.notification_permission_denied",
         "workspace.toast.open_warp_redirected_to_download",
+        "workspace.toast.open_repository_failed",
         "workspace.toast.oz_cli_install_failed",
         "workspace.toast.oz_cli_installed",
         "workspace.toast.oz_cli_uninstall_failed",
@@ -3031,8 +3116,6 @@ fn settings_schema_translation_keys_match_json_schema_paths() {
 
 #[test]
 fn bundled_catalogs_include_onboarding_copy_keys() {
-    let en_us = bundled_en_us_map();
-    let zh_cn = bundled_zh_cn_map();
     let keys = [
         "onboarding.callout.meet_input.title",
         "onboarding.callout.meet_input.body",
@@ -3046,17 +3129,7 @@ fn bundled_catalogs_include_onboarding_copy_keys() {
         "onboarding.common.submit",
     ];
 
-    assert!(!keys.is_empty(), "expected onboarding copy keys");
-
-    let missing = keys
-        .iter()
-        .filter_map(|key| (en_us.get(*key).is_none() || zh_cn.get(*key).is_none()).then_some(*key))
-        .collect::<Vec<_>>();
-
-    assert!(
-        missing.is_empty(),
-        "missing bundled onboarding copy keys: {missing:#?}"
-    );
+    assert_bundled_keys_exist(&keys);
 }
 
 #[test]
@@ -3076,9 +3149,10 @@ fn bundled_catalogs_only_use_intentional_empty_values() {
 
 #[test]
 fn app_localization_key_literals_are_catalog_backed() {
-    let app_src = workspace_root().join("app/src");
     let mut keys = BTreeSet::new();
-    collect_app_localization_key_literals(&app_src, &mut keys);
+    for relative_root in ["app/src", "crates/warp_cli/src"] {
+        collect_app_localization_key_literals(&workspace_root().join(relative_root), &mut keys);
+    }
 
     assert!(
         !keys.is_empty(),
@@ -3098,6 +3172,94 @@ fn app_ui_calls_do_not_use_direct_english_literals() {
         violations.is_empty(),
         "direct user-visible English literals in UI calls: {violations:#?}"
     );
+}
+
+#[test]
+fn terminal_input_toasts_do_not_use_direct_english_literals() {
+    let path = workspace_root().join("app/src/terminal/input.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    let removed_literals = [
+        "Failed to prepare cloud handoff:",
+        "File {display_path} already exists and will be overwritten",
+        "Conversation exported to {display_path}",
+        "Permission denied writing to {}. Check file permissions.",
+        "Directory not found: {}",
+        "File {} already exists",
+        "Failed to export to {}: {}",
+        "Cannot run `{truncated_command}` (command already running).",
+        "was not attached",
+        "files were not attached",
+        "No agent harnesses are available. Contact your team admin.",
+        "Preparing handoff",
+        "Cannot send queries as a read-only viewer.",
+        "Too many attachments for this conversation.",
+    ];
+    for literal in removed_literals {
+        assert!(
+            !content.contains(literal),
+            "terminal input toast should use catalog copy instead of direct English literal: {literal}"
+        );
+    }
+
+    let required_keys = [
+        "terminal.input.cloud_handoff.prepare_failed",
+        "terminal.input.conversation_export.overwrite_warning",
+        "terminal.input.conversation_export.success",
+        "terminal.input.conversation_export.error.permission_denied",
+        "terminal.input.conversation_export.error.directory_not_found",
+        "terminal.input.conversation_export.error.file_exists",
+        "terminal.input.conversation_export.error.failed",
+        "terminal.input.toast.attachment_skipped.plural",
+        "terminal.input.toast.attachment_skipped.singular",
+        "terminal.input.toast.command_already_running",
+        "terminal.input.toast.no_agent_harnesses",
+        "terminal.input.toast.preparing_handoff",
+        "terminal.input.toast.read_only_viewer",
+        "terminal.input.toast.too_many_attachments",
+    ];
+    for key in required_keys {
+        assert!(
+            content.contains(key),
+            "terminal input toast should reference catalog key {key}"
+        );
+    }
+}
+
+#[test]
+fn workspace_toasts_do_not_use_direct_english_literals() {
+    let path = workspace_root().join("app/src/workspace/view.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    let removed_literals = [
+        "Failed to load conversation for forking.",
+        "You {verb} synchronized inputs in all tabs.",
+        "You {verb} synchronized inputs in this tab.",
+        "Press {} to undo.",
+    ];
+    for literal in removed_literals {
+        assert!(
+            !content.contains(literal),
+            "workspace toast should use catalog copy instead of direct English literal: {literal}"
+        );
+    }
+
+    let required_keys = [
+        "workspace.toast.failed_to_load_conversation_for_forking",
+        "workspace.toast.press_to_undo",
+        "workspace.toast.sync_all_inputs_disabled",
+        "workspace.toast.sync_all_inputs_enabled",
+        "workspace.toast.sync_tab_inputs_disabled",
+        "workspace.toast.sync_tab_inputs_enabled",
+    ];
+    for key in required_keys {
+        assert!(
+            content.contains(key),
+            "workspace toast should reference catalog key {key}"
+        );
+    }
 }
 
 #[test]
@@ -3391,24 +3553,334 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             "app/src/view_components/markdown_toggle_view.rs",
             &["\"Rendered\".into()", "\"Raw\".into()"][..],
         ),
+        (
+            "app/src/util/tooltips.rs",
+            &["*Secrets are not sent to Warp's server."][..],
+        ),
+        (
+            "app/src/terminal/view/init_environment/mod.rs",
+            &["Environment setup cancelled"][..],
+        ),
+        (
+            "app/src/notebooks/notebook/details_bar.rs",
+            &["{editor} is editing"][..],
+        ),
+        (
+            "app/src/notebooks/file/mod.rs",
+            &["Could not read {}", "Command from {}"][..],
+        ),
+        ("app/src/notebooks/notebook.rs", &["Command from {}"][..]),
+        (
+            "app/src/root_view.rs",
+            &["pane_group.set_title(\"Create Environment\""][..],
+        ),
+        (
+            "app/src/ai/agent_management/details_action_buttons.rs",
+            &[
+                "Open conversation",
+                "Cancel task",
+                "Fork conversation",
+                "View details",
+                "Copy link to run",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_management/cloud_setup_guide_view.rs",
+            &[
+                "Workflow::new(\"Create Environment\"",
+                "Workflow::new(\"Create Environment (CLI)\"",
+                "Workflow::new(\"Create Slack Integration\"",
+                "Workflow::new(\"Create Linear Integration\"",
+                "GitHub link or local filepath to the repository",
+                "Name for the environment",
+                "Docker image to use for the environment",
+                "ID of the environment to integrate with",
+            ][..],
+        ),
+        (
+            "app/src/workspace/view.rs",
+            &[
+                "Command from Warp AI",
+                "Command from Oz",
+                "\"Notifications\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/workspace/view/cloud_agent_capacity_modal/mod.rs",
+            &[
+                "Concurrent cloud agent limit reached",
+                "This cloud run is queued because your team has reached the maximum number of concurrent cloud agents.",
+                "You're out of AI credits",
+                "This cloud run stopped because your team has used all available AI credits for the current billing period.",
+                "Upgrade your plan for more concurrent cloud agents.",
+                "Upgrade your plan to continue running cloud agents.",
+                "Paid plans start at ${price}/month and include everything in your free trial plus:",
+                "Paid plans include everything in your free trial plus:",
+                "The Business plan starts at ${price}/month and includes everything on your current plan plus:",
+                "The Business plan includes everything on your current plan plus:",
+                "AI credits per month",
+                "Extended AI credits per month",
+                "the number of concurrent cloud agents",
+                "Bring your own API key",
+                "Upgrade plan",
+                "Open billing",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_management/notifications/view.rs",
+            &["Notifications\".to_string()", "No notifications"][..],
+        ),
+        (
+            "app/src/ai/agent_management/notifications/toast_stack.rs",
+            &["Open conversation"][..],
+        ),
+        (
+            "app/src/ai/blocklist/block/cli.rs",
+            &[
+                "\"Allow\".to_string()",
+                "\"Refine\".to_string()",
+                "\"Take over\".to_string()",
+                "\"Take control\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/ask_user_question_view.rs",
+            &["\"Skip all\".to_string()", "\"Next\".to_string()"][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/suggested_unit_tests.rs",
+            &["Don't show me suggested code banners again"][..],
+        ),
+        (
+            "app/src/drive/index.rs",
+            &[
+                "Items in the trash will be deleted forever after 30 days.",
+                "Drag or move a personal workflow or notebook here to share it with your team.",
+                "You've run out of {object_type}s on your plan.",
+                "Upgrade for access to more notebooks, workflows, shared sessions, and AI credits.",
+                "Shared objects have been restricted due to a subscription payment issue.",
+                "Please update your payment information to restore access.",
+                "Please contact support@warp.dev to restore access.",
+                "Please contact a team admin to restore access.",
+                "Sort by",
+                "Retry sync",
+                "Create team",
+                "\"TRASH\"",
+                "\"Notebooks\"",
+                "\"Workflows\"",
+                "\"Environment Variables\"",
+                "\"Folders\"",
+                "\"Agent Workflows\"",
+                "\"Rules\"",
+                "\"MCP Server\"",
+                "\"MCP Servers\"",
+            ][..],
+        ),
+        (
+            "app/src/drive/sharing/dialog/mod.rs",
+            &["Live session started at {} on {}", "Unknown"][..],
+        ),
+        (
+            "app/src/settings_view/appearance_page.rs",
+            &[
+                "Automatically switch between light and dark themes when your system does.",
+                "You may need to restart Warp for MacOS to apply the preferred icon style.",
+                "\"Line height\".to_string()",
+                "\"Font weight\".to_string()",
+                "\"Font size (px)\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/features_page.rs",
+            &["\"Characters considered part of a word\".to_string()"][..],
+        ),
+        (
+            "app/src/notebooks/editor/view.rs",
+            &[
+                "new_without_help(\"Shift-tab\"",
+                "new_without_help(\"Edit Link\"",
+                "new_without_help(\"Copy Link\"",
+                "format!(\"Open link: {}\"",
+                "new_without_help(\"Delete line left\"",
+                "new_without_help(\"Delete line right\"",
+                "new_without_help(\"Delete word left\"",
+                "new_without_help(\"Delete word right\"",
+                "new_without_help(\"Cut line left\"",
+                "new_without_help(\"Cut line right\"",
+                "new_without_help(\"Cut word left\"",
+                "new_without_help(\"Cut word right\"",
+                "new_without_help(\"Show character palette\"",
+                "new_without_help(\"Show find bar\"",
+                "new_without_help(\"Open block-insertion menu\"",
+                "new_without_help(\"Open embedded object search menu\"",
+                "format!(\"Insert {} block\"",
+                "AccessibilityContent::new(\n                    \"De-select command\"",
+                "\"Switch from selecting commands to selecting text\",\n                    WarpA11yRole::UserAction",
+                "format!(\"Change code block language to {code_block_type}\"",
+                "new_without_help(\"Copy code block\"",
+                "new_without_help(\"Toggle task list\"",
+            ][..],
+        ),
+        (
+            "app/src/notebooks/editor/omnibar.rs",
+            &[
+                "block_type.label()",
+                "format!(\"Convert to {}\"",
+                "\"Remove link\"",
+            ][..],
+        ),
+        (
+            "app/src/terminal/view/use_agent_footer/mod.rs",
+            &["Don't show again"][..],
+        ),
+        (
+            "app/src/ai/blocklist/block/status_bar.rs",
+            &[
+                "Cloud agent run cancelled",
+                "The primary model failed. Retrying with the fallback model.",
+                "The primary model ({primary}) failed. Retrying with the fallback model.",
+                "Missing GitHub authentication.",
+                "Warping with {name}.",
+                "Warping with another model.",
+                "Setting up environment",
+                "\"Exit\"",
+                "\"Exit agent input\"",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/block/view_impl/output.rs",
+            &[
+                "Grant access to upload this artifact?",
+                "Conversation summarized",
+                "Always allow file access for coding tasks",
+                "Always allow file access for this repo",
+                "Thought for {}",
+                "\"Thinking\".to_string()",
+                "Failed to read files",
+                "Sorry you had a bad experience with this interaction. We've refunded you 1 credit.",
+                "Sorry you had a bad experience with this interaction. We've refunded you {request_refunded_count} credits.",
+                "This response won't count towards your usage.",
+                "Manage AI Autonomy permissions",
+                "Search in {}",
+                "Search in {} failed because the codebase isn't indexed",
+                "Search in {} failed",
+                "Search in {} cancelled",
+                "No relevant files found.",
+                "Stopped task {}/{}",
+                "Stopped task: \\\"{task_name}\\\"",
+                "\"Stopped task\".to_string()",
+                "New conversation started",
+                "Continuing current conversation",
+                "New conversation suggestion cancelled",
+                "It seems like the topic changed. Would you like to make a new conversation?",
+                "Upload artifact: {}",
+                "Description: {description}",
+                "Status: uploaded artifact {artifact_uid}",
+                "Uploaded file: {filepath}",
+                "Status: upload failed: {error}",
+                "Open skill",
+                "OK if I read this MCP resource?",
+                "OK if I use computer control for this task?",
+                "\"Listing messages\".to_string()",
+                "\"Grepping for patterns\".to_string()",
+                "Grepping for patterns: {joined}",
+                "Reading {count} messages",
+                "This suggestion is being edited in another tab.",
+                "Comment addressed: \\\"",
+                "Could not apply changes to file.",
+                "Text::new_inline(\"References\"",
+                "FormattedTextFragment::plain_text(\"Suggestions:\")",
+                "Text::new_inline(\"Debug output\"",
+                "FormattedTextFragment::plain_text(\"Searched \"",
+                "\"Searched\"",
+                "\"Searching\"",
+                "\"conversation\"",
+                "\"agent run\"",
+                "Searching in {}",
+                "Searching in {",
+                "FormattedTextFragment::plain_text(\"this conversation\")",
+            ][..],
+        ),
+        (
+            "app/src/terminal/view.rs",
+            &[
+                "A terminal program tried to access your clipboard.",
+                "\"Allow\".to_string()",
+                "\"Don't show again\".to_string()",
+                "A terminal program tried to write to your clipboard.",
+                "A terminal program tried to read your clipboard.",
+                "Allow clipboard writes",
+                "Allow clipboard reads and writes",
+                "Jump to the bottom of this block",
+                "Can not invoke environment variable subshell in a non-local session",
+                "Bundled skills cannot be edited",
+                "Editing skills is not supported in this build",
+            ][..],
+        ),
+        (
+            "app/src/workspace/view.rs",
+            &[
+                "Access your tab configs here.",
+                "Continue this local Warp Agent task in the cloud from the current conversation state.",
+                "\"New worktree config\" =>",
+                "\"New tab config\" =>",
+                "Ask Warp AI to explain errors, suggest commands or write scripts.",
+                "Agent management panel",
+                "Tabs panel",
+                "Project explorer",
+                "Global search",
+                "Agent conversations",
+                "Tools panel",
+                "Warp Essentials",
+                "Some(\"Introducing Oz\".to_string())",
+                "Open: {}",
+                "Failed to open this handoff in Cloud Mode.",
+                "Tooltip::text(\"Code review panel\"",
+                "Search sessions, agents, files...",
+                "New Tab",
+                "Tab configs",
+                "Some features may be unavailable offline",
+            ][..],
+        ),
+        (
+            "app/src/terminal/input/models/data_source.rs",
+            &["Model: {}", "(selected)", "(disabled)"][..],
+        ),
     ];
 
     let mut violations = Vec::new();
-    for (relative_path, snippets) in cases {
-        let path = workspace_root().join(relative_path);
-        let content = fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-        for snippet in snippets {
-            if content.contains(snippet) {
-                violations.push(format!("{relative_path}: {snippet}"));
-            }
-        }
-    }
+    violations.extend(selected_snippet_violations(&cases));
 
     assert!(
         violations.is_empty(),
         "selected UI surfaces must use AppContext localization: {violations:#?}"
     );
+}
+
+#[test]
+fn conversation_search_prefix_catalog_copy_preserves_spacing() {
+    let prefix_keys = [
+        "agent.output.conversation_search.searched_prefix",
+        "agent.output.conversation_search.searching_prefix",
+        "agent.output.conversation_search.conversation_prefix",
+        "agent.output.conversation_search.agent_run_prefix",
+    ];
+
+    for (locale, catalog) in [
+        ("en-US", bundled_en_us_map()),
+        ("zh-CN", bundled_zh_cn_map()),
+    ] {
+        for key in prefix_keys {
+            let value = catalog
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_else(|| panic!("missing bundled {locale} key {key}"));
+            assert!(
+                value.ends_with(' '),
+                "{locale}:{key} must keep a trailing space because output.rs appends the next formatted fragment directly"
+            );
+        }
+    }
 }
 
 #[test]
@@ -3532,6 +4004,67 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
     assert!(
         violations.is_empty(),
         "UI display helpers must localize before rendering: {violations:#?}"
+    );
+}
+
+#[test]
+fn agent_tips_notebook_links_and_recorder_toasts_use_catalog_copy() {
+    let mut required_keys = [
+        "agent.tips.prefix",
+        "agent.tips.voice",
+        "agent.tips.action.open_palette",
+        "agent.tips.action.open_warp_drive",
+        "agent.tips.action.show_diff_view",
+        "common.open",
+        "notebook.link.action.new_session",
+        "notebook.link.action.new_session_tooltip",
+        "notebook.link.action.open_in_terminal_session",
+        "notebook.link.action.open_in_editor",
+        "notebook.link.action.edit_markdown_file",
+        "notebook.editor.a11y.secondary_click",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect::<Vec<_>>();
+    required_keys.extend((1..=36).map(|index| format!("agent.tips.default.{index:02}")));
+
+    assert_bundled_keys_exist(&required_keys);
+
+    let cases = [
+        (
+            "app/src/ai/agent_tips.rs",
+            &[
+                "format!(\"Tip: {}",
+                "\"Open palette\".to_string()",
+                "\"Warp Drive.\".to_string()",
+                "\"Show diff view\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/notebooks/link.rs",
+            &[
+                "label: \"New session\"",
+                "tooltip: Some(\"Open a new terminal session in this directory\"",
+                "accessibility_content: \"Open in terminal session\"",
+                "label: \"Open in editor\"",
+                "accessibility_content: \"Edit Markdown file\"",
+            ][..],
+        ),
+        (
+            "app/src/notebooks/editor/view.rs",
+            &["format!(\"Secondary click on {}\""][..],
+        ),
+        (
+            "app/src/terminal/recorder.rs",
+            &["ToastLink::new(\"Open\""][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "agent tips, notebook link actions, and recorder toasts must use catalog copy: {violations:#?}"
     );
 }
 
@@ -4098,7 +4631,11 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         ),
         (
             "app/src/terminal/view.rs",
-            &["\"Failed to start SSH extension\""][..],
+            &[
+                "\"Failed to start SSH extension\"",
+                "Execute this plan",
+                "An unknown error occurred",
+            ][..],
         ),
         (
             "app/src/terminal/input/rewind/search_item.rs",
@@ -4275,6 +4812,18 @@ fn current_i18n_regression_targets_are_catalog_backed() {
                 "Press escape to quit",
             ][..],
         ),
+        (
+            "app/src/drive/index.rs",
+            &[
+                "View teams to join",
+                "View team to join",
+                "Text::new_inline(\"Or\"",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/agent_message_bar.rs",
+            &["Message::from_text(\"Starting shell...\")"][..],
+        ),
     ];
 
     let violations = selected_snippet_violations(&cases);
@@ -4385,10 +4934,110 @@ fn shared_session_agent_notifications_and_aws_status_use_catalog_copy() {
 }
 
 #[test]
-fn agent_sdk_driver_text_output_uses_catalog_copy() {
+fn agent_sdk_text_output_uses_catalog_copy() {
     let required_keys = [
+        "agent_sdk.admin.login.already_logged_in",
+        "agent_sdk.admin.login.already_logged_in_as",
+        "agent_sdk.admin.login.already_logged_in_with_email",
+        "agent_sdk.admin.login.authentication_failed",
+        "agent_sdk.admin.login.authentication_failed_with_error",
+        "agent_sdk.admin.login.enter_code",
+        "agent_sdk.admin.login.open_url",
+        "agent_sdk.admin.login.success",
+        "agent_sdk.admin.logout.not_logged_in",
+        "agent_sdk.admin.logout.success",
+        "agent_sdk.admin.whoami.display_name",
+        "agent_sdk.admin.whoami.email",
+        "agent_sdk.admin.whoami.error.serialize",
+        "agent_sdk.admin.whoami.missing_user_id",
+        "agent_sdk.admin.whoami.ndjson_unsupported",
+        "agent_sdk.admin.whoami.service_account_id",
+        "agent_sdk.admin.whoami.team_id",
+        "agent_sdk.admin.whoami.team_name",
+        "agent_sdk.admin.whoami.user_id",
+        "agent.output.upload_artifact.current_conversation_not_synced",
+        "agent_sdk.api_key.confirm.expire",
+        "agent_sdk.api_key.confirm.expire_cancelled",
+        "agent_sdk.api_key.confirm.expire_help",
+        "agent_sdk.api_key.error.create_failed",
+        "agent_sdk.api_key.error.expiration_behavior_required",
+        "agent_sdk.api_key.error.expiration_too_large",
+        "agent_sdk.api_key.error.expire_failed",
+        "agent_sdk.api_key.error.expire_non_interactive_requires_force",
+        "agent_sdk.api_key.error.multiple_matches_specify_uid",
+        "agent_sdk.api_key.error.not_found",
+        "agent_sdk.api_key.output.created",
+        "agent_sdk.api_key.output.expired",
+        "agent_sdk.api_key.output.key_summary",
+        "agent_sdk.api_key.output.multiple_matches",
+        "agent_sdk.api_key.output.not_expired",
+        "agent_sdk.api_key.output.raw_api_key",
+        "agent_sdk.api_key.output.secret_shown_once",
+        "agent_sdk.api_key.output.uid",
+        "agent_sdk.api_key.prompt.select_key_to_expire",
+        "agent_sdk.api_key.table.created",
+        "agent_sdk.api_key.table.expires_at",
+        "agent_sdk.api_key.table.key",
+        "agent_sdk.api_key.table.last_used",
+        "agent_sdk.api_key.table.name",
+        "agent_sdk.api_key.table.never",
+        "agent_sdk.api_key.table.scope",
+        "agent_sdk.api_key.table.uid",
+        "agent_sdk.artifact.error.get_failed",
+        "agent_sdk.artifact.output.artifact_type",
+        "agent_sdk.artifact.output.artifact_uid",
+        "agent_sdk.artifact.output.content_type",
+        "agent_sdk.artifact.output.created_at",
+        "agent_sdk.artifact.output.description",
+        "agent_sdk.artifact.output.download_text_header",
+        "agent_sdk.artifact.output.download_url",
+        "agent_sdk.artifact.output.downloaded",
+        "agent_sdk.artifact.output.expires_at",
+        "agent_sdk.artifact.output.filename",
+        "agent_sdk.artifact.output.filepath",
+        "agent_sdk.artifact.output.get_text_header",
+        "agent_sdk.artifact.output.mime_type",
+        "agent_sdk.artifact.output.path",
+        "agent_sdk.artifact.output.size_bytes",
+        "agent_sdk.artifact.output.upload_text_header",
+        "agent_sdk.artifact.output.uploaded",
+        "agent_sdk.artifact_upload.error.confirm_upload_failed",
+        "agent_sdk.artifact_upload.error.conversation_not_cloud_task",
+        "agent_sdk.artifact_upload.error.conversation_not_found",
+        "agent_sdk.artifact_upload.error.conversation_resolution_required",
+        "agent_sdk.artifact_upload.error.create_upload_target_failed",
+        "agent_sdk.artifact_upload.error.env_run_id_missing",
+        "agent_sdk.artifact_upload.error.env_run_id_not_unicode",
+        "agent_sdk.artifact_upload.error.file_size_supported_range",
+        "agent_sdk.artifact_upload.error.invalid_oz_run_id",
+        "agent_sdk.artifact_upload.error.invalid_run_id",
+        "agent_sdk.artifact_upload.error.load_conversation_for_headers",
+        "agent_sdk.artifact_upload.error.multiple_conversations",
+        "agent_sdk.artifact_upload.error.open_artifact_file",
+        "agent_sdk.artifact_upload.error.read_artifact_file",
+        "agent_sdk.artifact_upload.error.resolve_association_for_conversation_failed",
+        "agent_sdk.artifact_upload.error.resolve_association_missing_source",
+        "agent_sdk.artifact_upload.error.stat_artifact_file",
+        "agent_sdk.cli.error.claude_auth_secret_requires_claude",
+        "agent_sdk.cli.error.determine_working_directory",
+        "agent_sdk.cli.error.invalid_value",
+        "agent_sdk.cli.error.opencode_local_only",
+        "agent_sdk.cli.error.resolve_working_directory",
+        "agent_sdk.cli.error.unexpected_argument",
+        "agent_sdk.cli.warning.team_api_key_free_credits",
         "agent_sdk.common.error.check_warp_logs",
+        "agent_sdk.common.error.conversation_not_found_or_not_accessible",
+        "agent_sdk.common.error.feature_not_enabled",
+        "agent_sdk.common.error.invalid_ambient_task_id",
+        "agent_sdk.common.error.invalid_oz_run_id",
+        "agent_sdk.common.error.invalid_run_id",
+        "agent_sdk.common.error.unknown_model_id",
+        "agent_sdk.common.error.user_not_logged_in",
+        "agent_sdk.common.error.user_not_on_team",
+        "agent_sdk.common.error.warp_drive_sync_timeout",
+        "agent_sdk.common.error.workspace_metadata_timeout",
         "agent_sdk.common.saved_prompt_summary",
+        "agent_sdk.driver.error.team_metadata_refresh_timeout",
         "agent_sdk.driver.output.addressed_comments",
         "agent_sdk.driver.output.audio_content",
         "agent_sdk.driver.output.cancelled",
@@ -4460,6 +5109,184 @@ fn agent_sdk_driver_text_output_uses_catalog_copy() {
         "agent_sdk.driver.error.repository_not_found",
         "agent_sdk.driver.snapshot.error.no_upload_target",
         "agent_sdk.driver.snapshot.error.read_file",
+        "agent_sdk.ambient.error.attachment_upload_not_enabled",
+        "agent_sdk.ambient.error.env_var_not_unicode",
+        "agent_sdk.ambient.error.not_saved_prompt",
+        "agent_sdk.ambient.error.open_agent_event_stream",
+        "agent_sdk.ambient.error.parse_saved_prompt_id",
+        "agent_sdk.ambient.error.prompt_skill_or_conversation_required",
+        "agent_sdk.ambient.error.saved_prompt_not_found",
+        "agent_sdk.ambient.error.streaming_requires_ndjson",
+        "agent_sdk.ambient.error.too_many_attachments",
+        "agent_sdk.ambient.error.unexpected_skill_argument",
+        "agent_sdk.ambient.error.unsupported_feature",
+        "agent_sdk.ambient.field.config",
+        "agent_sdk.ambient.field.created",
+        "agent_sdk.ambient.field.executed_as",
+        "agent_sdk.ambient.field.session",
+        "agent_sdk.ambient.field.status",
+        "agent_sdk.ambient.field.title",
+        "agent_sdk.ambient.message.body",
+        "agent_sdk.ambient.message.delivered_at",
+        "agent_sdk.ambient.message.from",
+        "agent_sdk.ambient.message.marked_delivered",
+        "agent_sdk.ambient.message.message_id",
+        "agent_sdk.ambient.message.message_ids",
+        "agent_sdk.ambient.message.read_at",
+        "agent_sdk.ambient.message.sent_at",
+        "agent_sdk.ambient.message.sent_count",
+        "agent_sdk.ambient.message.subject",
+        "agent_sdk.ambient.message_table.delivered_at",
+        "agent_sdk.ambient.message_table.from",
+        "agent_sdk.ambient.message_table.message_id",
+        "agent_sdk.ambient.message_table.read_at",
+        "agent_sdk.ambient.message_table.sent_at",
+        "agent_sdk.ambient.message_table.subject",
+        "agent_sdk.ambient.output.agent_run",
+        "agent_sdk.ambient.output.agent_runs",
+        "agent_sdk.ambient.output.agent_state",
+        "agent_sdk.ambient.output.concurrent_limit_reached",
+        "agent_sdk.ambient.output.error_message",
+        "agent_sdk.ambient.output.no_environment",
+        "agent_sdk.ambient.output.no_runs_found",
+        "agent_sdk.ambient.output.run_failed_no_message",
+        "agent_sdk.ambient.output.session_not_ready",
+        "agent_sdk.ambient.output.spawned_run",
+        "agent_sdk.ambient.output.upgrade_plan",
+        "agent_sdk.ambient.output.view_agent_session",
+        "agent_sdk.ambient.output.view_run",
+        "agent_sdk.ambient.state.blocked",
+        "agent_sdk.ambient.state.cancelled",
+        "agent_sdk.ambient.state.claimed",
+        "agent_sdk.ambient.state.failed",
+        "agent_sdk.ambient.state.in_progress",
+        "agent_sdk.ambient.state.queued",
+        "agent_sdk.ambient.state.succeeded",
+        "agent_sdk.ambient.state.unknown",
+        "agent_sdk.ambient.watch.disconnected",
+        "agent_sdk.ambient.watch.hydrate_failed",
+        "agent_sdk.ambient.watch.reconnect_failed",
+        "agent_sdk.ambient.watch.reconnected",
+        "agent_sdk.ambient.watch.skipping_event_without_ref",
+        "agent_sdk.ambient.watch.skipping_malformed_event",
+        "agent_sdk.ambient.watch.stream_closed",
+        "agent_sdk.agent_config.output.authorization_required",
+        "agent_sdk.agent_config.output.fetching_from_environments",
+        "agent_sdk.agent_config.output.no_agents_found",
+        "agent_sdk.agent_config.output.opening_browser",
+        "agent_sdk.agent_config.output.rerun_after_authorizing",
+        "agent_sdk.environment.custom_image",
+        "agent_sdk.environment.error.no_images",
+        "agent_sdk.environment.output.created",
+        "agent_sdk.environment.output.deleted",
+        "agent_sdk.environment.output.updated",
+        "agent_sdk.environment.select_base_image",
+        "agent_sdk.federate.error.subject_template_required",
+        "agent_sdk.federate.error.write_gcp_token",
+        "agent_sdk.federate.output.expires_at",
+        "agent_sdk.federate.output.issuer",
+        "agent_sdk.federate.output.token",
+        "agent_sdk.integration.create.canceled",
+        "agent_sdk.integration.error.oauth_failed",
+        "agent_sdk.integration.output.none_found",
+        "agent_sdk.integration.status.active",
+        "agent_sdk.harness_support.error.shutdown_error_args_required",
+        "agent_sdk.harness_support.output.artifact_reported",
+        "agent_sdk.harness_support.output.notification_sent",
+        "agent_sdk.harness_support.output.shutdown_reported",
+        "agent_sdk.harness_support.output.task_finished",
+        "agent_sdk.model.table.model_id",
+        "agent_sdk.provider.error.scope_required",
+        "agent_sdk.provider.output.authenticate_url",
+        "agent_sdk.provider.status.not_connected",
+        "agent_sdk.provider.table.allowed_for",
+        "agent_sdk.provider.table.name",
+        "agent_sdk.provider.table.slug",
+        "agent_sdk.provider.table.status",
+        "agent_sdk.schedule.detail.agent_name",
+        "agent_sdk.schedule.detail.cron_schedule",
+        "agent_sdk.schedule.detail.environment_id",
+        "agent_sdk.schedule.detail.host",
+        "agent_sdk.schedule.detail.last_error",
+        "agent_sdk.schedule.detail.last_ran",
+        "agent_sdk.schedule.detail.model_id",
+        "agent_sdk.schedule.detail.name",
+        "agent_sdk.schedule.detail.next_run",
+        "agent_sdk.schedule.detail.paused",
+        "agent_sdk.schedule.detail.prompt",
+        "agent_sdk.schedule.detail.skill",
+        "agent_sdk.schedule.error.not_found",
+        "agent_sdk.schedule.field.agent_name",
+        "agent_sdk.schedule.field.cron_schedule",
+        "agent_sdk.schedule.field.environment_id",
+        "agent_sdk.schedule.field.host",
+        "agent_sdk.schedule.field.last_error",
+        "agent_sdk.schedule.field.last_ran",
+        "agent_sdk.schedule.field.model_id",
+        "agent_sdk.schedule.field.name",
+        "agent_sdk.schedule.field.next_run",
+        "agent_sdk.schedule.field.paused",
+        "agent_sdk.schedule.field.prompt",
+        "agent_sdk.schedule.field.skill",
+        "agent_sdk.schedule.output.deleted",
+        "agent_sdk.schedule.output.no_environment",
+        "agent_sdk.schedule.output.paused",
+        "agent_sdk.schedule.output.scheduled_agent",
+        "agent_sdk.schedule.output.unpaused",
+        "agent_sdk.schedule.output.updated",
+        "agent_sdk.schedule.progress.deleting_agent",
+        "agent_sdk.schedule.progress.pausing_agent",
+        "agent_sdk.schedule.progress.resuming_agent",
+        "agent_sdk.schedule.progress.scheduling_agent",
+        "agent_sdk.schedule.progress.updating_agent",
+        "agent_sdk.schedule.table.id",
+        "agent_sdk.schedule.table.last_ran",
+        "agent_sdk.schedule.table.name",
+        "agent_sdk.schedule.table.next_run",
+        "agent_sdk.schedule.table.paused",
+        "agent_sdk.schedule.table.schedule",
+        "agent_sdk.schedule.table.scope",
+        "agent_sdk.secret.confirm.delete",
+        "agent_sdk.secret.confirm.delete_cancelled",
+        "agent_sdk.secret.confirm.delete_help",
+        "agent_sdk.secret.error.bedrock_access_key_non_interactive_required",
+        "agent_sdk.secret.error.bedrock_access_key_update_value",
+        "agent_sdk.secret.error.bedrock_api_key_update_value",
+        "agent_sdk.secret.error.bedrock_non_interactive_required",
+        "agent_sdk.secret.error.delete_non_interactive_requires_force",
+        "agent_sdk.secret.error.name_required",
+        "agent_sdk.secret.error.not_found",
+        "agent_sdk.secret.error.read_value_file_failed",
+        "agent_sdk.secret.output.created",
+        "agent_sdk.secret.output.deleted",
+        "agent_sdk.secret.output.updated",
+        "agent_sdk.secret.prompt.aws_access_key_id",
+        "agent_sdk.secret.prompt.aws_region",
+        "agent_sdk.secret.prompt.aws_secret_access_key",
+        "agent_sdk.secret.prompt.aws_session_token_optional",
+        "agent_sdk.secret.prompt.bedrock_api_key",
+        "agent_sdk.secret.prompt.openai_base_url",
+        "agent_sdk.secret.prompt.openai_base_url_help",
+        "agent_sdk.secret.prompt.secret_value",
+        "agent_sdk.secret.scope.personal",
+        "agent_sdk.secret.scope.team",
+        "agent_sdk.secret.table.created",
+        "agent_sdk.secret.table.name",
+        "agent_sdk.secret.table.scope",
+        "agent_sdk.secret.table.type",
+        "agent_sdk.secret.table.updated",
+        "agent_sdk.secret.type.anthropic_api_key",
+        "agent_sdk.secret.type.anthropic_bedrock_access_key",
+        "agent_sdk.secret.type.anthropic_bedrock_api_key",
+        "agent_sdk.secret.type.dotenvx",
+        "agent_sdk.secret.type.openai_api_key",
+        "agent_sdk.secret.type.raw_value",
+        "agent_sdk.skill.error.ambiguous",
+        "agent_sdk.skill.error.clone_failed",
+        "agent_sdk.skill.error.not_found",
+        "agent_sdk.skill.error.org_mismatch",
+        "agent_sdk.skill.error.parse_failed",
+        "agent_sdk.skill.error.repo_not_found",
     ];
 
     assert_bundled_keys_exist(&required_keys);
@@ -4501,6 +5328,233 @@ fn agent_sdk_driver_text_output_uses_catalog_copy() {
             ][..],
         ),
         (
+            "app/src/ai/agent_sdk/ambient.rs",
+            &[
+                "Unsupported feature",
+                "unexpected argument '--skill' found",
+                "Either --prompt, --skill, or --conversation must be provided",
+                "Failed to parse saved prompt ID",
+                "is not a saved prompt",
+                "Saved prompt with ID",
+                "Too many attachments.",
+                "Attachment upload is not enabled",
+                "Agent will run without an environment.",
+                "Spawned ambient agent with run ID:",
+                "View run:",
+                "Concurrent cloud agent limit reached.",
+                "To increase your concurrent agent limit",
+                "Agent state:",
+                "Run failed with no error message",
+                "View agent session:",
+                "Agent session with run ID",
+                "No runs found.",
+                "Agent Run:",
+                "Agent Runs (",
+                "Executed as:",
+                "Config:\\n",
+                "Created:",
+                "Session:",
+                "Streaming commands require `--output-format ndjson`",
+                "is set but is not valid Unicode",
+                "Failed to open agent event stream",
+                "Message watch reconnect failed",
+                "Skipping malformed agent event payload",
+                "Skipping new_message event without ref_id",
+                "Failed to hydrate message",
+                "Message watch disconnected",
+                "Message watch stream closed",
+                "Sent {count} message(s).",
+                "Message IDs:",
+                "Message ID:",
+                "From:",
+                "Subject:",
+                "Sent At:",
+                "Delivered At:",
+                "Read At:",
+                "Body:",
+                "Marked message delivered:",
+                "MESSAGE ID",
+                "DELIVERED AT",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/harness_support.rs",
+            &[
+                "This feature is not enabled",
+                "Artifact reported:",
+                "Notification sent.",
+                "Task finished.",
+                "Shutdown reported.",
+                "--error-category and --error-message must be provided together",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/mod.rs",
+            &[
+                "Warning: Free cloud credits apply to personal runs only",
+                "invalid value 'environment'",
+                "invalid value 'api-key'",
+                "unexpected argument '--environment' found",
+                "unexpected argument '--conversation' found",
+                "unexpected argument '--harness' found",
+                "The opencode harness is only supported",
+                "--claude-auth-secret is only valid with --harness claude.",
+                "Skill '{skill}' not found",
+                "Repository '{repo}' not found",
+                "Failed to parse skill file",
+                "Failed to clone repository",
+                "Unable to determine working directory",
+                "Unable to resolve {}",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/common.rs",
+            &[
+                "Unknown model id",
+                "User is not on a team",
+                "User should be logged in",
+                "Timed out refreshing team metadata",
+                "Timed out waiting for Warp Drive to sync",
+                "conversation {conversation_id} not found or not accessible",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/model.rs",
+            &["MODEL ID", "Timed out refreshing workspace metadata"][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/federate.rs",
+            &[
+                "This feature is not enabled",
+                "--subject-template requires at least one value",
+                "Token:",
+                "Expires at:",
+                "Issuer:",
+                "Error writing GCP token",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/artifact.rs",
+            &[
+                "Failed to get artifact",
+                "Artifact downloaded",
+                "Artifact uploaded",
+                "Artifact UID:",
+                "Artifact type:",
+                "Created at:",
+                "Download URL:",
+                "Expires at:",
+                "Content type:",
+                "Filepath:",
+                "Filename:",
+                "Description:",
+                "MIME type:",
+                "Size bytes:",
+                "Artifact UID\\t",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/artifact_upload.rs",
+            &[
+                "Failed to open artifact file",
+                "Failed to stat artifact file",
+                "Failed to read artifact file",
+                "Conversation not found",
+                "Multiple conversations found",
+                "is not backed by a cloud agent task",
+                "is set but is not valid Unicode",
+                "conversation resolution should be provided",
+                "Failed to resolve artifact upload association",
+                "Artifact file size exceeds supported range",
+                "Failed to create file artifact upload target",
+                "Failed to confirm file artifact upload",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/action_model/execute/upload_artifact.rs",
+            &[
+                "Artifact upload failed:",
+                "Current conversation has not been synced to the server yet",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/agent_config.rs",
+            &[
+                "No agents found.",
+                "Fetching agent skills from your Warp environments",
+                "Authorization required for private repository access.",
+                "Opening browser for GitHub authorization",
+                "After authorizing, please re-run this command.",
+                "Cannot access private repo",
+                "User not connected to GitHub",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/environment.rs",
+            &[
+                "Custom Docker image",
+                "No Warp dev images available.",
+                "Select a base image:",
+                "Enter custom Docker image name:",
+                "Environment created successfully",
+                "Environment deleted successfully",
+                "Environment updated successfully",
+                "Failed to update environment",
+                "Failed to delete environment",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/integration.rs",
+            &[
+                "Integration creation canceled.",
+                "Creating integration without an environment.",
+                "OAuth authorization failed.",
+                "OAuth authorization expired.",
+                "Unexpected non-terminal OAuth status returned",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/integration_output.rs",
+            &[
+                "No integrations found.",
+                "Integration:",
+                "Integrations:",
+                "Integration is connected and enabled.",
+                "This integration is not connected.",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/admin.rs",
+            &[
+                "You are already logged in",
+                "Logged in successfully",
+                "To log in, open this URL in your browser",
+                "To log in, visit ",
+                "Could not determine user ID. Are you logged in?",
+                "User ID:",
+                "Service account ID:",
+                "Display Name:",
+                "Email:",
+                "Team ID:",
+                "Team Name:",
+                "`whoami` does not support `--output-format ndjson`",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/api_key.rs",
+            &[
+                "API key '{key_identifier}' not found",
+                "Multiple API keys match '{key_identifier}'",
+                "Expiration cancelled",
+                "Raw API key:",
+                "This secret key is shown only once",
+                "expiration behavior is required",
+                "expiration duration is too large",
+                "failed to create API key",
+                "failed to expire API key",
+            ][..],
+        ),
+        (
             "app/src/ai/agent_sdk/driver/snapshot.rs",
             &["Failed to read file", "no upload target returned by server"][..],
         ),
@@ -4511,12 +5565,60 @@ fn agent_sdk_driver_text_output_uses_catalog_copy() {
                 "Failed to write to command.",
             ][..],
         ),
+        (
+            "app/src/ai/agent_sdk/provider.rs",
+            &[
+                "Provider '{}' must be setup",
+                "To authenticate {slug}, open this URL in your browser",
+                "Not Connected",
+                "User is not on a team",
+                "ALLOWED FOR",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/schedule.rs",
+            &[
+                "Scheduling agent",
+                "Scheduled agent:",
+                "Pausing agent",
+                "Schedule paused",
+                "Resuming agent",
+                "Schedule unpaused",
+                "Updating agent",
+                "Schedule updated",
+                "Schedule not found",
+                "Deleting agent",
+                "Schedule deleted",
+                "Cron schedule",
+                "Last ran",
+                "Next run",
+                "Environment ID",
+                "Model ID",
+                "Agent name",
+                "Unsynced",
+            ][..],
+        ),
+        (
+            "app/src/ai/agent_sdk/secret.rs",
+            &[
+                "Secret name is required",
+                "Secret '{}' created",
+                "Deletion cancelled",
+                "This action cannot be undone",
+                "Secret '{name}' deleted",
+                "Secret '{}' updated",
+                "Secret '{}' not found",
+                "Failed to read secret value from",
+                "Bedrock secrets require --bedrock-api-key",
+                "Bedrock access key secrets require --access-key-id",
+            ][..],
+        ),
     ];
     violations.extend(selected_snippet_violations(&cases));
 
     assert!(
         violations.is_empty(),
-        "agent SDK driver text output must use catalog copy: {violations:#?}"
+        "agent SDK text output must use catalog copy: {violations:#?}"
     );
 }
 
@@ -5709,14 +6811,20 @@ fn collect_app_localization_key_literals(dir: &Path, keys: &mut BTreeSet<String>
 }
 
 fn collect_localization_key_literals_from_source(content: &str, keys: &mut BTreeSet<String>) {
-    for line in content.lines() {
+    let lines = content.lines().collect::<Vec<_>>();
+    for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("//") || !line_may_reference_localization_key(line) {
             continue;
         }
 
+        let source = if line_may_start_multiline_localization_call(line) {
+            lines[index..lines.len().min(index + 12)].join("\n")
+        } else {
+            line.to_string()
+        };
         keys.extend(
-            string_literals(line)
+            string_literals(&source)
                 .into_iter()
                 .filter(|literal| looks_like_catalog_key(literal))
                 .map(str::to_owned),
@@ -5725,19 +6833,7 @@ fn collect_localization_key_literals_from_source(content: &str, keys: &mut BTree
 }
 
 fn line_may_reference_localization_key(line: &str) -> bool {
-    line.contains("text_for_app")
-        || line.contains("text_for_locale")
-        || line.contains("language_option_label(")
-        || line.contains("ai_settings_text(")
-        || line.contains("workspace_text(")
-        || line.contains("workspace_text_with_args(")
-        || line.contains("billing_text(")
-        || line.contains("code_review_text(")
-        || line.contains("rule_text(")
-        || line.contains("code_text(")
-        || line.contains("input_binding_description(")
-        || line.contains("binding_description(")
-        || line.contains("localized_binding_description(")
+    line_may_start_multiline_localization_call(line)
         || line.contains("translation_key(")
         || line.contains("display_label_key(")
         || line.contains("description_key(")
@@ -5752,8 +6848,31 @@ fn line_may_reference_localization_key(line: &str) -> bool {
         || line.contains("_key =>")
 }
 
+fn line_may_start_multiline_localization_call(line: &str) -> bool {
+    line.contains("text_for_app")
+        || line.contains("text_for_locale")
+        || line.contains("language_option_label(")
+        || line.contains("ai_settings_text(")
+        || line.contains("workspace_text(")
+        || line.contains("workspace_text_with_args(")
+        || line.contains("billing_text(")
+        || line.contains("code_review_text(")
+        || line.contains("rule_text(")
+        || line.contains("code_text(")
+        || line.contains("input_binding_description(")
+        || line.contains("binding_description(")
+        || line.contains("localized_binding_description(")
+}
+
 fn looks_like_catalog_key(literal: &str) -> bool {
     if !literal.contains('.') || literal.contains(' ') || literal.contains('/') {
+        return false;
+    }
+    if literal.ends_with(".rs")
+        || literal.ends_with(".toml")
+        || literal.ends_with(".json")
+        || literal.contains(".amazonaws.")
+    {
         return false;
     }
     let mut parts = literal.split('.');
@@ -5779,7 +6898,8 @@ fn selected_snippet_violations(cases: &[(&str, &[&str])]) -> Vec<String> {
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
         for (line_index, line) in content.lines().enumerate() {
             let trimmed = line.trim_start();
-            if trimmed.starts_with("//") {
+            if trimmed.starts_with("//") || trimmed.starts_with("///") || trimmed.starts_with("/*")
+            {
                 continue;
             }
             for snippet in *snippets {
@@ -5909,7 +7029,7 @@ fn collect_direct_ui_literal_violations_with_patterns(
         let entry = entry.expect("failed to read app source directory entry");
         let path = entry.path();
         if path.is_dir() {
-            collect_direct_ui_literal_violations(&path, violations);
+            collect_direct_ui_literal_violations_with_patterns(&path, patterns, violations);
             continue;
         }
 
@@ -5928,16 +7048,19 @@ fn collect_direct_ui_literal_violations_with_patterns(
 
         let content = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-        for (line_index, line) in content.lines().enumerate() {
-            if let Some(literal) = direct_ui_english_literal(line, patterns) {
-                violations.push(format!(
-                    "{}:{}: {literal:?}",
-                    path.strip_prefix(workspace_root())
-                        .unwrap_or(path.as_path())
-                        .display(),
-                    line_index + 1
-                ));
-            }
+        let relative_path = path
+            .strip_prefix(workspace_root())
+            .unwrap_or(path.as_path())
+            .display()
+            .to_string();
+        for pattern in patterns {
+            collect_direct_first_argument_literal_violations(
+                &relative_path,
+                &content,
+                pattern,
+                violations,
+                None,
+            );
         }
     }
 }
@@ -5953,6 +7076,16 @@ fn collect_direct_first_argument_literal_violations(
     while let Some(found_at) = content[cursor..].find(pattern) {
         let invocation_start = cursor + found_at;
         let arg_start = invocation_start + pattern.len();
+        let line_start = content[..invocation_start]
+            .rfind('\n')
+            .map_or(0, |offset| offset + 1);
+        if content[line_start..invocation_start]
+            .trim_start()
+            .starts_with("//")
+        {
+            cursor = arg_start;
+            continue;
+        }
         if let Some(literal) = first_argument_string_literal(&content[arg_start..]) {
             if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal) && looks_like_english_ui_text(literal)
             {
@@ -6192,35 +7325,6 @@ fn collect_direct_literal_after_patterns(
     }
 }
 
-fn direct_ui_english_literal<'a>(line: &'a str, patterns: &[&str]) -> Option<&'a str> {
-    let trimmed = line.trim_start();
-    if trimmed.starts_with("//") {
-        return None;
-    }
-
-    if line.contains("localization::")
-        || line.contains("text_for_app")
-        || line.contains("ai_settings_text(")
-        || line.contains("workspace_text(")
-        || line.contains("billing_text(")
-        || line.contains("code_review_text(")
-        || line.contains("rule_text(")
-        || line.contains("code_text(")
-        || line.contains("input_binding_description(")
-        || line.contains("binding_description(")
-        || line.contains("FormattedTextFragment::inline_code(")
-    {
-        return None;
-    }
-
-    let pattern = patterns.iter().find(|pattern| line.contains(**pattern))?;
-    let literal = first_string_literal_after(line, pattern)?;
-    if ALLOWED_DIRECT_UI_LITERALS.contains(&literal) || !looks_like_english_ui_text(literal) {
-        return None;
-    }
-    Some(literal)
-}
-
 fn first_string_literal_with_offset(input: &str) -> Option<(&str, usize)> {
     let bytes = input.as_bytes();
     let mut cursor = 0;
@@ -6271,6 +7375,9 @@ fn string_literals(line: &str) -> Vec<&str> {
 fn first_argument_string_literal(input: &str) -> Option<&str> {
     let trimmed = input.trim_start();
     let trimmed = trimmed.strip_prefix('&').unwrap_or(trimmed).trim_start();
+    if let Some(format_args) = trimmed.strip_prefix("format!(") {
+        return argument_string_literal(format_args);
+    }
     argument_string_literal(trimmed)
 }
 
@@ -6286,32 +7393,6 @@ fn argument_string_literal(input: &str) -> Option<&str> {
     while i < bytes.len() {
         if bytes[i] == b'"' && !is_escaped_quote(bytes, i) {
             return Some(&trimmed[1..i]);
-        }
-        i += 1;
-    }
-    None
-}
-
-fn first_string_literal_after<'a>(line: &'a str, pattern: &str) -> Option<&'a str> {
-    let start = line.find(pattern)? + pattern.len();
-    let rest = &line[start..];
-    let mut offset = rest.len() - rest.trim_start().len();
-    let rest = &rest[offset..];
-    if let Some(after_ref) = rest.strip_prefix('&') {
-        offset += 1;
-        offset += after_ref.len() - after_ref.trim_start().len();
-    }
-
-    if line.as_bytes().get(start + offset) != Some(&b'"') {
-        return None;
-    }
-
-    let literal_start = start + offset + 1;
-    let bytes = line.as_bytes();
-    let mut i = literal_start;
-    while i < bytes.len() {
-        if bytes[i] == b'"' && !is_escaped_quote(bytes, i) {
-            return Some(&line[literal_start..i]);
         }
         i += 1;
     }

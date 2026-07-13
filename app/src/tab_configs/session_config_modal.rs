@@ -211,18 +211,23 @@ impl SessionConfigModal {
         )
     }
 
-    fn render_directory_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_directory_section(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         session_config_rendering::render_directory_picker(
             &self.selected_directory,
             self.directory_button_mouse_state.clone(),
             |ctx, _| {
                 ctx.dispatch_typed_action(SessionConfigModalAction::OpenDirectoryPicker);
             },
+            app,
             appearance,
         )
     }
 
-    fn render_checkboxes(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_checkboxes(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         session_config_rendering::render_worktree_checkbox(
             self.enable_worktree,
             self.is_git_repo,
@@ -231,12 +236,14 @@ impl SessionConfigModal {
             |ctx, _| {
                 ctx.dispatch_typed_action(SessionConfigModalAction::ToggleWorktree);
             },
+            app,
             appearance,
         )
     }
 
     fn render_autogenerate_worktree_branch_name_checkbox(
         &self,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         session_config_rendering::render_autogenerate_worktree_branch_name_checkbox(
@@ -250,6 +257,7 @@ impl SessionConfigModal {
                     SessionConfigModalAction::ToggleAutogenerateWorktreeBranchName,
                 );
             },
+            app,
             appearance,
         )
     }
@@ -284,18 +292,18 @@ impl View for SessionConfigModal {
         }
 
         form.add_child(
-            Container::new(self.render_directory_section(appearance))
+            Container::new(self.render_directory_section(app, appearance))
                 .with_margin_top(SECTION_GAP)
                 .finish(),
         );
 
         form.add_child(
-            Container::new(self.render_checkboxes(appearance))
+            Container::new(self.render_checkboxes(app, appearance))
                 .with_margin_top(SECTION_GAP)
                 .finish(),
         );
         form.add_child(
-            Container::new(self.render_autogenerate_worktree_branch_name_checkbox(appearance))
+            Container::new(self.render_autogenerate_worktree_branch_name_checkbox(app, appearance))
                 .with_margin_top(8.)
                 .finish(),
         );

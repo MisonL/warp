@@ -57,6 +57,7 @@ use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::ui_components::menu_button::{icon_button_with_context_menu, MenuDirection};
 use crate::ui_components::tab_selector::{self, SettingsTab};
+use crate::util::time_format::localized_month_day_time;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme, SecondaryTheme};
 use crate::view_components::ToastFlavor;
 use crate::workspaces::team::Team;
@@ -2330,7 +2331,7 @@ impl BillingAndUsagePageView {
 
         if let Some(period_end) = total_overages_period_end {
             let local_period_end = period_end.with_timezone(&Local);
-            let formatted_date = local_period_end.format("%b %d at %-I:%M %p").to_string();
+            let formatted_date = localized_month_day_time(app, local_period_end);
             let billing_date_text = billing_text_with_args(
                 app,
                 "settings.billing.usage.resets_on",
@@ -2584,10 +2585,8 @@ impl BillingAndUsagePageView {
 impl BillingAndUsagePageView {
     fn render_page_body(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let ai_request_usage_model = AIRequestUsageModel::as_ref(app);
-        let formatted_next_refresh_time = ai_request_usage_model
-            .next_refresh_time_local()
-            .format("%b %d at %-I:%M %p")
-            .to_string();
+        let formatted_next_refresh_time =
+            localized_month_day_time(app, ai_request_usage_model.next_refresh_time_local());
         let workspace_is_delinquent_due_to_payment_issue = UserWorkspaces::as_ref(app)
             .current_team()
             .map(|team| team.billing_metadata.is_delinquent_due_to_payment_issue())
@@ -2953,7 +2952,7 @@ impl BillingAndUsagePageView {
                     .paragraph(billing_text_with_args(
                         app,
                         "settings.billing.usage.resets",
-                        &[("date", &formatted_next_refresh_time)],
+                        &[("date", formatted_next_refresh_time)],
                     ))
                     .with_style(UiComponentStyles {
                         font_color: Some(blended_colors::text_sub(

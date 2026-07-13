@@ -307,15 +307,15 @@ impl EnvironmentFormCopy {
         Self {
             name_placeholder: "Environment name",
             name_placeholder_key: Some("settings.environment.form.name.placeholder"),
-            repos_placeholder_authed: REPOS_PLACEHOLDER_AUTHED,
+            repos_placeholder_authed: "",
             repos_placeholder_authed_key: Some(REPOS_PLACEHOLDER_AUTHED_KEY),
-            repos_placeholder_unauthed: REPOS_PLACEHOLDER_UNAUTHED,
+            repos_placeholder_unauthed: "",
             repos_placeholder_unauthed_key: Some("settings.environment.form.repos.placeholder_unauthed"),
             docker_image_label: "Docker image reference",
             docker_image_label_key: Some("settings.environment.form.docker_image.label"),
             docker_image_placeholder: "e.g. python:3.11, node:20-alpine",
             docker_image_placeholder_key: Some("settings.environment.form.docker_image.placeholder"),
-            description_placeholder: DESCRIPTION_PLACEHOLDER,
+            description_placeholder: "",
             description_placeholder_key: Some("settings.environment.form.description.placeholder"),
             setup_commands_placeholder: "e.g. cd my-repo && pip install -r requirements.txt",
             setup_commands_placeholder_key: Some("settings.environment.form.setup_commands.placeholder"),
@@ -333,7 +333,7 @@ impl EnvironmentFormCopy {
             repos_placeholder_authed_key: Some(
                 "settings.environment.form.orchestration.repos.placeholder_authed",
             ),
-            repos_placeholder_unauthed: REPOS_PLACEHOLDER_UNAUTHED,
+            repos_placeholder_unauthed: "",
             repos_placeholder_unauthed_key: Some(
                 "settings.environment.form.repos.placeholder_unauthed",
             ),
@@ -345,7 +345,7 @@ impl EnvironmentFormCopy {
             docker_image_placeholder_key: Some(
                 "settings.environment.form.orchestration.docker_image.placeholder",
             ),
-            description_placeholder: DESCRIPTION_PLACEHOLDER,
+            description_placeholder: "",
             description_placeholder_key: Some("settings.environment.form.description.placeholder"),
             setup_commands_placeholder: "e.g., node start",
             setup_commands_placeholder_key: Some(
@@ -433,16 +433,16 @@ impl Default for EnvironmentFormCopy {
         Self {
             name_placeholder: "Environment name",
             name_placeholder_key: None,
-            repos_placeholder_authed: REPOS_PLACEHOLDER_AUTHED,
-            repos_placeholder_authed_key: None,
-            repos_placeholder_unauthed: REPOS_PLACEHOLDER_UNAUTHED,
-            repos_placeholder_unauthed_key: None,
+            repos_placeholder_authed: "",
+            repos_placeholder_authed_key: Some(REPOS_PLACEHOLDER_AUTHED_KEY),
+            repos_placeholder_unauthed: "",
+            repos_placeholder_unauthed_key: Some("settings.environment.form.repos.placeholder_unauthed"),
             docker_image_label: "Docker image reference",
             docker_image_label_key: None,
             docker_image_placeholder: "e.g. python:3.11, node:20-alpine",
             docker_image_placeholder_key: None,
-            description_placeholder: DESCRIPTION_PLACEHOLDER,
-            description_placeholder_key: None,
+            description_placeholder: "",
+            description_placeholder_key: Some("settings.environment.form.description.placeholder"),
             setup_commands_placeholder: "e.g. cd my-repo && pip install -r requirements.txt",
             setup_commands_placeholder_key: None,
             setup_commands_helper: "Setup commands run independently. Each command runs from the workspace root (/workspace). If a command depends on the previous one, combine them with &&.",
@@ -528,10 +528,7 @@ pub struct UpdateEnvironmentForm {
 }
 
 const DESCRIPTION_MAX_CHARS: usize = 240;
-const DESCRIPTION_PLACEHOLDER: &str = "e.g., this environment is for all front end focused agents";
-const REPOS_PLACEHOLDER_AUTHED: &str = "Enter repos (owner/repo format)";
 const REPOS_PLACEHOLDER_AUTHED_KEY: &str = "settings.environment.form.repos.placeholder_authed";
-const REPOS_PLACEHOLDER_UNAUTHED: &str = "Paste repo URL(s)";
 const FORM_FIELD_SPACING: f32 = 20.;
 const FORM_LABEL_SPACING: f32 = 6.;
 const FORM_INPUT_HEIGHT: f32 = 36.;

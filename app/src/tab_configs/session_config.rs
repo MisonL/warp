@@ -81,15 +81,28 @@ fn handlebars_placeholder(name: &str) -> String {
 /// Derives a human-readable config name from the directory and worktree setting.
 /// e.g. "Worktree: my-repo" or "New tab: my-repo".
 fn config_name(directory: &Path, enable_worktree: bool) -> String {
+    format_config_name(directory, enable_worktree, "Worktree", "New tab")
+}
+
+fn localized_config_name(directory: &Path, enable_worktree: bool) -> String {
+    format_config_name(directory, enable_worktree, "工作树", "新标签页")
+}
+
+fn format_config_name(
+    directory: &Path,
+    enable_worktree: bool,
+    worktree_prefix: &str,
+    new_tab_prefix: &str,
+) -> String {
     let repo = directory
         .file_name()
         .and_then(|n| n.to_str())
         .or_else(|| directory.to_str())
         .unwrap_or("untitled");
     let prefix = if enable_worktree {
-        "Worktree"
+        worktree_prefix
     } else {
-        "New tab"
+        new_tab_prefix
     };
     format!("{prefix}: {repo}")
 }
@@ -150,7 +163,7 @@ pub fn build_tab_config(
 
     TabConfig {
         name: config_name(directory, enable_worktree),
-        name_zh_cn: None,
+        name_zh_cn: Some(localized_config_name(directory, enable_worktree)),
         title,
         color: None,
         panes: vec![TabConfigPaneNode {
@@ -218,7 +231,7 @@ pub fn tab_config_from_pane_snapshot(
 
     TabConfig {
         name: "My Tab Config".to_string(),
-        name_zh_cn: None,
+        name_zh_cn: Some("我的标签页配置".to_string()),
         title: custom_title,
         color,
         panes,

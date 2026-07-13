@@ -13,11 +13,8 @@ use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::UgcCollectionEnablementSetting;
-use crate::{Appearance, FeatureFlag, WorkspaceAction};
+use crate::{localization, Appearance, FeatureFlag, WorkspaceAction};
 
-const TITLE_EXISTING_USERS: &str = "We've updated our telemetry policy.";
-const TITLE_NEW_USERS: &str = "Help improve Warp.";
-const DESCRIPTION: &str = "We may collect certain console interactions to improve Warp's AI capabilities. You can opt out any time.";
 const PRIVACY_URL: &str = "https://warp.dev/privacy";
 
 #[derive(Default, Debug, Clone)]
@@ -49,10 +46,10 @@ impl View for TelemetryBanner {
         let theme = appearance.theme();
         let ui_builder = appearance.ui_builder();
 
-        let title = if self.is_onboarded {
-            TITLE_EXISTING_USERS
+        let title_key = if self.is_onboarded {
+            "agent.telemetry_banner.title_existing"
         } else {
-            TITLE_NEW_USERS
+            "agent.telemetry_banner.title_new"
         };
 
         let left = Flex::row()
@@ -77,15 +74,26 @@ impl View for TelemetryBanner {
                     Flex::column()
                         .with_main_axis_alignment(MainAxisAlignment::Start)
                         .with_child(
-                            Text::new(title, ui_builder.ui_font_family(), 14.)
-                                .with_color(theme.active_ui_text_color().into_solid())
-                                .finish(),
+                            Text::new(
+                                localization::text_for_app(app, title_key),
+                                ui_builder.ui_font_family(),
+                                14.,
+                            )
+                            .with_color(theme.active_ui_text_color().into_solid())
+                            .finish(),
                         )
                         .with_child(
-                            Text::new(DESCRIPTION, ui_builder.ui_font_family(), 12.)
-                                .with_color(theme.nonactive_ui_text_color().into_solid())
-                                .soft_wrap(true)
-                                .finish(),
+                            Text::new(
+                                localization::text_for_app(
+                                    app,
+                                    "agent.telemetry_banner.description",
+                                ),
+                                ui_builder.ui_font_family(),
+                                12.,
+                            )
+                            .with_color(theme.nonactive_ui_text_color().into_solid())
+                            .soft_wrap(true)
+                            .finish(),
                         )
                         .finish(),
                 )

@@ -67,10 +67,6 @@ const ESC_BADGE_CORNER_RADIUS: Radius = Radius::Pixels(3.);
 const CLOSE_ICON_SIZE: f32 = 14.;
 /// Font size for inline validation error messages.
 const ERROR_FONT_SIZE: f32 = 12.;
-/// Error shown when the user-entered worktree branch name contains invalid characters.
-const INVALID_BRANCH_NAME_ERROR: &str =
-    "Name can only contain letters, numbers, hyphens, and underscores";
-
 /// Returns `true` if `name` is a valid worktree branch name.
 ///
 /// Valid names contain only ASCII letters, digits, hyphens, and underscores.
@@ -284,16 +280,12 @@ impl NewWorktreeModal {
         });
     }
 
-    fn render_section_label(text: &str, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_section_label(text: String, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         Container::new(
-            Text::new_inline(
-                text.to_string(),
-                appearance.ui_font_family(),
-                appearance.ui_font_size(),
-            )
-            .with_color(theme.sub_text_color(theme.background()).into())
-            .finish(),
+            Text::new_inline(text, appearance.ui_font_family(), appearance.ui_font_size())
+                .with_color(theme.sub_text_color(theme.background()).into())
+                .finish(),
         )
         .with_margin_bottom(LABEL_BOTTOM_MARGIN)
         .finish()
@@ -325,10 +317,10 @@ impl View for NewWorktreeModal {
             && !is_valid_worktree_branch_name(&worktree_name_text);
         let can_submit = has_repo && has_branch && worktree_name_valid;
 
-        // ── Header (custom — Modal wrapper has no title) ────────────────
+        // Header. The Modal wrapper has no title.
         let header = {
             let title = Text::new_inline(
-                "New worktree".to_string(),
+                localization::text_for_app(app, "tab_config.new_worktree.title"),
                 appearance.ui_font_family(),
                 HEADER_TITLE_FONT_SIZE,
             )
@@ -404,20 +396,26 @@ impl View for NewWorktreeModal {
             .finish()
         };
 
-        // ── Form body ───────────────────────────────────────────────────
+        // Form body
         let mut body = Flex::column()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
         // Repo picker
-        body.add_child(Self::render_section_label("Select repository", appearance));
+        body.add_child(Self::render_section_label(
+            localization::text_for_app(app, "tab_config.new_worktree.select_repository"),
+            appearance,
+        ));
         body.add_child(ChildView::new(&self.repo_picker).finish());
 
         // Branch picker (with gap)
         body.add_child(
-            Container::new(Self::render_section_label("Select branch", appearance))
-                .with_margin_top(SECTION_GAP)
-                .finish(),
+            Container::new(Self::render_section_label(
+                localization::text_for_app(app, "tab_config.new_worktree.select_branch"),
+                appearance,
+            ))
+            .with_margin_top(SECTION_GAP)
+            .finish(),
         );
         body.add_child(ChildView::new(&self.branch_picker).finish());
 
@@ -467,7 +465,10 @@ impl View for NewWorktreeModal {
             .with_child(checkbox_element)
             .with_child(
                 Text::new_inline(
-                    "Autogenerate worktree branch name".to_string(),
+                    localization::text_for_app(
+                        app,
+                        "tab_config.new_worktree.autogenerate_branch_name",
+                    ),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -482,11 +483,11 @@ impl View for NewWorktreeModal {
                 .finish(),
         );
 
-        // Worktree branch name text field — shown when autogenerate is unchecked.
+        // Worktree branch name text field shown when autogenerate is unchecked.
         if !self.autogenerate_branch_name {
             body.add_child(
                 Container::new(Self::render_section_label(
-                    "Worktree branch name",
+                    localization::text_for_app(app, "tab_config.new_worktree.branch_name"),
                     appearance,
                 ))
                 .with_margin_top(SECTION_GAP)
@@ -498,7 +499,10 @@ impl View for NewWorktreeModal {
                 body.add_child(
                     Container::new(
                         Text::new_inline(
-                            INVALID_BRANCH_NAME_ERROR.to_string(),
+                            localization::text_for_app(
+                                app,
+                                "tab_config.new_worktree.invalid_branch_name",
+                            ),
                             appearance.ui_font_family(),
                             ERROR_FONT_SIZE,
                         )
@@ -520,7 +524,7 @@ impl View for NewWorktreeModal {
             )
             .finish();
 
-        // ── Footer ──────────────────────────────────────────────────────
+        // Footer
         // Figma: text-only buttons, semibold 14px, h-32, px-12, no background.
         // Cancel uses main text color; Open uses disabled text color when no repo.
         let text_button_base = UiComponentStyles {
@@ -611,7 +615,7 @@ impl View for NewWorktreeModal {
             .with_border(Border::top(1.).with_border_fill(theme.outline()))
             .finish();
 
-        // ── Assemble ────────────────────────────────────────────────────
+        // Assemble
         Flex::column()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)

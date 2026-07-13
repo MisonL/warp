@@ -567,7 +567,7 @@ impl AutoupdateState {
         request_type: RequestType,
         ctx: &mut ModelContext<AutoupdateState>,
     ) {
-        if let Some(content) = accessibility_content(&update_available, request_type) {
+        if let Some(content) = accessibility_content(&update_available, request_type, ctx) {
             ctx.emit_a11y_content(content);
         }
 
@@ -731,17 +731,18 @@ pub enum RequestType {
 pub fn accessibility_content(
     update_available: &Result<UpdateReady>,
     request_type: RequestType,
+    app: &AppContext,
 ) -> Option<AccessibilityContent> {
     match (request_type, update_available) {
         // Found autoupdate
         (RequestType::ManualCheck, Ok(UpdateReady::Yes { .. })) => Some(AccessibilityContent::new(
-            "Update available.",
-            "Use the command palette to install and relaunch Warp",
+            crate::localization::text_for_app(app, "autoupdate.a11y.update_available"),
+            crate::localization::text_for_app(app, "autoupdate.a11y.update_available_help"),
             WarpA11yRole::HelpRole,
         )),
         // Any non-successful autoupdate check
         (RequestType::ManualCheck, _) => Some(AccessibilityContent::new_without_help(
-            "No updates available",
+            crate::localization::text_for_app(app, "autoupdate.a11y.no_updates_available"),
             WarpA11yRole::HelpRole,
         )),
         _ => None,

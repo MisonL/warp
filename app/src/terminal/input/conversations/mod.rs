@@ -12,6 +12,7 @@ use warpui::SingletonEntity;
 
 use crate::ai::active_agent_views_model::{ActiveAgentViewsModel, ConversationOrTaskId};
 use crate::ai::agent_conversations_model::AgentConversationEntryId;
+use crate::localization;
 use crate::terminal::input::inline_menu::{
     default_navigation_message_items, InlineMenuAction, InlineMenuMessageArgs, InlineMenuRowAction,
     InlineMenuType,
@@ -50,9 +51,9 @@ impl InlineMenuAction for AcceptConversation {
             let is_active = active_ids.contains(&ConversationOrTaskId::from(item.item_id));
 
             let text = if is_active {
-                " go to conversation"
+                localization::text_for_app(app, "terminal.inline_menu.action.go_to_conversation")
             } else {
-                " continue in this pane"
+                localization::text_for_app(app, "terminal.inline_menu.action.continue_in_this_pane")
             };
 
             let item_id = item.item_id;
@@ -85,7 +86,11 @@ impl InlineMenuAction for AcceptConversation {
                     background_color: Some(ColorU::transparent_black()),
                 },
                 MessageItem::Text {
-                    content: " continue in this pane".into(),
+                    content: localization::text_for_app(
+                        app,
+                        "terminal.inline_menu.action.continue_in_this_pane",
+                    )
+                    .into(),
                     color: Some(disabled_color),
                 },
             ]);

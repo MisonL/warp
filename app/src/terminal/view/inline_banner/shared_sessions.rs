@@ -5,15 +5,18 @@ use warpui::elements::{
     ParentElement, Radius, Rect, Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::Element;
+use warpui::{AppContext, Element};
 
 use crate::appearance::Appearance;
+use crate::localization;
+use crate::util::time_format::{localized_month_day, localized_time_of_day};
 
 fn render_inline_shared_session_banner(
     is_active: bool,
     label: String,
     datetime: DateTime<Local>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let border_fill = if is_active {
         appearance.theme().terminal_colors().normal.red.into()
@@ -32,15 +35,12 @@ fn render_inline_shared_session_banner(
     let today = Local::now();
     let is_today = datetime.year() == today.year() && datetime.ordinal() == today.ordinal();
     let day_str = if is_today {
-        String::from("Today")
+        localization::text_for_app(app, "terminal.shared_session.inline_banner.today")
     } else {
-        // Formatted as "Month Day", e.g. "October 10".
-        datetime.format("%B %e").to_string()
+        localized_month_day(app, datetime)
     };
 
-    // TODO: look into using the OS's locale to format the time according
-    // to user's preferences.
-    let time_str = datetime.format("%l:%M%P").to_string();
+    let time_str = localized_time_of_day(app, datetime);
     let datetime_str = format!("{day_str}, {time_str}");
 
     let pill = Container::new(
@@ -97,15 +97,22 @@ pub fn render_inline_shared_session_started_banner(
     is_remote_control: bool,
     started_at: DateTime<Local>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
-    let label = if is_shared_ambient_agent_session {
-        "Environment started"
+    let label_key = if is_shared_ambient_agent_session {
+        "terminal.shared_session.inline_banner.environment_started"
     } else if is_remote_control {
-        "Remote control active"
+        "terminal.shared_session.inline_banner.remote_control_active"
     } else {
-        "Sharing started"
+        "terminal.shared_session.inline_banner.sharing_started"
     };
-    render_inline_shared_session_banner(is_active, label.to_string(), started_at, appearance)
+    render_inline_shared_session_banner(
+        is_active,
+        localization::text_for_app(app, label_key),
+        started_at,
+        appearance,
+        app,
+    )
 }
 
 pub fn render_inline_shared_session_ended_banner(
@@ -113,13 +120,20 @@ pub fn render_inline_shared_session_ended_banner(
     is_remote_control: bool,
     ended_at: DateTime<Local>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
-    let label = if is_shared_ambient_agent_session {
-        "Environment ended"
+    let label_key = if is_shared_ambient_agent_session {
+        "terminal.shared_session.inline_banner.environment_ended"
     } else if is_remote_control {
-        "Remote control stopped"
+        "terminal.shared_session.inline_banner.remote_control_stopped"
     } else {
-        "Sharing ended"
+        "terminal.shared_session.inline_banner.sharing_ended"
     };
-    render_inline_shared_session_banner(false, label.to_string(), ended_at, appearance)
+    render_inline_shared_session_banner(
+        false,
+        localization::text_for_app(app, label_key),
+        ended_at,
+        appearance,
+        app,
+    )
 }
