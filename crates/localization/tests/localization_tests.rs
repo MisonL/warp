@@ -3410,6 +3410,11 @@ fn local_agent_task_sync_persists_canonical_status_messages() {
 
 #[test]
 fn ambient_agent_sdk_localizes_canonical_task_status_messages() {
+    let source_lines = AGENT_SDK_AMBIENT_SOURCE
+        .lines()
+        .map(str::trim)
+        .collect::<Vec<_>>();
+
     assert!(
         AGENT_SDK_AMBIENT_SOURCE.contains("localized_task_status_message_for_locale"),
         "ambient agent SDK output should localize canonical task status messages before rendering"
@@ -3420,8 +3425,9 @@ fn ambient_agent_sdk_localizes_canonical_task_status_messages() {
         "ambient agent SDK output should pass task status messages through its localization helper"
     );
     assert!(
-        !AGENT_SDK_AMBIENT_SOURCE
-            .contains("&status_msg.message,\n                    MAX_LINE_WIDTH"),
+        !source_lines
+            .windows(2)
+            .any(|lines| { lines == ["&status_msg.message,", "MAX_LINE_WIDTH,"] }),
         "ambient agent SDK output should not render canonical task status messages directly"
     );
 }
@@ -3714,8 +3720,8 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "new_without_help(\"Open block-insertion menu\"",
                 "new_without_help(\"Open embedded object search menu\"",
                 "format!(\"Insert {} block\"",
-                "AccessibilityContent::new(\n                    \"De-select command\"",
-                "\"Switch from selecting commands to selecting text\",\n                    WarpA11yRole::UserAction",
+                "\"De-select command\"",
+                "\"Switch from selecting commands to selecting text\"",
                 "format!(\"Change code block language to {code_block_type}\"",
                 "new_without_help(\"Copy code block\"",
                 "new_without_help(\"Toggle task list\"",
@@ -4091,6 +4097,19 @@ fn ai_settings_high_risk_wrappers_do_not_use_direct_english_literals() {
 
 #[test]
 fn ai_settings_mode_command_bindings_use_dynamic_localized_descriptions() {
+    let source_lines = AI_SETTINGS_PAGE_SOURCE
+        .lines()
+        .map(str::trim)
+        .collect::<Vec<_>>();
+    let dynamic_description_call_count = source_lines
+        .windows(3)
+        .filter(|lines| {
+            lines[0] == "localized_binding_description("
+                && lines[1] == "mode.command_palette_description(),"
+                && lines[2] == "mode.command_palette_description_key(),"
+        })
+        .count();
+
     assert!(
         AI_SETTINGS_PAGE_SOURCE.contains("fn localized_binding_description"),
         "AI settings should construct catalog-backed dynamic binding descriptions"
@@ -4100,10 +4119,7 @@ fn ai_settings_mode_command_bindings_use_dynamic_localized_descriptions() {
         "AI settings binding descriptions should refresh after runtime language changes"
     );
     assert!(
-        AI_SETTINGS_PAGE_SOURCE
-            .matches("localized_binding_description(\n                        mode.command_palette_description(),\n                        mode.command_palette_description_key(),")
-            .count()
-            >= 3,
+        dynamic_description_call_count >= 3,
         "AI settings mode command bindings should use dynamic localized descriptions"
     );
     assert!(
