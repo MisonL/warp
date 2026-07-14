@@ -1048,6 +1048,8 @@
   "agent.input_footer.install_plugin_instructions_tooltip": "View instructions to install the Warp plugin",
   "agent.input_footer.install_plugin_tooltip": "Install the Warp plugin to enable rich agent notifications within Warp",
   "agent.input_footer.installing_plugin": "Installing Warp plugin...",
+  "agent.input_footer.live_remote_vm_indicator_tooltip": "Connected to a live cloud agent session. Your next prompt continues on the running remote machine.",
+  "agent.input_footer.new_cloud_vm_indicator_tooltip": "Not connected to cloud agent. Your next prompt starts a new cloud machine to continue this conversation.",
   "agent.input_footer.new_environment": "New environment",
   "agent.input_footer.notifications_setup_instructions": "Notifications setup instructions",
   "agent.input_footer.open_coding_agent_settings": "Open coding agent settings",

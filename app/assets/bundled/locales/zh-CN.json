@@ -1048,6 +1048,8 @@
   "agent.input_footer.install_plugin_instructions_tooltip": "查看安装 Warp 插件的说明",
   "agent.input_footer.install_plugin_tooltip": "安装 Warp 插件以在 Warp 中启用丰富的 Agent 通知",
   "agent.input_footer.installing_plugin": "正在安装 Warp 插件...",
+  "agent.input_footer.live_remote_vm_indicator_tooltip": "已连接到实时云端 Agent 会话。你的下一条提示将继续在正在运行的远程机器上执行。",
+  "agent.input_footer.new_cloud_vm_indicator_tooltip": "未连接到云端 Agent。你的下一条提示将启动一台新的云端机器以继续此对话。",
   "agent.input_footer.new_environment": "新建环境",
   "agent.input_footer.notifications_setup_instructions": "通知设置说明",
   "agent.input_footer.open_coding_agent_settings": "打开编码 Agent 设置",
