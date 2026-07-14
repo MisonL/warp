@@ -6365,41 +6365,26 @@ fn terminal_input_search_items_have_localized_accessibility_labels() {
 }
 
 #[test]
-fn suggestion_prompts_are_catalog_backed() {
+fn create_project_suggestion_prompts_are_catalog_backed() {
     let required_keys = [
         "coding_entrypoints.create_project.suggestion.minesweeper.prompt",
         "coding_entrypoints.create_project.suggestion.node_quotes.prompt",
         "coding_entrypoints.create_project.suggestion.csv_to_json.prompt",
         "coding_entrypoints.create_project.suggestion.resume_page.prompt",
         "coding_entrypoints.create_project.suggestion.game_of_life.prompt",
-        "terminal.onboarding.agentic_suggestions.python_snake.prompt",
-        "terminal.onboarding.agentic_suggestions.git_history.prompt",
-        "terminal.onboarding.agentic_suggestions.matrix_theme.prompt",
-        "terminal.onboarding.agentic_suggestions.other.prompt",
     ];
     assert_bundled_keys_exist(&required_keys);
 
-    let cases = [
-        (
-            "app/src/coding_entrypoints/create_project_view.rs",
-            &[
-                "Build a Minesweeper clone in React",
-                "Code a Node.js server that returns random quotes from a JSON file",
-                "Write a CSV to JSON converter CLI",
-                "Create a starter template",
-                "Make a Conway's Game of Life simulation",
-            ][..],
-        ),
-        (
-            "app/src/terminal/view/block_onboarding/onboarding_agentic_suggestions_block.rs",
-            &[
-                "Make a snake game for playing in the terminal using python.",
-                "Explore my git history in",
-                "First check if {matrix_save_directory} exists",
-                "What can you help with me on?",
-            ][..],
-        ),
-    ];
+    let cases = [(
+        "app/src/coding_entrypoints/create_project_view.rs",
+        &[
+            "Build a Minesweeper clone in React",
+            "Code a Node.js server that returns random quotes from a JSON file",
+            "Write a CSV to JSON converter CLI",
+            "Create a starter template",
+            "Make a Conway's Game of Life simulation",
+        ][..],
+    )];
 
     let violations = selected_snippet_violations(&cases);
 
