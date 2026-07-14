@@ -32,7 +32,7 @@ fn format_upload_artifact_text_includes_request_details() {
         description: Some("Daily summary".to_string()),
     };
 
-    let text = format_upload_artifact_text(&request, None);
+    let text = format_upload_artifact_text(&request, None, warp_localization::LocaleId::EnUs);
 
     assert_eq!(
         text,
@@ -54,7 +54,8 @@ fn format_upload_artifact_text_includes_success_summary() {
         size_bytes: 128,
     };
 
-    let text = format_upload_artifact_text(&request, Some(&result));
+    let text =
+        format_upload_artifact_text(&request, Some(&result), warp_localization::LocaleId::EnUs);
 
     assert_eq!(
         text,
@@ -74,14 +75,18 @@ fn format_upload_artifact_text_includes_terminal_status() {
         Some(&UploadArtifactResult::Error(
             "permission denied".to_string(),
         )),
+        warp_localization::LocaleId::EnUs,
     );
     assert_eq!(
         error_text,
         "Upload artifact: reports/daily.txt\nStatus: upload failed: permission denied"
     );
 
-    let cancelled_text =
-        format_upload_artifact_text(&request, Some(&UploadArtifactResult::Cancelled));
+    let cancelled_text = format_upload_artifact_text(
+        &request,
+        Some(&UploadArtifactResult::Cancelled),
+        warp_localization::LocaleId::EnUs,
+    );
     assert_eq!(cancelled_text, "Upload artifact: reports/daily.txt");
 }
 
