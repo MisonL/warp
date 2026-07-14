@@ -52,6 +52,15 @@ where
     }
 }
 
+/// Print a list using the canonical English locale when no display locale is available.
+pub fn print_list<I, T>(items: I, output_format: OutputFormat)
+where
+    I: IntoIterator<Item = T>,
+    T: TableFormat + Serialize,
+{
+    print_list_for_locale(items, output_format, LocaleId::EnUs);
+}
+
 /// Write a serializable value to `output` as pretty JSON.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn write_json<T, W>(value: &T, mut output: W) -> anyhow::Result<()>

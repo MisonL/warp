@@ -286,6 +286,7 @@ impl BillingCycleUsageSectionView {
                 &visibility,
                 &self.row_mouse_states,
                 appearance,
+                app,
             ))
             .with_margin_top(16.)
             .finish(),

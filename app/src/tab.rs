@@ -59,6 +59,7 @@ pub(crate) const TAB_INDICATOR_HEIGHT: f32 = 14.0;
 
 /// Label for the tab right-click menu's "Move to group" submenu parent.
 pub const MOVE_TO_GROUP_LABEL: &str = "Move to group";
+pub const MOVE_TO_GROUP_IDENTIFIER: &str = "move_to_group";
 
 /// Decides which tab-group context-menu entries apply to a tab, based on its
 /// group membership, whether it is the sole member of that group, and whether

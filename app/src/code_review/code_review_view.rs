@@ -111,6 +111,7 @@ use crate::code_review::telemetry_event::{
 use crate::code_review::DiffSetScope;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::editor::InteractionState;
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent};
 use crate::pane_group::pane::{view, BackingView, PaneEvent};
@@ -182,12 +183,17 @@ pub fn render_file_navigation_button<F>(
     appearance: &Appearance,
     is_sidebar_expanded: bool,
     mouse_state: MouseStateHandle,
+    app: &AppContext,
     on_click: F,
 ) -> Box<dyn Element>
 where
     F: Fn(&mut warpui::EventContext<'_>) + 'static,
 {
     let ui_builder = appearance.ui_builder().clone();
+    let hide_file_navigation =
+        localization::text_for_app(app, "code_review.action.hide_file_navigation");
+    let show_file_navigation =
+        localization::text_for_app(app, "code_review.action.show_file_navigation");
     let icon_color = appearance
         .theme()
         .sub_text_color(appearance.theme().background());
@@ -205,9 +211,9 @@ where
     .with_tooltip(move || {
         ui_builder
             .tool_tip(if is_sidebar_expanded {
-                "Hide file navigation".to_owned()
+                hide_file_navigation.clone()
             } else {
-                "Show file navigation".to_owned()
+                show_file_navigation.clone()
             })
             .build()
             .finish()
@@ -265,17 +271,14 @@ const CODE_REVIEW_EDITOR_LINE_HEIGHT_RATIO: f32 = 1.4;
 /// Extra scroll buffer (in pixels) added when scrolling to a line that has a comment editor below it.
 const COMMENT_EDITOR_SCROLL_BUFFER: f32 = 200.0;
 
-pub const CODE_REVIEW_TOOLTIP_TEXT: &str = "View changes";
-const REMOTE_TEXT: &str = "Diffs only work for local workspaces.";
-const DISABLED_TEXT: &str = "Diffs only work for git repositories.";
-const WSL_TEXT: &str = "Diffs don't currently work in WSL.";
-
-pub fn get_discard_button_disabled_tooltip(git_operation_blocked: bool) -> String {
+pub fn get_discard_button_disabled_tooltip(
+    git_operation_blocked: bool,
+    app: &AppContext,
+) -> String {
     if git_operation_blocked {
-        "Cannot discard changes while a git operation (merge, rebase, etc.) is in progress"
-            .to_string()
+        localization::text_for_app(app, "code_review.discard.disabled.git_operation")
     } else {
-        "No changes to discard".to_string()
+        localization::text_for_app(app, "code_review.discard.disabled.no_changes")
     }
 }
 
@@ -2594,9 +2597,9 @@ impl CodeReviewView {
             .as_ref(ctx)
             .is_git_operation_blocked(ctx);
         let discard_tooltip_text = if git_operation_blocked {
-            get_discard_button_disabled_tooltip(git_operation_blocked)
+            get_discard_button_disabled_tooltip(git_operation_blocked, ctx)
         } else {
-            "Discard changes".to_string()
+            localization::text_for_app(ctx, "code_review.action.discard_changes")
         };
 
         let mut file_states = vec![];
@@ -2904,10 +2907,10 @@ impl CodeReviewView {
     #[cfg(target_family = "wasm")]
     fn render_no_repo_for_env(
         &self,
-        _app: &AppContext,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        Self::render_wsl_state(appearance, None)
+        Self::render_wsl_state(appearance, None, app)
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -2924,18 +2927,18 @@ impl CodeReviewView {
                 // No "Open repository" CTA when the session is remote — the
                 // button navigates to a local folder, which is not meaningful
                 // in a remote session.
-                Self::render_remote_state(appearance, None)
+                Self::render_remote_state(appearance, None, app)
             }
             Some(GitSessionState {
                 enablement: CodingPanelEnablementState::UnsupportedSession,
-            }) => Self::render_wsl_state(appearance, open_repo_button()),
+            }) => Self::render_wsl_state(appearance, open_repo_button(), app),
             None
             | Some(GitSessionState {
                 enablement:
                     CodingPanelEnablementState::Enabled
                     | CodingPanelEnablementState::PendingRemoteSession
                     | CodingPanelEnablementState::Disabled,
-            }) => Self::render_not_repo_state(appearance, open_repo_button()),
+            }) => Self::render_not_repo_state(appearance, open_repo_button(), app),
         }
     }
 
@@ -3688,10 +3691,10 @@ impl CodeReviewView {
         });
     }
 
-    fn render_placeholder_header(appearance: &Appearance) -> Box<dyn Element> {
+    fn render_placeholder_header(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
-        let header_text = "Loading open changes...";
+        let header_text = localization::text_for_app(app, "code_review.state.loading_open_changes");
         let loading_icon = Icon::Loading
             .to_warpui_icon(warp_core::ui::theme::Fill::Solid(
                 internal_colors::neutral_6(theme),
@@ -3728,7 +3731,7 @@ impl CodeReviewView {
     }
 
     /// Renders the loading state
-    pub fn render_loading_state(appearance: &Appearance) -> Box<dyn Element> {
+    pub fn render_loading_state(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let placeholder = (0..4).map(|_| {
             Shrinkable::new(
                 1.,
@@ -3741,7 +3744,7 @@ impl CodeReviewView {
         Container::new(
             Flex::column()
                 .with_child(
-                    Container::new(CodeReviewView::render_placeholder_header(appearance))
+                    Container::new(CodeReviewView::render_placeholder_header(appearance, app))
                         .with_padding_bottom(12.)
                         .finish(),
                 )
@@ -3926,8 +3929,9 @@ impl CodeReviewView {
 
     pub fn render_no_repo_found_state(
         appearance: &Appearance,
-        message: &'static str,
+        message: String,
         open_repo_button: Option<Box<dyn Element>>,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
@@ -3953,7 +3957,7 @@ impl CodeReviewView {
             )
             .with_child(
                 Text::new(
-                    "Cannot detect diffs for this folder",
+                    localization::text_for_app(app, "code_review.state.cannot_detect_diffs"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size() + 2.,
                 )
@@ -3993,22 +3997,40 @@ impl CodeReviewView {
     pub fn render_remote_state(
         appearance: &Appearance,
         open_repo_button: Option<Box<dyn Element>>,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        Self::render_no_repo_found_state(appearance, REMOTE_TEXT, open_repo_button)
+        Self::render_no_repo_found_state(
+            appearance,
+            localization::text_for_app(app, "code_review.state.remote"),
+            open_repo_button,
+            app,
+        )
     }
 
     pub fn render_wsl_state(
         appearance: &Appearance,
         open_repo_button: Option<Box<dyn Element>>,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        Self::render_no_repo_found_state(appearance, WSL_TEXT, open_repo_button)
+        Self::render_no_repo_found_state(
+            appearance,
+            localization::text_for_app(app, "code_review.state.wsl"),
+            open_repo_button,
+            app,
+        )
     }
 
     pub fn render_not_repo_state(
         appearance: &Appearance,
         open_repo_button: Option<Box<dyn Element>>,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        Self::render_no_repo_found_state(appearance, DISABLED_TEXT, open_repo_button)
+        Self::render_no_repo_found_state(
+            appearance,
+            localization::text_for_app(app, "code_review.state.not_git_repo"),
+            open_repo_button,
+            app,
+        )
     }
 
     fn render_loaded_state(
@@ -7039,12 +7061,12 @@ impl View for CodeReviewView {
             .unwrap_or(false);
 
         let main_content = match self.state() {
-            CodeReviewViewState::None => CodeReviewView::render_loading_state(appearance),
+            CodeReviewViewState::None => CodeReviewView::render_loading_state(appearance, ctx),
             CodeReviewViewState::Loaded(loaded_state) => {
                 // For global buffer mode, show loading state until all editors have loaded
                 // their buffer content. This prevents a brief flash of empty editors.
                 if !self.all_editors_loaded() {
-                    CodeReviewView::render_loading_state(appearance)
+                    CodeReviewView::render_loading_state(appearance, ctx)
                 } else {
                     self.render_loaded_state(loaded_state, appearance, is_in_split_pane, ctx)
                 }

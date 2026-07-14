@@ -7,6 +7,7 @@ use warpui::{Element, Entity, SingletonEntity, TypedActionView, View, ViewContex
 
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
+use crate::localization;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings_view::features_page::render_group;
@@ -303,13 +304,13 @@ fn init_top_level_dropdown(
     .into_iter()
     .map(|mode| {
         DropdownItem::new(
-            mode.dropdown_item_label(),
+            localization::text_for_app(ctx, mode.dropdown_item_label_key()),
             WorkingDirectoryAction::SetGlobalWorkingDirectoryMode(Some(mode)),
         )
     })
     .collect_vec();
     items.push(DropdownItem::new(
-        "Advanced".to_string(),
+        localization::text_for_app(ctx, "settings.features.working_directory.option.advanced"),
         WorkingDirectoryAction::SetGlobalWorkingDirectoryMode(None),
     ));
     let advanced_item_index = items.len() - 1;
@@ -320,7 +321,10 @@ fn init_top_level_dropdown(
     if config.advanced_mode {
         dropdown.set_selected_by_index(advanced_item_index, ctx);
     } else {
-        dropdown.set_selected_by_name(config.global.mode.dropdown_item_label(), ctx);
+        dropdown.set_selected_by_name(
+            &localization::text_for_app(ctx, config.global.mode.dropdown_item_label_key()),
+            ctx,
+        );
     }
 }
 
@@ -338,7 +342,7 @@ fn init_per_source_dropdown(
     .into_iter()
     .map(|mode| {
         DropdownItem::new(
-            mode.dropdown_item_label(),
+            localization::text_for_app(ctx, mode.dropdown_item_label_key()),
             WorkingDirectoryAction::SetPerSourceWorkingDirectoryMode(source, mode),
         )
     })
@@ -352,7 +356,10 @@ fn init_per_source_dropdown(
         NewSessionSource::Tab => &config.new_tab,
         NewSessionSource::Window => &config.new_window,
     };
-    dropdown.set_selected_by_name(source_config.mode.dropdown_item_label(), ctx);
+    dropdown.set_selected_by_name(
+        &localization::text_for_app(ctx, source_config.mode.dropdown_item_label_key()),
+        ctx,
+    );
 }
 
 /// Creates a new editor view for entering a custom initial directory path.

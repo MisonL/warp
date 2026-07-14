@@ -3778,6 +3778,7 @@ impl FeaturesPageView {
         &self,
         quake_mode_settings: &QuakeModeSettings,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let editor_style = UiComponentStyles {
@@ -3866,6 +3867,7 @@ impl FeaturesPageView {
             .with_child({
                 let button = build_reset_button(
                     appearance,
+                    app,
                     self.button_mouse_states
                         .quake_mode_width_height_reset
                         .clone(),
@@ -3925,6 +3927,7 @@ impl FeaturesPageView {
         &self,
         quake_mode_settings: &QuakeModeSettings,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Flex::row()
             .with_child(
@@ -3947,7 +3950,7 @@ impl FeaturesPageView {
                 .with_padding_right(30.)
                 .finish(),
             )
-            .with_child(self.render_quake_width_height_editor(quake_mode_settings, appearance))
+            .with_child(self.render_quake_width_height_editor(quake_mode_settings, appearance, app))
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .finish()
     }
@@ -5699,6 +5702,7 @@ impl SettingsWidget for GlobalHotkeyWidget {
                         view.render_quake_mode_position_row(
                             KeysSettings::as_ref(app).quake_mode_settings.value(),
                             appearance,
+                            app,
                         ),
                         // This feature is only supported on MacOS.
                         if QUAKE_WINDOW_AUTOHIDE_SUPPORTED {
@@ -6988,6 +6992,7 @@ impl SmartSelectWidget {
         view: &FeaturesPageView,
         appearance: &Appearance,
         non_default: bool,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         Flex::column()
@@ -7024,6 +7029,7 @@ impl SmartSelectWidget {
             .with_child(
                 build_reset_button(
                     appearance,
+                    app,
                     self.word_char_allowlist_reset_state.clone(),
                     non_default,
                 )
@@ -7091,6 +7097,7 @@ impl SettingsWidget for SmartSelectWidget {
                     view,
                     appearance,
                     selection.word_char_allowlist_changed_from_default(),
+                    app,
                 )],
                 appearance,
             ));
@@ -7693,7 +7700,7 @@ impl SettingsWidget for AsyncFindWidget {
         let label_with_chip = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(label)
-            .with_child(render_beta_chip(appearance))
+            .with_child(render_beta_chip(app, appearance))
             .finish();
 
         let switch = ui_builder

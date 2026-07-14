@@ -23,7 +23,7 @@ pub use init_project::{
     ProjectScopedRulesResult,
 };
 use onboarding::callout::{FinalState, OnboardingCalloutViewEvent, OnboardingQuery};
-use onboarding::{OnboardingCalloutView, OnboardingKeybindings};
+use onboarding::{OnboardingCalloutView, OnboardingCopy, OnboardingKeybindings};
 use repo_metadata::CanonicalizedPath;
 use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
@@ -282,7 +282,7 @@ use crate::ai::predict::prompt_suggestions::{
     is_accept_prompt_suggestion_bound_to_cmd_enter,
     is_accept_prompt_suggestion_bound_to_ctrl_enter,
 };
-use crate::ai_assistant::{AskAIType, ASK_AI_ASSISTANT_TEXT};
+use crate::ai_assistant::{AskAIType, ASK_WARP_AI_MENU_KEY};
 use crate::antivirus::AntivirusInfo;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::auth::auth_manager::AuthManager;
@@ -785,19 +785,19 @@ pub enum NotificationsTrigger {
 }
 
 impl NotificationsTrigger {
-    pub fn discovery_banner_copy(&self) -> &'static str {
+    pub fn discovery_banner_key(&self) -> &'static str {
         match self {
             NotificationsTrigger::LongRunningCommand(..) => {
-                "Warp can notify you when long-running commands finish."
+                "terminal.inline_banner.notifications_discovery.long_running_command"
             }
             NotificationsTrigger::AgentTaskCompleted(..) => {
-                "Warp can notify you when an agent finishes responding."
+                "terminal.inline_banner.notifications_discovery.agent_task_completed"
             }
             NotificationsTrigger::NeedsAttention => {
-                "Warp can notify you when a command or agent needs your attention."
+                "terminal.inline_banner.notifications_discovery.needs_attention"
             }
             NotificationsTrigger::PasswordPrompt => {
-                "Warp can notify you when you're prompted to enter a password."
+                "terminal.inline_banner.notifications_discovery.password_prompt"
             }
         }
     }
@@ -10033,8 +10033,11 @@ impl TerminalView {
             ));
 
         let a11y_content = AccessibilityContent::new(
-            trigger.discovery_banner_copy(),
-            "You can enable notifications through the command palette.",
+            crate::localization::text_for_app(ctx, trigger.discovery_banner_key()),
+            crate::localization::text_for_app(
+                ctx,
+                "terminal.inline_banner.notifications_discovery.a11y.command_palette",
+            ),
             WarpA11yRole::TextRole,
         );
         ctx.emit_a11y_content(a11y_content);
@@ -14674,10 +14677,41 @@ fn build_onboarding_keybindings(ctx: &AppContext) -> OnboardingKeybindings {
     }
 }
 
+fn build_onboarding_copy(ctx: &AppContext) -> OnboardingCopy {
+    const KEYS: &[&str] = &[
+        "onboarding.callout.agent_mode.back_to_terminal",
+        "onboarding.callout.agent_mode.initialize",
+        "onboarding.callout.agent_mode.skip_initialization",
+        "onboarding.callout.agent_mode.title",
+        "onboarding.callout.agent_mode.with_project_body",
+        "onboarding.callout.agent_mode.without_project_body",
+        "onboarding.callout.agent_prompt.placeholder",
+        "onboarding.callout.meet_input.body",
+        "onboarding.callout.meet_input.title",
+        "onboarding.callout.talk_to_agent.body",
+        "onboarding.callout.talk_to_agent.prompt",
+        "onboarding.callout.talk_to_agent.title",
+        "onboarding.callout.terminal_command.placeholder",
+        "onboarding.callout.terminal_mode.body",
+        "onboarding.callout.terminal_mode.enable_nld",
+        "onboarding.callout.terminal_mode.title",
+        "onboarding.callout.terminal_mode.welcome_title",
+        "onboarding.common.finish",
+        "onboarding.common.next",
+        "onboarding.common.skip",
+        "onboarding.common.submit",
+    ];
+
+    OnboardingCopy::new(
+        KEYS.iter()
+            .map(|key| (*key, crate::localization::text_for_app(ctx, key))),
+    )
+}
+
 /// Builds the context-menu label for forking an AI conversation from a given query.
-fn fork_label_for_query(query: &str) -> String {
+fn fork_label_for_query(query: &str, app: &AppContext) -> String {
     if query.is_empty() {
-        "Fork from last query".to_string()
+        crate::localization::text_for_app(app, "terminal.menu.fork_from_last_query")
     } else {
         let first_line = query.lines().next().unwrap_or(query).trim();
         let chars: Vec<char> = first_line.chars().take(21).collect();
@@ -14686,7 +14720,12 @@ fn fork_label_for_query(query: &str) -> String {
         } else {
             (chars.iter().collect::<String>(), "")
         };
-        format!("Fork from \"{truncated}{suffix}\"")
+        let query = format!("{truncated}{suffix}");
+        crate::localization::text_for_app_with_args(
+            app,
+            "terminal.menu.fork_from_query",
+            &[("query", &query)],
+        )
     }
 }
 
@@ -14733,6 +14772,7 @@ impl TerminalView {
 
         let view = ctx.add_typed_action_view(|ctx| {
             let keybindings = build_onboarding_keybindings(ctx);
+            let copy = build_onboarding_copy(ctx);
 
             match version {
                 AgentOnboardingVersion::UniversalInput { has_project } => {
@@ -14743,6 +14783,7 @@ impl TerminalView {
                         has_project,
                         initial_natural_language_detection_enabled,
                         keybindings,
+                        copy,
                         ctx,
                     )
                 }
@@ -14758,6 +14799,7 @@ impl TerminalView {
                         intention,
                         initial_natural_language_detection_enabled,
                         keybindings,
+                        copy,
                         ctx,
                     )
                 }
@@ -16656,9 +16698,9 @@ impl TerminalView {
                     fields.extend([
                         MenuItem::Separator,
                         MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
-                            *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT
+                            (*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT).to_owned()
                         } else {
-                            ASK_AI_ASSISTANT_TEXT
+                            crate::localization::text_for_app(ctx, ASK_WARP_AI_MENU_KEY)
                         })
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::AskAI(if FeatureFlag::AgentMode.is_enabled() {
@@ -16787,9 +16829,11 @@ impl TerminalView {
                             .block_at(tail_block_index)
                             .is_none_or(|b| b.is_restored());
 
-                    items.extend(
-                        self.session_sharing_context_menu_items(&model, is_share_session_disabled),
-                    );
+                    items.extend(self.session_sharing_context_menu_items(
+                        &model,
+                        is_share_session_disabled,
+                        ctx,
+                    ));
                 }
 
                 if WarpDriveSettings::is_warp_drive_enabled(ctx) {
@@ -16991,7 +17035,7 @@ impl TerminalView {
                 if FeatureFlag::CreatingSharedSessions.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled()
                 {
-                    items.extend(self.session_sharing_context_menu_items(&model, false));
+                    items.extend(self.session_sharing_context_menu_items(&model, false, ctx));
                 }
 
                 items
@@ -17027,6 +17071,7 @@ impl TerminalView {
                                     .ai_block_handle
                                     .as_ref(ctx)
                                     .get_preceding_user_query(ctx),
+                                ctx,
                             );
                             items.push(
                                 MenuItemFields::new(fork_label)
@@ -17251,7 +17296,7 @@ impl TerminalView {
         if pane_state.is_in_split_pane() {
             let is_maximized = pane_state.is_maximized();
             items.push(
-                MenuItemFields::toggle_pane_action(is_maximized)
+                MenuItemFields::toggle_pane_action(is_maximized, ctx)
                     .with_on_select_action(TerminalAction::ToggleMaximizePane)
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:toggle_maximize_pane",
@@ -17460,7 +17505,7 @@ impl TerminalView {
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && ContextFlag::CreateSharedSession.is_enabled()
         {
-            items.extend(self.session_sharing_context_menu_items(&model, false));
+            items.extend(self.session_sharing_context_menu_items(&model, false, ctx));
         }
 
         // Section 2: AI Command Search, Ask Warp AI
@@ -17682,9 +17727,9 @@ impl TerminalView {
                 menu_items.extend([
                     MenuItem::Separator,
                     MenuItemFields::new(if FeatureFlag::AgentMode.is_enabled() {
-                        *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT
+                        (*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT).to_owned()
                     } else {
-                        ASK_AI_ASSISTANT_TEXT
+                        crate::localization::text_for_app(ctx, ASK_WARP_AI_MENU_KEY)
                     })
                     .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::AskAI(
                         AskAISource::SelectedTerminalText,
@@ -17698,7 +17743,7 @@ impl TerminalView {
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && ContextFlag::CreateSharedSession.is_enabled()
         {
-            menu_items.extend(self.session_sharing_context_menu_items(&model, false));
+            menu_items.extend(self.session_sharing_context_menu_items(&model, false, ctx));
         }
         let current_shell = model.shell_launch_state().available_shell();
         let mut pane_context_menu_items = self.pane_context_menu_items(current_shell, ctx);
@@ -23656,6 +23701,7 @@ impl TerminalView {
                     state,
                     SessionSettings::as_ref(app).notifications.mode,
                     appearance,
+                    app,
                 ),
             );
         }
@@ -23681,6 +23727,7 @@ impl TerminalView {
                     state,
                     &self.inline_banners_state.notifications_error_banner.error,
                     appearance,
+                    app,
                 ),
             );
         }
@@ -23688,7 +23735,10 @@ impl TerminalView {
         if let AliasExpansionBanner::Open { state } =
             &self.inline_banners_state.alias_expansion_banner
         {
-            inline_banners.insert(state.id, render_alias_expansion_banner(state, appearance));
+            inline_banners.insert(
+                state.id,
+                render_alias_expansion_banner(state, app, appearance),
+            );
         }
 
         if let Some(ShellProcessTerminatedBanner {
@@ -23698,7 +23748,7 @@ impl TerminalView {
         {
             inline_banners.insert(
                 banner_id,
-                render_shell_process_terminated_banner(appearance, was_premature_termination),
+                render_shell_process_terminated_banner(appearance, app, was_premature_termination),
             );
         }
 
@@ -23721,6 +23771,7 @@ impl TerminalView {
                             *is_remote_control,
                             *started_at,
                             appearance,
+                            app,
                         ),
                     );
                 }
@@ -23739,6 +23790,7 @@ impl TerminalView {
                             *is_remote_control,
                             *started_at,
                             appearance,
+                            app,
                         ),
                     );
                     inline_banners.insert(
@@ -23748,6 +23800,7 @@ impl TerminalView {
                             *is_remote_control,
                             *ended_at,
                             appearance,
+                            app,
                         ),
                     );
                 }
@@ -23758,46 +23811,46 @@ impl TerminalView {
         if let Some(open_in_warp_banner) = &self.inline_banners_state.open_in_warp_banner {
             inline_banners.insert(
                 open_in_warp_banner.id,
-                render_open_in_warp_banner(open_in_warp_banner, self.view_id, appearance),
+                render_open_in_warp_banner(open_in_warp_banner, self.view_id, appearance, app),
             );
         }
 
         if let Some(vim_banner_state) = &self.inline_banners_state.vim_banner_state {
             inline_banners.insert(
                 vim_banner_state.id,
-                render_vim_mode_banner(vim_banner_state, appearance),
+                render_vim_mode_banner(vim_banner_state, app, appearance),
             );
         }
 
         if let Some(banner_state) = &self.inline_banners_state.codebase_index_speedbump_banner {
             inline_banners.insert(
                 banner_state.id,
-                banner_state.render_codebase_index_speedbump_banner(appearance),
+                banner_state.render_codebase_index_speedbump_banner(appearance, app),
             );
         }
 
         if let Some(banner_state) = &self.inline_banners_state.agent_setup_speedbump_banner {
             inline_banners.insert(
                 banner_state.id,
-                render_agent_mode_setup_banner(banner_state, appearance),
+                render_agent_mode_setup_banner(banner_state, appearance, app),
             );
         }
 
         if let Some(banner_state) = &self.inline_banners_state.anonymous_user_ai_sign_up_banner {
-            inline_banners.insert(banner_state.id, banner_state.render(appearance));
+            inline_banners.insert(banner_state.id, banner_state.render(appearance, app));
         }
 
         if let Some(banner_state) = &self.inline_banners_state.aws_bedrock_login_banner {
             inline_banners.insert(
                 banner_state.id,
-                render_aws_bedrock_login_banner(banner_state, appearance),
+                render_aws_bedrock_login_banner(banner_state, appearance, app),
             );
         }
 
         if let Some(banner_state) = &self.inline_banners_state.aws_cli_not_installed_banner {
             inline_banners.insert(
                 banner_state.id,
-                render_aws_cli_not_installed_banner(banner_state, appearance),
+                render_aws_cli_not_installed_banner(banner_state, appearance, app),
             );
         }
 
@@ -23998,7 +24051,7 @@ impl TerminalView {
             .block_banner()
             .map(|banner| match banner {
                 WithinBlockBanner::WarpifyBanner(state) => {
-                    render_warpification_banner(state, appearance)
+                    render_warpification_banner(state, appearance, app)
                 }
             });
 
@@ -27662,7 +27715,7 @@ impl View for TerminalView {
                     if input_box_visible {
                         column.add_child(self.render_input());
                     } else if self.should_render_legacy_ambient_agent_loading_footer(&model, app) {
-                        column.add_child(ambient_agent::render_loading_footer(appearance));
+                        column.add_child(ambient_agent::render_loading_footer(appearance, app));
                     } else if self.show_remote_server_loading_footer(&model, app) {
                         column.add_child(
                             self.render_remote_server_loading_footer(&model, appearance, app),
@@ -27734,6 +27787,7 @@ impl View for TerminalView {
                     self.render_input_request_edit_access_button(
                         input_request_edit_access_button_handle.clone(),
                         appearance,
+                        app,
                     ),
                     OffsetPositioning::offset_from_save_position_element(
                         self.input.as_ref(app).status_free_input_save_position_id(),

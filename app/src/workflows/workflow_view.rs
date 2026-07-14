@@ -2174,11 +2174,7 @@ impl WorkflowView {
         .finish()
     }
 
-    fn render_section_header(
-        &self,
-        text: &'static str,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_section_header(&self, text: String, appearance: &Appearance) -> Box<dyn Element> {
         Container::new(
             appearance
                 .ui_builder()
@@ -2246,7 +2242,7 @@ impl WorkflowView {
             .with_children([
                 Flex::row()
                     .with_children([
-                        self.render_section_header("Aliases", appearance),
+                        self.render_section_header("Aliases".to_owned(), appearance),
                         Container::new(help_icon).with_margin_left(4.).finish(),
                     ])
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -2643,7 +2639,7 @@ impl WorkflowView {
                         ctx.notify();
                     }
                     Err(err) => {
-                        let message = err.user_facing_message();
+                        let message = err.user_facing_message(ctx);
                         if let GeneratedCommandMetadataError::RateLimited = err {
                             let current_user_id = pane.auth_state.user_id().unwrap_or_default();
                             if let Some(team) = UserWorkspaces::as_ref(ctx).current_team() {

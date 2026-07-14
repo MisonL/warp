@@ -631,7 +631,9 @@ impl EnvironmentCommandRunner {
                             let integrations_client = ServerApiProvider::as_ref(ctx)
                                 .get_integrations_client();
                             let tx_id = tx_id.into_inner();
-                            let poll_future = poll_oauth_until_terminal(integrations_client, tx_id);
+                            let locale = crate::localization::current_locale(ctx);
+                            let poll_future =
+                                poll_oauth_until_terminal(integrations_client, tx_id, locale);
 
                             let next_attempt = attempt + 1;
 

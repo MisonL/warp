@@ -85,6 +85,7 @@ use crate::editor::{
     EditorOptions, InteractionState, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextColors,
 };
+use crate::localization;
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::settings::{
     AIAutoDetectionEnabled, AICommandDenylist, AISettingsChangedEvent,
@@ -1525,7 +1526,10 @@ impl AISettingsPageView {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
-            dropdown.set_menu_header_to_static("Select MCP servers");
+            dropdown.set_menu_header_to_static(localization::text_for_app(
+                ctx,
+                "settings.execution_profile.editor.select_mcp_servers",
+            ));
             dropdown
         });
         Self::refresh_mcp_allowlist_dropdown(&mcp_allowlist_dropdown, ctx);
@@ -1539,7 +1543,10 @@ impl AISettingsPageView {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
-            dropdown.set_menu_header_to_static("Select MCP servers");
+            dropdown.set_menu_header_to_static(localization::text_for_app(
+                ctx,
+                "settings.execution_profile.editor.select_mcp_servers",
+            ));
             dropdown
         });
         Self::refresh_mcp_denylist_dropdown(&mcp_denylist_dropdown, ctx);
@@ -5727,7 +5734,7 @@ impl AgentsWidget {
             .should_show_long_context_pricing_warning(view.dragged_context_window_value, app)
         {
             column.add_child(render_warning_box(
-                WarningBoxConfig::formatted_title(long_context_pricing_warning_title()),
+                WarningBoxConfig::formatted_title(long_context_pricing_warning_title(app)),
                 appearance,
             ));
         }
@@ -5995,6 +6002,7 @@ impl AgentsWidget {
                 }),
             Some(&view.command_denylist_editor),
             appearance,
+            app,
         );
         render_ai_list(
             "Command denylist",
@@ -6029,6 +6037,7 @@ impl AgentsWidget {
                 }),
             Some(&view.command_allowlist_editor),
             appearance,
+            app,
         );
 
         render_ai_list(
@@ -6067,6 +6076,7 @@ impl AgentsWidget {
                 }),
             Some(&view.directory_allowlist_editor),
             appearance,
+            app,
         );
 
         render_ai_list(
@@ -6411,6 +6421,7 @@ impl AgentsWidget {
                 }),
             None,
             appearance,
+            app,
         );
 
         Container::new(Flex::column().with_children(vec![selector, items]).finish())

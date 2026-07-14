@@ -69,6 +69,7 @@ use crate::drive::panel::DrivePanelAction;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
 use crate::env_vars::CloudEnvVarCollection;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::network::NetworkStatus;
 use crate::notebooks::CloudNotebookModel;
@@ -1914,6 +1915,8 @@ impl DriveIndex {
             false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
+            localization::text_for_app(app, "drive.placeholder.untitled"),
+            app,
         )?;
 
         Some(row.build().finish())
@@ -1951,6 +1954,8 @@ impl DriveIndex {
             false, /* sync_queue_is_dequeueing */
             tools_panel_menu_direction(app),
             appearance,
+            localization::text_for_app(app, "drive.placeholder.untitled"),
+            app,
         )?;
 
         Some(row.build().finish())
@@ -2701,6 +2706,8 @@ impl DriveIndex {
             SyncQueue::as_ref(app).is_dequeueing(),
             tools_panel_menu_direction(app),
             appearance,
+            localization::text_for_app(app, "drive.placeholder.untitled"),
+            app,
         )?;
         let mut total_rows_for_item = 1;
 

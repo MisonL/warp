@@ -668,6 +668,7 @@ impl View for OrchestrationConfigBlockView {
                         appearance,
                         Some(active_seg_bg),
                         true,
+                        app,
                     ))
                     .with_margin_top(12.)
                     .finish(),
@@ -679,6 +680,7 @@ impl View for OrchestrationConfigBlockView {
                     &self.pickers,
                     appearance,
                     true,
+                    app,
                 ));
 
                 // Helper text

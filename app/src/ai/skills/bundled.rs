@@ -1,13 +1,18 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use ai::skills::{parse_bundled_skill, ParsedSkill, SkillPathOrigin, SkillReference};
+use ai::skills::{
+    parse_bundled_skill, parse_bundled_skill_content_at_path, ParsedSkill, SkillPathOrigin,
+    SkillReference,
+};
 use futures::TryStreamExt;
+use serde_yaml::Value;
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warp_core::safe_warn;
 use warp_core::ui::icons::Icon;
 use warp_errors::report_error;
+use warp_localization::LocaleId;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::remote_path::RemotePath;
@@ -178,12 +183,13 @@ pub struct BundledSkill {
 }
 
 impl BundledSkill {
-    /// Detect all skill definitions bundled with Warp for the local host.
-    pub async fn detect() -> Self {
+    /// Detect all skill definitions bundled with Warp for the local host and
+    /// apply locale-specific bundled content where available.
+    pub async fn detect_for_locale(locale: LocaleId) -> Self {
         let Some(resources_dir) = warp_core::paths::bundled_resources_dir() else {
             return Self::default();
         };
-        Self::detect_in_resources_dir(resources_dir).await
+        Self::detect_in_resources_dir_for_locale(resources_dir, locale).await
     }
 
     /// Detect all skill definitions under the given resources root on the
@@ -193,9 +199,16 @@ impl BundledSkill {
     /// the global install location rather than inside an app bundle (which
     /// is what [`warp_core::paths::bundled_resources_dir`] resolves).
     pub(crate) async fn detect_in_resources_dir(resources_dir: PathBuf) -> Self {
+        Self::detect_in_resources_dir_for_locale(resources_dir, LocaleId::EnUs).await
+    }
+
+    pub(crate) async fn detect_in_resources_dir_for_locale(
+        resources_dir: PathBuf,
+        locale: LocaleId,
+    ) -> Self {
         let (mut definitions, figma_definitions) = futures::join!(
-            load_bundled_skill_definitions(&resources_dir),
-            load_figma_skill_definitions(&resources_dir)
+            load_bundled_skill_definitions(&resources_dir, locale),
+            load_figma_skill_definitions(&resources_dir, locale)
         );
         definitions.extend(figma_definitions);
         Self { definitions }
@@ -340,9 +353,10 @@ impl BundledSkill {
 /// Load skill definitions bundled with Warp.
 async fn load_bundled_skill_definitions(
     resources_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, BundledSkillDefinition> {
     let skills_dir = resources_dir.join("bundled").join("skills");
-    read_bundled_skills(&skills_dir, resources_dir)
+    read_bundled_skills_for_locale(&skills_dir, resources_dir, locale)
         .await
         .into_iter()
         .map(|(id, skill)| {
@@ -361,12 +375,13 @@ async fn load_bundled_skill_definitions(
 /// Load Figma-specific bundled skills from the `figma/` subdirectory.
 async fn load_figma_skill_definitions(
     resources_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, BundledSkillDefinition> {
     let figma_skills_dir = resources_dir
         .join("bundled")
         .join("mcp_skills")
         .join("figma");
-    read_bundled_skills(&figma_skills_dir, resources_dir)
+    read_bundled_skills_for_locale(&figma_skills_dir, resources_dir, locale)
         .await
         .into_iter()
         .map(|(id, skill)| {
@@ -389,9 +404,18 @@ async fn load_figma_skill_definitions(
 /// install location before pushing the rendered content over the wire.
 /// Clients never call this for files on another host, so local `Path`
 /// semantics (this OS's encoding) are correct here.
+#[cfg(test)]
 pub(crate) async fn read_bundled_skills(
     skills_dir: &Path,
     resources_dir: &Path,
+) -> HashMap<String, ParsedSkill> {
+    read_bundled_skills_for_locale(skills_dir, resources_dir, LocaleId::EnUs).await
+}
+
+pub(crate) async fn read_bundled_skills_for_locale(
+    skills_dir: &Path,
+    resources_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, ParsedSkill> {
     let mut skills = HashMap::new();
 
@@ -416,6 +440,13 @@ pub(crate) async fn read_bundled_skills(
                 continue;
             }
         };
+        if let Some(description) = localized_bundled_skill_description(&skill.content, locale) {
+            skill.description = description;
+        }
+        if let Some(localized_skill) = localized_bundled_skill(&skill_file_path, locale) {
+            skill.content = localized_skill.content;
+            skill.line_range = localized_skill.line_range;
+        }
 
         // We use the directory name as the skill ID (guaranteed unique within bundled skills).
         let Some(skill_id) = entry_path.file_name().and_then(|s| s.to_str()) else {
@@ -435,6 +466,39 @@ pub(crate) async fn read_bundled_skills(
     log::info!("Read {} bundled skills", skills.len());
 
     skills
+}
+
+fn localized_bundled_skill_description(content: &str, locale: LocaleId) -> Option<String> {
+    match locale {
+        LocaleId::EnUs => None,
+        LocaleId::ZhCn => extract_front_matter_string(content, "description_zh_CN"),
+    }
+}
+
+fn localized_bundled_skill(path: &Path, locale: LocaleId) -> Option<ParsedSkill> {
+    let localized_path = match locale {
+        LocaleId::EnUs => return None,
+        LocaleId::ZhCn => path.with_file_name("SKILL.zh-CN.md"),
+    };
+    let content = std::fs::read_to_string(&localized_path).ok()?;
+    parse_bundled_skill_content_at_path(path, &content).ok()
+}
+
+fn extract_front_matter_string(content: &str, key: &str) -> Option<String> {
+    let yaml = content.strip_prefix("---\n")?;
+    let yaml = yaml.split_once("\n---\n")?.0;
+    let Value::Mapping(front_matter) = serde_yaml::from_str::<Value>(yaml).ok()? else {
+        return None;
+    };
+
+    let value = front_matter.get(&Value::String(key.to_owned()))?;
+    match value {
+        Value::String(text) => {
+            let text = text.trim();
+            (!text.is_empty()).then(|| text.to_owned())
+        }
+        _ => None,
+    }
 }
 
 /// Builds the context map for bundled skill variable substitution.

@@ -27,6 +27,7 @@ use crate::cloud_object::CloudObjectLookup as _;
 use crate::context_chips::display_menu::{
     ChipMenuType, DisplayChipMenu, FixedFooter, GenericMenuItem, PromptDisplayMenuEvent,
 };
+use crate::localization;
 use crate::server::ids::SyncId;
 use crate::terminal::input::{
     HandoffComposeState, HandoffComposeStateEvent, MenuPositioning, MenuPositioningProvider,
@@ -34,7 +35,6 @@ use crate::terminal::input::{
 use crate::terminal::view::ambient_agent::AmbientAgentViewModelEvent;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ActionButtonTheme, ButtonSize};
-use crate::{localization, report_if_error};
 
 /// Normalizes ambient-agent and handoff environment selection state behind one API.
 #[derive(Clone)]

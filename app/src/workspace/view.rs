@@ -45,8 +45,6 @@ use ::settings::{Setting, ToggleableSetting};
 use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 #[cfg(not(target_family = "wasm"))]
 use anyhow::Context as _;
-#[cfg(target_os = "macos")]
-use anyhow::Result;
 use autoupdate::AutoupdateStage;
 #[cfg(target_os = "macos")]
 use command::blocking::Command;
@@ -217,6 +215,7 @@ use crate::ai::facts::view::AIFactPage;
 use crate::ai::facts::{AIFactManager, AIFactView, AIFactViewEvent};
 use crate::ai::llms::LLMPreferences;
 use crate::ai::persisted_workspace::PersistedWorkspace;
+use crate::ai::request_usage_model::BonusGrantScope;
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::panel::{AIAssistantPanelEvent, AIAssistantPanelView};
 use crate::ai_assistant::{AskAIType, AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR};
@@ -530,9 +529,43 @@ use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::AdminEnablementSetting;
 use crate::{
-    autoupdate, send_telemetry_from_ctx, settings, AgentNotificationsModel,
+    autoupdate, localization, send_telemetry_from_ctx, settings, AgentNotificationsModel,
     BlocklistAIHistoryModel, GlobalResourceHandles, TelemetryEvent,
 };
+
+#[cfg(target_os = "macos")]
+fn localized_cli_install_error(error: &cli_install::CliInstallError, app: &AppContext) -> String {
+    match error {
+        cli_install::CliInstallError::InstallationCancelled => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.installation_cancelled")
+        }
+        cli_install::CliInstallError::UninstallationCancelled => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.uninstallation_cancelled")
+        }
+        cli_install::CliInstallError::TargetExistsNotSymlink(path) => {
+            let path = path.display().to_string();
+            localization::text_for_app_with_args(
+                app,
+                "workspace.toast.oz_cli_error.target_exists_not_symlink",
+                &[("path", &path)],
+            )
+        }
+        cli_install::CliInstallError::TargetNotSymlink(path) => {
+            let path = path.display().to_string();
+            localization::text_for_app_with_args(
+                app,
+                "workspace.toast.oz_cli_error.target_not_symlink",
+                &[("path", &path)],
+            )
+        }
+        cli_install::CliInstallError::NotInstalled => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.not_installed")
+        }
+        cli_install::CliInstallError::Other(_) => {
+            localization::text_for_app(app, "workspace.toast.oz_cli_error.see_logs")
+        }
+    }
+}
 
 /// The padding that should be applied to the workspace as a whole.
 pub const WORKSPACE_PADDING: f32 = 1.0;
@@ -3345,10 +3378,24 @@ impl Workspace {
                 ctx,
             ),
             |me, _, event, ctx| {
-                let BonusGrantNotificationEvent::ShowNotification { message, .. } = event;
+                let BonusGrantNotificationEvent::ShowNotification { grant, message } = event;
+                let message = message.clone().unwrap_or_else(|| {
+                    let scope_key = match grant.scope {
+                        BonusGrantScope::User => "workspace.bonus_grant.scope.account",
+                        BonusGrantScope::Workspace(_) => "workspace.bonus_grant.scope.team",
+                    };
+                    let scope = localization::text_for_app(ctx, scope_key);
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "workspace.bonus_grant.generic_message",
+                        &[
+                            ("count", &grant.request_credits_granted.to_string()),
+                            ("scope", &scope),
+                        ],
+                    )
+                });
                 me.toast_stack.update(ctx, |toast_stack, ctx| {
-                    toast_stack
-                        .add_persistent_toast(DismissibleToast::success(message.clone()), ctx);
+                    toast_stack.add_persistent_toast(DismissibleToast::success(message), ctx);
                 });
             },
         );
@@ -8880,9 +8927,9 @@ impl Workspace {
     #[cfg(target_os = "macos")]
     fn handle_cli_command_result(
         &mut self,
-        result: Result<()>,
+        result: Result<(), cli_install::CliInstallError>,
         success_toast: DismissibleToast<WorkspaceAction>,
-        failure_message: &str,
+        failure_key: &str,
         ctx: &mut ViewContext<Self>,
     ) {
         match result {
@@ -8892,8 +8939,13 @@ impl Workspace {
                 });
             }
             Err(error) => {
-                let error_message = format!("{failure_message}: {error}");
-                log::warn!("{error_message}");
+                log::warn!("{failure_key}: {error}");
+                let localized_error = localized_cli_install_error(&error, ctx);
+                let error_message = localization::text_for_app_with_args(
+                    ctx,
+                    failure_key,
+                    &[("error", &localized_error)],
+                );
                 self.toast_stack.update(ctx, |toast_stack, ctx| {
                     let toast = DismissibleToast::error(error_message);
                     toast_stack.add_persistent_toast(toast, ctx);
@@ -8907,12 +8959,21 @@ impl Workspace {
     fn install_oz(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.spawn(async { cli_install::install_oz() }, |view, result, ctx| {
             let command_name = ChannelState::channel().cli_command_name();
-            let message = format!("Installed the Oz CLI globally. You can now run '{command_name}' from any terminal outside of Warp.");
+            let message = localization::text_for_app_with_args(
+                ctx,
+                "workspace.toast.oz_cli_installed",
+                &[("command", command_name)],
+            );
             let toast = DismissibleToast::success(message).with_link(
-                ToastLink::new("Learn more".to_string())
+                ToastLink::new(localization::text_for_app(ctx, "common.learn_more"))
                     .with_href("https://docs.warp.dev/reference/cli".to_string()),
             );
-            view.handle_cli_command_result(result, toast, "Failed to install Oz command", ctx);
+            view.handle_cli_command_result(
+                result,
+                toast,
+                "workspace.toast.oz_cli_install_failed",
+                ctx,
+            );
         });
     }
 
@@ -8922,14 +8983,14 @@ impl Workspace {
         ctx.spawn(
             async { cli_install::uninstall_oz() },
             |view, result, ctx| {
-                let toast = DismissibleToast::success(
-                    "Removed the global Oz CLI installation — it still works inside Warp."
-                        .to_string(),
-                );
+                let toast = DismissibleToast::success(localization::text_for_app(
+                    ctx,
+                    "workspace.toast.oz_cli_uninstalled",
+                ));
                 view.handle_cli_command_result(
                     result,
                     toast,
-                    "Failed to uninstall Oz command",
+                    "workspace.toast.oz_cli_uninstall_failed",
                     ctx,
                 );
             },
@@ -8943,12 +9004,16 @@ impl Workspace {
             async { cli_install::install_warpctrl() },
             |view, result, ctx| {
                 let command_name = ChannelState::channel().warpctrl_command_name();
-                let message = format!("Installed the Warp Control CLI globally. You can now run '{command_name}' from any terminal outside of Warp.");
+                let message = localization::text_for_app_with_args(
+                    ctx,
+                    "workspace.toast.warp_control_cli_installed",
+                    &[("command", command_name)],
+                );
                 let toast = DismissibleToast::success(message);
                 view.handle_cli_command_result(
                     result,
                     toast,
-                    "Failed to install Warp Control command",
+                    "workspace.toast.warp_control_cli_install_failed",
                     ctx,
                 );
             },
@@ -8961,14 +9026,14 @@ impl Workspace {
         ctx.spawn(
             async { cli_install::uninstall_warpctrl() },
             |view, result, ctx| {
-                let toast = DismissibleToast::success(
-                    "Removed the global Warp Control CLI installation — it still works inside Warp."
-                        .to_string(),
-                );
+                let toast = DismissibleToast::success(localization::text_for_app(
+                    ctx,
+                    "workspace.toast.warp_control_cli_uninstalled",
+                ));
                 view.handle_cli_command_result(
                     result,
                     toast,
-                    "Failed to uninstall Warp Control command",
+                    "workspace.toast.warp_control_cli_uninstall_failed",
                     ctx,
                 );
             },
@@ -10866,7 +10931,7 @@ impl Workspace {
     #[cfg(feature = "local_fs")]
     fn open_worktree_in_repo(&mut self, repo_path: String, ctx: &mut ViewContext<Self>) {
         log::info!("open_worktree_in_repo requested: repo_path={repo_path:?}");
-        let config_path = ensure_default_worktree_config();
+        let config_path = ensure_default_worktree_config(crate::localization::current_locale(ctx));
         log::info!("Reading default worktree config from {config_path:?}");
         let template_toml = match std::fs::read_to_string(&config_path) {
             Ok(s) => s,
@@ -18220,6 +18285,7 @@ impl Workspace {
                 n,
                 &result.operation,
                 &result.success_type,
+                ctx,
             ) {
                 self.toast_stack
                     .update(ctx, |view, ctx| match result.success_type {

@@ -13,9 +13,9 @@ use warpui_core::Element;
 
 /// Content for a "you'll lose these features" opt-out confirmation dialog.
 pub struct FeatureOptOutDialog {
-    pub title: &'static str,
-    pub body: &'static str,
-    pub features: &'static [&'static str],
+    pub title: String,
+    pub body: String,
+    pub features: Vec<String>,
     pub close_button: Box<dyn Element>,
     pub cancel_button: Box<dyn Element>,
     pub confirm_button: Box<dyn Element>,
@@ -61,7 +61,7 @@ pub fn render_feature_optout_dialog(
         let feature_x_fill = Fill::Solid(theme.ansi_fg_red());
         let mut feature_list =
             Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
-        for &item in dialog.features {
+        for item in dialog.features {
             let icon_el = ConstrainedBox::new(Icon::X.to_warpui_icon(feature_x_fill).finish())
                 .with_width(16.)
                 .with_height(16.)

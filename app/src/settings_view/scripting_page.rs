@@ -20,13 +20,13 @@ use super::settings_page::{
 use super::{SettingsSection, ToggleState};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::settings::{LocalControlMode, LocalControlModeSetting, LocalControlSettings};
 #[cfg(target_os = "macos")]
 use crate::view_components::DismissibleToast;
 use crate::view_components::{Dropdown, DropdownItem};
 #[cfg(target_os = "macos")]
 use crate::workspace::{cli_install, ToastStack};
-use crate::{localization, report_if_error};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ScriptingSettingsPageAction {

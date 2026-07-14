@@ -38,6 +38,7 @@ use crate::context_chips::prompt_snapshot::PromptSnapshot;
 use crate::context_chips::prompt_type::PromptType;
 use crate::editor::CrdtOperation;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::network::{NetworkStatusEvent, NetworkStatusKind};
 use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
@@ -58,8 +59,8 @@ use crate::terminal::shared_session::shared_handlers::{
     build_selected_conversation_update, RemoteUpdateGuard,
 };
 use crate::terminal::shared_session::sharer::network::{
-    failed_to_add_guests_user_error, failed_to_initialize_session_user_error,
-    session_terminated_reason_string, Network, NetworkEvent,
+    failed_to_add_guests_error_key, failed_to_initialize_session_error_key,
+    session_terminated_reason_key, Network, NetworkEvent,
 };
 use crate::terminal::shared_session::{
     SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
@@ -968,7 +969,8 @@ impl TerminalManager<TerminalView> {
                 });
 
                 terminal_view.update(ctx, |view, ctx| {
-                    let reason_string = failed_to_initialize_session_user_error(reason);
+                    let reason_string =
+                        localization::text_for_app(ctx, failed_to_initialize_session_error_key(reason));
 
                     if matches!(
                         reason,
@@ -998,9 +1000,9 @@ impl TerminalManager<TerminalView> {
                     ctx,
                 );
 
-                let max_session_size = network.as_ref(ctx).max_session_size();
                 terminal_view.update(ctx, |view, ctx| {
-                    let reason_string = session_terminated_reason_string(reason, max_session_size);
+                    let reason_string =
+                        localization::text_for_app(ctx, session_terminated_reason_key(reason));
                     view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -1446,7 +1448,8 @@ impl TerminalManager<TerminalView> {
             NetworkEvent::AddGuestsResponse { response } => {
                 if let AddGuestsResponse::Error(reason) = response {
                     terminal_view.update(ctx, |view, ctx| {
-                        let reason_string = failed_to_add_guests_user_error(reason);
+                        let reason_string =
+                            localization::text_for_app(ctx, failed_to_add_guests_error_key(reason));
                         view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                     });
                 }

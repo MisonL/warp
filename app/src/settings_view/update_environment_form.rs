@@ -213,6 +213,12 @@ pub struct GithubReposDropdownState {
     scroll_state: ClippedScrollStateHandle,
 }
 
+impl GithubReposDropdownState {
+    pub fn has_load_error(&self) -> bool {
+        self.load_error_message.is_some()
+    }
+}
+
 #[cfg(not(target_family = "wasm"))]
 #[derive(Clone, Debug)]
 enum CachedSuggestImageResult {
@@ -1858,7 +1864,11 @@ impl UpdateEnvironmentForm {
         field.finish()
     }
 
-    fn render_setup_commands_field(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_setup_commands_field(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let mut field = Flex::column()
@@ -1906,7 +1916,7 @@ impl UpdateEnvironmentForm {
             .with_child(helper_text)
             .finish();
 
-        let list_items = render_input_list(None, items, None, appearance);
+        let list_items = render_input_list(None, items, None, appearance, app);
 
         let list = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -3541,7 +3551,7 @@ impl View for UpdateEnvironmentForm {
         page.add_child(self.render_description_field(appearance, app));
         page.add_child(self.render_repos_field(appearance));
         page.add_child(self.render_docker_image_field(appearance));
-        page.add_child(self.render_setup_commands_field(appearance));
+        page.add_child(self.render_setup_commands_field(appearance, app));
 
         // Footer row with buttons (only when header is hidden)
         if !self.show_header {

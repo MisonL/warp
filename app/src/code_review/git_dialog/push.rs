@@ -17,7 +17,7 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, Radius, ScrollbarWidth, Text,
 };
 use warpui::platform::Cursor;
-use warpui::ViewContext;
+use warpui::{AppContext, SingletonEntity, ViewContext};
 
 use crate::code::editor::{add_color, remove_color};
 use crate::code_review::git_dialog::{
@@ -27,6 +27,7 @@ use crate::code_review::git_dialog::{
 use crate::code_review::telemetry_event::{
     CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
 };
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::util::git::Commit;
 
@@ -58,12 +59,15 @@ pub(super) fn new_state(publish: bool, commits: Vec<Commit>) -> PushState {
     }
 }
 
-pub(super) fn confirm_label(publish: bool) -> &'static str {
-    if publish {
-        "Publish"
-    } else {
-        "Push"
-    }
+pub(super) fn confirm_label(publish: bool, app: &AppContext) -> String {
+    localization::text_for_app(
+        app,
+        if publish {
+            "code_review.git.publish"
+        } else {
+            "code_review.git.push"
+        },
+    )
 }
 
 pub(super) fn confirm_icon(publish: bool) -> Icon {
@@ -136,7 +140,7 @@ pub(super) fn finish_push(
         }
         Err(e) => {
             report_error!(&e);
-            show_toast(user_facing_git_error(&e.to_string()), ctx);
+            show_toast(user_facing_git_error(&e.to_string(), ctx), ctx);
         }
     }
     send_telemetry_from_ctx!(
@@ -158,10 +162,11 @@ pub(super) fn finish_push(
 pub(super) fn render_body(
     state: &PushState,
     branch_name: &str,
-    appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
     let mut body = Flex::column().with_child(
-        Container::new(render_branch_section(branch_name, appearance))
+        Container::new(render_branch_section(branch_name, appearance, app))
             .with_margin_bottom(16.)
             .finish(),
     );

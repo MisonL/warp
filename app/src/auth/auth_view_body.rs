@@ -703,6 +703,7 @@ impl AuthViewBody {
                 if !NetworkStatus::as_ref(app).is_online() {
                     let offline_contents = render_offline_contents(
                         appearance,
+                        app,
                         ui_builder,
                         self.mouse_state_handles
                             .learn_more_mouse_state_handle
@@ -1071,6 +1072,7 @@ impl View for AuthViewBody {
                         Dismiss::new(render_overlay(
                             render_offline_info_overlay_body(
                                 appearance,
+                                app,
                                 self.privacy_settings_handles.close_button_mouse.clone(),
                                 AuthViewBodyAction::HideOverlay,
                             ),

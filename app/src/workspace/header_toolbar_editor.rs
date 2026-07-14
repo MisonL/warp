@@ -254,6 +254,7 @@ impl View for HeaderToolbarInlineEditor {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }
@@ -352,6 +353,7 @@ impl View for HeaderToolbarEditorModal {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }

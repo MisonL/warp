@@ -36,6 +36,7 @@ use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warp_graphql::object_permissions::OwnerType;
 use warp_isolation_platform::IsolationPlatformError;
+use warp_localization::LocaleId;
 #[cfg(not(target_family = "wasm"))]
 use warp_logging::log_file_path;
 use warp_managed_secrets::ManagedSecretManager;
@@ -277,6 +278,7 @@ fn run_agent(
             }
 
             let server_api = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
+            let locale = crate::localization::current_locale(ctx);
 
             // Start the agent driver runner, which will handle the rest of the setup steps
             // (managing both sync and async steps) as well as triggering the driver.
@@ -289,6 +291,7 @@ fn run_agent(
                         args,
                         server_api,
                         global_options.output_format,
+                        locale,
                     ),
                     |_, result, _ctx| {
                         if let Err(e) = result {
@@ -350,19 +353,20 @@ fn build_merged_config_and_task(
     prompt: &Option<Prompt>,
     ctx: &mut AppContext,
 ) -> anyhow::Result<(AgentConfigSnapshot, Task)> {
+    let locale = crate::localization::current_locale(ctx);
     // Server-side prompt resolution (task_id is set): the task config already lives on the
     // server and individual CLI flags (--model, --mcp, etc.) are the only local overrides.
     // No config file is involved — the worker never passes --file alongside --task-id.
     if args.task_id.is_some() {
-        return build_server_side_task(args, resolved_skill, ctx);
+        return build_server_side_task(args, resolved_skill, ctx, locale);
     }
 
     let loaded_file = match args.config_file.file.as_deref() {
-        Some(path) => Some(config_file::load_config_file(path)?),
+        Some(path) => Some(config_file::load_config_file(path, locale)?),
         None => None,
     };
 
-    let cli_mcp_servers = build_mcp_servers_from_specs(&args.all_mcp_specs())?;
+    let cli_mcp_servers = build_mcp_servers_from_specs(&args.all_mcp_specs(), locale)?;
 
     // Merge precedence: file < CLI < skill
     let file_merged = config_file::merge_with_precedence(loaded_file.as_ref(), Default::default());
@@ -420,7 +424,7 @@ fn build_merged_config_and_task(
     };
 
     let runtime_mcp_specs = match merged_config.mcp_servers.as_ref() {
-        Some(mcp_servers) => config_file::mcp_specs_from_mcp_servers(mcp_servers)?,
+        Some(mcp_servers) => config_file::mcp_specs_from_mcp_servers(mcp_servers, locale)?,
         None => Vec::new(),
     };
 
@@ -466,11 +470,12 @@ fn build_server_side_task(
     args: &RunAgentArgs,
     resolved_skill: &Option<ResolvedSkill>,
     ctx: &mut AppContext,
+    locale: LocaleId,
 ) -> anyhow::Result<(AgentConfigSnapshot, Task)> {
-    let cli_mcp_servers = build_mcp_servers_from_specs(&args.all_mcp_specs())?;
+    let cli_mcp_servers = build_mcp_servers_from_specs(&args.all_mcp_specs(), locale)?;
 
     let runtime_mcp_specs = match cli_mcp_servers.as_ref() {
-        Some(mcp_servers) => config_file::mcp_specs_from_mcp_servers(mcp_servers)?,
+        Some(mcp_servers) => config_file::mcp_specs_from_mcp_servers(mcp_servers, locale)?,
         None => Vec::new(),
     };
 
@@ -625,6 +630,7 @@ impl AgentDriverRunner {
         args: RunAgentArgs,
         server_api: Arc<dyn AIClient>,
         output_format: OutputFormat,
+        locale: LocaleId,
     ) -> Result<(), AgentDriverError> {
         // Extract the task ID as early as possible for best-effort setup observability.
         // Local CLI-created runs may not have a task yet, so those setup events explicitly no-op.
@@ -654,7 +660,7 @@ impl AgentDriverRunner {
         setup_events
             .record_result(SetupStep::WarpDriveSync, async {
                 if foreground
-                    .spawn(|_, ctx| common::refresh_warp_drive(ctx))
+                    .spawn(move |_, ctx| common::refresh_warp_drive(ctx, locale))
                     .await?
                     .await
                     .is_err()
@@ -685,6 +691,7 @@ impl AgentDriverRunner {
                         server_api.clone(),
                         conversation_id,
                         args_harness,
+                        locale,
                     )
                     .await?;
                 }
@@ -696,8 +703,14 @@ impl AgentDriverRunner {
             // the fetched `AmbientAgentTask` (set by the server when linking the task to an
             // existing conversation, e.g. via `run-cloud --conversation`).
             let (mut driver_options, task, task_conversation_id) =
-                Self::build_driver_options_and_task(&foreground, args, &server_api, &setup_events)
-                    .await?;
+                Self::build_driver_options_and_task(
+                    &foreground,
+                    args,
+                    &server_api,
+                    &setup_events,
+                    locale,
+                )
+                .await?;
 
             // Update the effective task ID so errors are reported correctly.
             // This only matters if we created a task ID locally.
@@ -812,7 +825,8 @@ impl AgentDriverRunner {
         foreground
             .spawn(
                 |_, ctx| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
-                    Box::pin(common::refresh_workspace_metadata(ctx))
+                    let locale = crate::localization::current_locale(ctx);
+                    Box::pin(common::refresh_workspace_metadata(ctx, locale))
                 },
             )
             .await?
@@ -991,6 +1005,7 @@ impl AgentDriverRunner {
         args: RunAgentArgs,
         server_api: &Arc<dyn AIClient>,
         setup_events: &SetupClientEventReporter,
+        locale: LocaleId,
     ) -> Result<(AgentDriverOptions, Task, Option<String>), AgentDriverError> {
         // Get the working directory
         let working_dir = match args.cwd.as_ref() {
@@ -1031,6 +1046,7 @@ impl AgentDriverRunner {
                     working_dir: working_dir.clone(),
                     task_id,
                     parent_run_id: None,
+                    locale,
                     should_share,
                     idle_on_complete: args.idle_on_complete.map(|d| d.into()),
                     secrets: Default::default(),
@@ -1196,6 +1212,7 @@ impl AgentDriverRunner {
         // attachments in parallel. The handoff snapshot fetch is independent of the
         // other three calls and only shares the download dir (a cloned PathBuf).
         let attachments_download_dir = attachments_download_dir(&driver_options.working_dir);
+        let locale = driver_options.locale;
         let task_ai_client = ai_client.clone();
         let task_metadata = async {
             match parsed_task_id {
@@ -1225,6 +1242,7 @@ impl AgentDriverRunner {
                 handoff_snapshot_server_api.http_client(),
                 task_id_parsed,
                 handoff_snapshot_download_dir,
+                locale,
             )
             .await
         };
@@ -1236,6 +1254,7 @@ impl AgentDriverRunner {
                 server_api.clone(),
                 task_id_str.clone(),
                 attachments_download_dir.clone(),
+                locale,
             ),
             task_metadata,
             handoff_snapshot,

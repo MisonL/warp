@@ -66,6 +66,7 @@ use crate::context_chips::display_chip::{DisplayChip, DisplayChipConfig, PromptC
 use crate::context_chips::prompt_type::PromptType;
 use crate::context_chips::{self, ContextChipKind};
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::network::NetworkStatus;
 use crate::send_telemetry_from_ctx;
 #[cfg(feature = "voice_input")]
@@ -1285,9 +1286,9 @@ impl AgentInputFooter {
     #[cfg(not(target_family = "wasm"))]
     fn handle_plugin_operation<F, Fut>(
         &mut self,
-        progress_toast: &str,
-        error_label: &str,
-        success_toast: &str,
+        progress_toast_key: &'static str,
+        error_label_key: &'static str,
+        success_toast_key: &'static str,
         operation_kind: PluginChipTelemetryKind,
         operation: F,
         ctx: &mut ViewContext<Self>,
@@ -1346,7 +1347,7 @@ impl AgentInputFooter {
 
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_persistent_toast(
-                DismissibleToast::default(progress_toast.to_owned())
+                DismissibleToast::default(localization::text_for_app(ctx, progress_toast_key))
                     .with_object_id(toast_id.clone()),
                 window_id,
                 ctx,
@@ -1354,8 +1355,6 @@ impl AgentInputFooter {
         });
 
         let toast_id_for_callback = toast_id.clone();
-        let error_label = error_label.to_owned();
-        let success_toast = success_toast.to_owned();
         ctx.spawn(
             async move {
                 let path_env_var = path_future.await;
@@ -1363,10 +1362,11 @@ impl AgentInputFooter {
                     plugin_manager_for_with_shell(agent, shell_path, shell_type, path_env_var)
                 else {
                     return Err((
-                        PluginInstallError {
-                            message: "No plugin manager available".to_owned(),
-                            log: String::new(),
-                        },
+                        PluginInstallError::from_key(
+                            "agent.input_footer.plugin_manager_unavailable",
+                            Vec::new(),
+                            String::new(),
+                        ),
                         None,
                     ));
                 };
@@ -1403,7 +1403,10 @@ impl AgentInputFooter {
 
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     let toast = match result {
-                        Ok(()) => DismissibleToast::success(success_toast.clone()),
+                        Ok(()) => DismissibleToast::success(localization::text_for_app(
+                            ctx,
+                            success_toast_key,
+                        )),
                         Err((err, log_path)) => {
                             let remote_host = CLIAgentSessionsModel::as_ref(ctx)
                                 .session(me.terminal_view_id)
@@ -1411,19 +1414,41 @@ impl AgentInputFooter {
                             CLIAgentSessionsModel::handle(ctx).update(ctx, |model, _| {
                                 model.record_plugin_auto_failure(agent, remote_host);
                             });
-                            log::error!("Failed plugin operation log: {}", err.log);
+                            log::error!(
+                                "Failed plugin operation for {agent:?}: {err}\n{log}",
+                                log = err.log,
+                            );
                             report_error!(
                                 anyhow::anyhow!("{err}").context("Failed plugin operation"),
                                 extra: { "agent" => ?agent }
                             );
+                            let message = err.message_key.map_or_else(
+                                || err.to_string(),
+                                |key| {
+                                    if err.message_args.is_empty() {
+                                        localization::text_for_app(ctx, key)
+                                    } else {
+                                        let args = err
+                                            .message_args
+                                            .iter()
+                                            .map(|(name, value)| (*name, value.as_str()))
+                                            .collect::<Vec<_>>();
+                                        localization::text_for_app_with_args(ctx, key, &args)
+                                    }
+                                },
+                            );
+                            let error_label = localization::text_for_app(ctx, error_label_key);
                             let mut toast =
-                                DismissibleToast::error(format!("{error_label}: {err}"));
+                                DismissibleToast::error(format!("{error_label}: {message}"));
                             if let Some(log_path) = log_path {
                                 toast = toast.with_link(
-                                    ToastLink::new("See logs for details".to_owned())
-                                        .with_onclick_action(WorkspaceAction::OpenFilePath {
-                                            path: log_path,
-                                        }),
+                                    ToastLink::new(localization::text_for_app(
+                                        ctx,
+                                        "agent.input_footer.see_logs_details",
+                                    ))
+                                    .with_onclick_action(
+                                        WorkspaceAction::OpenFilePath { path: log_path },
+                                    ),
                                 );
                             }
                             toast
@@ -1443,15 +1468,15 @@ impl AgentInputFooter {
 
     #[cfg(not(target_family = "wasm"))]
     fn handle_install_plugin(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let success_msg = self
+        let success_msg_key = self
             .cli_agent(ctx)
             .and_then(plugin_manager_for)
-            .map(|m| m.install_success_message())
-            .unwrap_or("Warp plugin installed. Please restart the session to activate.");
+            .map(|m| m.install_success_message_key())
+            .unwrap_or("agent.input_footer.plugin_installed_restart");
         self.handle_plugin_operation(
-            "Installing Warp plugin...",
-            "Failed to install Warp plugin",
-            success_msg,
+            "agent.input_footer.installing_plugin",
+            "agent.input_footer.install_plugin_failed",
+            success_msg_key,
             PluginChipTelemetryKind::Install,
             |manager| async move { manager.install().await },
             ctx,
@@ -1460,15 +1485,15 @@ impl AgentInputFooter {
 
     #[cfg(not(target_family = "wasm"))]
     fn handle_update_plugin(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let success_msg = self
+        let success_msg_key = self
             .cli_agent(ctx)
             .and_then(plugin_manager_for)
-            .map(|m| m.update_success_message())
-            .unwrap_or("Warp plugin updated. Please restart the session to activate.");
+            .map(|m| m.update_success_message_key())
+            .unwrap_or("agent.input_footer.plugin_updated_restart");
         self.handle_plugin_operation(
-            "Updating Warp plugin...",
-            "Failed to update Warp plugin",
-            success_msg,
+            "agent.input_footer.updating_plugin",
+            "agent.input_footer.update_plugin_failed",
+            success_msg_key,
             PluginChipTelemetryKind::Update,
             |manager| async move { manager.update().await },
             ctx,

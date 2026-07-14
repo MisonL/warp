@@ -1019,9 +1019,12 @@ impl LoginSlideView {
         render_feature_optout_dialog(
             appearance,
             FeatureOptOutDialog {
-                title,
-                body,
-                features,
+                title: title.to_owned(),
+                body: body.to_owned(),
+                features: features
+                    .iter()
+                    .map(|feature| (*feature).to_owned())
+                    .collect(),
                 close_button,
                 cancel_button,
                 confirm_button,

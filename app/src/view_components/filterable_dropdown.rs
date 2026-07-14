@@ -54,7 +54,7 @@ pub struct FilterableDropdown<A: DropdownItemAction = ()> {
     selected_item: Option<MenuItem<DropdownAction>>,
     items: Vec<MenuItem<DropdownAction>>,
     orientation: FilterableDropdownOrientation,
-    static_menu_header: Option<&'static str>,
+    static_menu_header: Option<String>,
     button_variant: ButtonVariant,
     style_override: Option<UiComponentStyles>,
     hovered_style_override: Option<UiComponentStyles>,
@@ -451,8 +451,8 @@ where
     }
 
     fn render_closed_top_bar(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let (selected_item_text, font_family_id, is_placeholder) = match self.static_menu_header {
-            Some(header) => (header.to_string(), None, false),
+        let (selected_item_text, font_family_id, is_placeholder) = match &self.static_menu_header {
+            Some(header) => (header.clone(), None, false),
             None => match self.selected_item.clone() {
                 Some(MenuItem::Item(fields)) => {
                     let label = fields.label();
@@ -773,7 +773,7 @@ where
         });
     }
 
-    pub fn set_menu_header_to_static(&mut self, header: &'static str) {
+    pub fn set_menu_header_to_static(&mut self, header: String) {
         self.static_menu_header = Some(header);
     }
 

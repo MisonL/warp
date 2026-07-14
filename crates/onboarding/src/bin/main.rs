@@ -204,11 +204,9 @@ fn default_agent_onboarding_text(key: &str) -> &str {
         "onboarding.agent.autonomy.partial.title" => "Partial",
         "onboarding.agent.default_model" => "Default model",
         "onboarding.agent.disable" => "Disable Warp Agent",
-        "onboarding.agent.plan_activated" => {
-            "Plan successfully activated. All premium models are available."
-        }
+        "onboarding.agent.plan_activated" => "Plan successfully activated!",
         "onboarding.agent.recommended" => "Recommended",
-        "onboarding.agent.subtitle" => "Select your in-app agent's defaults.",
+        "onboarding.agent.subtitle" => "Select your Warp Agent's defaults.",
         "onboarding.agent.team_workspace.description" => {
             "Autonomy settings are configured as part of your team workspace."
         }
@@ -222,14 +220,18 @@ fn default_agent_onboarding_text(key: &str) -> &str {
         }
         "onboarding.ai_access.byok.title" => "Use my own key or endpoint",
         "onboarding.ai_access.choose_plan" => "Choose plan",
+        "onboarding.ai_access.set_up_later.description" => {
+            "Explore Warp's built-in AI features before committing to a plan, or bring your own inference."
+        }
+        "onboarding.ai_access.set_up_later.title" => "Set up later",
         "onboarding.ai_access.subscription.description" => {
             "Starting at $18 / mo, available with monthly or annual plans. Includes base credits, frontier models, cloud agents, collaboration, and more."
         }
         "onboarding.ai_access.subscription.title" => "Subscription",
         "onboarding.ai_access.subtitle" => {
-            "Save with a recurring plan, or use your own key or endpoint."
+            "Save with a recurring plan, or explore Warp's AI before committing."
         }
-        "onboarding.ai_access.title" => "Choose how to access AI",
+        "onboarding.ai_access.title" => "Get AI access",
         "onboarding.ai_access.tooltip.requires_inference" => {
             "Warp Agent requires a subscription or inference supplied by you"
         }
@@ -275,18 +277,31 @@ fn default_agent_onboarding_text(key: &str) -> &str {
         "onboarding.customize.vertical" => "Vertical",
         "onboarding.customize.warp_drive" => "Warp Drive",
         "onboarding.features.ai.agents_over_ssh" => "Agents over SSH",
+        "onboarding.features.ai.cloud_agents" => "Hand off agent work to cloud agents",
+        "onboarding.features.ai.code_review" => {
+            "Review code diffs and send comments directly to agents"
+        }
         "onboarding.features.ai.codebase_context" => "Codebase context",
+        "onboarding.features.ai.frontier_models" => {
+            "Use frontier and open-weight models with Warp Agent"
+        }
+        "onboarding.features.ai.long_running_commands" => {
+            "Agentic control of long-running commands and TUIs"
+        }
         "onboarding.features.ai.next_command_predictions" => "Next command predictions",
         "onboarding.features.ai.oz_cloud_agents" => "Oz cloud agents platform",
         "onboarding.features.ai.prompt_suggestions" => "Prompt suggestions",
         "onboarding.features.ai.remote_control" => {
-            "Remote control with Claude Code, Codex, and other agents"
+            "Remote control for Claude Code, Codex, and other agents"
+        }
+        "onboarding.features.ai.terminal_error_fixes" => {
+            "Automatically diagnose and fix terminal errors"
         }
         "onboarding.features.ai.warp_agents" => "Warp agents",
         "onboarding.intention.agent.description" => {
-            "An agent-first experience with best in class terminal support. Get terminal and agent driven development AI features like:"
+            "Get AI features to accelerate terminal and agent-driven workflows:"
         }
-        "onboarding.intention.agent.title" => "Build faster with AI agents",
+        "onboarding.intention.agent.title" => "Build faster with agents",
         "onboarding.intention.subtitle" => "How do you want to work?",
         "onboarding.intention.terminal.badge" => "No AI features",
         "onboarding.intention.terminal.description" => {
@@ -299,7 +314,7 @@ fn default_agent_onboarding_text(key: &str) -> &str {
         "onboarding.intro.subtitle" => "A modern terminal with state of the art agents built in.",
         "onboarding.intro.title" => "Welcome to Warp",
         "onboarding.no_ai.body" => {
-            "Warp is better with AI. By continuing, you won't have access to any of the following features:"
+            "Without AI, you'll still get Warp's terminal experience, but you'll miss our agentic features like automatic fixes for terminal errors."
         }
         "onboarding.no_ai.cancel" => "Give me AI features",
         "onboarding.no_ai.confirm" => "I don't want AI",

@@ -78,7 +78,6 @@ const ORCHESTRATION_SEGMENT_VERTICAL_PADDING: f32 = 4.;
 /// (the child agent will inherit credentials from its environment).
 const AUTH_SECRET_INHERIT_LABEL: &str = "Skip (advanced)";
 /// Label for the auth secret column.
-pub const AUTH_SECRET_COLUMN_LABEL: &str = "API key";
 const AUTH_SECRET_CREATE_NEW_LABEL: &str = "New API key…";
 
 // ── Action trait ────────────────────────────────────────────────────
@@ -1811,10 +1810,11 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
     appearance: &Appearance,
     active_segment_bg: Option<Fill>,
     full_width: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let label = Text::new(
-        "Agent location".to_string(),
+        crate::localization::text_for_app(app, "agent.orchestration.controls.agent_location"),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 1.,
     )
@@ -1822,7 +1822,7 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
     .finish();
 
     let local_segment = render_segment_button::<A>(
-        "Local",
+        &crate::localization::text_for_app(app, "agent.orchestration.controls.local"),
         !is_remote,
         A::execution_mode_toggled(false),
         handles.local_toggle.clone(),
@@ -1830,7 +1830,7 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
         active_segment_bg,
     );
     let cloud_segment = render_segment_button::<A>(
-        "Cloud",
+        &crate::localization::text_for_app(app, "agent.orchestration.controls.cloud"),
         is_remote,
         A::execution_mode_toggled(true),
         handles.cloud_toggle.clone(),
@@ -1920,8 +1920,9 @@ pub fn render_picker_row<A: OrchestrationControlAction>(
     state: &OrchestrationEditState,
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
-    render_picker_row_with_layout(state, handles, appearance, false)
+    render_picker_row_with_layout(state, handles, appearance, false, app)
 }
 
 /// Renders pickers vertically at full width when `vertical` is true,
@@ -1931,11 +1932,21 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
     vertical: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let is_remote = state.execution_mode.is_remote();
     let show_harness_picker = should_show_harness_picker(state);
 
     let show_auth_picker = should_show_auth_secret_picker(state);
+    let agent_harness_label =
+        crate::localization::text_for_app(app, "agent.orchestration.controls.agent_harness");
+    let api_key_label =
+        crate::localization::text_for_app(app, "agent.orchestration.controls.api_key");
+    let host_label = crate::localization::text_for_app(app, "agent.orchestration.controls.host");
+    let environment_label =
+        crate::localization::text_for_app(app, "agent.orchestration.controls.environment");
+    let base_model_label =
+        crate::localization::text_for_app(app, "agent.orchestration.controls.base_model");
 
     if vertical {
         let mut column = Flex::column()
@@ -1953,7 +1964,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_harness_picker {
             add(
                 &mut column,
-                "Agent harness",
+                &agent_harness_label,
                 handles
                     .harness_picker
                     .as_ref()
@@ -1963,7 +1974,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_auth_picker {
             add(
                 &mut column,
-                AUTH_SECRET_COLUMN_LABEL,
+                &api_key_label,
                 handles
                     .auth_secret_picker
                     .as_ref()
@@ -1973,7 +1984,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if is_remote {
             add(
                 &mut column,
-                "Host",
+                &host_label,
                 handles
                     .host_picker
                     .as_ref()
@@ -1981,7 +1992,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             );
             add(
                 &mut column,
-                "Environment",
+                &environment_label,
                 handles
                     .environment_picker
                     .as_ref()
@@ -1990,7 +2001,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         }
         add(
             &mut column,
-            "Base model",
+            &base_model_label,
             handles
                 .model_picker
                 .as_ref()
@@ -2012,7 +2023,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_harness_picker {
             add_picker(
                 &mut row,
-                "Agent harness",
+                &agent_harness_label,
                 handles
                     .harness_picker
                     .as_ref()
@@ -2022,7 +2033,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if is_remote {
             add_picker(
                 &mut row,
-                "Host",
+                &host_label,
                 handles
                     .host_picker
                     .as_ref()
@@ -2030,7 +2041,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             );
             add_picker(
                 &mut row,
-                "Environment",
+                &environment_label,
                 handles
                     .environment_picker
                     .as_ref()
@@ -2039,7 +2050,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         }
         add_picker(
             &mut row,
-            "Base model",
+            &base_model_label,
             handles
                 .model_picker
                 .as_ref()
@@ -2048,7 +2059,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_auth_picker {
             add_picker(
                 &mut row,
-                AUTH_SECRET_COLUMN_LABEL,
+                &api_key_label,
                 handles
                     .auth_secret_picker
                     .as_ref()

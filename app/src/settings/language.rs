@@ -7,6 +7,7 @@ define_settings_group!(LanguageSettings, settings: [
         default: AppLanguage::default(),
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Never,
+        surface: settings::SettingSurfaces::GUI,
         private: false,
         storage_key: "AppLanguage",
         toml_path: "appearance.interface.language",

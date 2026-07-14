@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use ai::agent::action_result::{RecordingStopped, StopRecordingResult};
 use futures::channel::oneshot;
+use warp_localization::LocaleId;
 use warpui::r#async::Timer;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
@@ -95,6 +96,7 @@ async fn finalize_recording(
     should_upload: bool,
     uploader: FileArtifactUploader,
     server_conversation_token: Option<crate::ai::agent::api::ServerConversationToken>,
+    locale: LocaleId,
 ) -> StopRecordingResult {
     // Conversation cancellation discards the recording instead of publishing
     // it. Dropping the handle kill-on-drops the ffmpeg process and removes the
@@ -117,8 +119,12 @@ async fn finalize_recording(
         description: None,
     };
     let upload_result = async {
-        let association = uploader.resolve_upload_association(&request).await?;
-        uploader.upload_with_association(request, association).await
+        let association = uploader
+            .resolve_upload_association(&request, locale)
+            .await?;
+        uploader
+            .upload_with_association(request, association, locale)
+            .await
     }
     .await;
     // Local files are ephemeral regardless of upload outcome. Retrying failed
@@ -160,6 +166,7 @@ fn build_finalize_future(
         ServerApiProvider::as_ref(ctx).get(),
     );
     let id = recording.id.clone();
+    let locale = crate::localization::current_locale(ctx);
     (
         id,
         finalize_recording(
@@ -168,6 +175,7 @@ fn build_finalize_future(
             should_upload,
             uploader,
             server_conversation_token,
+            locale,
         ),
     )
 }

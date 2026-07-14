@@ -99,7 +99,7 @@ use crate::ai::agent::{
     SummarizationType, TodoOperation,
 };
 use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConversationsModelEvent};
-use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
+use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE_KEY;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::NewConversationDecision;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
@@ -3851,7 +3851,7 @@ impl AIBlock {
 
         for (index, document) in documents.iter().enumerate() {
             let title = if document.title.is_empty() {
-                DEFAULT_PLANNING_DOCUMENT_TITLE.to_string()
+                crate::localization::text_for_app(ctx, DEFAULT_PLANNING_DOCUMENT_TITLE_KEY)
             } else {
                 document.title.clone()
             };

@@ -28,6 +28,7 @@ use super::OnboardingSlide;
 use crate::model::{OnboardingStateEvent, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::visuals::agent_visual;
+use crate::OnboardingCopy;
 
 /// Information about a model displayed on the onboarding slide.
 #[derive(Clone, Debug)]
@@ -118,6 +119,7 @@ pub struct AgentSlide {
     dropdown_scroll_state: ClippedScrollStateHandle,
     is_model_list_expanded: bool,
     highlighted_model_id: Option<LLMId>,
+    copy: OnboardingCopy,
 }
 
 /// Produces the `SavePosition` id for the model row at `index` in the
@@ -130,6 +132,7 @@ fn model_row_position_id(index: usize) -> String {
 impl AgentSlide {
     pub(crate) fn new(
         onboarding_state: warpui_core::ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let model_count = onboarding_state.as_ref(ctx).models().len();
@@ -174,6 +177,7 @@ impl AgentSlide {
             dropdown_scroll_state: ClippedScrollStateHandle::new(),
             is_model_list_expanded: false,
             highlighted_model_id: None,
+            copy,
         }
     }
 
@@ -223,7 +227,7 @@ impl AgentSlide {
     fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let title = appearance
             .ui_builder()
-            .paragraph("Customize your Warp Agent")
+            .paragraph(self.copy.text_owned("onboarding.agent.title"))
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -233,7 +237,7 @@ impl AgentSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            "Select your Warp Agent's defaults.",
+            self.copy.text_owned("onboarding.agent.subtitle"),
             appearance.ui_font_family(),
             16.,
         )
@@ -296,11 +300,7 @@ impl AgentSlide {
         Container::new(col.finish()).with_margin_top(40.).finish()
     }
 
-    fn render_section_header(
-        &self,
-        title: &'static str,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_section_header(&self, title: String, appearance: &Appearance) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .paragraph(title)
@@ -319,7 +319,10 @@ impl AgentSlide {
         settings: &AgentDevelopmentSettings,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header("Default model", appearance);
+        let header = self.render_section_header(
+            self.copy.text_owned("onboarding.agent.default_model"),
+            appearance,
+        );
 
         let expanded = self.is_model_list_expanded;
         let chip = self.render_collapsed_model_chip(appearance, settings, app, expanded);
@@ -598,8 +601,8 @@ impl AgentSlide {
                 .finish();
 
             // "Recommended" pill on the server-designated default model.
-            let make_pill = |label: &'static str| -> Box<dyn Element> {
-                let badge = Text::new(label.to_string(), ui_font_family, 11.0)
+            let make_pill = |label: String| -> Box<dyn Element> {
+                let badge = Text::new(label, ui_font_family, 11.0)
                     .with_color(internal_colors::text_sub(theme, background_for_text))
                     .with_style(Properties {
                         weight: Weight::Normal,
@@ -618,7 +621,7 @@ impl AgentSlide {
             };
 
             let trailing: Box<dyn Element> = if is_default {
-                make_pill("Recommended")
+                make_pill(self.copy.text_owned("onboarding.agent.recommended"))
             } else {
                 Empty::new().finish()
             };
@@ -665,7 +668,10 @@ impl AgentSlide {
     }
 
     fn render_autonomy_workspace_enforced(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let header = self.render_section_header("Autonomy", appearance);
+        let header = self.render_section_header(
+            self.copy.text_owned("onboarding.agent.autonomy"),
+            appearance,
+        );
 
         let theme = appearance.theme();
         let background_for_text = theme.background().into_solid();
@@ -674,17 +680,23 @@ impl AgentSlide {
         let title_color = internal_colors::text_main(theme, background_for_text);
         let subtitle_color = internal_colors::text_sub(theme, background_for_text);
 
-        let title_el = Text::new("Set by Team Workspace", ui_font_family, 14.0)
-            .with_color(title_color)
-            .with_style(Properties {
-                weight: Weight::Normal,
-                ..Default::default()
-            })
-            .with_line_height_ratio(1.0)
-            .finish();
+        let title_el = Text::new(
+            self.copy
+                .text_owned("onboarding.agent.team_workspace.title"),
+            ui_font_family,
+            14.0,
+        )
+        .with_color(title_color)
+        .with_style(Properties {
+            weight: Weight::Normal,
+            ..Default::default()
+        })
+        .with_line_height_ratio(1.0)
+        .finish();
 
         let subtitle_el = Text::new(
-            "Autonomy settings are configured as part of your team workspace.",
+            self.copy
+                .text_owned("onboarding.agent.team_workspace.description"),
             ui_font_family,
             12.0,
         )
@@ -720,7 +732,10 @@ impl AgentSlide {
         appearance: &Appearance,
         settings: &AgentDevelopmentSettings,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header("Autonomy", appearance);
+        let header = self.render_section_header(
+            self.copy.text_owned("onboarding.agent.autonomy"),
+            appearance,
+        );
 
         // The rows now take the full column width (vs. the previous three-across layout),
         // so they no longer need the extra height that came from cramped subtitle wrapping.
@@ -735,20 +750,21 @@ impl AgentSlide {
         let autonomy_options: [(AgentAutonomy, &str, &str, MouseStateHandle); 3] = [
             (
                 AgentAutonomy::Full,
-                "Full",
-                "Warp Agent runs commands, writes code, and reads files without asking.",
+                self.copy.text("onboarding.agent.autonomy.full.title"),
+                self.copy.text("onboarding.agent.autonomy.full.description"),
                 self.autonomy_full_mouse_state.clone(),
             ),
             (
                 AgentAutonomy::Partial,
-                "Partial",
-                "Warp Agent can plan, read files, and execute low-risk commands. Asks before making any changes or executing sensitive commands.",
+                self.copy.text("onboarding.agent.autonomy.partial.title"),
+                self.copy
+                    .text("onboarding.agent.autonomy.partial.description"),
                 self.autonomy_partial_mouse_state.clone(),
             ),
             (
                 AgentAutonomy::None,
-                "None",
-                "Warp Agent takes no actions without your approval.",
+                self.copy.text("onboarding.agent.autonomy.none.title"),
+                self.copy.text("onboarding.agent.autonomy.none.description"),
                 self.autonomy_none_mouse_state.clone(),
             ),
         ];
@@ -798,7 +814,9 @@ impl AgentSlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -813,7 +831,9 @@ impl AgentSlide {
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Next".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.next").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),

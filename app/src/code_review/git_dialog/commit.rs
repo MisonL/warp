@@ -426,7 +426,7 @@ pub(super) fn finish_commit_chain(
         }
         Err(err) => {
             report_error!("Commit failed", extra: { "error" => %err });
-            show_toast(user_facing_git_error(err), ctx);
+            show_toast(user_facing_git_error(err, ctx), ctx);
         }
     }
     send_telemetry_from_ctx!(
@@ -512,8 +512,8 @@ pub(super) fn render_body(
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
 
-    let branch_section = render_branch_section(branch_name, appearance);
-    let changes_section = render_changes_section(state, appearance);
+    let branch_section = render_branch_section(branch_name, appearance, app);
+    let changes_section = render_changes_section(state, appearance, app);
     let message_section = render_message_editor(state, appearance, app);
     let intent_section = render_intent_buttons(state);
 
@@ -537,7 +537,11 @@ pub(super) fn render_body(
         .finish()
 }
 
-fn render_changes_section(state: &CommitState, appearance: &Appearance) -> Box<dyn Element> {
+fn render_changes_section(
+    state: &CommitState,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
     let main_color = theme.main_text_color(theme.surface_1()).into_solid();
     let sub_color = theme.sub_text_color(theme.surface_1()).into_solid();
@@ -591,6 +595,7 @@ fn render_changes_section(state: &CommitState, appearance: &Appearance) -> Box<d
         &state.changes_scroll_state,
         GitDialogAction::Commit(CommitSubAction::ToggleChangesExpanded),
         appearance,
+        app,
     );
 
     Flex::column()
