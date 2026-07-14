@@ -490,7 +490,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for BootstrappingMessageProducer {
         {
             None
         } else {
-            Some(Message::from_text("Starting shell..."))
+            Some(Message::from_text(crate::localization::text_for_app(
+                args.app,
+                "terminal.status.starting_shell",
+            )))
         }
     }
 }

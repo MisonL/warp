@@ -4544,7 +4544,10 @@ impl TerminalView {
                             me.show_ssh_remote_server_failed_banner(
                                 *session_id,
                                 remote_server::transport::UserFacingError {
-                                    body: "Failed to start SSH extension".into(),
+                                    body: crate::localization::text_for_app(
+                                        ctx,
+                                        "terminal.ssh_error.start_extension_failed",
+                                    ),
                                     detail: if error.is_empty() {
                                         None
                                     } else {
@@ -5395,10 +5398,14 @@ impl TerminalView {
             {
                 if let Some(block) = self.last_ai_block() {
                     let block_id = BlockId::from(block.id().to_string());
+                    let execute_plan_text = crate::localization::text_for_app(
+                        ctx,
+                        "terminal.prompt_suggestion.execute_this_plan",
+                    );
                     let suggestion = AgentModePromptSuggestion::Success(PromptSuggestion {
                         id: Uuid::new_v4().to_string(),
-                        label: Some("Execute this plan".to_string()),
-                        prompt: "Execute this plan".to_string(),
+                        label: Some(execute_plan_text.clone()),
+                        prompt: execute_plan_text,
                         coding_query_context: None,
                         static_prompt_suggestion_name: Some("EXECUTE_CREATED_PLAN".to_string()),
                         should_start_new_conversation: false,
@@ -7736,7 +7743,10 @@ impl TerminalView {
                     _ => Some(AIBlockNotificationSummary {
                         success: false,
                         title,
-                        description: "An unknown error occurred".to_string(),
+                        description: crate::localization::text_for_app(
+                            app,
+                            "terminal.notification.ai_summary.unknown_error",
+                        ),
                     }),
                 }
             }
