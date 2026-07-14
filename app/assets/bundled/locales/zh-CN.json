@@ -922,6 +922,7 @@
   "agent.block.recommended": "推荐",
   "agent.block.toast.copied_to_clipboard": "已复制到剪贴板",
   "agent.block.toast.feedback_thanks": "感谢你的反馈！",
+  "agent.block.toast.open_recording_failed": "无法打开录制内容。",
   "ai.conversation_rename.error.empty_conversation": "不能重命名空对话",
   "ai.conversation_rename.error.empty_title": "请提供对话标题",
   "ai.conversation_rename.error.not_found": "找不到对话",

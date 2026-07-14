@@ -922,6 +922,7 @@
   "agent.block.recommended": "Recommended",
   "agent.block.toast.copied_to_clipboard": "Copied to clipboard",
   "agent.block.toast.feedback_thanks": "Thank you for the feedback!",
+  "agent.block.toast.open_recording_failed": "Failed to open recording.",
   "ai.conversation_rename.error.empty_conversation": "You can't rename an empty conversation",
   "ai.conversation_rename.error.empty_title": "Please provide a conversation title",
   "ai.conversation_rename.error.not_found": "Conversation not found",

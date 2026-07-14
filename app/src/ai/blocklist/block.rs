@@ -163,6 +163,7 @@ use crate::code_review::comments::{
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::code_review::CodeReviewTelemetryEvent;
 use crate::editor::InteractionState;
+use crate::localization::{self, LocalizationUpdater};
 use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
 use crate::server::ids::SyncId;
@@ -606,11 +607,14 @@ impl ImportedCommentElementState {
         ctx: &mut ViewContext<AIBlock>,
     ) -> Self {
         let open_in_github_button = html_url.map(|url| {
-            ctx.add_typed_action_view(move |_| {
+            ctx.add_typed_action_view(move |ctx| {
                 ActionButton::new("", NakedTheme)
                     .with_icon(Icon::Github)
                     .with_size(ButtonSize::Small)
-                    .with_tooltip("Open in GitHub")
+                    .with_tooltip(localization::text_for_app(
+                        ctx,
+                        "agent.block.action.open_in_github",
+                    ))
                     .on_click({
                         let url = url.clone();
                         move |ctx| {
@@ -623,15 +627,18 @@ impl ImportedCommentElementState {
         });
 
         let action_id_for_open_button = action_id.clone();
-        let open_in_code_review_button = ctx.add_typed_action_view(move |_| {
-            ActionButton::new("Open in code review", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(move |ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::OpenImportedCommentInCodeReview {
-                        action_id: action_id_for_open_button.clone(),
-                        comment_index,
-                    });
-                })
+        let open_in_code_review_button = ctx.add_typed_action_view(move |ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.block.action.open_in_code_review"),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(move |ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::OpenImportedCommentInCodeReview {
+                    action_id: action_id_for_open_button.clone(),
+                    comment_index,
+                });
+            })
         });
 
         let chevron_button = ctx.add_view(|_| {
@@ -1256,9 +1263,12 @@ impl AIBlock {
             }
         });
 
-        let manage_rules_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Manage rules", NakedTheme)
-                .on_click(|ctx| ctx.dispatch_typed_action(AIBlockAction::OpenAIFactCollection))
+        let manage_rules_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.block.action.manage_rules"),
+                NakedTheme,
+            )
+            .on_click(|ctx| ctx.dispatch_typed_action(AIBlockAction::OpenAIFactCollection))
         });
 
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
@@ -1387,55 +1397,77 @@ impl AIBlock {
             }
         });
 
-        let review_changes_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Review changes", SecondaryTheme)
-                .with_icon(Icon::Diff)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::ToggleCodeReviewPane);
-                })
+        let review_changes_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.block.action.review_changes"),
+                SecondaryTheme,
+            )
+            .with_icon(Icon::Diff)
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::ToggleCodeReviewPane);
+            })
         });
 
-        let open_all_comments_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Open all in code review", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::OpenAllImportedCommentsInCodeReview);
-                })
+        let open_all_comments_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.block.action.open_all_in_code_review"),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::OpenAllImportedCommentsInCodeReview);
+            })
         });
 
-        let dismiss_suggestion_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Dismiss", SuggestionDismissButtonTheme)
-                .with_icon(Icon::X)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::DismissSuggestionsSection);
-                })
+        let dismiss_suggestion_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.block.action.dismiss"),
+                SuggestionDismissButtonTheme,
+            )
+            .with_icon(Icon::X)
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::DismissSuggestionsSection);
+            })
         });
 
-        let disable_rule_suggestions_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Don't show again", SuggestionDismissButtonTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::DisableRuleSuggestions);
-                })
+        let disable_rule_suggestions_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.block.action.dont_show_again"),
+                SuggestionDismissButtonTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AIBlockAction::DisableRuleSuggestions);
+            })
         });
 
         let ai_block_view_id = ctx.view_id();
         let exchange_id = client_ids.client_exchange_id;
         let conversation_id = client_ids.conversation_id;
-        let rewind_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Rewind", RewindButtonTheme)
-                .with_size(ButtonSize::XSmall)
-                .with_tooltip("Rewind to before this block")
-                .on_click(move |ctx| {
-                    ctx.dispatch_typed_action(TerminalAction::RewindAIConversation {
-                        ai_block_view_id,
-                        exchange_id,
-                        conversation_id,
-                        entrypoint: AgentModeRewindEntrypoint::Button,
-                    });
-                })
+        let rewind_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "agent.block.action.rewind"),
+                RewindButtonTheme,
+            )
+            .with_size(ButtonSize::XSmall)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "agent.block.action.rewind_tooltip",
+            ))
+            .on_click(move |ctx| {
+                ctx.dispatch_typed_action(TerminalAction::RewindAIConversation {
+                    ai_block_view_id,
+                    exchange_id,
+                    conversation_id,
+                    entrypoint: AgentModeRewindEntrypoint::Button,
+                });
+            })
+        });
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         let comment_data = model
@@ -1567,6 +1599,75 @@ impl AIBlock {
             AIBlockOutputStatus::PartiallyReceived { .. } | AIBlockOutputStatus::Pending => (),
         }
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.refresh_primary_action_buttons(ctx);
+        self.refresh_requested_action_buttons(ctx);
+        self.refresh_imported_comment_buttons(ctx);
+        self.update_imported_comments_disabled_state(ctx);
+        ctx.notify();
+    }
+
+    fn refresh_primary_action_buttons(&self, ctx: &mut ViewContext<Self>) {
+        for (button, key) in [
+            (&self.manage_rules_button, "agent.block.action.manage_rules"),
+            (
+                &self.review_changes_button,
+                "agent.block.action.review_changes",
+            ),
+            (
+                &self.open_all_comments_button,
+                "agent.block.action.open_all_in_code_review",
+            ),
+            (
+                &self.dismiss_suggestion_button,
+                "agent.block.action.dismiss",
+            ),
+            (
+                &self.disable_rule_suggestions_button,
+                "agent.block.action.dont_show_again",
+            ),
+            (&self.rewind_button, "agent.block.action.rewind"),
+        ] {
+            let label = localization::text_for_app(ctx, key);
+            button.update(ctx, |button, ctx| button.set_label(label, ctx));
+        }
+
+        let rewind_tooltip = localization::text_for_app(ctx, "agent.block.action.rewind_tooltip");
+        self.rewind_button.update(ctx, |button, ctx| {
+            button.set_tooltip(Some(rewind_tooltip), ctx);
+        });
+    }
+
+    fn refresh_requested_action_buttons(&mut self, ctx: &mut ViewContext<Self>) {
+        let run_label = localization::text_for_app(ctx, "agent.block.action.run");
+        let cancel_label = localization::text_for_app(ctx, "agent.block.action.cancel");
+        for buttons in self.action_buttons.values_mut() {
+            buttons.run_button.set_label(run_label.clone(), ctx);
+            buttons.cancel_button.set_label(cancel_label.clone(), ctx);
+        }
+    }
+
+    fn refresh_imported_comment_buttons(&self, ctx: &mut ViewContext<Self>) {
+        let open_in_github_tooltip =
+            localization::text_for_app(ctx, "agent.block.action.open_in_github");
+        let open_in_code_review_label =
+            localization::text_for_app(ctx, "agent.block.action.open_in_code_review");
+        for group in self.imported_comments.values() {
+            for state in &group.element_states {
+                if let Some(button) = &state.open_in_github_button {
+                    let tooltip = open_in_github_tooltip.clone();
+                    button.update(ctx, |button, ctx| {
+                        button.set_tooltip(Some(tooltip), ctx);
+                    });
+                }
+                let label = open_in_code_review_label.clone();
+                state
+                    .open_in_code_review_button
+                    .update(ctx, |button, ctx| button.set_label(label, ctx));
+            }
+        }
     }
 
     /// Update this block's directory context (pwd and home_dir) after creation.
@@ -2007,7 +2108,7 @@ impl AIBlock {
 
             if !self.action_buttons.contains_key(&action.id) {
                 let run_button = CompactibleActionButton::new(
-                    "Run".to_string(),
+                    localization::text_for_app(ctx, "agent.block.action.run"),
                     Some(KeystrokeSource::Fixed(ENTER_KEYSTROKE.clone())),
                     ButtonSize::InlineActionHeader,
                     AIBlockAction::ExecuteRequestedAction {
@@ -2019,7 +2120,7 @@ impl AIBlock {
                 );
 
                 let cancel_button = CompactibleActionButton::new(
-                    "Cancel".to_string(),
+                    localization::text_for_app(ctx, "agent.block.action.cancel"),
                     Some(KeystrokeSource::Fixed(CTRL_C_KEYSTROKE.clone())),
                     ButtonSize::InlineActionHeader,
                     AIBlockAction::CancelRequestedAction {
@@ -5936,8 +6037,14 @@ fn set_imported_comment_button_disabled(
     handle.update(ctx, |button, ctx| {
         button.set_disabled(should_disable, ctx);
         if should_disable {
-            let tooltip = repo_path
-                .map(|path| format!("Navigate to {} to open these comments", path.display_path()));
+            let tooltip = repo_path.map(|path| {
+                let path = path.display_path();
+                localization::text_for_app_with_args(
+                    ctx,
+                    "agent.block.action.open_comments_disabled_tooltip",
+                    &[("path", path.as_str())],
+                )
+            });
             button.set_tooltip(tooltip, ctx);
         } else {
             button.set_tooltip(None::<String>, ctx);
@@ -6889,9 +6996,10 @@ impl TypedActionView for AIBlock {
                             let window_id = ctx.window_id();
                             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                                 toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(
-                                        "Failed to open recording.".to_string(),
-                                    ),
+                                    DismissibleToast::error(localization::text_for_app(
+                                        ctx,
+                                        "agent.block.toast.open_recording_failed",
+                                    )),
                                     window_id,
                                     ctx,
                                 );
