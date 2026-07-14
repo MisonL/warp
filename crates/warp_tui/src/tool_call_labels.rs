@@ -12,6 +12,7 @@ use warp::tui_export::{
 use warp_core::command::ExitCode;
 
 use self::ToolCallDisplayState as State;
+use crate::localization;
 
 /// Ground-truth state of the terminal block backing a shell-command tool
 /// call, resolved by the caller. When a block exists, its state supersedes
@@ -136,7 +137,9 @@ pub(crate) fn tool_call_label(
         .map(|result| &result.result);
     let label = label_for_action(&action.action, state, result, block);
     match state {
-        State::AwaitingApproval => format!("{label} (awaiting approval)"),
+        State::AwaitingApproval => {
+            localization::text_with_args("tui.tool.awaiting_approval", &[("label", &label)])
+        }
         State::Constructing
         | State::Pending
         | State::Running
@@ -170,67 +173,107 @@ fn label_for_action(
                 .or_else(|| block.and_then(|block| block.command.as_deref()));
             let cmd = single_line(executed.unwrap_or(command));
             match state {
-                State::Constructing => "Generating command…".to_owned(),
-                State::Pending | State::AwaitingApproval => format!("Run `{cmd}`"),
-                State::Running => format!("Running `{cmd}`"),
+                State::Constructing => localization::text("tui.tool.command.generating"),
+                State::Pending | State::AwaitingApproval => {
+                    localization::text_with_args("tui.tool.command.run", &[("command", &cmd)])
+                }
+                State::Running => {
+                    localization::text_with_args("tui.tool.command.running", &[("command", &cmd)])
+                }
                 State::Succeeded => match block_state {
-                    Some(CommandBlockState::Finished { .. }) => format!("Ran `{cmd}`"),
+                    Some(CommandBlockState::Finished { .. }) => {
+                        localization::text_with_args("tui.tool.command.ran", &[("command", &cmd)])
+                    }
                     // No local block: fall back to the stored result. A
                     // snapshot result means the command was still running at
                     // the last point we could observe it.
                     Some(CommandBlockState::Running) | None => match result {
                         Some(AIAgentActionResultType::RequestCommandOutput(
                             RequestCommandOutputResult::LongRunningCommandSnapshot { .. },
-                        )) => format!("`{cmd}` is still running"),
-                        _ => format!("Ran `{cmd}`"),
+                        )) => localization::text_with_args(
+                            "tui.tool.command.still_running",
+                            &[("command", &cmd)],
+                        ),
+                        _ => localization::text_with_args(
+                            "tui.tool.command.ran",
+                            &[("command", &cmd)],
+                        ),
                     },
                 },
                 State::Failed => match block_state {
                     Some(CommandBlockState::Finished { exit_code }) => {
-                        format!("`{cmd}` exited with code {}", exit_code.value())
+                        command_exit_label(&cmd, exit_code)
                     }
                     Some(CommandBlockState::Running) | None => match result {
                         Some(AIAgentActionResultType::RequestCommandOutput(
                             RequestCommandOutputResult::Completed { exit_code, .. },
-                        )) => format!("`{cmd}` exited with code {}", exit_code.value()),
+                        )) => command_exit_label(&cmd, *exit_code),
                         Some(AIAgentActionResultType::RequestCommandOutput(
                             RequestCommandOutputResult::Denylisted { .. },
-                        )) => format!("`{cmd}` denied (denylisted)"),
-                        _ => format!("`{cmd}` failed"),
+                        )) => localization::text_with_args(
+                            "tui.tool.command.denied",
+                            &[("command", &cmd)],
+                        ),
+                        _ => localization::text_with_args(
+                            "tui.tool.command.failed",
+                            &[("command", &cmd)],
+                        ),
                     },
                 },
-                State::Cancelled => format!("Cancelled `{cmd}`"),
+                State::Cancelled => {
+                    localization::text_with_args("tui.tool.command.cancelled", &[("command", &cmd)])
+                }
             }
         }
         AIAgentActionType::WriteToLongRunningShellCommand { .. } => match state {
-            State::Constructing => "Writing command input…".to_owned(),
-            State::Pending | State::AwaitingApproval => "Write input to running command".to_owned(),
-            State::Running => "Writing input to running command…".to_owned(),
-            State::Succeeded => "Wrote input to running command".to_owned(),
-            State::Failed => "Failed to write to running command".to_owned(),
-            State::Cancelled => "Write to running command cancelled".to_owned(),
+            State::Constructing => localization::text("tui.tool.command_input.preparing"),
+            State::Pending | State::AwaitingApproval => {
+                localization::text("tui.tool.command_input.write")
+            }
+            State::Running => localization::text("tui.tool.command_input.writing"),
+            State::Succeeded => localization::text("tui.tool.command_input.wrote"),
+            State::Failed => localization::text("tui.tool.command_input.failed"),
+            State::Cancelled => localization::text("tui.tool.command_input.cancelled"),
         },
         AIAgentActionType::ReadFiles(request) => {
             let files = files_summary(request.locations.iter().map(|location| &location.name));
             match state {
-                State::Constructing => "Reading files…".to_owned(),
+                State::Constructing => localization::text("tui.tool.files.reading"),
                 State::Pending | State::AwaitingApproval | State::Succeeded => {
-                    format!("Read {files}")
+                    localization::text_with_args("tui.tool.files.read", &[("files", &files)])
                 }
-                State::Running => format!("Reading {files}"),
-                State::Failed => format!("Failed to read {files}"),
-                State::Cancelled => format!("Cancelled reading {files}"),
+                State::Running => localization::text_with_args(
+                    "tui.tool.files.reading_named",
+                    &[("files", &files)],
+                ),
+                State::Failed => {
+                    localization::text_with_args("tui.tool.files.read_failed", &[("files", &files)])
+                }
+                State::Cancelled => localization::text_with_args(
+                    "tui.tool.files.read_cancelled",
+                    &[("files", &files)],
+                ),
             }
         }
         AIAgentActionType::UploadArtifact(request) => {
             let file = single_line(&request.file_path);
             match state {
-                State::Constructing => "Preparing upload…".to_owned(),
-                State::Pending | State::AwaitingApproval => format!("Upload {file}"),
-                State::Running => format!("Uploading {file}"),
-                State::Succeeded => format!("Uploaded {file}"),
-                State::Failed => format!("Upload of {file} failed"),
-                State::Cancelled => format!("Upload of {file} cancelled"),
+                State::Constructing => localization::text("tui.tool.upload.preparing"),
+                State::Pending | State::AwaitingApproval => {
+                    localization::text_with_args("tui.tool.upload.start", &[("file", &file)])
+                }
+                State::Running => {
+                    localization::text_with_args("tui.tool.upload.running", &[("file", &file)])
+                }
+                State::Succeeded => {
+                    localization::text_with_args("tui.tool.upload.succeeded", &[("file", &file)])
+                }
+                State::Failed => {
+                    localization::text_with_args("tui.tool.upload.failed", &[("file", &file)])
+                }
+                State::Cancelled => {
+                    localization::text_with_args("tui.tool.upload.cancelled", &[("file", &file)])
+                }
             }
         }
         AIAgentActionType::SearchCodebase(request) => {
@@ -238,27 +281,45 @@ fn label_for_action(
             let scope = request
                 .codebase_path
                 .as_deref()
-                .map(|path| format!(" in {}", base_name(path)))
+                .map(|path| {
+                    let path = base_name(path);
+                    localization::text_with_args("tui.tool.scope.in", &[("path", &path)])
+                })
                 .unwrap_or_default();
             match state {
-                State::Constructing => "Searching codebase…".to_owned(),
-                State::Pending | State::AwaitingApproval => {
-                    format!("Search for \"{query}\"{scope}")
-                }
-                State::Running => format!("Searching for \"{query}\"{scope}"),
+                State::Constructing => localization::text("tui.tool.search.preparing"),
+                State::Pending | State::AwaitingApproval => localization::text_with_args(
+                    "tui.tool.search.start",
+                    &[("query", &query), ("scope", &scope)],
+                ),
+                State::Running => localization::text_with_args(
+                    "tui.tool.search.running",
+                    &[("query", &query), ("scope", &scope)],
+                ),
                 State::Succeeded => match result {
                     Some(AIAgentActionResultType::SearchCodebase(
                         SearchCodebaseResult::Success { files },
-                    )) if files.is_empty() => {
-                        format!("Searched for \"{query}\"{scope}, no results")
-                    }
+                    )) if files.is_empty() => localization::text_with_args(
+                        "tui.tool.search.no_results",
+                        &[("query", &query), ("scope", &scope)],
+                    ),
                     Some(AIAgentActionResultType::SearchCodebase(
                         SearchCodebaseResult::Success { files },
-                    )) => format!(
-                        "Searched for \"{query}\"{scope}, {}",
-                        count_label(files.len(), "result", "results")
+                    )) => {
+                        let results = localized_count_label(
+                            files.len(),
+                            "tui.count.result.one",
+                            "tui.count.result.many",
+                        );
+                        localization::text_with_args(
+                            "tui.tool.search.succeeded_with_count",
+                            &[("query", &query), ("scope", &scope), ("results", &results)],
+                        )
+                    }
+                    _ => localization::text_with_args(
+                        "tui.tool.search.succeeded",
+                        &[("query", &query), ("scope", &scope)],
                     ),
-                    _ => format!("Searched for \"{query}\"{scope}"),
                 },
                 State::Failed => match result {
                     Some(AIAgentActionResultType::SearchCodebase(
@@ -266,12 +327,19 @@ fn label_for_action(
                             reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
                             ..
                         },
-                    )) => format!(
-                        "Search for \"{query}\"{scope} failed because the codebase isn't indexed"
+                    )) => localization::text_with_args(
+                        "tui.tool.search.not_indexed",
+                        &[("query", &query), ("scope", &scope)],
                     ),
-                    _ => format!("Search for \"{query}\"{scope} failed"),
+                    _ => localization::text_with_args(
+                        "tui.tool.search.failed",
+                        &[("query", &query), ("scope", &scope)],
+                    ),
                 },
-                State::Cancelled => format!("Search for \"{query}\"{scope} cancelled"),
+                State::Cancelled => localization::text_with_args(
+                    "tui.tool.search.cancelled",
+                    &[("query", &query), ("scope", &scope)],
+                ),
             }
         }
         // Rendered by its own stateful child view (`TuiFileEditsView`); the
@@ -284,22 +352,39 @@ fn label_for_action(
             let queries = single_line(&queries.join(", "));
             let path = display_path(path);
             match state {
-                State::Constructing => "Grepping…".to_owned(),
-                State::Pending | State::AwaitingApproval => {
-                    format!("Grep for {queries} in {path}")
-                }
-                State::Running => format!("Grepping for {queries} in {path}"),
+                State::Constructing => localization::text("tui.tool.grep.preparing"),
+                State::Pending | State::AwaitingApproval => localization::text_with_args(
+                    "tui.tool.grep.start",
+                    &[("queries", &queries), ("path", &path)],
+                ),
+                State::Running => localization::text_with_args(
+                    "tui.tool.grep.running",
+                    &[("queries", &queries), ("path", &path)],
+                ),
                 State::Succeeded => match result {
                     Some(AIAgentActionResultType::Grep(GrepResult::Success { matched_files })) => {
-                        format!(
-                            "Grepped for {queries} in {path}, {}",
-                            count_label(matched_files.len(), "matching file", "matching files")
+                        let files = localized_count_label(
+                            matched_files.len(),
+                            "tui.count.matching_file.one",
+                            "tui.count.matching_file.many",
+                        );
+                        localization::text_with_args(
+                            "tui.tool.grep.succeeded",
+                            &[("queries", &queries), ("path", &path), ("files", &files)],
                         )
                     }
-                    _ => format!("Grepped for {queries} in {path}"),
+                    _ => localization::text_with_args(
+                        "tui.tool.grep.succeeded_without_count",
+                        &[("queries", &queries), ("path", &path)],
+                    ),
                 },
-                State::Failed => format!("Grep for {queries} failed"),
-                State::Cancelled => format!("Grep for {queries} cancelled"),
+                State::Failed => {
+                    localization::text_with_args("tui.tool.grep.failed", &[("queries", &queries)])
+                }
+                State::Cancelled => localization::text_with_args(
+                    "tui.tool.grep.cancelled",
+                    &[("queries", &queries)],
+                ),
             }
         }
         AIAgentActionType::FileGlob { patterns, path } => {
@@ -324,14 +409,31 @@ fn label_for_action(
                 // The resource name arrives with the tool-call header (not
                 // the streamed args), so include it when present, like the
                 // GUI's "Reading \"{name}\" MCP resource..." loading text.
-                State::Constructing if name.is_empty() => "Reading MCP resource…".to_owned(),
-                State::Constructing => format!("Reading \"{name}\" MCP resource…"),
-                State::Pending | State::AwaitingApproval | State::Succeeded => {
-                    format!("Read MCP resource {resource}")
+                State::Constructing if name.is_empty() => {
+                    localization::text("tui.tool.mcp_resource.preparing")
                 }
-                State::Running => format!("Reading MCP resource {resource}"),
-                State::Failed => format!("MCP resource {resource} failed"),
-                State::Cancelled => format!("MCP resource {resource} cancelled"),
+                State::Constructing => localization::text_with_args(
+                    "tui.tool.mcp_resource.preparing_named",
+                    &[("name", &name)],
+                ),
+                State::Pending | State::AwaitingApproval | State::Succeeded => {
+                    localization::text_with_args(
+                        "tui.tool.mcp_resource.read",
+                        &[("resource", &resource)],
+                    )
+                }
+                State::Running => localization::text_with_args(
+                    "tui.tool.mcp_resource.reading",
+                    &[("resource", &resource)],
+                ),
+                State::Failed => localization::text_with_args(
+                    "tui.tool.mcp_resource.failed",
+                    &[("resource", &resource)],
+                ),
+                State::Cancelled => localization::text_with_args(
+                    "tui.tool.mcp_resource.cancelled",
+                    &[("resource", &resource)],
+                ),
             }
         }
         AIAgentActionType::CallMCPTool { name, .. } => {
@@ -339,13 +441,28 @@ fn label_for_action(
             match state {
                 // Like the GUI's "Calling \"{name}\" MCP tool..." loading
                 // text; the tool name is available before its args finish.
-                State::Constructing if name.is_empty() => "Calling MCP tool…".to_owned(),
-                State::Constructing => format!("Calling \"{name}\" MCP tool…"),
-                State::Pending | State::AwaitingApproval => format!("Call MCP tool {name}"),
-                State::Running => format!("Calling MCP tool {name}"),
-                State::Succeeded => format!("Called MCP tool {name}"),
-                State::Failed => format!("MCP tool {name} failed"),
-                State::Cancelled => format!("MCP tool {name} cancelled"),
+                State::Constructing if name.is_empty() => {
+                    localization::text("tui.tool.mcp_tool.preparing")
+                }
+                State::Constructing => localization::text_with_args(
+                    "tui.tool.mcp_tool.preparing_named",
+                    &[("name", &name)],
+                ),
+                State::Pending | State::AwaitingApproval => {
+                    localization::text_with_args("tui.tool.mcp_tool.start", &[("name", &name)])
+                }
+                State::Running => {
+                    localization::text_with_args("tui.tool.mcp_tool.running", &[("name", &name)])
+                }
+                State::Succeeded => {
+                    localization::text_with_args("tui.tool.mcp_tool.succeeded", &[("name", &name)])
+                }
+                State::Failed => {
+                    localization::text_with_args("tui.tool.mcp_tool.failed", &[("name", &name)])
+                }
+                State::Cancelled => {
+                    localization::text_with_args("tui.tool.mcp_tool.cancelled", &[("name", &name)])
+                }
             }
         }
         AIAgentActionType::SuggestNewConversation { .. } => match state {
@@ -597,21 +714,44 @@ fn file_glob_label(
     let patterns = single_line(&patterns.join(", "));
     let path = display_path(path.unwrap_or("."));
     match state {
-        State::Constructing => "Finding files…".to_owned(),
-        State::Pending | State::AwaitingApproval => {
-            format!("Find files matching {patterns} in {path}")
-        }
-        State::Running => format!("Finding files matching {patterns} in {path}"),
+        State::Constructing => localization::text("tui.tool.file_glob.preparing"),
+        State::Pending | State::AwaitingApproval => localization::text_with_args(
+            "tui.tool.file_glob.start",
+            &[("patterns", &patterns), ("path", &path)],
+        ),
+        State::Running => localization::text_with_args(
+            "tui.tool.file_glob.running",
+            &[("patterns", &patterns), ("path", &path)],
+        ),
         State::Succeeded => match matched_count {
-            Some(count) => format!(
-                "Found {} matching {patterns}",
-                count_label(count, "file", "files")
+            Some(count) => {
+                let files =
+                    localized_count_label(count, "tui.count.file.one", "tui.count.file.many");
+                localization::text_with_args(
+                    "tui.tool.file_glob.succeeded_with_count",
+                    &[("files", &files), ("patterns", &patterns)],
+                )
+            }
+            None => localization::text_with_args(
+                "tui.tool.file_glob.succeeded",
+                &[("patterns", &patterns)],
             ),
-            None => format!("Found files matching {patterns}"),
         },
-        State::Failed => format!("File search for {patterns} failed"),
-        State::Cancelled => format!("File search for {patterns} cancelled"),
+        State::Failed => {
+            localization::text_with_args("tui.tool.file_glob.failed", &[("patterns", &patterns)])
+        }
+        State::Cancelled => {
+            localization::text_with_args("tui.tool.file_glob.cancelled", &[("patterns", &patterns)])
+        }
     }
+}
+
+fn command_exit_label(command: &str, exit_code: ExitCode) -> String {
+    let exit_code = exit_code.value().to_string();
+    localization::text_with_args(
+        "tui.tool.command.exited",
+        &[("command", command), ("exit_code", &exit_code)],
+    )
 }
 
 /// Labels computer-use calls with their agent-supplied summary, marking only
@@ -654,7 +794,7 @@ fn single_line(text: &str) -> String {
 /// Renders a search path for display, mirroring the GUI's treatment of `.`.
 fn display_path(path: &str) -> String {
     if path == "." {
-        "the current directory".to_owned()
+        localization::text("tui.tool.path.current_directory")
     } else {
         single_line(path)
     }
@@ -671,11 +811,11 @@ fn base_name(path: &str) -> String {
 /// Summarizes file paths as comma-joined base names for up to 3 files, else a count.
 fn files_summary<'a>(paths: impl ExactSizeIterator<Item = &'a String>) -> String {
     if paths.len() > 3 {
-        return count_label(paths.len(), "file", "files");
+        return localized_count_label(paths.len(), "tui.count.file.one", "tui.count.file.many");
     }
     let names: Vec<String> = paths.map(|path| base_name(path)).collect();
     if names.is_empty() {
-        "files".to_owned()
+        localization::text("tui.tool.files.generic")
     } else {
         names.join(", ")
     }
@@ -685,6 +825,13 @@ fn files_summary<'a>(paths: impl ExactSizeIterator<Item = &'a String>) -> String
 fn count_label(count: usize, singular: &str, plural: &str) -> String {
     let noun = if count == 1 { singular } else { plural };
     format!("{count} {noun}")
+}
+
+fn localized_count_label(count: usize, singular_key: &str, plural_key: &str) -> String {
+    localization::text_with_args(
+        if count == 1 { singular_key } else { plural_key },
+        &[("count", &count.to_string())],
+    )
 }
 
 #[cfg(test)]
