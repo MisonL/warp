@@ -255,7 +255,7 @@ fn custom_endpoint_usage_display_label_resolves_alias_name_and_generic_fallback(
     );
     assert_eq!(
         preferences.custom_endpoint_usage_display_label("unknown"),
-        CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL
+        "Custom endpoint"
     );
 }
 

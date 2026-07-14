@@ -1131,6 +1131,19 @@ impl LLMPreferences {
             .unwrap_or_else(|| "Custom endpoint".to_owned())
     }
 
+    pub fn custom_endpoint_usage_display_label_for_app(
+        &self,
+        config_key: &str,
+        app: &AppContext,
+    ) -> String {
+        let config_key = LLMId::from(config_key);
+        if self.custom_llm_info_for_id(&config_key).is_some() {
+            self.custom_endpoint_usage_display_label(config_key.as_str())
+        } else {
+            crate::localization::text_for_app(app, "settings.ai.custom_endpoint.usage_fallback")
+        }
+    }
+
     fn custom_llm_info_for_id_if_enabled(&self, id: &LLMId, app: &AppContext) -> Option<&LLMInfo> {
         Self::custom_inference_enabled(app)
             .then(|| self.custom_llm_info_for_id(id))
