@@ -41,6 +41,23 @@ fn test_menu_item_selectable() {
 }
 
 #[test]
+fn header_retains_right_side_fields() {
+    let item = MenuItem::<()>::Header {
+        fields: MenuItemFields::new("header"),
+        clickable: false,
+        right_side_fields: Some(Box::new(MenuItemFields::new("right side"))),
+    };
+
+    match item {
+        MenuItem::Header {
+            right_side_fields: Some(fields),
+            ..
+        } => assert_eq!(fields.label(), "right side"),
+        _ => panic!("expected header with right-side fields"),
+    }
+}
+
+#[test]
 fn test_next_and_previous_indexes() {
     App::test((), |mut app| async move {
         app.add_singleton_model(|_| Appearance::mock());
