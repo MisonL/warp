@@ -15,7 +15,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::modal::{Modal, ModalViewState};
 
 const LABEL_FONT_SIZE: f32 = 12.;
@@ -91,6 +91,9 @@ impl AddRegexModal {
         ctx.subscribe_to_view(&pattern_editor, |me, _, event, ctx| {
             me.handle_pattern_editor_event(event, ctx);
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |modal, _, _, ctx| {
+            modal.refresh_localized_text(ctx);
+        });
 
         Self {
             name_editor,
@@ -98,6 +101,28 @@ impl AddRegexModal {
             cancel_button_mouse_state: Default::default(),
             submit_button_mouse_state: Default::default(),
         }
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.name_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.privacy.custom_secret_redaction.placeholder.name",
+                ),
+                ctx,
+            );
+        });
+        self.pattern_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.privacy.custom_secret_redaction.placeholder.pattern",
+                ),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     fn submit(&mut self, ctx: &mut ViewContext<Self>) {
@@ -358,6 +383,13 @@ impl AddRegexModalViewState {
             modal.body().update(ctx, |body, ctx| {
                 body.on_close(ctx);
             });
+        });
+    }
+
+    pub fn set_title<T: View>(&mut self, title: Option<String>, ctx: &mut ViewContext<T>) {
+        self.state.view.update(ctx, |modal, ctx| {
+            modal.set_title(title);
+            ctx.notify();
         });
     }
 }
