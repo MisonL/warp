@@ -59,6 +59,11 @@ pub fn panel_header_corner_radius() -> warpui::elements::CornerRadius {
     warpui::elements::CornerRadius::with_top(warpui::elements::Radius::Pixels(8.))
 }
 
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
+
 pub use one_time_modal_model::OneTimeModalModel;
 pub use registry::WorkspaceRegistry;
 pub use toast_stack::ToastStack;
@@ -308,7 +313,10 @@ pub fn init(app: &mut AppContext) {
     {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:dump_heap_profile",
-            "Write heap profile to disk",
+            binding_description(
+                "Write heap profile to disk",
+                "workspace.binding.debug.dump_heap_profile",
+            ),
             WorkspaceAction::DumpHeapProfile,
         )
         .with_context_predicate(id!("Workspace"))]);
@@ -974,7 +982,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:new_tab_group",
-            "Create new tab group",
+            binding_description(
+                "Create new tab group",
+                "workspace.binding.create_new_tab_group",
+            ),
             // Reuse the new-session dropdown's action, not a dedicated variant.
             WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
         )
@@ -983,7 +994,10 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace") & !id!("Workspace_PaneDragging")),
         EditableBinding::new(
             "workspace:new_tab_group_from_active_or_selected_tabs",
-            "Create tab group from active or selected tab(s)",
+            binding_description(
+                "Create tab group from active or selected tab(s)",
+                "workspace.binding.create_tab_group_from_active_or_selected_tabs",
+            ),
             WorkspaceAction::NewTabGroupFromActiveOrSelectedTabs,
         )
         .with_enabled(|| FeatureFlag::GroupedTabs.is_enabled())
@@ -995,7 +1009,10 @@ pub fn init(app: &mut AppContext) {
         // offered, matching the multi-tab right-click menu.
         EditableBinding::new(
             "workspace:remove_active_or_selected_tabs_from_group",
-            "Remove active or selected tab(s) from group",
+            binding_description(
+                "Remove active or selected tab(s) from group",
+                "workspace.binding.remove_active_or_selected_tabs_from_group",
+            ),
             WorkspaceAction::RemoveActiveOrSelectedTabsFromGroup,
         )
         .with_enabled(|| FeatureFlag::GroupedTabs.is_enabled())
@@ -1013,7 +1030,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:pin_active_tab",
-            "Pin current tab",
+            binding_description("Pin current tab", "workspace.binding.pin_current_tab"),
             WorkspaceAction::PinActiveTab,
         )
         .with_enabled(|| FeatureFlag::PinnedTabs.is_enabled())
@@ -1023,7 +1040,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "workspace:unpin_active_tab",
-            "Unpin current tab",
+            binding_description("Unpin current tab", "workspace.binding.unpin_current_tab"),
             WorkspaceAction::UnpinActiveTab,
         )
         .with_enabled(|| FeatureFlag::PinnedTabs.is_enabled())
@@ -1033,7 +1050,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "workspace:pin_active_tab_group",
-            "Pin current tab group",
+            binding_description(
+                "Pin current tab group",
+                "workspace.binding.pin_current_tab_group",
+            ),
             WorkspaceAction::PinActiveTabGroup,
         )
         .with_enabled(|| {
@@ -1048,7 +1068,10 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "workspace:unpin_active_tab_group",
-            "Unpin current tab group",
+            binding_description(
+                "Unpin current tab group",
+                "workspace.binding.unpin_current_tab_group",
+            ),
             WorkspaceAction::UnpinActiveTabGroup,
         )
         .with_enabled(|| {
@@ -1239,14 +1262,20 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:install_cli",
-                "Install Oz CLI globally for use outside of Warp",
+                binding_description(
+                    "Install Oz CLI globally for use outside of Warp",
+                    "workspace.binding.install_oz_cli_command",
+                ),
                 WorkspaceAction::InstallOz,
             )
             .with_group(bindings::BindingGroup::Settings.as_str())
             .with_context_predicate(id!("Workspace")),
             EditableBinding::new(
                 "workspace:uninstall_cli",
-                "Undo global Oz CLI installation (oz will still work within Warp)",
+                binding_description(
+                    "Undo global Oz CLI installation (oz will still work within Warp)",
+                    "workspace.binding.uninstall_oz_cli_command",
+                ),
                 WorkspaceAction::UninstallOz,
             )
             .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1256,14 +1285,20 @@ pub fn init(app: &mut AppContext) {
             app.register_editable_bindings([
                 EditableBinding::new(
                     "workspace:install_warpctrl",
-                    "Install Warp Control CLI globally for use outside of Warp",
+                    binding_description(
+                        "Install Warp Control CLI globally for use outside of Warp",
+                        "workspace.binding.install_warp_control_cli_command",
+                    ),
                     WorkspaceAction::InstallWarpctrl,
                 )
                 .with_group(bindings::BindingGroup::Settings.as_str())
                 .with_context_predicate(id!("Workspace")),
                 EditableBinding::new(
                     "workspace:uninstall_warpctrl",
-                    "Undo global Warp Control CLI installation (warpctrl will still work within Warp)",
+                    binding_description(
+                        "Undo global Warp Control CLI installation (warpctrl will still work within Warp)",
+                        "workspace.binding.uninstall_warp_control_cli_command",
+                    ),
                     WorkspaceAction::UninstallWarpctrl,
                 )
                 .with_group(bindings::BindingGroup::Settings.as_str())
@@ -1435,7 +1470,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:copy_current_path",
-            BindingDescription::new("Copy current path")
+            binding_description("Copy current path", "workspace.binding.copy_current_path")
                 .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Copy Current Path"),
             WorkspaceAction::CopyCurrentPath,
         )
