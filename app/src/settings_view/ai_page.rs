@@ -87,7 +87,7 @@ use crate::editor::{
     EditorOptions, InteractionState, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextColors,
 };
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::settings::{
     AIAutoDetectionEnabled, AICommandDenylist, AISettingsChangedEvent,
@@ -2247,7 +2247,7 @@ impl AISettingsPageView {
                 let window_id = ctx.window_id();
                 crate::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     let toast = crate::view_components::DismissibleToast::success(
-                        "Default model updated".to_string(),
+                        localization::text_for_app(ctx, "settings.ai.set_default_model.updated"),
                     );
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -8671,6 +8671,28 @@ impl ApiKeysWidget {
                 ctx.notify();
             }
         });
+        let localized_grok_buttons = [
+            (
+                grok_connect_button.clone(),
+                "settings.ai.grok.action.connect",
+            ),
+            (
+                grok_connecting_button.clone(),
+                "settings.ai.grok.action.connecting",
+            ),
+            (
+                grok_disconnect_button.clone(),
+                "settings.ai.grok.action.disconnect",
+            ),
+        ];
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), move |_, _, _, ctx| {
+            for (button, key) in &localized_grok_buttons {
+                button.update(ctx, |button, ctx| {
+                    button.set_label(ai_settings_text(ctx, key), ctx);
+                });
+            }
+            ctx.notify();
+        });
 
         Self {
             openai_api_key_editor,
@@ -8716,11 +8738,14 @@ impl ApiKeysWidget {
         provider: &LLMProvider,
         mouse_state: MouseStateHandle,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let provider_name = provider.display_name();
         let tooltip_text = FormattedText::new([FormattedTextLine::Line(vec![
-            FormattedTextFragment::plain_text(format!(
-                "Your organization has provided an API key for {provider_name}. A key entered here takes precedence for {provider_name} requests."
+            FormattedTextFragment::plain_text(localization::text_for_app_with_args(
+                app,
+                "settings.ai.api_keys.team_key_tooltip",
+                &[("provider", provider_name)],
             )),
         ])]);
         let tooltip_background = appearance.theme().tooltip_background();
@@ -8773,7 +8798,7 @@ impl ApiKeysWidget {
     fn render_api_key_input(
         &self,
         appearance: &Appearance,
-        label: &'static str,
+        label: String,
         provider: LLMProvider,
         team_key_info_tooltip: MouseStateHandle,
         editor: ViewHandle<EditorView>,
@@ -8804,6 +8829,7 @@ impl ApiKeysWidget {
                     &provider,
                     team_key_info_tooltip,
                     appearance,
+                    app,
                 ))
                 .with_margin_left(4.)
                 .finish(),
@@ -8833,7 +8859,7 @@ impl ApiKeysWidget {
         let mut column = Flex::column().with_spacing(16.);
         column.add_child(self.render_api_key_input(
             appearance,
-            "OpenAI API key",
+            ai_settings_text(app, "settings.ai.api_keys.openai"),
             LLMProvider::OpenAI,
             self.openai_team_key_info_tooltip.clone(),
             self.openai_api_key_editor.clone(),
@@ -8842,7 +8868,7 @@ impl ApiKeysWidget {
         ));
         column.add_child(self.render_api_key_input(
             appearance,
-            "Anthropic API key",
+            ai_settings_text(app, "settings.ai.api_keys.anthropic"),
             LLMProvider::Anthropic,
             self.anthropic_team_key_info_tooltip.clone(),
             self.anthropic_api_key_editor.clone(),
@@ -8851,7 +8877,7 @@ impl ApiKeysWidget {
         ));
         column.add_child(self.render_api_key_input(
             appearance,
-            "Google API key",
+            ai_settings_text(app, "settings.ai.api_keys.google"),
             LLMProvider::Google,
             self.google_team_key_info_tooltip.clone(),
             self.google_api_key_editor.clone(),
@@ -8877,23 +8903,26 @@ impl ApiKeysWidget {
         };
 
         if show_provider_keys {
-            add_paragraph(vec![FormattedTextFragment::plain_text(
-                "Use your own API keys from model providers for Warp Agent. API keys are used to make requests to your chosen model provider. Using auto models or models you do not have available API keys for will consume Warp credits.",
-            )]);
+            add_paragraph(vec![FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.custom_inference.provider_keys_description",
+            ))]);
         }
 
         if show_custom_endpoints {
-            add_paragraph(vec![FormattedTextFragment::plain_text(
-                "Add custom endpoints to use third-party models. Custom endpoints must support the OpenAI-compatible Chat Completions API.",
-            )]);
+            add_paragraph(vec![FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.custom_inference.custom_endpoints_description",
+            ))]);
         }
 
         if show_provider_keys || show_custom_endpoints {
-            add_paragraph(vec![FormattedTextFragment::plain_text(
-                "API keys added here are stored only on this device, not on Warp's servers.",
-            )]);
+            add_paragraph(vec![FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.custom_inference.local_storage_description",
+            ))]);
             add_paragraph(vec![FormattedTextFragment::hyperlink(
-                "Learn more",
+                ai_settings_text(app, "settings.action.learn_more"),
                 CUSTOM_INFERENCE_LEARN_MORE_URL,
             )]);
         }
@@ -8920,6 +8949,7 @@ impl ApiKeysWidget {
         &self,
         appearance: &Appearance,
         managed_byok_byoe_enabled: bool,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let icon = Container::new(
             ConstrainedBox::new(
@@ -8935,19 +8965,25 @@ impl ApiKeysWidget {
 
         let tooltip_text = if managed_byok_byoe_enabled {
             FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(
-                    "Custom inference settings are managed by your organization.",
-                ),
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.ai.custom_inference.managed_settings",
+                )),
             ])])
         } else {
             FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(
-                    "By using BYOK or custom endpoints, you agree to use them only as permitted by ",
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.ai.custom_inference.terms.prefix",
+                )),
+                FormattedTextFragment::hyperlink(
+                    ai_settings_text(app, "settings.ai.custom_inference.terms.link"),
+                    CUSTOM_INFERENCE_TERMS_URL,
                 ),
-                FormattedTextFragment::hyperlink("Warp's Terms of Service", CUSTOM_INFERENCE_TERMS_URL),
-                FormattedTextFragment::plain_text(
-                    ". BYOK and custom endpoints are intended for individual use and small teams. Companies or organizations with more than 10 employees should use Warp Business or Enterprise.",
-                ),
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.ai.custom_inference.terms.suffix",
+                )),
             ])])
         };
         let tooltip_background = appearance.theme().tooltip_background();
@@ -9091,9 +9127,13 @@ impl ApiKeysWidget {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(4.)
             .with_child(
-                Text::new_inline("Use your", appearance.ui_font_family(), CONTENT_FONT_SIZE)
-                    .with_color(text_color.into())
-                    .finish(),
+                Text::new_inline(
+                    ai_settings_text(app, "settings.ai.api_keys.use_your"),
+                    appearance.ui_font_family(),
+                    CONTENT_FONT_SIZE,
+                )
+                .with_color(text_color.into())
+                .finish(),
             )
             .with_child(
                 ConstrainedBox::new(Icon::XLogo.to_warpui_icon(text_color).finish())
@@ -9103,7 +9143,7 @@ impl ApiKeysWidget {
             )
             .with_child(
                 Text::new_inline(
-                    "Premium or SuperGrok subscription",
+                    ai_settings_text(app, "settings.ai.grok.subscription.label"),
                     appearance.ui_font_family(),
                     CONTENT_FONT_SIZE,
                 )
@@ -9130,7 +9170,7 @@ impl ApiKeysWidget {
 
         let description = Container::new(
             Text::new(
-                "Connect your SuperGrok subscription to use Grok models in the Warp Agent through your xAI account.",
+                ai_settings_text(app, "settings.ai.grok.subscription.description"),
                 appearance.ui_font_family(),
                 CONTENT_FONT_SIZE,
             )
@@ -9148,12 +9188,16 @@ impl ApiKeysWidget {
 
         if let Some(tokens) = grok_tokens {
             let connected_text = match tokens.connected_at.map(DateTime::<Local>::from) {
-                Some(connected_at) => format!(
-                    "Connected on {}.",
-                    connected_at.format("%m/%d/%Y at %-I:%M%P")
-                ),
+                Some(connected_at) => {
+                    let connected_at = localized_month_day_time(app, connected_at);
+                    ai_settings_text_with_args(
+                        app,
+                        "settings.ai.grok.subscription.connected_on",
+                        &[("connected_at", &connected_at)],
+                    )
+                }
                 // Tokens stored before the connection time was tracked.
-                None => "Connected.".to_string(),
+                None => ai_settings_text(app, "settings.ai.grok.subscription.connected"),
             };
             let check = ConstrainedBox::new(
                 Icon::Check
@@ -9346,9 +9390,11 @@ impl SettingsWidget for ApiKeysWidget {
                     .with_margin_bottom(0.)
                     .finish(),
                 )
-                .with_child(
-                    self.render_custom_inference_info_icon(appearance, managed_byok_byoe_enabled),
-                )
+                .with_child(self.render_custom_inference_info_icon(
+                    appearance,
+                    managed_byok_byoe_enabled,
+                    app,
+                ))
                 .finish();
 
             let header_row = Flex::row()
