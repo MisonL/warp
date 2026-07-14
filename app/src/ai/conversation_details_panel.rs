@@ -1497,13 +1497,12 @@ impl ConversationDetailsPanel {
         // a run view exists to navigate to.
         let status_element: Box<dyn Element> = if is_clickable {
             let ui_builder = appearance.ui_builder();
+            let tooltip_text =
+                conversation_details_text(app, "conversation_details.tooltip.view_in_oz");
             Hoverable::new(self.mouse_states.status_chip.clone(), move |state| {
                 let mut stack = Stack::new().with_child(status_badge);
                 if state.is_hovered() {
-                    let tooltip = ui_builder
-                        .tool_tip("View run in Oz web".to_string())
-                        .build()
-                        .finish();
+                    let tooltip = ui_builder.tool_tip(tooltip_text.clone()).build().finish();
                     stack.add_positioned_overlay_child(
                         tooltip,
                         OffsetPositioning::offset_from_parent(
