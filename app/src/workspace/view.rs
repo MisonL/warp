@@ -355,8 +355,9 @@ use crate::shell_indicator::ShellIndicatorType;
 use crate::tab::{
     color_picker_menu_items, tab_position_id, uses_vertical_tabs, ColorPickerTarget,
     NewSessionMenuItem, PaneNameMenuTarget, SelectedTabColor, TabBarState, TabComponent, TabData,
-    TabTelemetryAction, COMPACT_TAB_WIDTH_THRESHOLD, MOVE_TO_GROUP_LABEL, TAB_BAR_BORDER_HEIGHT,
-    TAB_INDICATOR_HEIGHT, TAB_PIN_INDICATOR_ICON_SIZE, TAB_PIN_VANISH_THRESHOLD,
+    TabTelemetryAction, COMPACT_TAB_WIDTH_THRESHOLD, MOVE_TO_GROUP_IDENTIFIER,
+    TAB_BAR_BORDER_HEIGHT, TAB_INDICATOR_HEIGHT, TAB_PIN_INDICATOR_ICON_SIZE,
+    TAB_PIN_VANISH_THRESHOLD,
 };
 use crate::tab_configs::action_sidecar::SidecarItemKind;
 use crate::tab_configs::remove_confirmation_dialog::{
@@ -7850,13 +7851,13 @@ impl Workspace {
         let pane_name_target = match target {
             VerticalTabsPaneContextMenuTarget::ClickedPane(locator) => PaneNameMenuTarget {
                 locator,
-                rename_label: "Rename pane",
-                reset_label: "Reset pane name",
+                rename_label_key: "tab.menu.rename_pane",
+                reset_label_key: "tab.menu.reset_pane_name",
             },
             VerticalTabsPaneContextMenuTarget::ActivePane(locator) => PaneNameMenuTarget {
                 locator,
-                rename_label: "Rename active pane",
-                reset_label: "Reset active pane name",
+                rename_label_key: "tab.menu.rename_active_pane",
+                reset_label_key: "tab.menu.reset_active_pane_name",
             },
         };
         let can_move_left = self.can_move_tab(tab_index, TabMovement::Left);
@@ -10116,28 +10117,28 @@ impl Workspace {
             return;
         }
         // No hovered index = cursor left the menu (possibly onto the sidecar);
-        // no label = hovered a non-label row (e.g. separator).
+        // no identifier = hovered a non-item row or another menu item.
         let hovered = self.tab_right_click_menu.read(ctx, |menu, _| {
             let idx = menu.hovered_index()?;
-            let label = match menu.items().get(idx)? {
-                MenuItem::Item(fields) => Some(fields.label().to_string()),
+            let identifier = match menu.items().get(idx)? {
+                MenuItem::Item(fields) => fields.identifier(),
                 _ => None,
             };
-            Some((idx, label))
+            Some((idx, identifier))
         });
 
-        let Some((hovered_index, hovered_label)) = hovered else {
+        let Some((hovered_index, hovered_identifier)) = hovered else {
             return;
         };
 
-        let Some(label) = hovered_label else {
+        let Some(identifier) = hovered_identifier else {
             if self.show_move_to_group_sidecar {
                 self.hide_move_to_group_sidecar(ctx);
             }
             return;
         };
 
-        if label == MOVE_TO_GROUP_LABEL {
+        if identifier == MOVE_TO_GROUP_IDENTIFIER {
             // Single-tab pane menu carries a `tab_index`; the multi-tab
             // selection menu has no single source tab so we pass `None` and
             // the sidecar builder infers the multi-tab selection.
@@ -10193,10 +10194,11 @@ impl Workspace {
             MOVE_TO_GROUP_SIDECAR_POSITION_ID,
         )
         .finish();
+        let move_to_group_label = localization::text_for_app(app, "tab.menu.move_to_group");
 
         // Flip the anchor side when the sidecar would overflow the window.
         let render_left =
-            self.should_render_sidecar_left(MOVE_TO_GROUP_LABEL, MOVE_TO_GROUP_SIDECAR_WIDTH, app);
+            self.should_render_sidecar_left(&move_to_group_label, MOVE_TO_GROUP_SIDECAR_WIDTH, app);
         let (offset, parent_anchor, child_anchor) = if render_left {
             (
                 vec2f(-4., 0.),
@@ -10214,7 +10216,7 @@ impl Workspace {
         stack.add_positioned_overlay_child(
             sidecar_element,
             OffsetPositioning::offset_from_save_position_element(
-                MOVE_TO_GROUP_LABEL,
+                &move_to_group_label,
                 offset,
                 PositionedElementOffsetBounds::WindowByPosition,
                 parent_anchor,
