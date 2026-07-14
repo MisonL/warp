@@ -89,6 +89,7 @@ use warp_util::path::LineAndColumnArg;
 use crate::code::editor_management::CodeSource;
 // Import keybinding constants from code view to ensure consistency
 use crate::code::view::{save_file_binding_description, SAVE_FILE_BINDING_NAME};
+use crate::localization::LocalizationUpdater;
 use crate::notebooks::file::MarkdownDisplayMode;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::EditorLayout;
@@ -454,6 +455,9 @@ impl AIDocumentView {
                 );
             })
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |view, _, _, ctx| {
+            view.refresh_localized_text(ctx);
+        });
 
         // Create the orchestration config block if there's an active config
         // for this document's conversation.
@@ -499,6 +503,46 @@ impl AIDocumentView {
         me.refresh(ctx);
 
         me
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.version_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(
+                    ctx,
+                    "ai_document.tooltip.show_version_history",
+                )),
+                ctx,
+            );
+        });
+
+        let save_action = keybinding_name_to_keystroke(SAVE_FILE_BINDING_NAME, ctx)
+            .map(|key| key.displayed())
+            .unwrap_or_else(|| localization::text_for_app(ctx, "ai_document.action.click"));
+        self.update_plan_button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(ctx, "ai_document.action.update_agent"),
+                ctx,
+            );
+            button.set_tooltip(
+                Some(localization::text_for_app_with_args(
+                    ctx,
+                    "ai_document.tooltip.update_agent",
+                    &[("save_action", save_action.as_str())],
+                )),
+                ctx,
+            );
+        });
+        self.restore_button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(ctx, "ai_document.action.restore"),
+                ctx,
+            );
+        });
+        self.pane_configuration.update(ctx, |pane_config, ctx| {
+            pane_config.refresh_pane_header_overflow_menu_items(ctx);
+        });
+        ctx.notify();
     }
 
     pub fn pane_configuration(&self) -> &ModelHandle<PaneConfiguration> {
@@ -740,8 +784,7 @@ impl AIDocumentView {
                 let color = theme.nonactive_ui_detail().into_solid();
                 let ui_builder = appearance.ui_builder().clone();
                 let tooltip_text =
-                    "This plan is synced to your Warp Drive and will auto save any edits you make."
-                        .to_string();
+                    localization::text_for_app(app, "ai_document.tooltip.synced_to_warp_drive");
                 let synced_status_mouse_state = self.synced_status_mouse_state.clone();
                 Container::new(
                     ConstrainedBox::new(
@@ -1046,12 +1089,15 @@ impl AIDocumentView {
         let title = AIDocumentModel::as_ref(ctx)
             .get_current_document(&self.document_id)
             .map(|doc| doc.title.clone())
-            .unwrap_or_else(|| "Untitled".to_string());
+            .unwrap_or_else(|| localization::text_for_app(ctx, "ai_document.title.untitled"));
 
         // Sanitize the title for use as a filename
         let sanitized_title = safe_filename(&title);
         let filename = if sanitized_title.is_empty() {
-            "Untitled.md".to_string()
+            format!(
+                "{}.md",
+                localization::text_for_app(ctx, "ai_document.title.untitled")
+            )
         } else {
             format!("{sanitized_title}.md")
         };
@@ -1171,7 +1217,10 @@ impl TypedActionView for AIDocumentView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::success("Copied to clipboard as Markdown".to_string()),
+                        DismissibleToast::success(localization::text_for_app(
+                            ctx,
+                            "ai_document.toast.copied_as_markdown",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -1289,7 +1338,7 @@ impl TypedActionView for AIDocumentView {
                         .ai_controller()
                         .update(ctx, |controller, ctx| {
                             controller.send_user_query_in_conversation(
-                                "I've updated the plan.".to_string(),
+                                localization::text_for_app(ctx, "ai_document.message.updated_plan"),
                                 conversation_id,
                                 None,
                                 ctx,
@@ -1378,10 +1427,13 @@ impl BackingView for AIDocumentView {
         }
 
         menu_items.push(
-            MenuItemFields::new("Copy as Markdown")
-                .with_on_select_action(AIDocumentAction::CopyAsMarkdown)
-                .with_icon(Icon::Copy)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "ai_document.menu.copy_as_markdown",
+            ))
+            .with_on_select_action(AIDocumentAction::CopyAsMarkdown)
+            .with_icon(Icon::Copy)
+            .into_item(),
         );
 
         #[cfg(feature = "local_fs")]
