@@ -25,6 +25,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization::{self, LocalizationUpdater};
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuVariant};
 use crate::ui_components::icons;
 
@@ -112,11 +113,17 @@ where
                 },
                 ctx,
             );
-            editor.set_placeholder_text("Search", ctx);
+            editor.set_placeholder_text(localization::text_for_app(ctx, "common.search"), ctx);
             editor
         });
         ctx.subscribe_to_view(&filter_editor, |me, _, event, ctx| {
             me.handle_filter_editor_event(event, ctx);
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |dropdown, _, _, ctx| {
+            dropdown.filter_editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(localization::text_for_app(ctx, "common.search"), ctx);
+            });
+            ctx.notify();
         });
 
         FilterableDropdown {
@@ -608,11 +615,11 @@ where
         .finish()
     }
 
-    fn render_empty_menu(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_empty_menu(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let background_fill = appearance.theme().surface_2();
         let empty_text = appearance
             .ui_builder()
-            .span("No matches found.")
+            .span(localization::text_for_app(app, "common.no_matches_found"))
             .with_style(UiComponentStyles {
                 font_color: Some(appearance.theme().sub_text_color(background_fill).into()),
                 ..Default::default()
@@ -841,7 +848,7 @@ where
         // inside the Menu's Dismiss (via set_pinned_footer_builder), so clicks on it
         // correctly do not trigger the dismiss handler.
         let dropdown_menu = if !self.has_pinned_footer && self.dropdown_items_len(app) == 0 {
-            self.render_empty_menu(appearance)
+            self.render_empty_menu(appearance, app)
         } else {
             ChildView::new(&self.dropdown).finish()
         };
