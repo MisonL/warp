@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use chrono::{TimeZone, Utc};
+use warp_localization::LocaleId;
 
 use super::*;
 #[cfg(feature = "local_fs")]
@@ -93,19 +94,23 @@ fn resolves_lightbox_image_for_screenshot_artifact() {
 #[test]
 fn file_button_label_prefers_filename() {
     assert_eq!(
-        file_button_label("report.txt", "outputs/other.txt"),
+        file_button_label("report.txt", "outputs/other.txt", LocaleId::EnUs),
         "report.txt"
     );
 }
 
 #[test]
 fn file_button_label_falls_back_to_filepath_basename() {
-    assert_eq!(file_button_label("", "outputs/report.txt"), "report.txt");
+    assert_eq!(
+        file_button_label("", "outputs/report.txt", LocaleId::EnUs),
+        "report.txt"
+    );
 }
 
 #[test]
 fn file_button_label_falls_back_to_generic_label() {
-    assert_eq!(file_button_label("", ""), "File");
+    assert_eq!(file_button_label("", "", LocaleId::EnUs), "File");
+    assert_eq!(file_button_label("", "", LocaleId::ZhCn), "文件");
 }
 
 #[test]
@@ -160,8 +165,20 @@ fn download_success_message_includes_filename_and_directory() {
     use std::path::Path;
 
     assert_eq!(
-        download_success_message("report.csv", Path::new("/Users/me/Downloads")),
+        download_success_message(
+            "report.csv",
+            Path::new("/Users/me/Downloads"),
+            LocaleId::EnUs,
+        ),
         "report.csv was downloaded to /Users/me/Downloads."
+    );
+    assert_eq!(
+        download_success_message(
+            "report.csv",
+            Path::new("/Users/me/Downloads"),
+            LocaleId::ZhCn,
+        ),
+        "已将 report.csv 下载到 /Users/me/Downloads。"
     );
 }
 

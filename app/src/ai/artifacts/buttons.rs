@@ -184,7 +184,8 @@ fn collect_buttons(
                 filename,
                 ..
             } => {
-                let button_text = file_button_label(filename, filepath);
+                let button_text =
+                    file_button_label(filename, filepath, crate::localization::current_locale(ctx));
                 let theme = theme.clone();
                 buttons.push(ctx.add_typed_action_view(move |ctx_button| {
                     make_file_button(button_text, artifact_uid.clone(), theme, ctx_button)

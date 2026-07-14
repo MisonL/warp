@@ -488,12 +488,13 @@ impl AmbientAgentRunner {
                 model_id: None,
                 reasoning_level: None,
             });
-            let harness_auth_secrets = (args.claude_auth_secret.is_some()
-                || args.codex_auth_secret.is_some())
-            .then(|| crate::ai::ambient_agents::task::HarnessAuthSecretsConfig {
-                claude_auth_secret_name: args.claude_auth_secret.clone(),
-                codex_auth_secret_name: args.codex_auth_secret.clone(),
-            });
+            let harness_auth_secrets =
+                (args.claude_auth_secret.is_some() || args.codex_auth_secret.is_some()).then(
+                    || crate::ai::ambient_agents::task::HarnessAuthSecretsConfig {
+                        claude_auth_secret_name: args.claude_auth_secret.clone(),
+                        codex_auth_secret_name: args.codex_auth_secret.clone(),
+                    },
+                );
 
             let merged_config = super::config_file::merge_with_precedence(
                 loaded_file.as_ref(),
@@ -1158,7 +1159,8 @@ impl AmbientAgentRunner {
                     description,
                     ..
                 } => {
-                    let label = super::super::artifacts::file_button_label(filename, filepath);
+                    let label =
+                        super::super::artifacts::file_button_label(filename, filepath, locale);
                     lines.push(text_for_locale_with_args(
                         locale,
                         "agent_sdk.ambient.artifacts.file",

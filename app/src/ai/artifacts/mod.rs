@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use anyhow::anyhow;
 use ui_components::lightbox::{LightboxImage, LightboxImageSource};
 use warp_errors::report_error;
+use warp_localization::LocaleId;
 use warp_multi_agent_api as api;
 #[cfg(feature = "local_fs")]
 use warpui::platform::SaveFilePickerConfiguration;
@@ -178,7 +179,7 @@ impl From<api::message::artifact_event::FileArtifact> for Artifact {
                 .file_name()
                 .and_then(|file_name| file_name.to_str())
                 .filter(|file_name| !file_name.trim().is_empty())
-                .unwrap_or("File")
+                .unwrap_or_default()
                 .to_string(),
             mime_type: file.mime_type,
             description: if file.description.is_empty() {
@@ -284,7 +285,7 @@ where
         .collect())
 }
 
-pub fn file_button_label(filename: &str, filepath: &str) -> String {
+pub fn file_button_label(filename: &str, filepath: &str, locale: LocaleId) -> String {
     if let Some(filename) = non_empty_trimmed(filename) {
         return filename.to_string();
     }
@@ -294,7 +295,7 @@ pub fn file_button_label(filename: &str, filepath: &str) -> String {
     {
         return filepath_basename.to_string();
     }
-    "File".to_string()
+    crate::localization::text_for_locale(locale, "agent_management.artifact.file.fallback")
 }
 
 pub fn open_screenshot_lightbox<V: warpui::View>(
@@ -327,9 +328,16 @@ pub fn open_screenshot_lightbox<V: warpui::View>(
         ctx.spawn(
             async move { ai_client.get_artifact_download(&uid).await },
             move |_me, result, ctx| {
-                if let Some(image) =
-                    screenshot_lightbox_image_from_download_result(result, &uid_for_callback, i)
-                {
+                let failed_to_load_label = crate::localization::text_for_app(
+                    ctx,
+                    "agent_management.artifact.screenshot.failed_to_load",
+                );
+                if let Some(image) = screenshot_lightbox_image_from_download_result(
+                    result,
+                    &uid_for_callback,
+                    i,
+                    &failed_to_load_label,
+                ) {
                     ctx.dispatch_typed_action(&WorkspaceAction::UpdateLightboxImage {
                         index: i,
                         image,
@@ -344,6 +352,7 @@ fn screenshot_lightbox_image_from_download_result(
     result: anyhow::Result<ArtifactDownloadResponse>,
     uid_for_callback: &str,
     index: usize,
+    failed_to_load_label: &str,
 ) -> Option<LightboxImage> {
     match result {
         Ok(ArtifactDownloadResponse::Screenshot { data, .. }) => Some(LightboxImage {
@@ -362,7 +371,7 @@ fn screenshot_lightbox_image_from_download_result(
             log::warn!("Failed to load screenshot artifact {index}: {e}");
             Some(LightboxImage {
                 source: LightboxImageSource::Loading,
-                description: Some("Failed to load".to_string()),
+                description: Some(failed_to_load_label.to_string()),
             })
         }
     }
@@ -388,7 +397,10 @@ pub fn download_file_artifact<V: warpui::View>(
                 log::warn!("Failed to load file artifact {artifact_uid}: {error}");
                 show_file_download_toast(
                     &artifact_uid,
-                    DismissibleToast::error("Failed to prepare file download.".to_string()),
+                    DismissibleToast::error(crate::localization::text_for_app(
+                        ctx,
+                        "agent_management.artifact.file_download.prepare_failed",
+                    )),
                     ctx,
                 );
             }
@@ -439,7 +451,8 @@ fn open_file_download_picker<V: warpui::View>(
             let artifact = artifact.clone();
             let artifact_uid = artifact.artifact_uid().to_string();
             let path = PathBuf::from(path);
-            let toast_filename = download_toast_filename(&path);
+            let locale = crate::localization::current_locale(ctx);
+            let toast_filename = download_toast_filename(&path, locale);
             let toast_path = path.clone();
             let artifact_for_download = artifact.clone();
             ctx.spawn(
@@ -450,16 +463,20 @@ fn open_file_download_picker<V: warpui::View>(
                 move |_me, result, ctx| match result {
                     Ok(()) => show_file_download_toast(
                         &artifact_uid,
-                        file_download_success_toast(&toast_filename, &toast_path),
+                        file_download_success_toast(&toast_filename, &toast_path, locale),
                         ctx,
                     ),
                     Err(error) => {
                         log::warn!("Failed to download file artifact {artifact_uid}: {error}");
                         show_file_download_toast(
                             &artifact_uid,
-                            DismissibleToast::error(format!(
-                                "Failed to download {toast_filename}."
-                            )),
+                            DismissibleToast::error(
+                                crate::localization::text_for_locale_with_args(
+                                    locale,
+                                    "agent_management.artifact.file_download.failed",
+                                    &[("filename", toast_filename.as_str())],
+                                ),
+                            ),
                             ctx,
                         );
                     }
@@ -483,37 +500,56 @@ fn show_file_download_toast<V: warpui::View>(
 }
 
 #[cfg(feature = "local_fs")]
-fn download_toast_filename(path: &Path) -> String {
+fn download_toast_filename(path: &Path, locale: LocaleId) -> String {
     path.file_name()
         .and_then(|file_name| file_name.to_str())
         .filter(|file_name| !file_name.is_empty())
-        .unwrap_or("file")
-        .to_string()
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            crate::localization::text_for_locale(
+                locale,
+                "agent_management.artifact.file_download.filename_fallback",
+            )
+        })
 }
 
 /// The platform-appropriate label for the toast link that reveals a downloaded
 /// file in the system file manager.
 #[cfg(feature = "local_fs")]
-fn reveal_in_file_manager_label() -> &'static str {
+fn reveal_in_file_manager_label(locale: LocaleId) -> String {
     #[cfg(target_os = "macos")]
     {
-        "View in Finder"
+        crate::localization::text_for_locale(
+            locale,
+            "agent_management.artifact.file_download.reveal.finder",
+        )
     }
     #[cfg(target_os = "windows")]
     {
-        "Show in Explorer"
+        crate::localization::text_for_locale(
+            locale,
+            "agent_management.artifact.file_download.reveal.explorer",
+        )
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        "Open folder"
+        crate::localization::text_for_locale(
+            locale,
+            "agent_management.artifact.file_download.reveal.folder",
+        )
     }
 }
 
 /// Builds the success message shown after a file artifact is downloaded,
 /// including the directory the file landed in.
 #[cfg(feature = "local_fs")]
-fn download_success_message(filename: &str, directory: &Path) -> String {
-    format!("{filename} was downloaded to {}.", directory.display())
+fn download_success_message(filename: &str, directory: &Path, locale: LocaleId) -> String {
+    let directory = directory.display().to_string();
+    crate::localization::text_for_locale_with_args(
+        locale,
+        "agent_management.artifact.file_download.success_with_directory",
+        &[("filename", filename), ("directory", directory.as_str())],
+    )
 }
 
 /// Builds the success toast for a completed file-artifact download. When the
@@ -524,12 +560,17 @@ fn download_success_message(filename: &str, directory: &Path) -> String {
 fn file_download_success_toast(
     filename: &str,
     file_path: &Path,
+    locale: LocaleId,
 ) -> DismissibleToast<WorkspaceAction> {
     let Some(directory) = file_path.parent() else {
-        return DismissibleToast::success(format!("Downloaded {filename}."));
+        return DismissibleToast::success(crate::localization::text_for_locale_with_args(
+            locale,
+            "agent_management.artifact.file_download.success",
+            &[("filename", filename)],
+        ));
     };
-    DismissibleToast::success(download_success_message(filename, directory)).with_link(
-        ToastLink::new(reveal_in_file_manager_label().to_string()).with_onclick_action(
+    DismissibleToast::success(download_success_message(filename, directory, locale)).with_link(
+        ToastLink::new(reveal_in_file_manager_label(locale)).with_onclick_action(
             WorkspaceAction::OpenInExplorer {
                 path: file_path.to_path_buf(),
             },
