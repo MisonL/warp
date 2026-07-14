@@ -37,6 +37,7 @@ use crate::auth::auth_view_shared_helpers::{
 };
 use crate::auth::login_failure_notification::{self, LoginFailureReason};
 use crate::editor::{EditorView, SingleLineEditorOptions, TextColors, TextOptions};
+use crate::localization;
 use crate::server::telemetry::{LoginEventSource, TelemetryEvent};
 use crate::settings::PrivacySettings;
 use crate::themes::theme::Fill as ThemeFill;
@@ -313,7 +314,10 @@ impl LoginSlideView {
                 },
                 ctx,
             );
-            editor.set_placeholder_text("Auth Token", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "auth.token.placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -465,7 +469,7 @@ impl LoginSlideView {
     ) -> Box<dyn Element> {
         match self.step {
             LoginStep::SelectAuthPathway => {
-                let children = self.render_select_auth_content(appearance);
+                let children = self.render_select_auth_content(appearance, app);
                 let bottom_nav = self.render_select_auth_bottom_nav(appearance);
                 slide_content::onboarding_slide_content(
                     children,
@@ -475,7 +479,7 @@ impl LoginSlideView {
                 )
             }
             LoginStep::BrowserOpen => {
-                let children = self.render_browser_open_content(appearance, editor_rendered);
+                let children = self.render_browser_open_content(appearance, editor_rendered, app);
                 let bottom_nav = self.render_browser_open_bottom_nav(appearance);
                 slide_content::onboarding_slide_content(
                     children,
@@ -525,7 +529,11 @@ impl LoginSlideView {
         }
     }
 
-    fn render_select_auth_content(&self, appearance: &Appearance) -> Vec<Box<dyn Element>> {
+    fn render_select_auth_content(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Vec<Box<dyn Element>> {
         let theme = appearance.theme();
         let sub_text_color = internal_colors::text_sub(theme, theme.background().into_solid());
         let ui_builder = appearance.ui_builder();
@@ -571,7 +579,7 @@ impl LoginSlideView {
         let tos_line = Flex::row()
             .with_child(
                 ui_builder
-                    .span("By continuing, you agree to Warp's ")
+                    .span(localization::text_for_app(app, "auth.terms.prefix"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -579,7 +587,7 @@ impl LoginSlideView {
             .with_child(
                 ui_builder
                     .link(
-                        "Terms of Service".into(),
+                        localization::text_for_app(app, "auth.terms.link"),
                         Some(TOS_URL.into()),
                         None,
                         self.tos_mouse_state.clone(),
@@ -717,6 +725,7 @@ impl LoginSlideView {
         &self,
         appearance: &Appearance,
         editor_rendered: &Cell<bool>,
+        app: &AppContext,
     ) -> Vec<Box<dyn Element>> {
         let theme = appearance.theme();
         let sub_text_color = internal_colors::text_sub(theme, theme.background().into_solid());
@@ -728,7 +737,7 @@ impl LoginSlideView {
         };
 
         let title = FormattedTextElement::from_str(
-            "Sign in on your browser to continue",
+            localization::text_for_app(app, "auth.browser.title.single_line"),
             appearance.ui_font_family(),
             36.,
         )
@@ -745,7 +754,7 @@ impl LoginSlideView {
                 Flex::row()
                     .with_child(
                         ui_builder
-                            .span("If your browser hasn't launched, ")
+                            .span(localization::text_for_app(app, "auth.browser.hint_prefix"))
                             .with_style(sub_text_styles)
                             .build()
                             .finish(),
@@ -753,7 +762,7 @@ impl LoginSlideView {
                     .with_child(
                         ui_builder
                             .link(
-                                "copy the URL".into(),
+                                localization::text_for_app(app, "auth.browser.copy_url"),
                                 None,
                                 Some(Box::new(|ctx| {
                                     ctx.dispatch_typed_action(LoginSlideAction::CopyLoginUrl);
@@ -766,7 +775,7 @@ impl LoginSlideView {
                     )
                     .with_child(
                         ui_builder
-                            .span(" and open")
+                            .span(localization::text_for_app(app, "auth.browser.hint_middle"))
                             .with_style(sub_text_styles)
                             .build()
                             .finish(),
@@ -775,7 +784,10 @@ impl LoginSlideView {
             )
             .with_child(
                 ui_builder
-                    .span("the page manually.")
+                    .span(localization::text_for_app(
+                        app,
+                        "auth.browser.hint_page_manually",
+                    ))
                     .with_style(sub_text_styles)
                     .build()
                     .finish(),
