@@ -47,7 +47,7 @@ pub(super) fn confirm_icon_for() -> Icon {
     Icon::Github
 }
 
-fn loading_label_for(app: &AppContext) -> String {
+pub(super) fn loading_label_for(app: &AppContext) -> String {
     localization::text_for_app(app, "code_review.git_dialog.pr.creating")
 }
 

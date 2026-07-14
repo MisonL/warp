@@ -38,6 +38,7 @@ use crate::code_review::telemetry_event::{
     CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
 };
 use crate::localization;
+use crate::localization::LocalizationUpdater;
 use crate::settings::AISettings;
 use crate::ui_components::dialog::{dialog_styles, Dialog};
 use crate::ui_components::icons::Icon;
@@ -508,6 +509,7 @@ impl GitDialog {
             ctx,
         );
         ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
+        Self::subscribe_to_localization(ctx);
         let state = commit::new_state(
             repo_location.to_local_path(),
             allow_create_pr,
@@ -549,6 +551,7 @@ impl GitDialog {
             ctx,
         );
         ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
+        Self::subscribe_to_localization(ctx);
         let state = push::new_state(publish, commits);
         Self {
             repo_location,
@@ -575,6 +578,7 @@ impl GitDialog {
             ctx,
         );
         ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
+        Self::subscribe_to_localization(ctx);
         let state = pr::new_state(base_branch_name);
         let mut this = Self {
             repo_location,
@@ -630,6 +634,47 @@ impl GitDialog {
                 .on_click(|ctx| ctx.dispatch_typed_action(GitDialogAction::Cancel))
         });
         (confirm_button, cancel_button, close_button)
+    }
+
+    fn subscribe_to_localization(ctx: &mut ViewContext<Self>) {
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |dialog, _, _, ctx| {
+            dialog.refresh_localized_text(ctx);
+        });
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        if let GitDialogMode::Commit(state) = &self.mode {
+            commit::refresh_localized_text(state, ctx);
+        }
+
+        let confirm_label = if self.loading {
+            match &self.mode {
+                GitDialogMode::Commit(_) => commit::loading_label(ctx),
+                GitDialogMode::Push(state) => push::loading_label(state.publish, ctx),
+                GitDialogMode::CreatePr(_) => pr::loading_label_for(ctx),
+            }
+        } else {
+            match &self.mode {
+                GitDialogMode::Commit(_) => {
+                    localization::text_for_app(ctx, "code_review.git_dialog.confirm")
+                }
+                GitDialogMode::Push(state) => push::confirm_label(state.publish, ctx),
+                GitDialogMode::CreatePr(_) => pr::confirm_label_for(ctx),
+            }
+        };
+        self.confirm_button.update(ctx, |button, ctx| {
+            button.set_label(confirm_label, ctx);
+        });
+        self.cancel_button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(ctx, "code_review.action.cancel"),
+                ctx,
+            );
+        });
+        if !self.loading {
+            self.refresh_confirm_enabled(ctx);
+        }
+        ctx.notify();
     }
 
     fn repo_location(&self) -> &LocalOrRemotePath {

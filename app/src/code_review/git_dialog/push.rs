@@ -78,7 +78,7 @@ pub(super) fn confirm_icon(publish: bool) -> Icon {
     }
 }
 
-fn loading_label(publish: bool, app: &AppContext) -> String {
+pub(super) fn loading_label(publish: bool, app: &AppContext) -> String {
     localization::text_for_app(
         app,
         if publish {
