@@ -78,12 +78,37 @@ pub(super) fn confirm_icon(publish: bool) -> Icon {
     }
 }
 
-fn loading_label(publish: bool) -> &'static str {
-    if publish {
-        "Publishing…"
-    } else {
-        "Pushing…"
-    }
+fn loading_label(publish: bool, app: &AppContext) -> String {
+    localization::text_for_app(
+        app,
+        if publish {
+            "code_review.git_dialog.push.publishing"
+        } else {
+            "code_review.git_dialog.push.pushing"
+        },
+    )
+}
+
+fn success_message(publish: bool, app: &AppContext) -> String {
+    localization::text_for_app(
+        app,
+        if publish {
+            "code_review.git_dialog.push.published"
+        } else {
+            "code_review.git_dialog.push.pushed"
+        },
+    )
+}
+
+fn file_count_label(count: usize, app: &AppContext) -> String {
+    localization::text_for_app(
+        app,
+        if count == 1 {
+            "code_review.git_dialog.file_singular"
+        } else {
+            "code_review.git_dialog.file_plural"
+        },
+    )
 }
 
 pub(super) fn handle_sub_action(
@@ -111,7 +136,7 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     };
     let branch = me.branch_name().to_string();
 
-    me.set_loading(loading_label(publish), ctx);
+    me.set_loading(loading_label(publish, ctx), ctx);
 
     me.diff_state_model().update(ctx, |m, ctx| {
         m.git_push(branch, ctx);
@@ -131,12 +156,7 @@ pub(super) fn finish_push(
     };
     match result {
         Ok(_) => {
-            let toast_msg = if publish {
-                "Branch successfully published."
-            } else {
-                "Changes successfully pushed."
-            };
-            show_toast(toast_msg, ctx);
+            show_toast(success_message(publish, ctx), ctx);
         }
         Err(e) => {
             report_error!(&e);
@@ -172,19 +192,23 @@ pub(super) fn render_body(
     );
 
     if !state.commits.is_empty() {
-        body.add_child(render_commits_section(state, appearance));
+        body.add_child(render_commits_section(state, appearance, app));
     }
 
     body.finish()
 }
 
-fn render_commits_section(state: &PushState, appearance: &Appearance) -> Box<dyn Element> {
+fn render_commits_section(
+    state: &PushState,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
     let main_color = theme.main_text_color(theme.surface_1()).into_solid();
     let sub_color = theme.sub_text_color(theme.surface_1()).into_solid();
 
     let label = Text::new(
-        "Included commits",
+        localization::text_for_app(app, "code_review.git_dialog.push.included_commits"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -209,11 +233,7 @@ fn render_commits_section(state: &PushState, appearance: &Appearance) -> Box<dyn
         let stats_text = format!(
             "{} {}",
             commit.files_changed,
-            if commit.files_changed == 1 {
-                "file"
-            } else {
-                "files"
-            },
+            file_count_label(commit.files_changed, app),
         );
 
         let mut stats_row = Flex::row()
