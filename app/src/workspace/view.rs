@@ -729,6 +729,35 @@ enum TabConfigsMenuOpenSource {
     Pointer,
 }
 
+fn disambiguated_tab_config_display_names(
+    tab_configs: &[crate::tab_configs::TabConfig],
+    app: &AppContext,
+) -> Vec<String> {
+    let mut name_totals: HashMap<String, usize> = HashMap::new();
+    for config in tab_configs {
+        *name_totals.entry(config.localized_name(app)).or_default() += 1;
+    }
+
+    let mut name_seen: HashMap<String, usize> = HashMap::new();
+    tab_configs
+        .iter()
+        .map(|config| {
+            let localized_name = config.localized_name(app);
+            if name_totals.get(&localized_name).copied().unwrap_or(0) <= 1 {
+                return localized_name;
+            }
+
+            let seen = name_seen.entry(localized_name.clone()).or_default();
+            *seen += 1;
+            if *seen == 1 {
+                localized_name
+            } else {
+                format!("{} ({})", localized_name, *seen - 1)
+            }
+        })
+        .collect()
+}
+
 /// This enumerates the different kinds of banners we show to the user.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum WorkspaceBanner {
@@ -6749,16 +6778,9 @@ impl Workspace {
         // 4. User tab configs
         if FeatureFlag::TabConfigs.is_enabled() {
             let tab_configs = WarpConfig::as_ref(ctx).tab_configs().to_vec();
+            let display_names = disambiguated_tab_config_display_names(&tab_configs, ctx);
 
-            // Count occurrences of each config name so we can disambiguate
-            // duplicates in the menu (e.g. "My Tab Config", "My Tab Config (1)").
-            let mut name_totals: HashMap<String, usize> = HashMap::new();
-            for config in &tab_configs {
-                *name_totals.entry(config.name.clone()).or_default() += 1;
-            }
-            let mut name_seen: HashMap<String, usize> = HashMap::new();
-
-            for tab_config in tab_configs {
+            for (tab_config, display_name) in tab_configs.into_iter().zip(display_names) {
                 let is_worktree = tab_config.is_worktree();
                 let icon = if is_worktree {
                     icons::Icon::Dataflow02
@@ -6770,18 +6792,6 @@ impl Workspace {
                         .source_path
                         .as_ref()
                         .is_some_and(|p| p.to_string_lossy() == default_tab_config_path);
-
-                let display_name = if name_totals.get(&tab_config.name).copied().unwrap_or(0) > 1 {
-                    let seen = name_seen.entry(tab_config.name.clone()).or_default();
-                    *seen += 1;
-                    if *seen == 1 {
-                        tab_config.name.clone()
-                    } else {
-                        format!("{} ({})", tab_config.name, *seen - 1)
-                    }
-                } else {
-                    tab_config.name.clone()
-                };
 
                 let mut item = MenuItemFields::new(display_name)
                     .with_on_select_action(WorkspaceAction::SelectTabConfig(tab_config))
