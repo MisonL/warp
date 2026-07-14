@@ -13523,9 +13523,10 @@ impl Workspace {
                     extra: { "conversation_id" => %conversation_id }
                 );
                 WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::error(
-                        "Failed to load conversation for forking.".to_owned(),
-                    );
+                    let toast = DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "workspace.toast.failed_to_load_conversation_for_forking",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 return;
@@ -18756,16 +18757,21 @@ impl Workspace {
                 prev_mouse_reporting_enabled
             });
 
-        let verb = if prev_mouse_reporting_enabled {
-            "disabled"
+        let key = if prev_mouse_reporting_enabled {
+            "workspace.toast.mouse_reporting_disabled"
         } else {
-            "enabled"
+            "workspace.toast.mouse_reporting_enabled"
         };
-        let mut message = format!("You {verb} mouse reporting.");
+        let mut message = localization::text_for_app(ctx, key);
         if let Some(keystroke) =
             keybinding_name_to_keystroke("workspace:toggle_mouse_reporting", ctx)
         {
-            let _ = write!(message, " Press {} to undo.", keystroke.displayed());
+            let undo = localization::text_for_app_with_args(
+                ctx,
+                "workspace.toast.press_to_undo",
+                &[("keystroke", &keystroke.displayed().to_string())],
+            );
+            let _ = write!(message, " {undo}");
         }
 
         self.toast_stack.update(ctx, |view, ctx| {
@@ -25002,13 +25008,22 @@ impl TypedActionView for Workspace {
 
                     status.is_syncing_all_inputs(window_id)
                 });
-                let verb = if enabled { "enabled" } else { "disabled" };
-                let mut message = format!("You {verb} synchronized inputs in all tabs.");
+                let key = if enabled {
+                    "workspace.toast.sync_all_inputs_enabled"
+                } else {
+                    "workspace.toast.sync_all_inputs_disabled"
+                };
+                let mut message = localization::text_for_app(ctx, key);
                 if let Some(keystroke) = keybinding_name_to_keystroke(
                     "workspace:toggle_sync_all_terminal_inputs_in_all_tabs",
                     ctx,
                 ) {
-                    let _ = write!(message, " Press {} to undo.", keystroke.displayed());
+                    let undo = localization::text_for_app_with_args(
+                        ctx,
+                        "workspace.toast.press_to_undo",
+                        &[("keystroke", &keystroke.displayed().to_string())],
+                    );
+                    let _ = write!(message, " {undo}");
                 }
                 self.toast_stack.update(ctx, |view, ctx| {
                     let new_toast = DismissibleToast::default(message);
@@ -25035,13 +25050,22 @@ impl TypedActionView for Workspace {
 
                     status.should_sync_this_pane_group(current_pane_group_id, window_id)
                 });
-                let verb = if enabled { "enabled" } else { "disabled" };
-                let mut message = format!("You {verb} synchronized inputs in this tab.");
+                let key = if enabled {
+                    "workspace.toast.sync_tab_inputs_enabled"
+                } else {
+                    "workspace.toast.sync_tab_inputs_disabled"
+                };
+                let mut message = localization::text_for_app(ctx, key);
                 if let Some(keystroke) = keybinding_name_to_keystroke(
                     "workspace:toggle_sync_terminal_inputs_in_tab",
                     ctx,
                 ) {
-                    let _ = write!(message, " Press {} to undo.", keystroke.displayed());
+                    let undo = localization::text_for_app_with_args(
+                        ctx,
+                        "workspace.toast.press_to_undo",
+                        &[("keystroke", &keystroke.displayed().to_string())],
+                    );
+                    let _ = write!(message, " {undo}");
                 }
                 self.toast_stack.update(ctx, |view, ctx| {
                     let new_toast = DismissibleToast::default(message);
