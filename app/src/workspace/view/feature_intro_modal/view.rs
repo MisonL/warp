@@ -13,6 +13,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization::{self, LocalizationUpdater};
 use crate::settings_view::{custom_model_routers_widget_id, SettingsSection};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
@@ -55,13 +56,13 @@ pub struct FeatureIntro {
     /// Bundled hero image shown at the top of the card.
     pub hero_image_path: &'static str,
     /// Optional metadata label rendered above the title (e.g. "NEW").
-    pub badge: Option<&'static str>,
-    pub title: &'static str,
-    pub description: &'static str,
+    pub badge_key: Option<&'static str>,
+    pub title_key: &'static str,
+    pub description_key: &'static str,
     /// Optional icon rendered to the left of the description.
     pub description_icon: Option<Icon>,
     /// Label for the primary call-to-action button.
-    pub cta_label: &'static str,
+    pub cta_label_key: &'static str,
     /// Destination opened when the user clicks the call-to-action. `None`
     /// simply dismisses the popover.
     pub cta_target: Option<FeatureIntroCtaTarget>,
@@ -72,11 +73,11 @@ pub struct FeatureIntro {
 pub const FEATURE_INTROS: &[FeatureIntro] = &[FeatureIntro {
     id: FeatureIntroId::CustomModelRouter,
     hero_image_path: "async/png/onboarding/custom_model_router_intro_banner.png",
-    badge: Some("NEW"),
-    title: "Build a custom model router for the Warp Agent.",
-    description: "Custom routers can be complexity-based, where tasks are routed based on how difficult they are, or rule-based, where they are routed based on a set of natural language prompts.",
+    badge_key: Some("workspace.feature_intro.badge_new"),
+    title_key: "workspace.feature_intro.custom_model_router.title",
+    description_key: "workspace.feature_intro.custom_model_router.description",
     description_icon: Some(Icon::Compass),
-    cta_label: "Get started",
+    cta_label_key: "agent_management.action.get_started",
     cta_target: Some(FeatureIntroCtaTarget::SettingsWidget {
         page: SettingsSection::WarpAgent,
         widget_id: custom_model_routers_widget_id,
@@ -164,8 +165,18 @@ impl FeatureIntroModal {
         });
 
         let cta_button = ctx.add_view(|_ctx| {
-            ActionButton::new("Get started", PrimaryTheme)
+            ActionButton::new(String::new(), PrimaryTheme)
                 .on_click(|ctx| ctx.dispatch_typed_action(FeatureIntroModalAction::GetStarted))
+        });
+
+        let localization_updater = LocalizationUpdater::handle(ctx);
+        ctx.subscribe_to_model(&localization_updater, |me, _, _, ctx| {
+            if let Some(intro) = me.current {
+                me.cta_button.update(ctx, |button, ctx| {
+                    button.set_label(localization::text_for_app(ctx, intro.cta_label_key), ctx);
+                });
+            }
+            ctx.notify();
         });
 
         Self {
@@ -185,7 +196,7 @@ impl FeatureIntroModal {
         self.current = intro;
         if let Some(intro) = intro {
             self.cta_button.update(ctx, |button, ctx| {
-                button.set_label(intro.cta_label, ctx);
+                button.set_label(localization::text_for_app(ctx, intro.cta_label_key), ctx);
             });
         }
         ctx.notify();
@@ -230,24 +241,32 @@ impl FeatureIntroModal {
         hero_stack.finish()
     }
 
-    fn render_badge(label: &'static str, appearance: &Appearance) -> Box<dyn Element> {
-        Text::new_inline(label.to_string(), appearance.ui_font_family(), 11.)
+    fn render_badge(label: String, appearance: &Appearance) -> Box<dyn Element> {
+        Text::new_inline(label, appearance.ui_font_family(), 11.)
             .with_color(modal_text_sub(appearance))
             .with_style(Properties::default().weight(Weight::Semibold))
             .finish()
     }
 
-    fn render_title(title: &'static str, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_title(title: String, appearance: &Appearance) -> Box<dyn Element> {
         Text::new(title, appearance.ui_font_family(), 20.)
             .with_color(modal_text_main(appearance))
             .with_style(Properties::default().weight(Weight::Semibold))
             .finish()
     }
 
-    fn render_description(intro: &FeatureIntro, appearance: &Appearance) -> Box<dyn Element> {
-        let description = Text::new(intro.description, appearance.ui_font_family(), 14.)
-            .with_color(modal_text_sub(appearance))
-            .finish();
+    fn render_description(
+        intro: &FeatureIntro,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let description = Text::new(
+            localization::text_for_app(app, intro.description_key),
+            appearance.ui_font_family(),
+            14.,
+        )
+        .with_color(modal_text_sub(appearance))
+        .finish();
 
         if let Some(icon) = intro.description_icon {
             Flex::row()
@@ -273,15 +292,26 @@ impl FeatureIntroModal {
         }
     }
 
-    fn render_body(&self, intro: &FeatureIntro, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_body(
+        &self,
+        intro: &FeatureIntro,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let mut header = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(8.);
-        if let Some(badge) = intro.badge {
-            header.add_child(Self::render_badge(badge, appearance));
+        if let Some(badge_key) = intro.badge_key {
+            header.add_child(Self::render_badge(
+                localization::text_for_app(app, badge_key),
+                appearance,
+            ));
         }
-        header.add_child(Self::render_title(intro.title, appearance));
-        header.add_child(Self::render_description(intro, appearance));
+        header.add_child(Self::render_title(
+            localization::text_for_app(app, intro.title_key),
+            appearance,
+        ));
+        header.add_child(Self::render_description(intro, appearance, app));
 
         let body = Container::new(header.finish())
             .with_horizontal_padding(16.)
@@ -335,7 +365,7 @@ impl View for FeatureIntroModal {
                     .with_main_axis_size(MainAxisSize::Min)
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                     .with_child(self.render_hero(intro))
-                    .with_child(self.render_body(intro, appearance))
+                    .with_child(self.render_body(intro, appearance, app))
                     .finish(),
             )
             .with_background(modal_background(appearance))
