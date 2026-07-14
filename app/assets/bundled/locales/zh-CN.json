@@ -3347,6 +3347,7 @@
   "settings.action.copied": "已复制",
   "settings.action.copy": "复制",
   "settings.action.default": "默认",
+  "settings.action.delete": "删除",
   "settings.action.disconnect": "断开连接",
   "settings.action.done": "完成",
   "settings.action.edit": "编辑",

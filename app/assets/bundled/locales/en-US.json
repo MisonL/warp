@@ -3347,6 +3347,7 @@
   "settings.action.copied": "Copied",
   "settings.action.copy": "Copy",
   "settings.action.default": "Default",
+  "settings.action.delete": "Delete",
   "settings.action.disconnect": "Disconnect",
   "settings.action.done": "Done",
   "settings.action.edit": "Edit",
