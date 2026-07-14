@@ -10,6 +10,7 @@ use warp_cli::agent::Harness;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::Fill;
+use warp_errors::report_if_error;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, OffsetPositioning, ParentAnchor, ParentElement as _,
     ParentOffsetBounds, Stack,

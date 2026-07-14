@@ -3,6 +3,7 @@ use lazy_static::lazy_static;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::DEFAULT_COMMAND_PALETTE_FONT_SIZE;
 use warp_core::ui::builder::UiBuilder;
+use warp_errors::report_error;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::clipboard::ClipboardContent;
 use warpui::color::ColorU;
@@ -38,12 +39,15 @@ use crate::server::telemetry::{AnonymousUserSignupEntrypoint, LoginEventSource, 
 use crate::settings::{AISettings, PrivacySettings};
 use crate::themes::theme::Fill as ThemeFill;
 use crate::util::color::{darken, lighten};
-use crate::{localization, report_error, send_telemetry_from_ctx, send_telemetry_sync_from_ctx};
+use crate::{send_telemetry_from_ctx, send_telemetry_sync_from_ctx};
 
 const TOS_URL: &str = "https://www.warp.dev/terms-of-service";
 
 const COMMON_BODY_UI_FONT_SIZE: f32 = 12.;
 const AUTH_MODAL_GAP: f32 = 16.;
+
+const AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT: &str = "Auth Token";
+const AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT_EXPERIMENTAL: &str = "Browser auth token";
 
 const AUTH_TOKEN_INPUT_BORDER_RADIUS: Radius = Radius::Pixels(4.);
 
@@ -160,12 +164,12 @@ impl AuthViewBody {
 
             let placeholder_text =
                 if matches!(experiment_group, Some(AuthFlowInstructions::Experiment)) {
-                    localization::text_for_app(ctx, "auth.token.browser_placeholder")
+                    AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT_EXPERIMENTAL
                 } else {
-                    localization::text_for_app(ctx, "auth.token.placeholder")
+                    AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT
                 };
 
-            editor.set_placeholder_text(&placeholder_text, ctx);
+            editor.set_placeholder_text(placeholder_text, ctx);
             editor
         });
 
@@ -247,16 +251,12 @@ impl AuthViewBody {
         }
     }
 
-    fn render_auth_token_suggest(
-        &self,
-        ui_builder: &UiBuilder,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_auth_token_suggest(&self, ui_builder: &UiBuilder) -> Box<dyn Element> {
         Flex::row()
             .with_child(
                 ui_builder
                     .link(
-                        localization::text_for_app(app, "auth.token.paste_from_browser"),
+                        "Click here to paste your token from the browser".into(),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(AuthViewBodyAction::EnterToken);
@@ -308,7 +308,6 @@ impl AuthViewBody {
         &self,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
-        app: &AppContext,
     ) -> Vec<Box<dyn Element>> {
         let disclaimer_color = appearance
             .theme()
@@ -330,7 +329,7 @@ impl AuthViewBody {
             Flex::row()
                 .with_child(
                     ui_builder
-                        .span(localization::text_for_app(app, "auth.terms.prefix"))
+                        .span("By continuing, you agree to Warp's ")
                         .with_style(disclaimer_styles)
                         .build()
                         .finish(),
@@ -338,7 +337,7 @@ impl AuthViewBody {
                 .with_child(
                     ui_builder
                         .link(
-                            localization::text_for_app(app, "auth.terms.link"),
+                            "Terms of Service".into(),
                             Some(TOS_URL.into()),
                             None,
                             self.mouse_state_handles.tos_mouse_state_handle.clone(),
@@ -358,7 +357,7 @@ impl AuthViewBody {
             Align::new(
                 ui_builder
                     .link(
-                        localization::text_for_app(app, "auth.privacy_settings"),
+                        "Privacy Settings".into(),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(AuthViewBodyAction::ShowOverlay(
@@ -379,10 +378,7 @@ impl AuthViewBody {
             Flex::column()
                 .with_child(
                     ui_builder
-                        .paragraph(localization::text_for_app(
-                            app,
-                            "auth.privacy.opt_out_prefix",
-                        ))
+                        .paragraph("If you'd like to opt out of analytics and AI features,")
                         .with_style(disclaimer_styles)
                         .build()
                         .finish(),
@@ -391,10 +387,7 @@ impl AuthViewBody {
                     Flex::row()
                         .with_child(
                             ui_builder
-                                .paragraph(localization::text_for_app(
-                                    app,
-                                    "auth.privacy.adjust_prefix",
-                                ))
+                                .paragraph("you can adjust your ")
                                 .with_style(disclaimer_styles)
                                 .build()
                                 .finish(),
@@ -402,7 +395,7 @@ impl AuthViewBody {
                         .with_child(
                             ui_builder
                                 .link(
-                                    localization::text_for_app(app, "auth.privacy_settings"),
+                                    "Privacy Settings".into(),
                                     None,
                                     Some(Box::new(|ctx| {
                                         ctx.dispatch_typed_action(AuthViewBodyAction::ShowOverlay(
@@ -431,7 +424,6 @@ impl AuthViewBody {
         is_anonymous: bool,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let (button_color, button_variant) = action_button_color_and_variant(appearance);
         let button_styles = UiComponentStyles {
@@ -483,7 +475,7 @@ impl AuthViewBody {
                 Some(click_button_style),
                 None,
             )
-            .with_centered_text_label(crate::localization::text_for_app(app, "auth.sign_up"))
+            .with_centered_text_label("Sign up".into())
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(on_click_action);
@@ -491,21 +483,18 @@ impl AuthViewBody {
             .finish()
     }
 
-    fn render_sign_in_row(&self, ui_builder: &UiBuilder, app: &AppContext) -> Box<dyn Element> {
+    fn render_sign_in_row(&self, ui_builder: &UiBuilder) -> Box<dyn Element> {
         Flex::row()
             .with_child(
                 ui_builder
-                    .span(crate::localization::text_for_app(
-                        app,
-                        "auth.already_have_account",
-                    ))
+                    .span("Already have an account? ")
                     .build()
                     .finish(),
             )
             .with_child(
                 ui_builder
                     .link(
-                        crate::localization::text_for_app(app, "auth.sign_in"),
+                        "Sign in".into(),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(AuthViewBodyAction::Login);
@@ -521,23 +510,19 @@ impl AuthViewBody {
             .finish()
     }
 
-    fn render_sign_up_later_row(
-        &self,
-        ui_builder: &UiBuilder,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_sign_up_later_row(&self, ui_builder: &UiBuilder) -> Box<dyn Element> {
         Container::new(
             Flex::row()
                 .with_child(
                     ui_builder
-                        .span(localization::text_for_app(app, "auth.skip_prompt"))
+                        .span("Don't want to sign in right now? ")
                         .build()
                         .finish(),
                 )
                 .with_child(
                     ui_builder
                         .link(
-                            crate::localization::text_for_app(app, "auth.skip_for_now"),
+                            "Skip for now".into(),
                             None,
                             Some(Box::new(|ctx| {
                                 ctx.dispatch_typed_action(AuthViewBodyAction::InitiateLoginLater);
@@ -556,25 +541,18 @@ impl AuthViewBody {
         .finish()
     }
 
-    fn render_sign_in_later_confirm_row(
-        &self,
-        ui_builder: &UiBuilder,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_sign_in_later_confirm_row(&self, ui_builder: &UiBuilder) -> Box<dyn Element> {
         Container::new(
             Flex::column()
                 .with_child(
                     ui_builder
-                        .paragraph(localization::text_for_app(app, "auth.skip_confirm.title"))
+                        .paragraph("Are you sure you want to skip login?")
                         .build()
                         .finish(),
                 )
                 .with_child(
                     ui_builder
-                        .paragraph(localization::text_for_app(
-                            app,
-                            "auth.skip_confirm.description_1",
-                        ))
+                        .paragraph("You can sign up later, but some features, such as AI,")
                         .build()
                         .finish(),
                 )
@@ -582,17 +560,14 @@ impl AuthViewBody {
                     Flex::row()
                         .with_child(
                             ui_builder
-                                .span(localization::text_for_app(
-                                    app,
-                                    "auth.skip_confirm.description_2",
-                                ))
+                                .span("are only available to logged-in users. ")
                                 .build()
                                 .finish(),
                         )
                         .with_child(
                             ui_builder
                                 .link(
-                                    localization::text_for_app(app, "auth.skip_confirm.link"),
+                                    "Yes, skip login".into(),
                                     None,
                                     Some(Box::new(|ctx| {
                                         ctx.dispatch_typed_action(AuthViewBodyAction::LoginLater);
@@ -617,7 +592,6 @@ impl AuthViewBody {
         &self,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
-        app: &AppContext,
     ) -> Box<dyn Element> {
         let disclaimer_color = appearance
             .theme()
@@ -630,16 +604,16 @@ impl AuthViewBody {
         };
 
         let text = match self.variant {
-            AuthViewVariant::RequireLoginCloseable => {
-                localization::text_for_app(app, "auth.require_login.ai")
+            AuthViewVariant::RequireLoginCloseable  => {
+                "In order to use Warp’s AI features or collaborate with others, please create an account."
             }
             AuthViewVariant::HitDriveObjectLimitCloseable => {
-                localization::text_for_app(app, "auth.require_login.drive_limit")
+                "In order to create more objects in Warp Drive, please create an account."
             }
             AuthViewVariant::ShareRequirementCloseable => {
-                localization::text_for_app(app, "auth.require_login.share")
+                "In order to share, please create an account."
             }
-            _ => localization::text_for_app(app, "auth.empty"),
+            _ => "",
         };
 
         Container::new(
@@ -653,12 +627,7 @@ impl AuthViewBody {
         .finish()
     }
 
-    fn render_header(
-        &self,
-        appearance: &Appearance,
-        ui_builder: &UiBuilder,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, ui_builder: &UiBuilder) -> Box<dyn Element> {
         let header_styles = UiComponentStyles {
             font_family_id: Some(appearance.header_font_family()),
             font_color: Some(appearance.theme().active_ui_text_color().into()),
@@ -668,12 +637,10 @@ impl AuthViewBody {
         };
 
         let text = match self.variant {
-            AuthViewVariant::Initial => localization::text_for_app(app, "auth.welcome"),
+            AuthViewVariant::Initial => "Welcome to Warp!",
             AuthViewVariant::RequireLoginCloseable
             | AuthViewVariant::HitDriveObjectLimitCloseable
-            | AuthViewVariant::ShareRequirementCloseable => {
-                localization::text_for_app(app, "auth.sign_up_for_warp")
-            }
+            | AuthViewVariant::ShareRequirementCloseable => "Sign up for Warp",
         };
 
         ui_builder
@@ -722,22 +689,20 @@ impl AuthViewBody {
         let logo = Container::new(self.render_logo_row(appearance, ui_builder))
             .with_margin_bottom(AUTH_MODAL_GAP)
             .finish();
-        let header = Container::new(self.render_header(appearance, ui_builder, app))
+        let header = Container::new(self.render_header(appearance, ui_builder))
             .with_margin_bottom(AUTH_MODAL_GAP)
             .finish();
-        let sign_up_button = self.render_sign_up_button(is_anonymous, appearance, ui_builder, app);
-        let sign_in_row = Container::new(self.render_sign_in_row(ui_builder, app))
+        let sign_up_button = self.render_sign_up_button(is_anonymous, appearance, ui_builder);
+        let sign_in_row = Container::new(self.render_sign_in_row(ui_builder))
             .with_margin_top(AUTH_MODAL_GAP)
             .finish();
-        let force_login_disclaimer =
-            self.render_force_login_disclaimer(appearance, ui_builder, app);
+        let force_login_disclaimer = self.render_force_login_disclaimer(appearance, ui_builder);
 
         match self.variant {
             AuthViewVariant::Initial => {
                 if !NetworkStatus::as_ref(app).is_online() {
                     let offline_contents = render_offline_contents(
                         appearance,
-                        app,
                         ui_builder,
                         self.mouse_state_handles
                             .learn_more_mouse_state_handle
@@ -748,9 +713,9 @@ impl AuthViewBody {
                 } else if self.active_overlay.is_none() {
                     let mut contents = if self.allow_loginless {
                         let sign_up_later_row = match self.loginless_step {
-                            LoginlessStep::Start => self.render_sign_up_later_row(ui_builder, app),
+                            LoginlessStep::Start => self.render_sign_up_later_row(ui_builder),
                             LoginlessStep::Initiated => {
-                                self.render_sign_in_later_confirm_row(ui_builder, app)
+                                self.render_sign_in_later_confirm_row(ui_builder)
                             }
                         };
                         vec![logo, header, sign_up_button, sign_in_row, sign_up_later_row]
@@ -758,8 +723,7 @@ impl AuthViewBody {
                         vec![logo, header, sign_up_button, sign_in_row]
                     };
 
-                    contents
-                        .append(&mut self.render_privacy_information(appearance, ui_builder, app));
+                    contents.append(&mut self.render_privacy_information(appearance, ui_builder));
                     contents
                 } else {
                     vec![]
@@ -777,7 +741,6 @@ impl AuthViewBody {
         &self,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
-        app: &AppContext,
     ) -> Vec<Box<dyn Element>> {
         let logo = Container::new(self.render_logo_row(appearance, ui_builder))
             .with_margin_bottom(AUTH_MODAL_GAP)
@@ -793,7 +756,7 @@ impl AuthViewBody {
 
         let header = Container::new(
             ui_builder
-                .paragraph(localization::text_for_app(app, "auth.browser.title"))
+                .paragraph("Sign in on your browser \nto continue")
                 .with_style(header_styles)
                 .build()
                 .finish(),
@@ -807,14 +770,14 @@ impl AuthViewBody {
                     Flex::row()
                         .with_child(
                             ui_builder
-                                .span(localization::text_for_app(app, "auth.browser.hint_prefix"))
+                                .span("If your browser hasn't launched, ")
                                 .build()
                                 .finish(),
                         )
                         .with_child(
                             ui_builder
                                 .link(
-                                    localization::text_for_app(app, "auth.browser.copy_url"),
+                                    "copy the URL".into(),
                                     None,
                                     Some(Box::new(|event_ctx| {
                                         event_ctx.dispatch_typed_action(
@@ -833,7 +796,7 @@ impl AuthViewBody {
                 )
                 .with_child(
                     ui_builder
-                        .span(localization::text_for_app(app, "auth.browser.hint_suffix"))
+                        .span("and open the page manually.")
                         .build()
                         .finish(),
                 )
@@ -847,7 +810,7 @@ impl AuthViewBody {
             if let Some(auth_token_input) = self.render_auth_token_input(appearance) {
                 auth_token_input
             } else {
-                self.render_auth_token_suggest(ui_builder, app)
+                self.render_auth_token_suggest(ui_builder)
             },
         )
         .with_margin_top(AUTH_MODAL_GAP)
@@ -1030,10 +993,10 @@ impl View for AuthViewBody {
         "AuthViewBody"
     }
 
-    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            localization::text_for_app(app, "auth.welcome"),
-            localization::text_for_app(app, "auth.a11y.description"),
+            "Welcome to Warp!",
+            "Press enter to open your browser to Sign Up or Sign In.",
             WarpA11yRole::HelpRole,
         ))
     }
@@ -1064,7 +1027,7 @@ impl View for AuthViewBody {
             AuthStep::SelectAuthPathway => {
                 self.render_select_auth_pathway_content(is_anonymous, appearance, &ui_builder, app)
             }
-            AuthStep::BrowserOpen => self.render_browser_open_content(appearance, &ui_builder, app),
+            AuthStep::BrowserOpen => self.render_browser_open_content(appearance, &ui_builder),
         });
 
         let content = content.finish();
@@ -1108,7 +1071,6 @@ impl View for AuthViewBody {
                         Dismiss::new(render_overlay(
                             render_offline_info_overlay_body(
                                 appearance,
-                                app,
                                 self.privacy_settings_handles.close_button_mouse.clone(),
                                 AuthViewBodyAction::HideOverlay,
                             ),

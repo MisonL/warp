@@ -6,6 +6,7 @@ use itertools::Itertools;
 use pathfinder_color::ColorU;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
+use warp_errors::report_error;
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
     resizable_state_handle, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container,
@@ -465,7 +466,7 @@ impl RightPanelView {
         {
             Some(handle) => handle,
             None => {
-                log::error!("Couldn't retrieve Right panel resizable state handle.");
+                report_error!("Couldn't retrieve Right panel resizable state handle.");
                 resizable_state_handle(600.0)
             }
         };
@@ -1390,7 +1391,7 @@ impl RightPanelView {
         };
 
         if let Err(err) = &result {
-            log::error!("Failed to submit review comments to terminal: {err}");
+            report_error!(err);
         }
 
         let submission_result = if result.is_ok() {

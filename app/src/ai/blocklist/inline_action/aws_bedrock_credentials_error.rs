@@ -1,5 +1,6 @@
 use settings::Setting as _;
 use warp_core::ui::Icon;
+use warp_errors::report_if_error;
 use warpui::elements::{
     ChildView, ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment,
     MainAxisSize, MouseStateHandle, ParentElement, Shrinkable, SizeConstraintCondition,
@@ -16,7 +17,7 @@ use crate::ai::blocklist::view_util::error_color;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
-use crate::{localization, report_if_error, Appearance};
+use crate::Appearance;
 
 #[derive(Clone, Debug)]
 pub enum AwsBedrockCredentialsErrorAction {
@@ -56,25 +57,21 @@ impl AwsBedrockCredentialsErrorView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         // Run button
-        let run_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(
-                localization::text_for_app(ctx, "agent.aws_bedrock_credentials.refresh"),
-                PrimaryTheme,
-            )
-            .with_size(ButtonSize::InlineActionHeader)
-            .on_click(|ctx| {
-                ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::RunLoginCommand)
-            })
+        let run_button = ctx.add_typed_action_view(|_ctx| {
+            ActionButton::new("Refresh AWS Credentials", PrimaryTheme)
+                .with_size(ButtonSize::InlineActionHeader)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::RunLoginCommand)
+                })
         });
 
         // Configure button
-        let configure_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new(
-                localization::text_for_app(ctx, "agent.aws_bedrock_credentials.configure"),
-                NakedTheme,
-            )
-            .with_size(ButtonSize::InlineActionHeader)
-            .on_click(|ctx| ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::Configure))
+        let configure_button = ctx.add_typed_action_view(|_ctx| {
+            ActionButton::new("Configure", NakedTheme)
+                .with_size(ButtonSize::InlineActionHeader)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(AwsBedrockCredentialsErrorAction::Configure)
+                })
         });
 
         // Subscribe to AISettings changes to update checkbox state
@@ -115,11 +112,7 @@ impl View for AwsBedrockCredentialsErrorView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
                     Text::new(
-                        crate::localization::text_for_app_with_args(
-                            app,
-                            "agent.aws_bedrock_credentials.running_command",
-                            &[("command", &self.login_command)],
-                        ),
+                        format!("Running `{}`...", self.login_command),
                         appearance.ui_font_family(),
                         14.,
                     )
@@ -146,7 +139,7 @@ impl View for AwsBedrockCredentialsErrorView {
 
         let make_alert_text = || {
             Text::new(
-                crate::localization::text_for_app(app, "agent.aws_bedrock_credentials.title"),
+                "AWS credentials expired or missing",
                 appearance.ui_font_family(),
                 14.,
             )
@@ -157,13 +150,10 @@ impl View for AwsBedrockCredentialsErrorView {
 
         let make_detail_text = || {
             Text::new(
-                crate::localization::text_for_app_with_args(
-                    app,
-                    "agent.aws_bedrock_credentials.description",
-                    &[
-                        ("model", &self.model_name),
-                        ("command", &self.login_command),
-                    ],
+                format!(
+                    "Failed to authenticate with AWS Bedrock when using {}. \
+                     Run `{}` to refresh credentials.",
+                    self.model_name, self.login_command
                 ),
                 appearance.ui_font_family(),
                 14.,
@@ -198,7 +188,7 @@ impl View for AwsBedrockCredentialsErrorView {
             .finish();
 
             let checkbox_label = Text::new(
-                crate::localization::text_for_app(app, "agent.aws_bedrock_credentials.auto_login"),
+                "Always run automatically",
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() - 1.,
             )

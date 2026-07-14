@@ -28,6 +28,7 @@ use session_sharing_protocol::viewer::{
     ViewerRemovedReason,
 };
 use warp_core::features::FeatureFlag;
+use warp_errors::report_error;
 use warp_server_client::iap::IapManager;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{
@@ -143,6 +144,9 @@ pub struct Network {
     /// The next event number to use when sending a write to pty request to the server.
     write_to_pty_event_no: WriteToPtySeqNo,
     pty_bytes_batch_status: PtyBytesBatchStatus,
+
+    /// Input updates buffered while disconnected, to be flushed on reconnect.
+    pending_input_updates: Vec<InputUpdate>,
 }
 
 impl Network {
@@ -184,6 +188,7 @@ impl Network {
             pty_bytes_batch_status: PtyBytesBatchStatus::NotBatching {
                 last_sent_at: Instant::now(),
             },
+            pending_input_updates: Vec::new(),
         };
 
         model.start_write_to_pty_events_listener(write_to_pty_events_rx, ctx);
@@ -245,6 +250,7 @@ impl Network {
             pty_bytes_batch_status: PtyBytesBatchStatus::NotBatching {
                 last_sent_at: Instant::now(),
             },
+            pending_input_updates: Vec::new(),
         };
 
         ctx.emit(NetworkEvent::JoinedSuccessfully {
@@ -318,7 +324,8 @@ impl Network {
                     network.process_websocket_message(message, ctx);
                 }
                 Err(e) => {
-                    log::error!("Got error from shared session viewer websocket: {e}");
+                    report_error!(anyhow::Error::new(e)
+                        .context("Got error from shared session viewer websocket"));
                 }
             },
             |network, ctx| {
@@ -351,7 +358,9 @@ impl Network {
             }
             log::info!("Closing websocket to session sharing server as viewer");
             if let Err(e) = sink.close().await {
-                log::error!("Failed to close session sharing websocket due to {e}");
+                report_error!(
+                    anyhow::Error::new(e).context("Failed to close session sharing websocket")
+                );
             }
         }, |_, _, _| {});
     }
@@ -392,20 +401,23 @@ impl Network {
                         },
                     });
                     if let Err(e) = network.ws_proxy_tx.try_send(initialize_message) {
-                        log::error!("Failed to send initialize message for viewer: {e}");
+                        report_error!(anyhow::Error::new(e)
+                            .context("Failed to send initialize message for viewer"));
                         return;
                     }
 
                     network.on_websocket_connected(ws_proxy_rx, sink, stream, ctx)
                 }
                 Err(e) => {
-                    log::error!(
-                        "viewer Network::start_websocket: WS connect FAILED for \
-                         session_id={session_id}: {e:#}; emitting FailedToJoin (no automatic retry)"
-                    );
                     IapManager::handle(ctx).update(ctx, |manager, ctx| {
                         manager.check_ws_connect_error(&e, ctx);
                     });
+                    report_error!(
+                        e.context(
+                            "viewer Network::start_websocket: WS connect failed; emitting FailedToJoin (no automatic retry)"
+                        ),
+                        extra: { "session_id" => %session_id }
+                    );
                     ctx.emit(NetworkEvent::FailedToJoin {
                         reason: FailedToJoinReason::FailedToConnectToServer,
                     });
@@ -429,7 +441,7 @@ impl Network {
         // not abort any in-progress reconnect handle.
         self.close();
         let Some(event_loop) = self.event_loop.clone() else {
-            log::error!("Cannot reconnect to server as viewer when event loop does not exist");
+            report_error!("Cannot reconnect to server as viewer when event loop does not exist");
             return;
         };
         let session_id = self.session_id;
@@ -474,7 +486,8 @@ impl Network {
                     let (ws_proxy_tx, ws_proxy_rx) = async_channel::unbounded();
                     network.ws_proxy_tx = ws_proxy_tx;
                     if let Err(e) = network.ws_proxy_tx.try_send(initialize_message) {
-                        log::error!("Failed to send initialize message for viewer when reconnecting: {e}");
+                        report_error!(anyhow::Error::new(e)
+                            .context("Failed to send initialize message for viewer when reconnecting"));
                         return;
                     }
 
@@ -595,6 +608,7 @@ impl Network {
                 }
                 log::info!("Successfully reconnected to shared session as viewer.");
                 self.stage = Stage::JoinedSuccessfully;
+                self.flush_pending_input_updates_to_server();
                 // Events where we only care about the latest value were dropped before we reconnected.
                 self.send_latest_state_to_server();
                 ctx.emit(NetworkEvent::ReconnectedSuccessfully);
@@ -608,7 +622,7 @@ impl Network {
                         event_loop.process_ordered_terminal_event(event, ctx);
                     })
                 } else {
-                    log::error!(
+                    report_error!(
                         "Received OrderedTerminalEvent before event_loop was initialized. This can mean events were dropped."
                     );
                 }
@@ -842,6 +856,8 @@ impl Network {
         // with are monotonically increasing.
         if block_id != &self.next_buffer_seq_no.0 {
             self.next_buffer_seq_no = (block_id.to_owned(), InputOperationSeqNo::zero());
+            // Clear buffered ops for the old block since they're now stale.
+            self.pending_input_updates.clear();
         }
 
         let operations = operations
@@ -863,7 +879,20 @@ impl Network {
         };
         self.next_buffer_seq_no.1.advance();
 
-        self.send_message_to_server(UpstreamMessage::UpdateInput(InputUpdate { id, ops }));
+        let update = InputUpdate { id, ops };
+        if matches!(self.stage, Stage::JoinedSuccessfully) {
+            if let Err(e) = self
+                .ws_proxy_tx
+                .try_send(UpstreamMessage::UpdateInput(update))
+            {
+                log::warn!(
+                    "Failed to send input update over ws_proxy channel in viewer network: {e}"
+                );
+            }
+        } else {
+            // Not connected; buffer the update to be flushed on reconnect.
+            self.pending_input_updates.push(update);
+        }
     }
 
     pub fn send_write_to_pty(&mut self) {
@@ -962,6 +991,21 @@ impl Network {
 
     pub fn send_report_terminal_size(&mut self, window_size: WindowSize) {
         self.send_message_to_server(UpstreamMessage::ReportTerminalSize { window_size });
+    }
+
+    /// Sends all input updates buffered during disconnection to the server, then clears the buffer.
+    fn flush_pending_input_updates_to_server(&mut self) {
+        for update in self.pending_input_updates.drain(..) {
+            if let Err(e) = self
+                .ws_proxy_tx
+                .try_send(UpstreamMessage::UpdateInput(update))
+            {
+                log::warn!(
+                    "Failed to send pending input update over ws_proxy channel in viewer network: {e}"
+                );
+                return;
+            }
+        }
     }
 
     /// Send everything in `self.cached_latest_state` to the server.

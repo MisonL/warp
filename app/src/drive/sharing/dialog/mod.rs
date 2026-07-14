@@ -9,6 +9,7 @@ use session_sharing_protocol::common::{Guest, PendingGuest, SessionId, TeamAclDa
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill as ThemeFill;
 use warp_editor::editor::NavigationKey;
+use warp_errors::report_error;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
@@ -1117,7 +1118,7 @@ impl SharingDialog {
         };
 
         let Some(handle) = handle.upgrade(ctx) else {
-            log::error!(
+            report_error!(
                 "Unable to upgrade handle to TerminalView when removing guest from session"
             );
             return;
@@ -1222,7 +1223,7 @@ impl SharingDialog {
         };
 
         let Some(handle) = handle.upgrade(ctx) else {
-            log::error!(
+            report_error!(
                 "Unable to upgrade handle to TerminalView when setting guest ACL for session"
             );
             return;
@@ -1657,7 +1658,7 @@ impl SharingDialog {
             }
             Some(ShareableObject::Session { handle, .. }) => {
                 let Some(handle) = handle.upgrade(ctx) else {
-                    log::error!("Unable to upgrade handle to TerminalView when sending email invitations for session");
+                    report_error!("Unable to upgrade handle to TerminalView when sending email invitations for session");
                     return;
                 };
 

@@ -33,6 +33,7 @@ pub mod json_filter;
 pub mod local_control;
 mod localization;
 pub mod mcp;
+pub mod memory_store;
 pub mod model;
 pub mod provider;
 pub mod schedule;
@@ -66,6 +67,17 @@ pub struct ParentOpts {
     #[cfg(windows)]
     #[arg(long = "parent-handle", hide = true)]
     pub handle: Option<process_handle::ProcessHandle>,
+}
+
+/// Returns whether an argument requests one of Warp's hidden worker modes.
+pub fn is_worker_invocation(arg: &str) -> bool {
+    let command = WorkerCommand::augment_subcommands(clap::Command::new("worker"));
+    command.find_subcommand(arg).is_some()
+        || arg.strip_prefix("--").is_some_and(|long_flag| {
+            command
+                .get_subcommands()
+                .any(|subcommand| subcommand.get_long_flag() == Some(long_flag))
+        })
 }
 
 /// Hidden worker args used to scope remote-server proxy/daemon sockets by
@@ -310,6 +322,20 @@ impl Args {
             });
         }
 
+        // Hide the third-party harness flags on `run-cloud` when the harness
+        // feature is off, so `--help` matches the runtime gating (a non-oz
+        // `--harness` is rejected unless AgentHarness is enabled).
+        if !FeatureFlag::AgentHarness.is_enabled() {
+            command = command.mut_subcommand("agent", |agent_cmd| {
+                agent_cmd.mut_subcommand("run-cloud", |cloud_cmd| {
+                    cloud_cmd
+                        .mut_arg("harness", |arg| arg.hide(true))
+                        .mut_arg("claude_auth_secret", |arg| arg.hide(true))
+                        .mut_arg("codex_auth_secret", |arg| arg.hide(true))
+                })
+            });
+        }
+
         // Hide the provider subcommand from help text
         if !FeatureFlag::ProviderCommand.is_enabled() {
             command = command.mut_subcommand("provider", |c| c.hide(true));
@@ -515,6 +541,12 @@ pub enum CliCommand {
     /// Manage available models.
     #[command(subcommand)]
     Model(crate::model::ModelCommand),
+    /// Manage memory stores.
+    #[command(subcommand, alias = "memory-stores")]
+    MemoryStore(crate::memory_store::MemoryStoreCommand),
+    /// Manage memories.
+    #[command(subcommand)]
+    Memory(crate::memory_store::MemoryCommand),
 
     /// Log in to Warp.
     Login,
@@ -577,6 +609,8 @@ impl CliCommand {
             CliCommand::HarnessSupport(args) => args.command.as_str_for_tracing(),
             CliCommand::Artifact(command) => command.as_str_for_tracing(),
             CliCommand::ApiKey(command) => command.as_str_for_tracing(),
+            CliCommand::MemoryStore(command) => command.as_str_for_tracing(),
+            CliCommand::Memory(command) => command.as_str_for_tracing(),
         }
     }
 }

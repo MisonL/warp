@@ -59,7 +59,6 @@ pub mod text {
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::InitProjectRules { .. }
             | AIAgentInput::CodeReview { .. }
-            | AIAgentInput::FetchReviewComments { .. }
             | AIAgentInput::CreateEnvironment { .. }
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::InvokeSkill { .. }
@@ -483,6 +482,8 @@ pub mod text {
                 },
                 // TODO(AGENT-2281): implement
                 AIAgentActionResultType::RequestComputerUse(_result) => Ok(()),
+                AIAgentActionResultType::StartRecording(_)
+                | AIAgentActionResultType::StopRecording(_) => Ok(()),
                 AIAgentActionResultType::FetchConversation(result) => match result {
                     FetchConversationResult::Success { directory_path } => {
                         writeln!(
@@ -739,6 +740,12 @@ pub mod text {
                                 &[("task_summary", &request.task_summary)],
                             )
                         )?;
+                    }
+                    AIAgentActionType::StartRecording { .. } => {
+                        writeln!(w, "Starting recording")?;
+                    }
+                    AIAgentActionType::StopRecording { recording_id } => {
+                        writeln!(w, "Stopping recording {recording_id}")?;
                     }
                     AIAgentActionType::ReadSkill(request) => {
                         let skill = request.skill.to_string();
@@ -1327,7 +1334,6 @@ pub mod json {
                 | AIAgentInput::CloneRepository { .. }
                 | AIAgentInput::InitProjectRules { .. }
                 | AIAgentInput::CodeReview { .. }
-                | AIAgentInput::FetchReviewComments { .. }
                 | AIAgentInput::CreateEnvironment { .. }
                 | AIAgentInput::SummarizeConversation { .. }
                 | AIAgentInput::InvokeSkill { .. }
@@ -1635,7 +1641,9 @@ pub mod json {
                     // TODO(AGENT-2281): implement
                     AIAgentActionType::RequestComputerUse(_) => None,
                     // Internal or non-CLI tool calls: skip them
-                    AIAgentActionType::SuggestNewConversation { .. }
+                    AIAgentActionType::StartRecording { .. }
+                    | AIAgentActionType::StopRecording { .. }
+                    | AIAgentActionType::SuggestNewConversation { .. }
                     | AIAgentActionType::SuggestPrompt { .. }
                     | AIAgentActionType::InitProject
                     | AIAgentActionType::OpenCodeReview

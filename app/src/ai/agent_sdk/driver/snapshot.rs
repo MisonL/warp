@@ -37,8 +37,7 @@ use futures::future::join_all;
 use tokio::fs::{self as tokio_fs, OpenOptions};
 use tokio::io::AsyncWriteExt as _;
 use tokio::sync::{mpsc, oneshot};
-use warp_core::report_error;
-use warp_localization::{replace_placeholders, LocaleId};
+use warp_errors::report_error;
 use warpui::r#async::executor::Background;
 use warpui::r#async::FutureExt as _;
 
@@ -86,15 +85,6 @@ const UPLOAD_BATCH_SIZE: usize = 25;
 /// here. Blobs beyond the cap are dropped from upload and marked `skipped` in the manifest so
 /// consumers can distinguish capped entries from real upload failures.
 const MAX_SNAPSHOT_FILES_PER_RUN: usize = 100;
-
-fn default_text(key: &str) -> String {
-    crate::localization::text_for_locale(LocaleId::EnUs, key)
-}
-
-fn default_text_with_args(key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&default_text(key), args)
-        .expect("localized text template arguments must match the catalog")
-}
 
 // --- Declarations file parsing ---
 
@@ -155,9 +145,9 @@ pub(super) async fn run_declarations_script(
     };
     let script_path = PathBuf::from(script_path);
     if !script_path.exists() {
-        log::error!(
-            "Snapshot declarations script not found at '{}'; skipping (task {task_id})",
-            script_path.display()
+        report_error!(
+            "Snapshot declarations script not found; skipping",
+            extra: { "script_path" => %script_path.display(), "task_id" => %task_id }
         );
         return;
     }
@@ -183,17 +173,20 @@ pub(super) async fn run_declarations_script(
     let output = match command.output().with_timeout(script_timeout).await {
         Ok(Ok(output)) => output,
         Ok(Err(e)) => {
-            log::error!(
-                "Failed to spawn snapshot declarations script '{}': {e:#} (task {task_id})",
-                script_path.display()
+            report_error!(
+                anyhow::Error::new(e).context("Failed to spawn snapshot declarations script"),
+                extra: { "script_path" => %script_path.display(), "task_id" => %task_id }
             );
             return;
         }
         Err(_) => {
-            log::error!(
-                "Snapshot declarations script '{}' timed out after {:?} (task {task_id})",
-                script_path.display(),
-                script_timeout
+            report_error!(
+                "Snapshot declarations script timed out",
+                extra: {
+                    "script_path" => %script_path.display(),
+                    "timeout" => ?script_timeout,
+                    "task_id" => %task_id
+                }
             );
             return;
         }
@@ -201,10 +194,14 @@ pub(super) async fn run_declarations_script(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        log::error!(
-            "Snapshot declarations script '{}' exited with {}: {stderr} (task {task_id})",
-            script_path.display(),
-            output.status
+        log::error!("Snapshot declarations script stderr: {stderr}");
+        report_error!(
+            "Snapshot declarations script exited with non-zero status",
+            extra: {
+                "script_path" => %script_path.display(),
+                "status" => %output.status,
+                "task_id" => %task_id
+            }
         );
     }
 }
@@ -861,11 +858,10 @@ pub(crate) async fn upload_snapshot_for_handoff(
         // Without the manifest the cloud agent has no catalogue to rehydrate from, even
         // when individual blobs landed. Alert on-call and refuse the token so we don't
         // silently spawn a cloud agent with no recoverable state.
-        report_error!(anyhow::anyhow!(
-            "Handoff snapshot manifest failed to upload (blobs: {}/{}); cloud agent will start with no rehydration content",
-            summary.uploaded,
-            summary.total,
-        ));
+        report_error!(
+            "Handoff snapshot manifest failed to upload; cloud agent will start with no rehydration content",
+            extra: { "uploaded" => %summary.uploaded, "total" => %summary.total }
+        );
         return Ok(None);
     }
 
@@ -1081,9 +1077,7 @@ async fn upload_prepared_snapshot_files(
         }
         None => (
             false,
-            Some(default_text(
-                "agent_sdk.driver.snapshot.error.no_upload_target",
-            )),
+            Some(String::from("no upload target returned by server")),
         ),
     };
 
@@ -1210,10 +1204,7 @@ async fn gather_file(
             });
         }
         Err(e) => {
-            let err_str = default_text_with_args(
-                "agent_sdk.driver.snapshot.error.read_file",
-                &[("path", file_path), ("error", &format!("{e:#}"))],
-            );
+            let err_str = format!("Failed to read file '{file_path}': {e:#}");
             log::warn!("{err_str}");
             files.push(FileManifestEntry {
                 path: file_path.to_string(),
@@ -1244,9 +1235,7 @@ async fn upload_entry(
         return EntryResult {
             label: file.filename.clone(),
             status: EntryStatus::Skipped,
-            error: Some(default_text(
-                "agent_sdk.driver.snapshot.error.no_upload_target",
-            )),
+            error: Some("no upload target returned by server".to_string()),
         };
     };
 
@@ -1298,10 +1287,9 @@ fn fold_upload_results(
                     repo_entry.error = entry.error.clone();
                 }
                 EntryStatus::GatherFailed | EntryStatus::ReadFailed => {
-                    log::error!(
-                        "fold_upload_results: unexpected pre-upload status {:?} for repo patch '{}'",
-                        entry.status,
-                        entry.label
+                    report_error!(
+                        "fold_upload_results: unexpected pre-upload status for repo patch",
+                        extra: { "status" => ?entry.status, "label" => %entry.label }
                     );
                 }
             }
@@ -1325,10 +1313,9 @@ fn fold_upload_results(
                     file_entry.error = entry.error.clone();
                 }
                 EntryStatus::GatherFailed | EntryStatus::ReadFailed => {
-                    log::error!(
-                        "fold_upload_results: unexpected pre-upload status {:?} for file '{}'",
-                        entry.status,
-                        entry.label
+                    report_error!(
+                        "fold_upload_results: unexpected pre-upload status for file",
+                        extra: { "status" => ?entry.status, "label" => %entry.label }
                     );
                 }
             }

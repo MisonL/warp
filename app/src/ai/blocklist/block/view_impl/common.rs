@@ -96,17 +96,49 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState};
-use crate::util::time_format::localized_month_day;
+use crate::util::time_format::format_elapsed_seconds;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::CustomerType;
 
 pub const STATUS_ICON_SIZE_DELTA: f32 = 4.;
 pub const STATUS_FOOTER_VERTICAL_PADDING: f32 = 4.;
+pub const WAITING_FOR_USER_INPUT_MESSAGE: &str = "Agent waiting for instructions...";
 const IMAGE_SOURCE_LINK_LINE_INDEX: usize = 1;
+
+const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
+const INTERNAL_WARP_ERROR: &str = "Internal Warp error.";
+
+pub const LOAD_OUTPUT_MESSAGE: &str = "Warping...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING: &str = "Adjusting tasks...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN: &str = "Generating fix...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF: &str = "Creating diff...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION: &str = "Preparing question...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN: &str = "Generating plan...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN: &str = "Updating plan...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_CONVERSATION: &str = "Summarizing conversation...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_TOOL_CALL_RESULT: &str =
+    "Summarizing command output...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE: &str = "Searching codebase...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_READING_FILES: &str = "Reading files...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_GREP: &str = "Grepping...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB: &str = "Finding files...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_RUNNING_COMMAND: &str = "Executing command...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_WRITING_TO_COMMAND: &str = "Writing command input...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_WAITING_FOR_COMMAND_COMPLETION: &str =
+    "Waiting for command to exit...";
+pub const LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH: &str = "Searching the web...";
 
 #[cfg(feature = "local_fs")]
 pub(crate) type ResolvedBlocklistImageSources = HashMap<String, Option<AssetSource>>;
+
+pub const BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND: &str =
+    "Can I write the following to this running command?";
+pub const BLOCKED_ACTION_MESSAGE_FOR_READING_FILES: &str = "Grant access to the following files?";
+pub const BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE: &str =
+    "Grant access to the following repository?";
+pub const BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB: &str =
+    "OK if I search the files in this directory?";
 
 const BLOCKLIST_VISUAL_SECTION_HEIGHT_LINE_MULTIPLIER: f32 = 10.0;
 const BLOCKLIST_MERMAID_MAX_HEIGHT_LINE_MULTIPLIER: f32 = 40.0;
@@ -121,10 +153,6 @@ const VISUAL_CARD_CORNER_RADIUS: f32 = 8.;
 const VISUAL_CARD_HEADER_VERTICAL_PADDING: f32 = 8.;
 const VISUAL_CARD_HEADER_HORIZONTAL_PADDING: f32 = 16.;
 const MERMAID_CANVAS_PADDING: f32 = 32.;
-
-fn warping_status_text(app: &AppContext, key: &str) -> String {
-    crate::localization::text_for_app(app, key)
-}
 
 pub struct WarpingProps<'a, V> {
     pub model: &'a dyn AIBlockModel<View = V>,
@@ -230,12 +258,6 @@ pub fn render_warping_indicator<V: View>(
         })
     });
 
-    let is_fetching_review_comments = props
-        .model
-        .inputs_to_render(app)
-        .iter()
-        .any(|input| matches!(input, AIAgentInput::FetchReviewComments { .. }));
-
     let summarization_type: Option<SummarizationType> =
         if FeatureFlag::SummarizationCancellationConfirmation.is_enabled() {
             output_to_render.as_ref().and_then(|output| {
@@ -263,10 +285,10 @@ pub fn render_warping_indicator<V: View>(
         // Choose the appropriate message based on summarization type
         let base_message = match summarization_type {
             SummarizationType::ConversationSummary => {
-                warping_status_text(app, "agent.warping.status.summarizing_conversation")
+                LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_CONVERSATION
             }
             SummarizationType::ToolCallResultSummary => {
-                warping_status_text(app, "agent.warping.status.summarizing_command_output")
+                LOAD_OUTPUT_MESSAGE_FOR_SUMMARIZING_TOOL_CALL_RESULT
             }
         };
 
@@ -282,31 +304,29 @@ pub fn render_warping_indicator<V: View>(
             // Move the timer / token text outside of the base message, we don't want it to shimmer
             // since that would cause the animation to reset every time the tokens or time changes.
             non_shimmering_text = Some(timer_text.to_string());
-            base_message
+            base_message.into()
         } else {
-            base_message
+            base_message.to_string()
         }
     } else if props.model.contains_update_document_action(app) {
-        warping_status_text(app, "agent.warping.status.updating_plan")
+        LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN.to_string()
     } else if props.model.contains_create_document_action(app) {
-        warping_status_text(app, "agent.warping.status.generating_plan")
+        LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN.to_string()
     } else if props.model.request_type(app).is_passive_code_diff() {
-        warping_status_text(app, "agent.warping.status.generating_fix")
+        LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN.to_string()
     } else if is_last_message_requesting_file_edits {
-        warping_status_text(app, "agent.warping.status.creating_diff")
+        LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF.to_string()
     } else if is_last_message_asking_user_question {
-        warping_status_text(app, "agent.warping.status.preparing_question")
+        LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION.to_string()
     } else if is_searching_web {
-        warping_status_text(app, "agent.warping.status.searching_web")
-    } else if is_fetching_review_comments {
-        warping_status_text(app, "agent.warping.status.fetching_pr_comments")
+        LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH.to_string()
     } else if is_interrupt_query_for_same_conversation
         && output_to_render
             .as_ref()
             .is_none_or(|output| output.get().messages.is_empty())
     {
         // Only "Adjusting..." if nothing from the current exchange has streamed yet.
-        warping_status_text(app, "agent.warping.status.adjusting_tasks")
+        LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING.to_string()
     } else {
         match props
             .action_model
@@ -314,31 +334,21 @@ pub fn render_warping_indicator<V: View>(
             .map(|action| &action.action)
         {
             Some(AIAgentActionType::SearchCodebase(..)) => {
-                warping_status_text(app, "agent.warping.status.searching_codebase")
+                LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE.to_owned()
             }
-            Some(AIAgentActionType::Grep { .. }) => {
-                warping_status_text(app, "agent.warping.status.grepping")
-            }
+            Some(AIAgentActionType::Grep { .. }) => LOAD_OUTPUT_MESSAGE_FOR_GREP.to_owned(),
             Some(AIAgentActionType::CallMCPTool { name, .. }) => {
-                crate::localization::text_for_app_with_args(
-                    app,
-                    "agent.warping.calling_mcp_tool",
-                    &[("name", name)],
-                )
+                format!("Calling \"{name}\" MCP tool...")
             }
             Some(AIAgentActionType::ReadMCPResource { name, .. }) => {
-                crate::localization::text_for_app_with_args(
-                    app,
-                    "agent.warping.reading_mcp_resource",
-                    &[("name", name)],
-                )
+                format!("Reading \"{name}\" MCP resource...")
             }
             Some(AIAgentActionType::FileGlob { .. })
             | Some(AIAgentActionType::FileGlobV2 { .. }) => {
-                warping_status_text(app, "agent.warping.status.finding_files")
+                LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB.to_owned()
             }
             Some(AIAgentActionType::WriteToLongRunningShellCommand { .. }) => {
-                warping_status_text(app, "agent.warping.status.writing_command_input")
+                LOAD_OUTPUT_MESSAGE_FOR_WRITING_TO_COMMAND.to_owned()
             }
             action => {
                 let active_block = props.terminal_model.block_list().active_block();
@@ -348,7 +358,7 @@ pub fn render_warping_indicator<V: View>(
                 {
                     if action.is_none() {
                         should_render_waiting_icon = true;
-                        warping_status_text(app, "agent.warping.status.waiting_for_user_input")
+                        WAITING_FOR_USER_INPUT_MESSAGE.to_owned()
                     } else {
                         // Choose the base message depending on whether the agent is waiting
                         // for the command to exit or polling at a fixed interval.
@@ -356,11 +366,8 @@ pub fn render_warping_indicator<V: View>(
                             Some(AIAgentActionType::ReadShellCommandOutput {
                                 delay: Some(ShellCommandDelay::OnCompletion),
                                 ..
-                            }) => warping_status_text(
-                                app,
-                                "agent.warping.status.waiting_for_command_exit",
-                            ),
-                            _ => warping_status_text(app, "agent.warping.status.executing_command"),
+                            }) => LOAD_OUTPUT_MESSAGE_FOR_WAITING_FOR_COMMAND_COMPLETION,
+                            _ => LOAD_OUTPUT_MESSAGE_FOR_RUNNING_COMMAND,
                         };
                         // Compute "Next check in {time}" for fixed-interval polls. Only
                         // `ReadShellCommandOutput { delay: Duration(_) }` has a meaningful
@@ -387,20 +394,16 @@ pub fn render_warping_indicator<V: View>(
                             } else {
                                 format!("{}m", secs / 60)
                             };
-                            let suffix = crate::localization::text_for_app_with_args(
-                                app,
-                                "agent.warping.next_check_in",
-                                &[("time", &formatted)],
-                            );
+                            let suffix = format!(" · Next check in {formatted}");
 
                             // Keep the base message constant so the shimmering animation
                             // isn't interrupted every time the countdown ticks. The
                             // suffix is rendered as a separate non-shimmering element,
                             // matching the same pattern used by the summarization timer.
                             non_shimmering_text = Some(suffix);
-                            base
+                            base.to_owned()
                         } else {
-                            base
+                            base.to_owned()
                         }
                     }
                 } else {
@@ -427,8 +430,8 @@ pub fn render_warping_indicator<V: View>(
     if let Some(take_over_button_props) = props.take_over_lrc_control_button {
         has_buttons = true;
         buttons_row.add_child(render_switch_control_to_user_button(
-            crate::localization::text_for_app(app, "agent.warping.take_over"),
-            crate::localization::text_for_app(app, "agent.warping.take_over_tooltip"),
+            "Take over",
+            "Take over control of the command",
             take_over_button_props,
             appearance,
         ));
@@ -472,7 +475,6 @@ pub fn render_warping_indicator<V: View>(
     let non_shimmering_suffix = match (&non_shimmering_text, props.force_refresh_button) {
         (Some(_), Some(force_refresh_button_props)) => Some(render_force_refresh_inline(
             force_refresh_button_props,
-            app,
             appearance,
         )),
         _ => None,
@@ -516,6 +518,23 @@ pub struct WarpingIndicatorProps {
     pub secondary_element: Option<Box<dyn Element>>,
 }
 
+/// Computes the fixed height of the warping-indicator footer.
+///
+/// The warping text occupies a single line. When a secondary element (an agent
+/// tip or fallback-model explanation) is present, it renders on a second line
+/// below the warping text, so the footer must reserve room for that extra line;
+/// otherwise the `Clipped` wrapper — which keeps action chips from overflowing
+/// narrow panes — also clips the secondary line. The extra line accounts for the
+/// secondary element's font size (`monospace_font_size - 3`, see
+/// `render_agent_tip` / `render_fallback_explanation`) plus its 1px top margin.
+fn warping_footer_height(monospace_font_size: f32, has_secondary_element: bool) -> f32 {
+    let mut height = STATUS_FOOTER_VERTICAL_PADDING * 2. + monospace_font_size;
+    if has_secondary_element {
+        height += (monospace_font_size - 3.) + 1.;
+    }
+    height
+}
+
 /// Helper function to render text in the "warping..." footer.
 /// Additional text that does not use the shimmering text animation can be passed in via
 /// `non_shimmering_text` which is useful if you want some part of the text to constantly update
@@ -533,6 +552,10 @@ pub fn render_warping_indicator_base(
         is_passive_code_diff,
         secondary_element,
     } = props;
+    // Whether a secondary element (an agent tip or fallback-model explanation)
+    // will be rendered on a second line below the warping text. Captured before
+    // `secondary_element` is consumed so the container can reserve room for it.
+    let has_secondary_element = secondary_element.is_some();
     // Unicode code point for the Warp glyph that is embedded in the version of Roboto we bundle
     // into the app. This code point MUST be rendered using Roboto (the default ui font) or else the
     // glyph may not be rendered.
@@ -636,7 +659,10 @@ pub fn render_warping_indicator_base(
     } else {
         let mut container = Container::new(
             ConstrainedBox::new(content)
-                .with_height(STATUS_FOOTER_VERTICAL_PADDING * 2. + appearance.monospace_font_size())
+                .with_height(warping_footer_height(
+                    appearance.monospace_font_size(),
+                    has_secondary_element,
+                ))
                 .finish(),
         )
         .with_padding_right(CONTENT_HORIZONTAL_PADDING);
@@ -649,16 +675,6 @@ pub fn render_warping_indicator_base(
         }
 
         container.finish()
-    }
-}
-
-/// Formats elapsed time as a human-readable string with proper singular/plural.
-pub fn format_elapsed_seconds(elapsed: std::time::Duration) -> String {
-    let total_seconds = elapsed.as_secs();
-    if total_seconds == 1 {
-        "1 second".to_string()
-    } else {
-        format!("{total_seconds} seconds")
     }
 }
 
@@ -775,8 +791,8 @@ fn render_hide_responses_button(
 }
 
 pub fn render_switch_control_to_user_button(
-    text: String,
-    tooltip: String,
+    text: &'static str,
+    tooltip: &'static str,
     props: ButtonProps,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
@@ -797,7 +813,7 @@ pub fn render_switch_control_to_user_button(
         appearance,
         text,
         props.keystroke,
-        tooltip,
+        tooltip.to_string(),
         props.is_active,
         false,
         |ctx| {
@@ -930,7 +946,6 @@ fn get_icon_size(appearance: &Appearance) -> f32 {
 /// agent's pending poll timer for the given block and delivers a fresh snapshot.
 fn render_force_refresh_inline(
     props: ForceRefreshButtonProps<'_>,
-    app: &AppContext,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -952,17 +967,13 @@ fn render_force_refresh_inline(
         // Mirror `render_output_status_text` exactly: same `Text` configuration plus
         // the `Container::with_margin_top(1.)` wrapper so this sits on the same
         // baseline as the adjacent `Last seen by agent ...` text.
-        let text = Text::new(
-            warping_status_text(app, "agent.warping.check_now_inline"),
-            font_family,
-            font_size,
-        )
-        .with_color(color)
-        .with_style(Properties::default())
-        .with_clip(ClipConfig::end())
-        .with_selectable(false)
-        .soft_wrap(false)
-        .finish();
+        let text = Text::new(" · Check now".to_string(), font_family, font_size)
+            .with_color(color)
+            .with_style(Properties::default())
+            .with_clip(ClipConfig::end())
+            .with_selectable(false)
+            .soft_wrap(false)
+            .finish();
         let text_with_margin = Container::new(text).with_margin_top(1.).finish();
 
         // Tooltip overlay, positioned above the element on hover. Same pattern as
@@ -970,10 +981,7 @@ fn render_force_refresh_inline(
         let mut stack = Stack::new().with_child(text_with_margin);
         if state.is_hovered() {
             let tool_tip = ui_builder
-                .tool_tip(crate::localization::text_for_app(
-                    app,
-                    "agent.command_review.tooltip.check_now",
-                ))
+                .tool_tip("Ask the agent to check this command now, skipping its timer.".to_owned())
                 .build()
                 .finish();
             stack.add_positioned_overlay_child(
@@ -2174,7 +2182,7 @@ fn render_mermaid_diagram_section<A: Action>(
         .finish();
 
     render_visual_card(
-        warping_status_text(app, "agent.output.mermaid_diagram"),
+        "Mermaid diagram".to_string(),
         Icon::Dataflow,
         Container::new(mermaid_canvas)
             .with_background(theme.background())
@@ -3026,6 +3034,7 @@ pub(crate) fn resolve_absolute_file_path(
 pub struct FailedOutputProps<'a> {
     pub error: &'a RenderableAIError,
     pub invalid_api_key_button_handle: &'a MouseStateHandle,
+    pub subscribe_button_handle: &'a MouseStateHandle,
     pub aws_bedrock_credentials_error_view: Option<&'a ViewHandle<AwsBedrockCredentialsErrorView>>,
     pub is_ai_input_enabled: bool,
     pub icon_right_margin: f32,
@@ -3048,37 +3057,42 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
         RenderableAIError::QuotaLimit {
             user_display_message,
         } => {
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
             if let Some(message) = user_display_message {
-                format!("{apology}\n\n{message}")
+                if should_show_subscribe_cta(app) {
+                    return render_out_of_credits_error(
+                        message,
+                        props.subscribe_button_handle,
+                        props.is_ai_input_enabled,
+                        props.icon_right_margin,
+                        app,
+                    );
+                }
+                format!("{ERROR_APOLOGY_TEXT}\n\n{message}")
             } else {
                 let ai_request_usage_model = AIRequestUsageModel::as_ref(app);
-                let formatted_next_refresh_time =
-                    localized_month_day(app, ai_request_usage_model.next_refresh_time_local());
+                let formatted_next_refresh_time = ai_request_usage_model
+                    .next_refresh_time()
+                    .format("%B %d")
+                    .to_string();
 
-                crate::localization::text_for_app_with_args(
-                    app,
-                    "agent.error.quota_limit_resets",
-                    &[
-                        ("apology", &apology),
-                        ("date", &formatted_next_refresh_time),
-                    ],
+                format!(
+                    "{ERROR_APOLOGY_TEXT}\n\nYou've reached your credit limit. Your credit limit resets on {formatted_next_refresh_time}.",
                 )
             }
         }
         RenderableAIError::ServerOverloaded => {
-            crate::localization::text_for_app(app, "agent.error.server_overloaded")
+            "Warp is currently overloaded. Please try again later.".to_string()
         }
         RenderableAIError::InternalWarpError => {
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            let internal = crate::localization::text_for_app(app, "agent.error.internal_warp");
-            format!("{apology}\n\n{internal}")
+            format!("{ERROR_APOLOGY_TEXT}\n\n{INTERNAL_WARP_ERROR}")
         }
         RenderableAIError::Other { error_message, .. } => {
             // A still-recovering `Other` error is handled by the early return above; once we
             // reach here recovery has failed, so surface the error directly.
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            format!("{apology}\n\n{error_message}")
+            format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}")
+        }
+        RenderableAIError::AgentExitedShell => {
+            format!("{ERROR_APOLOGY_TEXT}\n\n{}", props.error)
         }
         RenderableAIError::TransientNetworkError { .. } => {
             // Recovering transient errors are handled by the early return above; once we
@@ -3110,11 +3124,9 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
                 return ChildView::new(view).finish();
             }
             // Fallback for contexts that don't have the stateful view (e.g. CLI subagent)
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            crate::localization::text_for_app_with_args(
-                app,
-                "agent.aws_bedrock_credentials.fallback",
-                &[("apology", &apology), ("model", model_name)],
+            format!(
+                "{ERROR_APOLOGY_TEXT}\n\nAWS credentials expired or missing for {model_name}. \
+                 Please refresh your AWS credentials."
             )
         }
     };
@@ -3163,6 +3175,120 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
         .finish()
 }
 
+/// Whether to show the out-of-credits CTAs: only for non-paid users. Paid users and the
+/// enterprise spend-limit variant of this message fall back to plain text.
+fn should_show_subscribe_cta(app: &AppContext) -> bool {
+    UserWorkspaces::as_ref(app)
+        .current_workspace()
+        .is_none_or(|workspace| !workspace.billing_metadata.is_user_on_paid_plan())
+}
+
+/// Builds an out-of-credits CTA button, styled like the invalid-API-key error's button.
+fn out_of_credits_cta_button(
+    label: &str,
+    state_handle: &MouseStateHandle,
+    app: &AppContext,
+) -> Button {
+    let appearance = Appearance::as_ref(app);
+    let theme = appearance.theme();
+
+    appearance
+        .ui_builder()
+        .button(
+            warpui::ui_components::button::ButtonVariant::Outlined,
+            state_handle.clone(),
+        )
+        .with_style(UiComponentStyles {
+            font_size: Some(14.),
+            border_color: Some(internal_colors::neutral_4(theme).into()),
+            ..Default::default()
+        })
+        .with_hovered_styles(UiComponentStyles {
+            background: Some(internal_colors::fg_overlay_2(theme).into()),
+            ..Default::default()
+        })
+        .with_clicked_styles(UiComponentStyles {
+            background: Some(internal_colors::fg_overlay_3(theme).into()),
+            ..Default::default()
+        })
+        .with_text_label(label.to_string())
+        .with_cursor(Some(Cursor::PointingHand))
+}
+
+/// Renders the out-of-credits failure: alert icon + message with a Subscribe CTA below.
+fn render_out_of_credits_error(
+    message: &str,
+    subscribe_button_handle: &MouseStateHandle,
+    is_ai_input_enabled: bool,
+    icon_right_margin: f32,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+
+    let icon = Container::new(
+        ConstrainedBox::new(
+            warpui::elements::Icon::new(
+                Icon::AlertTriangle.into(),
+                error_color(appearance.theme()),
+            )
+            .finish(),
+        )
+        .with_width(icon_size(app))
+        .with_height(icon_size(app))
+        .finish(),
+    )
+    .with_margin_right(icon_right_margin)
+    .finish();
+
+    let text = Text::new(
+        format!("{ERROR_APOLOGY_TEXT}\n\n{message}"),
+        appearance.monospace_font_family(),
+        appearance.monospace_font_size(),
+    )
+    .with_color(blended_colors::text_sub(
+        appearance.theme(),
+        appearance.theme().surface_1(),
+    ))
+    .with_selection_color(if is_ai_input_enabled {
+        appearance
+            .theme()
+            .text_selection_as_context_color()
+            .into_solid()
+    } else {
+        appearance.theme().text_selection_color().into_solid()
+    })
+    .finish();
+
+    let subscribe_button = out_of_credits_cta_button("Subscribe", subscribe_button_handle, app)
+        .build()
+        .on_click(|ctx, _, _| {
+            ctx.dispatch_typed_action(WorkspaceAction::ShowUpgrade);
+        })
+        .finish();
+
+    Flex::column()
+        .with_cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_spacing(12.)
+        .with_child(
+            Flex::row()
+                .with_child(icon)
+                .with_child(Shrinkable::new(1., text).finish())
+                .finish(),
+        )
+        .with_child(
+            Container::new(
+                Flex::row()
+                    .with_main_axis_size(MainAxisSize::Min)
+                    .with_main_axis_alignment(MainAxisAlignment::Start)
+                    .with_child(subscribe_button)
+                    .finish(),
+            )
+            .with_margin_left(icon_size(app) + icon_right_margin)
+            .finish(),
+        )
+        .finish()
+}
+
 fn render_invalid_api_key_error(
     provider: &str,
     model_name: &str,
@@ -3182,7 +3308,7 @@ fn render_invalid_api_key_error(
     .finish();
 
     let alert_text = Text::new(
-        crate::localization::text_for_app(app, "agent.error.invalid_api_key.title"),
+        "Provided API key is not valid",
         appearance.ui_font_family(),
         14.,
     )
@@ -3191,10 +3317,9 @@ fn render_invalid_api_key_error(
     .finish();
 
     let detail_text = Text::new(
-        crate::localization::text_for_app_with_args(
-            app,
-            "agent.error.invalid_api_key.description",
-            &[("provider", provider), ("model_name", model_name)],
+        format!(
+            "Failed to authenticate with {provider} when using {model_name}. \
+                     Double-check that your API key is correct."
         ),
         appearance.ui_font_family(),
         14.,
@@ -3224,10 +3349,7 @@ fn render_invalid_api_key_error(
             background: Some(internal_colors::fg_overlay_3(theme).into()),
             ..Default::default()
         })
-        .with_text_label(crate::localization::text_for_app(
-            app,
-            "agent.error.invalid_api_key.edit_api_keys",
-        ))
+        .with_text_label("Edit API Keys".to_string())
         .with_cursor(Some(Cursor::PointingHand))
         .build()
         .on_click(move |ctx, _, _| {
@@ -3360,10 +3482,7 @@ pub(crate) fn render_debug_footer<V: View>(
                     warpui::ui_components::button::ButtonVariant::Text,
                     props.submit_issue_button_handle,
                 )
-                .with_centered_text_label(crate::localization::text_for_app(
-                    app,
-                    "agent.feedback.send",
-                ))
+                .with_centered_text_label("Send Feedback".to_string())
                 .with_style(submit_button_style)
                 .with_hovered_styles(submit_button_hover_style)
                 .with_clicked_styles(submit_button_hover_style)
@@ -3379,11 +3498,7 @@ pub(crate) fn render_debug_footer<V: View>(
 
     // render the conversation's debug id so screenshots automatically show the debug id
     let debug_text = Text::new(
-        crate::localization::text_for_app_with_args(
-            app,
-            "agent.block.debug.info",
-            &[("info", &debug_info)],
-        ),
+        format!("Debug information: {debug_info}"),
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     )
@@ -3556,7 +3671,6 @@ pub(super) fn query_prefix_highlight_len(
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::CodeReview { .. }
-            | AIAgentInput::FetchReviewComments { .. }
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::StartFromAmbientRunPrompt { .. }
             | AIAgentInput::ActionResult { .. }

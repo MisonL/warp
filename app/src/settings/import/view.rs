@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use warp_core::settings::Setting;
 use warp_core::ui::appearance::Appearance;
+use warp_errors::{report_error, report_if_error};
 use warpui::elements::{
     Border, Container, CornerRadius, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
     MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
@@ -28,10 +29,7 @@ use crate::themes::theme::{CustomTheme, SelectedSystemThemes, ThemeKind};
 use crate::ui_components::blended_colors;
 use crate::user_config::{self, WarpConfig};
 use crate::window_settings::WindowSettings;
-use crate::{
-    localization, report_if_error, send_telemetry_from_ctx, GlobalResourceHandlesProvider,
-    TelemetryEvent,
-};
+use crate::{send_telemetry_from_ctx, GlobalResourceHandlesProvider, TelemetryEvent};
 
 // UI does not scale, so we set a fixed size for all text.
 const FONT_SIZE: f32 = 14.;
@@ -62,23 +60,6 @@ const NEW_SESSION_SETTINGS: [SettingType; 3] = [
     SettingType::DefaultShell,
     SettingType::WorkingDirectory,
 ];
-
-fn setting_type_name(setting_type: &SettingType, app: &warpui::AppContext) -> String {
-    let key = match setting_type {
-        SettingType::Theme => "settings.import.setting.theme",
-        SettingType::OptionAsMeta => "settings.import.setting.option_as_meta",
-        SettingType::MouseAndScrollReporting => "settings.import.setting.mouse_scroll_reporting",
-        SettingType::Font => "settings.import.setting.font",
-        SettingType::DefaultShell => "settings.import.setting.default_shell",
-        SettingType::WorkingDirectory => "settings.import.setting.working_directory",
-        SettingType::HotkeyMode => "settings.import.setting.hotkey_mode",
-        SettingType::WindowSize => "settings.import.setting.window_size",
-        SettingType::CopyOnSelect => "settings.import.setting.copy_on_select",
-        SettingType::Opacity => "settings.import.setting.opacity",
-        SettingType::CursorBlinking => "settings.import.setting.cursor_blinking",
-    };
-    localization::text_for_app(app, key)
-}
 
 #[derive(Debug)]
 pub enum SettingsImportAction {
@@ -279,7 +260,7 @@ impl SettingsImportView {
                     font_size: Some(FONT_SIZE),
                     ..Default::default()
                 })
-                .with_centered_text_label(localization::text_for_app(app, "settings.import.import"))
+                .with_centered_text_label("Import".to_owned())
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(SettingsImportAction::ImportButtonClicked);
@@ -290,11 +271,7 @@ impl SettingsImportView {
         .finish()
     }
 
-    fn render_reset_button(
-        &self,
-        appearance: &Appearance,
-        app: &warpui::AppContext,
-    ) -> Box<dyn warpui::Element> {
+    fn render_reset_button(&self, appearance: &Appearance) -> Box<dyn warpui::Element> {
         appearance
             .ui_builder()
             .button(ButtonVariant::Secondary, self.skip_button_handle.clone())
@@ -310,10 +287,7 @@ impl SettingsImportView {
                 background: Some(appearance.theme().outline().into()),
                 ..Default::default()
             })
-            .with_centered_text_label(localization::text_for_app(
-                app,
-                "settings.import.reset_to_defaults",
-            ))
+            .with_centered_text_label("Reset to Warp defaults".to_owned())
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(SettingsImportAction::ResetButtonClicked);
@@ -332,13 +306,9 @@ impl SettingsImportView {
         let font_family = appearance.monospace_font_family();
         let font_color = blended_colors::text_sub(theme, theme.background());
         let description = Container::new(
-            Text::new_inline(
-                setting_type_name(&setting.setting_type, app),
-                font_family,
-                FONT_SIZE,
-            )
-            .with_color(font_color)
-            .finish(),
+            Text::new_inline(setting.setting_type.get_name(), font_family, FONT_SIZE)
+                .with_color(font_color)
+                .finish(),
         )
         .with_margin_left(CHECKBOX_SPACING);
         let setting_type = setting.setting_type.to_owned();
@@ -893,7 +863,10 @@ impl SettingsImportView {
         let model = ImportedConfigModel::handle(ctx);
         let imported_settings = model.read(ctx, |model, _ctx| {
             let Some(config) = model.config(terminal_type_and_profile) else {
-                log::error!("Could not find config for terminal {terminal_type_and_profile:?}");
+                report_error!(
+                    "Could not find config for terminal",
+                    extra: { "terminal" => ?terminal_type_and_profile }
+                );
                 return Default::default();
             };
 
@@ -964,7 +937,7 @@ impl View for SettingsImportView {
             State::Completed { imported_idx: None } | State::Failed => {
                 Container::new(Flex::row().finish()).finish()
             }
-            State::Completed { imported_idx: _ } => self.render_reset_button(appearance, app),
+            State::Completed { imported_idx: _ } => self.render_reset_button(appearance),
         };
 
         let config_radio_buttons = appearance
@@ -989,6 +962,9 @@ impl View for SettingsImportView {
             })
             .with_button_vertical_offset(DROPDOWN_VERTICAL_PADDING);
 
+        const WELCOME_TEXT: &str = "Select a settings profile to import:";
+        const LOADING_TEXT: &str = "Looking for settings to import...";
+
         let mut display_new_session_text = false;
 
         if let State::Completed {
@@ -1011,7 +987,7 @@ impl View for SettingsImportView {
         if display_new_session_text {
             new_session_setting_text = Container::new(
                 Text::new(
-                    localization::text_for_app(app, "settings.import.new_session_notice"),
+                    "Some settings will take effect when you open a new session.",
                     font_family,
                     font_size,
                 )
@@ -1032,13 +1008,9 @@ impl View for SettingsImportView {
 
         if matches!(self.state, State::Loading) {
             return Container::new(
-                Text::new(
-                    localization::text_for_app(app, "settings.import.loading"),
-                    font_family,
-                    font_size,
-                )
-                .with_color(font_color.into_solid())
-                .finish(),
+                Text::new(LOADING_TEXT, font_family, font_size)
+                    .with_color(font_color.into_solid())
+                    .finish(),
             )
             .with_margin_top(14.)
             .with_horizontal_margin(DROPDOWN_HORIZONTAL_MARGIN)
@@ -1050,14 +1022,10 @@ impl View for SettingsImportView {
             Flex::column()
                 .with_child(
                     Container::new(
-                        Text::new(
-                            localization::text_for_app(app, "settings.import.welcome"),
-                            font_family,
-                            font_size,
-                        )
-                        .with_color(font_color.into_solid())
-                        .with_style(Properties::default().weight(Weight::Bold))
-                        .finish(),
+                        Text::new(WELCOME_TEXT, font_family, font_size)
+                            .with_color(font_color.into_solid())
+                            .with_style(Properties::default().weight(Weight::Bold))
+                            .finish(),
                     )
                     .with_horizontal_margin(DROPDOWN_HORIZONTAL_MARGIN)
                     .with_margin_top(BLOCK_TOP_MARGIN)

@@ -25,10 +25,9 @@ use warpui_core::{
 
 use super::two_line_button::{render_two_line_button, TwoLineButtonSpec};
 use super::OnboardingSlide;
-use crate::model::{NoAiConfirmationSource, OnboardingStateEvent, OnboardingStateModel};
+use crate::model::{OnboardingStateEvent, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::visuals::agent_visual;
-use crate::OnboardingCopy;
 
 /// Information about a model displayed on the onboarding slide.
 #[derive(Clone, Debug)]
@@ -97,7 +96,6 @@ pub enum AgentSlideAction {
     SelectAutonomy(AgentAutonomy),
     ToggleDisableOz,
     BackClicked,
-    NoAiClicked,
     NextClicked,
 }
 
@@ -115,13 +113,11 @@ pub struct AgentSlide {
     autonomy_none_mouse_state: MouseStateHandle,
 
     back_button: button::Button,
-    no_ai_button: button::Button,
     next_button: button::Button,
     scroll_state: ClippedScrollStateHandle,
     dropdown_scroll_state: ClippedScrollStateHandle,
     is_model_list_expanded: bool,
     highlighted_model_id: Option<LLMId>,
-    copy: OnboardingCopy,
 }
 
 /// Produces the `SavePosition` id for the model row at `index` in the
@@ -134,7 +130,6 @@ fn model_row_position_id(index: usize) -> String {
 impl AgentSlide {
     pub(crate) fn new(
         onboarding_state: warpui_core::ModelHandle<OnboardingStateModel>,
-        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let model_count = onboarding_state.as_ref(ctx).models().len();
@@ -174,13 +169,11 @@ impl AgentSlide {
             autonomy_partial_mouse_state: MouseStateHandle::default(),
             autonomy_none_mouse_state: MouseStateHandle::default(),
             back_button: button::Button::default(),
-            no_ai_button: button::Button::default(),
             next_button: button::Button::default(),
             scroll_state: ClippedScrollStateHandle::new(),
             dropdown_scroll_state: ClippedScrollStateHandle::new(),
             is_model_list_expanded: false,
             highlighted_model_id: None,
-            copy,
         }
     }
 
@@ -230,7 +223,7 @@ impl AgentSlide {
     fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
         let title = appearance
             .ui_builder()
-            .paragraph(self.copy.text_owned("onboarding.agent.title"))
+            .paragraph("Customize your Warp Agent")
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -240,7 +233,7 @@ impl AgentSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            self.copy.text_owned("onboarding.agent.subtitle"),
+            "Select your Warp Agent's defaults.",
             appearance.ui_font_family(),
             16.,
         )
@@ -303,7 +296,11 @@ impl AgentSlide {
         Container::new(col.finish()).with_margin_top(40.).finish()
     }
 
-    fn render_section_header(&self, title: String, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_section_header(
+        &self,
+        title: &'static str,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .paragraph(title)
@@ -322,10 +319,7 @@ impl AgentSlide {
         settings: &AgentDevelopmentSettings,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header(
-            self.copy.text_owned("onboarding.agent.default_model"),
-            appearance,
-        );
+        let header = self.render_section_header("Default model", appearance);
 
         let expanded = self.is_model_list_expanded;
         let chip = self.render_collapsed_model_chip(appearance, settings, app, expanded);
@@ -671,10 +665,7 @@ impl AgentSlide {
     }
 
     fn render_autonomy_workspace_enforced(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let header = self.render_section_header(
-            self.copy.text_owned("onboarding.agent.autonomy"),
-            appearance,
-        );
+        let header = self.render_section_header("Autonomy", appearance);
 
         let theme = appearance.theme();
         let background_for_text = theme.background().into_solid();
@@ -683,23 +674,17 @@ impl AgentSlide {
         let title_color = internal_colors::text_main(theme, background_for_text);
         let subtitle_color = internal_colors::text_sub(theme, background_for_text);
 
-        let title_el = Text::new(
-            self.copy
-                .text_owned("onboarding.agent.team_workspace.title"),
-            ui_font_family,
-            14.0,
-        )
-        .with_color(title_color)
-        .with_style(Properties {
-            weight: Weight::Normal,
-            ..Default::default()
-        })
-        .with_line_height_ratio(1.0)
-        .finish();
+        let title_el = Text::new("Set by Team Workspace", ui_font_family, 14.0)
+            .with_color(title_color)
+            .with_style(Properties {
+                weight: Weight::Normal,
+                ..Default::default()
+            })
+            .with_line_height_ratio(1.0)
+            .finish();
 
         let subtitle_el = Text::new(
-            self.copy
-                .text_owned("onboarding.agent.team_workspace.description"),
+            "Autonomy settings are configured as part of your team workspace.",
             ui_font_family,
             12.0,
         )
@@ -735,10 +720,7 @@ impl AgentSlide {
         appearance: &Appearance,
         settings: &AgentDevelopmentSettings,
     ) -> Box<dyn Element> {
-        let header = self.render_section_header(
-            self.copy.text_owned("onboarding.agent.autonomy"),
-            appearance,
-        );
+        let header = self.render_section_header("Autonomy", appearance);
 
         // The rows now take the full column width (vs. the previous three-across layout),
         // so they no longer need the extra height that came from cramped subtitle wrapping.
@@ -753,21 +735,20 @@ impl AgentSlide {
         let autonomy_options: [(AgentAutonomy, &str, &str, MouseStateHandle); 3] = [
             (
                 AgentAutonomy::Full,
-                self.copy.text("onboarding.agent.autonomy.full.title"),
-                self.copy.text("onboarding.agent.autonomy.full.description"),
+                "Full",
+                "Warp Agent runs commands, writes code, and reads files without asking.",
                 self.autonomy_full_mouse_state.clone(),
             ),
             (
                 AgentAutonomy::Partial,
-                self.copy.text("onboarding.agent.autonomy.partial.title"),
-                self.copy
-                    .text("onboarding.agent.autonomy.partial.description"),
+                "Partial",
+                "Warp Agent can plan, read files, and execute low-risk commands. Asks before making any changes or executing sensitive commands.",
                 self.autonomy_partial_mouse_state.clone(),
             ),
             (
                 AgentAutonomy::None,
-                self.copy.text("onboarding.agent.autonomy.none.title"),
-                self.copy.text("onboarding.agent.autonomy.none.description"),
+                "None",
+                "Warp Agent takes no actions without your approval.",
                 self.autonomy_none_mouse_state.clone(),
             ),
         ];
@@ -817,9 +798,7 @@ impl AgentSlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.common.back").into(),
-                ),
+                content: button::Content::Label("Back".into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -830,31 +809,11 @@ impl AgentSlide {
             },
         );
 
-        let no_ai_keystroke = Keystroke::parse("cmdorctrl-enter").unwrap_or_default();
-        let no_ai_button = self.no_ai_button.render(
-            appearance,
-            button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.no_ai.confirm").into(),
-                ),
-                theme: &button::themes::Naked,
-                options: button::Options {
-                    keystroke: Some(no_ai_keystroke),
-                    on_click: Some(Box::new(|ctx, _app, _pos| {
-                        ctx.dispatch_typed_action(AgentSlideAction::NoAiClicked);
-                    })),
-                    ..button::Options::default(appearance)
-                },
-            },
-        );
-
         let enter = Keystroke::parse("enter").unwrap_or_default();
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.common.next").into(),
-                ),
+                content: button::Content::Label("Next".into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),
@@ -866,20 +825,13 @@ impl AgentSlide {
             },
         );
 
-        let right_buttons = Flex::row()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(no_ai_button)
-            .with_child(Container::new(next_button).with_margin_left(8.).finish())
-            .finish();
-
         let (step_index, step_count) = self.onboarding_state.as_ref(app).progress();
         bottom_nav::onboarding_bottom_nav(
             appearance,
             step_index,
             step_count,
             Some(back_button),
-            Some(right_buttons),
+            Some(next_button),
         )
     }
 
@@ -1088,12 +1040,6 @@ impl OnboardingSlide for AgentSlide {
             self.set_model_list_expanded(false, ctx);
         }
     }
-
-    fn on_cmd_or_ctrl_enter(&mut self, ctx: &mut ViewContext<Self>) {
-        self.onboarding_state.update(ctx, |model, ctx| {
-            model.request_no_ai_confirmation(NoAiConfirmationSource::Agent, ctx);
-        });
-    }
 }
 
 impl TypedActionView for AgentSlide {
@@ -1141,11 +1087,6 @@ impl TypedActionView for AgentSlide {
             AgentSlideAction::BackClicked => {
                 self.onboarding_state.update(ctx, |state, ctx| {
                     state.back(ctx);
-                });
-            }
-            AgentSlideAction::NoAiClicked => {
-                self.onboarding_state.update(ctx, |model, ctx| {
-                    model.request_no_ai_confirmation(NoAiConfirmationSource::Agent, ctx);
                 });
             }
             AgentSlideAction::NextClicked => {

@@ -13,6 +13,7 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
+use warpui::clipboard::ClipboardContent;
 use warpui::elements::new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::{
     Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
@@ -43,24 +44,27 @@ use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpEscapeKey,
     PropagateAndNoOpNavigationKeys, PropagateHorizontalNavigationKeys, TextOptions,
 };
+use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
 use crate::terminal::input::suggestions_mode_model::InputSuggestionsModeModel;
 use crate::ui_components::icons::Icon as TerminalIcon;
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
-use crate::{localization, send_telemetry_from_ctx};
 
 const MAX_PROMPT_LINES: f32 = 5.;
 /// Max characters shown in a row's single-line preview before truncation.
 const PROMPT_PREVIEW_MAX_CHARS: usize = 500;
+const INITIAL_CLOUD_MODE_PROMPT_TOOLTIP: &str = "The first cloud-mode prompt cannot be changed.";
+const SEND_NOW_DURING_CLOUD_SETUP_TOOLTIP: &str =
+    "Prompts cannot be sent until environment setup is complete.";
+const SEND_NOW_PENDING_LRC_TOOLTIP: &str =
+    "Prompts cannot be sent until the full terminal use agent is initialized.";
+const SEND_NOW_TO_FULL_TERMINAL_USE_AGENT_TOOLTIP: &str = "Send to full terminal use agent";
+const SEND_NOW_AS_READ_ONLY_VIEWER_TOOLTIP: &str = "Read-only viewers cannot send prompts.";
 /// Suffix on rows auto-queued during an agent-requested long-running command, which fire
 /// when that command completes rather than at the end of the full response.
 const LRC_AUTO_QUEUE_ROW_SUFFIX: &str = "(queued until the command finishes)";
-
-fn queued_prompts_text(app: &AppContext, key: &str) -> String {
-    localization::text_for_app(app, key)
-}
 
 /// Returns the position-cache id used to look up a row's bounding rect during a drag.
 /// Indexed by the row's current visual index so swaps maintain stable lookups.
@@ -77,31 +81,16 @@ fn build_row_state(
     let is_initial_cloud_mode_prompt = origin == QueuedQueryOrigin::InitialCloudMode;
     // The send-now tooltip is owned by `update_send_now_availability`, which swaps in a
     // "wait for the cloud agent" message while send-now is disabled; "Send now" is the default.
-    let (edit_tooltip, delete_tooltip) = if is_initial_cloud_mode_prompt {
-        (
-            queued_prompts_text(
-                ctx,
-                "terminal.queued_prompts.tooltip.initial_cloud_mode_prompt",
-            ),
-            queued_prompts_text(
-                ctx,
-                "terminal.queued_prompts.tooltip.initial_cloud_mode_prompt",
-            ),
-        )
+    let edit_tooltip = if is_initial_cloud_mode_prompt {
+        INITIAL_CLOUD_MODE_PROMPT_TOOLTIP
     } else {
-        (
-            queued_prompts_text(ctx, "terminal.queued_prompts.tooltip.edit"),
-            queued_prompts_text(ctx, "terminal.queued_prompts.tooltip.delete"),
-        )
+        "Edit"
     };
 
-    let send_now_button = ctx.add_typed_action_view(move |ctx| {
+    let send_now_button = ctx.add_typed_action_view(move |_| {
         ActionButton::new("", NakedTheme)
             .with_icon(TerminalIcon::ArrowUp)
-            .with_tooltip(queued_prompts_text(
-                ctx,
-                "terminal.queued_prompts.tooltip.send_now",
-            ))
+            .with_tooltip("Send now")
             .with_size(ButtonSize::XSmall)
             .with_disabled_theme(NakedTheme)
             .on_click(move |ctx| {
@@ -121,17 +110,28 @@ fn build_row_state(
     let delete_button = ctx.add_typed_action_view(move |_| {
         ActionButton::new("", NakedTheme)
             .with_icon(TerminalIcon::Trash)
-            .with_tooltip(delete_tooltip)
+            .with_tooltip("Delete")
             .with_size(ButtonSize::XSmall)
             .with_disabled_theme(NakedTheme)
             .on_click(move |ctx| {
                 ctx.dispatch_typed_action(QueuedPromptsPanelAction::DeleteRow(query_id));
             })
     });
+    let copy_button = is_initial_cloud_mode_prompt.then(|| {
+        ctx.add_typed_action_view(move |_| {
+            ActionButton::new("", NakedTheme)
+                .with_icon(TerminalIcon::Copy)
+                .with_tooltip("Copy")
+                .with_size(ButtonSize::XSmall)
+                .with_disabled_theme(NakedTheme)
+                .on_click(move |ctx| {
+                    ctx.dispatch_typed_action(QueuedPromptsPanelAction::CopyRow(query_id));
+                })
+        })
+    });
 
     if is_initial_cloud_mode_prompt {
         edit_button.update(ctx, |button, ctx| button.set_disabled(true, ctx));
-        delete_button.update(ctx, |button, ctx| button.set_disabled(true, ctx));
     }
 
     QueuedPromptRowState {
@@ -144,6 +144,7 @@ fn build_row_state(
         send_now_button,
         edit_button,
         delete_button,
+        copy_button,
         draggable_state: DraggableState::default(),
     }
 }
@@ -157,6 +158,7 @@ struct QueuedPromptRowState {
     send_now_button: ViewHandle<ActionButton>,
     edit_button: ViewHandle<ActionButton>,
     delete_button: ViewHandle<ActionButton>,
+    copy_button: Option<ViewHandle<ActionButton>>,
     draggable_state: DraggableState,
 }
 
@@ -204,6 +206,7 @@ pub enum QueuedPromptsPanelAction {
     SendNow(QueuedQueryId),
     StartEditingRow(QueuedQueryId),
     DeleteRow(QueuedQueryId),
+    CopyRow(QueuedQueryId),
     StartDrag(QueuedQueryId),
     DragMoved { rect: RectF },
     DropEnd,
@@ -272,6 +275,10 @@ impl QueuedPromptsPanelView {
 
         ctx.subscribe_to_model(&cli_subagent_controller, |me, _, event, ctx| {
             me.handle_cli_subagent_event(event, ctx);
+        });
+
+        ctx.subscribe_to_model(&suggestions_mode_model, |_, _, _, ctx| {
+            ctx.notify();
         });
 
         let host_editor_was_empty = host_editor.as_ref(ctx).is_empty(ctx);
@@ -427,20 +434,21 @@ impl QueuedPromptsPanelView {
             else {
                 continue;
             };
+            let disabled_for_pending_lrc = *origin == QueuedQueryOrigin::PendingLrcAutoQueue;
             let disabled_for_cloud_setup =
                 *origin == QueuedQueryOrigin::InitialCloudMode || cloud_setup_in_progress;
-            let disabled = disabled_for_cloud_setup || !self.can_send_prompt;
-            let tooltip = if disabled_for_cloud_setup {
-                queued_prompts_text(ctx, "terminal.queued_prompts.tooltip.send_now_cloud_setup")
+            let disabled =
+                disabled_for_pending_lrc || disabled_for_cloud_setup || !self.can_send_prompt;
+            let tooltip = if disabled_for_pending_lrc {
+                SEND_NOW_PENDING_LRC_TOOLTIP
+            } else if disabled_for_cloud_setup {
+                SEND_NOW_DURING_CLOUD_SETUP_TOOLTIP
             } else if !self.can_send_prompt {
-                queued_prompts_text(ctx, "terminal.input.toast.read_only_viewer")
+                SEND_NOW_AS_READ_ONLY_VIEWER_TOOLTIP
             } else if lrc_subagent_in_progress {
-                queued_prompts_text(
-                    ctx,
-                    "terminal.queued_prompts.tooltip.send_now_full_terminal_use_agent",
-                )
+                SEND_NOW_TO_FULL_TERMINAL_USE_AGENT_TOOLTIP
             } else {
-                queued_prompts_text(ctx, "terminal.queued_prompts.tooltip.send_now")
+                "Send now"
             };
             send_now_button.update(ctx, |button, ctx| {
                 button.set_disabled(disabled, ctx);
@@ -470,7 +478,7 @@ impl QueuedPromptsPanelView {
         ctx: &mut ViewContext<Self>,
     ) {
         let is_for_this_view = event
-            .terminal_view_id()
+            .terminal_surface_id()
             .is_some_and(|id| id == self.terminal_view_id);
         if !is_for_this_view {
             return;
@@ -502,6 +510,7 @@ impl QueuedPromptsPanelView {
             | QueuedQueryEvent::Removed {
                 conversation_id, ..
             }
+            | QueuedQueryEvent::RowUnlocked { conversation_id }
             | QueuedQueryEvent::Reordered { conversation_id }
             | QueuedQueryEvent::EditEntered {
                 conversation_id, ..
@@ -588,6 +597,9 @@ impl QueuedPromptsPanelView {
                         .or_insert_with(|| build_row_state(*query_id, origin, &text, ctx));
                 }
                 // A new row queued while the locked initial row is present must start disabled.
+                self.update_send_now_availability(ctx);
+            }
+            QueuedQueryEvent::RowUnlocked { .. } => {
                 self.update_send_now_availability(ctx);
             }
             QueuedQueryEvent::Reordered { .. }
@@ -765,6 +777,17 @@ impl TypedActionView for QueuedPromptsPanelView {
                 QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
                     model.enter_edit_mode(conv_id, query_id, ctx);
                 });
+            }
+            QueuedPromptsPanelAction::CopyRow(query_id) => {
+                let query_id = *query_id;
+                let text = QueuedQueryModel::as_ref(ctx)
+                    .queue(conv_id)
+                    .iter()
+                    .find(|row| row.id() == query_id)
+                    .map(|row| row.text().to_owned());
+                if let Some(text) = text {
+                    ctx.clipboard().write(ClipboardContent::plain_text(text));
+                }
             }
             QueuedPromptsPanelAction::DeleteRow(query_id) => {
                 let query_id = *query_id;
@@ -1007,7 +1030,7 @@ fn render_header(
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
-    let label_text = header_label_text(app, count);
+    let label_text = header_label_text(count);
     let sub_text_color: ColorU = theme.sub_text_color(theme.surface_1()).into();
     // The keycap is dimmed relative to the header text so it reads as a secondary affordance.
     let keycap_color: ColorU = internal_colors::text_disabled(theme, theme.surface_1());
@@ -1054,18 +1077,14 @@ fn render_header(
             );
             row.add_child(Container::new(keycap).with_margin_left(4.).finish());
             row.add_child(
-                Text::new(
-                    localization::text_for_app(app, "terminal.message_bar.to_send"),
-                    ui_font_family,
-                    ui_font_size,
-                )
-                .with_style(Properties {
-                    style: Style::Normal,
-                    weight: Weight::Normal,
-                })
-                .with_color(sub_text_color)
-                .with_selectable(false)
-                .finish(),
+                Text::new("to send", ui_font_family, ui_font_size)
+                    .with_style(Properties {
+                        style: Style::Normal,
+                        weight: Weight::Normal,
+                    })
+                    .with_color(sub_text_color)
+                    .with_selectable(false)
+                    .finish(),
             );
         }
         let row = row.finish();
@@ -1133,6 +1152,7 @@ fn render_row(props: RenderRowProps<'_>, app: &AppContext) -> Box<dyn Element> {
         send_now_button,
         edit_button,
         delete_button,
+        copy_button,
         draggable_state,
     } = row_state;
 
@@ -1195,7 +1215,9 @@ fn render_row(props: RenderRowProps<'_>, app: &AppContext) -> Box<dyn Element> {
                     )
                     .with_child(Expanded::new(1., preview).finish())
                     .finish()
-            } else if origin == QueuedQueryOrigin::LrcAutoQueue {
+            } else if origin == QueuedQueryOrigin::LrcAutoQueue
+                || origin == QueuedQueryOrigin::PendingLrcAutoQueue
+            {
                 let suffix_color: ColorU = theme.sub_text_color(theme.surface_1()).into();
                 let suffix = Text::new(
                     LRC_AUTO_QUEUE_ROW_SUFFIX.to_owned(),
@@ -1245,10 +1267,7 @@ fn render_row(props: RenderRowProps<'_>, app: &AppContext) -> Box<dyn Element> {
                 if drag_state.is_hovered() {
                     stack.add_positioned_overlay_child(
                         ui_builder
-                            .tool_tip(queued_prompts_text(
-                                app,
-                                "terminal.queued_prompts.tooltip.initial_cloud_mode_prompt",
-                            ))
+                            .tool_tip(INITIAL_CLOUD_MODE_PROMPT_TOOLTIP.to_owned())
                             .build()
                             .finish(),
                         OffsetPositioning::offset_from_parent(
@@ -1291,7 +1310,11 @@ fn render_row(props: RenderRowProps<'_>, app: &AppContext) -> Box<dyn Element> {
             if !is_in_edit_mode {
                 buttons.add_child(ChildView::new(&edit_button).finish());
             }
-            buttons.add_child(ChildView::new(&delete_button).finish());
+            if let Some(copy_button) = &copy_button {
+                buttons.add_child(ChildView::new(copy_button).finish());
+            } else {
+                buttons.add_child(ChildView::new(&delete_button).finish());
+            }
             buttons.finish()
         } else {
             let count = if is_in_edit_mode { 2. } else { 3. };
@@ -1338,11 +1361,6 @@ fn render_row(props: RenderRowProps<'_>, app: &AppContext) -> Box<dyn Element> {
 }
 
 /// Returns the user-visible header label for `count` queued prompts.
-fn header_label_text(app: &AppContext, count: usize) -> String {
-    let count = count.to_string();
-    localization::text_for_app_with_args(
-        app,
-        "terminal.queued_prompts.header",
-        &[("count", &count)],
-    )
+fn header_label_text(count: usize) -> String {
+    format!("{count} queued")
 }

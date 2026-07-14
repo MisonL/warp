@@ -16,20 +16,23 @@ use warpui::platform::{Cursor, OperatingSystem};
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{AppContext, Element, Entity, EntityId, SingletonEntity as _};
+use warpui::{
+    AppContext, Element, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _,
+};
 
 use super::model_spec_scores::{
     render_model_spec_header, render_model_spec_scores, CostRow, CostRowTooltip,
-    ModelSpecScoresLayout,
+    ModelSpecScoresLayout, CUSTOM_MODEL_ROUTER_DESCRIPTION, CUSTOM_MODEL_ROUTER_TITLE,
+    MODEL_SPECS_DESCRIPTION, MODEL_SPECS_TITLE, REASONING_LEVEL_DESCRIPTION, REASONING_LEVEL_TITLE,
 };
+use crate::ai::custom_model_routers::is_custom_router_id;
 use crate::ai::execution_profiles::model_menu_items::is_auto;
 use crate::ai::llms::{
-    is_using_api_key_for_provider, should_show_bedrock_icon_for_model, DisableReason, LLMId,
-    LLMInfo, LLMPreferences, LLMProvider, LLMSpec,
+    byo_key_source_for_model, should_show_bedrock_icon_for_model, should_show_key_icon_for_model,
+    ByoKeySource, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMProvider, LLMSpec,
 };
 use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
-use crate::localization;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
@@ -40,11 +43,11 @@ use crate::terminal::input::inline_menu::{
     InlineMenuAction, InlineMenuMessageArgs, InlineMenuType,
 };
 use crate::terminal::input::message_bar::{Message, MessageItem};
+use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-const MODEL_SELECTOR_AUTO_COST_TOOLTIP_KEY: &str =
-    "settings.ai.model_selector.cost.auto_bedrock_tooltip";
+const AUTO_BEDROCK_TOOLTIP: &str = "Warp uses Bedrock when the model Auto selects supports it; otherwise it may use Warp-hosted inference.";
 
 #[derive(Clone, Debug)]
 pub struct AcceptModel {
@@ -64,10 +67,7 @@ impl InlineMenuAction for AcceptModel {
                 key: "enter".to_owned(),
                 ..Default::default()
             }),
-            MessageItem::text(localization::text_for_app(
-                args.app,
-                "terminal.inline_menu.action.select",
-            )),
+            MessageItem::text(" to select"),
             MessageItem::keystroke(if OperatingSystem::get().is_mac() {
                 Keystroke {
                     key: "enter".to_owned(),
@@ -82,10 +82,7 @@ impl InlineMenuAction for AcceptModel {
                     ..Default::default()
                 }
             }),
-            MessageItem::text(localization::text_for_app(
-                args.app,
-                "terminal.inline_menu.action.select_and_save_to_profile",
-            )),
+            MessageItem::text(" select and save to profile"),
         ];
 
         if args.inline_menu_model.tab_configs().len() > 1 {
@@ -94,10 +91,7 @@ impl InlineMenuAction for AcceptModel {
                 shift: true,
                 ..Default::default()
             }));
-            items.push(MessageItem::text(localization::text_for_app(
-                args.app,
-                "terminal.inline_menu.navigation.to_cycle_tabs",
-            )));
+            items.push(MessageItem::text(" to cycle tabs"));
         }
 
         items.push(MessageItem::clickable(
@@ -106,10 +100,7 @@ impl InlineMenuAction for AcceptModel {
                     key: "escape".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(localization::text_for_app(
-                    args.app,
-                    "terminal.inline_menu.navigation.to_dismiss",
-                )),
+                MessageItem::text(" to dismiss"),
             ],
             |ctx| {
                 ctx.dispatch_typed_action(
@@ -145,11 +136,42 @@ fn model_specs_width(app: &AppContext) -> f32 {
 
 pub struct ModelSelectorDataSource {
     terminal_view_id: EntityId,
+    ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
 }
 
 impl ModelSelectorDataSource {
-    pub fn new(terminal_view_id: EntityId) -> Self {
-        Self { terminal_view_id }
+    pub fn new(
+        terminal_view_id: EntityId,
+        ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
+    ) -> Self {
+        Self {
+            terminal_view_id,
+            ambient_agent_view_model,
+        }
+    }
+
+    /// Attaches an ambient agent view model after construction so the picker treats this pane as a
+    /// cloud pane, which changes the listed models (custom-endpoint models are suppressed; see
+    /// [`Self::include_model_in_picker`]). Used on the shared-session viewer path where the model
+    /// is created lazily at `SessionJoined`. Idempotent: a no-op when a model is already set. The
+    /// next `run_query` (menu open / typing) picks up the new value.
+    pub fn set_ambient_agent_view_model(
+        &mut self,
+        ambient_agent_view_model: ModelHandle<AmbientAgentViewModel>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if self.ambient_agent_view_model.is_some() {
+            return;
+        }
+        self.ambient_agent_view_model = Some(ambient_agent_view_model);
+        ctx.notify();
+    }
+
+    /// Returns whether a model should appear in the inline picker.
+    /// Custom-endpoint models are suppressed in Oz cloud agent panes because
+    /// they cannot route through Warp's cloud inference infrastructure.
+    pub(crate) fn include_model_in_picker(is_cloud_pane: bool, is_custom_endpoint: bool) -> bool {
+        !is_cloud_pane || !is_custom_endpoint
     }
 
     fn order_model_choices<'a>(
@@ -157,11 +179,16 @@ impl ModelSelectorDataSource {
         choices: Vec<&'a LLMInfo>,
     ) -> Vec<&'a LLMInfo> {
         let mut auto_choices = Vec::new();
+        let mut custom_router_choices = Vec::new();
         let mut custom_choices = Vec::new();
         let mut other_choices = Vec::new();
 
         for llm in choices {
-            if is_auto(llm) {
+            // Check custom router before is_auto because custom router ids contain
+            // "auto" and would otherwise land in auto_choices.
+            if is_custom_router_id(llm.id.as_str()) {
+                custom_router_choices.push(llm);
+            } else if is_auto(llm) {
                 auto_choices.push(llm);
             } else if llm_preferences.custom_llm_info_for_id(&llm.id).is_some() {
                 custom_choices.push(llm);
@@ -172,6 +199,7 @@ impl ModelSelectorDataSource {
 
         auto_choices
             .into_iter()
+            .chain(custom_router_choices)
             .chain(custom_choices)
             .chain(other_choices)
             .collect()
@@ -201,11 +229,22 @@ impl SyncDataSource for ModelSelectorDataSource {
                 .clone()
         };
 
+        let is_cloud_pane = self.ambient_agent_view_model.is_some();
         let choices = if is_full_terminal {
-            llm_preferences.get_cli_agent_llm_choices(app).collect_vec()
+            llm_preferences
+                .get_cli_agent_llm_choices(app)
+                .filter(|llm| {
+                    let is_custom = llm_preferences.custom_llm_info_for_id(&llm.id).is_some();
+                    Self::include_model_in_picker(is_cloud_pane, is_custom)
+                })
+                .collect_vec()
         } else {
             llm_preferences
                 .get_base_llm_choices_for_agent_mode(app)
+                .filter(|llm| {
+                    let is_custom = llm_preferences.custom_llm_info_for_id(&llm.id).is_some();
+                    Self::include_model_in_picker(is_cloud_pane, is_custom)
+                })
                 .collect_vec()
         };
         let choices = Self::order_model_choices(llm_preferences, choices);
@@ -253,9 +292,12 @@ struct ModelSearchItem {
     spec: Option<LLMSpec>,
     leading_icon: Icon,
     credential_icon: Option<Icon>,
+    byo_key_source: Option<ByoKeySource>,
     display_text: String,
     is_selected: bool,
-    is_custom_endpoint: bool,
+    is_custom_router: bool,
+    /// Source/routing description for custom model routers (from `LLMInfo.description`).
+    description: Option<String>,
     disable_reason: Option<DisableReason>,
     is_auto: bool,
     is_using_bedrock: bool,
@@ -265,9 +307,6 @@ struct ModelSearchItem {
     cost_row_tooltip_mouse_state: MouseStateHandle,
     reasoning_level: Option<String>,
     discount_percentage: Option<f32>,
-    accessibility_prefix: String,
-    accessibility_selected: String,
-    accessibility_disabled: String,
 }
 
 impl ModelSearchItem {
@@ -275,25 +314,24 @@ impl ModelSearchItem {
         // If the model requires an upgrade but the user already has a BYOK key
         // for this provider, treat it as enabled by clearing the disable reason.
         let disable_reason = if llm.disable_reason == Some(DisableReason::RequiresUpgrade)
-            && is_using_api_key_for_provider(&llm.provider, app)
+            && should_show_key_icon_for_model(llm, app)
         {
             None
         } else {
             llm.disable_reason.clone()
         };
-        let is_custom_endpoint = LLMPreferences::as_ref(app)
-            .custom_llm_info_for_id(&llm.id)
-            .is_some();
+        let is_custom_router = is_custom_router_id(llm.id.as_str());
         let is_auto = is_auto(llm);
         let is_using_bedrock = should_show_bedrock_icon_for_model(llm, app);
-        let is_using_api_key =
-            is_custom_endpoint || is_using_api_key_for_provider(&llm.provider, app);
+        let byo_key_source = byo_key_source_for_model(llm, app);
         let leading_icon = if is_using_bedrock {
             Icon::Aws
+        } else if is_custom_router {
+            Icon::Dataflow
         } else {
             llm.provider.icon().unwrap_or(Icon::Oz)
         };
-        let credential_icon = if !is_using_bedrock && is_using_api_key {
+        let credential_icon = if !is_using_bedrock && byo_key_source.is_some() {
             Some(Icon::Key)
         } else {
             None
@@ -304,9 +342,11 @@ impl ModelSearchItem {
             spec: llm.spec.clone(),
             leading_icon,
             credential_icon,
+            byo_key_source,
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
-            is_custom_endpoint,
+            is_custom_router,
+            description: llm.description.clone(),
             disable_reason,
             is_auto,
             is_using_bedrock,
@@ -316,18 +356,6 @@ impl ModelSearchItem {
             cost_row_tooltip_mouse_state: Default::default(),
             reasoning_level: llm.reasoning_level(),
             discount_percentage: llm.discount_percentage,
-            accessibility_prefix: localization::text_for_app(
-                app,
-                "settings.ai.model_selector.a11y.prefix",
-            ),
-            accessibility_selected: localization::text_for_app(
-                app,
-                "settings.ai.model_selector.a11y.selected",
-            ),
-            accessibility_disabled: localization::text_for_app(
-                app,
-                "settings.ai.model_selector.a11y.disabled",
-            ),
         }
     }
 
@@ -422,10 +450,9 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_selected {
-            let selected_label =
-                localization::text_for_app(app, "settings.ai.model_selector.selected");
+            let selected_label = "(selected)";
             let selected_text = Text::new_inline(
-                selected_label.clone(),
+                selected_label.to_string(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -442,10 +469,9 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_disabled() {
-            let disabled_label =
-                localization::text_for_app(app, "settings.ai.model_selector.disabled");
+            let disabled_label = "(disabled)";
             let disabled_text = Text::new_inline(
-                disabled_label.clone(),
+                disabled_label.to_string(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -463,7 +489,7 @@ impl SearchItem for ModelSearchItem {
 
         if should_show_discount_chip(
             self.discount_percentage,
-            is_using_api_key_for_provider(&self.provider, app) || self.is_using_bedrock,
+            self.credential_icon.is_some() || self.is_using_bedrock,
         ) {
             let discount_percentage = self.discount_percentage.unwrap_or(0.);
             let chip = Container::new(
@@ -501,31 +527,39 @@ impl SearchItem for ModelSearchItem {
         let appearance = crate::appearance::Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let (title, description) = if self.reasoning_level.is_some() {
-            (
-                crate::localization::text_for_app(
-                    app,
-                    "terminal.input.models.reasoning_level.title",
-                ),
-                crate::localization::text_for_app(
-                    app,
-                    "terminal.input.models.reasoning_level.description",
-                ),
+        // Custom auto models get an informational blurb instead of spec bars.
+        if self.is_custom_router {
+            let header = render_model_spec_header(
+                CUSTOM_MODEL_ROUTER_TITLE,
+                CUSTOM_MODEL_ROUTER_DESCRIPTION,
+                app,
+            );
+            let source_text = Text::new(
+                self.description.as_deref().unwrap_or("").to_string(),
+                appearance.ui_font_family(),
+                inline_styles::font_size(appearance),
             )
-        } else {
-            (
-                crate::localization::text_for_app(app, "terminal.input.models.model_specs.title"),
-                crate::localization::text_for_app(
-                    app,
-                    "terminal.input.models.model_specs.description",
-                ),
-            )
-        };
-        let header = render_model_spec_header(&title, &description, app);
+            .with_color(theme.disabled_ui_text_color().into())
+            .finish();
+            let column = Flex::column()
+                .with_child(Container::new(header).with_margin_bottom(12.).finish())
+                .with_child(source_text)
+                .finish();
+            return Some(
+                ConstrainedBox::new(column)
+                    .with_width(model_specs_width(app))
+                    .finish(),
+            );
+        }
 
-        let is_using_api_key =
-            self.is_custom_endpoint || is_using_api_key_for_provider(&self.provider, app);
-        let cost_row = if self.is_using_bedrock || is_using_api_key {
+        let (title, description) = if self.reasoning_level.is_some() {
+            (REASONING_LEVEL_TITLE, REASONING_LEVEL_DESCRIPTION)
+        } else {
+            (MODEL_SPECS_TITLE, MODEL_SPECS_DESCRIPTION)
+        };
+        let header = render_model_spec_header(title, description, app);
+
+        let cost_row = if self.is_using_bedrock || self.byo_key_source.is_some() {
             let search_query = if self.is_using_bedrock {
                 "bedrock"
             } else {
@@ -538,7 +572,7 @@ impl SearchItem for ModelSearchItem {
                     ButtonVariant::Outlined,
                     self.manage_api_key_mouse_state.clone(),
                 )
-                .with_text_label(localization::text_for_app(app, "common.manage"))
+                .with_text_label("Manage".to_string())
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -560,18 +594,17 @@ impl SearchItem for ModelSearchItem {
                 .finish();
             CostRow::BilledToProvider {
                 label: if self.is_using_bedrock && self.is_auto {
-                    localization::text_for_app(
-                        app,
-                        "settings.ai.model_selector.cost.may_use_bedrock",
-                    )
+                    "Inference may use Bedrock"
                 } else if self.is_using_bedrock {
-                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_bedrock")
+                    "Inference via Bedrock"
+                } else if let Some(source) = self.byo_key_source {
+                    source.inference_label()
                 } else {
-                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_api_key")
+                    "Inference via API key"
                 },
                 tooltip: if self.is_using_bedrock && self.is_auto {
                     Some(CostRowTooltip {
-                        text: localization::text_for_app(app, MODEL_SELECTOR_AUTO_COST_TOOLTIP_KEY),
+                        text: AUTO_BEDROCK_TOOLTIP,
                         mouse_state: self.cost_row_tooltip_mouse_state.clone(),
                     })
                 } else {
@@ -623,23 +656,16 @@ impl SearchItem for ModelSearchItem {
                 );
 
             let mut text_fragments = vec![
-                FormattedTextFragment::plain_text(localization::text_for_app_with_args(
-                    app,
-                    "settings.ai.model_selector.upgrade_required.prefix",
-                    &[("name", &display_name)],
+                FormattedTextFragment::plain_text(format!(
+                    "{display_name} is not available for free users. "
                 )),
-                FormattedTextFragment::hyperlink(
-                    localization::text_for_app(app, "onboarding.common.upgrade"),
-                    upgrade_url,
-                ),
+                FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
             ];
 
             if byok_available {
-                text_fragments.push(FormattedTextFragment::plain_text(
-                    localization::text_for_app(app, "settings.billing.upgrade.or"),
-                ));
+                text_fragments.push(FormattedTextFragment::plain_text(" or ".to_string()));
                 text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    localization::text_for_app(app, "settings.billing.upgrade.bring_own_key"),
+                    "bring your own key",
                     WorkspaceAction::ShowSettingsPageWithSearch {
                         search_query: "api".to_string(),
                         section: Some(SettingsSection::WarpAgent),
@@ -714,14 +740,12 @@ impl SearchItem for ModelSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        let mut label = format!("{}: {}", self.accessibility_prefix, self.display_text);
+        let mut label = format!("Model: {}", self.display_text);
         if self.is_selected {
-            label.push(' ');
-            label.push_str(&self.accessibility_selected);
+            label.push_str(" (selected)");
         }
         if self.is_disabled() {
-            label.push(' ');
-            label.push_str(&self.accessibility_disabled);
+            label.push_str(" (disabled)");
         }
         label
     }

@@ -14,6 +14,7 @@ use itertools::Itertools;
 use uuid::Uuid;
 use warp_editor::model::RichTextEditorModel;
 use warp_editor::render::model::RichTextStyles;
+use warp_errors::report_error;
 use warp_multi_agent_api as maa_api;
 use warpui::color::ColorU;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity, WindowId};
@@ -324,8 +325,9 @@ impl AIDocumentModel {
                 }
                 AIDocumentSaveStatus::NotSaved => {
                     if !self.sync_to_warp_drive(document_id, ctx) {
-                        log::error!(
-                            "Failed to publish plan document {document_id} to Warp Drive before child-agent launch."
+                        report_error!(
+                            "Failed to publish plan document to Warp Drive before child-agent launch.",
+                            extra: { "document_id" => %document_id }
                         );
                     } else if !self.get_document_save_status(&document_id).is_saved() {
                         awaiting_server_backing.push(document_id);
@@ -455,7 +457,7 @@ impl AIDocumentModel {
         };
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
             let terminal_view_id =
-                history_model.terminal_view_id_for_conversation(&conversation_id);
+                history_model.terminal_surface_id_for_conversation(&conversation_id);
             if let Some(conversation) = history_model.conversation_mut(&conversation_id) {
                 conversation.update_plan_notebook_uid(
                     document_id,
@@ -1178,7 +1180,10 @@ impl AIDocumentModel {
         if let Err(e) = self.save_tx.try_send(AIDocumentSaveRequest {
             document_id: *document_id,
         }) {
-            log::error!("Error enqueueing content save for {}: {}", document_id, e);
+            report_error!(
+                anyhow::Error::new(e).context("Error enqueueing content save"),
+                extra: { "document_id" => %document_id }
+            );
         }
     }
 
@@ -1220,7 +1225,10 @@ impl AIDocumentModel {
             title: doc.title.clone(),
         };
         if let Err(err) = sender.try_send(event) {
-            log::error!("Error persisting AI document content for {id}: {err}");
+            report_error!(
+                anyhow::Error::new(err).context("Error persisting AI document content"),
+                extra: { "id" => %id }
+            );
         }
     }
 

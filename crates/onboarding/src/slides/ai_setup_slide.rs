@@ -20,15 +20,15 @@ use warpui_core::{
 };
 
 use super::OnboardingSlide;
-use crate::model::{AiSetupChoice, NoAiConfirmationSource, OnboardingStateModel};
+use crate::model::{AiSetupChoice, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
-use crate::OnboardingCopy;
 
-const WARP_AGENT_FEATURE_KEYS: &[&str] = &[
-    "onboarding.ai_setup.warp_agent.feature.agentic_coding",
-    "onboarding.ai_setup.warp_agent.feature.frontier_models",
-    "onboarding.ai_setup.warp_agent.feature.model_routing",
-    "onboarding.ai_setup.warp_agent.feature.multi_agent",
+/// Checklist shown on the "Use Warp agent" card.
+const WARP_AGENT_FEATURES: &[&str] = &[
+    "Best harness for terminal tasks and agentic coding",
+    "Frontier models from OpenAI, Anthropic, and Google",
+    "Model routing across frontier and open-weight models",
+    "Multi-agent orchestration",
 ];
 
 #[derive(Debug, Clone)]
@@ -37,38 +37,29 @@ pub enum AiSetupSlideAction {
     SelectThirdParty,
     BackClicked,
     NextClicked,
-    NoAiClicked,
 }
 
 /// The "Choose your AI setup" slide (DES-816 V3), shown on the AI-first path for
 /// users enrolled in the FREE_AI_REMOVAL experiment arm. Forks between the Warp
-/// agent (paid-plan path) and third-party agents (works on Free), with an
-/// "I don't want AI" escape onto the terminal-only path.
+/// agent (paid-plan path) and third-party agents (works on Free).
 pub struct AiSetupSlide {
     onboarding_state: ModelHandle<OnboardingStateModel>,
     warp_agent_mouse_state: MouseStateHandle,
     third_party_mouse_state: MouseStateHandle,
     back_button: button::Button,
     next_button: button::Button,
-    no_ai_button: button::Button,
     scroll_state: ClippedScrollStateHandle,
-    copy: OnboardingCopy,
 }
 
 impl AiSetupSlide {
-    pub(crate) fn new(
-        onboarding_state: ModelHandle<OnboardingStateModel>,
-        copy: OnboardingCopy,
-    ) -> Self {
+    pub(crate) fn new(onboarding_state: ModelHandle<OnboardingStateModel>) -> Self {
         Self {
             onboarding_state,
             warp_agent_mouse_state: MouseStateHandle::default(),
             third_party_mouse_state: MouseStateHandle::default(),
             back_button: button::Button::default(),
             next_button: button::Button::default(),
-            no_ai_button: button::Button::default(),
             scroll_state: ClippedScrollStateHandle::new(),
-            copy,
         }
     }
 
@@ -115,7 +106,7 @@ impl AiSetupSlide {
 
         let title = appearance
             .ui_builder()
-            .paragraph(self.copy.text_owned("onboarding.ai_setup.title"))
+            .paragraph("Choose your AI setup")
             .with_style(UiComponentStyles {
                 font_size: Some(36.),
                 font_weight: Some(Weight::Medium),
@@ -125,7 +116,7 @@ impl AiSetupSlide {
             .finish();
 
         let subtitle = FormattedTextElement::from_str(
-            self.copy.text_owned("onboarding.ai_setup.subtitle"),
+            "Choose if you'd like to use Warp Agent or third party agents.",
             appearance.ui_font_family(),
             16.,
         )
@@ -236,7 +227,7 @@ impl AiSetupSlide {
         let header_row = {
             let label = appearance
                 .ui_builder()
-                .paragraph(self.copy.text_owned("onboarding.ai_setup.warp_agent.title"))
+                .paragraph("Use Warp Agent")
                 .with_style(UiComponentStyles {
                     font_size: Some(16.),
                     font_weight: Some(Weight::Semibold),
@@ -250,7 +241,7 @@ impl AiSetupSlide {
                 let green = theme.ansi_fg_green();
                 let badge_text = appearance
                     .ui_builder()
-                    .paragraph(self.copy.text_owned("onboarding.ai_setup.warp_agent.badge"))
+                    .paragraph("Access more models")
                     .with_style(UiComponentStyles {
                         font_size: Some(12.),
                         font_weight: Some(Weight::Normal),
@@ -277,8 +268,7 @@ impl AiSetupSlide {
         };
 
         let description = FormattedTextElement::from_str(
-            self.copy
-                .text_owned("onboarding.ai_setup.warp_agent.description"),
+            "State of the art agent harness deeply integrated into the terminal.",
             appearance.ui_font_family(),
             14.,
         )
@@ -299,14 +289,14 @@ impl AiSetupSlide {
             let mut col = Flex::column()
                 .with_main_axis_size(MainAxisSize::Min)
                 .with_cross_axis_alignment(CrossAxisAlignment::Start);
-            for &item_key in WARP_AGENT_FEATURE_KEYS {
+            for &item in WARP_AGENT_FEATURES {
                 let icon_el = ConstrainedBox::new(Icon::Check.to_warpui_icon(check_fill).finish())
                     .with_width(16.)
                     .with_height(16.)
                     .finish();
                 let text_el = appearance
                     .ui_builder()
-                    .paragraph(self.copy.text_owned(item_key))
+                    .paragraph(item.to_string())
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
                         font_weight: Some(Weight::Normal),
@@ -364,10 +354,7 @@ impl AiSetupSlide {
 
         let label = appearance
             .ui_builder()
-            .paragraph(
-                self.copy
-                    .text_owned("onboarding.ai_setup.third_party.title"),
-            )
+            .paragraph("Use third party agents")
             .with_style(UiComponentStyles {
                 font_size: Some(16.),
                 font_weight: Some(Weight::Semibold),
@@ -378,8 +365,7 @@ impl AiSetupSlide {
             .finish();
 
         let description = FormattedTextElement::from_str(
-            self.copy
-                .text_owned("onboarding.ai_setup.third_party.description"),
+            "Use agents like Claude Code, Codex, and Gemini.",
             appearance.ui_font_family(),
             14.,
         )
@@ -409,9 +395,7 @@ impl AiSetupSlide {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.common.back").into(),
-                ),
+                content: button::Content::Label("Back".into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -422,31 +406,11 @@ impl AiSetupSlide {
             },
         );
 
-        let no_ai_keystroke = Keystroke::parse("cmdorctrl-enter").unwrap_or_default();
-        let no_ai_button = self.no_ai_button.render(
-            appearance,
-            button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.no_ai.confirm").into(),
-                ),
-                theme: &button::themes::Naked,
-                options: button::Options {
-                    keystroke: Some(no_ai_keystroke),
-                    on_click: Some(Box::new(|ctx, _app, _pos| {
-                        ctx.dispatch_typed_action(AiSetupSlideAction::NoAiClicked);
-                    })),
-                    ..button::Options::default(appearance)
-                },
-            },
-        );
-
         let enter = Keystroke::parse("enter").unwrap_or_default();
         let next_button = self.next_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.common.next").into(),
-                ),
+                content: button::Content::Label("Next".into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),
@@ -458,20 +422,13 @@ impl AiSetupSlide {
             },
         );
 
-        let right_buttons = Flex::row()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(no_ai_button)
-            .with_child(Container::new(next_button).with_margin_left(8.).finish())
-            .finish();
-
         let (step_index, step_count) = self.onboarding_state.as_ref(app).progress();
         bottom_nav::onboarding_bottom_nav(
             appearance,
             step_index,
             step_count,
             Some(back_button),
-            Some(right_buttons),
+            Some(next_button),
         )
     }
 
@@ -537,12 +494,6 @@ impl OnboardingSlide for AiSetupSlide {
     fn on_enter(&mut self, ctx: &mut ViewContext<Self>) {
         self.next(ctx);
     }
-
-    fn on_cmd_or_ctrl_enter(&mut self, ctx: &mut ViewContext<Self>) {
-        self.onboarding_state.update(ctx, |model, ctx| {
-            model.request_no_ai_confirmation(NoAiConfirmationSource::AiSetup, ctx);
-        });
-    }
 }
 
 impl TypedActionView for AiSetupSlide {
@@ -563,11 +514,6 @@ impl TypedActionView for AiSetupSlide {
             }
             AiSetupSlideAction::NextClicked => {
                 self.next(ctx);
-            }
-            AiSetupSlideAction::NoAiClicked => {
-                self.onboarding_state.update(ctx, |model, ctx| {
-                    model.request_no_ai_confirmation(NoAiConfirmationSource::AiSetup, ctx);
-                });
             }
         }
     }

@@ -20,7 +20,6 @@ use crate::slides::{
     ThemePickerSlide, ThemePickerSlideEvent, ThirdPartySlide,
 };
 use crate::telemetry::OnboardingEvent;
-use crate::{OnboardingCopy, AI_FEATURE_COPY_KEYS};
 
 const APP_BECAME_ACTIVE_DEBOUNCE: Duration = Duration::from_secs(15);
 
@@ -67,8 +66,6 @@ pub enum AgentOnboardingEvent {
     UpgradeRequested,
     UpgradeCopyUrlRequested,
     UpgradePasteTokenFromClipboardRequested,
-    AddApiKeyRequested,
-    AddCustomEndpointRequested,
     /// Emitted when the app regains focus (e.g. user returns from the browser).
     /// The parent should refresh any stale data: available models, workspace/billing metadata, etc.
     AppBecameActive,
@@ -94,7 +91,6 @@ pub struct AgentOnboardingView {
     show_plan_activated_toast: bool,
     last_auth_state: OnboardingAuthState,
     plan_activated_close_mouse_state: MouseStateHandle,
-    copy: OnboardingCopy,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -146,7 +142,6 @@ impl AgentOnboardingView {
         workspace_enforces_autonomy: bool,
         agent_modality_enabled: bool,
         auth_state: OnboardingAuthState,
-        copy: OnboardingCopy,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let onboarding_state = ctx.add_model(|_| {
@@ -184,8 +179,7 @@ impl AgentOnboardingView {
 
         let intro_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |_| IntroSlide::new(onboarding_state, copy.clone()))
+            ctx.add_typed_action_view(move |_| IntroSlide::new(onboarding_state))
         };
 
         ctx.subscribe_to_view(&intro_slide, |_me, _view, event, ctx| match event {
@@ -197,30 +191,24 @@ impl AgentOnboardingView {
         let theme_picker_slide = {
             let themes = theme_picker_themes.clone();
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
             ctx.add_typed_action_view(move |ctx| {
-                ThemePickerSlide::new(themes.clone(), onboarding_state, copy.clone(), ctx)
+                ThemePickerSlide::new(themes.clone(), onboarding_state, ctx)
             })
         };
 
         let intention_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |_| IntentionSlide::new(onboarding_state, copy.clone()))
+            ctx.add_typed_action_view(move |_| IntentionSlide::new(onboarding_state))
         };
 
         let ai_setup_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |_| AiSetupSlide::new(onboarding_state, copy.clone()))
+            ctx.add_typed_action_view(move |_| AiSetupSlide::new(onboarding_state))
         };
 
         let customize_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |ctx| {
-                CustomizeUISlide::new(onboarding_state, copy.clone(), ctx)
-            })
+            ctx.add_typed_action_view(move |ctx| CustomizeUISlide::new(onboarding_state, ctx))
         };
 
         ctx.subscribe_to_view(&theme_picker_slide, |me, _view, event, ctx| {
@@ -229,25 +217,15 @@ impl AgentOnboardingView {
 
         let agent_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |ctx| {
-                AgentSlide::new(onboarding_state, copy.clone(), ctx)
-            })
+            ctx.add_typed_action_view(move |ctx| AgentSlide::new(onboarding_state, ctx))
         };
 
         let ai_access_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |_| AiAccessSlide::new(onboarding_state, copy.clone()))
+            ctx.add_typed_action_view(move |_| AiAccessSlide::new(onboarding_state))
         };
 
         ctx.subscribe_to_view(&ai_access_slide, |_me, _view, event, ctx| match event {
-            AiAccessSlideEvent::AddApiKeyRequested => {
-                ctx.emit(AgentOnboardingEvent::AddApiKeyRequested);
-            }
-            AiAccessSlideEvent::AddCustomEndpointRequested => {
-                ctx.emit(AgentOnboardingEvent::AddCustomEndpointRequested);
-            }
             AiAccessSlideEvent::CopyUpgradeUrlRequested => {
                 ctx.emit(AgentOnboardingEvent::UpgradeCopyUrlRequested);
             }
@@ -258,16 +236,12 @@ impl AgentOnboardingView {
 
         let third_party_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |ctx| {
-                ThirdPartySlide::new(onboarding_state, copy.clone(), ctx)
-            })
+            ctx.add_typed_action_view(move |ctx| ThirdPartySlide::new(onboarding_state, ctx))
         };
 
         let project_slide = {
             let onboarding_state = onboarding_state.clone();
-            let copy = copy.clone();
-            ctx.add_typed_action_view(move |_| ProjectSlide::new(onboarding_state, copy.clone()))
+            ctx.add_typed_action_view(move |_| ProjectSlide::new(onboarding_state))
         };
 
         // When the app regains focus (e.g. user returning from the upgrade page in the
@@ -309,7 +283,6 @@ impl AgentOnboardingView {
             show_plan_activated_toast: false,
             last_auth_state: auth_state,
             plan_activated_close_mouse_state: MouseStateHandle::default(),
-            copy,
         }
     }
 
@@ -338,20 +311,6 @@ impl AgentOnboardingView {
             state.set_auth_state(auth_state, ctx);
         });
         ctx.notify();
-    }
-
-    /// Updates how many BYOK provider keys and custom endpoints the user has
-    /// configured. This drives the AI-access slide's "connected" status line and
-    /// gates "Next" on the bring-your-own path.
-    pub fn set_byok_status(
-        &mut self,
-        key_count: usize,
-        endpoint_count: usize,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.ai_access_slide.update(ctx, |slide, ctx| {
-            slide.set_byok_status(key_count, endpoint_count, ctx);
-        });
     }
 
     /// The current `use_vertical_tabs` value on the onboarding UI customization.
@@ -434,9 +393,7 @@ impl AgentOnboardingView {
         let cancel_button = self.no_ai_cancel_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.no_ai.cancel").into(),
-                ),
+                content: button::Content::Label("Give me AI features".into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -451,9 +408,7 @@ impl AgentOnboardingView {
         let confirm_button = self.no_ai_confirm_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label(
-                    self.copy.text_owned("onboarding.no_ai.confirm").into(),
-                ),
+                content: button::Content::Label("I don't want AI".into()),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),
@@ -468,12 +423,10 @@ impl AgentOnboardingView {
         render_feature_optout_dialog(
             appearance,
             FeatureOptOutDialog {
-                title: self.copy.text_owned("onboarding.no_ai.title"),
-                body: self.copy.text_owned("onboarding.no_ai.body"),
-                features: AI_FEATURE_COPY_KEYS
-                    .iter()
-                    .map(|key| self.copy.text_owned(key))
-                    .collect(),
+                title: "Are you sure you don't want AI?",
+                body: "Without AI, you'll still get Warp's terminal experience, but you'll miss \
+                       our agentic features like automatic fixes for terminal errors.",
+                features: &[],
                 close_button,
                 cancel_button,
                 confirm_button,
@@ -537,7 +490,7 @@ impl AgentOnboardingView {
         .finish();
 
         let text = ui_builder
-            .span(self.copy.text_owned("onboarding.agent.plan_activated"))
+            .span("Plan successfully activated!")
             .with_style(UiComponentStyles {
                 font_color: Some(text_color),
                 font_size: Some(FONT_SIZE),
@@ -667,9 +620,7 @@ impl View for AgentOnboardingView {
             let close_button = self.close_button.render(
                 appearance,
                 button::Params {
-                    content: button::Content::Label(
-                        self.copy.text_owned("onboarding.common.skip").into(),
-                    ),
+                    content: button::Content::Label("Skip".into()),
                     theme: &button::themes::Naked,
                     options: button::Options {
                         size: button::Size::Small,

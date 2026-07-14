@@ -27,7 +27,8 @@ use warp_cli::mcp::MCPSpec;
 use warp_cli::share::ShareRequest;
 use warp_cli::skill::SkillSpec;
 use warp_core::features::FeatureFlag;
-use warp_core::{report_error, report_if_error, safe_debug, safe_error, safe_info};
+use warp_core::{safe_debug, safe_error, safe_info};
+use warp_errors::{register_error, report_error, report_if_error, ErrorExt};
 use warp_graphql::ai::AgentTaskState;
 use warp_localization::LocaleId;
 use warp_managed_secrets::ManagedSecretValue;
@@ -57,7 +58,8 @@ use crate::ai::blocklist::orchestration_event_streamer::{
     register_agent_event_consumer, unregister_agent_event_consumer,
 };
 use crate::ai::blocklist::{
-    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, BlocklistAIPermissions,
+    finalize_recording_for_conversation, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
+    BlocklistAIPermissions, FinalizeReason,
 };
 use crate::ai::cloud_environments::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, GithubRepo, SourceRepo,
@@ -589,6 +591,13 @@ pub enum AgentDriverError {
     },
 }
 
+impl ErrorExt for AgentDriverError {
+    fn is_actionable(&self) -> bool {
+        error_classification::classify_driver_error(self).0 == AgentTaskState::Error
+    }
+}
+register_error!(AgentDriverError);
+
 #[derive(Debug, Default)]
 struct ResolvedMcpSpecs {
     local_uuids: Vec<Uuid>,
@@ -876,12 +885,19 @@ impl AgentDriver {
                             None,
                         )
                         .await
+                        .context("Failed to update agent task state to InProgress")
                     {
-                        log::error!("Failed to update agent task state to InProgress: {e}");
+                        report_error!(e);
                     }
                 }
                 let result = Self::run_internal(task, foreground.clone()).await;
 
+                // Stop accepting CLI session status updates now that the run
+                // is done. Already accepted task updates remain queued until
+                // delivery finishes.
+                let _ = foreground
+                    .spawn(|me, ctx| me.unregister_cli_agent_task_sync(ctx))
+                    .await;
                 // Unregister the driver consumer now that the run is done.
                 // The streamer will tear down the SSE if no other consumer
                 // remains and the conversation isn't a child.
@@ -889,16 +905,34 @@ impl AgentDriver {
                     .spawn(|me, ctx| me.unregister_streamer_consumer(ctx))
                     .await;
 
-                // Run the snapshot upload before signaling the caller. The caller resumes and
-                // triggers process termination as soon as it receives `result`; the snapshot
-                // upload depends on the event loop that termination tears down, so anything
-                // async it awaits (presigned URL fetch, uploads, timers) would get abandoned
-                // mid-flight. Provider cleanup is just local temp-file teardown, so it's safe
-                // to run after the send.
+                // The caller may terminate the process as soon as it receives
+                // `result`, so all durable artifact work must finish before the
+                // send below. First start or join finalization for this
+                // conversation and wait for ffmpeg stop plus upload to finish.
+                // This also waits for work already started by an early exit or
+                // cancellation path.
+                if let Ok(Some(finalization)) = foreground
+                    .spawn(|me, ctx| {
+                        me.run_conversation_id.and_then(|conversation_id| {
+                            finalize_recording_for_conversation(
+                                conversation_id,
+                                FinalizeReason::AgentFinished,
+                                true,
+                                ctx,
+                            )
+                        })
+                    })
+                    .await
+                {
+                    let finalization_result = finalization.resolve().await;
+                    log::info!(
+                        "Recording finalization completed before agent driver exit: {finalization_result:?}"
+                    );
+                }
                 Self::run_snapshot_upload(&foreground).await;
 
                 if tx.send(result).is_err() {
-                    log::error!("Caller did not wait for agent driver to finish");
+                    report_error!("Caller did not wait for agent driver to finish");
                 }
 
                 Self::cleanup(foreground).await;
@@ -920,6 +954,10 @@ impl AgentDriver {
                     Err(AgentDriverError::InvalidRuntimeState)
                 }
             };
+
+            if let Err(err) = &result {
+                report_error!(err);
+            }
 
             // Report driver-level errors directly to the server. These errors
             // occur before or outside a conversation (e.g. bootstrap, MCP startup,
@@ -2008,7 +2046,7 @@ impl AgentDriver {
                         SetupClientEventReporter::new(task_id, ai_client, ctx.background_executor())
                     }
                     None => {
-                        log::error!("No task ID found for driver - cannot report client events");
+                        report_error!("No task ID found for driver - cannot report client events");
                         SetupClientEventReporter::noop(ai_client, ctx.background_executor())
                     }
                 }
@@ -2316,7 +2354,7 @@ impl AgentDriver {
                 let conversation_status = with_credential_refreshes(
                     async move {
                         status_rx.await.map_err(|_| {
-                            log::error!("Subscription dropped before agent finished");
+                            report_error!("Subscription dropped before agent finished");
                             AgentDriverError::InvalidRuntimeState
                         })
                     },
@@ -3019,7 +3057,7 @@ impl AgentDriver {
         let mut written_conversation_id = false;
 
         ctx.subscribe_to_model(&history_model_handle, move |me, _, event, ctx| {
-            if event.terminal_view_id().is_some_and(|id| id != terminal_id) {
+            if event.terminal_surface_id().is_some_and(|id| id != terminal_id) {
                 return;
             }
 
@@ -3130,7 +3168,7 @@ impl AgentDriver {
 
                 }
 
-                BlocklistAIHistoryEvent::UpdatedConversationStatus { terminal_view_id: conversation_terminal_id, conversation_id, .. } => {
+                BlocklistAIHistoryEvent::UpdatedConversationStatus { terminal_surface_id: conversation_terminal_id, conversation_id, .. } => {
                     if *conversation_terminal_id != terminal_id {
                         return;
                     }
@@ -3249,7 +3287,7 @@ impl AgentDriver {
                 }
                 BlocklistAIHistoryEvent::StartedNewConversation { .. }
                 | BlocklistAIHistoryEvent::ReassignedExchange { .. }
-                | BlocklistAIHistoryEvent::ClearedConversationsInTerminalView { .. }
+                | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
                 | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
                 | BlocklistAIHistoryEvent::SplitConversation { .. }
                 | BlocklistAIHistoryEvent::RemoveConversation { .. }
@@ -3262,7 +3300,7 @@ impl AgentDriver {
                 | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
                 | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
                 | BlocklistAIHistoryEvent::ConversationServerTokenAssigned { .. }
-                | BlocklistAIHistoryEvent::ConversationOwnershipTransferred { .. }
+                | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
                 | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
                 | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
                 | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }
@@ -3344,7 +3382,7 @@ impl AgentDriver {
                         attachments_dir,
                     } => {
                         let Some(task_id) = self.task_id else {
-                            log::error!("ServerSide prompt without task_id");
+                            report_error!("ServerSide prompt without task_id");
                             return;
                         };
                         let ambient_run_id = task_id.to_string();
@@ -3495,6 +3533,14 @@ impl AgentDriver {
             });
     }
 
+    /// Removes the task mapping registered for CLI agent session status updates.
+    fn unregister_cli_agent_task_sync(&self, ctx: &mut ModelContext<Self>) {
+        let terminal_view_id = self.terminal_driver.as_ref(ctx).terminal_view().id();
+        LocalAgentTaskSyncModel::handle(ctx).update(ctx, |model, _| {
+            model.unregister_cli_session(terminal_view_id);
+        });
+    }
+
     /// Handle events re-emitted by the `TerminalDriver`.
     fn handle_terminal_driver_event(
         &mut self,
@@ -3587,7 +3633,7 @@ impl AgentDriver {
             .spawn(|me, _| (std::mem::take(&mut me.cloud_providers), me.task_id))
             .await
         else {
-            log::error!("Unable to retrieve cloud providers for cleanup");
+            report_error!("Unable to retrieve cloud providers for cleanup");
             return;
         };
 
@@ -3638,7 +3684,10 @@ impl AgentDriver {
             })
             .await
         else {
-            log::error!("Unable to retrieve snapshot upload context for cleanup (task {task_id})");
+            report_error!(
+                "Unable to retrieve snapshot upload context for cleanup",
+                extra: { "task_id" => %task_id }
+            );
             return;
         };
 
@@ -3660,10 +3709,10 @@ impl AgentDriver {
             .with_timeout(upload_timeout)
             .await
         {
-            report_error!(anyhow!(
-                "Snapshot upload timed out after {:?}; continuing with cleanup (task {task_id})",
-                upload_timeout
-            ));
+            report_error!(
+                "Snapshot upload timed out; continuing with cleanup",
+                extra: { "timeout" => ?upload_timeout, "task_id" => %task_id }
+            );
         }
     }
 }

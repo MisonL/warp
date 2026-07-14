@@ -17,9 +17,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use warp_cli::agent::Harness;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
-use warp_core::report_error;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::WarpTheme;
+use warp_errors::report_error;
 use warpui::color::ColorU;
 use warpui::r#async::Timer;
 use warpui::windowing::{StateEvent, WindowManager};
@@ -1502,8 +1502,9 @@ impl AgentConversationsModel {
             | BlocklistAIHistoryEvent::RestoredConversations { .. }
             | BlocklistAIHistoryEvent::RemoveConversation { .. }
             | BlocklistAIHistoryEvent::DeletedConversation { .. }
-            | BlocklistAIHistoryEvent::ClearedConversationsInTerminalView { .. }
-            | BlocklistAIHistoryEvent::ClearedActiveConversation { .. } => {
+            | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
+            | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
+            => {
                 self.sync_conversations(ctx);
             }
 
@@ -1580,7 +1581,7 @@ impl AgentConversationsModel {
             // doesn't change any ConversationNavigationData fields (title comes from
             // UpdateTaskDescription, last_updated uses exchange.start_time which is set at append time).
             | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
-            | BlocklistAIHistoryEvent::ConversationOwnershipTransferred { .. }
+            | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. }
             | BlocklistAIHistoryEvent::NewConversationRequestComplete { .. }
             | BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
             | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }

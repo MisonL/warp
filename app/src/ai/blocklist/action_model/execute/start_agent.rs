@@ -4,6 +4,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use shell_words::split as split_shell_words;
 use warp_cli::agent::Harness;
+use warp_errors::report_error;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
@@ -184,8 +185,9 @@ impl StartAgentExecutor {
                 });
             }
             None => {
-                log::error!(
-                    "No agent identifier found for child conversation {child_conversation_id:?}"
+                report_error!(
+                    "No agent identifier found for child conversation",
+                    extra: { "child_conversation_id" => ?child_conversation_id }
                 );
                 let _ = pending.sender.try_send(StartAgentOutcome::Error(
                     "Server did not assign an agent identifier".to_string(),
@@ -233,7 +235,7 @@ impl StartAgentExecutor {
         };
         if let Some(error_msg) = start_agent_error_message_for_status(
             conversation.status(),
-            conversation.status_error_message(),
+            conversation.status_error_message().as_deref(),
         ) {
             self.complete_pending_as_error(request_id, child_conversation_id, error_msg, ctx);
             return;
@@ -270,7 +272,7 @@ impl StartAgentExecutor {
                 };
                 let error_msg = start_agent_error_message_for_status(
                     conversation.status(),
-                    conversation.status_error_message(),
+                    conversation.status_error_message().as_deref(),
                 );
                 if let Some(error_msg) = error_msg {
                     self.complete_pending_as_error(request_id, *conversation_id, error_msg, ctx);
@@ -290,7 +292,7 @@ impl StartAgentExecutor {
             | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
             | BlocklistAIHistoryEvent::SetActiveConversation { .. }
             | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
-            | BlocklistAIHistoryEvent::ClearedConversationsInTerminalView { .. }
+            | BlocklistAIHistoryEvent::ClearedConversationsForTerminalSurface { .. }
             | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
             | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
             | BlocklistAIHistoryEvent::SplitConversation { .. }
@@ -300,7 +302,7 @@ impl StartAgentExecutor {
             | BlocklistAIHistoryEvent::UpdatedConversationTitle { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
-            | BlocklistAIHistoryEvent::ConversationOwnershipTransferred { .. } => {}
+            | BlocklistAIHistoryEvent::ConversationTransferredBetweenTerminalSurfaces { .. } => {}
             BlocklistAIHistoryEvent::OrchestrationConfigUpdated { .. }
             | BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated { .. }
             | BlocklistAIHistoryEvent::LocalSharedSessionEstablished { .. } => {}

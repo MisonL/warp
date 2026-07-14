@@ -53,7 +53,6 @@ use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::server_api::{AIApiError, DeserializationError};
 use crate::terminal::model::block::BlockId;
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::block_onboarding::onboarding_agentic_suggestions_block::OnboardingChipType;
 use crate::TelemetryEvent;
 
 /// A server supplied ID for a specific AI generated output.
@@ -100,15 +99,45 @@ pub enum CancellationReason {
     // The user deleted the conversation while it was in progress.
     Deleted,
 
-    /// The long-running command completed while the agent was still streaming.
+    /// The long-running command completed while the agent was still streaming a response started via inline agent view.
     /// This should be treated as a successful completion, not a cancellation.
-    OptimisticCLISubagentCompletion,
+    /// Note this is only used for inline agent view (user starting an agent to monitor an already running command),
+    /// not when CLI subagent monitors a requested command.
+    CommandFinishedDuringInlineAgentView,
 
     /// The user manually took control of a long-running command away from the agent.
     /// The agent conversation is still in progress — it will resume after the command
     /// finishes or once the user hands control back. The stream is cancelled only to
     /// stop the CLI subagent monitoring loop, not to end the conversation.
     CLISubagentUserTakeover,
+
+    /// An agent-issued command caused the shell process to exit (e.g. it ran
+    /// `exit`, or ran a failing command after enabling `set -e`). The in-flight
+    /// stream/actions are cancelled to stop work, but the conversation is
+    /// finalized as a terminal `Error` (with a shell-exit message) by the
+    /// controller rather than reported as a user cancellation.
+    AgentExitedShell,
+}
+
+/// How a [`CancellationReason`] maps to the conversation's resulting status.
+/// This is the single source of truth consumed by the stream- and
+/// action-cancellation machinery; see [`CancellationReason::conversation_outcome`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CancellationOutcome {
+    /// Leave the conversation `InProgress`; it will continue on its own (a
+    /// follow-up request or a resumed long-running command) without further user
+    /// input.
+    KeepInProgress,
+    /// Finalize the conversation as a successful completion (`Success`).
+    Succeeded,
+    /// Finalize the conversation as a user cancellation (`Cancelled`).
+    Cancelled,
+    /// Terminal, but a dedicated path (not the cancellation machinery) writes the
+    /// status — the cancellation is only a stop signal and must not stamp a status.
+    /// Currently used for shell exit, which is finalized as `Error` by
+    /// `fail_conversation_due_to_shell_exit`. Unlike `KeepInProgress`, the
+    /// conversation is ending; only the status write is suppressed.
+    FinalizedExternally,
 }
 
 impl Display for CancellationReason {
@@ -120,11 +149,14 @@ impl Display for CancellationReason {
             CancellationReason::UserCommandExecuted => write!(f, "user command execution"),
             CancellationReason::Reverted => write!(f, "revert"),
             CancellationReason::Deleted => write!(f, "deleted"),
-            CancellationReason::OptimisticCLISubagentCompletion => {
+            CancellationReason::CommandFinishedDuringInlineAgentView => {
                 write!(f, "LRC command completed")
             }
             CancellationReason::CLISubagentUserTakeover => {
                 write!(f, "CLI subagent user takeover")
+            }
+            CancellationReason::AgentExitedShell => {
+                write!(f, "agent command exited the shell")
             }
         }
     }
@@ -150,21 +182,36 @@ impl CancellationReason {
         matches!(self, CancellationReason::Reverted)
     }
 
-    pub fn is_lrc_command_completed(&self) -> bool {
-        matches!(self, CancellationReason::OptimisticCLISubagentCompletion)
-    }
-
-    /// Returns true when the stream was cancelled because the user took manual
-    /// control of the long-running command. The conversation remains in progress
-    /// and the ambient agent task should not be reported as cancelled.
-    pub fn is_cli_subagent_user_takeover(&self) -> bool {
-        matches!(self, CancellationReason::CLISubagentUserTakeover)
-    }
-
-    /// Returns true when the stream cancellation should NOT transition the
-    /// conversation status away from InProgress.
-    pub fn should_preserve_in_progress_status(&self) -> bool {
-        self.is_follow_up_for_same_conversation() || self.is_cli_subagent_user_takeover()
+    /// How a cancellation reason maps to the
+    /// conversation's resulting status. Every site that finalizes a cancelled
+    /// stream or action consults this instead of re-deriving the disposition,
+    /// so the reason -> status mapping lives in one exhaustive place.
+    /// Note that sometimes the action result is treated as authoritative for determining
+    /// conversation status even when there is a cancellation reason (taking priority over this)
+    pub fn conversation_outcome(&self) -> CancellationOutcome {
+        match self {
+            // The conversation continues without further user input (a follow-up
+            // request or a resumed long-running command drives it forward), so
+            // its status must stay InProgress.
+            CancellationReason::FollowUpSubmitted {
+                is_for_same_conversation: true,
+            }
+            | CancellationReason::CLISubagentUserTakeover => CancellationOutcome::KeepInProgress,
+            // A long-running command finishing (optimistically) or a revert are
+            // successful completions rather than cancellations.
+            CancellationReason::CommandFinishedDuringInlineAgentView
+            | CancellationReason::Reverted => CancellationOutcome::Succeeded,
+            // The shell died under the agent; a dedicated path finalizes this as a
+            // terminal `Error`, so the cancellation machinery must not stamp a status.
+            CancellationReason::AgentExitedShell => CancellationOutcome::FinalizedExternally,
+            CancellationReason::ManuallyCancelled
+            | CancellationReason::AutomaticCloudHandoff
+            | CancellationReason::UserCommandExecuted
+            | CancellationReason::Deleted
+            | CancellationReason::FollowUpSubmitted {
+                is_for_same_conversation: false,
+            } => CancellationOutcome::Cancelled,
+        }
     }
 }
 
@@ -677,11 +724,18 @@ pub enum RenderableAIError {
         /// blocked due to fraud, plan restriction). Maps the task to FAILED state instead of ERROR.
         is_user_error: bool,
     },
+    /// An agent-issued command caused the shell process to exit, so the run
+    /// cannot continue. Surfaced as a terminal failure (FAILED) rather than a
+    /// user cancellation.
+    AgentExitedShell,
 }
 
 impl RenderableAIError {
     const TRANSIENT_NETWORK_ERROR_MESSAGE: &'static str =
         "Warp lost connection while receiving the agent response. This is usually temporary.";
+    /// User-facing message shown when an agent-issued command exits the shell.
+    pub const AGENT_EXITED_SHELL_MESSAGE: &'static str =
+        "The shell exited while the agent was running a command, so the run could not continue. Ensure the agent is not asked to run commands or source scripts that can exit the shell.";
     /// Creates a transient network error. `kind` is the structured cause (including the raw API
     /// error where one exists), preserved so user reports can disambiguate the different causes
     /// behind the shared user-facing copy.
@@ -731,6 +785,19 @@ impl RenderableAIError {
     /// aggressive behavior so developers still see every transport failure.
     pub fn should_suppress_during_recovery(&self) -> bool {
         self.will_attempt_resume() && !ChannelState::channel().is_dogfood()
+    }
+
+    /// Constructs a generic [`RenderableAIError::Other`] from a message.
+    /// `is_user_error` selects the task classification (true → FAILED, false →
+    /// ERROR). The resume/network flags are false: this is for terminal,
+    /// out-of-band errors that are not auto-resumed.
+    pub fn other(error_message: impl Into<String>, is_user_error: bool) -> Self {
+        Self::Other {
+            error_message: error_message.into(),
+            will_attempt_resume: false,
+            waiting_for_network: false,
+            is_user_error,
+        }
     }
 }
 
@@ -789,6 +856,10 @@ impl From<&Arc<AIApiError>> for RenderableAIError {
                 false,
                 TransientNetworkErrorKind::Api(value.clone()),
             ),
+            AIApiError::GrokSubscriptionTokenRefreshFailed => Self::other(
+                "Grok subscription token could not be refreshed. Please try reconnecting your subscription.",
+                true,
+            ),
             AIApiError::Deserialization(DeserializationError::Json(_))
             | AIApiError::NoContextFound
             | AIApiError::ErrorStatus(_, _)
@@ -839,6 +910,7 @@ impl Display for RenderableAIError {
                 )
             }
             Self::Other { error_message, .. } => write!(f, "{error_message}"),
+            Self::AgentExitedShell => write!(f, "{}", Self::AGENT_EXITED_SHELL_MESSAGE),
         }
     }
 }
@@ -902,6 +974,7 @@ impl ProgrammingLanguage {
                 "xml" => Some("xml"),
                 "vue" => Some("vue"),
                 "dockerfile" | "docker" | "containerfile" => Some("dockerfile"),
+                "markdown" | "md" => Some("md"),
                 _ => None,
             },
             Self::Shell(ShellType::PowerShell) => Some("ps1"),
@@ -2441,16 +2514,12 @@ pub enum StaticQueryType {
     Code,
     Deploy,
     SomethingElse,
-    CustomOnboardingRequest,
     EvaluationSuite,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::enum_variant_names)]
 pub enum EntrypointType {
-    Onboarding {
-        chip_type: OnboardingChipType,
-    },
     PromptSuggestion {
         is_static: bool,
         is_coding: bool,
@@ -2652,11 +2721,6 @@ pub enum AIAgentInput {
         review_comments: AgentReviewCommentBatch,
     },
 
-    FetchReviewComments {
-        repo_path: String,
-        context: Arc<[AIAgentContext]>,
-    },
-
     SummarizeConversation {
         prompt: Option<String>,
         context: Arc<[AIAgentContext]>,
@@ -2785,7 +2849,6 @@ impl Display for AIAgentInput {
             Self::CreateNewProject { .. } => write!(f, "CreateNewProject"),
             Self::CloneRepository { .. } => write!(f, "CloneRepository"),
             Self::CodeReview { .. } => write!(f, "CodeReview"),
-            Self::FetchReviewComments { .. } => write!(f, "FetchReviewComments"),
             Self::SummarizeConversation { .. } => write!(f, "SummarizeConversation"),
             Self::InvokeSkill {
                 skill, user_query, ..
@@ -2833,7 +2896,6 @@ impl AIAgentInput {
             Self::InitProjectRules { display_query, .. }
             | Self::CreateEnvironment { display_query, .. } => display_query.clone(),
             Self::CodeReview { .. } => Some("Address these comments".to_string()),
-            Self::FetchReviewComments { .. } => Some(commands::PR_COMMENTS.name.to_string()),
             Self::InvokeSkill {
                 skill, user_query, ..
             } => {
@@ -2891,6 +2953,14 @@ impl AIAgentInput {
             query = format!("/agent {query}");
         }
         Some(query)
+    }
+
+    /// Returns the raw user query text for the [`Self::UserQuery`] variant.
+    pub fn user_query(&self) -> Option<String> {
+        match self {
+            AIAgentInput::UserQuery { query, .. } => Some(query.clone()),
+            _ => None,
+        }
     }
 
     pub fn user_query_mode(&self) -> Option<UserQueryMode> {
@@ -2962,7 +3032,6 @@ impl AIAgentInput {
             | Self::CreateNewProject { context, .. }
             | Self::CloneRepository { context, .. }
             | Self::CodeReview { context, .. }
-            | Self::FetchReviewComments { context, .. }
             | Self::InvokeSkill { context, .. }
             | Self::StartFromAmbientRunPrompt { context, .. }
             | Self::PassiveSuggestionResult { context, .. } => Some(context),
@@ -2994,7 +3063,6 @@ impl AIAgentInput {
             | Self::CreateNewProject { .. }
             | Self::CloneRepository { .. }
             | Self::CodeReview { .. }
-            | Self::FetchReviewComments { .. }
             | Self::SummarizeConversation { .. }
             | Self::InvokeSkill { .. }
             | Self::StartFromAmbientRunPrompt { .. }
@@ -3016,7 +3084,6 @@ impl AIAgentInput {
             self,
             AIAgentInput::InitProjectRules { .. }
                 | AIAgentInput::CreateEnvironment { .. }
-                | AIAgentInput::FetchReviewComments { .. }
                 | AIAgentInput::InvokeSkill { .. }
         )
     }
@@ -3203,6 +3270,15 @@ impl AIAgentExchange {
     pub fn duration(&self) -> Option<TimeDelta> {
         self.finish_time
             .map(|finish_time| finish_time.signed_duration_since(self.start_time))
+    }
+
+    /// The elapsed wall-clock time since this exchange started. `None` when
+    /// the clock skewed such that `start_time` is in the future.
+    pub fn time_since_start(&self) -> Option<Duration> {
+        Local::now()
+            .signed_duration_since(self.start_time)
+            .to_std()
+            .ok()
     }
 }
 

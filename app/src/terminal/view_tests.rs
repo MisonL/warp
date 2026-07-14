@@ -6,14 +6,14 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use chrono::Local;
+use chrono::{Local, Utc};
 use parking_lot::FairMutex;
 use session_sharing_protocol::common::CLIAgentSessionState;
 use warp_cli::agent::Harness;
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START, C0};
 use warpui::notification::UserNotification;
 use warpui::platform::WindowStyle;
-use warpui::{App, Presenter, ReadModel, WindowInvalidation};
+use warpui::{App, EntityIdSet, Presenter, ReadModel, WindowInvalidation};
 
 use super::*;
 use crate::ai::agent::conversation::{AIConversation, ConversationStatus};
@@ -22,7 +22,9 @@ use crate::ai::agent::{
     AIAgentActionId, AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus,
     UserQueryMode,
 };
-use crate::ai::ambient_agents::AmbientAgentTaskId;
+use crate::ai::agent_conversations_model::AgentConversationsModel;
+use crate::ai::ambient_agents::task::TaskPrincipalInfo;
+use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskId, AmbientAgentTaskState};
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryBlock, AgentViewEntryOrigin, AgentViewState, EnterAgentBlockAction,
@@ -37,6 +39,7 @@ use crate::ai::cloud_environments::{
     AmbientAgentEnvironment, CloudAmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel,
 };
 use crate::ai::llms::LLMId;
+use crate::auth::user::TEST_USER_UID;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectMetadata, CloudObjectPermissions};
 use crate::context_chips::prompt::Prompt;
@@ -95,6 +98,40 @@ fn add_window_with_cloud_mode_terminal(app: &mut App) -> ViewHandle<TerminalView
     terminal
 }
 
+/// Builds a resumable, owned (created by the current test user) Oz cloud task so
+/// `resolve_ai_query_routing` classifies a pane bound to it as a `NewCloudVm` follow-up target.
+fn owned_resumable_oz_task(task_id: AmbientAgentTaskId) -> AmbientAgentTask {
+    let now = Utc::now();
+    AmbientAgentTask {
+        task_id,
+        parent_run_id: None,
+        title: "Task".to_string(),
+        state: AmbientAgentTaskState::Succeeded,
+        prompt: "test".to_string(),
+        created_at: now,
+        started_at: Some(now),
+        updated_at: now,
+        run_time: None,
+        status_message: None,
+        source: None,
+        session_id: None,
+        session_link: None,
+        creator: Some(TaskPrincipalInfo {
+            creator_type: "USER".to_string(),
+            uid: TEST_USER_UID.to_string(),
+            display_name: None,
+        }),
+        executor: None,
+        conversation_id: None,
+        request_usage: None,
+        is_sandbox_running: false,
+        agent_config_snapshot: None,
+        artifacts: vec![],
+        last_event_sequence: None,
+        children: vec![],
+    }
+}
+
 fn has_pending_user_query_block(view: &TerminalView) -> bool {
     let Some(view_id) = view.pending_user_query_view_id else {
         return false;
@@ -102,6 +139,52 @@ fn has_pending_user_query_block(view: &TerminalView) -> bool {
     view.rich_content_views.iter().any(|rich_content| {
         rich_content.view_id() == view_id && rich_content.is_pending_user_query()
     })
+}
+
+#[test]
+fn agent_view_lifecycle_updates_input_mode() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        FeatureFlag::AgentView.set_enabled(true);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.read(&app, |view, ctx| {
+            assert_eq!(
+                view.ai_input_model().as_ref(ctx).input_type(),
+                InputType::Shell
+            );
+        });
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view entry should succeed");
+            });
+        });
+        terminal.read(&app, |view, ctx| {
+            assert_eq!(
+                view.ai_input_model().as_ref(ctx).input_type(),
+                InputType::AI
+            );
+        });
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller.exit_agent_view_without_confirmation(ctx)
+            });
+        });
+        terminal.read(&app, |view, ctx| {
+            assert_eq!(
+                view.ai_input_model().as_ref(ctx).input_type(),
+                InputType::Shell
+            );
+        });
+    });
 }
 
 #[test]
@@ -227,7 +310,7 @@ fn append_exchange_with_inputs_and_handle_event(
         &BlocklistAIHistoryEvent::AppendedExchange {
             exchange_id,
             task_id: task_id.clone(),
-            terminal_view_id: view.view_id,
+            terminal_surface_id: view.view_id,
             conversation_id,
             is_hidden: false,
             response_stream_id: Some(response_stream_id.clone()),
@@ -263,7 +346,7 @@ fn update_exchange_input_and_handle_event(
         history_model,
         &BlocklistAIHistoryEvent::UpdatedStreamingExchange {
             exchange_id,
-            terminal_view_id: view.view_id,
+            terminal_surface_id: view.view_id,
             conversation_id,
             is_hidden: false,
         },
@@ -394,7 +477,7 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
             view.handle_ai_history_model_event(
                 BlocklistAIHistoryModel::handle(ctx),
                 &BlocklistAIHistoryEvent::UpdatedConversationTitle {
-                    terminal_view_id: Some(view.view_id),
+                    terminal_surface_id: Some(view.view_id),
                     conversation_id,
                     title: "Renamed title".to_string(),
                 },
@@ -407,16 +490,12 @@ fn updated_conversation_metadata_refreshes_selected_conversation_pane_title() {
 }
 struct TestTerminalManager {
     model: Arc<FairMutex<TerminalModel>>,
-    view: ViewHandle<TerminalView>,
+    _view: ViewHandle<TerminalView>,
 }
 
 impl TerminalManager for TestTerminalManager {
     fn model(&self) -> Arc<FairMutex<TerminalModel>> {
         self.model.clone()
-    }
-
-    fn view(&self) -> ViewHandle<TerminalView> {
-        self.view.clone()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -766,13 +845,13 @@ fn jump_to_latest_agent_message_enters_agent_view_and_records_pending_scroll() {
         });
 
         terminal.read(&app, |view, ctx| {
-            match view.agent_view_controller().as_ref(ctx).agent_view_state() {
-                AgentViewState::Active {
-                    conversation_id: active_conversation_id,
-                    origin,
-                    ..
-                } => {
-                    assert_eq!(*active_conversation_id, conversation_id);
+            let controller = view.agent_view_controller().as_ref(ctx);
+            match controller.agent_view_state() {
+                AgentViewState::Active { origin, .. } => {
+                    assert_eq!(
+                        controller.agent_view_state().active_conversation_id(),
+                        Some(conversation_id)
+                    );
                     assert_eq!(*origin, AgentViewEntryOrigin::JumpToLatestAgentMessage);
                 }
                 state => panic!("expected an active agent view, got {state:?}"),
@@ -864,18 +943,18 @@ fn jump_to_latest_agent_message_scrolls_without_re_entering_when_already_in_view
 }
 
 #[test]
-fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_owner() {
+fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_terminal_surface() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
-        let original_owner = add_window_with_terminal(&mut app, None);
+        let original_view = add_window_with_terminal(&mut app, None);
         let restored_view = add_window_with_terminal(&mut app, None);
 
-        let original_owner_view_id = original_owner.read(&app, |view, _| view.view_id);
+        let original_view_id = original_view.read(&app, |view, _| view.view_id);
         let restored_view_id = restored_view.read(&app, |view, _| view.view_id);
 
-        let conversation_id = original_owner.update(&mut app, |view, ctx| {
+        let conversation_id = original_view.update(&mut app, |view, ctx| {
             let (conversation_id, _, _, _) = append_exchange_with_inputs_and_handle_event(
                 view,
                 vec![AIAgentInput::UserQuery {
@@ -912,7 +991,7 @@ fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_owner() {
             conversation_id
         });
 
-        original_owner.read(&app, |view, _| {
+        original_view.read(&app, |view, _| {
             assert_eq!(ai_block_count(view), 1);
             assert_eq!(
                 agent_view_entry_count_for_conversation(view, conversation_id),
@@ -942,23 +1021,23 @@ fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_owner() {
         });
 
         BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
-            let original_owner_live_conversation_ids = history
-                .all_live_conversations_for_terminal_view(original_owner_view_id)
+            let original_view_live_conversation_ids = history
+                .all_live_conversations_for_terminal_surface(original_view_id)
                 .map(|conversation| conversation.id())
                 .collect::<Vec<_>>();
             let restored_view_live_conversation_ids = history
-                .all_live_conversations_for_terminal_view(restored_view_id)
+                .all_live_conversations_for_terminal_surface(restored_view_id)
                 .map(|conversation| conversation.id())
                 .collect::<Vec<_>>();
             assert_eq!(
-                history.terminal_view_id_for_conversation(&conversation_id),
+                history.terminal_surface_id_for_conversation(&conversation_id),
                 Some(restored_view_id)
             );
-            assert!(original_owner_live_conversation_ids.is_empty());
+            assert!(original_view_live_conversation_ids.is_empty());
             assert_eq!(restored_view_live_conversation_ids, vec![conversation_id]);
         });
 
-        original_owner.read(&app, |view, _| {
+        original_view.read(&app, |view, _| {
             assert_eq!(ai_block_count(view), 0);
             assert_eq!(
                 agent_view_entry_count_for_conversation(view, conversation_id),
@@ -976,19 +1055,20 @@ fn restoring_conversation_to_new_pane_transfers_blocks_from_previous_owner() {
 }
 
 #[test]
-fn clicking_old_banner_for_open_conversation_focuses_current_owner_without_transferring_blocks() {
+fn clicking_old_banner_for_open_conversation_focuses_current_terminal_surface_without_transferring_blocks(
+) {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
-        let original_owner = add_window_with_terminal(&mut app, None);
+        let original_view = add_window_with_terminal(&mut app, None);
         let restored_view = add_window_with_terminal(&mut app, None);
 
-        let original_owner_window_id = app.read(|ctx| original_owner.window_id(ctx));
-        let original_owner_view_id = original_owner.read(&app, |view, _| view.view_id);
+        let original_window_id = app.read(|ctx| original_view.window_id(ctx));
+        let original_view_id = original_view.read(&app, |view, _| view.view_id);
         let restored_view_id = restored_view.read(&app, |view, _| view.view_id);
 
-        let conversation_id = original_owner.update(&mut app, |view, ctx| {
+        let conversation_id = original_view.update(&mut app, |view, ctx| {
             let (conversation_id, _, _, _) = append_exchange_with_inputs_and_handle_event(
                 view,
                 vec![AIAgentInput::UserQuery {
@@ -1069,7 +1149,7 @@ fn clicking_old_banner_for_open_conversation_focuses_current_owner_without_trans
                 Some(restored_view_id)
             );
         });
-        original_owner.read(&app, |view, _| {
+        original_view.read(&app, |view, _| {
             assert_eq!(ai_block_count(view), 0);
             assert_eq!(
                 agent_view_entry_count_for_conversation(view, conversation_id),
@@ -1081,7 +1161,7 @@ fn clicking_old_banner_for_open_conversation_focuses_current_owner_without_trans
         });
 
         let entry_blocks = app
-            .views_of_type::<AgentViewEntryBlock>(original_owner_window_id)
+            .views_of_type::<AgentViewEntryBlock>(original_window_id)
             .expect("original window should contain agent entry block");
         assert_eq!(entry_blocks.len(), 1);
         entry_blocks[0].update(&mut app, |block, ctx| {
@@ -1093,15 +1173,15 @@ fn clicking_old_banner_for_open_conversation_focuses_current_owner_without_trans
 
         BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
             assert_eq!(
-                history.terminal_view_id_for_conversation(&conversation_id),
+                history.terminal_surface_id_for_conversation(&conversation_id),
                 Some(restored_view_id)
             );
             assert!(history
-                .all_live_conversations_for_terminal_view(original_owner_view_id)
+                .all_live_conversations_for_terminal_surface(original_view_id)
                 .next()
                 .is_none());
         });
-        original_owner.read(&app, |view, _| {
+        original_view.read(&app, |view, _| {
             assert_eq!(ai_block_count(view), 0);
             assert_eq!(
                 agent_view_entry_count_for_conversation(view, conversation_id),
@@ -1115,18 +1195,18 @@ fn clicking_old_banner_for_open_conversation_focuses_current_owner_without_trans
 }
 
 #[test]
-fn appended_exchange_renders_in_current_owner_after_conversation_transfer() {
+fn appended_exchange_renders_in_current_terminal_surface_after_conversation_transfer() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
-        let original_owner = add_window_with_terminal(&mut app, None);
-        let transferred_owner = add_window_with_terminal(&mut app, None);
+        let original_view = add_window_with_terminal(&mut app, None);
+        let transferred_view = add_window_with_terminal(&mut app, None);
 
-        let original_owner_view_id = original_owner.read(&app, |view, _| view.view_id);
-        let transferred_owner_view_id = transferred_owner.read(&app, |view, _| view.view_id);
+        let original_view_id = original_view.read(&app, |view, _| view.view_id);
+        let transferred_view_id = transferred_view.read(&app, |view, _| view.view_id);
 
-        let conversation_id = original_owner.update(&mut app, |view, ctx| {
+        let conversation_id = original_view.update(&mut app, |view, ctx| {
             let (conversation_id, _, _, _) = append_exchange_with_inputs_and_handle_event(
                 view,
                 vec![AIAgentInput::UserQuery {
@@ -1151,7 +1231,7 @@ fn appended_exchange_renders_in_current_owner_after_conversation_transfer() {
                     .expect("conversation should exist")
             });
 
-        transferred_owner.update(&mut app, |view, ctx| {
+        transferred_view.update(&mut app, |view, ctx| {
             view.restore_conversation_after_view_creation(
                 RestoredAIConversation::new(restored_conversation),
                 true,
@@ -1162,16 +1242,16 @@ fn appended_exchange_renders_in_current_owner_after_conversation_transfer() {
 
         BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
             assert_eq!(
-                history.terminal_view_id_for_conversation(&conversation_id),
-                Some(transferred_owner_view_id)
+                history.terminal_surface_id_for_conversation(&conversation_id),
+                Some(transferred_view_id)
             );
         });
 
-        let original_owner_block_count_after_restore =
-            original_owner.read(&app, |view, _| ai_block_count(view));
-        let transferred_owner_block_count_after_restore =
-            transferred_owner.read(&app, |view, _| ai_block_count(view));
-        assert_eq!(transferred_owner_block_count_after_restore, 1);
+        let original_view_block_count_after_restore =
+            original_view.read(&app, |view, _| ai_block_count(view));
+        let transferred_view_block_count_after_restore =
+            transferred_view.read(&app, |view, _| ai_block_count(view));
+        assert_eq!(transferred_view_block_count_after_restore, 1);
 
         let (task_id, exchange_id, response_stream_id) = BlocklistAIHistoryModel::handle(&app)
             .update(&mut app, |history, ctx| {
@@ -1194,20 +1274,20 @@ fn appended_exchange_renders_in_current_owner_after_conversation_transfer() {
                     .append_reassigned_exchange(
                         &response_stream_id,
                         exchange,
-                        original_owner_view_id,
+                        original_view_id,
                         ctx,
                     )
                     .expect("exchange should append");
                 (task_id, exchange_id, response_stream_id)
             });
 
-        original_owner.update(&mut app, |view, ctx| {
+        original_view.update(&mut app, |view, ctx| {
             view.handle_ai_history_model_event(
                 BlocklistAIHistoryModel::handle(ctx),
                 &BlocklistAIHistoryEvent::AppendedExchange {
                     exchange_id,
                     task_id: task_id.clone(),
-                    terminal_view_id: original_owner_view_id,
+                    terminal_surface_id: original_view_id,
                     conversation_id,
                     is_hidden: false,
                     response_stream_id: Some(response_stream_id.clone()),
@@ -1216,13 +1296,13 @@ fn appended_exchange_renders_in_current_owner_after_conversation_transfer() {
             );
         });
 
-        transferred_owner.update(&mut app, |view, ctx| {
+        transferred_view.update(&mut app, |view, ctx| {
             view.handle_ai_history_model_event(
                 BlocklistAIHistoryModel::handle(ctx),
                 &BlocklistAIHistoryEvent::AppendedExchange {
                     exchange_id,
                     task_id,
-                    terminal_view_id: original_owner_view_id,
+                    terminal_surface_id: original_view_id,
                     conversation_id,
                     is_hidden: false,
                     response_stream_id: Some(response_stream_id),
@@ -1231,16 +1311,16 @@ fn appended_exchange_renders_in_current_owner_after_conversation_transfer() {
             );
         });
 
-        original_owner.read(&app, |view, _| {
+        original_view.read(&app, |view, _| {
             assert_eq!(
                 ai_block_count(view),
-                original_owner_block_count_after_restore
+                original_view_block_count_after_restore
             );
         });
-        transferred_owner.read(&app, |view, _| {
+        transferred_view.read(&app, |view, _| {
             assert_eq!(
                 ai_block_count(view),
-                transferred_owner_block_count_after_restore + 1
+                transferred_view_block_count_after_restore + 1
             );
         });
     })
@@ -1280,14 +1360,14 @@ fn escape_pops_nested_cloud_agent_view_with_long_running_command() {
             let parent_manager = ctx.add_model(|_| {
                 let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
                     model: parent_model,
-                    view: parent_view.clone(),
+                    _view: parent_view.clone(),
                 });
                 manager
             });
             let cloud_manager = ctx.add_model(|_| {
                 let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
                     model: cloud_model,
-                    view: cloud_view.clone(),
+                    _view: cloud_view.clone(),
                 });
                 manager
             });
@@ -1414,14 +1494,14 @@ fn root_cloud_mode_pane_sets_root_cloud_mode_context_key() {
             let root_manager = ctx.add_model(|_| {
                 let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
                     model: root_model,
-                    view: root_view.clone(),
+                    _view: root_view.clone(),
                 });
                 manager
             });
             let nested_manager = ctx.add_model(|_| {
                 let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
                     model: nested_model,
-                    view: nested_view.clone(),
+                    _view: nested_view.clone(),
                 });
                 manager
             });
@@ -1654,13 +1734,13 @@ fn shared_third_party_viewer_sync_enters_agent_view_and_retags_existing_block() 
                 .expect("sync should be idempotent");
             assert_eq!(conversation_id, idempotent_conversation_id);
 
-            match view.agent_view_controller().as_ref(ctx).agent_view_state() {
-                AgentViewState::Active {
-                    conversation_id: active_conversation_id,
-                    origin,
-                    ..
-                } => {
-                    assert_eq!(*active_conversation_id, conversation_id);
+            let controller = view.agent_view_controller().as_ref(ctx);
+            match controller.agent_view_state() {
+                AgentViewState::Active { origin, .. } => {
+                    assert_eq!(
+                        controller.agent_view_state().active_conversation_id(),
+                        Some(conversation_id)
+                    );
                     assert_eq!(*origin, AgentViewEntryOrigin::ThirdPartyCloudAgent);
                 }
                 state => panic!("expected active agent view, got {state:?}"),
@@ -1671,7 +1751,7 @@ fn shared_third_party_viewer_sync_enters_agent_view_and_retags_existing_block() 
                 .block_list()
                 .block_with_id(&harness_block_id)
                 .expect("harness block should still exist");
-            assert!(!block.should_hide_block(model.block_list().agent_view_state()));
+            assert!(!block.should_hide_block(model.block_list().transcript_scope()));
             match block.agent_view_visibility() {
                 AgentViewVisibility::Terminal {
                     conversation_ids,
@@ -1726,14 +1806,14 @@ fn shared_third_party_viewer_syncs_from_viewer_harness_updated_when_harness_unch
                 ctx,
             );
 
-            let AgentViewState::Active {
-                conversation_id,
-                origin,
-                ..
-            } = view.agent_view_controller().as_ref(ctx).agent_view_state()
-            else {
+            let controller = view.agent_view_controller().as_ref(ctx);
+            let AgentViewState::Active { origin, .. } = controller.agent_view_state() else {
                 panic!("expected active agent view");
             };
+            let conversation_id = controller
+                .agent_view_state()
+                .active_conversation_id()
+                .expect("active agent view should select a conversation");
             assert_eq!(*origin, AgentViewEntryOrigin::ThirdPartyCloudAgent);
 
             let model = view.model.lock();
@@ -1741,14 +1821,14 @@ fn shared_third_party_viewer_syncs_from_viewer_harness_updated_when_harness_unch
                 .block_list()
                 .block_with_id(&harness_block_id)
                 .expect("harness block should still exist");
-            assert!(!block.should_hide_block(model.block_list().agent_view_state()));
+            assert!(!block.should_hide_block(model.block_list().transcript_scope()));
             match block.agent_view_visibility() {
                 AgentViewVisibility::Terminal {
                     conversation_ids,
                     pending_conversation_ids,
                 } => {
                     assert!(pending_conversation_ids.is_empty());
-                    assert!(conversation_ids.contains(conversation_id));
+                    assert!(conversation_ids.contains(&conversation_id));
                 }
                 visibility => panic!("expected terminal block visibility, got {visibility:?}"),
             }
@@ -1797,14 +1877,14 @@ fn shared_third_party_viewer_syncs_from_cli_agent_state_without_ambient_model() 
         });
 
         terminal.read(&app, |view, ctx| {
-            let AgentViewState::Active {
-                conversation_id,
-                origin,
-                ..
-            } = view.agent_view_controller().as_ref(ctx).agent_view_state()
-            else {
+            let controller = view.agent_view_controller().as_ref(ctx);
+            let AgentViewState::Active { origin, .. } = controller.agent_view_state() else {
                 panic!("expected active agent view");
             };
+            let conversation_id = controller
+                .agent_view_state()
+                .active_conversation_id()
+                .expect("active agent view should select a conversation");
             assert_eq!(*origin, AgentViewEntryOrigin::ThirdPartyCloudAgent);
 
             let model = view.model.lock();
@@ -1812,20 +1892,21 @@ fn shared_third_party_viewer_syncs_from_cli_agent_state_without_ambient_model() 
                 .block_list()
                 .block_with_id(&harness_block_id)
                 .expect("harness block should still exist");
-            assert!(!block.should_hide_block(model.block_list().agent_view_state()));
+            assert!(!block.should_hide_block(model.block_list().transcript_scope()));
             match block.agent_view_visibility() {
                 AgentViewVisibility::Terminal {
                     conversation_ids,
                     pending_conversation_ids,
                 } => {
                     assert!(pending_conversation_ids.is_empty());
-                    assert!(conversation_ids.contains(conversation_id));
+                    assert!(conversation_ids.contains(&conversation_id));
                 }
                 visibility => panic!("expected terminal block visibility, got {visibility:?}"),
             }
         });
     });
 }
+
 #[test]
 fn cloud_mode_followup_input_uses_explicit_submit_event_even_when_view_pending() {
     App::test((), |mut app| async move {
@@ -1840,11 +1921,32 @@ fn cloud_mode_followup_input_uses_explicit_submit_event_even_when_view_pending()
         let task_id = AmbientAgentTaskId::from_str("123e4567-e89b-12d3-a456-426614174000")
             .expect("valid task id");
 
+        // Seed a resumable, owned Oz task so `resolve_ai_query_routing` — the single source of
+        // truth for follow-up submission — classifies this pane as a `NewCloudVm` follow-up target.
+        AgentConversationsModel::handle(&app).update(&mut app, |model, _| {
+            model.insert_task_for_test(owned_resumable_oz_task(task_id));
+        });
+
         let ambient_agent_view_model = terminal.update(&mut app, |view, ctx| {
             view.model
                 .lock()
                 .set_shared_session_status(SharedSessionStatus::ViewPending);
             view.pending_cloud_followup_task_id = Some(task_id);
+
+            // A cloud follow-up is only submitted from within an agent view, which is what makes
+            // the input AI-capable and gives the routing its active-conversation context.
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view entry should succeed");
+            });
+
             let ambient_agent_view_model = view
                 .ambient_agent_view_model()
                 .expect("cloud mode terminal should have ambient model")
@@ -2156,8 +2258,7 @@ fn cmd_enter_from_terminal_with_selected_block_enters_agent_view_with_context() 
             let conversation_id = view
                 .agent_view_controller()
                 .as_ref(ctx)
-                .agent_view_state()
-                .active_conversation_id()
+                .agent_view_state().active_conversation_id()
                 .expect("agent view should be active");
 
             let model = view.model.lock();
@@ -2166,7 +2267,7 @@ fn cmd_enter_from_terminal_with_selected_block_enters_agent_view_with_context() 
                 .block_with_id(&selected_block_id)
                 .expect("selected block should still exist");
             assert!(
-                !block.should_hide_block(model.block_list().agent_view_state()),
+                !block.should_hide_block(model.block_list().transcript_scope()),
                 "selected block should remain visible in the new agent conversation"
             );
             match block.agent_view_visibility() {
@@ -2813,7 +2914,7 @@ fn test_alt_screen_select_with_sgr_mouse() {
 
         let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
 
-        let mut updated = HashSet::new();
+        let mut updated = EntityIdSet::default();
         updated.insert(app.root_view_id(window_id).unwrap());
         let invalidation = WindowInvalidation {
             updated,
@@ -4446,6 +4547,77 @@ fn test_banner_for_incompatible_plugins() {
     })
 }
 
+// Regression test for GH#3548 / GH#6093: the "Seems like your completions are not
+// working" banner must offer a permanent "Don't show me again" dismissal that is
+// persisted, while the "x" close button keeps its existing per-session behavior.
+#[test]
+fn test_control_master_banner_permanent_dismissal_persists() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal =
+            MockTerminalManager::create_new_terminal_view_window_for_test(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            // Temporary dismissal (the "x" button) clears the banner for this session
+            // but must not persist a "don't show again" preference.
+            view.control_master_error_banner_state.is_open = true;
+            view.handle_controlmaster_error_banner_event(
+                &BannerEvent::Dismiss(DismissalType::Temporary),
+                ctx,
+            );
+            assert!(!view.control_master_error_banner_state.is_open);
+            assert!(!view.control_master_error_banner_suppressed);
+            assert_eq!(
+                ctx.private_user_preferences()
+                    .read_value(CONTROL_MASTER_BANNER_SUPPRESSED_KEY)
+                    .unwrap(),
+                None,
+                "temporary dismissal should not persist a preference"
+            );
+
+            // Permanent dismissal ("Don't show me again") clears the banner and persists
+            // the choice so it never reopens.
+            view.control_master_error_banner_state.is_open = true;
+            view.handle_controlmaster_error_banner_event(
+                &BannerEvent::Dismiss(DismissalType::Permanent),
+                ctx,
+            );
+            assert!(!view.control_master_error_banner_state.is_open);
+            assert!(view.control_master_error_banner_suppressed);
+            assert_eq!(
+                ctx.private_user_preferences()
+                    .read_value(CONTROL_MASTER_BANNER_SUPPRESSED_KEY)
+                    .unwrap(),
+                Some("true".to_owned()),
+                "permanent dismissal should persist a preference"
+            );
+        });
+    })
+}
+
+// Regression test for GH#3548 / GH#6093: once the banner has been permanently
+// dismissed it must not reopen on subsequent sessions.
+#[test]
+fn test_control_master_banner_suppressed_does_not_reopen() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal =
+            MockTerminalManager::create_new_terminal_view_window_for_test(&mut app, None);
+
+        terminal.update(&mut app, |view, _ctx| {
+            // With no remote server and no prior dismissal, the banner may open.
+            view.control_master_error_banner_suppressed = false;
+            assert!(view.should_open_control_master_banner(/* has_remote_server */ false));
+            // A remote server makes the CTA irrelevant, so it stays closed.
+            assert!(!view.should_open_control_master_banner(/* has_remote_server */ true));
+
+            // Once permanently dismissed it must never reopen, even without a remote server.
+            view.control_master_error_banner_suppressed = true;
+            assert!(!view.should_open_control_master_banner(false));
+        });
+    })
+}
+
 #[test]
 fn test_bash_vim_banner_already_shown() {
     App::test((), |mut app| async move {
@@ -5277,7 +5449,12 @@ fn ctrl_c_after_stop_takeover_cancels_conversation() {
                 .expect("command should become agent monitored");
 
             view.cli_subagent_controller.update(ctx, |controller, ctx| {
-                controller.switch_control_to_user(UserTakeOverReason::Stop, ctx);
+                controller.switch_control_to_user(
+                    UserTakeOverReason::Stop {
+                        should_auto_resume: true,
+                    },
+                    ctx,
+                );
             });
 
             conversation_id
@@ -5356,6 +5533,108 @@ fn ctrl_c_after_transfer_takeover_does_not_cancel_conversation() {
             // completion to the agent, so Ctrl-C should interrupt the command without
             // cancelling the conversation.
             assert_eq!(conversation.status(), &ConversationStatus::InProgress);
+        });
+    })
+}
+
+#[test]
+fn completed_user_controlled_lrc_resumes_when_not_suppressed() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        FeatureFlag::AgentView.set_enabled(true);
+
+        let terminal = add_window_with_terminal(&mut app, None);
+        terminal.update(&mut app, |view, ctx| {
+            let conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.view_id, false, false, false, ctx)
+                });
+
+            view.model
+                .lock()
+                .simulate_long_running_block("sleep 20", "running");
+            let task_id = TaskId::new("test-cli-subagent".to_owned());
+            let block_id = {
+                let mut model = view.model.lock();
+                let active_block = model.block_list_mut().active_block_mut();
+                active_block.set_agent_interaction_mode_for_requested_command(
+                    AIAgentActionId::from("requested-command".to_owned()),
+                    Some(task_id.clone()),
+                    conversation_id,
+                );
+                active_block
+                    .set_agent_interaction_mode_for_agent_monitored_command(
+                        &task_id,
+                        conversation_id,
+                    )
+                    .expect("command should become agent monitored");
+                active_block
+                    .take_over_control_for_user(UserTakeOverReason::Stop {
+                        should_auto_resume: true,
+                    })
+                    .expect("user takeover should succeed");
+                active_block.id().clone()
+            };
+
+            assert!(!view
+                .ai_controller
+                .as_ref(ctx)
+                .has_active_stream_for_conversation(conversation_id, ctx));
+
+            view.on_user_block_completed(&block_id, ctx);
+
+            // A Ctrl-C takeover (Stop) without an explicit teardown should resume the
+            // conversation once the command completes, just like a manual takeover.
+            assert!(view
+                .ai_controller
+                .as_ref(ctx)
+                .has_active_stream_for_conversation(conversation_id, ctx));
+        });
+    })
+}
+
+#[test]
+fn completed_user_controlled_lrc_skips_resume_when_suppressed() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        FeatureFlag::AgentView.set_enabled(true);
+
+        let terminal = add_window_with_terminal(&mut app, None);
+        terminal.update(&mut app, |view, ctx| {
+            let conversation_id =
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
+                    history.start_new_conversation(view.view_id, false, false, false, ctx)
+                });
+
+            view.model
+                .lock()
+                .simulate_long_running_block("sleep 20", "running");
+            let task_id = TaskId::new("test-cli-subagent".to_owned());
+            let block_id = {
+                let mut model = view.model.lock();
+                let active_block = model.block_list_mut().active_block_mut();
+                active_block.set_agent_interaction_mode_for_requested_command(
+                    AIAgentActionId::from("requested-command".to_owned()),
+                    Some(task_id.clone()),
+                    conversation_id,
+                );
+                active_block
+                    .set_agent_interaction_mode_for_agent_monitored_command(
+                        &task_id,
+                        conversation_id,
+                    )
+                    .expect("command should become agent monitored");
+                // Mirrors rewind / stop_local_agent_conversation tearing down the conversation.
+                active_block.set_user_control_for_teardown();
+                active_block.id().clone()
+            };
+
+            view.on_user_block_completed(&block_id, ctx);
+
+            assert!(!view
+                .ai_controller
+                .as_ref(ctx)
+                .has_active_stream_for_conversation(conversation_id, ctx));
         });
     })
 }
@@ -5522,30 +5801,6 @@ fn use_agent_footer_renders_for_transfer_handoff_even_when_user_command_footer_s
                 .last_non_hidden_rich_content_block_after_block(Some(active_block_index))
                 .map(|(_, item)| item.view_id);
             assert_eq!(rendered_footer_view_id, Some(view.use_agent_footer.id()));
-        });
-    })
-}
-
-#[test]
-fn test_first_onboarding_block_exists() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |terminal_view, ctx| {
-            terminal_view.handle_action(
-                &TerminalAction::OnboardingFlow(OnboardingVersion::Legacy),
-                ctx,
-            );
-        });
-        terminal.update(&mut app, |terminal_view, ctx| {
-            assert!(terminal_view.block_onboarding_active);
-            // Here we assert that Agentic Suggestions block is the first one. As we modify the sequence, this test will have to be updated.
-            ctx.subscribe_to_model(&History::handle(ctx), move |me, _, event, _| match event {
-                HistoryEvent::Initialized(_) => {
-                    assert!(me.onboarding_agentic_suggestions_block.is_some());
-                }
-            });
         });
     })
 }

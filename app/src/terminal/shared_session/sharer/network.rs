@@ -39,6 +39,7 @@ use session_sharing_protocol::sharer::{
     UpstreamMessage,
 };
 use warp_core::features::FeatureFlag;
+use warp_errors::report_error;
 use warp_server_client::iap::IapManager;
 use warpui::r#async::Timer;
 use warpui::{Entity, ModelContext, RequestState, RetryOption, SingletonEntity};
@@ -47,6 +48,8 @@ use websocket::{Message, Sink, Stream, WebSocket, WebsocketMessage as _};
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::editor::{CrdtOperation, ReplicaId};
 use crate::server::server_api::ServerApiProvider;
+#[cfg(not(any(test, feature = "integration_tests")))]
+use crate::server::telemetry::telemetry_context;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::shared_session::{
     connect_endpoint, max_session_size, EventNumber, SharedSessionScrollbackType,
@@ -54,8 +57,6 @@ use crate::terminal::shared_session::{
 };
 use crate::terminal::TerminalModel;
 use crate::throttle::throttle;
-#[cfg(not(any(test, feature = "integration_tests")))]
-use crate::{report_error, server::telemetry::telemetry_context};
 
 /// The amount of time we will wait to batch consecutive PTY read events before sending an event to the server
 const PTY_READS_BATCH_THRESHOLD: Duration = Duration::from_millis(50);
@@ -101,11 +102,12 @@ macro_rules! sharer_warn {
 macro_rules! sharer_error {
     ($network:expr, $($arg:tt)+) => {{
         let (session_id, source_task_id) = $network.log_context();
-        log::error!(
-            "{message}; session_id={session_id:?} source_task_id={source_task_id:?}",
-            message = format_args!($($arg)+),
-            session_id = session_id,
-            source_task_id = source_task_id,
+        warp_errors::report_error!(
+            anyhow::anyhow!("{}", format_args!($($arg)+)),
+            extra: {
+                "session_id" => ?session_id,
+                "source_task_id" => ?source_task_id
+            }
         );
     }};
 }
@@ -291,6 +293,9 @@ pub struct Network {
 
     /// The parameters for the next input operation to send.
     next_buffer_seq_no: (BlockId, InputOperationSeqNo),
+
+    /// Input updates buffered while disconnected, to be flushed on reconnect.
+    pending_input_updates: Vec<InputUpdate>,
 }
 
 impl Network {
@@ -337,6 +342,7 @@ impl Network {
             source: SharedSessionSource::default(),
             unacked_terminal_events: HashMap::new(),
             next_buffer_seq_no: (init_block_id, InputOperationSeqNo::zero()),
+            pending_input_updates: Vec::new(),
         };
         let sharer_firebase_uid = UserUid::new("mock_firebase_uid");
         ctx.emit(NetworkEvent::SharedSessionCreatedSuccessfully {
@@ -431,6 +437,7 @@ impl Network {
             source,
             unacked_terminal_events: HashMap::new(),
             next_buffer_seq_no: (init_block_id.clone(), InputOperationSeqNo::zero()),
+            pending_input_updates: Vec::new(),
         };
 
         // We should validate the scrollback is under the limit before creating the Network, but check here just to be safe.
@@ -611,6 +618,8 @@ impl Network {
         // with are monotonically increasing.
         if block_id != &self.next_buffer_seq_no.0 {
             self.next_buffer_seq_no = (block_id.clone(), InputOperationSeqNo::zero());
+            // Clear buffered ops for the old block since they're now stale.
+            self.pending_input_updates.clear();
         }
 
         let operations = operations
@@ -635,7 +644,21 @@ impl Network {
         };
         self.next_buffer_seq_no.1.advance();
 
-        self.send_message_to_server(UpstreamMessage::UpdateInput(InputUpdate { id, ops }));
+        let update = InputUpdate { id, ops };
+        if matches!(self.stage, Stage::StartedSuccessfully { .. }) {
+            if let Err(e) = self
+                .ws_proxy_tx
+                .try_send(UpstreamMessage::UpdateInput(update))
+            {
+                sharer_warn!(
+                    self,
+                    "Failed to send input update over ws_proxy channel: {e}"
+                );
+            }
+        } else {
+            // Not connected; buffer the update to be flushed on reconnect.
+            self.pending_input_updates.push(update);
+        }
     }
 
     pub fn send_command_execution_rejection(
@@ -1232,7 +1255,8 @@ impl Network {
                 }
                 log::info!("Closing websocket to session sharing server as sharer");
                 if let Err(e) = sink.close().await {
-                    log::error!("Failed to close session sharing websocket as sharer due to {e}");
+                    report_error!(anyhow::Error::new(e)
+                        .context("Failed to close session sharing websocket as sharer"));
                 }
                 startup_send_failed
             },
@@ -1333,6 +1357,7 @@ impl Network {
                 let start_event_no = last_received_event_no
                     .map_or(0, |last_received_event_no| last_received_event_no + 1);
                 self.flush_terminal_events_to_server(start_event_no);
+                self.flush_pending_input_updates_to_server();
                 // Non terminal events where we only care about the latest value were dropped while disconnected.
                 self.send_latest_state_to_server();
                 ctx.emit(NetworkEvent::ReconnectedSuccessfully);
@@ -1645,6 +1670,28 @@ impl Network {
         );
         self.send_message_to_server(UpstreamMessage::ExtendSessionRetention { reason });
     }
+
+    /// Sends all input updates buffered during disconnection to the server, then clears the buffer.
+    /// This is more a best-effort attempt because these events are not critical - that's why they are not ordered terminal events.
+    /// With ordered terminal events we require an ack from the server before the client can remove them from the buffer, but we don't do that for these events.
+    fn flush_pending_input_updates_to_server(&mut self) {
+        // Take the updates out of self to avoid a borrow conflict with sharer_warn!, which
+        // borrows all of self while drain() holds a mutable borrow on pending_input_updates.
+        let updates = std::mem::take(&mut self.pending_input_updates);
+        for update in updates {
+            if let Err(e) = self
+                .ws_proxy_tx
+                .try_send(UpstreamMessage::UpdateInput(update))
+            {
+                sharer_warn!(
+                    self,
+                    "Failed to send pending input update over ws_proxy channel: {e}"
+                );
+                return;
+            }
+        }
+    }
+
     /// Send all stored terminal events from [start_event_no, ...) to the server
     /// The events are not removed from memory.
     fn flush_terminal_events_to_server(&self, start_event_no: usize) {

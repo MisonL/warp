@@ -83,6 +83,10 @@ mod test_util;
 mod throttle;
 mod tips;
 mod tracing;
+#[cfg(feature = "tui")]
+mod tui;
+#[cfg(feature = "tui")]
+pub mod tui_export;
 mod ui_components;
 mod undo_close;
 mod uri;
@@ -214,7 +218,6 @@ use shellexpand::tilde;
 use terminal::input;
 use terminal::session_settings::SessionSettings;
 use url::Url;
-pub use warp_core::errors::{report_error, report_if_error};
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 // Re-export the debounce function to simplify imports.
 pub use warp_core::r#async::debounce;
@@ -223,6 +226,7 @@ pub use warp_core::send_telemetry_from_app_ctx;
 pub use warp_core::send_telemetry_from_ctx;
 // Re-export the safe logging macros at the crate root level for backwards compatibility
 pub use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
+use warp_errors::{report_error, report_if_error};
 #[cfg(feature = "local_fs")]
 use warp_files::FileModel;
 use warp_logging::LogDestination;
@@ -231,7 +235,7 @@ use warp_server_client::iap::{IapManager, IapManagerEvent, IapState};
 use warp_server_client::network_logging::NetworkLogModel;
 use warpui::integration::TestDriver;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
-use warpui::platform::app::ApproveTerminateResult;
+use warpui::platform::app::{ApproveTerminateResult, TerminationRequestSource};
 use warpui::platform::TerminationMode;
 use warpui::windowing::state::ApplicationStage;
 use warpui::{App, AppContext, Event, SingletonEntity, WindowId};
@@ -242,6 +246,7 @@ use workspace::sync_inputs::SyncedInputState;
 use self::features::FeatureFlag;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::github_auth_notifier::GitHubAuthNotifier;
+use crate::ai::blocklist::RecordingController;
 use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::facts::manager::AIFactManager;
@@ -303,6 +308,8 @@ use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::view::inline_banner::ByoLlmAuthBannerSessionState;
 use crate::terminal::{AudibleBell, CustomSecretRegexUpdater, History};
+#[cfg(feature = "tui")]
+pub use crate::tui::{TuiLoginModel, TuiLoginPhase};
 use crate::undo_close::UndoCloseStack;
 use crate::user_config::WarpConfig;
 use crate::util::bindings::is_binding_cross_platform;
@@ -337,7 +344,11 @@ fn determine_agent_source(
         }
         // RemoteServerProxy and RemoteServerDaemon are headless server
         // processes that don't use the agent subsystem.
-        LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => None,
+        // TODO: the TUI front-end has no agent harness wired up yet; give it an
+        // appropriate `AgentSource` once that lands.
+        LaunchMode::RemoteServerProxy
+        | LaunchMode::RemoteServerDaemon { .. }
+        | LaunchMode::Tui { .. } => None,
     }
 }
 
@@ -354,13 +365,14 @@ fn daemon_codebase_index_snapshot_storage(launch_mode: &LaunchMode) -> Option<Sn
         LaunchMode::App { .. }
         | LaunchMode::CommandLine { .. }
         | LaunchMode::RemoteServerProxy
-        | LaunchMode::Test { .. } => None,
+        | LaunchMode::Test { .. }
+        | LaunchMode::Tui { .. } => None,
     }
 }
 
 /// Launch mode for how to start up Warp.
 #[allow(clippy::large_enum_variant)]
-pub enum LaunchMode {
+pub(crate) enum LaunchMode {
     /// Run the regular GUI application.
     App {
         args: warp_cli::AppArgs,
@@ -387,14 +399,34 @@ pub enum LaunchMode {
 
     /// Remote server proxy — bridges SSH stdio to the daemon's Unix socket.
     /// This is a short-lived process that runs for the lifetime of an SSH session.
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     RemoteServerProxy,
 
     /// Remote server daemon — long-lived headless process serving remote
     /// connections via a Unix domain socket.
+    #[cfg_attr(not(unix), allow(dead_code))]
     RemoteServerDaemon {
         /// Stable identity key used to partition the daemon's socket/PID
         /// directory on the remote host.
         identity_key: String,
+    },
+
+    /// Run the headless TUI front-end (the `warp-tui` binary in the `warp_tui`
+    /// crate). Boots the real headless app so auth/agent state can be reused,
+    /// then renders an editor-backed input UI to the terminal (via `mount`)
+    /// instead of opening a GUI window.
+    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    Tui {
+        /// Builds the root TUI view and starts the TUI driver. Runs after
+        /// `initialize_app`; supplied by [`run_tui`]. Carried in the variant
+        /// (rather than as a `run_internal` parameter) so it stays scoped to
+        /// this mode.
+        mount: TuiMountFn,
+        /// API key for server authentication, if provided via `--api-key` or
+        /// `WARP_API_KEY`. Parsed by the TUI front-end and only used on dogfood
+        /// channels (mirrors `App`); lets the TUI log in non-interactively
+        /// instead of the device-auth flow.
+        api_key: Option<String>,
     },
 }
 
@@ -405,7 +437,8 @@ impl LaunchMode {
             LaunchMode::CommandLine { .. }
             | LaunchMode::Test { .. }
             | LaunchMode::RemoteServerProxy
-            | LaunchMode::RemoteServerDaemon { .. } => Cow::Owned(warp_cli::AppArgs::default()),
+            | LaunchMode::RemoteServerDaemon { .. }
+            | LaunchMode::Tui { .. } => Cow::Owned(warp_cli::AppArgs::default()),
         }
     }
 
@@ -419,7 +452,22 @@ impl LaunchMode {
             LaunchMode::App { .. }
             | LaunchMode::CommandLine { .. }
             | LaunchMode::RemoteServerProxy
-            | LaunchMode::RemoteServerDaemon { .. } => false,
+            | LaunchMode::RemoteServerDaemon { .. }
+            | LaunchMode::Tui { .. } => false,
+        }
+    }
+
+    /// The settings surface for this launch mode. The TUI front-end gets its
+    /// own settings file and local-only (non-cloud-synced) config; every other
+    /// mode uses the standard GUI settings surface.
+    fn settings_mode(&self) -> ::settings::SettingsMode {
+        match self {
+            LaunchMode::Tui { .. } => ::settings::SettingsMode::Tui,
+            LaunchMode::App { .. }
+            | LaunchMode::CommandLine { .. }
+            | LaunchMode::Test { .. }
+            | LaunchMode::RemoteServerProxy
+            | LaunchMode::RemoteServerDaemon { .. } => ::settings::SettingsMode::Gui,
         }
     }
 
@@ -429,7 +477,8 @@ impl LaunchMode {
             LaunchMode::App { .. }
             | LaunchMode::CommandLine { .. }
             | LaunchMode::RemoteServerProxy
-            | LaunchMode::RemoteServerDaemon { .. } => None,
+            | LaunchMode::RemoteServerDaemon { .. }
+            | LaunchMode::Tui { .. } => None,
         }
     }
 
@@ -446,6 +495,8 @@ impl LaunchMode {
             LaunchMode::App { .. } => ExecutionMode::App,
             LaunchMode::CommandLine { .. } => ExecutionMode::Sdk,
             LaunchMode::Test { .. } => ExecutionMode::App,
+            // The TUI front-end is an app-style client, not the SDK.
+            LaunchMode::Tui { .. } => ExecutionMode::App,
             // RemoteServerProxy is a thin byte bridge; Sdk is the closest match.
             LaunchMode::RemoteServerProxy => ExecutionMode::Sdk,
             // RemoteServerDaemon gets its own mode for distinct Sentry tagging.
@@ -459,7 +510,8 @@ impl LaunchMode {
             LaunchMode::App { .. }
             | LaunchMode::Test { .. }
             | LaunchMode::RemoteServerProxy
-            | LaunchMode::RemoteServerDaemon { .. } => false,
+            | LaunchMode::RemoteServerDaemon { .. }
+            | LaunchMode::Tui { .. } => false,
         }
     }
 
@@ -471,6 +523,8 @@ impl LaunchMode {
                 _ => true,
             },
             LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => true,
+            // The TUI front-end renders to the terminal, with no GUI window.
+            LaunchMode::Tui { .. } => true,
             LaunchMode::App { .. } | LaunchMode::Test { .. } => false,
         }
     }
@@ -486,6 +540,12 @@ impl LaunchMode {
             }
             LaunchMode::App { .. } | LaunchMode::Test { .. } => true,
             LaunchMode::RemoteServerProxy => false,
+            // Codebase indexing stays off for the TUI until it has deferred
+            // persisted-index restore and multi-process-safe snapshot writes
+            // (the GUI may run concurrently against the same data dir).
+            // Project rules/skills discovery does not depend on this; see
+            // `PersistedWorkspace::new`.
+            LaunchMode::Tui { .. } => false,
         }
     }
 
@@ -497,7 +557,8 @@ impl LaunchMode {
             LaunchMode::CommandLine { .. }
             | LaunchMode::Test { .. }
             | LaunchMode::RemoteServerProxy
-            | LaunchMode::RemoteServerDaemon { .. } => false,
+            | LaunchMode::RemoteServerDaemon { .. }
+            | LaunchMode::Tui { .. } => false,
         }
     }
 
@@ -509,7 +570,8 @@ impl LaunchMode {
             | LaunchMode::CommandLine { .. }
             | LaunchMode::Test { .. }
             | LaunchMode::RemoteServerDaemon { .. }
-            | LaunchMode::RemoteServerProxy => true,
+            | LaunchMode::RemoteServerProxy
+            | LaunchMode::Tui { .. } => true,
         }
     }
 
@@ -520,7 +582,8 @@ impl LaunchMode {
             | LaunchMode::CommandLine { .. }
             | LaunchMode::Test { .. }
             | LaunchMode::RemoteServerDaemon { .. }
-            | LaunchMode::RemoteServerProxy => true,
+            | LaunchMode::RemoteServerProxy
+            | LaunchMode::Tui { .. } => true,
         }
     }
 
@@ -537,6 +600,9 @@ impl LaunchMode {
             // Proxy must log to stderr because stdout is the protocol channel.
             LaunchMode::RemoteServerProxy => Some(LogDestination::Stderr),
             LaunchMode::RemoteServerDaemon { .. } => Some(LogDestination::File),
+            // A TUI owns the terminal, so logs go to a file; stdout/stderr would
+            // corrupt the rendered output and the device-code prompt.
+            LaunchMode::Tui { .. } => Some(LogDestination::File),
             LaunchMode::App { .. } | LaunchMode::Test { .. } => None,
         }
     }
@@ -548,6 +614,7 @@ impl LaunchMode {
             LaunchMode::Test { .. } => "test",
             LaunchMode::RemoteServerDaemon { .. } => "remote_server_daemon",
             LaunchMode::RemoteServerProxy => "remote_server_proxy",
+            LaunchMode::Tui { .. } => "tui",
         }
     }
 
@@ -645,83 +712,7 @@ pub fn run() -> Result<()> {
             warp_util::windows::attach_to_parent_console();
         }
         match command {
-            #[cfg(all(feature = "local_tty", unix))]
-            warp_cli::Command::Worker(warp_cli::WorkerCommand::TerminalServer(args)) => {
-                // If we were asked to run as a terminal server (as opposed to the main
-                // GUI application), do so immediately.  Ideally, the terminal server would
-                // be a separate binary, but it's much easier to distribute a single binary,
-                // so starting the terminal server event loop immediately is the closest
-                // approximation we can get to running a separate binary.
-                crate::terminal::local_tty::server::run_terminal_server(args);
-                return Ok(());
-            }
-            #[cfg(feature = "plugin_host")]
-            warp_cli::Command::Worker(warp_cli::WorkerCommand::PluginHost { .. }) => {
-                return crate::run_plugin_host();
-            }
-            #[cfg(feature = "local_tty")]
-            warp_cli::Command::Worker(warp_cli::WorkerCommand::MinidumpServer { socket_name }) => {
-                cfg_if::cfg_if! {
-                    if #[cfg(all(linux_or_windows, feature = "crash_reporting"))] {
-                        return crate::crash_reporting::run_minidump_server(socket_name);
-                    } else {
-                        let _ = socket_name;
-                        panic!("The minidump server is not supported on this platform");
-                    }
-                }
-            }
-            #[cfg(not(target_family = "wasm"))]
-            warp_cli::Command::Worker(warp_cli::WorkerCommand::RemoteServerProxy(args)) => {
-                // Proxy is a thin byte bridge (stdin/stdout ↔ Unix socket).
-                // It only needs logging to stderr since stdout is the protocol
-                // channel. No crash reporting, no initialize_app.
-                let launch_mode = LaunchMode::RemoteServerProxy;
-                let mut tracing_initialization = tracing::init()?;
-                warp_logging::init(warp_logging::LogConfig {
-                    is_cli: true,
-                    log_destination: launch_mode.log_destination(),
-                    ..Default::default()
-                })?;
-                tracing_initialization.log_initialization_warning();
-                return crate::remote_server::run_proxy(args.identity_key.clone());
-            }
-            #[cfg(not(target_family = "wasm"))]
-            warp_cli::Command::Worker(warp_cli::WorkerCommand::RemoteServerDaemon(args)) => {
-                // Daemon handles its own full initialization (including
-                // initialize_app and crash reporting) inside run_daemon_app.
-                return crate::remote_server::run_daemon(args.identity_key.clone());
-            }
-            #[cfg(not(target_family = "wasm"))]
-            warp_cli::Command::Worker(warp_cli::WorkerCommand::RipgrepSearch {
-                parent,
-                ignore_case,
-                multiline,
-                pattern,
-                paths,
-            }) => {
-                warp_ripgrep::search::run_search_subprocess(
-                    std::slice::from_ref(pattern),
-                    paths.clone(),
-                    *ignore_case,
-                    *multiline,
-                    parent.pid,
-                )
-                .map_err(|err| anyhow!(err.to_string()))?;
-                return Ok(());
-            }
-            #[cfg(not(any(
-                feature = "local_tty",
-                feature = "plugin_host",
-                not(target_family = "wasm")
-            )))]
-            warp_cli::Command::Worker(worker) => {
-                // Need this case to handle platforms where there are no enum variants in
-                // warp_cli::WorkerCommand, as we still need to check Command::Worker.
-
-                // On wasm, specifically, we should fail spectacularly if we get here.
-                #[cfg(target_family = "wasm")]
-                panic!("Worker process not supported on WASM: {worker:?}")
-            }
+            warp_cli::Command::Worker(worker) => return run_worker_command(worker),
             warp_cli::Command::Completions { shell } => {
                 return warp_cli::completions::generate_to_stdout(*shell);
             }
@@ -772,6 +763,79 @@ pub fn run() -> Result<()> {
     })
 }
 
+/// Runs a parsed Warp worker command.
+fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
+    match worker {
+        #[cfg(all(feature = "local_tty", unix))]
+        warp_cli::WorkerCommand::TerminalServer(args) => {
+            crate::terminal::local_tty::server::run_terminal_server(args);
+            Ok(())
+        }
+        #[cfg(feature = "plugin_host")]
+        warp_cli::WorkerCommand::PluginHost { .. } => crate::run_plugin_host(),
+        #[cfg(feature = "local_tty")]
+        warp_cli::WorkerCommand::MinidumpServer { socket_name } => {
+            cfg_if::cfg_if! {
+                if #[cfg(all(linux_or_windows, feature = "crash_reporting"))] {
+                    crate::crash_reporting::run_minidump_server(socket_name)
+                } else {
+                    let _ = socket_name;
+                    panic!("The minidump server is not supported on this platform");
+                }
+            }
+        }
+        #[cfg(not(target_family = "wasm"))]
+        warp_cli::WorkerCommand::RemoteServerProxy(args) => {
+            // Proxy is a thin byte bridge (stdin/stdout ↔ Unix socket).
+            // It only needs logging to stderr since stdout is the protocol
+            // channel. No crash reporting, no initialize_app.
+            let launch_mode = LaunchMode::RemoteServerProxy;
+            let mut tracing_initialization = tracing::init()?;
+            warp_logging::init(warp_logging::LogConfig {
+                is_cli: true,
+                log_destination: launch_mode.log_destination(),
+                ..Default::default()
+            })?;
+            tracing_initialization.log_initialization_warning();
+            crate::remote_server::run_proxy(args.identity_key.clone())
+        }
+        #[cfg(not(target_family = "wasm"))]
+        warp_cli::WorkerCommand::RemoteServerDaemon(args) => {
+            // Daemon handles its own full initialization (including
+            // initialize_app and crash reporting) inside run_daemon_app.
+            crate::remote_server::run_daemon(args.identity_key.clone())
+        }
+        #[cfg(not(target_family = "wasm"))]
+        warp_cli::WorkerCommand::RipgrepSearch {
+            parent,
+            ignore_case,
+            multiline,
+            pattern,
+            paths,
+        } => {
+            warp_ripgrep::search::run_search_subprocess(
+                std::slice::from_ref(pattern),
+                paths.clone(),
+                *ignore_case,
+                *multiline,
+                parent.pid,
+            )
+            .map_err(|err| anyhow!(err.to_string()))?;
+            Ok(())
+        }
+        #[cfg(not(any(
+            feature = "local_tty",
+            feature = "plugin_host",
+            not(target_family = "wasm")
+        )))]
+        worker => {
+            // On wasm, specifically, we should fail spectacularly if we get here.
+            #[cfg(target_family = "wasm")]
+            panic!("Worker process not supported on WASM: {worker:?}")
+        }
+    }
+}
+
 /// Runs an integration test using the provided test driver.
 pub fn run_integration_test(driver: TestDriver) -> Result<()> {
     let is_integration_test = std::env::var("WARP_INTEGRATION").is_ok();
@@ -782,7 +846,48 @@ pub fn run_integration_test(driver: TestDriver) -> Result<()> {
     run_internal(launch)
 }
 
-/// Runs the app (or CLI / daemon).
+/// Runs the headless TUI front-end (the `warp-tui` binary in the `warp_tui`
+/// crate). Bootstraps the real (headless) app and then runs `mount`, which
+/// builds the root TUI view and starts the non-blocking TUI driver.
+///
+/// `mount` is supplied by the `warp_tui` crate (which owns the concrete root
+/// view plus the window/driver bootstrap), so `warp` never has to depend on
+/// `warp_tui`.
+#[cfg(feature = "tui")]
+pub fn run_tui(api_key: Option<String>, mount: TuiMountFn) -> Result<()> {
+    run_internal(LaunchMode::Tui { mount, api_key })
+}
+
+/// Dispatches a worker command when the current executable was re-invoked for one.
+#[cfg(feature = "tui")]
+pub fn run_tui_worker_if_requested() -> Option<Result<()>> {
+    // Worker spawners always put the worker mode in argv[1]. Do not scan later
+    // arguments because a TUI prompt value may legitimately match a worker name.
+    let is_worker = std::env::args()
+        .nth(1)
+        .is_some_and(|arg| warp_cli::is_worker_invocation(&arg));
+    if !is_worker {
+        return None;
+    }
+
+    features::init_feature_flags();
+    let args = warp_cli::Args::from_env();
+    let Some(warp_cli::Command::Worker(worker)) = args.command() else {
+        return Some(Err(anyhow!(
+            "Recognized a Warp worker invocation, but failed to parse its worker command"
+        )));
+    };
+    Some(run_worker_command(worker))
+}
+
+/// The headless TUI front-end's mount callback, carried by [`LaunchMode::Tui`].
+/// Supplied to [`run_tui`] by the `warp_tui` crate; it runs after
+/// `initialize_app` to build the root TUI view and start the TUI driver.
+pub type TuiMountFn = Box<dyn FnOnce(&mut warpui::AppContext)>;
+
+/// Runs the app (or CLI / daemon). For [`LaunchMode::Tui`] it runs the mount
+/// carried by the variant after `initialize_app` (building the root TUI view and
+/// starting the driver) in place of the GUI/CLI `launch()` path.
 fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let mut timer = IntervalTimer::new();
 
@@ -902,7 +1007,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             // state where Warp refuses to run even a first instance.
             Err(err) => {
                 let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                log::error!("{err:#}");
+                report_error!(&err);
                 pre_sentry_errors.push(err);
             }
         }
@@ -925,7 +1030,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             // state where Warp refuses to run even a first instance.
             Err(err) => {
                 let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                log::error!("{err:#}");
+                report_error!(&err);
                 pre_sentry_errors.push(err);
             }
         }
@@ -936,6 +1041,11 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // start spawning any child processes.
     #[cfg(windows)]
     command::windows::init();
+
+    // Establish the settings surface (GUI vs TUI) before initializing
+    // preferences so the settings infra selects the right file name and
+    // cloud-sync behavior for this launch mode.
+    ::settings::set_settings_mode(launch_mode.settings_mode());
 
     let private_preferences = settings::init_private_user_preferences();
     let (public_preferences, startup_toml_parse_error) = settings::init_public_user_preferences();
@@ -967,14 +1077,21 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // ensure that the process is in the cleanest possible state (minimal opened
     // files, modified signal handlers, etc.) to avoid unexpected effects on
     // spawned ptys.
+    //
     #[cfg(feature = "local_tty")]
     let pty_spawner =
         terminal::local_tty::spawner::PtySpawner::new().context("Failed to create pty spawner")?;
 
-    let callbacks = app_callbacks(
-        launch_mode.is_integration_test(),
-        tracing_initialization.take(),
-    );
+    // The TUI front-end skips the GUI lifecycle callbacks (which reach for
+    // singletons/windows it never creates), so it uses empty callbacks.
+    let callbacks = if matches!(launch_mode, LaunchMode::Tui { .. }) {
+        warpui::platform::AppCallbacks::default()
+    } else {
+        app_callbacks(
+            launch_mode.is_integration_test(),
+            tracing_initialization.take(),
+        )
+    };
     let mut app_builder = if launch_mode.is_headless() {
         warpui::platform::AppBuilder::new_headless(
             callbacks,
@@ -1107,7 +1224,19 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             FeatureFlag::UseTantivySearch.set_enabled(true);
         }
 
-        launch(ctx, app_state, launch_mode);
+        // The TUI front-end reuses the full `initialize_app` bootstrap above (so
+        // auth, `Appearance`, settings, etc. exist), then runs the device-login
+        // flow and mounts the TUI (via `crate::tui::init`) instead of the
+        // GUI/CLI `launch()` path.
+        match launch_mode {
+            #[cfg(feature = "tui")]
+            LaunchMode::Tui { mount, .. } => crate::tui::init(mount, ctx),
+            #[cfg(not(feature = "tui"))]
+            LaunchMode::Tui { .. } => {
+                unreachable!("the `tui` launch mode requires the `tui` feature")
+            }
+            other => launch(ctx, app_state, other),
+        }
     })
 }
 
@@ -1172,6 +1301,7 @@ pub(crate) fn initialize_app(
     let api_key = match launch_mode {
         LaunchMode::CommandLine { global_options, .. } => global_options.api_key.clone(),
         LaunchMode::App { api_key, .. } if ChannelState::channel().is_dogfood() => api_key.clone(),
+        LaunchMode::Tui { api_key, .. } if ChannelState::channel().is_dogfood() => api_key.clone(),
         _ => None,
     };
     let api_key = if FeatureFlag::APIKeyAuthentication.is_enabled() {
@@ -1179,6 +1309,27 @@ pub(crate) fn initialize_app(
     } else {
         None
     };
+
+    // A key supplied to an App launch but dropped here means Warp will start logged out
+    // (non-dogfood channel or feature disabled). Surface this loudly so it isn't silent.
+    if api_key.is_none()
+        && matches!(
+            launch_mode,
+            LaunchMode::App {
+                api_key: Some(_),
+                ..
+            } | LaunchMode::Tui {
+                api_key: Some(_),
+                ..
+            }
+        )
+    {
+        let channel = ChannelState::channel();
+        let warning = format!(
+            "WARNING: --api-key/WARP_API_KEY was provided but IGNORED on the '{channel}' channel — Warp is starting LOGGED OUT. API-key auth is only available on internal (dogfood) builds."
+        );
+        eprintln!("{warning}");
+    }
 
     let auth_state = Arc::new(AuthState::initialize(ctx, api_key));
     timer.mark_interval_end("AUTH_MANAGER_SET_USER");
@@ -1245,12 +1396,28 @@ pub(crate) fn initialize_app(
                 identity_key: identity_key.clone(),
             }
         }
+        // The TUI keeps its own database so GUI/TUI version skew can never
+        // migrate a shared database out from under the older binary.
+        LaunchMode::Tui { .. } => persistence::PersistenceScope::Tui,
         LaunchMode::App { .. }
         | LaunchMode::CommandLine { .. }
         | LaunchMode::RemoteServerProxy
         | LaunchMode::Test { .. } => persistence::PersistenceScope::App,
     };
-    let (sqlite_data, writer_handles) = persistence::initialize(ctx, persistence_scope);
+    // Only read the subsets of persisted data this launch mode actually
+    // consumes; loading everything is expensive on large databases.
+    let persisted_data_scope = match launch_mode {
+        LaunchMode::Tui { .. } => persistence::PersistedDataScope::TuiFrontend,
+        LaunchMode::RemoteServerDaemon { .. } => {
+            persistence::PersistedDataScope::CodebaseIndicesOnly
+        }
+        LaunchMode::App { .. }
+        | LaunchMode::CommandLine { .. }
+        | LaunchMode::RemoteServerProxy
+        | LaunchMode::Test { .. } => persistence::PersistedDataScope::Full,
+    };
+    let (sqlite_data, writer_handles) =
+        persistence::initialize(ctx, persistence_scope, persisted_data_scope);
     timer.mark_interval_end("SQLITE_INITIALIZED");
 
     let persistence_writer = PersistenceWriter::new(writer_handles);
@@ -1285,37 +1452,39 @@ pub(crate) fn initialize_app(
     });
 
     let (
-        mut cloud_objects,
-        mut cached_workspaces,
-        mut current_workspace_uid,
-        mut app_state,
-        mut command_history,
-        mut restored_user_profiles,
-        mut time_of_next_force_object_refresh,
-        mut object_actions,
-        mut experiments,
-        mut ai_queries,
+        cloud_objects,
+        cached_workspaces,
+        current_workspace_uid,
+        app_state,
+        command_history,
+        restored_user_profiles,
+        time_of_next_force_object_refresh,
+        object_actions,
+        experiments,
+        ai_queries,
+        nld_prompts,
         persisted_workspaces,
-        mut workspace_language_servers,
-        mut multi_agent_conversations,
-        mut persisted_projects,
-        mut persisted_project_rules,
-        mut persisted_ignored_suggestions,
-        mut persisted_mcp_server_installations,
-        mut mcp_servers_to_restore,
+        workspace_language_servers,
+        multi_agent_conversations,
+        persisted_projects,
+        persisted_project_rules,
+        persisted_ignored_suggestions,
+        persisted_mcp_server_installations,
+        mcp_servers_to_restore,
     ) = sqlite_data
         .map(|sqlite_data| {
             (
                 sqlite_data.cloud_objects,
                 sqlite_data.workspaces,
                 sqlite_data.current_workspace_uid,
-                Some(sqlite_data.app_state),
+                sqlite_data.app_state,
                 sqlite_data.command_history,
                 sqlite_data.user_profiles,
                 sqlite_data.time_of_next_force_object_refresh,
                 sqlite_data.object_actions,
                 sqlite_data.experiments,
                 sqlite_data.ai_queries,
+                sqlite_data.nld_prompts,
                 sqlite_data.codebase_indices,
                 sqlite_data.workspace_language_servers,
                 sqlite_data.multi_agent_conversations,
@@ -1346,31 +1515,17 @@ pub(crate) fn initialize_app(
                 Default::default(),
                 Default::default(),
                 Default::default(),
+                Default::default(),
             )
         });
 
+    // The daemon's `PersistedDataScope::CodebaseIndicesOnly` read already
+    // skips everything except codebase index metadata.
     if matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. }) {
         let codebase_index_count = persisted_workspaces.len();
         log::debug!(
             "[Remote codebase indexing] Restored daemon codebase index metadata: metadata_count={codebase_index_count}"
         );
-        cloud_objects = Default::default();
-        cached_workspaces = Default::default();
-        current_workspace_uid = None;
-        app_state = None;
-        command_history = Default::default();
-        restored_user_profiles = Default::default();
-        time_of_next_force_object_refresh = None;
-        object_actions = Default::default();
-        experiments = Default::default();
-        ai_queries = Default::default();
-        workspace_language_servers = Default::default();
-        multi_agent_conversations = Default::default();
-        persisted_projects = Default::default();
-        persisted_project_rules = Default::default();
-        persisted_ignored_suggestions = Default::default();
-        persisted_mcp_server_installations = Default::default();
-        mcp_servers_to_restore = Default::default();
     }
 
     // Initialize a global model to track server-side experiment state.
@@ -1452,7 +1607,7 @@ pub(crate) fn initialize_app(
         // failed to remove the executable on a previous launch of the app and
         // should try again.
         if let Err(e) = autoupdate::remove_old_executable() {
-            log::error!("Failed to remove old executable: {e:?}");
+            report_error!(e.context("Failed to remove old executable"));
         }
     }
 
@@ -1463,6 +1618,7 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(|_| SettingsPaneManager::new());
     ctx.add_singleton_model(|_| AIFactManager::new());
+    ctx.add_singleton_model(|_| RecordingController::new());
     ctx.add_singleton_model(|_| ExecutionProfileEditorManager::default());
     ctx.add_singleton_model(|_| NetworkLogPaneManager::default());
     ctx.add_singleton_model(|_| pricing::PricingInfoModel::new());
@@ -1842,7 +1998,16 @@ pub(crate) fn initialize_app(
         .collect();
     {
         let conversations = &multi_agent_conversations;
-        ctx.add_singleton_model(move |_| BlocklistAIHistoryModel::new(ai_queries, conversations));
+        ctx.add_singleton_model(move |_| {
+            // Only wire NLD prompt history when the feature is enabled; disabled
+            // (stable/preview) builds skip this so they don't retain the prompt snapshot.
+            let nld_prompts = if FeatureFlag::NldPromptHistoryMatch.is_enabled() {
+                nld_prompts
+            } else {
+                Vec::new()
+            };
+            BlocklistAIHistoryModel::new(ai_queries, nld_prompts, conversations)
+        });
     }
     // Per-conversation queued prompts. Registered after the history model
     // since it subscribes to history events for cleanup.
@@ -1855,7 +2020,9 @@ pub(crate) fn initialize_app(
             ctx,
         )
     });
-    ctx.add_singleton_model(move |_| RestoredAgentConversations::new(multi_agent_conversations));
+    // Conversations restore lazily from the local DB on demand; startup only
+    // loads metadata.
+    ctx.add_singleton_model(|_| RestoredAgentConversations::new());
     ctx.add_singleton_model(|_| CLIAgentSessionsModel::new());
     // ActiveAgentViewsModel is used to track active agent conversations and notify listeners when they change.
     ctx.add_singleton_model(|_| ActiveAgentViewsModel::new());
@@ -2369,7 +2536,20 @@ pub(crate) fn app_callbacks(
                 ApproveTerminateResult::Terminate
             }
         })),
-        on_should_terminate_app: Some(Box::new(move |ctx| {
+        on_should_terminate_app: Some(Box::new(move |source, ctx| {
+            // Never interrupt a system-initiated termination (logout / restart /
+            // scheduled OS update): both cancel paths below return
+            // `ApproveTerminateResult::Cancel`, which macOS interprets as Warp
+            // refusing to quit. That can abort a scheduled OS update while the
+            // quit-warning modal has no visible window to attach to, leaving
+            // Warp waiting on a prompt nobody can see (#12441). Skipping
+            // `apply_pending_update` here doesn't lose the update: the next
+            // update check re-detects it (autoupdate state isn't persisted
+            // across restarts, so the artifact may be re-downloaded).
+            if source == TerminationRequestSource::System {
+                return ApproveTerminateResult::Terminate;
+            }
+
             send_telemetry_from_app_ctx!(
                 TelemetryEvent::UserInitiatedClose {
                     initiated_on: CloseTarget::App,
@@ -2658,6 +2838,9 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
     ctx.set_fallback_font_fn(font_fallback::fallback_font_fn);
 
     match launch_mode {
+        // The TUI front-end runs its own mount in the run closure and returns
+        // before reaching launch().
+        LaunchMode::Tui { .. } => unreachable!("LaunchMode::Tui is handled before launch()"),
         LaunchMode::App { .. } | LaunchMode::Test { .. } => {
             let should_skip_restore = launch_mode
                 .args()
@@ -2719,7 +2902,7 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
         }
         // Proxy should never reach launch() — it's a thin byte bridge.
         LaunchMode::RemoteServerProxy => {
-            log::error!("Proxy mode should not use the launch() path");
+            report_error!("Proxy mode should not use the launch() path");
             std::process::exit(1);
         }
         // Daemon: bind the Unix socket and register the ServerModel.
@@ -2731,7 +2914,7 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
         }
         #[cfg(not(unix))]
         LaunchMode::RemoteServerDaemon { .. } => {
-            log::error!("RemoteServerDaemon is not supported on this platform");
+            report_error!("RemoteServerDaemon is not supported on this platform");
             std::process::exit(1);
         }
     }

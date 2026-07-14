@@ -3,10 +3,8 @@ use std::path::Path;
 use anyhow::Context as _;
 use serde_json::{Map, Value};
 use warp_cli::mcp::MCPSpec;
-use warp_localization::LocaleId;
 
 use crate::ai::ambient_agents::AgentConfigSnapshot;
-use crate::localization;
 
 /// A strict, file-based representation of `AgentConfigSnapshot`.
 ///
@@ -21,6 +19,8 @@ pub struct AgentConfigSnapshotFile {
     pub name: Option<String>,
     #[serde(default)]
     pub environment_id: Option<String>,
+    #[serde(default)]
+    pub runner_id: Option<String>,
     #[serde(default)]
     pub model_id: Option<String>,
     #[serde(default)]
@@ -45,18 +45,9 @@ pub struct LoadedAgentConfigSnapshotFile {
 /// - `.yml` / `.yaml` => YAML
 /// - otherwise: try JSON, then YAML
 #[cfg(not(target_family = "wasm"))]
-pub fn load_config_file(
-    path: &Path,
-    locale: LocaleId,
-) -> anyhow::Result<LoadedAgentConfigSnapshotFile> {
-    let path_display = path.display().to_string();
-    let contents = std::fs::read_to_string(path).with_context(|| {
-        localization::text_for_locale_with_args(
-            locale,
-            "agent_sdk.config_file.error.read_failed",
-            &[("path", &path_display)],
-        )
-    })?;
+pub fn load_config_file(path: &Path) -> anyhow::Result<LoadedAgentConfigSnapshotFile> {
+    let contents = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read config file '{}'", path.display()))?;
 
     let ext = path
         .extension()
@@ -64,39 +55,23 @@ pub fn load_config_file(
         .map(|s| s.to_ascii_lowercase());
 
     let file = match ext.as_deref() {
-        Some("json") => parse_json(&contents, locale).with_context(|| {
-            localization::text_for_locale_with_args(
-                locale,
-                "agent_sdk.config_file.error.invalid_json",
-                &[("path", &path_display)],
-            )
-        })?,
-        Some("yml") | Some("yaml") => parse_yaml(&contents, locale).with_context(|| {
-            localization::text_for_locale_with_args(
-                locale,
-                "agent_sdk.config_file.error.invalid_yaml",
-                &[("path", &path_display)],
-            )
-        })?,
-        _ => parse_json(&contents, locale)
-            .or_else(|_| parse_yaml(&contents, locale))
+        Some("json") => parse_json(&contents)
+            .with_context(|| format!("Invalid JSON in config file '{}'", path.display()))?,
+        Some("yml") | Some("yaml") => parse_yaml(&contents)
+            .with_context(|| format!("Invalid YAML in config file '{}'", path.display()))?,
+        _ => parse_json(&contents)
+            .or_else(|_| parse_yaml(&contents))
             .with_context(|| {
-                localization::text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.config_file.error.parse_failed",
-                    &[("path", &path_display)],
+                format!(
+                    "Failed to parse config file '{}' as JSON or YAML",
+                    path.display()
                 )
             })?,
     };
 
     if let Some(mcp_servers) = &file.mcp_servers {
-        super::mcp_config::validate_mcp_servers(mcp_servers, locale).with_context(|| {
-            localization::text_for_locale_with_args(
-                locale,
-                "agent_sdk.config_file.error.invalid_mcp_servers",
-                &[("path", &path_display)],
-            )
-        })?;
+        super::mcp_config::validate_mcp_servers(mcp_servers)
+            .with_context(|| format!("Invalid mcp_servers in '{}'", path.display()))?;
     }
 
     Ok(LoadedAgentConfigSnapshotFile { file })
@@ -104,29 +79,23 @@ pub fn load_config_file(
 
 /// WASM builds don't use CLI command execution / local file access.
 #[cfg(target_family = "wasm")]
-pub fn load_config_file(
-    _path: &Path,
-    locale: LocaleId,
-) -> anyhow::Result<LoadedAgentConfigSnapshotFile> {
-    Err(anyhow::anyhow!(localization::text_for_locale(
-        locale,
-        "agent_sdk.config_file.error.unsupported_wasm"
-    )))
+pub fn load_config_file(_path: &Path) -> anyhow::Result<LoadedAgentConfigSnapshotFile> {
+    Err(anyhow::anyhow!(
+        "Config files are not supported in WASM builds"
+    ))
 }
 
-fn parse_json(input: &str, locale: LocaleId) -> anyhow::Result<AgentConfigSnapshotFile> {
-    serde_json::from_str::<AgentConfigSnapshotFile>(input)
-        .with_context(|| supported_keys_context(locale))
+fn parse_json(input: &str) -> anyhow::Result<AgentConfigSnapshotFile> {
+    serde_json::from_str::<AgentConfigSnapshotFile>(input).with_context(supported_keys_context)
 }
 
-fn parse_yaml(input: &str, locale: LocaleId) -> anyhow::Result<AgentConfigSnapshotFile> {
+fn parse_yaml(input: &str) -> anyhow::Result<AgentConfigSnapshotFile> {
     // `serde_yaml` can deserialize into `serde_json::Value` directly.
-    serde_yaml::from_str::<AgentConfigSnapshotFile>(input)
-        .with_context(|| supported_keys_context(locale))
+    serde_yaml::from_str::<AgentConfigSnapshotFile>(input).with_context(supported_keys_context)
 }
 
-fn supported_keys_context(locale: LocaleId) -> String {
-    localization::text_for_locale(locale, "agent_sdk.config_file.error.supported_keys")
+fn supported_keys_context() -> String {
+    "Supported keys: name, environment_id, runner_id, model_id, base_prompt, mcp_servers, host, computer_use_enabled".to_string()
 }
 
 /// Convert an unwrapped `mcp_servers` map into runtime MCP specs for AgentDriver.
@@ -136,27 +105,18 @@ fn supported_keys_context(locale: LocaleId) -> String {
 /// - Entries with `command`/`url` remain as inline JSON (`MCPSpec::Json`) containing the unwrapped server map.
 pub fn mcp_specs_from_mcp_servers(
     mcp_servers: &Map<String, Value>,
-    locale: LocaleId,
 ) -> anyhow::Result<Vec<MCPSpec>> {
     let mut uuids: Vec<uuid::Uuid> = Vec::new();
     let mut json_map: Map<String, Value> = Map::new();
 
     for (name, config) in mcp_servers {
-        let obj = config.as_object().ok_or_else(|| {
-            anyhow::anyhow!(localization::text_for_locale_with_args(
-                locale,
-                "agent_sdk.mcp_config.error.server_config_object",
-                &[("server_name", name)]
-            ))
-        })?;
+        let obj = config
+            .as_object()
+            .ok_or_else(|| anyhow::anyhow!("MCP server '{name}' config must be a JSON object"))?;
 
         if let Some(warp_id) = obj.get("warp_id").and_then(Value::as_str) {
             let uuid = uuid::Uuid::parse_str(warp_id).map_err(|_| {
-                anyhow::anyhow!(localization::text_for_locale_with_args(
-                    locale,
-                    "agent_sdk.mcp_config.error.field_uuid",
-                    &[("server_name", name), ("field", "warp_id")]
-                ))
+                anyhow::anyhow!("MCP server '{name}' field 'warp_id' must be a UUID")
             })?;
             uuids.push(uuid);
         } else {
@@ -170,10 +130,8 @@ pub fn mcp_specs_from_mcp_servers(
     let mut specs: Vec<MCPSpec> = uuids.into_iter().map(MCPSpec::Uuid).collect();
 
     if !json_map.is_empty() {
-        let json = serde_json::to_string(&json_map).context(localization::text_for_locale(
-            locale,
-            "agent_sdk.config_file.error.serialize_mcp_server_map",
-        ))?;
+        let json =
+            serde_json::to_string(&json_map).context("Failed to serialize MCP server map")?;
         specs.push(MCPSpec::Json(json));
     }
 
@@ -192,6 +150,7 @@ pub fn merge_with_precedence(
 
     let name = cli.name.or_else(|| file.name.clone());
     let environment_id = cli.environment_id.or_else(|| file.environment_id.clone());
+    let runner_id = cli.runner_id.or_else(|| file.runner_id.clone());
     let model_id = cli.model_id.or_else(|| file.model_id.clone());
     let base_prompt = cli.base_prompt.or_else(|| file.base_prompt.clone());
 
@@ -202,6 +161,7 @@ pub fn merge_with_precedence(
     AgentConfigSnapshot {
         name,
         environment_id,
+        runner_id,
         model_id,
         base_prompt,
         mcp_servers,

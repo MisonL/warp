@@ -1,4 +1,5 @@
 use warp_core::send_telemetry_from_ctx;
+use warp_errors::report_error;
 use warpui_core::{Entity, ModelContext};
 
 use crate::telemetry::OnboardingEvent;
@@ -248,9 +249,9 @@ impl OnboardingCalloutModel {
                     ctx,
                 );
             }
-            _ => log::error!(
-                "Skip action called in an unskippable state: {:?}",
-                self.state
+            _ => report_error!(
+                "Skip action called in an unskippable state",
+                extra: { "state" => ?self.state }
             ),
         }
     }
@@ -285,7 +286,10 @@ impl OnboardingCalloutModel {
                     ctx,
                 );
             }
-            _ => log::error!("Finish action called in an invalid state: {:?}", self.state),
+            _ => report_error!(
+                "Finish action called in an invalid state",
+                extra: { "state" => ?self.state }
+            ),
         }
     }
 
@@ -300,9 +304,9 @@ impl OnboardingCalloutModel {
                     ctx,
                 );
             }
-            _ => log::error!(
-                "BackToTerminal action called in an invalid state: {:?}",
-                self.state
+            _ => report_error!(
+                "BackToTerminal action called in an invalid state",
+                extra: { "state" => ?self.state }
             ),
         }
     }

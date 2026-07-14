@@ -2,34 +2,22 @@ use std::collections::HashMap;
 
 use chrono::{Local, Utc};
 use persistence::model::{AgentConversationData, ConversationUsageMetadata};
-use settings::Setting;
 use warp_cli::agent::Harness;
 use warp_multi_agent_api as api;
 use warpui::{App, EntityId, SingletonEntity};
 
-use super::{
-    localized_conversation_status_text, ConversationDetailsData, ConversationDetailsPanel,
-    PanelMode,
-};
+use super::{ConversationDetailsData, ConversationDetailsPanel, PanelMode};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
-    AIAgentHarness, AIConversation, AIConversationId, ConversationStatus,
-    ServerAIConversationMetadata,
+    AIAgentHarness, AIConversation, AIConversationId, ServerAIConversationMetadata,
 };
 use crate::ai::ambient_agents::task::{AgentConfigSnapshot, HarnessConfig, TaskPrincipalInfo};
-use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskState, TaskStatusMessage};
+use crate::ai::ambient_agents::{AmbientAgentTask, AmbientAgentTaskState};
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
-use crate::appearance;
 use crate::auth::UserUid;
 use crate::cloud_object::{Revision, ServerMetadata, ServerPermissions};
 use crate::server::ids::ServerId;
-use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::user_profiles::UserProfileWithUID;
-
-fn initialize_app(app: &mut App) {
-    initialize_settings_for_tests(app);
-    appearance::register(app);
-}
 
 fn create_test_task(task_id: &str) -> AmbientAgentTask {
     let now = Utc::now();
@@ -119,6 +107,7 @@ fn test_from_conversation_prefers_server_creator_profile() {
 
 fn create_message_with_directory(id: &str, task_id: &str, directory: &str) -> api::Message {
     api::Message {
+        fetched_memories: vec![],
         id: id.to_string(),
         task_id: task_id.to_string(),
         server_message_data: String::new(),
@@ -144,6 +133,7 @@ fn create_message_with_directory(id: &str, task_id: &str, directory: &str) -> ap
 
 fn create_agent_output_message(id: &str, task_id: &str) -> api::Message {
     api::Message {
+        fetched_memories: vec![],
         id: id.to_string(),
         task_id: task_id.to_string(),
         server_message_data: String::new(),
@@ -221,7 +211,8 @@ fn create_test_server_metadata(
 #[test]
 fn test_from_task_includes_linked_directory_when_run_id_matches() {
     App::test((), |mut app| async move {
-        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
 
         let conversation_id = AIConversationId::new();
         let task_id = "550e8400-e29b-41d4-a716-000000004000";
@@ -302,7 +293,8 @@ fn test_from_conversation_metadata_passes_harness_through() {
 #[test]
 fn test_from_task_resolves_harness() {
     App::test((), |mut app| async move {
-        let _history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+        let _history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
 
         // Base task has `agent_config_snapshot: None`; cloning lets us mutate per case.
         let base_task = create_test_task("550e8400-e29b-41d4-a716-000000004020");
@@ -340,7 +332,8 @@ fn test_from_task_resolves_harness() {
 #[test]
 fn test_from_task_populates_executor() {
     App::test((), |mut app| async move {
-        let _history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+        let _history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
         let mut task = create_test_task("550e8400-e29b-41d4-a716-000000004030");
         task.executor = Some(TaskPrincipalInfo {
             creator_type: "service_account".to_string(),
@@ -366,7 +359,8 @@ fn test_from_conversation_populates_local_conversation_fields() {
     // and surfaces the conversation-derived fields the conversation details panel
     // renders for local Warp Agent runs (APP-3595).
     App::test((), |mut app| async move {
-        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
 
         let conversation_id = AIConversationId::new();
         let directory = "/tmp/local-conversation-directory";
@@ -433,9 +427,52 @@ fn test_from_conversation_populates_local_conversation_fields() {
 }
 
 #[test]
+fn test_oz_run_url_present_for_task_and_absent_for_conversation() {
+    // The Status chip is only clickable (navigating to the Oz run view) when
+    // `oz_run_url` yields a URL, which happens for task-backed runs but not for
+    // plain local conversations.
+    App::test((), |mut app| async move {
+        let _history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let task_id = "550e8400-e29b-41d4-a716-000000004050";
+        let task = create_test_task(task_id);
+
+        app.update(|ctx| {
+            // Task mode → the chip should link to the Oz run view.
+            let task_data = ConversationDetailsData::from_task(&task, None, None, ctx);
+            let url = ConversationDetailsPanel::oz_run_url(&task_data)
+                .expect("a task with a task_id should produce an Oz run URL");
+            assert!(
+                url.ends_with(&format!("/runs/{task_id}")),
+                "unexpected Oz run URL: {url}"
+            );
+        });
+
+        // Conversation mode → there is no run view to navigate to.
+        let conversation_data = ConversationDetailsData::from_conversation_metadata(
+            AIConversationId::new(),
+            "Title".to_string(),
+            None,
+            Utc::now().with_timezone(&Local),
+            None,
+            None,
+            None,
+            vec![],
+            None,
+            None,
+            None,
+            None,
+            Some(Harness::Oz),
+        );
+        assert!(ConversationDetailsPanel::oz_run_url(&conversation_data).is_none());
+    });
+}
+
+#[test]
 fn test_from_task_includes_linked_directory_when_server_token_matches() {
     App::test((), |mut app| async move {
-        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
 
         let conversation_id = AIConversationId::new();
         let server_token = "server-token-123";
@@ -480,133 +517,6 @@ fn test_from_task_includes_linked_directory_when_server_token_matches() {
                     ..
                 } if task_directory == directory
             ));
-        });
-    });
-}
-
-#[test]
-fn test_format_setup_commands_for_copy_preserves_shell_state() {
-    let commands = vec![
-        "cd /tmp/project".to_string(),
-        "export FOO=bar".to_string(),
-        "cargo test".to_string(),
-    ];
-
-    assert_eq!(
-        ConversationDetailsPanel::format_setup_commands_for_copy(&commands),
-        "cd /tmp/project\nexport FOO=bar\ncargo test"
-    );
-}
-
-#[test]
-fn test_conversation_status_localizes_reconnecting_and_waiting() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        app.update(|ctx| {
-            crate::settings::LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .app_language
-                    .set_value(crate::settings::AppLanguage::SimplifiedChinese, ctx)
-                    .expect("language setting should update");
-            });
-        });
-
-        app.read(|ctx| {
-            assert_eq!(
-                localized_conversation_status_text(&ConversationStatus::TransientError, ctx),
-                "重新连接中"
-            );
-            assert_eq!(
-                localized_conversation_status_text(&ConversationStatus::WaitingForEvents, ctx),
-                "等待中"
-            );
-        });
-    });
-}
-
-#[test]
-fn test_task_error_message_uses_current_locale_without_changing_canonical_data() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
-
-        let key = "agent_sdk.driver.error_classification.internal_error";
-        let canonical_message =
-            crate::localization::text_for_locale(warp_localization::LocaleId::EnUs, key);
-        let localized_message =
-            crate::localization::text_for_locale(warp_localization::LocaleId::ZhCn, key);
-        let mut task = create_test_task("550e8400-e29b-41d4-a716-000000004100");
-        task.state = AmbientAgentTaskState::Error;
-        task.status_message = Some(TaskStatusMessage {
-            message: canonical_message.clone(),
-            error_code: None,
-        });
-
-        app.update(|ctx| {
-            crate::settings::LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .app_language
-                    .set_value(crate::settings::AppLanguage::English, ctx)
-                    .expect("language setting should update");
-            });
-
-            let data = ConversationDetailsData::from_task(&task, None, None, ctx);
-            assert_eq!(
-                data.localized_error_message(ctx).as_deref(),
-                Some(canonical_message.as_str())
-            );
-
-            crate::settings::LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .app_language
-                    .set_value(crate::settings::AppLanguage::SimplifiedChinese, ctx)
-                    .expect("language setting should update");
-            });
-
-            assert_eq!(
-                data.localized_error_message(ctx).as_deref(),
-                Some(localized_message.as_str())
-            );
-        });
-
-        assert_eq!(
-            task.status_message
-                .as_ref()
-                .map(|message| message.message.as_str()),
-            Some(canonical_message.as_str())
-        );
-    });
-}
-
-#[test]
-fn test_fallback_title_refreshes_for_language_changes() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        app.update(|ctx| {
-            crate::settings::LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .app_language
-                    .set_value(crate::settings::AppLanguage::English, ctx)
-                    .expect("language setting should update");
-            });
-        });
-
-        app.update(|ctx| {
-            let task = create_test_task("550e8400-e29b-41d4-a716-000000004200");
-            let mut data = ConversationDetailsData::from_task_id(task.run_id(), None, ctx);
-            assert_eq!(data.title, "Loading cloud agent runs");
-
-            crate::settings::LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .app_language
-                    .set_value(crate::settings::AppLanguage::SimplifiedChinese, ctx)
-                    .expect("language setting should update");
-            });
-            data.refresh_localized_title(ctx);
-
-            assert_eq!(data.title, "正在加载云端 Agent 运行");
         });
     });
 }

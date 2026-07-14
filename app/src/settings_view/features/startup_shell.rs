@@ -1,3 +1,4 @@
+use warp_errors::report_if_error;
 use warpui::elements::{CrossAxisAlignment, Fill, Flex, ParentElement, Shrinkable};
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -5,13 +6,13 @@ use warpui::{Element, Entity, SingletonEntity, TypedActionView, View, ViewContex
 
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event, SingleLineEditorOptions, TextOptions};
+use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::local_tty::shell::is_valid_path_or_command_for_supported_shell;
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::view_components::dropdown::TOP_MENU_BAR_HEIGHT;
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::{localization, report_if_error, send_telemetry_from_ctx};
 
 /// A view for configuring the initial shell for new sessions. This can be the
 /// user's login shell, the default installed version of zsh, bash, or fish,
@@ -93,13 +94,7 @@ impl StartupShellView {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(
-                localization::text_for_app(
-                    ctx,
-                    "settings.features.default_shell.executable_placeholder",
-                ),
-                ctx,
-            );
+            editor.set_placeholder_text("Executable path", ctx);
 
             if let Some(shell) = custom_shell_text.as_ref() {
                 editor.set_buffer_text(shell, ctx);
@@ -138,10 +133,7 @@ impl StartupShellView {
     ) {
         dropdown.update(ctx, |dropdown, ctx| {
             let mut items = vec![DropdownItem::new(
-                crate::localization::text_for_app(
-                    ctx,
-                    "settings.features.default_shell.option.default",
-                ),
+                "Default",
                 NewSessionShellAction::Set(AvailableShell::default()),
             )];
             let shell_to_index = AvailableShells::handle(ctx).read(ctx, |model, _| {
@@ -149,7 +141,7 @@ impl StartupShellView {
                 // Iterate over each shell in the model and add it to the dropdown if it's valid.
                 for shell_entry in model.get_available_shells() {
                     items.push(DropdownItem::new(
-                        model.display_name_for_shell_for_app(shell_entry, ctx),
+                        model.display_name_for_shell(shell_entry),
                         NewSessionShellAction::Set(shell_entry.clone()),
                     ));
                     shell_to_index.insert(shell_entry.clone(), items.len() - 1);
@@ -159,10 +151,7 @@ impl StartupShellView {
             });
 
             items.push(DropdownItem::new(
-                crate::localization::text_for_app(
-                    ctx,
-                    "settings.features.default_shell.option.custom",
-                ),
+                "Custom",
                 NewSessionShellAction::ShowCustomPathInput,
             ));
             let custom_index = items.len() - 1;

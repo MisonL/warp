@@ -9,7 +9,6 @@ mod login_failure_notification;
 pub mod login_slide;
 pub mod needs_sso_link_view;
 pub mod paste_auth_token_modal;
-pub mod provider_keys_modal;
 mod user_properties;
 pub use warp_server_auth::{auth_state, credentials, user, user_uid};
 #[cfg(target_family = "wasm")]
@@ -23,6 +22,7 @@ use itertools::Itertools;
 pub use login_failure_notification::LoginFailureReason;
 pub use user_uid::UserUid;
 use warp_core::user_preferences::GetUserPreferences as _;
+use warp_errors::{report_error, report_if_error};
 use warpui::modals::{AlertDialogWithCallbacks, ModalButton};
 use warpui::{AppContext, SingletonEntity};
 
@@ -50,8 +50,8 @@ use crate::workflows::manager::WorkflowManager;
 use crate::workspace::{Workspace, WorkspaceAction};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::{
-    focus_running_window_and_show_native_modal, localization, persistence, report_if_error,
-    send_telemetry_sync_from_app_ctx, GlobalResourceHandlesProvider,
+    focus_running_window_and_show_native_modal, persistence, send_telemetry_sync_from_app_ctx,
+    GlobalResourceHandlesProvider,
 };
 
 pub fn init(app: &mut AppContext) {
@@ -60,7 +60,6 @@ pub fn init(app: &mut AppContext) {
     auth_override_warning_body::init(app);
     login_slide::init(app);
     paste_auth_token_modal::init(app);
-    provider_keys_modal::init(app);
 }
 
 /// If the app has running processes or dirty objects, we'll show a confirmation modal before logging out.
@@ -91,113 +90,95 @@ pub fn maybe_log_out(app: &mut AppContext) {
             || num_unsaved_files > 0)
     {
         send_telemetry_sync_from_app_ctx!(TelemetryEvent::LogOutModalShown, app);
-        let mut button_data = vec![ModalButton::for_app(
-            localization::text_for_app(app, "auth.logout.confirm"),
-            |ctx| {
-                log_out(ctx);
-            },
-        )];
+        let mut button_data = vec![ModalButton::for_app("Yes, log out", |ctx| {
+            log_out(ctx);
+        })];
 
         let mut info_text_vec: Vec<String> = vec![];
         if num_long_running_commands > 0 {
-            let key = if num_long_running_commands > 1 {
-                "auth.logout.running_processes_plural"
+            let plural = if num_long_running_commands > 1 {
+                "processes"
             } else {
-                "auth.logout.running_processes_singular"
+                "process"
             };
-            info_text_vec.push(localization::text_for_app_with_args(
-                app,
-                key,
-                &[("count", &num_long_running_commands.to_string())],
+            info_text_vec.push(format!(
+                "You have {num_long_running_commands} {plural} running."
             ));
 
-            button_data.push(ModalButton::for_app(
-                localization::text_for_app(app, "auth.logout.show_running_processes"),
-                move |ctx| {
-                    send_telemetry_sync_from_app_ctx!(
-                        TelemetryEvent::LogOutModalCancel { nav_palette: true },
-                        ctx
-                    );
-                    let windowing_model = ctx.windows();
-                    let window_id = if let Some(active_window_id) = windowing_model.active_window()
-                    {
-                        active_window_id
-                    } else if let Some(window_id) = ctx.window_ids().collect_vec().first() {
-                        let window_id = *window_id;
-                        windowing_model.show_window_and_focus_app(window_id);
-                        window_id
-                    } else {
-                        return;
-                    };
+            button_data.push(ModalButton::for_app("Show running processes", move |ctx| {
+                send_telemetry_sync_from_app_ctx!(
+                    TelemetryEvent::LogOutModalCancel { nav_palette: true },
+                    ctx
+                );
+                let windowing_model = ctx.windows();
+                let window_id = if let Some(active_window_id) = windowing_model.active_window() {
+                    active_window_id
+                } else if let Some(window_id) = ctx.window_ids().collect_vec().first() {
+                    let window_id = *window_id;
+                    windowing_model.show_window_and_focus_app(window_id);
+                    window_id
+                } else {
+                    return;
+                };
 
-                    if let Some(workspaces) = ctx.views_of_type::<Workspace>(window_id) {
-                        if let Some(handle) = workspaces.first() {
-                            ctx.dispatch_typed_action_for_view(
-                                window_id,
-                                handle.id(),
-                                &WorkspaceAction::OpenPalette {
-                                    mode: PaletteMode::Navigation,
-                                    source: PaletteSource::LogOutModal,
-                                    query: Some("running".to_owned()),
-                                },
-                            );
-                        }
+                if let Some(workspaces) = ctx.views_of_type::<Workspace>(window_id) {
+                    if let Some(handle) = workspaces.first() {
+                        ctx.dispatch_typed_action_for_view(
+                            window_id,
+                            handle.id(),
+                            &WorkspaceAction::OpenPalette {
+                                mode: PaletteMode::Navigation,
+                                source: PaletteSource::LogOutModal,
+                                query: Some("running".to_owned()),
+                            },
+                        );
                     }
-                },
-            ))
+                }
+            }))
         }
 
         if num_shared_sessions > 0 {
-            let key = if num_shared_sessions > 1 {
-                "auth.logout.shared_sessions_plural"
+            let plural = if num_shared_sessions > 1 {
+                "sessions"
             } else {
-                "auth.logout.shared_sessions_singular"
+                "session"
             };
-            info_text_vec.push(localization::text_for_app_with_args(
-                app,
-                key,
-                &[("count", &num_shared_sessions.to_string())],
-            ));
+            info_text_vec.push(format!("You have {num_shared_sessions} shared {plural}."));
         }
 
         if num_unsaved_objects > 0 {
-            let key = if num_unsaved_objects > 1 {
-                "auth.logout.unsynced_objects_plural"
+            let plural = if num_unsaved_objects > 1 {
+                "objects"
             } else {
-                "auth.logout.unsynced_objects_singular"
+                "object"
             };
-            info_text_vec.push(localization::text_for_app_with_args(
-                app,
-                key,
-                &[("count", &num_unsaved_objects.to_string())],
+            info_text_vec.push(format!(
+                "You have {num_unsaved_objects} unsynced Warp Drive {plural}. \
+            Logging out will cause you to lose the {plural}."
             ));
         }
 
         if num_unsaved_files > 0 {
-            let key = if num_unsaved_files > 1 {
-                "auth.logout.unsaved_files_plural"
+            let plural = if num_unsaved_files > 1 {
+                "files"
             } else {
-                "auth.logout.unsaved_files_singular"
+                "file"
             };
-            info_text_vec.push(localization::text_for_app_with_args(
-                app,
-                key,
-                &[("count", &num_unsaved_files.to_string())],
+            info_text_vec.push(format!(
+                "You have {num_unsaved_files} unsaved {plural}. \
+            Logging out will cause you to lose the {plural}."
             ));
         }
 
-        button_data.push(ModalButton::for_app(
-            localization::text_for_app(app, "auth.logout.cancel"),
-            move |ctx| {
-                send_telemetry_sync_from_app_ctx!(
-                    TelemetryEvent::LogOutModalCancel { nav_palette: false },
-                    ctx
-                );
-            },
-        ));
+        button_data.push(ModalButton::for_app("Cancel", move |ctx| {
+            send_telemetry_sync_from_app_ctx!(
+                TelemetryEvent::LogOutModalCancel { nav_palette: false },
+                ctx
+            );
+        }));
 
         let alert_data = AlertDialogWithCallbacks::for_app(
-            localization::text_for_app(app, "auth.logout.title"),
+            "Log out?",
             info_text_vec.join("\n"),
             button_data,
             move |ctx| {
@@ -307,7 +288,7 @@ fn remove_cloud_persisted_settings(app: &mut AppContext) {
         SettingsManager::handle(app).update(app, |settings_manager, ctx| {
             let errors = settings_manager.clear_cloud_settings_local_state(ctx);
             for e in errors {
-                log::error!("Failed to remove cloud synced setting from user defaults: {e:?}");
+                report_error!(e.context("Failed to remove cloud synced setting from user defaults"));
             }
         });
     }
@@ -316,23 +297,24 @@ fn remove_cloud_persisted_settings(app: &mut AppContext) {
         .private_user_preferences()
         .remove_value(TELEMETRY_ENABLED_DEFAULTS_KEY)
     {
-        log::error!("Failed to remove Telemetry Enabled Defaults Key from user defaults: {e:?}");
+        report_error!(anyhow::Error::new(e)
+            .context("Failed to remove Telemetry Enabled Defaults Key from user defaults"));
     }
 
     if let Err(e) = app
         .private_user_preferences()
         .remove_value(CRASH_REPORTING_ENABLED_DEFAULTS_KEY)
     {
-        log::error!(
-            "Failed to remove Crash Reporting Enabled Defaults Key from user defaults: {e:?}"
-        );
+        report_error!(anyhow::Error::new(e)
+            .context("Failed to remove Crash Reporting Enabled Defaults Key from user defaults"));
     }
 
     if let Err(e) = app
         .private_user_preferences()
         .remove_value(REQUEST_LIMIT_INFO_CACHE_KEY)
     {
-        log::error!("Failed to remove Request Limit Defaults Key from user defaults: {e:?}");
+        report_error!(anyhow::Error::new(e)
+            .context("Failed to remove Request Limit Defaults Key from user defaults"));
     }
 
     // Reset the Privacy Settings in the login screen to default values.

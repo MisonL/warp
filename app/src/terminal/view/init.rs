@@ -58,11 +58,6 @@ pub const CLI_AGENT_SESSION_ACTIVE_KEY: &str = "CLIAgentSessionActive";
 pub const ROOT_CLOUD_MODE_PANE_KEY: &str = "RootCloudModePane";
 pub const CAN_SHOW_CONVERSATION_DETAILS_KEY: &str = "CanShowConversationDetails";
 
-fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
-    BindingDescription::new(fallback)
-        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
-}
-
 /// Some keybindings will do different things in different contexts. We break
 /// these into their own function to ensure we pay special attention to
 /// these overlaps, and ensure only 1 action is taken.
@@ -308,10 +303,7 @@ pub fn init(app: &mut AppContext) {
         //    of focus location or active-block state; fix for #9916)
         EditableBinding::new(
             OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-            binding_description(
-                "Toggle CLI Agent Rich Input",
-                "terminal.binding.toggle_cli_agent_rich_input",
-            ),
+            "Toggle CLI Agent Rich Input",
             TerminalAction::ToggleCLIAgentRichInput,
         )
         .with_key_binding("ctrl-g")
@@ -340,10 +332,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
-            binding_description(
-                "Accept Prompt Suggestion",
-                "terminal.binding.accept_prompt_suggestion",
-            ),
+            "Accept Prompt Suggestion",
             TerminalAction::ResolvePromptSuggestion(PromptSuggestionResolution::Accept {
                 interaction_source: InteractionSource::Keybinding,
             }),
@@ -364,15 +353,9 @@ pub fn init(app: &mut AppContext) {
         EditableBinding::new(
             CANCEL_COMMAND_KEYBINDING,
             if cfg!(windows) {
-                binding_description(
-                    "Copy text or cancel active process",
-                    "terminal.binding.copy_text_or_cancel_active_process",
-                )
+                "Copy text or cancel active process"
             } else {
-                binding_description(
-                    "Cancel active process",
-                    "terminal.binding.cancel_active_process",
-                )
+                "Cancel active process"
             },
             TerminalAction::CtrlC,
         )
@@ -433,10 +416,7 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
         EditableBinding::new(
             "terminal:jump_to_latest_agent_message",
-            binding_description(
-                "Jump to latest agent message",
-                "terminal.binding.jump_to_latest_agent_message",
-            ),
+            "Jump to latest agent message",
             TerminalAction::JumpToLatestAgentMessage,
         )
         // Available from the terminal (enters the latest conversation's agent view)
@@ -768,17 +748,11 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:ask_ai_assistant",
-            binding_description(
-                "Attach Selected Block as Agent Context",
-                "terminal.binding.attach_selected_block_as_agent_context",
-            )
-            .with_custom_description(
-                bindings::MAC_MENUS_CONTEXT,
-                crate::localization::text_for_app(
-                    app,
-                    "terminal.binding.attach_selection_as_agent_context",
+            BindingDescription::new("Attach Selected Block as Agent Context")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    "Attach Selection as Agent Context",
                 ),
-            ),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::SelectedBlocks)),
         )
         .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
@@ -795,17 +769,11 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:ask_ai_assistant",
-            binding_description(
-                "Attach Selected Text as Agent Context",
-                "terminal.binding.attach_selected_text_as_agent_context",
-            )
-            .with_custom_description(
-                bindings::MAC_MENUS_CONTEXT,
-                crate::localization::text_for_app(
-                    app,
-                    "terminal.binding.attach_selection_as_agent_context",
+            BindingDescription::new("Attach Selected Text as Agent Context")
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    "Attach Selection as Agent Context",
                 ),
-            ),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(
                 AskAISource::SelectedTerminalText,
             )),
@@ -872,35 +840,10 @@ pub fn init(app: &mut AppContext) {
     }
 
     app.register_editable_bindings([
-        EditableBinding::new(
-            "terminal:onboarding_flow",
-            "Setup Guide",
-            TerminalAction::OnboardingFlow(OnboardingVersion::Legacy),
-        )
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
         // UniversalInput callout debug bindings
         EditableBinding::new(
-            "terminal:agent_onboarding_flow_legacy_terminal",
-            binding_description(
-                "[Debug] Onboarding Callout: WarpInput - Terminal",
-                "terminal.binding.debug.onboarding_callout_warpinput_terminal",
-            ),
-            TerminalAction::OnboardingFlow(OnboardingVersion::Legacy),
-        )
-        .with_enabled(|| {
-            FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
-        })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
-        EditableBinding::new(
             "terminal:agent_onboarding_flow_universal_input_project",
-            binding_description(
-                "[Debug] Onboarding Callout: WarpInput - Project",
-                "terminal.binding.debug.onboarding_callout_warpinput_project",
-            ),
+            "[Debug] Onboarding Callout: WarpInput - Project",
             TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
                 AgentOnboardingVersion::UniversalInput { has_project: true },
             )),
@@ -913,10 +856,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:agent_onboarding_flow_universal_input_no_project",
-            binding_description(
-                "[Debug] Onboarding Callout: WarpInput - No Project",
-                "terminal.binding.debug.onboarding_callout_warpinput_no_project",
-            ),
+            "[Debug] Onboarding Callout: WarpInput - No Project",
             TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
                 AgentOnboardingVersion::UniversalInput { has_project: false },
             )),
@@ -930,10 +870,7 @@ pub fn init(app: &mut AppContext) {
         // AgentModality callout debug bindings
         EditableBinding::new(
             "terminal:agent_onboarding_flow_modality_project",
-            binding_description(
-                "[Debug] Onboarding Callout: Modality - Project",
-                "terminal.binding.debug.onboarding_callout_modality_project",
-            ),
+            "[Debug] Onboarding Callout: Modality - Project",
             TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
                 AgentOnboardingVersion::AgentModality {
                     has_project: true,
@@ -949,10 +886,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:agent_onboarding_flow_modality_no_project",
-            binding_description(
-                "[Debug] Onboarding Callout: Modality - No Project",
-                "terminal.binding.debug.onboarding_callout_modality_no_project",
-            ),
+            "[Debug] Onboarding Callout: Modality - No Project",
             TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
                 AgentOnboardingVersion::AgentModality {
                     has_project: false,
@@ -968,10 +902,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:agent_onboarding_flow_modality_terminal",
-            binding_description(
-                "[Debug] Onboarding Callout: Modality - Terminal",
-                "terminal.binding.debug.onboarding_callout_modality_terminal",
-            ),
+            "[Debug] Onboarding Callout: Modality - Terminal",
             TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
                 AgentOnboardingVersion::AgentModality {
                     has_project: false,
@@ -1024,10 +955,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         TOGGLE_BLOCK_FILTER_KEYBINDING,
-        binding_description(
-            "Toggle block filter on selected or last block",
-            "terminal.binding.toggle_block_filter_selected_or_last_block",
-        ),
+        "Toggle block filter on selected or last block",
         TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(ToggleBlockFilterSource::Binding),
     )
     .with_mac_key_binding("shift-alt-F")
@@ -1043,10 +971,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             TOGGLE_AUTOEXECUTE_MODE_KEYBINDING,
-            binding_description(
-                "Toggle Auto-execute Mode",
-                "terminal.binding.toggle_autoexecute_mode",
-            ),
+            "Toggle Auto-execute Mode",
             TerminalAction::ToggleAutoexecuteMode,
         )
         .with_key_binding("cmdorctrl-shift-I")
@@ -1055,10 +980,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| FeatureFlag::FastForwardAutoexecuteButton.is_enabled()),
         EditableBinding::new(
             TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING,
-            binding_description(
-                "Toggle Queue Next Prompt",
-                "terminal.binding.toggle_queue_next_prompt",
-            ),
+            "Toggle Queue Next Prompt",
             TerminalAction::ToggleQueueNextPrompt,
         )
         .with_key_binding("cmdorctrl-shift-J")
@@ -1067,10 +989,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| FeatureFlag::QueueSlashCommand.is_enabled()),
         EditableBinding::new(
             "terminal:generate_codebase_index",
-            binding_description(
-                "[Debug] Generate codebase index",
-                "terminal.binding.debug.generate_codebase_index",
-            ),
+            "[Debug] Generate codebase index",
             TerminalAction::GenerateCodebaseIndex,
         )
         .with_group(bindings::BindingGroup::WarpAi.as_str())
@@ -1081,35 +1000,9 @@ pub fn init(app: &mut AppContext) {
         }),
     ]);
 
-    app.register_fixed_bindings(vec![
-        FixedBinding::new(
-            "cmdorctrl-1",
-            TerminalAction::SelectAgenticSuggestion(1),
-            id!("Terminal") & id!("OnboardingAgenticSuggestionsBlock"),
-        ),
-        FixedBinding::new(
-            "cmdorctrl-2",
-            TerminalAction::SelectAgenticSuggestion(2),
-            id!("Terminal") & id!("OnboardingAgenticSuggestionsBlock"),
-        ),
-        FixedBinding::new(
-            "cmdorctrl-3",
-            TerminalAction::SelectAgenticSuggestion(3),
-            id!("Terminal") & id!("OnboardingAgenticSuggestionsBlock"),
-        ),
-        FixedBinding::new(
-            "cmdorctrl-4",
-            TerminalAction::SelectAgenticSuggestion(4),
-            id!("Terminal") & id!("OnboardingAgenticSuggestionsBlock"),
-        ),
-    ]);
-
     app.register_editable_bindings([EditableBinding::new(
         "workspace:write_codebase_index",
-        binding_description(
-            "Write current codebase index snapshot",
-            "terminal.binding.write_codebase_index_snapshot",
-        ),
+        BindingDescription::new("Write current codebase index snapshot"),
         TerminalAction::WriteCodebaseIndex,
     )
     .with_enabled(|| FeatureFlag::CodebaseIndexPersistence.is_enabled())
@@ -1117,10 +1010,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:load_agent_mode_conversation",
-        binding_description(
-            "Load agent mode conversation (from debug link in clipboard)",
-            "terminal.binding.debug.load_agent_mode_conversation",
-        ),
+        "Load agent mode conversation (from debug link in clipboard)",
         TerminalAction::LoadAgentModeConversation,
     )
     .with_enabled(ChannelState::enable_debug_features)
@@ -1128,10 +1018,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:toggle_session_recording",
-        binding_description(
-            "Toggle PTY Recording for Session",
-            "terminal.binding.debug.toggle_session_recording",
-        ),
+        "Toggle PTY Recording for Session",
         TerminalAction::ToggleSessionRecording,
     )
     .with_enabled(|| cfg!(feature = "local_fs") && ChannelState::enable_debug_features())
@@ -1139,20 +1026,14 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:init_project_rules",
-        binding_description(
-            "Initiate project for warp",
-            "terminal.binding.initiate_project_for_warp",
-        ),
+        BindingDescription::new("Initiate project for warp"),
         TerminalAction::InitProject,
     )
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))]);
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:add_current_dir_as_project",
-        binding_description(
-            "Add current folder as project",
-            "terminal.binding.add_current_folder_as_project",
-        ),
+        BindingDescription::new("Add current folder as project"),
         TerminalAction::AddProjectAtCurrentDirectory,
     )
     .with_enabled(|| FeatureFlag::Projects.is_enabled())
@@ -1161,10 +1042,7 @@ pub fn init(app: &mut AppContext) {
     #[cfg(not(target_arch = "wasm32"))]
     app.register_editable_bindings([EditableBinding::new(
         "terminal:toggle_conversation_details_panel",
-        binding_description(
-            "Toggle Conversation Details Panel",
-            "terminal.binding.toggle_conversation_details_panel",
-        ),
+        "Toggle Conversation Details Panel",
         TerminalAction::ToggleConversationDetailsPanel,
     )
     .with_group(bindings::BindingGroup::WarpAi.as_str())
@@ -1302,10 +1180,7 @@ fn register_input_mode_bindings(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             SET_INPUT_MODE_AGENT_ACTION_NAME,
-            binding_description(
-                "Set Input Mode to Agent Mode",
-                "terminal.binding.set_input_mode_agent",
-            ),
+            "Set Input Mode to Agent Mode",
             TerminalAction::SetInputModeAgent,
         )
         .with_group(bindings::BindingGroup::WarpAi.as_str())
@@ -1314,10 +1189,7 @@ fn register_input_mode_bindings(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-i"),
         EditableBinding::new(
             SET_INPUT_MODE_TERMINAL_ACTION_NAME,
-            binding_description(
-                "Set Input Mode to Terminal Mode",
-                "terminal.binding.set_input_mode_terminal",
-            ),
+            "Set Input Mode to Terminal Mode",
             TerminalAction::SetInputModeTerminal,
         )
         .with_group(bindings::BindingGroup::WarpAi.as_str())
@@ -1326,10 +1198,7 @@ fn register_input_mode_bindings(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-i"),
         EditableBinding::new(
             TOGGLE_HIDE_CLI_RESPONSES_KEYBINDING,
-            binding_description(
-                "Toggle Hide CLI Responses",
-                "terminal.binding.toggle_hide_cli_responses",
-            ),
+            "Toggle Hide CLI Responses",
             TerminalAction::ToggleHideCliResponses,
         )
         .with_key_binding("cmdorctrl-g")

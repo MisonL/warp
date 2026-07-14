@@ -34,6 +34,7 @@ mod bootstrap;
 mod buy_credits_banner;
 pub mod color;
 mod command_corrections_denylist;
+pub mod conversation_restoration;
 pub mod dynamic_enum_suggestions;
 pub mod enable_auto_reload_modal;
 pub mod event;
@@ -82,6 +83,8 @@ pub mod view;
 pub mod warpify;
 mod waterfall_gap_element;
 mod writeable_pty;
+#[cfg(feature = "tui")]
+pub use writeable_pty::{PtyIntent, PtyIntentEvent, TerminalSurface};
 #[cfg(windows)]
 pub mod wsl;
 

@@ -136,6 +136,8 @@ pub enum AgentViewEntryOrigin {
     ThirdPartyCloudAgent,
     /// Entered agent view via the CLI (e.g. `warp agent run`).
     Cli,
+    /// Entered agent view via the headless TUI frontend.
+    Tui,
     /// Entered agent view by adding an image (drag-and-drop or paste).
     ImageAdded,
     /// Entered agent view by executing a slash command that requires agent mode.
@@ -828,10 +830,16 @@ impl AgentViewController {
             display_mode,
             original_conversation_length: exchange_count,
         };
+
+        let is_cloud = matches!(
+            origin,
+            AgentViewEntryOrigin::CloudAgent | AgentViewEntryOrigin::ThirdPartyCloudAgent
+        );
+
         self.terminal_model
             .lock()
             .block_list_mut()
-            .set_agent_view_state(self.agent_view_state.clone());
+            .enter_conversation_context(conversation_id, display_mode.is_inline(), is_cloud);
 
         ctx.emit(AgentViewControllerEvent::EnteredAgentView {
             conversation_id,
@@ -956,7 +964,7 @@ impl AgentViewController {
         self.terminal_model
             .lock()
             .block_list_mut()
-            .set_agent_view_state(self.agent_view_state.clone());
+            .exit_conversation_context();
 
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         let final_exchange_count = history_model

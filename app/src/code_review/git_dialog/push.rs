@@ -10,13 +10,14 @@ use std::collections::HashMap;
 
 use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
+use warp_errors::report_error;
 use warpui::elements::{
     Border, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, Element, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
     MouseStateHandle, ParentElement, Radius, ScrollbarWidth, Text,
 };
 use warpui::platform::Cursor;
-use warpui::{AppContext, SingletonEntity, ViewContext};
+use warpui::ViewContext;
 
 use crate::code::editor::{add_color, remove_color};
 use crate::code_review::git_dialog::{
@@ -26,7 +27,6 @@ use crate::code_review::git_dialog::{
 use crate::code_review::telemetry_event::{
     CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,
 };
-use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::util::git::Commit;
 
@@ -58,15 +58,12 @@ pub(super) fn new_state(publish: bool, commits: Vec<Commit>) -> PushState {
     }
 }
 
-pub(super) fn confirm_label(publish: bool, app: &AppContext) -> String {
-    localization::text_for_app(
-        app,
-        if publish {
-            "code_review.git.publish"
-        } else {
-            "code_review.git.push"
-        },
-    )
+pub(super) fn confirm_label(publish: bool) -> &'static str {
+    if publish {
+        "Publish"
+    } else {
+        "Push"
+    }
 }
 
 pub(super) fn confirm_icon(publish: bool) -> Icon {
@@ -77,15 +74,12 @@ pub(super) fn confirm_icon(publish: bool) -> Icon {
     }
 }
 
-fn loading_label(publish: bool, app: &AppContext) -> String {
-    localization::text_for_app(
-        app,
-        if publish {
-            "code_review.git_dialog.push.publishing"
-        } else {
-            "code_review.git_dialog.push.pushing"
-        },
-    )
+fn loading_label(publish: bool) -> &'static str {
+    if publish {
+        "Publishing…"
+    } else {
+        "Pushing…"
+    }
 }
 
 pub(super) fn handle_sub_action(
@@ -113,7 +107,7 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     };
     let branch = me.branch_name().to_string();
 
-    me.set_loading(loading_label(publish, ctx), ctx);
+    me.set_loading(loading_label(publish), ctx);
 
     me.diff_state_model().update(ctx, |m, ctx| {
         m.git_push(branch, ctx);
@@ -133,16 +127,16 @@ pub(super) fn finish_push(
     };
     match result {
         Ok(_) => {
-            let toast_key = if publish {
-                "code_review.git_dialog.push.published"
+            let toast_msg = if publish {
+                "Branch successfully published."
             } else {
-                "code_review.git_dialog.push.pushed"
+                "Changes successfully pushed."
             };
-            show_toast(localization::text_for_app(ctx, toast_key), ctx);
+            show_toast(toast_msg, ctx);
         }
         Err(e) => {
-            log::error!("Push failed: {e}");
-            show_toast(user_facing_git_error(&e.to_string(), ctx), ctx);
+            report_error!(&e);
+            show_toast(user_facing_git_error(&e.to_string()), ctx);
         }
     }
     send_telemetry_from_ctx!(
@@ -164,33 +158,28 @@ pub(super) fn finish_push(
 pub(super) fn render_body(
     state: &PushState,
     branch_name: &str,
-    app: &AppContext,
+    appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
     let mut body = Flex::column().with_child(
-        Container::new(render_branch_section(branch_name, appearance, app))
+        Container::new(render_branch_section(branch_name, appearance))
             .with_margin_bottom(16.)
             .finish(),
     );
 
     if !state.commits.is_empty() {
-        body.add_child(render_commits_section(state, appearance, app));
+        body.add_child(render_commits_section(state, appearance));
     }
 
     body.finish()
 }
 
-fn render_commits_section(
-    state: &PushState,
-    appearance: &Appearance,
-    app: &AppContext,
-) -> Box<dyn Element> {
+fn render_commits_section(state: &PushState, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
     let main_color = theme.main_text_color(theme.surface_1()).into_solid();
     let sub_color = theme.sub_text_color(theme.surface_1()).into_solid();
 
     let label = Text::new(
-        localization::text_for_app(app, "code_review.git_dialog.push.included_commits"),
+        "Included commits",
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -212,15 +201,15 @@ fn render_commits_section(
         .soft_wrap(false)
         .finish();
 
-        let files_label = localization::text_for_app(
-            app,
+        let stats_text = format!(
+            "{} {}",
+            commit.files_changed,
             if commit.files_changed == 1 {
-                "code_review.git_dialog.file_singular"
+                "file"
             } else {
-                "code_review.git_dialog.file_plural"
+                "files"
             },
         );
-        let stats_text = format!("{} {files_label}", commit.files_changed);
 
         let mut stats_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
