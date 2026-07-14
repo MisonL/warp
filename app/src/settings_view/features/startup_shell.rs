@@ -6,6 +6,7 @@ use warpui::{Element, Entity, SingletonEntity, TypedActionView, View, ViewContex
 
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event, SingleLineEditorOptions, TextOptions};
+use crate::localization::{self, LocalizationUpdater};
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
@@ -78,6 +79,19 @@ impl StartupShellView {
             }
             ctx.notify()
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            Self::update_dropdown_state(me.shell_dropdown.clone(), ctx);
+            me.custom_path_editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(
+                    localization::text_for_app(
+                        ctx,
+                        "settings.features.default_shell.executable_placeholder",
+                    ),
+                    ctx,
+                );
+            });
+            ctx.notify();
+        });
 
         let shell_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
@@ -94,7 +108,13 @@ impl StartupShellView {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Executable path", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.features.default_shell.executable_placeholder",
+                ),
+                ctx,
+            );
 
             if let Some(shell) = custom_shell_text.as_ref() {
                 editor.set_buffer_text(shell, ctx);
@@ -133,7 +153,7 @@ impl StartupShellView {
     ) {
         dropdown.update(ctx, |dropdown, ctx| {
             let mut items = vec![DropdownItem::new(
-                "Default",
+                localization::text_for_app(ctx, "settings.features.default_shell.option.default"),
                 NewSessionShellAction::Set(AvailableShell::default()),
             )];
             let shell_to_index = AvailableShells::handle(ctx).read(ctx, |model, _| {
@@ -151,7 +171,7 @@ impl StartupShellView {
             });
 
             items.push(DropdownItem::new(
-                "Custom",
+                localization::text_for_app(ctx, "settings.features.default_shell.option.custom"),
                 NewSessionShellAction::ShowCustomPathInput,
             ));
             let custom_index = items.len() - 1;
