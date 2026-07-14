@@ -24,6 +24,7 @@ mod exit_confirmation;
 mod inline_menu;
 mod input_mode_policy;
 mod keybindings;
+mod localization;
 mod resume;
 mod slash_commands;
 mod terminal_background;

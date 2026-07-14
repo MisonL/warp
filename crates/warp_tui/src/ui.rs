@@ -8,6 +8,7 @@ use warpui_core::elements::tui::{
 use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::AppContext;
 
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 use crate::warping_indicator::render_spinner;
 
@@ -57,6 +58,7 @@ pub(crate) fn compact_footer_path(path: &str) -> String {
 /// Placeholder shown while a requested conversation is restored.
 pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
     let muted = TuiUiBuilder::from_app(app).muted_text_style();
+    let label = localization::text("tui.session.loading");
     centered_in_viewport(
         TuiConstrainedBox::new(
             TuiFlex::column()
@@ -65,7 +67,7 @@ pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
                     muted,
                 ))
                 .child(
-                    TuiText::new("Loading session...")
+                    TuiText::new(label.clone())
                         .with_style(muted)
                         .truncate()
                         .finish(),
@@ -73,7 +75,7 @@ pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .finish(),
         )
-        .with_max_cols("Loading session...".len() as u16)
+        .with_max_cols(label.len() as u16)
         .finish(),
     )
 }
@@ -81,15 +83,12 @@ pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
 /// Placeholder shown when a requested conversation cannot be restored.
 pub(crate) fn conversation_restore_failed(message: &str) -> Box<dyn TuiElement> {
     let dim = TuiStyle::default().add_modifier(Modifier::DIM);
+    let error = localization::text_with_args("tui.session.restore_failed", &[("message", message)]);
     vertically_centered(
         TuiFlex::column()
+            .child(TuiText::new(error).truncate().finish())
             .child(
-                TuiText::new(format!("Could not restore conversation: {message}"))
-                    .truncate()
-                    .finish(),
-            )
-            .child(
-                TuiText::new("Press Ctrl-C to exit.")
+                TuiText::new(localization::text("tui.common.press_ctrl_c_to_exit"))
                     .with_style(dim)
                     .truncate()
                     .finish(),
@@ -126,35 +125,47 @@ pub(crate) fn login_placeholder(
     user_code: Option<&str>,
 ) -> Box<dyn TuiElement> {
     let dim = TuiStyle::default().add_modifier(Modifier::DIM);
-    let mut content =
-        TuiFlex::column().child(TuiText::new("Sign in to continue").truncate().finish());
+    let mut content = TuiFlex::column().child(
+        TuiText::new(localization::text("tui.auth.sign_in"))
+            .truncate()
+            .finish(),
+    );
     match (verification_uri, user_code) {
         (Some(uri), Some(code)) => {
             content = content
                 .child(
-                    TuiText::new(format!("Open {uri} in your browser"))
-                        .with_style(dim)
-                        .truncate()
-                        .finish(),
+                    TuiText::new(localization::text_with_args(
+                        "tui.auth.open_browser",
+                        &[("uri", uri)],
+                    ))
+                    .with_style(dim)
+                    .truncate()
+                    .finish(),
                 )
                 .child(
-                    TuiText::new(format!("and enter code: {code}"))
-                        .with_style(dim)
-                        .truncate()
-                        .finish(),
+                    TuiText::new(localization::text_with_args(
+                        "tui.auth.enter_code",
+                        &[("code", code)],
+                    ))
+                    .with_style(dim)
+                    .truncate()
+                    .finish(),
                 );
         }
         (Some(uri), None) => {
             content = content.child(
-                TuiText::new(format!("Open {uri} in your browser"))
-                    .with_style(dim)
-                    .truncate()
-                    .finish(),
+                TuiText::new(localization::text_with_args(
+                    "tui.auth.open_browser",
+                    &[("uri", uri)],
+                ))
+                .with_style(dim)
+                .truncate()
+                .finish(),
             );
         }
         _ => {
             content = content.child(
-                TuiText::new("Opening your browser…")
+                TuiText::new(localization::text("tui.auth.opening_browser"))
                     .with_style(dim)
                     .truncate()
                     .finish(),
@@ -169,7 +180,7 @@ pub(crate) fn terminal_starting() -> Box<dyn TuiElement> {
     let dim = TuiStyle::default().add_modifier(Modifier::DIM);
     vertically_centered(
         TuiFlex::column().child(
-            TuiText::new("Starting terminal…")
+            TuiText::new(localization::text("tui.session.starting_terminal"))
                 .with_style(dim)
                 .truncate()
                 .finish(),
@@ -182,12 +193,15 @@ pub(crate) fn login_failed(message: &str) -> Box<dyn TuiElement> {
     let dim = TuiStyle::default().add_modifier(Modifier::DIM);
     let content = TuiFlex::column()
         .child(
-            TuiText::new(format!("Login failed: {message}"))
-                .truncate()
-                .finish(),
+            TuiText::new(localization::text_with_args(
+                "tui.auth.login_failed",
+                &[("message", message)],
+            ))
+            .truncate()
+            .finish(),
         )
         .child(
-            TuiText::new("Press Ctrl-C to exit.")
+            TuiText::new(localization::text("tui.common.press_ctrl_c_to_exit"))
                 .with_style(dim)
                 .truncate()
                 .finish(),

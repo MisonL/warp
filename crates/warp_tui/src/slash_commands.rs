@@ -25,6 +25,7 @@ use crate::inline_menu::{
     keep_selected_visible, TuiInlineMenuRow, TuiInlineMenuRowStyle, TuiInlineMenuSnapshot,
     TuiInlineMenuStatus,
 };
+use crate::localization;
 
 const MAX_VISIBLE_ROWS: usize = 8;
 
@@ -265,9 +266,9 @@ impl TuiSlashCommandModel {
         };
         let status = if rows.is_empty() {
             Some(if *is_loading {
-                TuiInlineMenuStatus::Loading("Loading slash commands…".to_owned())
+                TuiInlineMenuStatus::Loading(localization::text("tui.slash_commands.loading"))
             } else {
-                TuiInlineMenuStatus::Empty("No slash commands found".to_owned())
+                TuiInlineMenuStatus::Empty(localization::text("tui.slash_commands.empty"))
             })
         } else {
             None
