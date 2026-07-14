@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use indexmap::IndexMap;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
@@ -47,6 +45,7 @@ use crate::code_review::comments::{
     ReviewCommentBatch, ReviewCommentBatchEvent,
 };
 use crate::code_review::telemetry_event::CodeReviewTelemetryEvent;
+use crate::localization::{self, LocalizationUpdater};
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
 use crate::send_telemetry_from_ctx;
@@ -58,19 +57,16 @@ use crate::view_components::action_button::{
 };
 use crate::workspace::view::right_panel::ReviewDestination;
 
-/// Header text for the outdated section when there is exactly one outdated comment.
-const OUTDATED_SECTION_HEADER_SINGULAR: &str = "1 comment will be omitted because it is outdated.";
-/// Header text format for the outdated section when there are multiple outdated comments.
-/// Use with `format!` to insert the count.
-const OUTDATED_SECTION_HEADER_PLURAL_FMT: &str =
-    " comments will be omitted because they are outdated.";
-
 /// Returns the header text for the outdated section based on the number of outdated comments.
-fn outdated_section_header_text(count: usize) -> Cow<'static, str> {
+fn outdated_section_header_text(count: usize, app: &AppContext) -> String {
     if count == 1 {
-        Cow::Borrowed(OUTDATED_SECTION_HEADER_SINGULAR)
+        localization::text_for_app(app, "code_review.comments.outdated_one_omitted")
     } else {
-        Cow::Owned(format!("{count}{OUTDATED_SECTION_HEADER_PLURAL_FMT}"))
+        localization::text_for_app_with_args(
+            app,
+            "code_review.comments.outdated_many_omitted",
+            &[("count", &count.to_string())],
+        )
     }
 }
 
@@ -202,27 +198,33 @@ impl CommentListView {
     ) -> Self {
         let menu = ctx.add_view(|_| Menu::new());
 
-        let comments_button = ctx.add_view(|_| {
-            ActionButton::new("1 Comment", CustomSecondaryActionTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CommentListAction::ToggleCollapsed);
-                })
+        let comments_button = ctx.add_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "code_review.comments.one_comment"),
+                CustomSecondaryActionTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CommentListAction::ToggleCollapsed);
+            })
         });
 
         let send_button = ctx.add_view(|ctx| {
-            ActionButton::new("Send to Agent", PrimaryTheme)
-                .with_size(ButtonSize::Small)
-                .with_keybinding(
-                    KeystrokeSource::Fixed(
-                        Keystroke::parse(crate::code_review::CODE_REVIEW_SUBMIT_KEYSTROKE)
-                            .unwrap_or_default(),
-                    ),
-                    ctx,
-                )
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CommentListAction::Submit);
-                })
+            ActionButton::new(
+                localization::text_for_app(ctx, "code_review.comments.send_to_agent_button"),
+                PrimaryTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .with_keybinding(
+                KeystrokeSource::Fixed(
+                    Keystroke::parse(crate::code_review::CODE_REVIEW_SUBMIT_KEYSTROKE)
+                        .unwrap_or_default(),
+                ),
+                ctx,
+            )
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CommentListAction::Submit);
+            })
         });
 
         ctx.subscribe_to_view(&menu, |me, _, event, ctx| match event {
@@ -238,6 +240,9 @@ impl CommentListView {
             if let AIRequestUsageModelEvent::RequestUsageUpdated = event {
                 me.sync_send_button(ctx);
             }
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         Self {
@@ -267,21 +272,36 @@ impl CommentListView {
             .count();
 
         let label_text = if non_outdated_count == 0 && total_count > 0 {
-            format!(
-                "{} outdated comment{}",
-                total_count,
-                if total_count == 1 { "" } else { "s" }
-            )
+            if total_count == 1 {
+                localization::text_for_app(ctx, "code_review.comments.outdated_one_comment")
+            } else {
+                localization::text_for_app_with_args(
+                    ctx,
+                    "code_review.comments.outdated_many_comments",
+                    &[("count", &total_count.to_string())],
+                )
+            }
         } else {
-            format!(
-                "{} comment{}",
-                non_outdated_count,
-                if non_outdated_count == 1 { "" } else { "s" }
-            )
+            if non_outdated_count == 1 {
+                localization::text_for_app(ctx, "code_review.comments.one_comment")
+            } else {
+                localization::text_for_app_with_args(
+                    ctx,
+                    "code_review.comments.many_comments",
+                    &[("count", &non_outdated_count.to_string())],
+                )
+            }
         };
 
         self.comments_button
             .update(ctx, |view, ctx| view.set_label(label_text, ctx));
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.recompute_comment_button_label(ctx);
+        self.sync_send_button(ctx);
+        self.refresh_overflow_menu(ctx);
+        ctx.notify();
     }
 
     pub fn set_review_destination(
@@ -569,7 +589,7 @@ impl CommentListView {
     fn render_panel(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
-        let header = self.render_header(appearance);
+        let header = self.render_header(appearance, ctx);
 
         let mut comments_column = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::Start)
@@ -651,6 +671,7 @@ impl CommentListView {
             count,
             is_collapsed,
             appearance,
+            ctx,
         ));
 
         if !is_collapsed {
@@ -679,10 +700,11 @@ impl CommentListView {
         count: usize,
         is_collapsed: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let yellow_border: ColorU = theme.terminal_colors().normal.yellow.into();
-        let header_text = outdated_section_header_text(count);
+        let header_text = outdated_section_header_text(count, app);
 
         Hoverable::new(
             self.view_state.outdated_chevron_mouse_state.clone(),
@@ -754,14 +776,14 @@ impl CommentListView {
         .finish()
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
         let mut header_row = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_main_axis_size(MainAxisSize::Max)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        header_row.add_child(self.render_header_left(appearance));
-        header_row.add_child(self.render_header_right(appearance));
+        header_row.add_child(self.render_header_left(appearance, app));
+        header_row.add_child(self.render_header_right(appearance, app));
 
         Container::new(Clipped::new(Shrinkable::new(1., header_row.finish()).finish()).finish())
             .with_background(neutral_3(theme))
@@ -781,7 +803,7 @@ impl CommentListView {
             .finish()
     }
 
-    fn render_header_left(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header_left(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
         let mut left_section = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::Start)
@@ -811,7 +833,11 @@ impl CommentListView {
             .finish();
 
             let outdated_text = Text::new(
-                format!("{outdated_count} outdated"),
+                localization::text_for_app_with_args(
+                    app,
+                    "code_review.comments.outdated_count",
+                    &[("count", &outdated_count.to_string())],
+                ),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -869,16 +895,16 @@ impl CommentListView {
         .finish()
     }
 
-    fn render_header_right(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header_right(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let mut right_section = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        right_section.add_child(self.render_cancel_button(appearance));
+        right_section.add_child(self.render_cancel_button(appearance, app));
         right_section.add_child(ChildView::new(&self.send_button).finish());
         right_section.finish()
     }
 
-    fn render_cancel_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_cancel_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let cancel_button = EventHandler::new(
             appearance
                 .ui_builder()
@@ -886,7 +912,7 @@ impl CommentListView {
                     ButtonVariant::Text,
                     self.view_state.cancel_button_mouse_state.clone(),
                 )
-                .with_text_label("Cancel".to_string())
+                .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
                 .build()
                 .finish(),
         )
@@ -931,6 +957,10 @@ impl CommentListView {
             ctx,
         );
         self.send_button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(ctx, "code_review.comments.send_to_agent_button"),
+                ctx,
+            );
             button.set_disabled(!enabled, ctx);
             button.set_tooltip(Some(tooltip), ctx);
         });
@@ -1050,25 +1080,66 @@ impl CommentListView {
         ctx.notify();
     }
 
+    fn refresh_overflow_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(comment_id) = self.active_overflow_comment_id else {
+            return;
+        };
+        let (is_file_level, is_outdated, html_url) = self
+            .comments_by_id
+            .get(&comment_id)
+            .map(|state| {
+                let source = state.card.source();
+                let html_url = match &source.origin {
+                    CommentOrigin::ImportedFromGitHub(details) => details.html_url.clone(),
+                    CommentOrigin::Native => None,
+                };
+                (
+                    matches!(source.target, AttachedReviewCommentTarget::File { .. }),
+                    source.outdated,
+                    html_url,
+                )
+            })
+            .unwrap_or((true, true, None));
+
+        self.overflow_menu.update(ctx, |menu, ctx| {
+            let appearance = Appearance::handle(ctx).as_ref(ctx);
+            menu.set_items(
+                Self::menu_items_for_comment(
+                    is_file_level,
+                    is_outdated,
+                    html_url.as_deref(),
+                    appearance,
+                    ctx,
+                ),
+                ctx,
+            );
+        });
+    }
+
     fn menu_items_for_comment(
         is_file_level: bool,
         is_outdated: bool,
         html_url: Option<&str>,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Vec<MenuItem<CommentListAction>> {
-        let mut items = vec![MenuItemFields::new("Copy text")
-            .with_icon(Icon::Copy)
-            .with_on_select_action(CommentListAction::CopyCommentText)
-            .into_item()];
+        let mut items = vec![MenuItemFields::new(localization::text_for_app(
+            app,
+            "code_review.comments.copy_text",
+        ))
+        .with_icon(Icon::Copy)
+        .with_on_select_action(CommentListAction::CopyCommentText)
+        .into_item()];
 
-        let mut edit_item = MenuItemFields::new("Edit")
-            .with_icon(Icon::Pencil)
-            .with_on_select_action(CommentListAction::EditComment);
+        let mut edit_item =
+            MenuItemFields::new(localization::text_for_app(app, "code_review.comments.edit"))
+                .with_icon(Icon::Pencil)
+                .with_on_select_action(CommentListAction::EditComment);
         if is_file_level || is_outdated {
             let tooltip_text = if is_file_level {
-                "File-level comments currently can't be edited."
+                localization::text_for_app(app, "code_review.comments.file_level_edit_disabled")
             } else {
-                "Outdated comments can't be edited."
+                localization::text_for_app(app, "code_review.comments.outdated_edit_disabled")
             };
             edit_item = edit_item.with_disabled(true).with_tooltip(tooltip_text);
         }
@@ -1076,22 +1147,28 @@ impl CommentListView {
 
         if let Some(url) = html_url {
             items.push(
-                MenuItemFields::new("View in GitHub")
-                    .with_icon(Icon::Github)
-                    .with_on_select_action(CommentListAction::ViewInGitHub {
-                        url: url.to_string(),
-                    })
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    app,
+                    "code_review.comments.view_in_github",
+                ))
+                .with_icon(Icon::Github)
+                .with_on_select_action(CommentListAction::ViewInGitHub {
+                    url: url.to_string(),
+                })
+                .into_item(),
             );
         }
 
         items.push(
-            MenuItemFields::new("Remove")
-                .with_icon(Icon::Trash)
-                .with_override_text_color(Fill::Solid(appearance.theme().ansi_fg_red()))
-                .with_override_icon_color(Fill::Solid(appearance.theme().ansi_fg_red()))
-                .with_on_select_action(CommentListAction::DeleteComment)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                app,
+                "code_review.comments.remove",
+            ))
+            .with_icon(Icon::Trash)
+            .with_override_text_color(Fill::Solid(appearance.theme().ansi_fg_red()))
+            .with_override_icon_color(Fill::Solid(appearance.theme().ansi_fg_red()))
+            .with_on_select_action(CommentListAction::DeleteComment)
+            .into_item(),
         );
 
         items
@@ -1111,7 +1188,7 @@ impl View for CommentListView {
         let appearance = Appearance::as_ref(ctx);
 
         if self.is_collapsed {
-            self.render_header(appearance)
+            self.render_header(appearance, ctx)
         } else {
             let mut panel = self.render_panel(appearance, ctx);
 
@@ -1199,40 +1276,7 @@ impl TypedActionView for CommentListView {
                 let current_overflow = self.active_overflow_comment_id.take();
                 if current_overflow != Some(*comment_id) {
                     self.active_overflow_comment_id = Some(*comment_id);
-
-                    // File-level comments cannot be edited (no line to jump to).
-                    // Outdated comments cannot be edited.
-                    let (is_file_level, is_outdated, html_url) = self
-                        .comments_by_id
-                        .get(comment_id)
-                        .map(|state| {
-                            let source = state.card.source();
-                            let html_url = match &source.origin {
-                                CommentOrigin::ImportedFromGitHub(details) => {
-                                    details.html_url.clone()
-                                }
-                                CommentOrigin::Native => None,
-                            };
-                            (
-                                matches!(source.target, AttachedReviewCommentTarget::File { .. }),
-                                source.outdated,
-                                html_url,
-                            )
-                        })
-                        .unwrap_or((true, true, None));
-
-                    self.overflow_menu.update(ctx, |menu, ctx| {
-                        let appearance = Appearance::handle(ctx).as_ref(ctx);
-                        menu.set_items(
-                            Self::menu_items_for_comment(
-                                is_file_level,
-                                is_outdated,
-                                html_url.as_deref(),
-                                appearance,
-                            ),
-                            ctx,
-                        );
-                    });
+                    self.refresh_overflow_menu(ctx);
                 }
                 ctx.notify();
             }
