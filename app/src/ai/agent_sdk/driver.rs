@@ -3873,6 +3873,10 @@ pub(super) async fn report_driver_error(
     }
 }
 
+pub(super) fn localized_driver_error_message(err: &AgentDriverError, locale: LocaleId) -> String {
+    error_classification::localized_driver_error_message(err, locale)
+}
+
 /// Stamps `parent_agent_id` (= parent's `run_id` under v2) onto the
 /// driver-hosted conversation so the streamer's child-role check
 /// succeeds. No-op when `parent_run_id` is `None` (a top-level run).
