@@ -153,9 +153,12 @@ where
                 items.push(MenuItem::Separator);
             }
             items.push(
-                MenuItemFields::new("Copy file path")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::CopyFilePath))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "notebook.file.menu.copy_file_path",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::CopyFilePath))
+                .into_item(),
             );
         }
 
