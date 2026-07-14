@@ -50,11 +50,16 @@ pub enum ByoKeySource {
 }
 
 impl ByoKeySource {
-    pub fn inference_label(self) -> &'static str {
-        match self {
-            ByoKeySource::UserProvided => "Inference via User-provided API key",
-            ByoKeySource::TeamProvided => "Inference via Team-provided API key",
-        }
+    pub fn inference_label(self, app: &AppContext) -> String {
+        let key = match self {
+            ByoKeySource::UserProvided => {
+                "settings.ai.model_selector.cost.via_user_provided_api_key"
+            }
+            ByoKeySource::TeamProvided => {
+                "settings.ai.model_selector.cost.via_team_provided_api_key"
+            }
+        };
+        crate::localization::text_for_app(app, key)
     }
 }
 

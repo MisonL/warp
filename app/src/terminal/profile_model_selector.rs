@@ -53,6 +53,7 @@ use crate::appearance::Appearance;
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::context_chips::display_chip::{udi_font_size, udi_icon_size};
 use crate::context_chips::spacing;
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::settings_view::SettingsSection;
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
@@ -524,16 +525,22 @@ impl ProfileModelSelector {
             },
         );
 
-        let manage_api_key_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Manage", SecondaryTheme)
-                .with_tooltip("Manage API keys")
-                .with_size(ButtonSize::XSmall)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                        search_query: "api".to_string(),
-                        section: Some(SettingsSection::WarpAgent),
-                    });
-                })
+        let manage_api_key_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.ai.model_selector.manage_api_keys"),
+                SecondaryTheme,
+            )
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.manage_api_keys.tooltip",
+            ))
+            .with_size(ButtonSize::XSmall)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
+                    search_query: "api".to_string(),
+                    section: Some(SettingsSection::WarpAgent),
+                });
+            })
         });
 
         let mut me = Self {
@@ -840,7 +847,11 @@ impl ProfileModelSelector {
         let appearance = Appearance::as_ref(ctx);
         let mut menu_items = vec![
             MenuItem::Header {
-                fields: MenuItemFields::new("Profiles").with_override_text_color(
+                fields: MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.profile_model_selector.profiles",
+                ))
+                .with_override_text_color(
                     appearance
                         .theme()
                         .sub_text_color(appearance.theme().background())
@@ -871,9 +882,12 @@ impl ProfileModelSelector {
 
         menu_items.push(MenuItem::Separator);
         menu_items.push(MenuItem::Item(
-            MenuItemFields::new("Manage profiles")
-                .with_icon(Icon::Gear)
-                .with_on_select_action(ProfileModelSelectorAction::ManageProfiles),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "terminal.profile_model_selector.manage_profiles",
+            ))
+            .with_icon(Icon::Gear)
+            .with_on_select_action(ProfileModelSelectorAction::ManageProfiles),
         ));
 
         self.profile_dropdown.update(ctx, |menu, ctx| {
@@ -1082,7 +1096,11 @@ impl ProfileModelSelector {
                 items.push(MenuItem::Separator);
             }
             items.push(MenuItem::Header {
-                fields: MenuItemFields::new("Custom models").with_override_text_color(
+                fields: MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.profile_model_selector.custom_models",
+                ))
+                .with_override_text_color(
                     appearance
                         .theme()
                         .sub_text_color(appearance.theme().background())
@@ -1966,7 +1984,10 @@ impl ProfileModelSelector {
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(self.render_model_spec_value_label("Cost".to_string(), app))
+                .with_child(self.render_model_spec_value_label(
+                    localization::text_for_app(app, "terminal.input.models.spec.cost"),
+                    app,
+                ))
                 .with_child(
                     Expanded::new(
                         1.,
@@ -1977,7 +1998,7 @@ impl ProfileModelSelector {
                             .with_child(
                                 Container::new(
                                     Text::new(
-                                        byo_key_source.inference_label().to_string(),
+                                        byo_key_source.inference_label(app),
                                         appearance.ui_font_family(),
                                         14.,
                                     )

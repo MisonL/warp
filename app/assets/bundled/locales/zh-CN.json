@@ -3571,6 +3571,8 @@
   "settings.ai.model_selector.cost.auto_bedrock_tooltip": "当自动选择的模型支持 Bedrock 时，Warp 会使用 Bedrock；否则可能使用 Warp 托管推理。",
   "settings.ai.model_selector.cost.may_use_bedrock": "推理可能使用 Bedrock",
   "settings.ai.model_selector.cost.via_api_key": "通过 API 密钥推理",
+  "settings.ai.model_selector.cost.via_team_provided_api_key": "通过团队提供的 API 密钥推理",
+  "settings.ai.model_selector.cost.via_user_provided_api_key": "通过用户提供的 API 密钥推理",
   "settings.ai.model_selector.cost.via_bedrock": "通过 Bedrock 推理",
   "settings.ai.model_selector.custom_models": "自定义模型",
   "settings.ai.model_selector.default_model": "默认",

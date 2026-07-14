@@ -306,6 +306,9 @@ struct ModelSearchItem {
     cost_row_tooltip_mouse_state: MouseStateHandle,
     reasoning_level: Option<String>,
     discount_percentage: Option<f32>,
+    accessibility_prefix: String,
+    accessibility_selected: String,
+    accessibility_disabled: String,
 }
 
 impl ModelSearchItem {
@@ -355,6 +358,18 @@ impl ModelSearchItem {
             cost_row_tooltip_mouse_state: Default::default(),
             reasoning_level: llm.reasoning_level(),
             discount_percentage: llm.discount_percentage,
+            accessibility_prefix: localization::text_for_app(
+                app,
+                "settings.ai.model_selector.a11y.prefix",
+            ),
+            accessibility_selected: localization::text_for_app(
+                app,
+                "settings.ai.model_selector.a11y.selected",
+            ),
+            accessibility_disabled: localization::text_for_app(
+                app,
+                "settings.ai.model_selector.a11y.disabled",
+            ),
         }
     }
 
@@ -449,9 +464,10 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_selected {
-            let selected_label = "(selected)";
+            let selected_label =
+                localization::text_for_app(app, "settings.ai.model_selector.selected");
             let selected_text = Text::new_inline(
-                selected_label.to_string(),
+                selected_label.clone(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -468,9 +484,10 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_disabled() {
-            let disabled_label = "(disabled)";
+            let disabled_label =
+                localization::text_for_app(app, "settings.ai.model_selector.disabled");
             let disabled_text = Text::new_inline(
-                disabled_label.to_string(),
+                disabled_label.clone(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -571,7 +588,7 @@ impl SearchItem for ModelSearchItem {
                     ButtonVariant::Outlined,
                     self.manage_api_key_mouse_state.clone(),
                 )
-                .with_text_label("Manage".to_string())
+                .with_text_label(localization::text_for_app(app, "common.manage"))
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -600,7 +617,7 @@ impl SearchItem for ModelSearchItem {
                 } else if self.is_using_bedrock {
                     localization::text_for_app(app, "settings.ai.model_selector.cost.via_bedrock")
                 } else if let Some(source) = self.byo_key_source {
-                    source.inference_label().to_string()
+                    source.inference_label(app)
                 } else {
                     localization::text_for_app(app, "settings.ai.model_selector.cost.via_api_key")
                 },
@@ -661,16 +678,23 @@ impl SearchItem for ModelSearchItem {
                 );
 
             let mut text_fragments = vec![
-                FormattedTextFragment::plain_text(format!(
-                    "{display_name} is not available for free users. "
+                FormattedTextFragment::plain_text(localization::text_for_app_with_args(
+                    app,
+                    "settings.ai.model_selector.upgrade_required.prefix",
+                    &[("name", &display_name)],
                 )),
-                FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
+                FormattedTextFragment::hyperlink(
+                    localization::text_for_app(app, "onboarding.common.upgrade"),
+                    upgrade_url,
+                ),
             ];
 
             if byok_available {
-                text_fragments.push(FormattedTextFragment::plain_text(" or ".to_string()));
+                text_fragments.push(FormattedTextFragment::plain_text(
+                    localization::text_for_app(app, "settings.billing.upgrade.or"),
+                ));
                 text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    "bring your own key",
+                    localization::text_for_app(app, "settings.billing.upgrade.bring_own_key"),
                     WorkspaceAction::ShowSettingsPageWithSearch {
                         search_query: "api".to_string(),
                         section: Some(SettingsSection::WarpAgent),
@@ -745,12 +769,14 @@ impl SearchItem for ModelSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        let mut label = format!("Model: {}", self.display_text);
+        let mut label = format!("{}: {}", self.accessibility_prefix, self.display_text);
         if self.is_selected {
-            label.push_str(" (selected)");
+            label.push(' ');
+            label.push_str(&self.accessibility_selected);
         }
         if self.is_disabled() {
-            label.push_str(" (disabled)");
+            label.push(' ');
+            label.push_str(&self.accessibility_disabled);
         }
         label
     }

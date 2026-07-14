@@ -3571,6 +3571,8 @@
   "settings.ai.model_selector.cost.auto_bedrock_tooltip": "Warp uses Bedrock when the model Auto selects supports it; otherwise it may use Warp-hosted inference.",
   "settings.ai.model_selector.cost.may_use_bedrock": "Inference may use Bedrock",
   "settings.ai.model_selector.cost.via_api_key": "Inference via API key",
+  "settings.ai.model_selector.cost.via_team_provided_api_key": "Inference via Team-provided API key",
+  "settings.ai.model_selector.cost.via_user_provided_api_key": "Inference via User-provided API key",
   "settings.ai.model_selector.cost.via_bedrock": "Inference via Bedrock",
   "settings.ai.model_selector.custom_models": "Custom models",
   "settings.ai.model_selector.default_model": "default",
