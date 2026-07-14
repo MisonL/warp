@@ -1594,6 +1594,7 @@
   "ai_assistant.character_limit_exceeded": "Character limit exceeded.",
   "ai_assistant.copy_answer": "Copy answer to clipboard",
   "ai_assistant.copy_transcript": "Copy transcript to clipboard",
+  "ai_assistant.followup_prompt.explain_selection": "Explain the following:\n",
   "ai_assistant.followup_prompt.from_block": "I ran the command: `{command}` and got the following output:\n{output}\n{question}",
   "ai_assistant.followup_prompt.how_fix": "How do I fix this?",
   "ai_assistant.followup_prompt.show_examples": "Show examples.",

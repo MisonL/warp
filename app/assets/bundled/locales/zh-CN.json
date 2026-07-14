@@ -1594,6 +1594,7 @@
   "ai_assistant.character_limit_exceeded": "超出字符限制。",
   "ai_assistant.copy_answer": "将回答复制到剪贴板",
   "ai_assistant.copy_transcript": "将转录复制到剪贴板",
+  "ai_assistant.followup_prompt.explain_selection": "请解释以下内容：\n",
   "ai_assistant.followup_prompt.from_block": "我运行了命令：`{command}`，并得到了以下输出：\n{output}\n{question}",
   "ai_assistant.followup_prompt.how_fix": "我该如何修复？",
   "ai_assistant.followup_prompt.show_examples": "显示示例。",

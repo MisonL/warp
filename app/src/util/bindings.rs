@@ -831,6 +831,7 @@ fn catalog_key_for_binding_description_alias(description: &str) -> Option<&'stat
         "Close Focused Panel" => Some("workspace.binding.close_focused_panel"),
         "Close Other Tabs" => Some("workspace.binding.close_other_tabs"),
         "Close Tabs To The Right" => Some("workspace.binding.close_tabs_to_right"),
+        "Close Warp Ai" => Some("ai_assistant.binding.close_warp_ai"),
         "Close Window" => Some("workspace.binding.close_window"),
         "Copy" => Some("terminal.binding.copy"),
         "Copy Access Token To Clipboard" => {
@@ -959,6 +960,7 @@ fn catalog_key_for_binding_description_alias(description: &str) -> Option<&'stat
         "Rename The Current Tab" => Some("workspace.binding.rename_current_tab"),
         "Reset Font Size To Default" => Some("workspace.binding.reset_font_size"),
         "Reset Zoom Level To Default" => Some("workspace.binding.reset_zoom"),
+        "Restart Warp Ai" => Some("ai_assistant.binding.restart_warp_ai"),
         "Sample Process" => Some("workspace.binding.sample_process"),
         "Scroll Terminal Output Down One Line" => {
             Some("terminal.binding.scroll_output_down_one_line")
