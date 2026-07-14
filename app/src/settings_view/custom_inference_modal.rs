@@ -22,6 +22,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization::{self, LocalizationUpdater};
 use crate::modal::{Modal, ModalViewState};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, DangerSecondaryTheme};
@@ -127,7 +128,10 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., Zach's external models", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.placeholder.name"),
+                ctx,
+            );
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.name, ctx);
             }
@@ -147,7 +151,10 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Please include 'https://'", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.placeholder.url"),
+                ctx,
+            );
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.url, ctx);
             }
@@ -168,7 +175,10 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., sk-...", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.placeholder.api_key"),
+                ctx,
+            );
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.api_key, ctx);
             }
@@ -221,12 +231,19 @@ impl CustomEndpointModal {
                 me.handle_model_editor_event(&editor, event, ctx);
             });
         }
-        let remove_endpoint_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Remove", DangerSecondaryTheme)
-                .with_icon(Icon::Trash)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CustomEndpointModalAction::RemoveEndpoint);
-                })
+        let remove_endpoint_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.remove"),
+                DangerSecondaryTheme,
+            )
+            .with_icon(Icon::Trash)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CustomEndpointModalAction::RemoveEndpoint);
+            })
+        });
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |modal, _, _, ctx| {
+            modal.refresh_localized_text(ctx);
         });
 
         Self {
@@ -265,7 +282,13 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., GLM-5-FP8", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.ai.custom_endpoint.placeholder.model_name",
+                ),
+                ctx,
+            );
             if let Some(n) = name {
                 editor.set_buffer_text(n, ctx);
             }
@@ -285,7 +308,13 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("e.g., GLM-5", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx,
+                    "settings.ai.custom_endpoint.placeholder.model_alias",
+                ),
+                ctx,
+            );
             if let Some(a) = alias {
                 editor.set_buffer_text(a, ctx);
             }
@@ -298,6 +327,54 @@ impl CustomEndpointModal {
             remove_mouse_state: Default::default(),
             config_key,
         }
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        for (editor, key) in [
+            (
+                &self.endpoint_name_editor,
+                "settings.ai.custom_endpoint.placeholder.name",
+            ),
+            (
+                &self.endpoint_url_editor,
+                "settings.ai.custom_endpoint.placeholder.url",
+            ),
+            (
+                &self.api_key_editor,
+                "settings.ai.custom_endpoint.placeholder.api_key",
+            ),
+        ] {
+            editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(localization::text_for_app(ctx, key), ctx);
+            });
+        }
+        for row in &self.model_rows {
+            row.name_editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(
+                    localization::text_for_app(
+                        ctx,
+                        "settings.ai.custom_endpoint.placeholder.model_name",
+                    ),
+                    ctx,
+                );
+            });
+            row.alias_editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(
+                    localization::text_for_app(
+                        ctx,
+                        "settings.ai.custom_endpoint.placeholder.model_alias",
+                    ),
+                    ctx,
+                );
+            });
+        }
+        self.remove_endpoint_button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(ctx, "settings.ai.custom_endpoint.remove"),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     pub fn prefill(
@@ -671,7 +748,7 @@ impl View for CustomEndpointModal {
 
         let label_font_family = appearance.ui_font_family();
         let label_text_color = theme.active_ui_text_color().into();
-        let label = move |text: &'static str| {
+        let label = move |text: String| {
             Text::new(text, label_font_family, LABEL_FONT_SIZE)
                 .with_color(label_text_color)
                 .finish()
@@ -693,7 +770,7 @@ impl View for CustomEndpointModal {
         column.add_child(
             Container::new(
                 Text::new(
-                    "Provide your endpoint details below. You can add as many models from the endpoint as you'd like and can also provide aliases for the model picker in your input.",
+                    localization::text_for_app(app, "settings.ai.custom_endpoint.description"),
                     appearance.ui_font_family(),
                     LABEL_FONT_SIZE,
                 )
@@ -707,9 +784,12 @@ impl View for CustomEndpointModal {
 
         // Endpoint name
         column.add_child(
-            Container::new(label("Endpoint name"))
-                .with_margin_bottom(4.)
-                .finish(),
+            Container::new(label(localization::text_for_app(
+                app,
+                "settings.ai.custom_endpoint.name",
+            )))
+            .with_margin_bottom(4.)
+            .finish(),
         );
         column.add_child(
             SavePosition::new(
@@ -730,9 +810,12 @@ impl View for CustomEndpointModal {
 
         // Endpoint URL
         column.add_child(
-            Container::new(label("Endpoint URL"))
-                .with_margin_bottom(4.)
-                .finish(),
+            Container::new(label(localization::text_for_app(
+                app,
+                "settings.ai.custom_endpoint.url",
+            )))
+            .with_margin_bottom(4.)
+            .finish(),
         );
         let url_border_fill = if self.url_has_error {
             theme.ui_error_color().into()
@@ -760,9 +843,12 @@ impl View for CustomEndpointModal {
 
         // API key
         column.add_child(
-            Container::new(label("API key"))
-                .with_margin_bottom(4.)
-                .finish(),
+            Container::new(label(localization::text_for_app(
+                app,
+                "settings.ai.custom_endpoint.api_key",
+            )))
+            .with_margin_bottom(4.)
+            .finish(),
         );
         column.add_child(
             SavePosition::new(
@@ -791,14 +877,20 @@ impl View for CustomEndpointModal {
                 Flex::row()
                     .with_spacing(MODEL_ROW_SPACING)
                     .with_child(
-                        ConstrainedBox::new(label("Model name"))
-                            .with_width(MODEL_INPUT_WIDTH)
-                            .finish(),
+                        ConstrainedBox::new(label(localization::text_for_app(
+                            app,
+                            "settings.ai.custom_endpoint.model_name",
+                        )))
+                        .with_width(MODEL_INPUT_WIDTH)
+                        .finish(),
                     )
                     .with_child(
-                        ConstrainedBox::new(label("Model alias (optional)"))
-                            .with_width(MODEL_INPUT_WIDTH)
-                            .finish(),
+                        ConstrainedBox::new(label(localization::text_for_app(
+                            app,
+                            "settings.ai.custom_endpoint.model_alias_optional",
+                        )))
+                        .with_width(MODEL_INPUT_WIDTH)
+                        .finish(),
                     )
                     .finish(),
             );
@@ -885,7 +977,10 @@ impl View for CustomEndpointModal {
                 ButtonVariant::Secondary,
                 self.add_model_button_mouse_state.clone(),
             )
-            .with_text_label("+ Add model".to_string())
+            .with_text_label(localization::text_for_app(
+                app,
+                "settings.ai.custom_endpoint.add_model",
+            ))
             .with_style(UiComponentStyles {
                 font_size: Some(14.),
                 padding: Some(Coords::uniform(6.).left(8.).right(8.)),
@@ -922,7 +1017,7 @@ impl View for CustomEndpointModal {
                     ButtonVariant::Secondary,
                     self.cancel_button_mouse_state.clone(),
                 )
-                .with_text_label("Cancel".to_string())
+                .with_text_label(localization::text_for_app(app, "settings.action.cancel"))
                 .with_style(button_style)
                 .build()
                 .on_click(move |ctx, _, _| {
@@ -935,9 +1030,9 @@ impl View for CustomEndpointModal {
             .ui_builder()
             .button(ButtonVariant::Accent, self.save_button_mouse_state.clone())
             .with_text_label(if is_editing {
-                "Save".to_string()
+                localization::text_for_app(app, "settings.action.save")
             } else {
-                "Add endpoint".to_string()
+                localization::text_for_app(app, "settings.ai.custom_endpoint.add_endpoint")
             })
             .with_style(button_style);
         if !is_valid {

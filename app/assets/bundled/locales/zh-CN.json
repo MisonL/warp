@@ -3582,6 +3582,8 @@
   "settings.ai.model_selector.cost.via_bedrock": "通过 Bedrock 推理",
   "settings.ai.model_selector.custom_models": "自定义模型",
   "settings.ai.model_selector.default_model": "默认",
+  "settings.ai.set_default_model.change": "更改默认模型",
+  "settings.ai.set_default_model.not_now": "暂不",
   "settings.ai.set_default_model.title": "要更改默认模型吗？",
   "settings.ai.model_selector.disabled": "（已禁用）",
   "settings.ai.model_selector.discount_chip": "省 {discount}%",
