@@ -47,8 +47,8 @@ pub(super) fn confirm_icon_for() -> Icon {
     Icon::Github
 }
 
-fn loading_label_for() -> &'static str {
-    "Creating\u{2026}"
+fn loading_label_for(app: &AppContext) -> String {
+    localization::text_for_app(app, "code_review.git_dialog.pr.creating")
 }
 
 /// PR mode has no prerequisites beyond a branch with commits; confirm is
@@ -125,7 +125,7 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     // `gh pr create --fill`.
     let autogenerate_content = should_send_git_ops_ai_request(ctx);
 
-    me.set_loading(loading_label_for(), ctx);
+    me.set_loading(loading_label_for(ctx), ctx);
 
     me.diff_state_model().update(ctx, |m, ctx| {
         m.create_pr(branch_name, autogenerate_content, ctx);
@@ -167,9 +167,16 @@ pub(super) fn show_pr_created_toast(pr_info: &PrInfo, ctx: &mut ViewContext<GitD
     let window_id = ctx.window_id();
     let url = pr_info.url.clone();
     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-        let link = ToastLink::new("Open PR".to_string()).with_href(url);
-        let toast =
-            DismissibleToast::default("PR successfully created.".to_string()).with_link(link);
+        let link = ToastLink::new(localization::text_for_app(
+            ctx,
+            "code_review.git_dialog.pr.open_pr",
+        ))
+        .with_href(url);
+        let toast = DismissibleToast::default(localization::text_for_app(
+            ctx,
+            "code_review.git_dialog.pr.created",
+        ))
+        .with_link(link);
         toast_stack.add_ephemeral_toast(toast, window_id, ctx);
     });
 }
@@ -183,7 +190,10 @@ pub(super) fn render_body(
     let base_branch = state
         .base_branch_name
         .as_deref()
-        .unwrap_or("default branch");
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            localization::text_for_app(app, "code_review.git_dialog.pr.default_branch")
+        });
     let branch_name = format!("{branch_name} \u{2192} {base_branch}");
     Flex::column()
         .with_child(
@@ -204,7 +214,7 @@ fn render_changes_section(
     let main_color = theme.main_text_color(theme.surface_1()).into_solid();
 
     let label = Text::new(
-        "Changes",
+        localization::text_for_app(app, "code_review.git_dialog.changes"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
