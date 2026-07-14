@@ -2178,7 +2178,7 @@ fn render_mermaid_diagram_section<A: Action>(
         .finish();
 
     render_visual_card(
-        "Mermaid diagram".to_string(),
+        crate::localization::text_for_app(app, "agent.output.mermaid_diagram"),
         Icon::Dataflow,
         Container::new(mermaid_canvas)
             .with_background(theme.background())
