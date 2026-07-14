@@ -74,24 +74,6 @@ pub enum SettingType {
     CursorBlinking,
 }
 
-impl SettingType {
-    pub fn get_name(&self) -> &'static str {
-        match self {
-            SettingType::Theme => "Theme",
-            SettingType::OptionAsMeta => "Option as Meta",
-            SettingType::MouseAndScrollReporting => "Mouse/Scroll Reporting",
-            SettingType::Font => "Font",
-            SettingType::DefaultShell => "Default Shell",
-            SettingType::WorkingDirectory => "Working Directory",
-            SettingType::HotkeyMode => "Global hotkey",
-            SettingType::WindowSize => "Window Dimensions",
-            SettingType::CopyOnSelect => "Copy On Select",
-            SettingType::Opacity => "Window Opacity",
-            SettingType::CursorBlinking => "Cursor Blinking",
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct MouseAndScrollReporting {
     pub mouse_reporting: bool,

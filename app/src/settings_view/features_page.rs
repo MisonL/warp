@@ -3038,7 +3038,7 @@ impl FeaturesPageView {
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            val.dropdown_item_label(),
+                            crate::localization::text_for_app(ctx, val.dropdown_item_label_key()),
                             FeaturesPageAction::SetCodeEditorLineNumberMode(val),
                         )
                     })

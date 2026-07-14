@@ -313,8 +313,8 @@ impl CommentListView {
             sendable_comments > 0,
             ai_available,
             ai_enabled,
-        )
-        .into_owned();
+            ctx,
+        );
 
         CommentListDebugState {
             review_destination: self.review_destination.clone(),
@@ -928,8 +928,8 @@ impl CommentListView {
             self.has_non_outdated_comments(),
             ai_available,
             ai_enabled,
-        )
-        .into_owned();
+            ctx,
+        );
         self.send_button.update(ctx, |button, ctx| {
             button.set_disabled(!enabled, ctx);
             button.set_tooltip(Some(tooltip), ctx);
@@ -942,25 +942,39 @@ impl CommentListView {
         has_sendable_comments: bool,
         ai_available: bool,
         ai_enabled: bool,
-    ) -> Cow<'static, str> {
+        app: &AppContext,
+    ) -> String {
         if let ReviewDestination::Cli(agent) = destination {
             if !has_sendable_comments {
-                Cow::Borrowed("No non-outdated comments to send")
+                crate::localization::text_for_app(
+                    app,
+                    "code_review.comments.no_non_outdated_to_send",
+                )
             } else {
                 let cmd = agent.command_prefix();
-                let label = if cmd.is_empty() { "CLI agent" } else { cmd };
-                Cow::Owned(format!("Send diff comments to {label}"))
+                let cli_agent =
+                    crate::localization::text_for_app(app, "code_review.comments.cli_agent");
+                let label = if cmd.is_empty() {
+                    cli_agent.as_str()
+                } else {
+                    cmd
+                };
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "code_review.comments.send_to_cli_agent",
+                    &[("label", label)],
+                )
             }
         } else if !ai_enabled {
-            Cow::Borrowed("AI must be enabled to send comments to Agent")
+            crate::localization::text_for_app(app, "code_review.comments.ai_must_be_enabled")
         } else if !ai_available {
-            Cow::Borrowed("Agent code review requires AI credits")
+            crate::localization::text_for_app(app, "code_review.comments.requires_ai_credits")
         } else if matches!(destination, ReviewDestination::None) {
-            Cow::Borrowed("All terminals are busy")
+            crate::localization::text_for_app(app, "code_review.comments.all_terminals_busy")
         } else if !has_sendable_comments {
-            Cow::Borrowed("No non-outdated comments to send")
+            crate::localization::text_for_app(app, "code_review.comments.no_non_outdated_to_send")
         } else {
-            Cow::Borrowed("Send diff comments to Agent")
+            crate::localization::text_for_app(app, "code_review.comments.send_to_agent")
         }
     }
 
