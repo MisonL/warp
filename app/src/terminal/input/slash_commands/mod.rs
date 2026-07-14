@@ -721,10 +721,10 @@ impl Input {
                             let window_id = ctx.window_id();
                             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                                 toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(
-                                        "The /open-file command is only available for local sessions"
-                                            .to_owned(),
-                                    ),
+                                    DismissibleToast::error(crate::localization::text_for_app(
+                                        ctx,
+                                        "terminal.slash.open_file.local_only",
+                                    )),
                                     window_id,
                                     ctx,
                                 );

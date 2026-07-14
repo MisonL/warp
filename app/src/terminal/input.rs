@@ -3420,9 +3420,10 @@ impl Input {
                     let window_id = ctx.window_id();
                     ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                         ts.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Attached images were removed — the selected model does not support images.".to_string(),
-                            ),
+                            DismissibleToast::error(localization::text_for_app(
+                                ctx,
+                                "terminal.input.toast.attached_images_removed",
+                            )),
                             window_id,
                             ctx,
                         );
@@ -4521,10 +4522,10 @@ impl Input {
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
             ts.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Custom models can't run in the cloud. Switch to a Warp model to hand off."
-                        .to_owned(),
-                ),
+                DismissibleToast::error(localization::text_for_app(
+                    ctx,
+                    "terminal.input.toast.custom_model_cloud_unsupported",
+                )),
                 window_id,
                 ctx,
             );
@@ -5804,10 +5805,10 @@ impl Input {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::default(
-                        "Local skills cannot run on a remote machine. Try forking the conversation locally and running the skill."
-                            .to_owned(),
-                    ),
+                    DismissibleToast::default(localization::text_for_app(
+                        ctx,
+                        "terminal.input.toast.local_skill_remote_unsupported",
+                    )),
                     window_id,
                     ctx,
                 );
@@ -16054,9 +16055,10 @@ impl TypedActionView for Input {
                     let window_id = ctx.window_id();
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Cannot start a new conversation while agent is monitoring a command.".to_string()
-                            ),
+                            DismissibleToast::error(localization::text_for_app(
+                                ctx,
+                                "terminal.input.toast.cannot_start_conversation_agent_monitoring",
+                            )),
                             window_id,
                             ctx,
                         );
