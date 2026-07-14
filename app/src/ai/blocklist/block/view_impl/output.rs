@@ -71,10 +71,7 @@ use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
-use crate::ai::blocklist::block::view_impl::common::{
-    MaybeShimmeringText, BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
-    BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-};
+use crate::ai::blocklist::block::view_impl::common::MaybeShimmeringText;
 use crate::ai::blocklist::block::{
     AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons, AutonomySettingSpeedbump,
     CollapsibleElementState, CollapsibleExpansionState, EmbeddedCodeEditorView, FinishReason,
@@ -1982,11 +1979,13 @@ fn render_read_files(
             .action_buttons
             .get(id)
             .expect("Button states must exist for each requested action.");
+        let blocked_action_text =
+            crate::localization::text_for_app(app, "agent.cli.blocked_action.reading_files");
 
         renderable_action = renderable_action
             .with_header(blocked_action_header(
                 id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
+                &blocked_action_text,
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -2828,11 +2827,13 @@ fn render_file_retrieval_tool(
             .action_buttons
             .get(action_id)
             .expect("Button states must exist for each requested action.");
+        let blocked_action_text =
+            crate::localization::text_for_app(app, "agent.cli.blocked_action.grep_or_file_glob");
 
         config = config
             .with_header(blocked_action_header(
                 action_id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
+                &blocked_action_text,
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
