@@ -7,6 +7,7 @@
 //! from field-change events to their own action enum.
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use ai::agent::action::RunAgentsExecutionMode;
 use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationExecutionMode};
@@ -16,6 +17,7 @@ use settings::Setting;
 use warp_cli::agent::Harness;
 use warp_core::ui::theme::Fill;
 use warp_errors::report_if_error;
+use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
@@ -45,6 +47,7 @@ use crate::ai::local_harness_setup::{
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObjectLookup as _;
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -58,6 +61,12 @@ use crate::LLMPreferences;
 /// Env var override for the workspace default host (developer testing).
 /// Mirrors the single-agent ambient flow.
 const DEFAULT_HOST_ENV_VAR: &str = "WARP_CLOUD_MODE_DEFAULT_HOST";
+static OPENCODE_CLOUD_UNSUPPORTED_EN: LazyLock<String> = LazyLock::new(|| {
+    localization::text_for_locale(
+        LocaleId::EnUs,
+        "agent.orchestration.controls.opencode_cloud_unsupported",
+    )
+});
 
 // ── Shared constants ────────────────────────────────────────────────
 
@@ -259,9 +268,7 @@ impl OrchestrationEditState {
             RunAgentsExecutionMode::Remote { .. }
                 if self.harness_type.eq_ignore_ascii_case("opencode") =>
             {
-                Some(
-                    "OpenCode is not supported on Cloud yet. Switch to Local or pick a different harness.",
-                )
+                Some(OPENCODE_CLOUD_UNSUPPORTED_EN.as_str())
             }
             RunAgentsExecutionMode::Remote { .. } => None,
         }
@@ -727,9 +734,14 @@ pub fn populate_harness_picker<A: OrchestrationControlAction, V: View>(
             } else {
                 fields = fields.with_disabled(true);
                 let tooltip = match local_setup_state {
-                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip,
-                    Some(LocalHarnessSetupState::ProductDisabled { message }) => message,
-                    Some(LocalHarnessSetupState::Ready) | None => "Disabled by your administrator",
+                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip.to_string(),
+                    Some(LocalHarnessSetupState::ProductDisabled { message }) => {
+                        message.to_string()
+                    }
+                    Some(LocalHarnessSetupState::Ready) | None => localization::text_for_app(
+                        ctx_dropdown,
+                        "agent.orchestration.controls.disabled_by_admin",
+                    ),
                 };
                 fields = fields.with_tooltip(tooltip);
             }
@@ -1155,7 +1167,14 @@ pub fn accept_disabled_reason_with_auth(
     ctx: &AppContext,
 ) -> Option<String> {
     if let Some(reason) = state.accept_disabled_reason() {
-        return Some(reason.to_string());
+        return Some(if reason == OPENCODE_CLOUD_UNSUPPORTED_EN.as_str() {
+            localization::text_for_app(
+                ctx,
+                "agent.orchestration.controls.opencode_cloud_unsupported",
+            )
+        } else {
+            reason.to_string()
+        });
     }
     if matches!(state.execution_mode, RunAgentsExecutionMode::Local) {
         if let Some(harness) = Harness::parse_local_child_harness(&state.harness_type) {
@@ -2131,8 +2150,14 @@ pub fn empty_env_recommendation_message(
     }
     let env_count = CloudAmbientAgentEnvironment::get_all(app).len();
     Some(if env_count > 0 {
-        "We recommend selecting an environment for cloud agents.".to_string()
+        localization::text_for_app(
+            app,
+            "agent.orchestration.controls.recommend_select_environment",
+        )
     } else {
-        "We recommend creating an environment for cloud agents.".to_string()
+        localization::text_for_app(
+            app,
+            "agent.orchestration.controls.recommend_create_environment",
+        )
     })
 }

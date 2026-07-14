@@ -50,8 +50,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         .enable_ssh_warpification
         .is_supported_on_current_platform()
     {
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "SSH Warpification",
+        let label = crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "settings.warpify.ssh_warpification.label",
+        );
+        toggle_binding_pairs.push(ToggleSettingActionPair::new_localized(
+            &label,
+            "settings.warpify.ssh_warpification.label",
             builder(SettingsAction::WarpifyPageToggle(
                 WarpifyPageAction::ToggleSshWarpification,
             )),

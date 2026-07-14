@@ -920,7 +920,10 @@ impl RequestedCommandView {
                             appearance
                                 .ui_builder()
                                 .link(
-                                    "Manage command execution setting".into(),
+                                    crate::localization::text_for_app(
+                                        app,
+                                        "agent.requested_command.manage_execution_setting",
+                                    ),
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(

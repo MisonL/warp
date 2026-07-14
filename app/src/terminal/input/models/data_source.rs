@@ -33,6 +33,7 @@ use crate::ai::llms::{
 };
 use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
@@ -46,8 +47,6 @@ use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-
-const AUTO_BEDROCK_TOOLTIP: &str = "Warp uses Bedrock when the model Auto selects supports it; otherwise it may use Warp-hosted inference.";
 
 #[derive(Clone, Debug)]
 pub struct AcceptModel {
@@ -594,17 +593,23 @@ impl SearchItem for ModelSearchItem {
                 .finish();
             CostRow::BilledToProvider {
                 label: if self.is_using_bedrock && self.is_auto {
-                    "Inference may use Bedrock"
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.cost.may_use_bedrock",
+                    )
                 } else if self.is_using_bedrock {
-                    "Inference via Bedrock"
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_bedrock")
                 } else if let Some(source) = self.byo_key_source {
-                    source.inference_label()
+                    source.inference_label().to_string()
                 } else {
-                    "Inference via API key"
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_api_key")
                 },
                 tooltip: if self.is_using_bedrock && self.is_auto {
                     Some(CostRowTooltip {
-                        text: AUTO_BEDROCK_TOOLTIP,
+                        text: localization::text_for_app(
+                            app,
+                            "settings.ai.model_selector.cost.auto_bedrock_tooltip",
+                        ),
                         mouse_state: self.cost_row_tooltip_mouse_state.clone(),
                     })
                 } else {

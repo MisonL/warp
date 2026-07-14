@@ -25546,10 +25546,9 @@ impl TerminalView {
         let env_var_collection = cloud_env_var_collection.model().string_model.clone();
         if let Some(session_id) = session_id {
             self.add_env_var_block_to_blocklist(
-                env_var_collection
-                    .title
-                    .clone()
-                    .unwrap_or("Untitled".to_owned()),
+                env_var_collection.title.clone().unwrap_or_else(|| {
+                    crate::localization::text_for_app(ctx, "env_vars.title.untitled")
+                }),
                 env_var_collection
                     .vars
                     .iter()
@@ -25603,7 +25602,9 @@ impl TerminalView {
         // subshell start
         self.env_vars = env_var_collection.vars;
         self.model.lock().set_env_var_collection_name(Some(
-            env_var_collection.title.unwrap_or("Untitled".to_owned()),
+            env_var_collection.title.unwrap_or_else(|| {
+                crate::localization::text_for_app(ctx, "env_vars.title.untitled")
+            }),
         ));
         self.set_and_execute_subshell_command(&shell_path_string, shell_type, ctx);
 

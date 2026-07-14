@@ -2088,9 +2088,17 @@ impl AgentInputFooter {
             });
             let is_cache_expired = FeatureFlag::PromptCacheExpiryWarning.is_enabled()
                 && expiry.is_some_and(|expiry| expiry <= Local::now());
-            let context_remaining_tooltip = format!("{remaining_pct}% context remaining");
+            let context_remaining_tooltip = crate::localization::text_for_app_with_args(
+                ctx,
+                "agent.input_footer.context_remaining",
+                &[("percent", &remaining_pct.to_string())],
+            );
             let tooltip = if is_cache_expired {
-                format!("{context_remaining_tooltip} · prompt cache expired")
+                let cache_expired = crate::localization::text_for_app(
+                    ctx,
+                    "agent.input_footer.prompt_cache_expired",
+                );
+                format!("{context_remaining_tooltip} - {cache_expired}")
             } else {
                 context_remaining_tooltip
             };
