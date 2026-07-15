@@ -3709,6 +3709,15 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/auth/mod.rs",
+            &[
+                "You have {num_long_running_commands}",
+                "You have {num_shared_sessions}",
+                "You have {num_unsaved_objects}",
+                "You have {num_unsaved_files}",
+            ][..],
+        ),
+        (
             "app/src/settings_view/features_page.rs",
             &[
                 "Category::new(\"General\"",
