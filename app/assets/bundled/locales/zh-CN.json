@@ -1899,6 +1899,7 @@
   "auth.token.placeholder": "认证 token",
   "auth.web_handoff.error": "认证失败 - 请刷新页面",
   "auth.welcome": "欢迎使用 Warp！",
+  "banner.action.dont_show_again": "不再显示",
   "chip_configurator.left_side": "左侧",
   "chip_configurator.right_side": "右侧",
   "cli.error.invalid_jq_filter": "无效的 jq 过滤器 `{source}`：\n{detail}",

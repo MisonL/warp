@@ -103,17 +103,37 @@ impl<T: Action + Clone> BannerTextContent<T> {
 type BannerClickCallback = dyn Fn(&mut EventContext, &AppContext, Vector2F) + 'static;
 
 pub struct BannerTextButton {
-    text: String,
+    label: BannerTextButtonLabel,
     mouse_state_handle: MouseStateHandle,
     on_click: Rc<BannerClickCallback>,
+}
+
+enum BannerTextButtonLabel {
+    Text(String),
+    Localized(&'static str),
 }
 
 impl BannerTextButton {
     pub fn new(text: String, on_click: Rc<BannerClickCallback>) -> Self {
         Self {
-            text,
+            label: BannerTextButtonLabel::Text(text),
             mouse_state_handle: Default::default(),
             on_click,
+        }
+    }
+
+    fn localized(key: &'static str, on_click: Rc<BannerClickCallback>) -> Self {
+        Self {
+            label: BannerTextButtonLabel::Localized(key),
+            mouse_state_handle: Default::default(),
+            on_click,
+        }
+    }
+
+    fn label_for_app(&self, app: &AppContext) -> String {
+        match &self.label {
+            BannerTextButtonLabel::Text(text) => text.clone(),
+            BannerTextButtonLabel::Localized(key) => crate::localization::text_for_app(app, key),
         }
     }
 }
@@ -174,8 +194,8 @@ impl<T: Action + Clone> Banner<T> {
     }
 
     fn permanent_dismissal_button() -> BannerTextButton {
-        BannerTextButton::new(
-            String::from("Don't show me again"),
+        BannerTextButton::localized(
+            "banner.action.dont_show_again",
             Rc::new(|ctx, _, _| {
                 ctx.dispatch_typed_action(BannerAction::<T>::Dismiss(DismissalType::Permanent));
             }),
@@ -213,7 +233,7 @@ impl<T: Action + Clone> Banner<T> {
         ctx: &mut ViewContext<Self>,
     ) {
         if let Some(button) = self.end_buttons.get_mut(index) {
-            button.text = label.to_owned();
+            button.label = BannerTextButtonLabel::Text(label.to_owned());
             ctx.notify();
         }
     }
@@ -253,13 +273,14 @@ impl<T: Action + Clone> Banner<T> {
     fn render_text_button(
         appearance: &Appearance,
         button_state: &BannerTextButton,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let font_size = font_size(appearance);
         let on_click_fn = button_state.on_click.clone();
         appearance
             .ui_builder()
             .button(ButtonVariant::Text, button_state.mouse_state_handle.clone())
-            .with_text_label(button_state.text.clone())
+            .with_text_label(button_state.label_for_app(app))
             .with_style(UiComponentStyles {
                 font_size: Some(font_size),
                 font_weight: Some(Weight::Semibold),
@@ -322,9 +343,13 @@ impl<T: Action + Clone> View for Banner<T> {
 
         for text_button in &self.end_buttons {
             right_side_banner_actions.add_child(
-                Container::new(Banner::<T>::render_text_button(appearance, text_button))
-                    .with_margin_left(INNER_MARGIN)
-                    .finish(),
+                Container::new(Banner::<T>::render_text_button(
+                    appearance,
+                    text_button,
+                    app,
+                ))
+                .with_margin_left(INNER_MARGIN)
+                .finish(),
             );
         }
 
