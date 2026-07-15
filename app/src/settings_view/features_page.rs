@@ -4552,14 +4552,15 @@ impl SettingsWidget for NativeRedirectWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Open links in desktop app".into(),
+            localization::text_for_app(app, "settings.features.native_redirect.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some(
-                    "Automatically open links in desktop app whenever possible.".into(),
-                ),
+                tooltip_override_text: Some(localization::text_for_app(
+                    app,
+                    "settings.features.native_redirect.tooltip",
+                )),
             }),
             LocalOnlyIconState::for_setting(
                 UserNativeRedirectPreference::storage_key(),
@@ -4622,7 +4623,7 @@ impl SettingsWidget for SessionRestorationWidget {
             .finish();
 
         let labeled_switch = render_body_item::<FeaturesPageAction>(
-            "Restore windows, tabs, and panes on startup".into(),
+            localization::text_for_app(app, "settings.features.session_restoration.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
@@ -4713,7 +4714,7 @@ impl SettingsWidget for SnackbarHeaderWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Show sticky command header".into(),
+            localization::text_for_app(app, "settings.features.sticky_command_header.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
@@ -4766,7 +4767,7 @@ impl SettingsWidget for LinkTooltipWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Show tooltip on click on links".into(),
+            localization::text_for_app(app, "settings.features.link_tooltip.label"),
             None,
             LocalOnlyIconState::for_setting(
                 LinkTooltip::storage_key(),
@@ -4835,7 +4836,7 @@ impl SettingsWidget for QuitWarningModalWidget {
         let general_settings = GeneralSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Show warning before quitting/logging out".into(),
+            localization::text_for_app(app, "settings.features.quit_warning.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShowWarningBeforeQuitting::storage_key(),
@@ -4933,7 +4934,7 @@ impl SettingsWidget for QuitWhenAllWindowsClosedWidget {
         let general_settings = GeneralSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Quit when all windows are closed".into(),
+            localization::text_for_app(app, "settings.features.quit_on_last_window_closed.label"),
             None,
             LocalOnlyIconState::for_setting(
                 QuitOnLastWindowClosed::storage_key(),
@@ -4980,7 +4981,7 @@ impl SettingsWidget for ShowChangelogWidget {
         let changelog_settings = ChangelogSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Show changelog toast after updates".into(),
+            localization::text_for_app(app, "settings.features.changelog_after_update.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShowChangelogAfterUpdate::storage_key(),
@@ -5072,14 +5073,15 @@ impl SettingsWidget for MouseScrollMultiplierWidget {
             .finish();
 
         render_body_item::<FeaturesPageAction>(
-            "Lines scrolled by mouse wheel interval".into(),
+            localization::text_for_app(app, "settings.features.mouse_scroll.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some(
-                    "Supports floating point values between 1 and 20.".to_string(),
-                ),
+                tooltip_override_text: Some(localization::text_for_app(
+                    app,
+                    "settings.features.mouse_scroll.tooltip",
+                )),
             }),
             LocalOnlyIconState::for_setting(
                 MouseScrollMultiplier::storage_key(),
@@ -5119,7 +5121,7 @@ impl SettingsWidget for AutoOpenCodeReviewPaneWidget {
         let general_settings = GeneralSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Auto open code review panel".into(),
+            localization::text_for_app(app, "settings.features.auto_open_code_review.label"),
             None,
             LocalOnlyIconState::for_setting(
                 AutoOpenCodeReviewPaneOnFirstAgentChange::storage_key(),
@@ -5140,7 +5142,10 @@ impl SettingsWidget for AutoOpenCodeReviewPaneWidget {
                     ctx.dispatch_typed_action(FeaturesPageAction::ToggleAutoOpenCodeReviewPane);
                 })
                 .finish(),
-            Some("When this setting is on, the code review panel will open on the first accepted diff of a conversation".into()),
+            Some(localization::text_for_app(
+                app,
+                "settings.features.auto_open_code_review.description",
+            )),
         )
     }
 }
@@ -5237,7 +5242,7 @@ impl SettingsWidget for BlockLimitWidget {
             .finish();
 
         render_body_item::<FeaturesPageAction>(
-            "Maximum rows in a block".into(),
+            localization::text_for_app(app, "settings.features.block_limit.label"),
             None,
             LocalOnlyIconState::for_setting(
                 MaximumGridSize::storage_key(),
@@ -5487,7 +5492,7 @@ impl SettingsWidget for StartupShellWidget {
             .with_children([
                 render_sub_sub_header(
                     appearance,
-                    "Default shell for new sessions".to_string(),
+                    localization::text_for_app(app, "settings.features.default_shell.label"),
                     Some(LocalOnlyIconState::for_setting(
                         StartupShellOverride::storage_key(),
                         StartupShellOverride::sync_to_cloud(),
@@ -5526,7 +5531,7 @@ impl SettingsWidget for WorkingDirectoryWidget {
             .with_children([
                 render_sub_sub_header(
                     appearance,
-                    "Working directory for new sessions".to_string(),
+                    localization::text_for_app(app, "settings.features.working_directory.label"),
                     Some(LocalOnlyIconState::for_setting(
                         WorkingDirectoryConfig::storage_key(),
                         WorkingDirectoryConfig::sync_to_cloud(),
@@ -5584,7 +5589,7 @@ impl SettingsWidget for ConfirmCloseSharedSessionWidget {
         let ui_builder = appearance.ui_builder();
         let session_settings = SessionSettings::as_ref(app);
         render_body_item::<FeaturesPageAction>(
-            "Confirm before closing shared session".into(),
+            localization::text_for_app(app, "settings.features.confirm_close_shared_session.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShouldConfirmCloseSession::storage_key(),
@@ -5862,7 +5867,7 @@ impl SettingsWidget for AutocompleteSymbolsWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Autocomplete quotes, parentheses, and brackets".into(),
+            localization::text_for_app(app, "settings.features.autocomplete_symbols.label"),
             None,
             LocalOnlyIconState::for_setting(
                 AutocompleteSymbols::storage_key(),
@@ -5911,7 +5916,10 @@ impl SettingsWidget for CodeEditorLineNumberModeWidget {
             || {
                 render_dropdown_item(
                     appearance,
-                    "Code editor line numbers:",
+                    &localization::text_for_app(
+                        app,
+                        "settings.features.code_editor_line_numbers.label",
+                    ),
                     None,
                     None,
                     LocalOnlyIconState::for_setting(
@@ -5951,7 +5959,7 @@ impl SettingsWidget for ErrorUnderliningWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Error underlining for commands".into(),
+            localization::text_for_app(app, "settings.features.error_underlining.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ErrorUnderliningEnabled::storage_key(),
@@ -5997,7 +6005,7 @@ impl SettingsWidget for SyntaxHighlightingWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Syntax highlighting for commands".into(),
+            localization::text_for_app(app, "settings.features.syntax_highlighting.label"),
             None,
             LocalOnlyIconState::for_setting(
                 SyntaxHighlighting::storage_key(),
@@ -6043,7 +6051,7 @@ impl SettingsWidget for CompletionsMenuWhileTypingWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Open completions menu as you type".into(),
+            localization::text_for_app(app, "settings.features.completions_while_typing.label"),
             None,
             LocalOnlyIconState::for_setting(
                 CompletionsOpenWhileTyping::storage_key(),
@@ -6093,7 +6101,7 @@ impl SettingsWidget for CommandCorrectionsWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Suggest corrected commands".into(),
+            localization::text_for_app(app, "settings.features.command_corrections.label"),
             None,
             LocalOnlyIconState::for_setting(
                 CommandCorrections::storage_key(),
@@ -6140,7 +6148,7 @@ impl SettingsWidget for AliasExpansionWidget {
         let alias_expansion_settings = AliasExpansionSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Expand aliases as you type".into(),
+            localization::text_for_app(app, "settings.features.alias_expansion.label"),
             None,
             LocalOnlyIconState::for_setting(
                 AliasExpansionEnabled::storage_key(),
@@ -6187,7 +6195,7 @@ impl SettingsWidget for MiddleClickPasteWidget {
         let ui_builder = appearance.ui_builder();
         let selection_settings = SelectionSettings::as_ref(app);
         render_body_item::<FeaturesPageAction>(
-            "Middle-click to paste".into(),
+            localization::text_for_app(app, "settings.features.middle_click_paste.label"),
             None,
             LocalOnlyIconState::for_setting(
                 MiddleClickPasteEnabled::storage_key(),
@@ -6239,7 +6247,7 @@ impl SettingsWidget for VimModeWidget {
         let app_editor_settings = AppEditorSettings::as_ref(app);
         let vim_mode_enabled = *app_editor_settings.vim_mode.value();
         column.add_child(render_body_item::<FeaturesPageAction>(
-            "Edit code and commands with Vim keybindings".into(),
+            localization::text_for_app(app, "settings.features.vim_mode.label"),
             None,
             LocalOnlyIconState::for_setting(
                 VimModeEnabled::storage_key(),
@@ -6287,7 +6295,10 @@ impl SettingsWidget for VimModeWidget {
                     app,
                 ),
                 clipboard_switch,
-                "Set unnamed register as system clipboard".into(),
+                localization::text_for_app(
+                    app,
+                    "settings.features.vim_mode.system_clipboard.label",
+                ),
             );
 
             let vim_status_bar = *app_editor_settings.vim_status_bar.value();
@@ -6311,7 +6322,7 @@ impl SettingsWidget for VimModeWidget {
                     app,
                 ),
                 status_bar_switch,
-                "Show Vim status bar".into(),
+                localization::text_for_app(app, "settings.features.vim_mode.status_bar.label"),
             );
 
             column.add_child(render_group(
@@ -6344,7 +6355,7 @@ impl SettingsWidget for AtContextMenuInTerminalModeWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Enable '@' context menu in terminal mode".into(),
+            localization::text_for_app(app, "settings.features.at_context_menu.label"),
             None,
             LocalOnlyIconState::for_setting(
                 AtContextMenuInTerminalMode::storage_key(),
@@ -6400,7 +6411,7 @@ impl SettingsWidget for SlashCommandsInTerminalModeWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Enable slash commands in terminal mode".into(),
+            localization::text_for_app(app, "settings.features.slash_commands.label"),
             None,
             LocalOnlyIconState::for_setting(
                 EnableSlashCommandsInTerminal::storage_key(),
@@ -6452,7 +6463,7 @@ impl SettingsWidget for OutlineCodebaseSymbolsForAtContextMenuWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Outline codebase symbols for '@' context menu".into(),
+            localization::text_for_app(app, "settings.features.outline_codebase_symbols.label"),
             None,
             LocalOnlyIconState::for_setting(
                 OutlineCodebaseSymbolsForAtContextMenu::storage_key(),
@@ -6504,7 +6515,7 @@ impl SettingsWidget for ShowTerminalInputMessageLineWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Show terminal input message line".into(),
+            localization::text_for_app(app, "settings.features.terminal_input_message_line.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShowTerminalInputMessageBar::storage_key(),
@@ -6552,7 +6563,10 @@ impl SettingsWidget for PreserveInputFocusOnBlockSelectionWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Preserve input focus on block selection".into(),
+            localization::text_for_app(
+                app,
+                "settings.features.preserve_input_focus_on_block_selection.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 PreserveInputFocusOnBlockSelection::storage_key(),
@@ -6605,7 +6619,10 @@ impl SettingsWidget for AutosuggestionKeybindingHintWidget {
         let autosuggestion_keybinding_hint =
             *app_editor_settings.autosuggestion_keybinding_hint.value();
         column.add_child(render_body_item::<FeaturesPageAction>(
-            "Show autosuggestion keybinding hint".into(),
+            localization::text_for_app(
+                app,
+                "settings.features.autosuggestion_keybinding_hint.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 AutosuggestionKeybindingHint::storage_key(),
@@ -6661,7 +6678,7 @@ impl SettingsWidget for AutosuggestionIgnoreButtonWidget {
             .show_autosuggestion_ignore_button
             .value();
         column.add_child(render_body_item::<FeaturesPageAction>(
-            "Show autosuggestion ignore button".into(),
+            localization::text_for_app(app, "settings.features.autosuggestion_ignore_button.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShowAutosuggestionIgnoreButton::storage_key(),
@@ -6865,7 +6882,7 @@ impl SettingsWidget for CtrlTabBehaviorWidget {
             || {
                 render_dropdown_item(
                     appearance,
-                    "Ctrl+Tab behavior:",
+                    &localization::text_for_app(app, "settings.features.ctrl_tab_behavior.label"),
                     None,
                     None,
                     LocalOnlyIconState::for_setting(
@@ -6908,7 +6925,7 @@ impl SettingsWidget for MouseReportingWidget {
         let reporting_settings = AltScreenReporting::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Enable Mouse Reporting".into(),
+            localization::text_for_app(app, "settings.features.mouse_reporting.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
@@ -6963,7 +6980,7 @@ impl SettingsWidget for ScrollReportingWidget {
         let reporting_settings = AltScreenReporting::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Enable Scroll Reporting".into(),
+            localization::text_for_app(app, "settings.features.scroll_reporting.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ScrollReportingEnabled::storage_key(),
@@ -7021,7 +7038,7 @@ impl SettingsWidget for FocusReportingWidget {
         let reporting_settings = AltScreenReporting::as_ref(app);
         let ui_builder = appearance.ui_builder();
         render_body_item::<FeaturesPageAction>(
-            "Enable Focus Reporting".into(),
+            localization::text_for_app(app, "settings.features.focus_reporting.label"),
             None,
             LocalOnlyIconState::for_setting(
                 FocusReportingEnabled::storage_key(),
@@ -7068,7 +7085,7 @@ impl SettingsWidget for AudibleBellWidget {
         let ui_builder = appearance.ui_builder();
         let terminal_settings = TerminalSettings::as_ref(app);
         render_body_item::<FeaturesPageAction>(
-            "Use Audible Bell".into(),
+            localization::text_for_app(app, "settings.features.audible_bell.label"),
             None,
             LocalOnlyIconState::for_setting(
                 UseAudibleBell::storage_key(),
@@ -7178,7 +7195,7 @@ impl SettingsWidget for SmartSelectWidget {
         let selection = SemanticSelection::as_ref(app);
         let mut column = Flex::column();
         column.add_child(render_body_item::<FeaturesPageAction>(
-            "Double-click smart selection".into(),
+            localization::text_for_app(app, "settings.features.smart_select.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
@@ -7255,7 +7272,7 @@ impl SettingsWidget for ShowTerminalZeroStateBlockWidget {
         let ui_builder = appearance.ui_builder();
         let terminal_settings = TerminalSettings::as_ref(app);
         render_body_item::<FeaturesPageAction>(
-            "Show help block in new sessions".into(),
+            localization::text_for_app(app, "settings.features.zero_state_block.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShowTerminalZeroStateBlock::storage_key(),
@@ -7297,7 +7314,7 @@ impl SettingsWidget for CopyOnSelectWidget {
         let ui_builder = appearance.ui_builder();
         let copy_on_select_enabled = SelectionSettings::as_ref(app).copy_on_select_enabled();
         render_body_item::<FeaturesPageAction>(
-            "Copy on select".into(),
+            localization::text_for_app(app, "settings.features.copy_on_select.label"),
             None,
             LocalOnlyIconState::for_setting(
                 CopyOnSelect::storage_key(),
@@ -7341,8 +7358,11 @@ impl SettingsWidget for Osc52ClipboardAccessWidget {
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
-            "Clipboard access (OSC 52)",
-            Some("Controls whether programs running in the terminal can read or write your system clipboard."),
+            &localization::text_for_app(app, "settings.features.osc52_clipboard_access.label"),
+            Some(&localization::text_for_app(
+                app,
+                "settings.features.osc52_clipboard_access.description",
+            )),
             None,
             LocalOnlyIconState::for_setting(
                 Osc52ClipboardAccessSetting::storage_key(),
@@ -7377,7 +7397,7 @@ impl SettingsWidget for NewTabPlacementWidget {
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
-            "New tab placement",
+            &localization::text_for_app(app, "settings.features.new_tab_placement.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -7412,7 +7432,7 @@ impl SettingsWidget for DefaultSessionModeWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let label = render_dropdown_item_label(
-            "Default mode for new sessions".to_string(),
+            localization::text_for_app(app, "settings.features.default_session_mode.label"),
             None,
             LocalOnlyIconState::for_setting(
                 DefaultSessionMode::storage_key(),
@@ -7466,7 +7486,7 @@ impl SettingsWidget for WorkflowsInCommandSearch {
         let ui_builder = appearance.ui_builder();
         let workflow_settings = CommandSearchSettings::as_ref(app);
         render_body_item::<FeaturesPageAction>(
-            "Show Global Workflows in Command Search (ctrl-r)".into(),
+            localization::text_for_app(app, "settings.features.global_workflows.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
@@ -7521,14 +7541,15 @@ impl SettingsWidget for LinuxSelectionClipboardWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<FeaturesPageAction>(
-            "Honor linux selection clipboard".into(),
+            localization::text_for_app(app, "settings.features.linux_selection_clipboard.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some(
-                    "Whether the Linux primary clipboard should be supported.".into(),
-                ),
+                tooltip_override_text: Some(localization::text_for_app(
+                    app,
+                    "settings.features.linux_selection_clipboard.tooltip",
+                )),
             }),
             LocalOnlyIconState::for_setting(
                 LinuxSelectionClipboard::storage_key(),
@@ -7575,7 +7596,7 @@ impl SettingsWidget for GPUWidget {
     ) -> Box<dyn Element> {
         let gpu_settings = GPUSettings::as_ref(app);
         let mut col = Flex::column().with_child(render_body_item::<FeaturesPageAction>(
-            "Prefer rendering new windows with integrated GPU (low power)".into(),
+            localization::text_for_app(app, "settings.features.gpu.low_power.label"),
             None,
             LocalOnlyIconState::for_setting(
                 PreferLowPowerGPU::storage_key(),
@@ -7651,12 +7672,15 @@ impl SettingsWidget for WindowSystemWidget {
         let mut children = Flex::column();
         let force_x11 = *LinuxAppConfiguration::as_ref(app).force_x11.value();
         children.add_child(render_body_item::<FeaturesPageAction>(
-            "Use Wayland for window management".into(),
+            localization::text_for_app(app, "settings.features.window_system.wayland.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some("Enables the use of Wayland".to_string()),
+                tooltip_override_text: Some(localization::text_for_app(
+                    app,
+                    "settings.features.window_system.wayland.tooltip",
+                )),
             }),
             LocalOnlyIconState::for_setting(
                 ForceX11::storage_key(),
@@ -7727,7 +7751,7 @@ impl SettingsWidget for GraphicsBackendWidget {
         let theme = appearance.theme();
         let dropdown = render_dropdown_item(
             appearance,
-            "Preferred graphics backend",
+            &localization::text_for_app(app, "settings.features.graphics_backend.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -7811,7 +7835,7 @@ impl SettingsWidget for AsyncFindWidget {
         let ui_builder = appearance.ui_builder();
 
         let label = render_body_item_label::<FeaturesPageAction>(
-            "Asynchronous find".into(),
+            localization::text_for_app(app, "settings.features.async_find.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(

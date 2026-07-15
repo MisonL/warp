@@ -2960,7 +2960,10 @@ impl SettingsWidget for ThemeSelectWidget {
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(render_body_item::<AppearancePageAction>(
-                "Sync with OS".into(),
+                crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.theme.sync_with_os.label",
+                ),
                 None,
                 LocalOnlyIconState::for_setting(
                     UseSystemTheme::storage_key(),
@@ -3039,10 +3042,13 @@ impl SettingsWidget for CustomAppIconWidget {
             }
         };
 
+        let bundle_warning = show_bundle_warning.then(|| {
+            crate::localization::text_for_app(app, "settings.appearance.app_icon.bundle_required")
+        });
         let dropdown = render_dropdown_item(
             appearance,
-            "Customize your app icon",
-            show_bundle_warning.then_some("Changing the app icon requires the app to be bundled."),
+            &crate::localization::text_for_app(app, "settings.appearance.app_icon.label"),
+            bundle_warning.as_deref(),
             None,
             LocalOnlyIconState::Hidden,
             None,
@@ -3050,7 +3056,10 @@ impl SettingsWidget for CustomAppIconWidget {
         );
 
         let show_dock_icon_toggle = render_body_item::<AppearancePageAction>(
-            "Show Warp in Dock".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.app_icon.show_in_dock.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 ShowDockIconState::storage_key(),
@@ -3147,7 +3156,7 @@ impl SettingsWidget for CustomWindowSizeWidget {
         let row_border_color: Option<Fill> =
             (!view.valid_new_window_rows).then(|| themes::theme::Fill::error().into());
         let mut column = Flex::column().with_child(render_body_item::<AppearancePageAction>(
-            "Open new windows with custom size".into(),
+            crate::localization::text_for_app(app, "settings.appearance.window.custom_size.label"),
             None,
             LocalOnlyIconState::for_setting(
                 OpenWindowsAtCustomSize::storage_key(),
@@ -3171,7 +3180,10 @@ impl SettingsWidget for CustomWindowSizeWidget {
         if *window_settings.open_windows_at_custom_size.value() {
             column.add_child(
                 Container::new(render_body_item::<AppearancePageAction>(
-                    "Columns".into(),
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.window.custom_size.columns",
+                    ),
                     None,
                     // We show the local-only icon for this with the toggle, not the individual inputs.
                     LocalOnlyIconState::Hidden,
@@ -3207,7 +3219,10 @@ impl SettingsWidget for CustomWindowSizeWidget {
             );
             column.add_child(
                 Container::new(render_body_item::<AppearancePageAction>(
-                    "Rows".into(),
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.window.custom_size.rows",
+                    ),
                     None,
                     // We show the local-only icon for this with the toggle, not the individual inputs.
                     LocalOnlyIconState::Hidden,
@@ -3535,7 +3550,10 @@ impl SettingsWidget for ToolsPanelStateScopeWidget {
         let is_enabled = *window_settings.left_panel_visibility_across_tabs;
 
         render_body_item::<AppearancePageAction>(
-            "Tools panel visibility is consistent across tabs".to_string(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.window.tools_panel_visibility_across_tabs.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 LeftPanelVisibilityAcrossTabs::storage_key(),
@@ -3582,7 +3600,10 @@ impl SettingsWidget for ToolsPanelProjectExplorerWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<AppearancePageAction>(
-            "Project explorer".to_string(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.project_explorer.label",
+            ),
             None,
             LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
@@ -3598,7 +3619,10 @@ impl SettingsWidget for ToolsPanelProjectExplorerWidget {
                     );
                 })
                 .finish(),
-            Some("Show the project explorer / file tree tab in the tools panel.".to_string()),
+            Some(crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.project_explorer.description",
+            )),
         )
     }
 }
@@ -3622,7 +3646,10 @@ impl SettingsWidget for ToolsPanelConversationHistoryWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<AppearancePageAction>(
-            "Agent conversations".to_string(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.agent_conversations.label",
+            ),
             None,
             LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
@@ -3638,7 +3665,10 @@ impl SettingsWidget for ToolsPanelConversationHistoryWidget {
                     );
                 })
                 .finish(),
-            Some("Show the agent conversation history tab in the tools panel.".to_string()),
+            Some(crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.agent_conversations.description",
+            )),
         )
     }
 }
@@ -3662,7 +3692,10 @@ impl SettingsWidget for ToolsPanelGlobalSearchWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<AppearancePageAction>(
-            "Global search".to_string(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.global_search.label",
+            ),
             None,
             LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
@@ -3677,7 +3710,10 @@ impl SettingsWidget for ToolsPanelGlobalSearchWidget {
                         .dispatch_typed_action(AppearancePageAction::ToggleToolsPanelGlobalSearch);
                 })
                 .finish(),
-            Some("Show the global file search tab in the tools panel.".to_string()),
+            Some(crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.global_search.description",
+            )),
         )
     }
 }
@@ -3701,7 +3737,10 @@ impl SettingsWidget for ToolsPanelWarpDriveWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<AppearancePageAction>(
-            "Warp Drive".to_string(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.warp_drive.label",
+            ),
             None,
             LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
@@ -3715,7 +3754,10 @@ impl SettingsWidget for ToolsPanelWarpDriveWidget {
                     evt_ctx.dispatch_typed_action(AppearancePageAction::ToggleToolsPanelWarpDrive);
                 })
                 .finish(),
-            Some("Show the Warp Drive tab in the tools panel.".to_string()),
+            Some(crate::localization::text_for_app(
+                app,
+                "settings.appearance.tools_panel.warp_drive.description",
+            )),
         )
     }
 }
@@ -3772,7 +3814,7 @@ impl SettingsWidget for InputTypeWidget {
             .finish();
 
         render_body_item::<AppearancePageAction>(
-            "Input type".into(),
+            crate::localization::text_for_app(app, "settings.appearance.input.type.label"),
             None,
             LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
@@ -3801,7 +3843,7 @@ impl SettingsWidget for InputModeWidget {
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
-            "Input position",
+            &crate::localization::text_for_app(app, "settings.appearance.input.mode.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -3923,7 +3965,7 @@ impl SettingsWidget for DimInactivePanesWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<AppearancePageAction>(
-            "Dim inactive panes".into(),
+            crate::localization::text_for_app(app, "settings.appearance.panes.dim_inactive.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShouldDimInactivePanes::storage_key(),
@@ -3966,7 +4008,10 @@ impl SettingsWidget for FocusFollowsMouseWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_body_item::<AppearancePageAction>(
-            "Focus follows mouse".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.panes.focus_follows_mouse.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 FocusPaneOnHover::storage_key(),
@@ -4014,7 +4059,7 @@ impl SettingsWidget for CompactModeWidget {
         );
 
         render_body_item::<AppearancePageAction>(
-            "Compact mode".into(),
+            crate::localization::text_for_app(app, "settings.appearance.blocks.compact_mode.label"),
             None,
             LocalOnlyIconState::for_setting(
                 Spacing::storage_key(),
@@ -4061,7 +4106,10 @@ impl SettingsWidget for JumpToBottomOfBlockWidget {
             .show_jump_to_bottom_of_block_button
             .value();
         render_body_item::<AppearancePageAction>(
-            "Show Jump to Bottom of Block button".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.blocks.jump_to_bottom.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 ShowJumpToBottomOfBlockButton::storage_key(),
@@ -4108,7 +4156,10 @@ impl SettingsWidget for ShowBlockDividersWidget {
         let block_list_settings = BlockListSettings::as_ref(app);
         let enabled = block_list_settings.show_block_dividers.value();
         render_body_item::<AppearancePageAction>(
-            "Show block dividers".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.blocks.show_dividers.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 ShowBlockDividers::storage_key(),
@@ -4154,7 +4205,7 @@ impl SettingsWidget for AIFontWidget {
         let mut ai_font_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
         let mut ai_font = Flex::column();
         ai_font.add_child(render_body_item_label::<AppearancePageAction>(
-            "Agent font".to_string(),
+            crate::localization::text_for_app(app, "settings.appearance.text.agent_font.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -4326,7 +4377,7 @@ impl SettingsWidget for TerminalFontWidget {
         // Terminal Font
         let mut terminal_font = Flex::column();
         terminal_font.add_child(render_body_item_label::<AppearancePageAction>(
-            "Terminal font".to_string(),
+            crate::localization::text_for_app(app, "settings.appearance.text.terminal_font.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -4596,7 +4647,7 @@ impl SettingsWidget for ThinStrokesWidget {
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
-            "Use thin strokes",
+            &crate::localization::text_for_app(app, "settings.appearance.text.thin_strokes.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -4629,7 +4680,10 @@ impl SettingsWidget for MinimumContrastWidget {
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
-            "Enforce minimum contrast",
+            &crate::localization::text_for_app(
+                app,
+                "settings.appearance.text.minimum_contrast.label",
+            ),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -4667,12 +4721,15 @@ impl SettingsWidget for LigaturesWidget {
         let ligature_rendering_enabled = ligature_rendering.value();
 
         render_body_item::<AppearancePageAction>(
-            "Show ligatures in terminal".into(),
+            crate::localization::text_for_app(app, "settings.appearance.text.ligatures.label"),
             Some(AdditionalInfo {
                 mouse_state: self.info_mouse_state.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some("Ligatures may reduce performance".to_string()),
+                tooltip_override_text: Some(crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.text.ligatures.tooltip",
+                )),
             }),
             LocalOnlyIconState::for_setting(
                 LigatureRenderingEnabled::storage_key(),
@@ -4732,7 +4789,7 @@ impl SettingsWidget for CursorTypeWidget {
         let cursor_display_types: Vec<CursorDisplayType> = all::<CursorDisplayType>().collect();
 
         render_body_item::<AppearancePageAction>(
-            "Cursor type".into(),
+            crate::localization::text_for_app(app, "settings.appearance.cursor.type.label"),
             None,
             LocalOnlyIconState::for_setting(
                 CursorBlinkEnabled::storage_key(),
@@ -4804,7 +4861,7 @@ impl SettingsWidget for BlinkingCursorWidget {
         let settings = AppEditorSettings::as_ref(app);
         let cursor_blink = &settings.cursor_blink;
         render_body_item::<AppearancePageAction>(
-            "Blinking cursor".into(),
+            crate::localization::text_for_app(app, "settings.appearance.cursor.blinking.label"),
             None,
             LocalOnlyIconState::for_setting(
                 CursorBlinkEnabled::storage_key(),
@@ -4846,7 +4903,10 @@ impl SettingsWidget for TabCloseButtonPositionWidget {
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
-            "Tab close button position",
+            &crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.close_button_position.label",
+            ),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -4882,7 +4942,7 @@ impl SettingsWidget for TabIndicatorWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            "Show tab indicators".into(),
+            crate::localization::text_for_app(app, "settings.appearance.tabs.indicators.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShowIndicatorsButton::storage_key(),
@@ -4927,7 +4987,10 @@ impl SettingsWidget for CodeReviewButtonWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            "Show code review button".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.code_review_button.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 ShowCodeReviewButton::storage_key(),
@@ -4972,7 +5035,10 @@ impl SettingsWidget for PreserveActiveTabColorWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            "Preserve active tab color for new tabs".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.preserve_active_color.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 PreserveActiveTabColor::storage_key(),
@@ -5017,7 +5083,10 @@ impl SettingsWidget for VerticalTabsWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            "Use vertical tab layout".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.vertical_layout.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 UseVerticalTabs::storage_key(),
@@ -5062,7 +5131,7 @@ impl SettingsWidget for ShowVerticalTabPanelInRestoredWindowsWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            "Show vertical tabs panel in restored windows".into(),
+            crate::localization::text_for_app(app, "settings.appearance.tabs.restore_vertical_panel.label"),
             None,
             LocalOnlyIconState::for_setting(
                 ShowVerticalTabPanelInRestoredWindows::storage_key(),
@@ -5112,7 +5181,10 @@ impl SettingsWidget for HideTitleBarSearchBarInVerticalTabsWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            "Hide search bar in vertical tab layout".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.hide_search_bar.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 HideTitleBarSearchBarInVerticalTabs::storage_key(),
@@ -5133,10 +5205,10 @@ impl SettingsWidget for HideTitleBarSearchBarInVerticalTabsWidget {
                     );
                 })
                 .finish(),
-            Some(
-                "When using the vertical tab layout, hide the search bar in the title bar. Search stays available via the command palette and keyboard shortcuts."
-                    .to_string(),
-            ),
+            Some(crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.hide_search_bar.description",
+            )),
         )
     }
 }
@@ -5162,7 +5234,7 @@ impl SettingsWidget for UseLatestUserPromptAsConversationTitleInTabNamesWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            "Use latest user prompt as conversation title in tab names".into(),
+            crate::localization::text_for_app(app, "settings.appearance.tabs.latest_prompt_title.label"),
             None,
             LocalOnlyIconState::for_setting(
                 UseLatestUserPromptAsConversationTitleInTabNames::storage_key(),
@@ -5208,10 +5280,13 @@ impl SettingsWidget for EditToolbarWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let label = render_body_item_label::<AppearancePageAction>(
-            "Header toolbar layout".to_string(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.header_toolbar_layout.label",
+            ),
             None,
             None,
             LocalOnlyIconState::Hidden,
@@ -5392,7 +5467,10 @@ impl SettingsWidget for DirectoryTabColorsWidget {
                 };
                 let is_selected = current_color == tab_color;
                 let tooltip_text = match ansi_id {
-                    None => "Default (no color)".to_string(),
+                    None => crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.tabs.directory_colors.default_no_color",
+                    ),
                     Some(id) => id.to_string(),
                 };
                 let dir_path_clone = PathBuf::from(&dir_path);
@@ -5473,7 +5551,7 @@ impl SettingsWidget for ZenModeWidget {
     ) -> Box<dyn Element> {
         render_dropdown_item(
             appearance,
-            "Show the tab bar",
+            &crate::localization::text_for_app(app, "settings.appearance.tabs.tab_bar.label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -5510,7 +5588,10 @@ impl SettingsWidget for AltScreenPaddingWidget {
         let terminal_settings = &TerminalSettings::as_ref(app);
         let theme = appearance.theme();
         let mut column = Flex::column().with_child(render_body_item::<AppearancePageAction>(
-            "Use custom padding in alt-screen".into(),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.full_screen_apps.custom_padding.label",
+            ),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_mouse_state.clone(),
                 on_click_action: Some(AppearancePageAction::OpenUrl(
@@ -5633,7 +5714,7 @@ impl SettingsWidget for ZoomLevelWidget {
 
         render_dropdown_item(
             appearance,
-            "Zoom",
+            &crate::localization::text_for_app(app, "settings.appearance.zoom.label"),
             Some("Adjusts the default zoom level across all windows"),
             Some(reset_button),
             LocalOnlyIconState::for_setting(

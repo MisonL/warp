@@ -3976,6 +3976,30 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn settings_render_helpers_do_not_use_direct_english_literals() {
+    let mut violations = Vec::new();
+    for relative_path in [
+        "app/src/settings_view/appearance_page.rs",
+        "app/src/settings_view/features_page.rs",
+    ] {
+        let path = workspace_root().join(relative_path);
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        collect_direct_literal_after_patterns(
+            relative_path,
+            &content,
+            &["render_body_item::<", "render_dropdown_item("],
+            &mut violations,
+        );
+    }
+
+    assert!(
+        violations.is_empty(),
+        "settings rendering helpers must receive catalog-backed copy: {violations:#?}"
+    );
+}
+
+#[test]
 fn conversation_search_prefix_catalog_copy_preserves_spacing() {
     let prefix_keys = [
         "agent.output.conversation_search.searched_prefix",
