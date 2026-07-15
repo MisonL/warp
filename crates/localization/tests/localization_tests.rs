@@ -6546,7 +6546,12 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
         ),
         (
             "app/src/ai/blocklist/block/view_impl.rs",
-            &["Manage AI Autonomy permissions"][..],
+            &[
+                "Manage AI Autonomy permissions",
+                "String::from(\"Untitled\")",
+                "String::from(\"Warp Docs\")",
+                "String::from(\"Memory\")",
+            ][..],
         ),
         (
             "app/src/ai/blocklist/code_block.rs",
