@@ -3582,6 +3582,20 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["Label(\"Cancel\".into())", "Label(\"Continue\".into())"][..],
         ),
         (
+            "app/src/auth/login_slide.rs",
+            &[
+                "Get started with Warp Drive",
+                "Get started with AI",
+                "Create an account",
+                "Privacy Settings\".into()",
+                "Label(\"Back\".into())",
+                "Label(\"Continue\".into())",
+                "Label(\"Skip for now\".into())",
+                "Continue without signing in?",
+                "Click here to paste your token from the browser\".into()",
+            ][..],
+        ),
+        (
             "app/src/context_chips/display_menu.rs",
             &[
                 "Search directories...",
