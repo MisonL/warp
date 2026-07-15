@@ -2216,7 +2216,7 @@ impl AgentInputFooter {
         AISettings::handle(ctx).update(ctx, |settings, ctx| {
             if let Some(toggle_key) = settings.maybe_setup_first_time_voice(ctx) {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let key = toggle_key.display_name();
+                    let key = toggle_key.localized_display_name(ctx);
                     let toast = DismissibleToast::success(localization::text_for_app_with_args(
                         ctx,
                         "agent.input_footer.voice_enabled_toast",

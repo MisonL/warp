@@ -330,11 +330,12 @@ impl EditorView {
                         AISettings::handle(ctx).update(ctx, |settings, ctx| {
                             if let Some(toggle_key) = settings.maybe_setup_first_time_voice(ctx) {
                                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                                    let key = toggle_key.localized_display_name(ctx);
                                     let toast = crate::view_components::DismissibleToast::success(
                                         localization::text_for_app_with_args(
                                             ctx,
                                             "editor.voice.toast.enabled_with_shortcut",
-                                            &[("key", toggle_key.display_name())],
+                                            &[("key", &key)],
                                         ),
                                     );
                                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
@@ -542,7 +543,7 @@ impl EditorView {
         } else if modifier_key == VoiceInputToggleKey::None {
             localization::text_for_app(app, "editor.voice.tooltip.default")
         } else {
-            let key = modifier_key.display_name().to_lowercase();
+            let key = modifier_key.localized_display_name(app).to_lowercase();
             localization::text_for_app_with_args(
                 app,
                 "editor.voice.tooltip.hold_key",

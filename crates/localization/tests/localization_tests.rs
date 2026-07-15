@@ -3914,6 +3914,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["This response won't count towards your usage."][..],
         ),
         (
+            "app/src/ai/blocklist/agent_view/agent_input_footer/mod.rs",
+            &["let key = toggle_key.display_name();"][..],
+        ),
+        (
             "app/src/ai/blocklist/block/view_impl/output.rs",
             &[
                 "Grant access to upload this artifact?",
@@ -4046,6 +4050,13 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "Can not invoke environment variable subshell in a non-local session",
                 "Bundled skills cannot be edited",
                 "Editing skills is not supported in this build",
+            ][..],
+        ),
+        (
+            "app/src/editor/view/voice.rs",
+            &[
+                "[(\"key\", toggle_key.display_name())]",
+                "modifier_key.display_name().to_lowercase()",
             ][..],
         ),
         (
