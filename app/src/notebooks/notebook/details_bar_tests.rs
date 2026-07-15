@@ -1,11 +1,14 @@
+use settings::Setting as _;
 use warpui::{App, SingletonEntity};
 
 use super::editor_display_name;
 use crate::auth::UserUid;
+use crate::settings::{AppLanguage, LanguageSettings};
+use crate::test_util::settings::initialize_localization_for_tests;
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 
 fn initialize_app(app: &mut App) {
-    app.update(crate::settings::init_and_register_user_preferences);
+    initialize_localization_for_tests(app);
     app.add_singleton_model(|_| UserProfiles::new(vec![]));
 }
 
@@ -52,5 +55,15 @@ fn test_editor_display_name() {
                 "The Editor"
             );
         });
+
+        app.update(|ctx| {
+            LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings
+                    .app_language
+                    .load_value(AppLanguage::SimplifiedChinese, true, ctx)
+                    .expect("language setting should update")
+            });
+        });
+        app.read(|ctx| assert_eq!(editor_display_name(None, ctx), "其他用户"));
     })
 }
