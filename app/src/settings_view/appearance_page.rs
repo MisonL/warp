@@ -3619,6 +3619,7 @@ impl SettingsWidget for WindowBlurWidget {
             crate::localization::text_for_app(app, "settings.appearance.window.blur_radius.label");
         let label_info = AdditionalInfo {
             mouse_state: self.info_button.clone(),
+            locale: crate::localization::current_locale(app),
             on_click_action: Some(AppearancePageAction::OpenUrl(
                 "https://docs.warp.dev/terminal/appearance/size-opacity-blurring".into(),
             )),
@@ -4932,6 +4933,7 @@ impl SettingsWidget for LigaturesWidget {
             crate::localization::text_for_app(app, "settings.appearance.text.ligatures.label"),
             Some(AdditionalInfo {
                 mouse_state: self.info_mouse_state.clone(),
+                locale: crate::localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(crate::localization::text_for_app(
@@ -5805,6 +5807,7 @@ impl SettingsWidget for AltScreenPaddingWidget {
             ),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_mouse_state.clone(),
+                locale: crate::localization::current_locale(app),
                 on_click_action: Some(AppearancePageAction::OpenUrl(
                     "https://docs.warp.dev/terminal/more-features/full-screen-apps#padding".into(),
                 )),

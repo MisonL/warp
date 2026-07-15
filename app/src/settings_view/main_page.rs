@@ -747,6 +747,7 @@ impl SettingsWidget for SettingsSyncWidget {
 
         let label_info = AdditionalInfo {
             mouse_state: self.tooltip_state.clone(),
+            locale: crate::localization::current_locale(app),
             on_click_action: Some(MainPageAction::OpenUrl(
                 "https://docs.warp.dev/terminal/more-features/settings-sync".into(),
             )),

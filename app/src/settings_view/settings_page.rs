@@ -466,9 +466,9 @@ pub fn render_full_pane_width_ai_button(
     button.finish()
 }
 
-#[derive(Default)]
 pub struct AdditionalInfo<T> {
     pub mouse_state: MouseStateHandle,
+    pub locale: warp_localization::LocaleId,
     pub on_click_action: Option<T>,
     pub secondary_text: Option<String>,
     pub tooltip_override_text: Option<String>,
@@ -553,9 +553,9 @@ pub fn render_info_icon<T: Clone + Action>(
     appearance: &Appearance,
     additional_info: AdditionalInfo<T>,
 ) -> Box<dyn Element> {
-    let tooltip_text = additional_info
-        .tooltip_override_text
-        .unwrap_or("Click to learn more in docs".to_owned());
+    let tooltip_text = additional_info.tooltip_override_text.unwrap_or_else(|| {
+        localization::text_for_locale(additional_info.locale, "settings.info.learn_more_tooltip")
+    });
     let icon = Container::new(
         ConstrainedBox::new(
             Icon::Info
@@ -609,12 +609,7 @@ pub fn render_local_only_icon(
     mouse_state: MouseStateHandle,
     custom_tooltip: Option<String>,
 ) -> Box<dyn Element> {
-    let tooltip = custom_tooltip.unwrap_or_else(|| {
-        localization::text_for_locale(
-            warp_localization::LocaleId::EnUs,
-            "settings.local_only.tooltip",
-        )
-    });
+    let tooltip = custom_tooltip.expect("visible local-only icon must provide localized tooltip");
     let info_button = appearance
         .ui_builder()
         .local_only_icon_with_tooltip(13., tooltip, mouse_state.clone())

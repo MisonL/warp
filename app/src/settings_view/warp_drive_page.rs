@@ -258,6 +258,7 @@ impl SettingsWidget for WarpDriveToggleWidget {
             localization::text_for_app(app, "settings.warp_drive.label"),
             Some(AdditionalInfo {
                 mouse_state: self.info_icon_mouse_state.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: Some(WarpDriveSettingsPageAction::OpenUrl(
                     "https://docs.warp.dev/knowledge-and-collaboration/warp-drive".to_string(),
                 )),

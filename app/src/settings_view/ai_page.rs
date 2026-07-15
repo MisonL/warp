@@ -7894,6 +7894,7 @@ impl SettingsWidget for CLIAgentWidget {
                     Some(styles::header_font_color(true, app)),
                     Some(AdditionalInfo {
                         mouse_state: self.auto_toggle_rich_input_info_tooltip.clone(),
+                        locale: localization::current_locale(app),
                         on_click_action: None,
                         secondary_text: None,
                         tooltip_override_text: Some(ai_settings_text(

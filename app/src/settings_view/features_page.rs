@@ -4628,6 +4628,7 @@ impl SettingsWidget for NativeRedirectWidget {
             localization::text_for_app(app, "settings.features.native_redirect.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(localization::text_for_app(
@@ -4699,6 +4700,7 @@ impl SettingsWidget for SessionRestorationWidget {
             localization::text_for_app(app, "settings.features.session_restoration.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
                     "https://docs.warp.dev/terminal/sessions/session-restoration".into(),
                 )),
@@ -4790,6 +4792,7 @@ impl SettingsWidget for SnackbarHeaderWidget {
             localization::text_for_app(app, "settings.features.sticky_command_header.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
                     "https://docs.warp.dev/terminal/blocks/sticky-command-header".into(),
                 )),
@@ -5149,6 +5152,7 @@ impl SettingsWidget for MouseScrollMultiplierWidget {
             localization::text_for_app(app, "settings.features.mouse_scroll.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(localization::text_for_app(
@@ -5360,6 +5364,7 @@ impl SettingsWidget for DesktopNotificationsWidget {
             localization::text_for_app(app, "settings.features.notifications.desktop.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(NOTIFICATIONS_DOCS_URL.into())),
                 secondary_text: None,
                 tooltip_override_text: None,
@@ -6915,7 +6920,10 @@ impl SettingsWidget for TabKeyBehaviorWidget {
                 view.button_mouse_states
                     .tab_behavior_local_only_icon
                     .clone(),
-                None,
+                Some(localization::text_for_app(
+                    app,
+                    "settings.local_only.tooltip",
+                )),
             ));
         }
 
@@ -7007,6 +7015,7 @@ impl SettingsWidget for MouseReportingWidget {
             localization::text_for_app(app, "settings.features.mouse_reporting.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
                     "https://docs.warp.dev/terminal/more-features/full-screen-apps#mouse-and-scroll-reporting"
                         .into(),
@@ -7277,6 +7286,7 @@ impl SettingsWidget for SmartSelectWidget {
             localization::text_for_app(app, "settings.features.smart_select.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
                     "https://docs.warp.dev/terminal/more-features/text-selection".into(),
                 )),
@@ -7568,6 +7578,7 @@ impl SettingsWidget for WorkflowsInCommandSearch {
             localization::text_for_app(app, "settings.features.global_workflows.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: Some(FeaturesPageAction::OpenUrl(
                     "https://docs.warp.dev/terminal/entry/yaml-workflows".into(),
                 )),
@@ -7623,6 +7634,7 @@ impl SettingsWidget for LinuxSelectionClipboardWidget {
             localization::text_for_app(app, "settings.features.linux_selection_clipboard.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(localization::text_for_app(
@@ -7754,6 +7766,7 @@ impl SettingsWidget for WindowSystemWidget {
             localization::text_for_app(app, "settings.features.window_system.wayland.label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_link.clone(),
+                locale: localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(localization::text_for_app(

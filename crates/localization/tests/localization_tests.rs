@@ -3323,6 +3323,45 @@ fn terminal_input_placeholders_use_catalog_copy() {
 }
 
 #[test]
+fn settings_shared_tooltips_use_catalog_copy() {
+    let settings_page_path = workspace_root().join("app/src/settings_view/settings_page.rs");
+    let settings_page = fs::read_to_string(&settings_page_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", settings_page_path.display()));
+
+    assert!(
+        !settings_page.contains("Click to learn more in docs"),
+        "settings info tooltip must come from the localization catalog"
+    );
+    assert!(
+        !settings_page.contains("LocaleId::EnUs"),
+        "shared settings tooltips must not force the English locale"
+    );
+    for required in [
+        "settings.info.learn_more_tooltip",
+        "visible local-only icon must provide localized tooltip",
+    ] {
+        assert!(
+            settings_page.contains(required),
+            "settings tooltip rendering must retain localization invariant: {required}"
+        );
+    }
+
+    let features_path = workspace_root().join("app/src/settings_view/features_page.rs");
+    let features = fs::read_to_string(&features_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", features_path.display()));
+    let tab_icon_call = features
+        .split_once("tab_key_span.add_child(render_local_only_icon(")
+        .and_then(|(_, suffix)| suffix.split_once("));"))
+        .map(|(call, _)| call)
+        .expect("tab behavior local-only icon call should exist");
+    assert!(
+        tab_icon_call.contains("\"settings.local_only.tooltip\"")
+            && !tab_icon_call.contains("None"),
+        "direct local-only icon rendering must provide localized tooltip text"
+    );
+}
+
+#[test]
 fn workspace_toasts_do_not_use_direct_english_literals() {
     let path = workspace_root().join("app/src/workspace/view.rs");
     let content = fs::read_to_string(&path)

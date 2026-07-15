@@ -1502,6 +1502,7 @@ impl BillingAndUsagePageV2View {
                 appearance,
                 AdditionalInfo::<BillingAndUsagePageAction> {
                     mouse_state: self.buy_credits_mouse_states.addon_info_icon.clone(),
+                    locale: crate::localization::current_locale(app),
                     on_click_action: None,
                     secondary_text: None,
                     tooltip_override_text: Some(billing_text(
@@ -1725,6 +1726,7 @@ impl BillingAndUsagePageV2View {
                 appearance,
                 AdditionalInfo::<BillingAndUsagePageAction> {
                     mouse_state: self.buy_credits_mouse_states.auto_reload_info.clone(),
+                    locale: crate::localization::current_locale(app),
                     on_click_action: None,
                     secondary_text: None,
                     tooltip_override_text: Some(state.auto_reload_tooltip_text.clone()),

@@ -1438,6 +1438,7 @@ impl BillingAndUsagePageView {
             appearance,
             AdditionalInfo::<BillingAndUsagePageAction> {
                 mouse_state: self.ubp_info_icon_mouse_state.clone(),
+                locale: crate::localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(billing_text(
@@ -1863,6 +1864,7 @@ impl BillingAndUsagePageView {
             appearance,
             AdditionalInfo::<BillingAndUsagePageAction> {
                 mouse_state: self.addon_info_icon_mouse_state.clone(),
+                locale: crate::localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(billing_text(
@@ -2389,6 +2391,7 @@ impl BillingAndUsagePageView {
                     appearance,
                     AdditionalInfo::<BillingAndUsagePageAction> {
                         mouse_state: info.mouse_state,
+                        locale: crate::localization::current_locale(app),
                         on_click_action: None,
                         secondary_text: None,
                         tooltip_override_text: match info.is_current_user {
