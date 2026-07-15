@@ -499,7 +499,7 @@ use crate::terminal::writeable_pty::{PtyIntent, PtyIntentEvent, TerminalSurface}
 use crate::terminal::{
     block_list_element::BlockHoverAction,
     // find::{Event as FindEvent, Find, FindDirection},
-    input::{Event as InputEvent, Input, INPUT_A11Y_HELPER, INPUT_A11Y_LABEL},
+    input::{Event as InputEvent, Input, INPUT_A11Y_HELPER_KEY, INPUT_A11Y_LABEL_KEY},
     model::block::SerializedBlock,
     shell::ShellType,
     terminal_size_element::TerminalSizeElement,
@@ -14114,10 +14114,8 @@ impl TerminalView {
         };
 
         // Set fallback title since /init may have no initial query
-        let fallback_title = localization::text_for_app(
-            ctx,
-            "terminal.init_project.project_setup_title",
-        );
+        let fallback_title =
+            localization::text_for_app(ctx, "terminal.init_project.project_setup_title");
         BlocklistAIHistoryModel::handle(ctx).update(ctx, move |history, _ctx| {
             if let Some(conversation) = history.conversation_mut(&conversation_id) {
                 conversation.set_fallback_display_title(fallback_title);
@@ -26343,7 +26341,7 @@ impl TypedActionView for TerminalView {
             }
             BookmarkBlock(_) | BookmarkSelectedBlock => {
                 Custom(AccessibilityContent::new_without_help(
-                    "Toggle Bookmark block",
+                    localization::text_for_app(ctx, "terminal.a11y.toggle_bookmark_block"),
                     WarpA11yRole::TextRole,
                 ))
             }
@@ -26353,49 +26351,64 @@ impl TypedActionView for TerminalView {
                     .tail()
                     .and_then(|index| self.selected_block_accessibility_content(index, ctx))
                 {
-                    let num_selected_text =
-                        format!("Selected {} blocks.", self.num_non_hidden_selected_blocks());
+                    let count = self.num_non_hidden_selected_blocks().to_string();
+                    let num_selected_text = localization::text_for_app_with_args(
+                        ctx,
+                        "terminal.a11y.selected_blocks",
+                        &[("count", &count)],
+                    );
                     content.value = format!("{}\n{}", num_selected_text, content.value);
                     Custom(content)
                 } else {
                     Empty
                 }
             }
-            SelectAllBlocks => Custom(AccessibilityContent::new_without_help(
-                format!(
-                    "Selected all {} blocks.",
-                    self.num_non_hidden_selected_blocks()
-                ),
-                WarpA11yRole::TextRole,
-            )),
+            SelectAllBlocks => {
+                let count = self.num_non_hidden_selected_blocks().to_string();
+                Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "terminal.a11y.selected_all_blocks",
+                        &[("count", &count)],
+                    ),
+                    WarpA11yRole::TextRole,
+                ))
+            }
             ScrollToBottomOfSelectedBlocks => Custom(AccessibilityContent::new_without_help(
-                "Scrolled to bottom of selected block".to_string(),
+                localization::text_for_app(ctx, "terminal.a11y.scrolled_selected_bottom"),
                 WarpA11yRole::TextRole,
             )),
             ScrollToTopOfSelectedBlocks => Custom(AccessibilityContent::new_without_help(
-                "Scrolled to top of selected block".to_string(),
+                localization::text_for_app(ctx, "terminal.a11y.scrolled_selected_top"),
                 WarpA11yRole::TextRole,
             )),
             ScrollToBottomOfOverhangingBlock(_) => Custom(AccessibilityContent::new_without_help(
-                "Scrolled to bottom of bottommost visible block".to_string(),
+                localization::text_for_app(ctx, "terminal.a11y.scrolled_bottommost_visible"),
                 WarpA11yRole::TextRole,
             )),
             CopyOutputs => {
                 let mut outputs = vec![];
                 self.with_non_hidden_selected_blocks(
                     |block| {
-                        outputs.push(format!(
-                            "Block {}.\nOutput: {}",
-                            block.index(),
-                            block.output_to_string()
-                        ));
+                        outputs.push((block.index().to_string(), block.output_to_string()));
                     },
                     ctx,
                 );
-                let text = format!(
-                    "Copied {} block outputs.\n{}",
-                    outputs.len(),
-                    outputs.join("\n")
+                let count = outputs.len().to_string();
+                let outputs = outputs
+                    .into_iter()
+                    .map(|(index, output)| {
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.a11y.block_output",
+                            &[("index", &index), ("output", &output)],
+                        )
+                    })
+                    .join("\n");
+                let text = localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.a11y.copied_block_outputs",
+                    &[("count", &count), ("outputs", &outputs)],
                 );
                 Custom(AccessibilityContent::new_without_help(
                     text,
@@ -26406,16 +26419,34 @@ impl TypedActionView for TerminalView {
                 let mut blocks = vec![];
                 self.with_non_hidden_selected_blocks(
                     |block| {
-                        blocks.push(format!(
-                            "Block {}: {}. Output: {}",
-                            block.index(),
+                        blocks.push((
+                            block.index().to_string(),
                             block.command_to_string(),
-                            block.output_to_string()
+                            block.output_to_string(),
                         ));
                     },
                     ctx,
                 );
-                let text = format!("Copied {} blocks.\n{}", blocks.len(), blocks.join("\n"));
+                let count = blocks.len().to_string();
+                let blocks = blocks
+                    .into_iter()
+                    .map(|(index, command, output)| {
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.a11y.block_command_and_output",
+                            &[
+                                ("index", &index),
+                                ("command", &command),
+                                ("output", &output),
+                            ],
+                        )
+                    })
+                    .join("\n");
+                let text = localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.a11y.copied_blocks",
+                    &[("count", &count), ("blocks", &blocks)],
+                );
                 Custom(AccessibilityContent::new_without_help(
                     text,
                     WarpA11yRole::TextRole,
@@ -26423,37 +26454,44 @@ impl TypedActionView for TerminalView {
             }
             FocusInputAndClearSelection => {
                 Custom(AccessibilityContent::new(
-                    INPUT_A11Y_LABEL,
+                    localization::text_for_app(ctx, INPUT_A11Y_LABEL_KEY),
                     // TODO (a11y) use bindings from user settings
-                    INPUT_A11Y_HELPER,
+                    localization::text_for_app(ctx, INPUT_A11Y_HELPER_KEY),
                     WarpA11yRole::TextareaRole,
                 ))
             }
             KeyDown(key) => {
                 let label = if key.eq("\x1b") {
-                    INPUT_A11Y_LABEL
+                    localization::text_for_app(ctx, INPUT_A11Y_LABEL_KEY)
                 } else {
-                    key
+                    key.clone()
                 };
                 Custom(AccessibilityContent::new_without_help(
                     label,
                     WarpA11yRole::TextareaRole,
                 ))
             }
-            OpenBlockFilterEditor(block_index) => Custom(AccessibilityContent::new_without_help(
-                format!("Open block filter editor for block {block_index}"),
-                WarpA11yRole::TextRole,
-            )),
+            OpenBlockFilterEditor(block_index) => {
+                let index = block_index.to_string();
+                Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "terminal.a11y.open_block_filter_editor",
+                        &[("index", &index)],
+                    ),
+                    WarpA11yRole::TextRole,
+                ))
+            }
             ShowInitializationBlock => Custom(AccessibilityContent::new_without_help(
-                "Showed initialization block",
+                localization::text_for_app(ctx, "terminal.a11y.showed_initialization_block"),
                 WarpA11yRole::TextareaRole,
             )),
             ShowWarpifySettings => Custom(AccessibilityContent::new_without_help(
-                "Opened Warpify Settings",
+                localization::text_for_app(ctx, "terminal.a11y.opened_warpify_settings"),
                 WarpA11yRole::ButtonRole,
             )),
             OpenFilesPalette { .. } => Custom(AccessibilityContent::new_without_help(
-                "Opened file search palette",
+                localization::text_for_app(ctx, "terminal.a11y.opened_file_search_palette"),
                 WarpA11yRole::ButtonRole,
             )),
             InsertCommandCorrection { .. }
@@ -26521,28 +26559,27 @@ impl TypedActionView for TerminalView {
                 self.open_in_warp_banner_accessibility_content(*action, ctx)
             }
             OpenAIBlockAttachedBlocksMenu { .. } => Custom(AccessibilityContent::new_without_help(
-                "Open list of blocks attached as context to this AI query.".to_owned(),
+                localization::text_for_app(ctx, "terminal.a11y.open_attached_blocks_menu"),
                 WarpA11yRole::PopoverRole,
             )),
             OpenAIBlockOverflowMenu { .. } => Custom(AccessibilityContent::new_without_help(
-                "Open overflow menu with copy options for this AI block.".to_owned(),
+                localization::text_for_app(ctx, "terminal.a11y.open_ai_block_overflow_menu"),
                 WarpA11yRole::PopoverRole,
             )),
             RewindAIConversation { .. } => Custom(AccessibilityContent::new_without_help(
-                "Show confirmation dialog to rewind to before this point in the AI conversation."
-                    .to_owned(),
+                localization::text_for_app(ctx, "terminal.a11y.show_rewind_confirmation"),
                 WarpA11yRole::ButtonRole,
             )),
             ExecuteRewindAIConversation { .. } => Custom(AccessibilityContent::new_without_help(
-                "Execute rewind to before this point in the AI conversation.".to_owned(),
+                localization::text_for_app(ctx, "terminal.a11y.execute_rewind"),
                 WarpA11yRole::ButtonRole,
             )),
             SelectAIAttachedBlock(_) => Custom(AccessibilityContent::new_without_help(
-                "Click on a block attached as context to this AI query.".to_owned(),
+                localization::text_for_app(ctx, "terminal.a11y.select_attached_block"),
                 WarpA11yRole::ButtonRole,
             )),
             PickRepoToOpen => Custom(AccessibilityContent::new_without_help(
-                "Use file picker to select a git repository".to_owned(),
+                localization::text_for_app(ctx, "terminal.a11y.pick_git_repository"),
                 WarpA11yRole::PopoverRole,
             )),
             #[cfg(feature = "voice_input")]

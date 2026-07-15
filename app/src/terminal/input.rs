@@ -399,8 +399,8 @@ pub fn get_input_box_top_border_width() -> f32 {
 
 pub const COMPLETIONS_MENU_WIDTH: f32 = 330.;
 pub const OPEN_COMPLETIONS_KEYBINDING_NAME: &str = "input:open_completion_suggestions";
-pub const INPUT_A11Y_LABEL: &str = "Command Input.";
-pub const INPUT_A11Y_HELPER: &str = "Input your shell command, press enter to execute. Press cmd-up to navigate to output of previously executed commands. Press cmd-l to re-focus command input.";
+pub const INPUT_A11Y_LABEL_KEY: &str = "terminal.input.a11y.label";
+pub const INPUT_A11Y_HELPER_KEY: &str = "terminal.input.a11y.helper";
 const AI_COMMAND_SEARCH_HINT_KEY: &str = "terminal.input.hint.ai_command_search";
 const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_KEY: &str =
     "terminal.input.hint.run_commands";
@@ -8218,13 +8218,17 @@ impl Input {
         // Emit the a11y content as the last step so that it overwrites any of the a11y content
         // emitted by the editor (if multiple `AccessibilityContent`s are emitted within the same
         // event loop, the last one wins).
-        let mut accessibility_text = format!("Workflow command {} inserted.", &command_to_insert);
+        let mut accessibility_text = localization::text_for_app_with_args(
+            ctx,
+            "terminal.input.a11y.workflow_command_inserted",
+            &[("command", &command_to_insert)],
+        );
         if let Some(a11y_content) = self.selected_workflow_a11y_text(ctx) {
             let _ = write!(accessibility_text, " {a11y_content}");
         }
         ctx.emit_a11y_content(AccessibilityContent::new(
             accessibility_text,
-            "Press shift-tab to select the next workflow argument",
+            localization::text_for_app(ctx, "terminal.input.a11y.select_next_workflow_argument"),
             WarpA11yRole::UserAction,
         ));
 
@@ -8322,10 +8326,17 @@ impl Input {
             .selected_workflow_state
             .as_ref()
             .and_then(|selected_workflow_state| {
-                selected_workflow_state.more_info_view.read(ctx, |view, _| {
-                    view.selected_argument()
-                        .map(|argument| format!("Selected Workflow argument {}", argument.name()))
-                })
+                selected_workflow_state
+                    .more_info_view
+                    .read(ctx, |view, app| {
+                        view.selected_argument().map(|argument| {
+                            localization::text_for_app_with_args(
+                                app,
+                                "terminal.input.a11y.selected_workflow_argument",
+                                &[("argument", argument.name())],
+                            )
+                        })
+                    })
             })
     }
 
@@ -8576,7 +8587,11 @@ impl Input {
                 self.try_execute_command(&command, ctx);
 
                 ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                    format!("Executed: {command}"),
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "terminal.input.a11y.executed_command",
+                        &[("command", &command)],
+                    ),
                     WarpA11yRole::UserAction,
                 ));
             }
@@ -15982,14 +15997,14 @@ impl TypedActionView for Input {
     fn action_accessibility_contents(
         &mut self,
         action: &InputAction,
-        _: &mut ViewContext<Self>,
+        ctx: &mut ViewContext<Self>,
     ) -> ActionAccessibilityContent {
         match action {
             InputAction::FocusInputBox => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new(
-                    INPUT_A11Y_LABEL,
+                    localization::text_for_app(ctx, INPUT_A11Y_LABEL_KEY),
                     // TODO (a11y) use bindings from user settings
-                    INPUT_A11Y_HELPER,
+                    localization::text_for_app(ctx, INPUT_A11Y_HELPER_KEY),
                     WarpA11yRole::TextareaRole,
                 ))
             }
@@ -16204,11 +16219,11 @@ impl View for Input {
         "Input"
     }
 
-    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            INPUT_A11Y_LABEL,
+            localization::text_for_app(app, INPUT_A11Y_LABEL_KEY),
             // TODO (a11y) use bindings from user settings
-            INPUT_A11Y_HELPER,
+            localization::text_for_app(app, INPUT_A11Y_HELPER_KEY),
             WarpA11yRole::TextareaRole,
         ))
     }
