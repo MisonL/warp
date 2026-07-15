@@ -3910,6 +3910,13 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["Open conversation"][..],
         ),
         (
+            "app/src/ai/blocklist/block.rs",
+            &[
+                "String::from(\"Copied to clipboard\")",
+                "String::from(\"Thank you for the feedback!\")",
+            ][..],
+        ),
+        (
             "app/src/ai/blocklist/block/cli.rs",
             &[
                 "\"Allow\".to_string()",
