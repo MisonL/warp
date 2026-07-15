@@ -569,6 +569,52 @@ Use `{{warpctrl_binary_name}}` from {{warpctrl_wrapper_path}}.
 }
 
 #[test]
+fn test_read_bundled_skills_localizes_description_without_replacing_instructions() {
+    let temp_dir = TempDir::new().unwrap();
+    let resources_dir = temp_dir.path();
+    let skills_dir = resources_dir.join("bundled/skills");
+    let skill_dir = skills_dir.join("test-skill");
+    fs::create_dir_all(&skill_dir).unwrap();
+
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: test-skill
+description: English description
+description_zh_CN: 简体中文描述
+---
+
+Canonical instruction that must remain available.
+"#,
+    )
+    .unwrap();
+    fs::write(
+        skill_dir.join("SKILL.zh-CN.md"),
+        r#"---
+name: test-skill
+description: 本地化描述
+---
+
+Incomplete localized instruction.
+"#,
+    )
+    .unwrap();
+
+    let skills = futures::executor::block_on(read_bundled_skills_for_locale(
+        &skills_dir,
+        resources_dir,
+        LocaleId::ZhCn,
+    ));
+    let skill = skills.get("test-skill").unwrap();
+
+    assert_eq!(skill.description, "简体中文描述");
+    assert!(skill
+        .content
+        .contains("Canonical instruction that must remain available."));
+    assert!(!skill.content.contains("Incomplete localized instruction."));
+}
+
+#[test]
 fn test_read_bundled_skills_renders_host_paths() {
     let temp_dir = TempDir::new().unwrap();
     let resources_dir = temp_dir.path();

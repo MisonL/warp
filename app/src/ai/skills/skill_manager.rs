@@ -17,12 +17,14 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 #[cfg(test)]
 use super::bundled::{
     activation_for_bundled_skill, build_bundled_skill_context, read_bundled_skills,
-    BundledSkillActivation,
+    read_bundled_skills_for_locale, BundledSkillActivation,
 };
 use super::bundled::{BundledSkill, BundledSkills};
 use super::{ActiveSkillLookupError, SkillDescriptor, SkillManagerEvent, SkillPathQuery};
 use crate::ai::skills::skill_utils::SkillDeduplicator;
 use crate::localization::current_locale;
+#[cfg(test)]
+use warp_localization::LocaleId;
 
 #[cfg(test)]
 const _BUNDLED_SKILL_LOCALIZATION_SENTINELS: &[&str] = &[

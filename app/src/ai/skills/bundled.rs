@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use ai::skills::{
-    parse_bundled_skill, parse_bundled_skill_content_at_path, ParsedSkill, SkillPathOrigin,
-    SkillReference,
-};
+use ai::skills::{parse_bundled_skill, ParsedSkill, SkillPathOrigin, SkillReference};
 use futures::TryStreamExt;
 use serde_yaml::Value;
 use warp_core::channel::ChannelState;
@@ -443,11 +440,6 @@ pub(crate) async fn read_bundled_skills_for_locale(
         if let Some(description) = localized_bundled_skill_description(&skill.content, locale) {
             skill.description = description;
         }
-        if let Some(localized_skill) = localized_bundled_skill(&skill_file_path, locale) {
-            skill.content = localized_skill.content;
-            skill.line_range = localized_skill.line_range;
-        }
-
         // We use the directory name as the skill ID (guaranteed unique within bundled skills).
         let Some(skill_id) = entry_path.file_name().and_then(|s| s.to_str()) else {
             safe_warn!(
@@ -473,15 +465,6 @@ fn localized_bundled_skill_description(content: &str, locale: LocaleId) -> Optio
         LocaleId::EnUs => None,
         LocaleId::ZhCn => extract_front_matter_string(content, "description_zh_CN"),
     }
-}
-
-fn localized_bundled_skill(path: &Path, locale: LocaleId) -> Option<ParsedSkill> {
-    let localized_path = match locale {
-        LocaleId::EnUs => return None,
-        LocaleId::ZhCn => path.with_file_name("SKILL.zh-CN.md"),
-    };
-    let content = std::fs::read_to_string(&localized_path).ok()?;
-    parse_bundled_skill_content_at_path(path, &content).ok()
 }
 
 fn extract_front_matter_string(content: &str, key: &str) -> Option<String> {
