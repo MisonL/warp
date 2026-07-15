@@ -23441,17 +23441,36 @@ impl TerminalView {
             .is_some_and(|block| block.is_executing())
     }
 
-    fn block_start_and_completed_ts(model: &TerminalModel, block_index: BlockIndex) -> String {
+    fn block_start_and_completed_ts(
+        model: &TerminalModel,
+        block_index: BlockIndex,
+        app: &AppContext,
+    ) -> String {
         let block = match model.block_list().block_at(block_index) {
             None => return String::new(),
             Some(block) => block,
         };
 
         let start = block.start_ts().map_or_else(String::new, |b| {
-            format!("Started at: {}", b.format("%a %b %-d at %-I:%M:%S %p"))
+            let time =
+                crate::util::time_format::localized_weekday_month_day_time_with_seconds(app, *b);
+            localization::text_for_app_with_args(
+                app,
+                "terminal.block.tooltip.started_at",
+                &[("time", &time)],
+            )
         });
         let end = block.completed_ts().map_or_else(String::new, |b| {
-            format!("\nCompleted at: {}", b.format("%a %b %-d at %-I:%M:%S %p"))
+            let time =
+                crate::util::time_format::localized_weekday_month_day_time_with_seconds(app, *b);
+            format!(
+                "\n{}",
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.block.tooltip.completed_at",
+                    &[("time", &time)],
+                )
+            )
         });
         format!("{start}{end}")
     }
@@ -23785,8 +23804,9 @@ impl TerminalView {
         sessions: &Sessions,
         padding_x: Pixels,
         tool_tip_below_button: bool,
-        appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let terminal_theme_prompt: ColorU = appearance
             .theme()
             .sub_text_color(appearance.theme().background())
@@ -23828,7 +23848,7 @@ impl TerminalView {
                     if state.is_hovered() {
                         let tool_tip = appearance
                             .ui_builder()
-                            .tool_tip(Self::block_start_and_completed_ts(model, index))
+                            .tool_tip(Self::block_start_and_completed_ts(model, index, app))
                             .build()
                             .finish();
                         if tool_tip_below_button {
@@ -24319,7 +24339,7 @@ impl TerminalView {
                             sessions.as_ref(app),
                             padding_x,
                             i == 0,
-                            Appearance::as_ref(app),
+                            app,
                         );
                         // Special-case the last block so there is a reliable way to target it
                         // regardless of the length of the list.

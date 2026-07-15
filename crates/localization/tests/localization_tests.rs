@@ -4268,7 +4268,11 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
         ),
         (
             "app/src/terminal/view.rs",
-            &["set_fallback_display_title(\"Project setup\".to_string())"],
+            &[
+                "set_fallback_display_title(\"Project setup\".to_string())",
+                "format!(\"Started at: {}\"",
+                "format!(\"\\nCompleted at: {}\"",
+            ],
         ),
         (
             "app/src/workspace/view/global_search/view.rs",
