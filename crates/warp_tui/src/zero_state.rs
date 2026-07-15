@@ -18,6 +18,7 @@ use warpui_core::elements::tui::{Modifier, TuiConstrainedBox, TuiElement, TuiFle
 use warpui_core::AppContext;
 
 use crate::autoupdate::{TuiAutoupdateStatus, TuiAutoupdater};
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 use crate::ui::abbreviate_home_prefix;
 
@@ -44,7 +45,7 @@ fn render_left_column(cwd: Option<&str>, builder: &TuiUiBuilder, app: &AppContex
 
     let mut column = TuiFlex::column()
         .child(
-            TuiText::new("Warp Agent")
+            TuiText::new(localization::text("settings.ai.header.warp_agent"))
                 .with_style(title_style)
                 .truncate()
                 .finish(),
@@ -54,7 +55,7 @@ fn render_left_column(cwd: Option<&str>, builder: &TuiUiBuilder, app: &AppContex
     let bullets = changelog_bullets(app);
     if !bullets.is_empty() {
         column = column.child(blank_row()).child(
-            TuiText::new("What's new")
+            TuiText::new(localization::text("workspace.menu.whats_new"))
                 .with_style(header_style)
                 .truncate()
                 .finish(),
@@ -85,20 +86,27 @@ fn render_left_column(cwd: Option<&str>, builder: &TuiUiBuilder, app: &AppContex
 fn render_version_line(builder: &TuiUiBuilder, app: &AppContext) -> Box<dyn TuiElement> {
     let muted = builder.muted_text_style();
     let Some(version) = ChannelState::app_version() else {
-        return TuiText::new("dev build")
+        return TuiText::new(localization::text("tui.zero_state.dev_build"))
             .with_style(muted)
             .truncate()
             .finish();
     };
     let suffix = match TuiAutoupdater::as_ref(app).status() {
         TuiAutoupdateStatus::Idle => None,
-        TuiAutoupdateStatus::Checking => Some(("checking for updates…", muted)),
-        TuiAutoupdateStatus::Updating => Some(("updating…", muted)),
-        TuiAutoupdateStatus::UpToDate => Some(("up to date", muted)),
+        TuiAutoupdateStatus::Checking => {
+            Some((localization::text("tui.zero_state.update.checking"), muted))
+        }
+        TuiAutoupdateStatus::Updating => {
+            Some((localization::text("tui.zero_state.update.updating"), muted))
+        }
+        TuiAutoupdateStatus::UpToDate => Some((
+            localization::text("tui.zero_state.update.up_to_date"),
+            muted,
+        )),
         // The one state worth drawing attention to: an update is staged and
         // a restart picks it up.
         TuiAutoupdateStatus::PendingRestart => Some((
-            "update installed, restart to apply",
+            localization::text("tui.zero_state.update.pending_restart"),
             builder.success_glyph_style(),
         )),
     };
@@ -173,7 +181,7 @@ fn render_project_section(
         // nothing may be known yet; this also covers projects with no
         // context at all.
         return column.child(
-            TuiText::new("Discovering project context…")
+            TuiText::new(localization::text("tui.zero_state.project.discovering"))
                 .with_style(builder.dim_text_style())
                 .truncate()
                 .finish(),
@@ -189,13 +197,20 @@ fn render_project_section(
         )
     };
     for file in rule_files {
-        column = status_row(column, format!("{file} loaded"));
-    }
-    if project_skill_count > 0 {
-        let plural = if project_skill_count == 1 { "" } else { "s" };
         column = status_row(
             column,
-            format!("{project_skill_count} skill{plural} discovered"),
+            localization::text_with_args("tui.zero_state.project.rule_loaded", &[("file", &file)]),
+        );
+    }
+    if project_skill_count > 0 {
+        let key = if project_skill_count == 1 {
+            "tui.zero_state.project.skill_discovered.one"
+        } else {
+            "tui.zero_state.project.skill_discovered.many"
+        };
+        column = status_row(
+            column,
+            localization::text_with_args(key, &[("count", &project_skill_count.to_string())]),
         );
     }
     column

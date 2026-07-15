@@ -7,12 +7,13 @@
 
 use std::time::Duration;
 
-use warp::tui_export::{format_elapsed_seconds, AIActionStatus, AIAgentAction, MessageId};
+use warp::tui_export::{AIActionStatus, AIAgentAction, MessageId};
 use warpui_core::elements::tui::{TuiContainer, TuiElement, TuiFlex, TuiStyle, TuiText};
 use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::AppContext;
 
 use crate::agent_block::{ThinkingBlockStates, TuiAIBlockAction};
+use crate::localization;
 use crate::tool_call_labels::{
     tool_call_display_state, tool_call_glyph, tool_call_label, ResolvedCommandBlock,
     ToolCallDisplayState,
@@ -149,8 +150,11 @@ pub(crate) fn render_thinking_section(
 ) -> Box<dyn TuiElement> {
     let builder = TuiUiBuilder::from_app(app);
     let header = match finished_duration {
-        Some(duration) => format!("Thought for {}", format_elapsed_seconds(duration)),
-        None => "Thinking...".to_owned(),
+        Some(duration) => {
+            let duration = localized_elapsed_seconds(duration);
+            localization::text_with_args("agent.output.thought_for", &[("duration", &duration)])
+        }
+        None => localization::text("terminal.block_onboarding.agentic.thinking"),
     };
     render_collapsible_message_section(
         states,
@@ -175,11 +179,23 @@ pub(crate) fn render_summarization_section(
     render_collapsible_message_section(
         states,
         message_id,
-        "Conversation summarized".to_owned(),
+        localization::text("agent.output.conversation_summarized"),
         finished,
         body,
         TuiUiBuilder::from_app(app).primary_text_style(),
         app,
+    )
+}
+
+fn localized_elapsed_seconds(duration: Duration) -> String {
+    let count = duration.as_secs();
+    localization::text_with_args(
+        if count == 1 {
+            "agent.elapsed.one_second"
+        } else {
+            "agent.elapsed.seconds"
+        },
+        &[("count", &count.to_string())],
     )
 }
 
