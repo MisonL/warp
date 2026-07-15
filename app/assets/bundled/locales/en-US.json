@@ -4112,6 +4112,8 @@
   "settings.ai.other.orchestration_message_display.option.always_collapse": "Always collapse",
   "settings.ai.other.orchestration_message_display.option.always_show": "Always show",
   "settings.ai.other.orchestration_message_display.option.show_and_collapse": "Show & collapse",
+  "settings.ai.other.long_running_command_submission.option.queue_until_command_finishes": "Queue until command finishes",
+  "settings.ai.other.long_running_command_submission.option.send_immediately": "Send immediately",
   "settings.ai.other.oz_changelog.label": "Show Oz changelog in new conversation view",
   "settings.ai.other.section": "Other",
   "settings.ai.other.thinking.description": "Controls how reasoning/thinking traces are displayed.",

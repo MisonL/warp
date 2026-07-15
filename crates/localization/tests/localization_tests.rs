@@ -4006,6 +4006,13 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["let label = filter.label();"][..],
         ),
         (
+            "app/src/settings_view/ai_page.rs",
+            &[
+                "DropdownItem::new(\n                    mode.display_name()",
+                "DropdownItem::new(\n                        mode.display_name()",
+            ][..],
+        ),
+        (
             "app/src/ai/agent_management/notifications/view.rs",
             &[
                 "filter.label().to_string()",

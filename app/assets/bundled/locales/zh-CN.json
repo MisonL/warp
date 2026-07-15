@@ -4112,6 +4112,8 @@
   "settings.ai.other.orchestration_message_display.option.always_collapse": "始终折叠",
   "settings.ai.other.orchestration_message_display.option.always_show": "始终显示",
   "settings.ai.other.orchestration_message_display.option.show_and_collapse": "显示并折叠",
+  "settings.ai.other.long_running_command_submission.option.queue_until_command_finishes": "排队至命令完成",
+  "settings.ai.other.long_running_command_submission.option.send_immediately": "立即发送",
   "settings.ai.other.oz_changelog.label": "在新对话视图中显示 Oz 更新日志",
   "settings.ai.other.section": "其他",
   "settings.ai.other.thinking.description": "控制推理/思考轨迹的显示方式。",

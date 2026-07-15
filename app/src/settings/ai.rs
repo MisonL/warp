@@ -470,6 +470,16 @@ impl ThinkingDisplayMode {
         }
     }
 
+    pub fn display_name_key(&self) -> &'static str {
+        match self {
+            ThinkingDisplayMode::ShowAndCollapse => {
+                "settings.ai.other.thinking.option.show_and_collapse"
+            }
+            ThinkingDisplayMode::AlwaysShow => "settings.ai.other.thinking.option.always_show",
+            ThinkingDisplayMode::NeverShow => "settings.ai.other.thinking.option.never_show",
+        }
+    }
+
     pub fn command_palette_description(&self) -> &'static str {
         match self {
             ThinkingDisplayMode::ShowAndCollapse => "Set agent thinking display: show & collapse",
@@ -780,6 +790,17 @@ impl LongRunningCommandSubmissionMode {
             LongRunningCommandSubmissionMode::SendImmediately => "Send immediately",
             LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
                 "Queue until command finishes"
+            }
+        }
+    }
+
+    pub fn display_name_key(&self) -> &'static str {
+        match self {
+            LongRunningCommandSubmissionMode::SendImmediately => {
+                "settings.ai.other.long_running_command_submission.option.send_immediately"
+            }
+            LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                "settings.ai.other.long_running_command_submission.option.queue_until_command_finishes"
             }
         }
     }

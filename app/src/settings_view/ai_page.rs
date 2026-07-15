@@ -2130,6 +2130,26 @@ impl AISettingsPageView {
             },
         );
 
+        let localized_mode_dropdowns = (
+            thinking_display_mode_dropdown.clone(),
+            orchestration_message_display_mode_dropdown.clone(),
+            default_prompt_submission_mode_dropdown.clone(),
+            lrc_submission_mode_dropdown.clone(),
+        );
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), move |_, _, _, ctx| {
+            OtherAIWidget::refresh_thinking_display_mode_dropdown(&localized_mode_dropdowns.0, ctx);
+            OtherAIWidget::refresh_orchestration_message_display_mode_dropdown(
+                &localized_mode_dropdowns.1,
+                ctx,
+            );
+            OtherAIWidget::refresh_default_prompt_submission_mode_dropdown(
+                &localized_mode_dropdowns.2,
+                ctx,
+            );
+            OtherAIWidget::refresh_lrc_submission_mode_dropdown(&localized_mode_dropdowns.3, ctx);
+            ctx.notify();
+        });
+
         Self {
             page: Self::build_page(None, ctx),
             active_subpage: None,
@@ -7482,91 +7502,143 @@ impl OtherAIWidget {
     fn create_thinking_display_mode_dropdown(
         ctx: &mut ViewContext<AISettingsPageView>,
     ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
-        let items: Vec<DropdownItem<AISettingsPageAction>> = ThinkingDisplayMode::iter()
-            .map(|mode| {
-                DropdownItem::new(
-                    mode.display_name(),
-                    AISettingsPageAction::SetThinkingDisplayMode(mode),
-                )
-            })
-            .collect();
-
-        ctx.add_typed_action_view(|ctx| {
+        let dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
             dropdown.set_menu_max_height(AI_SETTINGS_DROPDOWN_MAX_HEIGHT, ctx);
-            dropdown.add_items(items, ctx);
             dropdown
-        })
+        });
+        Self::refresh_thinking_display_mode_dropdown(&dropdown, ctx);
+        dropdown
+    }
+
+    fn refresh_thinking_display_mode_dropdown(
+        dropdown: &ViewHandle<Dropdown<AISettingsPageAction>>,
+        ctx: &mut ViewContext<AISettingsPageView>,
+    ) {
+        let current = *AISettings::as_ref(ctx).thinking_display_mode.value();
+        let items = ThinkingDisplayMode::iter()
+            .map(|mode| {
+                DropdownItem::new(
+                    ai_settings_text(ctx, mode.display_name_key()),
+                    AISettingsPageAction::SetThinkingDisplayMode(mode),
+                )
+            })
+            .collect();
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(items, ctx);
+            dropdown
+                .set_selected_by_action(AISettingsPageAction::SetThinkingDisplayMode(current), ctx);
+        });
     }
 
     fn create_default_prompt_submission_mode_dropdown(
         ctx: &mut ViewContext<AISettingsPageView>,
     ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
-        let items: Vec<DropdownItem<AISettingsPageAction>> = PromptSubmissionMode::iter()
-            .map(|mode| {
-                DropdownItem::new(
-                    mode.display_name(),
-                    AISettingsPageAction::SetPromptSubmissionMode(mode),
-                )
-            })
-            .collect();
-
-        ctx.add_typed_action_view(|ctx| {
+        let dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
             dropdown.set_menu_max_height(AI_SETTINGS_DROPDOWN_MAX_HEIGHT, ctx);
-            dropdown.add_items(items, ctx);
             dropdown
-        })
+        });
+        Self::refresh_default_prompt_submission_mode_dropdown(&dropdown, ctx);
+        dropdown
+    }
+
+    fn refresh_default_prompt_submission_mode_dropdown(
+        dropdown: &ViewHandle<Dropdown<AISettingsPageAction>>,
+        ctx: &mut ViewContext<AISettingsPageView>,
+    ) {
+        let current = AISettings::as_ref(ctx).default_prompt_submission_mode;
+        let items = PromptSubmissionMode::iter()
+            .map(|mode| {
+                DropdownItem::new(
+                    ai_settings_text(ctx, mode.display_name_key()),
+                    AISettingsPageAction::SetPromptSubmissionMode(mode),
+                )
+            })
+            .collect();
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(items, ctx);
+            dropdown.set_selected_by_action(
+                AISettingsPageAction::SetPromptSubmissionMode(current),
+                ctx,
+            );
+        });
     }
 
     fn create_lrc_submission_mode_dropdown(
         ctx: &mut ViewContext<AISettingsPageView>,
     ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
-        let items: Vec<DropdownItem<AISettingsPageAction>> =
-            LongRunningCommandSubmissionMode::iter()
-                .map(|mode| {
-                    DropdownItem::new(
-                        mode.display_name(),
-                        AISettingsPageAction::SetLongRunningCommandSubmissionMode(mode),
-                    )
-                })
-                .collect();
-
-        ctx.add_typed_action_view(|ctx| {
+        let dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
             dropdown.set_menu_max_height(AI_SETTINGS_DROPDOWN_MAX_HEIGHT, ctx);
-            dropdown.add_items(items, ctx);
             dropdown
-        })
+        });
+        Self::refresh_lrc_submission_mode_dropdown(&dropdown, ctx);
+        dropdown
+    }
+
+    fn refresh_lrc_submission_mode_dropdown(
+        dropdown: &ViewHandle<Dropdown<AISettingsPageAction>>,
+        ctx: &mut ViewContext<AISettingsPageView>,
+    ) {
+        let current = AISettings::as_ref(ctx).long_running_command_submission_mode;
+        let items = LongRunningCommandSubmissionMode::iter()
+            .map(|mode| {
+                DropdownItem::new(
+                    ai_settings_text(ctx, mode.display_name_key()),
+                    AISettingsPageAction::SetLongRunningCommandSubmissionMode(mode),
+                )
+            })
+            .collect();
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(items, ctx);
+            dropdown.set_selected_by_action(
+                AISettingsPageAction::SetLongRunningCommandSubmissionMode(current),
+                ctx,
+            );
+        });
     }
 
     fn create_orchestration_message_display_mode_dropdown(
         ctx: &mut ViewContext<AISettingsPageView>,
     ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
-        let items: Vec<DropdownItem<AISettingsPageAction>> =
-            OrchestrationMessageDisplayMode::iter()
-                .map(|mode| {
-                    DropdownItem::new(
-                        mode.display_name(),
-                        AISettingsPageAction::SetOrchestrationMessageDisplayMode(mode),
-                    )
-                })
-                .collect();
-
-        ctx.add_typed_action_view(|ctx| {
+        let dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
             dropdown.set_menu_max_height(AI_SETTINGS_DROPDOWN_MAX_HEIGHT, ctx);
-            dropdown.add_items(items, ctx);
             dropdown
-        })
+        });
+        Self::refresh_orchestration_message_display_mode_dropdown(&dropdown, ctx);
+        dropdown
+    }
+
+    fn refresh_orchestration_message_display_mode_dropdown(
+        dropdown: &ViewHandle<Dropdown<AISettingsPageAction>>,
+        ctx: &mut ViewContext<AISettingsPageView>,
+    ) {
+        let current = AISettings::as_ref(ctx).orchestration_message_display_mode;
+        let items = OrchestrationMessageDisplayMode::iter()
+            .map(|mode| {
+                DropdownItem::new(
+                    ai_settings_text(ctx, mode.display_name_key()),
+                    AISettingsPageAction::SetOrchestrationMessageDisplayMode(mode),
+                )
+            })
+            .collect();
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(items, ctx);
+            dropdown.set_selected_by_action(
+                AISettingsPageAction::SetOrchestrationMessageDisplayMode(current),
+                ctx,
+            );
+        });
     }
 }
 
