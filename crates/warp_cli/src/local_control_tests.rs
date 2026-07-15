@@ -231,11 +231,9 @@ fn instance_list_output_serializes_empty_and_populated_lists() {
 #[test]
 fn excluded_actions_are_not_allowlisted_catalog_entries() {
     for excluded in ["auth.api_key.set", "file.write", "block.list"] {
-        assert!(
-            ActionKind::ALL
-                .iter()
-                .all(|action| action.as_str() != excluded)
-        );
+        assert!(ActionKind::ALL
+            .iter()
+            .all(|action| action.as_str() != excluded));
     }
 }
 
@@ -305,6 +303,27 @@ fn structured_error_output_uses_stable_error_code() {
 
 #[test]
 #[serial]
+fn human_readable_control_errors_use_current_locale() {
+    let previous_language = set_env_var("LANGUAGE", "zh_CN");
+    let error = ControlError::with_details(
+        ErrorCode::NoInstance,
+        "no local Warp control instances",
+        "socket missing",
+    );
+    let lines = control_error_lines_for_test(&error);
+    restore_env_var("LANGUAGE", previous_language);
+
+    assert_eq!(
+        lines,
+        [
+            "错误：no_instance：no local Warp control instances",
+            "详情：socket missing",
+        ]
+    );
+}
+
+#[test]
+#[serial]
 fn renders_human_readable_tab_create_output_uses_current_locale() {
     let previous_language = set_env_var("LANGUAGE", "en_US");
 
@@ -345,6 +364,17 @@ fn renders_human_readable_tab_create_output_uses_current_locale() {
         rendered,
         "已在窗口 window_123 中创建标签页 tab_123（活动索引 2，标签页总数 3）"
     );
+}
+
+#[test]
+#[serial]
+fn renders_localized_unknown_placeholder() {
+    let previous_language = set_env_var("LANGUAGE", "zh_CN");
+    let rendered =
+        render_human_readable_for_test(local_control::protocol::ActionKind::AppPing, &json!({}));
+    restore_env_var("LANGUAGE", previous_language);
+
+    assert_eq!(rendered, "Warp 实例 <未知> 可访问（协议版本 <未知>）");
 }
 
 fn retained_action_examples() -> Vec<(ActionKind, Vec<&'static str>)> {

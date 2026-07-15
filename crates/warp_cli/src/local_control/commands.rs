@@ -194,7 +194,7 @@ fn nested_value_or_unknown(data: &serde_json::Value, path: &[&str]) -> String {
         .unwrap_or(&serde_json::Value::Null);
     match value {
         serde_json::Value::String(value) => value.clone(),
-        serde_json::Value::Null => "<unknown>".to_owned(),
+        serde_json::Value::Null => text("warpctrl.output.unknown"),
         value => value.to_string(),
     }
 }
@@ -276,13 +276,20 @@ fn render_instance_list(
                 return Ok(());
             }
             for instance in &output.instances {
+                let pid = instance.pid.to_string();
+                let protocol_version = instance.protocol_version.to_string();
                 println!(
-                    "{} (pid {}, channel {}, app {}, protocol {})",
-                    instance.instance_id,
-                    instance.pid,
-                    instance.channel,
-                    instance.app_id,
-                    instance.protocol_version
+                    "{}",
+                    text_with_args(
+                        "warpctrl.output.instance_list.item",
+                        &[
+                            ("instance_id", &instance.instance_id),
+                            ("pid", &pid),
+                            ("channel", &instance.channel),
+                            ("app_id", &instance.app_id),
+                            ("protocol_version", &protocol_version),
+                        ],
+                    )
                 );
             }
             Ok(())

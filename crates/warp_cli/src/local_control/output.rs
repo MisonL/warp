@@ -5,6 +5,7 @@ use local_control::protocol::{ControlError, ErrorCode};
 use serde::Serialize;
 
 use crate::agent::OutputFormat;
+use crate::localization::text_with_args;
 
 /// JSON/NDJSON error payload emitted by `warpctrl`.
 #[derive(Serialize)]
@@ -21,13 +22,32 @@ pub(super) fn write_control_error(
         OutputFormat::Json => write_json(&ErrorSummary { ok: false, error }),
         OutputFormat::Ndjson => write_json_line(&ErrorSummary { ok: false, error }),
         OutputFormat::Pretty | OutputFormat::Text => {
-            eprintln!("error: {}: {}", error.code, error.message);
-            if let Some(details) = &error.details {
-                eprintln!("details: {details}");
+            for line in control_error_lines(error) {
+                eprintln!("{line}");
             }
             Ok(())
         }
     }
+}
+
+fn control_error_lines(error: &ControlError) -> Vec<String> {
+    let code = error.code.to_string();
+    let mut lines = vec![text_with_args(
+        "warpctrl.error.summary",
+        &[("code", &code), ("message", &error.message)],
+    )];
+    if let Some(details) = &error.details {
+        lines.push(text_with_args(
+            "warpctrl.error.details",
+            &[("details", details)],
+        ));
+    }
+    lines
+}
+
+#[cfg(test)]
+pub(crate) fn control_error_lines_for_test(error: &ControlError) -> Vec<String> {
+    control_error_lines(error)
 }
 
 pub(super) fn write_json(value: &impl Serialize) -> Result<(), ControlError> {

@@ -18,6 +18,7 @@ use completions::generate_completions_to_stdout;
 use output::write_control_error;
 
 use crate::agent::OutputFormat;
+use crate::localization::text_with_args;
 
 /// Hidden flag used by the channel-specific Warp app binary to enter `warpctrl` mode.
 pub const CONTROL_MODE_FLAG: &str = "--warpctrl";
@@ -906,8 +907,11 @@ fn run_exit_code(args: ControlArgs) -> u8 {
         Err(error) => {
             if let Err(write_error) = write_control_error(&error, output_format) {
                 eprintln!(
-                    "error: failed to render local-control error: {}",
-                    write_error.message
+                    "{}",
+                    text_with_args(
+                        "warpctrl.error.render_failed",
+                        &[("message", &write_error.message)],
+                    )
                 );
             }
             1
@@ -941,6 +945,8 @@ fn run_inner(args: ControlArgs) -> Result<(), local_control::protocol::ControlEr
 pub(crate) use commands::render_human_readable_for_test;
 #[cfg(test)]
 pub(crate) use completions::generate_completion_string;
+#[cfg(test)]
+pub(crate) use output::control_error_lines_for_test;
 #[cfg(test)]
 pub(crate) use output::ErrorSummary;
 

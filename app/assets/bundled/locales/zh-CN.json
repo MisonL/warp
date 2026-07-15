@@ -7529,9 +7529,14 @@
   "workspace.worktree.new_with_name": "新工作树：{repo}，{name}",
   "workspace.workflow.command_from_oz": "来自 Oz 的命令",
   "workspace.workflow.command_from_warp_ai": "来自 Warp AI 的命令",
+  "warpctrl.error.details": "详情：{details}",
+  "warpctrl.error.render_failed": "错误：无法呈现本地控制错误：{message}",
+  "warpctrl.error.summary": "错误：{code}：{message}",
   "warpctrl.output.app_ping": "Warp 实例 {instance_id} 可访问（协议版本 {protocol_version}）",
   "warpctrl.output.app_version": "Warp 实例 {instance_id}\n渠道: {channel}\n应用 ID: {app_id}\n协议版本: {protocol_version}",
   "warpctrl.output.instance_list.empty": "未找到正在运行且启用本地控制的 Warp 实例。",
+  "warpctrl.output.instance_list.item": "{instance_id}（进程 ID {pid}，渠道 {channel}，应用 {app_id}，协议版本 {protocol_version}）",
   "warpctrl.output.pane_split": "已创建拆分窗格 {pane_id}",
-  "warpctrl.output.tab_created": "已在窗口 {window_id} 中创建标签页 {tab_id}（活动索引 {active_index}，标签页总数 {tab_count}）"
+  "warpctrl.output.tab_created": "已在窗口 {window_id} 中创建标签页 {tab_id}（活动索引 {active_index}，标签页总数 {tab_count}）",
+  "warpctrl.output.unknown": "<未知>"
 }

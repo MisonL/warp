@@ -7529,9 +7529,14 @@
   "workspace.worktree.new_with_name": "New worktree: {repo}, {name}",
   "workspace.workflow.command_from_oz": "Command from Oz",
   "workspace.workflow.command_from_warp_ai": "Command from Warp AI",
+  "warpctrl.error.details": "details: {details}",
+  "warpctrl.error.render_failed": "error: failed to render local-control error: {message}",
+  "warpctrl.error.summary": "error: {code}: {message}",
   "warpctrl.output.app_ping": "Warp instance {instance_id} is reachable (protocol version {protocol_version})",
   "warpctrl.output.app_version": "Warp instance {instance_id}\nchannel: {channel}\napp_id: {app_id}\nprotocol_version: {protocol_version}",
   "warpctrl.output.instance_list.empty": "No running Warp instances with local control were found.",
+  "warpctrl.output.instance_list.item": "{instance_id} (pid {pid}, channel {channel}, app {app_id}, protocol {protocol_version})",
   "warpctrl.output.pane_split": "Split created pane {pane_id}",
-  "warpctrl.output.tab_created": "Created tab {tab_id} in window {window_id} (active index {active_index}, tab count {tab_count})"
+  "warpctrl.output.tab_created": "Created tab {tab_id} in window {window_id} (active index {active_index}, tab count {tab_count})",
+  "warpctrl.output.unknown": "<unknown>"
 }

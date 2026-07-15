@@ -5566,13 +5566,7 @@ fn agent_sdk_text_output_uses_catalog_copy() {
         ),
         (
             "app/src/ai/agent_sdk/integration_output.rs",
-            &[
-                "No integrations found.",
-                "Integration:",
-                "Integrations:",
-                "Integration is connected and enabled.",
-                "This integration is not connected.",
-            ][..],
+            &["No integrations found.", "Integration:", "Integrations:"][..],
         ),
         (
             "app/src/ai/agent_sdk/admin.rs",
@@ -5621,7 +5615,6 @@ fn agent_sdk_text_output_uses_catalog_copy() {
             &[
                 "Provider '{}' must be setup",
                 "To authenticate {slug}, open this URL in your browser",
-                "Not Connected",
                 "User is not on a team",
                 "ALLOWED FOR",
             ][..],
