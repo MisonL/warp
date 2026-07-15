@@ -4269,6 +4269,16 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
             &["val.dropdown_item_label()"][..],
         ),
         (
+            "app/src/settings_view/appearance_page.rs",
+            &[
+                "input_mode_dropdown_item_label(",
+                "thin_strokes_dropdown_item_label(",
+                "enforce_minimum_contrast_dropdown_item_label(",
+                "workspace_decoration_visibility_dropdown_item_label(",
+                "tab_close_button_position_dropdown_item_label(",
+            ][..],
+        ),
+        (
             "app/src/settings_view/execution_profile_view.rs",
             &[
                 "\"Run agents:\"",

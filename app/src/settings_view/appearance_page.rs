@@ -54,6 +54,7 @@ use crate::editor::{
 };
 use crate::features::FeatureFlag;
 use crate::gpu_state::{GPUState, GPUStateEvent};
+use crate::localization::LocalizationUpdater;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::server::telemetry::{InputUXChangeOrigin, TelemetryEvent};
 use crate::settings::app_icon::{AppIcon, AppIconSettings, ShowDockIconState};
@@ -938,18 +939,20 @@ impl AppearanceSettingsPageView {
                         .update(ctx, |dropdown, ctx| {
                             let enforce_minimum_contrast =
                                 *FontSettings::as_ref(ctx).enforce_minimum_contrast;
-                            let name = Self::enforce_minimum_contrast_dropdown_item_label(
-                                enforce_minimum_contrast,
+                            dropdown.set_selected_by_action(
+                                AppearancePageAction::SetEnforceMinimumContrast(
+                                    enforce_minimum_contrast,
+                                ),
+                                ctx,
                             );
-                            dropdown.set_selected_by_name(name, ctx);
                         });
                     ctx.notify();
                 }
                 FontSettingsChangedEvent::UseThinStrokes { .. } => {
                     me.thin_strokes_dropdown.update(ctx, |dropdown, ctx| {
                         let thin_strokes = *FontSettings::as_ref(ctx).use_thin_strokes;
-                        dropdown.set_selected_by_name(
-                            Self::thin_strokes_dropdown_item_label(thin_strokes),
+                        dropdown.set_selected_by_action(
+                            AppearancePageAction::SetThinStrokes(thin_strokes),
                             ctx,
                         );
                     });
@@ -972,8 +975,13 @@ impl AppearanceSettingsPageView {
         ctx.subscribe_to_model(&InputModeSettings::handle(ctx), |me, _, _, ctx| {
             me.input_mode_dropdown.update(ctx, |dropdown, ctx| {
                 let input_mode = *InputModeSettings::as_ref(ctx).input_mode;
-                dropdown
-                    .set_selected_by_name(Self::input_mode_dropdown_item_label(input_mode), ctx);
+                dropdown.set_selected_by_action(
+                    AppearancePageAction::SetInputMode {
+                        new_mode: input_mode,
+                        from_binding: false,
+                    },
+                    ctx,
+                );
                 ctx.notify();
             });
             ctx.notify()
@@ -1056,6 +1064,11 @@ impl AppearanceSettingsPageView {
         });
         ctx.subscribe_to_model(&TabSettings::handle(ctx), |me, _, event, ctx| {
             me.handle_tab_settings_event(event, ctx)
+        });
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_dropdowns(ctx);
+            ctx.notify();
         });
 
         // we need to update the switch if the setting gets changed elsewhere, like command palette
@@ -1186,7 +1199,10 @@ impl AppearanceSettingsPageView {
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            Self::thin_strokes_dropdown_item_label(val),
+                            crate::localization::text_for_app(
+                                ctx,
+                                Self::thin_strokes_dropdown_item_label_key(val),
+                            ),
                             AppearancePageAction::SetThinStrokes(val),
                         )
                     })
@@ -1222,7 +1238,10 @@ impl AppearanceSettingsPageView {
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            Self::input_mode_dropdown_item_label(val),
+                            crate::localization::text_for_app(
+                                ctx,
+                                Self::input_mode_dropdown_item_label_key(val),
+                            ),
                             AppearancePageAction::SetInputMode {
                                 new_mode: val,
                                 from_binding: false,
@@ -1287,7 +1306,10 @@ impl AppearanceSettingsPageView {
             dropdown.add_items(
                 values.into_iter().map(|val| {
                     DropdownItem::new(
-                        Self::enforce_minimum_contrast_dropdown_item_label(val),
+                        crate::localization::text_for_app(
+                            ctx,
+                            Self::enforce_minimum_contrast_dropdown_item_label_key(val),
+                        ),
                         AppearancePageAction::SetEnforceMinimumContrast(val),
                     )
                 }).collect(),
@@ -1699,11 +1721,11 @@ impl AppearanceSettingsPageView {
         initial_dropdown_item
     }
 
-    fn input_mode_dropdown_item_label(val: InputMode) -> &'static str {
+    fn input_mode_dropdown_item_label_key(val: InputMode) -> &'static str {
         match val {
-            InputMode::PinnedToBottom => "Pin to the bottom (Warp mode)",
-            InputMode::PinnedToTop => "Pin to the top (Reverse mode)",
-            InputMode::Waterfall => "Start at the top (Classic mode)",
+            InputMode::PinnedToBottom => "settings.appearance.input.mode.option.pin_bottom",
+            InputMode::PinnedToTop => "settings.appearance.input.mode.option.pin_top",
+            InputMode::Waterfall => "settings.appearance.input.mode.option.start_top",
         }
     }
 
@@ -1729,40 +1751,192 @@ impl AppearanceSettingsPageView {
         }
     }
 
-    fn thin_strokes_dropdown_item_label(val: ThinStrokes) -> &'static str {
+    fn thin_strokes_dropdown_item_label_key(val: ThinStrokes) -> &'static str {
         match val {
-            ThinStrokes::Never => "Never",
-            ThinStrokes::OnLowDpiDisplays => "On low-DPI displays",
-            ThinStrokes::OnHighDpiDisplays => "On high-DPI displays",
-            ThinStrokes::Always => "Always",
+            ThinStrokes::Never => "settings.appearance.text.thin_strokes.option.never",
+            ThinStrokes::OnLowDpiDisplays => "settings.appearance.text.thin_strokes.option.low_dpi",
+            ThinStrokes::OnHighDpiDisplays => {
+                "settings.appearance.text.thin_strokes.option.high_dpi"
+            }
+            ThinStrokes::Always => "settings.appearance.text.thin_strokes.option.always",
         }
     }
 
-    fn enforce_minimum_contrast_dropdown_item_label(val: EnforceMinimumContrast) -> &'static str {
+    fn enforce_minimum_contrast_dropdown_item_label_key(
+        val: EnforceMinimumContrast,
+    ) -> &'static str {
         match val {
-            EnforceMinimumContrast::Always => "Always",
-            EnforceMinimumContrast::OnlyNamedColors => "Only for named colors",
-            EnforceMinimumContrast::Never => "Never",
+            EnforceMinimumContrast::Always => {
+                "settings.appearance.text.minimum_contrast.option.always"
+            }
+            EnforceMinimumContrast::OnlyNamedColors => {
+                "settings.appearance.text.minimum_contrast.option.named_colors"
+            }
+            EnforceMinimumContrast::Never => {
+                "settings.appearance.text.minimum_contrast.option.never"
+            }
         }
     }
 
-    fn workspace_decoration_visibility_dropdown_item_label(
+    fn workspace_decoration_visibility_dropdown_item_label_key(
         value: WorkspaceDecorationVisibility,
     ) -> &'static str {
         match value {
-            WorkspaceDecorationVisibility::AlwaysShow => "Always",
-            WorkspaceDecorationVisibility::HideFullscreen => "When windowed",
-            WorkspaceDecorationVisibility::OnHover => "Only on hover",
+            WorkspaceDecorationVisibility::AlwaysShow => {
+                "settings.appearance.tabs.tab_bar.option.always"
+            }
+            WorkspaceDecorationVisibility::HideFullscreen => {
+                "settings.appearance.tabs.tab_bar.option.windowed"
+            }
+            WorkspaceDecorationVisibility::OnHover => {
+                "settings.appearance.tabs.tab_bar.option.hover"
+            }
         }
     }
 
-    fn tab_close_button_position_dropdown_item_label(
+    fn tab_close_button_position_dropdown_item_label_key(
         value: TabCloseButtonPosition,
     ) -> &'static str {
         match value {
-            TabCloseButtonPosition::Right => "Right",
-            TabCloseButtonPosition::Left => "Left",
+            TabCloseButtonPosition::Right => {
+                "settings.appearance.tabs.close_button_position.option.right"
+            }
+            TabCloseButtonPosition::Left => {
+                "settings.appearance.tabs.close_button_position.option.left"
+            }
         }
+    }
+
+    fn refresh_localized_dropdowns(&self, ctx: &mut ViewContext<Self>) {
+        Self::refresh_thin_strokes_dropdown(&self.thin_strokes_dropdown, ctx);
+        Self::refresh_input_mode_dropdown(&self.input_mode_dropdown, ctx);
+        Self::refresh_minimum_contrast_dropdown(&self.enforce_min_contrast_dropdown, ctx);
+        Self::refresh_workspace_decorations_dropdown(&self.workspace_decorations_dropdown, ctx);
+        Self::refresh_tab_close_button_position_dropdown(
+            &self.tab_close_button_position_dropdown,
+            ctx,
+        );
+    }
+
+    fn refresh_localized_dropdown<T>(
+        dropdown: &ViewHandle<Dropdown<AppearancePageAction>>,
+        values: impl IntoIterator<Item = T>,
+        current: T,
+        label_key: impl Fn(T) -> &'static str,
+        action: impl Fn(T) -> AppearancePageAction,
+        ctx: &mut ViewContext<Self>,
+    ) where
+        T: Copy,
+    {
+        let items = values
+            .into_iter()
+            .map(|value| {
+                DropdownItem::new(
+                    crate::localization::text_for_app(ctx, label_key(value)),
+                    action(value),
+                )
+            })
+            .collect();
+        let selected_action = action(current);
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(items, ctx);
+            dropdown.set_selected_by_action(selected_action, ctx);
+        });
+    }
+
+    fn refresh_thin_strokes_dropdown(
+        dropdown: &ViewHandle<Dropdown<AppearancePageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let current = ctx.rendering_config().glyphs.use_thin_strokes;
+        Self::refresh_localized_dropdown(
+            dropdown,
+            [
+                ThinStrokes::Never,
+                ThinStrokes::OnLowDpiDisplays,
+                ThinStrokes::OnHighDpiDisplays,
+                ThinStrokes::Always,
+            ],
+            current,
+            Self::thin_strokes_dropdown_item_label_key,
+            AppearancePageAction::SetThinStrokes,
+            ctx,
+        );
+    }
+
+    fn refresh_input_mode_dropdown(
+        dropdown: &ViewHandle<Dropdown<AppearancePageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let current = *InputModeSettings::as_ref(ctx).input_mode;
+        Self::refresh_localized_dropdown(
+            dropdown,
+            [
+                InputMode::PinnedToBottom,
+                InputMode::Waterfall,
+                InputMode::PinnedToTop,
+            ],
+            current,
+            Self::input_mode_dropdown_item_label_key,
+            |new_mode| AppearancePageAction::SetInputMode {
+                new_mode,
+                from_binding: false,
+            },
+            ctx,
+        );
+    }
+
+    fn refresh_minimum_contrast_dropdown(
+        dropdown: &ViewHandle<Dropdown<AppearancePageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let current = *FontSettings::as_ref(ctx).enforce_minimum_contrast;
+        Self::refresh_localized_dropdown(
+            dropdown,
+            [
+                EnforceMinimumContrast::Always,
+                EnforceMinimumContrast::OnlyNamedColors,
+                EnforceMinimumContrast::Never,
+            ],
+            current,
+            Self::enforce_minimum_contrast_dropdown_item_label_key,
+            AppearancePageAction::SetEnforceMinimumContrast,
+            ctx,
+        );
+    }
+
+    fn refresh_workspace_decorations_dropdown(
+        dropdown: &ViewHandle<Dropdown<AppearancePageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let current = TabSettings::as_ref(ctx).workspace_decoration_visibility;
+        Self::refresh_localized_dropdown(
+            dropdown,
+            [
+                WorkspaceDecorationVisibility::AlwaysShow,
+                WorkspaceDecorationVisibility::OnHover,
+                WorkspaceDecorationVisibility::HideFullscreen,
+            ],
+            current,
+            Self::workspace_decoration_visibility_dropdown_item_label_key,
+            AppearancePageAction::SetWorkspaceDecorationVisibility,
+            ctx,
+        );
+    }
+
+    fn refresh_tab_close_button_position_dropdown(
+        dropdown: &ViewHandle<Dropdown<AppearancePageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let current = TabSettings::as_ref(ctx).close_button_position;
+        Self::refresh_localized_dropdown(
+            dropdown,
+            [TabCloseButtonPosition::Right, TabCloseButtonPosition::Left],
+            current,
+            Self::tab_close_button_position_dropdown_item_label_key,
+            AppearancePageAction::SetTabCloseButtonPosition,
+            ctx,
+        );
     }
 
     fn handle_alt_screen_padding_editor_event(
@@ -2377,15 +2551,19 @@ impl AppearanceSettingsPageView {
         InputModeSettings::handle(ctx).update(ctx, |input_mode, ctx| {
             report_if_error!(input_mode.input_mode.set_value(new_mode, ctx));
         });
-        let item_name = Self::input_mode_dropdown_item_label(new_mode);
-
         if from_binding {
             // If this update is from a command palette action, we need to update the dropdown
             // If not, we can't update it because there is a circular view reference, but the dropdown
             // will update it itself.  Not great state management - I think ideally the dropdowns would have
             // a model they are listening to.
             self.input_mode_dropdown.update(ctx, |input_dropdown, ctx| {
-                input_dropdown.set_selected_by_name(item_name, ctx);
+                input_dropdown.set_selected_by_action(
+                    AppearancePageAction::SetInputMode {
+                        new_mode,
+                        from_binding: false,
+                    },
+                    ctx,
+                );
                 ctx.notify();
             });
         }
@@ -2597,7 +2775,13 @@ impl AppearanceSettingsPageView {
             });
 
             dropdown.set_items(values.into_iter().map(|value| {
-                DropdownItem::new(Self::workspace_decoration_visibility_dropdown_item_label(value), AppearancePageAction::SetWorkspaceDecorationVisibility(value))
+                DropdownItem::new(
+                    crate::localization::text_for_app(
+                        ctx,
+                        Self::workspace_decoration_visibility_dropdown_item_label_key(value),
+                    ),
+                    AppearancePageAction::SetWorkspaceDecorationVisibility(value),
+                )
             }).collect(), ctx);
             dropdown.set_selected_by_index(selected_index, ctx);
 
@@ -2623,7 +2807,13 @@ impl AppearanceSettingsPageView {
             });
 
             dropdown.set_items(values.into_iter().map(|value| {
-                DropdownItem::new(Self::tab_close_button_position_dropdown_item_label(value), AppearancePageAction::SetTabCloseButtonPosition(value))
+                DropdownItem::new(
+                    crate::localization::text_for_app(
+                        ctx,
+                        Self::tab_close_button_position_dropdown_item_label_key(value),
+                    ),
+                    AppearancePageAction::SetTabCloseButtonPosition(value),
+                )
             }).collect(), ctx);
             dropdown.set_selected_by_index(selected_index, ctx);
 
@@ -2679,10 +2869,22 @@ impl AppearanceSettingsPageView {
     ) {
         if let TabSettingsChangedEvent::WorkspaceDecorationVisibility { .. } = event {
             let value = TabSettings::as_ref(ctx).workspace_decoration_visibility;
-            let name = Self::workspace_decoration_visibility_dropdown_item_label(value);
             self.workspace_decorations_dropdown
                 .update(ctx, |dropdown, ctx| {
-                    dropdown.set_selected_by_name(name, ctx);
+                    dropdown.set_selected_by_action(
+                        AppearancePageAction::SetWorkspaceDecorationVisibility(value),
+                        ctx,
+                    );
+                });
+        }
+        if let TabSettingsChangedEvent::TabCloseButtonPosition { .. } = event {
+            let value = TabSettings::as_ref(ctx).close_button_position;
+            self.tab_close_button_position_dropdown
+                .update(ctx, |dropdown, ctx| {
+                    dropdown.set_selected_by_action(
+                        AppearancePageAction::SetTabCloseButtonPosition(value),
+                        ctx,
+                    );
                 });
         }
         if let TabSettingsChangedEvent::DirectoryTabColors { .. } = event {
