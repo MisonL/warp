@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use anyhow::Context as _;
@@ -16,6 +17,22 @@ static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {
 
     CatalogBundle::new(LocaleId::EnUs, catalogs)
         .expect("default CLI localization catalog must be bundled")
+});
+
+static ENGLISH_HELP_TO_KEYS: LazyLock<HashMap<String, Vec<String>>> = LazyLock::new(|| {
+    let mut keys_by_text = HashMap::<String, Vec<String>>::new();
+    for (key, value) in CATALOGS
+        .catalog(LocaleId::EnUs)
+        .expect("default CLI localization catalog must be bundled")
+        .entries()
+        .filter(|(key, _)| key.starts_with("cli.help."))
+    {
+        keys_by_text
+            .entry(value.to_owned())
+            .or_default()
+            .push(key.to_owned());
+    }
+    keys_by_text
 });
 
 pub(crate) fn text(key: &str) -> String {
@@ -49,12 +66,19 @@ fn localize_command_text(mut command: Command, locale: LocaleId, command_key: &s
     if let Some(heading) = optional_text(locale, "cli.help.heading.options") {
         command = command.next_help_heading(heading);
     }
-    if let Some(about) = optional_text(locale, &format!("cli.help.command.{command_key}.about")) {
+    let about = command.get_about().map(ToString::to_string);
+    if let Some(about) = optional_help_text(
+        locale,
+        &format!("cli.help.command.{command_key}.about"),
+        about.as_deref(),
+    ) {
         command = command.about(about);
     }
-    if let Some(long_about) = optional_text(
+    let long_about = command.get_long_about().map(ToString::to_string);
+    if let Some(long_about) = optional_help_text(
         locale,
         &format!("cli.help.command.{command_key}.long_about"),
+        long_about.as_deref(),
     ) {
         command = command.long_about(long_about);
     }
@@ -72,12 +96,14 @@ fn localize_args(command: Command, locale: LocaleId, command_key: &str) -> Comma
 
         let arg_key = arg.get_id().as_str().to_owned();
         let help_key = format!("cli.help.command.{command_key}.arg.{arg_key}.help");
-        if let Some(help) = optional_text(locale, &help_key) {
+        let help = arg.get_help().map(ToString::to_string);
+        if let Some(help) = optional_help_text(locale, &help_key, help.as_deref()) {
             arg = arg.help(help);
         }
 
         let long_help_key = format!("cli.help.command.{command_key}.arg.{arg_key}.long_help");
-        if let Some(long_help) = optional_text(locale, &long_help_key) {
+        let long_help = arg.get_long_help().map(ToString::to_string);
+        if let Some(long_help) = optional_help_text(locale, &long_help_key, long_help.as_deref()) {
             arg = arg.long_help(long_help);
         }
 
@@ -150,6 +176,16 @@ fn optional_text(locale: LocaleId, key: &str) -> Option<String> {
     } else {
         Some(lookup.text.into_owned())
     }
+}
+
+fn optional_help_text(locale: LocaleId, exact_key: &str, english: Option<&str>) -> Option<String> {
+    optional_text(locale, exact_key)
+        .or_else(|| {
+            english
+                .and_then(|text| ENGLISH_HELP_TO_KEYS.get(text))
+                .and_then(|keys| keys.iter().find_map(|key| optional_text(locale, key)))
+        })
+        .filter(|text| !text.trim().is_empty())
 }
 
 #[cfg(test)]

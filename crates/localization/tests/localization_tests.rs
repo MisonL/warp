@@ -5677,6 +5677,7 @@ fn warp_cli_help_copy_uses_catalog_keys() {
         "cli.error.share_subject_invalid",
         "cli.error.unrecognized_subcommand",
         "cli.help.after_help",
+        "cli.help.command.warpctrl.after_help",
         "cli.help.command.oz.agent.about",
         "cli.help.command.oz.agent.create.about",
         "cli.help.command.oz.agent.delete.about",
