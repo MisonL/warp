@@ -1181,6 +1181,7 @@
   "agent.orchestration.controls.local_claude_disabled": "本地 Claude Code 子 Agent 暂时已停用。",
   "agent.orchestration.controls.local_claude_install_required": "请安装 Claude Code 以使用此本地执行框架。",
   "agent.orchestration.controls.local_codex_disabled": "本地 Codex 子 Agent 暂时已停用。",
+  "agent.orchestration.controls.local_codex_install_required": "请安装 Codex 以使用此本地执行框架。",
   "agent.orchestration.controls.new_environment": "新建环境",
   "agent.orchestration.controls.opencode_cloud_unsupported": "Cloud 暂不支持 OpenCode。请切换到本地或选择其他执行框架。",
   "agent.orchestration.controls.recommend_create_environment": "建议为云端 Agent 创建一个环境。",

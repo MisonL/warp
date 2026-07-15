@@ -38,6 +38,7 @@ use crate::ai::blocklist::inline_action::requested_action::{
     render_requested_action_row, render_requested_action_row_for_text,
 };
 use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::ai::local_harness_setup::local_harness_setup_message_key;
 use crate::appearance::Appearance;
 use crate::localization;
 use crate::terminal::view::TerminalAction;
@@ -609,21 +610,26 @@ pub(super) fn render_start_agent(
                 ],
                 inline_action_icons::green_check_icon(appearance).finish(),
             ),
-            StartAgentResult::Error { error, .. } => (
-                vec![
-                    FormattedTextFragment::plain_text(start_agent_error_prefix(
-                        execution_mode,
-                        app,
-                    )),
-                    FormattedTextFragment::bold(name),
-                    FormattedTextFragment::plain_text(localization::text_for_app_with_args(
-                        app,
-                        "agent.orchestration.error_suffix",
-                        &[("error", error)],
-                    )),
-                ],
-                inline_action_icons::red_x_icon(appearance).finish(),
-            ),
+            StartAgentResult::Error { error, .. } => {
+                let error = local_harness_setup_message_key(error)
+                    .map(|key| localization::text_for_app(app, key))
+                    .unwrap_or_else(|| error.clone());
+                (
+                    vec![
+                        FormattedTextFragment::plain_text(start_agent_error_prefix(
+                            execution_mode,
+                            app,
+                        )),
+                        FormattedTextFragment::bold(name),
+                        FormattedTextFragment::plain_text(localization::text_for_app_with_args(
+                            app,
+                            "agent.orchestration.error_suffix",
+                            &[("error", error.as_str())],
+                        )),
+                    ],
+                    inline_action_icons::red_x_icon(appearance).finish(),
+                )
+            }
             StartAgentResult::Cancelled { .. } => (
                 vec![
                     FormattedTextFragment::plain_text(start_agent_cancelled_prefix(

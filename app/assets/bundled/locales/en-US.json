@@ -1181,6 +1181,7 @@
   "agent.orchestration.controls.local_claude_disabled": "Local Claude Code child agents are temporarily disabled.",
   "agent.orchestration.controls.local_claude_install_required": "Install Claude Code to use this local harness.",
   "agent.orchestration.controls.local_codex_disabled": "Local Codex child agents are temporarily disabled.",
+  "agent.orchestration.controls.local_codex_install_required": "Install Codex to use this local harness.",
   "agent.orchestration.controls.new_environment": "New environment",
   "agent.orchestration.controls.opencode_cloud_unsupported": "OpenCode is not supported on Cloud yet. Switch to Local or pick a different harness.",
   "agent.orchestration.controls.recommend_create_environment": "We recommend creating an environment for cloud agents.",

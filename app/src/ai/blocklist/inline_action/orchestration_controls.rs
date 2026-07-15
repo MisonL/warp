@@ -43,7 +43,7 @@ use crate::ai::harness_display;
 use crate::ai::llms::LLMInfo;
 use crate::ai::local_harness_setup::{
     local_harness_is_product_enabled, local_harness_product_disabled_message,
-    local_harness_setup_state, LocalHarnessSetupState,
+    local_harness_setup_message_key, local_harness_setup_state, LocalHarnessSetupState,
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObjectLookup as _;
@@ -67,6 +67,12 @@ static OPENCODE_CLOUD_UNSUPPORTED_EN: LazyLock<String> = LazyLock::new(|| {
         "agent.orchestration.controls.opencode_cloud_unsupported",
     )
 });
+
+fn localized_local_harness_setup_message(message: &str, app: &AppContext) -> String {
+    local_harness_setup_message_key(message)
+        .map(|key| localization::text_for_app(app, key))
+        .unwrap_or_else(|| message.to_owned())
+}
 
 // ── Shared constants ────────────────────────────────────────────────
 
@@ -738,9 +744,11 @@ pub fn populate_harness_picker<A: OrchestrationControlAction, V: View>(
             } else {
                 fields = fields.with_disabled(true);
                 let tooltip = match local_setup_state {
-                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => tooltip.to_string(),
+                    Some(LocalHarnessSetupState::MissingHarness { tooltip }) => {
+                        localized_local_harness_setup_message(tooltip, ctx_dropdown)
+                    }
                     Some(LocalHarnessSetupState::ProductDisabled { message }) => {
-                        message.to_string()
+                        localized_local_harness_setup_message(message, ctx_dropdown)
                     }
                     Some(LocalHarnessSetupState::Ready) | None => localization::text_for_app(
                         ctx_dropdown,
@@ -1182,17 +1190,17 @@ pub fn accept_disabled_reason_with_auth(
                 "agent.orchestration.controls.opencode_cloud_unsupported",
             )
         } else {
-            reason.to_string()
+            localized_local_harness_setup_message(reason, ctx)
         });
     }
     if matches!(state.execution_mode, RunAgentsExecutionMode::Local) {
         if let Some(harness) = Harness::parse_local_child_harness(&state.harness_type) {
             match local_harness_setup_state(harness) {
                 LocalHarnessSetupState::MissingHarness { tooltip } => {
-                    return Some(tooltip.to_string());
+                    return Some(localized_local_harness_setup_message(tooltip, ctx));
                 }
                 LocalHarnessSetupState::ProductDisabled { message } => {
-                    return Some(message.to_string());
+                    return Some(localized_local_harness_setup_message(message, ctx));
                 }
                 LocalHarnessSetupState::Ready => {}
             }

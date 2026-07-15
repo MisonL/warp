@@ -3964,6 +3964,15 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/ai/blocklist/inline_action/orchestration_controls.rs",
+            &[
+                "LocalHarnessSetupState::MissingHarness { tooltip } => tooltip.to_string()",
+                "LocalHarnessSetupState::ProductDisabled { message } => {\n                        message.to_string()",
+                "return Some(tooltip.to_string())",
+                "return Some(message.to_string())",
+            ][..],
+        ),
+        (
             "app/src/terminal/view.rs",
             &[
                 "A terminal program tried to access your clipboard.",
