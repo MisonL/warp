@@ -30,6 +30,7 @@ use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
 use crate::localization;
 use crate::remote_server::codebase_index_model::{
     RemoteCodebaseIndexModel, RemoteCodebaseSearchAvailability, RemoteCodebaseSearchContext,
+    RemoteCodebaseUnavailableReason,
 };
 use crate::server::server_api::{ServerApi, ServerApiProvider};
 
@@ -446,18 +447,29 @@ fn remote_availability_failure(
         }
         RemoteCodebaseSearchAvailability::Unavailable {
             remote_path,
-            message,
-        } => SearchCodebaseResult::Failed {
-            reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-            message: localization::text_for_app_with_args(
-                app,
-                "agent.search_codebase.error.remote_unavailable_for_path",
-                &[
-                    ("path", remote_path.path.as_str()),
-                    ("message", message.as_str()),
-                ],
-            ),
-        },
+            reason,
+        } => {
+            let detail = match reason {
+                RemoteCodebaseUnavailableReason::MissingRootHash => {
+                    localization::text_for_app(app, "remote.codebase_search.missing_root_hash")
+                }
+                RemoteCodebaseUnavailableReason::Unavailable => {
+                    localization::text_for_app(app, "remote.codebase_search.unavailable")
+                }
+                RemoteCodebaseUnavailableReason::ServerMessage(message) => message,
+            };
+            SearchCodebaseResult::Failed {
+                reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
+                message: localization::text_for_app_with_args(
+                    app,
+                    "agent.search_codebase.error.remote_unavailable_for_path",
+                    &[
+                        ("path", remote_path.path.as_str()),
+                        ("message", detail.as_str()),
+                    ],
+                ),
+            }
+        }
         RemoteCodebaseSearchAvailability::Ready(_) => SearchCodebaseResult::Failed {
             reason: SearchCodebaseFailureReason::ClientError,
             message: localization::text_for_app(

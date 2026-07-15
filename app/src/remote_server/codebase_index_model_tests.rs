@@ -585,7 +585,33 @@ fn missing_root_hash_is_unavailable() {
 
     assert!(matches!(
         availability,
-        RemoteCodebaseSearchAvailability::Unavailable { .. }
+        RemoteCodebaseSearchAvailability::Unavailable {
+            reason: RemoteCodebaseUnavailableReason::MissingRootHash,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn unavailable_status_preserves_server_message_or_uses_structured_fallback() {
+    let mut status = status_with_state("/repo", RemoteCodebaseIndexState::Unavailable);
+    let availability = search_availability_for_status(&status, remote_path("/repo"));
+    assert!(matches!(
+        availability,
+        RemoteCodebaseSearchAvailability::Unavailable {
+            reason: RemoteCodebaseUnavailableReason::Unavailable,
+            ..
+        }
+    ));
+
+    status.failure_message = Some("remote daemon unavailable".to_string());
+    let availability = search_availability_for_status(&status, remote_path("/repo"));
+    assert!(matches!(
+        availability,
+        RemoteCodebaseSearchAvailability::Unavailable {
+            reason: RemoteCodebaseUnavailableReason::ServerMessage(message),
+            ..
+        } if message == "remote daemon unavailable"
     ));
 }
 

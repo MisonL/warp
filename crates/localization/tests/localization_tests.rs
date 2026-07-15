@@ -3827,6 +3827,13 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/remote_server/codebase_index_model.rs",
+            &[
+                "The remote codebase index is missing its root hash.",
+                "Remote codebase search is not available.",
+            ][..],
+        ),
+        (
             "app/src/ai/agent_management/cloud_setup_guide_view.rs",
             &[
                 "Workflow::new(\"Create Environment\"",
