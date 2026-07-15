@@ -7711,24 +7711,41 @@ impl TerminalView {
                 .get_pending_action(app)
                 .map(|action| match &action.action {
                     AIAgentActionType::RequestCommandOutput { command, .. } => {
-                        format!("Oz needs your permission to run `{command}`")
+                        localization::text_for_app_with_args(
+                            app,
+                            "terminal.notification.ai_summary.permission.run_command",
+                            &[("command", command)],
+                        )
                     }
-                    AIAgentActionType::ReadFiles(..) => {
-                        "Oz needs your permission to read files".to_string()
-                    }
-                    AIAgentActionType::SearchCodebase(..) => {
-                        "Oz needs your permission to search your codebase".to_string()
-                    }
-                    AIAgentActionType::RequestFileEdits { .. } => {
-                        "Oz needs your permission to edit a file".to_string()
-                    }
+                    AIAgentActionType::ReadFiles(..) => localization::text_for_app(
+                        app,
+                        "terminal.notification.ai_summary.permission.read_files",
+                    ),
+                    AIAgentActionType::SearchCodebase(..) => localization::text_for_app(
+                        app,
+                        "terminal.notification.ai_summary.permission.search_codebase",
+                    ),
+                    AIAgentActionType::RequestFileEdits { .. } => localization::text_for_app(
+                        app,
+                        "terminal.notification.ai_summary.permission.edit_file",
+                    ),
                     AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
-                        "Oz needs your permission to interact with a running shell command"
-                            .to_string()
+                        localization::text_for_app(
+                            app,
+                            "terminal.notification.ai_summary.permission.interact_shell",
+                        )
                     }
-                    _ => "Oz needs your confirmation to continue".to_string(),
+                    _ => localization::text_for_app(
+                        app,
+                        "terminal.notification.ai_summary.permission.confirmation",
+                    ),
                 })
-                .unwrap_or("Oz needs your confirmation to continue".to_string());
+                .unwrap_or_else(|| {
+                    localization::text_for_app(
+                        app,
+                        "terminal.notification.ai_summary.permission.confirmation",
+                    )
+                });
             return Some(AIBlockNotificationSummary {
                 success: false,
                 title,
@@ -12935,8 +12952,9 @@ impl TerminalView {
                 }
 
                 if self.is_navigated_away_from_window(ctx) {
-                    let notification_title =
-                        title.clone().unwrap_or_else(|| "Notification".to_string());
+                    let notification_title = title.clone().unwrap_or_else(|| {
+                        localization::text_for_app(ctx, "terminal.notification.default_title")
+                    });
                     let notification = BlockNotification {
                         title: notification_title,
                         body: body.clone(),
@@ -13089,19 +13107,29 @@ impl TerminalView {
                     .as_ref(app)
                     .remote_server_setup_state(sid)
                     .map(|state| match state {
-                        RemoteServerSetupState::Checking => "Checking...".to_string(),
+                        RemoteServerSetupState::Checking => {
+                            localization::text_for_app(app, "terminal.status.checking")
+                        }
                         RemoteServerSetupState::Installing {
                             progress_percent: Some(p),
-                        } => format!("Installing... ({p}%)"),
+                        } => localization::text_for_app_with_args(
+                            app,
+                            "terminal.status.installing_with_progress",
+                            &[("progress_percent", &p.to_string())],
+                        ),
                         RemoteServerSetupState::Installing {
                             progress_percent: None,
-                        } => "Installing...".to_string(),
-                        RemoteServerSetupState::Updating => "Updating...".to_string(),
-                        RemoteServerSetupState::Initializing => "Initializing...".to_string(),
-                        _ => "Starting shell...".to_string(),
+                        } => localization::text_for_app(app, "terminal.status.installing"),
+                        RemoteServerSetupState::Updating => {
+                            localization::text_for_app(app, "terminal.status.updating")
+                        }
+                        RemoteServerSetupState::Initializing => {
+                            localization::text_for_app(app, "terminal.status.initializing")
+                        }
+                        _ => localization::text_for_app(app, "terminal.status.starting_shell"),
                     })
             })
-            .unwrap_or_else(|| "Starting shell...".to_string());
+            .unwrap_or_else(|| localization::text_for_app(app, "terminal.status.starting_shell"));
 
         let shimmer_element = shimmering_warp_loading_text(
             message,
