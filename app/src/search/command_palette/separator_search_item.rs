@@ -69,6 +69,14 @@ impl SearchItem for SeparatorSearchItem {
         format!("Section: {}", self.title)
     }
 
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.section",
+            &[("title", &self.title)],
+        )
+    }
+
     fn is_static_separator(&self) -> bool {
         true
     }

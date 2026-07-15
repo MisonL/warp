@@ -160,6 +160,14 @@ impl SearchItem for HistorySearchItem {
     fn accessibility_label(&self) -> String {
         format!("History item: {}", self.entry.command)
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.history_item",
+            &[("command", &self.entry.command)],
+        )
+    }
 }
 
 impl HistorySearchItem {

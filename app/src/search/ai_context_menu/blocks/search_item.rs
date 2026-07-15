@@ -193,4 +193,12 @@ impl SearchItem for BlockSearchItem {
     fn accessibility_label(&self) -> String {
         format!("Block: {}", self.command)
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.block",
+            &[("command", &self.command)],
+        )
+    }
 }

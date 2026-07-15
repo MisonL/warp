@@ -3643,6 +3643,7 @@
   "search.a11y.type.project": "项目：{name}",
   "search.a11y.type.repo": "仓库：{path}",
   "search.a11y.type.rule": "规则：{content}",
+  "search.a11y.type.section": "分区：{title}",
   "search.a11y.type.secret": "密钥：{name}",
   "search.a11y.type.skill": "技能：{name}",
   "search.a11y.type.warp_ai": "Warp AI：{body}",

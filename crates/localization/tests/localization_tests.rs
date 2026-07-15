@@ -4837,6 +4837,7 @@ fn selected_search_accessibility_and_web_home_keys_exist_in_catalogs() {
         "search.a11y.type.project",
         "search.a11y.type.repo",
         "search.a11y.type.rule",
+        "search.a11y.type.section",
         "search.a11y.type.secret",
         "search.a11y.type.skill",
         "search.a11y.type.warp_ai",
@@ -4865,6 +4866,49 @@ fn selected_search_accessibility_and_web_home_keys_exist_in_catalogs() {
     ];
 
     assert_bundled_keys_exist(&required_keys);
+}
+
+#[test]
+fn search_items_with_accessibility_labels_have_app_aware_overrides() {
+    fn collect_missing_overrides(dir: &Path, violations: &mut Vec<String>) {
+        let entries = fs::read_dir(dir)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+        for entry in entries {
+            let path = entry.expect("failed to read search source entry").path();
+            if path.is_dir() {
+                collect_missing_overrides(&path, violations);
+                continue;
+            }
+            let is_production_rust = path.extension().and_then(|ext| ext.to_str()) == Some("rs")
+                && !path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with("_tests.rs") || name == "test.rs");
+            if !is_production_rust {
+                continue;
+            }
+
+            let content = fs::read_to_string(&path)
+                .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+            if content.contains("fn accessibility_label(&self)")
+                && !content.contains("fn accessibility_label_for_app")
+            {
+                violations.push(
+                    path.strip_prefix(workspace_root())
+                        .unwrap_or(path.as_path())
+                        .display()
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    let mut violations = Vec::new();
+    collect_missing_overrides(&workspace_root().join("app/src/search"), &mut violations);
+    assert!(
+        violations.is_empty(),
+        "search items with accessibility labels need app-aware localization: {violations:#?}"
+    );
 }
 
 #[test]

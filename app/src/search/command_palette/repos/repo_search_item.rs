@@ -137,4 +137,12 @@ impl SearchItem for RepoSearchItem {
     fn accessibility_label(&self) -> String {
         format!("Repo: {}", self.metadata.path.display())
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.repo",
+            &[("path", &self.metadata.path.display().to_string())],
+        )
+    }
 }

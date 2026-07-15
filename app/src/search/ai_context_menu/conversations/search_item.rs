@@ -126,4 +126,12 @@ impl SearchItem for ConversationSearchItem {
     fn accessibility_label(&self) -> String {
         format!("Conversation: {}", self.item.title)
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.conversation",
+            &[("title", &self.item.title)],
+        )
+    }
 }

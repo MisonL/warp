@@ -3643,6 +3643,7 @@
   "search.a11y.type.project": "Project: {name}",
   "search.a11y.type.repo": "Repo: {path}",
   "search.a11y.type.rule": "Rule: {content}",
+  "search.a11y.type.section": "Section: {title}",
   "search.a11y.type.secret": "Secret: {name}",
   "search.a11y.type.skill": "Skill: {name}",
   "search.a11y.type.warp_ai": "Warp AI: {body}",
