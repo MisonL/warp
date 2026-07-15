@@ -126,11 +126,13 @@ pub enum TabBehavior {
 }
 
 impl TabBehavior {
-    pub fn dropdown_item_label(&self) -> &'static str {
+    pub fn dropdown_item_label_key(&self) -> &'static str {
         match self {
-            TabBehavior::Completions => "Open completions menu",
-            TabBehavior::Autosuggestions => "Accept autosuggestion",
-            TabBehavior::UserDefined => "User defined",
+            TabBehavior::Completions => "settings.features.tab_key_behavior.option.completions",
+            TabBehavior::Autosuggestions => {
+                "settings.features.tab_key_behavior.option.autosuggestions"
+            }
+            TabBehavior::UserDefined => "settings.features.tab_key_behavior.option.user_defined",
         }
     }
 }

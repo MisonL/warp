@@ -2418,6 +2418,12 @@ impl FeaturesPageView {
                 me.osc52_clipboard_access_dropdown.clone(),
                 ctx,
             );
+            Self::update_code_editor_line_number_mode_dropdown(
+                me.code_editor_line_number_mode_dropdown.clone(),
+                ctx,
+            );
+            me.refresh_tab_behavior_dropdown(ctx);
+            me.refresh_preferred_graphics_backend_dropdown(ctx);
             ctx.notify();
         });
 
@@ -3520,11 +3526,8 @@ impl FeaturesPageView {
                 dropdown.set_items(items, ctx);
             }
             let gpu_settings = GPUSettings::as_ref(ctx);
-            dropdown.set_selected_by_name(
-                gpu_settings
-                    .preferred_backend
-                    .map(|backend| backend.to_label())
-                    .unwrap_or("Default"),
+            dropdown.set_selected_by_action(
+                FeaturesPageAction::SetPreferredGraphicsBackend(*gpu_settings.preferred_backend),
                 ctx,
             );
         });
@@ -3535,11 +3538,17 @@ impl FeaturesPageView {
         self.tab_behavior_dropdown.update(ctx, |dropdown, ctx| {
             let mut items = vec![
                 DropdownItem::new(
-                    TabBehavior::Completions.dropdown_item_label(),
+                    localization::text_for_app(
+                        ctx,
+                        TabBehavior::Completions.dropdown_item_label_key(),
+                    ),
                     FeaturesPageAction::SetTabBehavior(TabBehavior::Completions),
                 ),
                 DropdownItem::new(
-                    TabBehavior::Autosuggestions.dropdown_item_label(),
+                    localization::text_for_app(
+                        ctx,
+                        TabBehavior::Autosuggestions.dropdown_item_label_key(),
+                    ),
                     FeaturesPageAction::SetTabBehavior(TabBehavior::Autosuggestions),
                 ),
             ];
@@ -3548,12 +3557,18 @@ impl FeaturesPageView {
             // selectable option from the dropdown.
             if matches!(*self.tab_behavior, TabBehavior::UserDefined) {
                 items.push(DropdownItem::new(
-                    TabBehavior::UserDefined.dropdown_item_label(),
+                    localization::text_for_app(
+                        ctx,
+                        TabBehavior::UserDefined.dropdown_item_label_key(),
+                    ),
                     FeaturesPageAction::SetTabBehavior(TabBehavior::UserDefined),
                 ));
             }
             dropdown.set_items(items, ctx);
-            dropdown.set_selected_by_name(self.tab_behavior.dropdown_item_label(), ctx);
+            dropdown.set_selected_by_action(
+                FeaturesPageAction::SetTabBehavior(*self.tab_behavior),
+                ctx,
+            );
         });
     }
 
@@ -6821,8 +6836,14 @@ impl TabKeyBehaviorWidget {
             TabBehavior::UserDefined => None,
         };
         let other_keybinding_name = match *view.tab_behavior {
-            TabBehavior::Completions => Some("Accept Autosuggestion"),
-            TabBehavior::Autosuggestions => Some("Open Completions Menu"),
+            TabBehavior::Completions => Some(localization::text_for_app(
+                app,
+                TabBehavior::Autosuggestions.dropdown_item_label_key(),
+            )),
+            TabBehavior::Autosuggestions => Some(localization::text_for_app(
+                app,
+                TabBehavior::Completions.dropdown_item_label_key(),
+            )),
             TabBehavior::UserDefined => None,
         };
 
@@ -6845,7 +6866,7 @@ impl TabKeyBehaviorWidget {
                 )
                 .with_child(
                     Container::new(view.render_change_keybinding_button(
-                        other_keybinding_name,
+                        &other_keybinding_name,
                         appearance,
                         app,
                     ))

@@ -4330,6 +4330,10 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
                 "global_hotkey_mode.as_dropdown_label()",
                 "new_tab_placement_dropdown_item_label(",
                 "init_global_hotkey_dropdown(",
+                "TabBehavior::Completions.dropdown_item_label()",
+                ".unwrap_or(\"Default\")",
+                "Some(\"Accept Autosuggestion\")",
+                "Some(\"Open Completions Menu\")",
             ][..],
         ),
         (
