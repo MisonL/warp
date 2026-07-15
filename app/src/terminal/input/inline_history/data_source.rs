@@ -164,9 +164,9 @@ impl InlineHistoryMenuDataSource {
             let Some(timestamp) = conversation.last_modified_at() else {
                 continue;
             };
-            let title = conversation
-                .title()
-                .unwrap_or_else(|| "Untitled conversation".to_string());
+            let title = conversation.title().unwrap_or_else(|| {
+                crate::localization::text_for_app(app, "workspace.conversation.untitled")
+            });
             let match_result = if trimmed_query.is_empty() {
                 None
             } else {

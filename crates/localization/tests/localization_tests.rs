@@ -3372,6 +3372,7 @@ fn workspace_toasts_do_not_use_direct_english_literals() {
         "You {verb} synchronized inputs in all tabs.",
         "You {verb} synchronized inputs in this tab.",
         "Press {} to undo.",
+        ".unwrap_or_else(|| \"Conversation\".to_string())",
     ];
     for literal in removed_literals {
         assert!(
@@ -3387,6 +3388,7 @@ fn workspace_toasts_do_not_use_direct_english_literals() {
         "workspace.toast.sync_all_inputs_enabled",
         "workspace.toast.sync_tab_inputs_disabled",
         "workspace.toast.sync_tab_inputs_enabled",
+        "workspace.conversation.fallback_title",
     ];
     for key in required_keys {
         assert!(
@@ -4419,6 +4421,10 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
         ),
         (
             "app/src/ai/conversation_navigation/mod.rs",
+            &[".unwrap_or_else(|| \"Untitled conversation\".to_string())"][..],
+        ),
+        (
+            "app/src/terminal/input/inline_history/data_source.rs",
             &[".unwrap_or_else(|| \"Untitled conversation\".to_string())"][..],
         ),
         (
