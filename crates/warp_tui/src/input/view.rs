@@ -42,6 +42,7 @@ use crate::editor_element::{TuiEditorAction, TuiEditorElement, TuiEditorStyles};
 use crate::inline_menu::{TuiInlineMenu, TuiInlineMenuAccepted};
 use crate::input_mode_policy::{self, AI_LOCKED_CONFIG, SHELL_LOCKED_CONFIG};
 use crate::keybindings::TUI_BINDING_GROUP;
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 
 /// Keymap-context flag set while the input has contextual Escape behavior.
@@ -72,7 +73,7 @@ pub fn init(app: &mut AppContext) {
         // ── Submit / newline ─────────────────────────────────────────
         EditableBinding::new(
             "tui:input:submit",
-            "Submit the input",
+            localization::text("tui.input.binding.submit"),
             TuiInputAction::Submit,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -80,7 +81,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("enter"),
         EditableBinding::new(
             "tui:input:insert_newline",
-            "Insert a newline",
+            localization::text("tui.input.binding.insert_newline"),
             TuiInputAction::InsertNewline,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -88,7 +89,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("shift-enter"),
         EditableBinding::new(
             "tui:input:insert_newline",
-            "Insert a newline",
+            localization::text("tui.input.binding.insert_newline"),
             TuiInputAction::InsertNewline,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -96,7 +97,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-j"),
         EditableBinding::new(
             "tui:input:insert_newline",
-            "Insert a newline",
+            localization::text("tui.input.binding.insert_newline"),
             TuiInputAction::InsertNewline,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -104,7 +105,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-enter"),
         EditableBinding::new(
             "tui:input:handle_escape",
-            "Handle contextual input escape",
+            localization::text("tui.input.binding.handle_escape"),
             TuiInputAction::HandleEscape,
         )
         .with_context_predicate(id!("TuiInputView") & id!(INPUT_HANDLES_ESCAPE_FLAG))
@@ -113,7 +114,7 @@ pub fn init(app: &mut AppContext) {
         // ── Deletion ───────────────────────────────────────────────────
         EditableBinding::new(
             "tui:input:backspace",
-            "Delete the previous character",
+            localization::text("tui.input.binding.remove_previous_character"),
             TuiInputAction::Backspace,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -121,7 +122,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("backspace"),
         EditableBinding::new(
             "tui:input:backspace",
-            "Delete the previous character",
+            localization::text("tui.input.binding.remove_previous_character"),
             TuiInputAction::Backspace,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -129,7 +130,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("shift-backspace"),
         EditableBinding::new(
             "tui:input:backspace",
-            "Delete the previous character",
+            localization::text("tui.input.binding.remove_previous_character"),
             TuiInputAction::Backspace,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -137,7 +138,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-h"),
         EditableBinding::new(
             "tui:input:delete_forward",
-            "Delete the next character",
+            localization::text("tui.input.binding.delete_forward"),
             TuiInputAction::DeleteForward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -145,7 +146,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("delete"),
         EditableBinding::new(
             "tui:input:delete_forward",
-            "Delete the next character",
+            localization::text("tui.input.binding.delete_forward"),
             TuiInputAction::DeleteForward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -153,7 +154,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-d"),
         EditableBinding::new(
             "tui:input:delete_word_backward",
-            "Delete the previous word",
+            localization::text("tui.input.binding.delete_word_backward"),
             TuiInputAction::DeleteWordBackward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -161,7 +162,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-w"),
         EditableBinding::new(
             "tui:input:delete_word_backward",
-            "Delete the previous word",
+            localization::text("tui.input.binding.delete_word_backward"),
             TuiInputAction::DeleteWordBackward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -169,7 +170,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-backspace"),
         EditableBinding::new(
             "tui:input:delete_word_backward",
-            "Delete the previous word",
+            localization::text("tui.input.binding.delete_word_backward"),
             TuiInputAction::DeleteWordBackward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -177,7 +178,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-backspace"),
         EditableBinding::new(
             "tui:input:delete_word_forward",
-            "Delete the next word",
+            localization::text("tui.input.binding.delete_word_forward"),
             TuiInputAction::DeleteWordForward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -185,7 +186,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-d"),
         EditableBinding::new(
             "tui:input:delete_word_forward",
-            "Delete the next word",
+            localization::text("tui.input.binding.delete_word_forward"),
             TuiInputAction::DeleteWordForward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -193,7 +194,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-delete"),
         EditableBinding::new(
             "tui:input:delete_word_forward",
-            "Delete the next word",
+            localization::text("tui.input.binding.delete_word_forward"),
             TuiInputAction::DeleteWordForward,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -202,7 +203,7 @@ pub fn init(app: &mut AppContext) {
         // ── Cursor movement ─────────────────────────────────────────────
         EditableBinding::new(
             "tui:input:move_left",
-            "Move cursor left",
+            localization::text("tui.input.binding.move_left"),
             TuiInputAction::MoveLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -210,7 +211,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("left"),
         EditableBinding::new(
             "tui:input:move_left",
-            "Move cursor left",
+            localization::text("tui.input.binding.move_left"),
             TuiInputAction::MoveLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -218,7 +219,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-b"),
         EditableBinding::new(
             "tui:input:move_right",
-            "Move cursor right",
+            localization::text("tui.input.binding.move_right"),
             TuiInputAction::MoveRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -226,7 +227,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("right"),
         EditableBinding::new(
             "tui:input:move_right",
-            "Move cursor right",
+            localization::text("tui.input.binding.move_right"),
             TuiInputAction::MoveRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -234,7 +235,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-f"),
         EditableBinding::new(
             "tui:input:move_up",
-            "Move cursor up",
+            localization::text("tui.input.binding.move_up"),
             TuiInputAction::MoveUp,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -242,7 +243,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("up"),
         EditableBinding::new(
             "tui:input:move_up",
-            "Move cursor up",
+            localization::text("tui.input.binding.move_up"),
             TuiInputAction::MoveUp,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -250,7 +251,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-p"),
         EditableBinding::new(
             "tui:input:move_down",
-            "Move cursor down",
+            localization::text("tui.input.binding.move_down"),
             TuiInputAction::MoveDown,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -258,7 +259,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("down"),
         EditableBinding::new(
             "tui:input:move_down",
-            "Move cursor down",
+            localization::text("tui.input.binding.move_down"),
             TuiInputAction::MoveDown,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -266,7 +267,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-n"),
         EditableBinding::new(
             "tui:input:move_word_left",
-            "Move cursor one word left",
+            localization::text("tui.input.binding.move_word_left"),
             TuiInputAction::MoveWordLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -274,7 +275,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-left"),
         EditableBinding::new(
             "tui:input:move_word_left",
-            "Move cursor one word left",
+            localization::text("tui.input.binding.move_word_left"),
             TuiInputAction::MoveWordLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -282,7 +283,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-b"),
         EditableBinding::new(
             "tui:input:move_word_left",
-            "Move cursor one word left",
+            localization::text("tui.input.binding.move_word_left"),
             TuiInputAction::MoveWordLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -290,7 +291,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-left"),
         EditableBinding::new(
             "tui:input:move_word_right",
-            "Move cursor one word right",
+            localization::text("tui.input.binding.move_word_right"),
             TuiInputAction::MoveWordRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -298,7 +299,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-right"),
         EditableBinding::new(
             "tui:input:move_word_right",
-            "Move cursor one word right",
+            localization::text("tui.input.binding.move_word_right"),
             TuiInputAction::MoveWordRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -306,7 +307,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-f"),
         EditableBinding::new(
             "tui:input:move_word_right",
-            "Move cursor one word right",
+            localization::text("tui.input.binding.move_word_right"),
             TuiInputAction::MoveWordRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -314,7 +315,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-right"),
         EditableBinding::new(
             "tui:input:move_to_line_start",
-            "Move cursor to start of line",
+            localization::text("tui.input.binding.move_to_line_start"),
             TuiInputAction::MoveToLineStart,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -322,7 +323,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("home"),
         EditableBinding::new(
             "tui:input:move_to_line_start",
-            "Move cursor to start of line",
+            localization::text("tui.input.binding.move_to_line_start"),
             TuiInputAction::MoveToLineStart,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -330,7 +331,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-a"),
         EditableBinding::new(
             "tui:input:move_to_line_end",
-            "Move cursor to end of line",
+            localization::text("tui.input.binding.move_to_line_end"),
             TuiInputAction::MoveToLineEnd,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -338,7 +339,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("end"),
         EditableBinding::new(
             "tui:input:move_to_line_end",
-            "Move cursor to end of line",
+            localization::text("tui.input.binding.move_to_line_end"),
             TuiInputAction::MoveToLineEnd,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -347,7 +348,7 @@ pub fn init(app: &mut AppContext) {
         // ── Selection ────────────────────────────────────────────────────────────────
         EditableBinding::new(
             "tui:input:select_left",
-            "Extend selection left",
+            localization::text("tui.input.binding.extend_left"),
             TuiInputAction::SelectLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -355,7 +356,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("shift-left"),
         EditableBinding::new(
             "tui:input:select_right",
-            "Extend selection right",
+            localization::text("tui.input.binding.extend_right"),
             TuiInputAction::SelectRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -363,7 +364,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("shift-right"),
         EditableBinding::new(
             "tui:input:select_up",
-            "Extend selection up",
+            localization::text("tui.input.binding.extend_up"),
             TuiInputAction::SelectUp,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -371,7 +372,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("shift-up"),
         EditableBinding::new(
             "tui:input:select_down",
-            "Extend selection down",
+            localization::text("tui.input.binding.extend_down"),
             TuiInputAction::SelectDown,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -379,7 +380,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("shift-down"),
         EditableBinding::new(
             "tui:input:select_word_left",
-            "Extend selection one word left",
+            localization::text("tui.input.binding.extend_word_left"),
             TuiInputAction::SelectWordLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -387,7 +388,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-shift-left"),
         EditableBinding::new(
             "tui:input:select_word_left",
-            "Extend selection one word left",
+            localization::text("tui.input.binding.extend_word_left"),
             TuiInputAction::SelectWordLeft,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -395,7 +396,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-shift-left"),
         EditableBinding::new(
             "tui:input:select_word_right",
-            "Extend selection one word right",
+            localization::text("tui.input.binding.extend_word_right"),
             TuiInputAction::SelectWordRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -403,7 +404,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-shift-right"),
         EditableBinding::new(
             "tui:input:select_word_right",
-            "Extend selection one word right",
+            localization::text("tui.input.binding.extend_word_right"),
             TuiInputAction::SelectWordRight,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -411,7 +412,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("alt-shift-right"),
         EditableBinding::new(
             "tui:input:select_all",
-            "Select all text",
+            localization::text("tui.input.binding.select_all"),
             TuiInputAction::SelectAll,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -420,7 +421,7 @@ pub fn init(app: &mut AppContext) {
         // ── Kill / yank ─────────────────────────────────────────────────
         EditableBinding::new(
             "tui:input:kill_to_line_end",
-            "Delete to end of line",
+            localization::text("tui.input.binding.delete_to_line_end"),
             TuiInputAction::KillToLineEnd,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -428,7 +429,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-k"),
         EditableBinding::new(
             "tui:input:kill_to_line_start",
-            "Delete to start of line",
+            localization::text("tui.input.binding.delete_to_line_start"),
             TuiInputAction::KillToLineStart,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -436,21 +437,29 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-u"),
         EditableBinding::new(
             "tui:input:yank",
-            "Paste the last deleted text",
+            localization::text("tui.input.binding.paste_deleted"),
             TuiInputAction::Yank,
         )
         .with_context_predicate(id!("TuiInputView"))
         .with_group(TUI_BINDING_GROUP)
         .with_key_binding("ctrl-y"),
         // ── Undo / redo ─────────────────────────────────────────────────
-        EditableBinding::new("tui:input:undo", "Undo", TuiInputAction::Undo)
-            .with_context_predicate(id!("TuiInputView"))
-            .with_group(TUI_BINDING_GROUP)
-            .with_key_binding("ctrl-z"),
-        EditableBinding::new("tui:input:redo", "Redo", TuiInputAction::Redo)
-            .with_context_predicate(id!("TuiInputView"))
-            .with_group(TUI_BINDING_GROUP)
-            .with_key_binding("ctrl-shift-Z"),
+        EditableBinding::new(
+            "tui:input:undo",
+            localization::text("tui.input.binding.undo"),
+            TuiInputAction::Undo,
+        )
+        .with_context_predicate(id!("TuiInputView"))
+        .with_group(TUI_BINDING_GROUP)
+        .with_key_binding("ctrl-z"),
+        EditableBinding::new(
+            "tui:input:redo",
+            localization::text("tui.input.binding.redo"),
+            TuiInputAction::Redo,
+        )
+        .with_context_predicate(id!("TuiInputView"))
+        .with_group(TUI_BINDING_GROUP)
+        .with_key_binding("ctrl-shift-Z"),
     ]);
 }
 
