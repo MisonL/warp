@@ -5377,6 +5377,12 @@ fn shared_session_agent_notifications_and_aws_status_use_catalog_copy() {
                 "Execute rewind to before this point",
                 "Click on a block attached as context to this AI query.",
                 "Use file picker to select a git repository",
+                "You can press {} to Warpify this {} for more Warp features.",
+                "You can Warpify this {lowercase_title} for more Warp features.",
+                "format!(\"{title} recognized.\")",
+                ".notifications_error_banner_title()",
+                ".unwrap_or(\"Error sending notification\")",
+                "Make sure you have enabled access for Warp notifications",
             ][..],
         ),
         (

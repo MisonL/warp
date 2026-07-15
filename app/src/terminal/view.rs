@@ -9955,12 +9955,19 @@ impl TerminalView {
         }
 
         let a11y_message = match &warpify_keybinding {
-            Some(keystroke) => format!(
-                "You can press {} to Warpify this {} for more Warp features.",
-                keystroke.displayed(),
-                lowercase_title
+            Some(keystroke) => {
+                let keybinding = keystroke.displayed();
+                localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.warpify.a11y.with_keybinding",
+                    &[("keybinding", &keybinding), ("title", lowercase_title)],
+                )
+            }
+            None => localization::text_for_app_with_args(
+                ctx,
+                "terminal.warpify.a11y.without_keybinding",
+                &[("title", lowercase_title)],
             ),
-            None => format!("You can Warpify this {lowercase_title} for more Warp features."),
         };
 
         model
@@ -9970,7 +9977,11 @@ impl TerminalView {
             )));
 
         let a11y_content = AccessibilityContent::new(
-            format!("{title} recognized."),
+            localization::text_for_app_with_args(
+                ctx,
+                "terminal.warpify.a11y.recognized",
+                &[("title", title)],
+            ),
             a11y_message,
             WarpA11yRole::TextRole,
         );
@@ -10118,17 +10129,16 @@ impl TerminalView {
                 InlineBannerType::NotificationsError,
             ));
 
-        let banner_title = self
+        let error = self
             .inline_banners_state
             .notifications_error_banner
             .error
-            .as_ref()
-            .map(|e| e.notifications_error_banner_title())
-            .unwrap_or("Error sending notification");
+            .as_ref();
+        let banner_title = Self::notification_error_banner_title(error, ctx);
 
         let a11y_content = AccessibilityContent::new(
             banner_title,
-            "Make sure you have enabled access for Warp notifications in System Preferences.",
+            localization::text_for_app(ctx, "terminal.notification.error.permissions_message"),
             WarpA11yRole::TextRole,
         );
         ctx.emit_a11y_content(a11y_content);
@@ -10136,6 +10146,22 @@ impl TerminalView {
         send_telemetry_from_ctx!(TelemetryEvent::ShowNotificationsErrorBanner, ctx);
 
         ctx.notify();
+    }
+
+    fn notification_error_banner_title(
+        error: Option<&NotificationSendError>,
+        app: &AppContext,
+    ) -> String {
+        match error {
+            Some(
+                NotificationSendError::PermissionsDenied
+                | NotificationSendError::PermissionsNotYetGranted,
+            ) => localization::text_for_app(app, "terminal.notification.error.permissions_title"),
+            Some(NotificationSendError::Other { .. }) => {
+                localization::text_for_app(app, "terminal.notification.error.other_title")
+            }
+            None => localization::text_for_app(app, "terminal.notification.error.title"),
+        }
     }
 
     fn insert_command_correction(&mut self, correction: &Correction, ctx: &mut ViewContext<Self>) {
@@ -23876,18 +23902,18 @@ impl TerminalView {
             .notifications_error_banner
             .banner_type
         {
-            let banner_title = self
-                .inline_banners_state
-                .notifications_error_banner
-                .error
-                .as_ref()
-                .map(|e| e.notifications_error_banner_title())
-                .unwrap_or("Error sending notification");
+            let banner_title = Self::notification_error_banner_title(
+                self.inline_banners_state
+                    .notifications_error_banner
+                    .error
+                    .as_ref(),
+                app,
+            );
 
             inline_banners.insert(
                 state.banner_id,
                 render_inline_notifications_error_banner(
-                    banner_title,
+                    &banner_title,
                     state,
                     &self.inline_banners_state.notifications_error_banner.error,
                     appearance,
@@ -27031,8 +27057,8 @@ impl TypedActionView for TerminalView {
                     keybinding_name_to_keystroke("terminal:warpify_subshell", ctx);
                 self.show_warpify_banner(
                     command.to_owned(),
-                    "Subshell",
-                    "subshell",
+                    &localization::text_for_app(ctx, "terminal.warpify.title.subshell"),
+                    &localization::text_for_app(ctx, "terminal.warpify.title.subshell_lowercase"),
                     warpify_keybinding,
                     TelemetryEvent::ShowSubshellBanner,
                     ctx,
