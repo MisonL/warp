@@ -594,6 +594,8 @@
   "agent_sdk.driver.output.skill_read_error": "Skill read error: {error}",
   "agent_sdk.driver.output.skill_read_successfully": "Skill read successfully: {file_name}",
   "agent_sdk.driver.output.starting_agent": "Starting agent: {name}",
+  "agent_sdk.driver.output.starting_recording": "Starting recording",
+  "agent_sdk.driver.output.stopping_recording": "Stopping recording {recording_id}",
   "agent_sdk.driver.output.updated_todo_list": "Updated TODO list:",
   "agent_sdk.driver.output.upload_artifact_failed": "Uploading artifact failed: {error}",
   "agent_sdk.driver.output.uploaded_artifact": "Uploaded artifact {artifact_uid}",

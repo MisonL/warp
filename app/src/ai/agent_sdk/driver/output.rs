@@ -742,10 +742,18 @@ pub mod text {
                         )?;
                     }
                     AIAgentActionType::StartRecording { .. } => {
-                        writeln!(w, "Starting recording")?;
+                        write_text_line(w, locale, "agent_sdk.driver.output.starting_recording")?;
                     }
                     AIAgentActionType::StopRecording { recording_id } => {
-                        writeln!(w, "Stopping recording {recording_id}")?;
+                        writeln!(
+                            w,
+                            "{}",
+                            text_with_args_for_locale(
+                                locale,
+                                "agent_sdk.driver.output.stopping_recording",
+                                &[("recording_id", recording_id)],
+                            )
+                        )?;
                     }
                     AIAgentActionType::ReadSkill(request) => {
                         let skill = request.skill.to_string();

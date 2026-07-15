@@ -594,6 +594,8 @@
   "agent_sdk.driver.output.skill_read_error": "读取技能出错：{error}",
   "agent_sdk.driver.output.skill_read_successfully": "已成功读取技能：{file_name}",
   "agent_sdk.driver.output.starting_agent": "正在启动 Agent：{name}",
+  "agent_sdk.driver.output.starting_recording": "开始录制",
+  "agent_sdk.driver.output.stopping_recording": "正在停止录制 {recording_id}",
   "agent_sdk.driver.output.updated_todo_list": "已更新 TODO 列表：",
   "agent_sdk.driver.output.upload_artifact_failed": "上传产物失败：{error}",
   "agent_sdk.driver.output.uploaded_artifact": "已上传产物 {artifact_uid}",

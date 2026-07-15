@@ -5146,6 +5146,8 @@ fn agent_sdk_text_output_uses_catalog_copy() {
         "agent_sdk.driver.output.skill_read_error",
         "agent_sdk.driver.output.skill_read_successfully",
         "agent_sdk.driver.output.starting_agent",
+        "agent_sdk.driver.output.starting_recording",
+        "agent_sdk.driver.output.stopping_recording",
         "agent_sdk.driver.output.updated_todo_list",
         "agent_sdk.driver.output.upload_artifact_failed",
         "agent_sdk.driver.output.uploaded_artifact",
@@ -5654,6 +5656,8 @@ fn agent_sdk_text_output_uses_catalog_copy() {
             &[
                 "Command was not allowed to run due to presence on denylist",
                 "Failed to write to command.",
+                "Starting recording",
+                "Stopping recording",
             ][..],
         ),
         (
