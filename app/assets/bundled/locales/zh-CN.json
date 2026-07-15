@@ -2559,6 +2559,8 @@
   "custom_router_editor.rule_label": "规则",
   "custom_router_editor.rule_placeholder": "描述何时使用此模型...",
   "custom_router_editor.rules.description": "规则是描述何时使用特定模型的自定义提示。Warp 会智能地将任务与这些规则匹配。",
+  "custom_router_editor.rules.count.plural": "{count} 条规则",
+  "custom_router_editor.rules.count.singular": "1 条规则",
   "custom_router_editor.rules.order": "规则按从上到下的顺序匹配；列表中位置越高，优先级越高。",
   "custom_router_editor.section.default_model": "默认模型",
   "custom_router_editor.section.models": "模型",

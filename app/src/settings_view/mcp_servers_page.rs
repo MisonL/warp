@@ -321,7 +321,7 @@ impl MCPServersSettingsPageView {
                 "Ignoring MCP deeplink autoinstall for '{autoinstall_param}': installation modal already open"
             );
             self.add_error_toast(
-                "Finish the current MCP install before opening another install link.".to_string(),
+                localization::text_for_app(ctx, "settings.mcp.page.error.finish_current_install"),
                 ctx,
             );
             return;

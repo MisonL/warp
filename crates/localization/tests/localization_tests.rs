@@ -4347,6 +4347,31 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
             ][..],
         ),
         (
+            "app/src/settings_view/custom_router_view.rs",
+            &["\"1 rule\".to_string()", "format!(\"{rule_count} rules\")"][..],
+        ),
+        (
+            "app/src/settings_view/mcp_servers_page.rs",
+            &["Finish the current MCP install before opening another install link."][..],
+        ),
+        (
+            "app/src/workspace/view/right_panel.rs",
+            &[".unwrap_or_else(|| \"Unknown\".to_string())"][..],
+        ),
+        (
+            "app/src/terminal/view/pending_user_query.rs",
+            &[".unwrap_or_else(|| \"User\".to_owned())"][..],
+        ),
+        (
+            "app/src/ai/blocklist/agent_view/agent_view_block.rs",
+            &[
+                "Some(\"Open in different pane\")",
+                "Some(\"Restored\")",
+                "Some(\"Continued\")",
+                ".unwrap_or(\"Untitled conversation\".to_string())",
+            ][..],
+        ),
+        (
             "app/src/settings_view/execution_profile_view.rs",
             &[
                 "\"Run agents:\"",

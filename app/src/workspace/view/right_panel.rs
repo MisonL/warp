@@ -356,9 +356,11 @@ impl CodeReviewState {
                 .available_repos
                 .iter()
                 .map(|repo_path| {
-                    let display_name = self
-                        .get_repo_display_name(repo_path, ctx)
-                        .unwrap_or_else(|| "Unknown".to_string());
+                    let display_name =
+                        self.get_repo_display_name(repo_path, ctx)
+                            .unwrap_or_else(|| {
+                                crate::localization::text_for_app(ctx, "code_review.repo.unknown")
+                            });
                     DropdownItem::new(
                         display_name,
                         RightPanelAction::SelectRepo {

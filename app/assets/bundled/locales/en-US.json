@@ -2559,6 +2559,8 @@
   "custom_router_editor.rule_label": "Rule",
   "custom_router_editor.rule_placeholder": "Describe when to use this model...",
   "custom_router_editor.rules.description": "Rules are custom prompts that describe when to use a specific model. Warp intelligently matches your tasks against these rules.",
+  "custom_router_editor.rules.count.plural": "{count} rules",
+  "custom_router_editor.rules.count.singular": "1 rule",
   "custom_router_editor.rules.order": "Rules are matched from top to bottom; rules higher in the list take precedence over those below.",
   "custom_router_editor.section.default_model": "Default model",
   "custom_router_editor.section.models": "Models",

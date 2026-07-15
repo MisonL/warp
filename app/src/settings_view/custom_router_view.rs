@@ -337,9 +337,13 @@ fn render_targets_row(
             let rule_count = p.rules.len();
             if rule_count > 0 {
                 let label = if rule_count == 1 {
-                    "1 rule".to_string()
+                    localization::text_for_app(app, "custom_router_editor.rules.count.singular")
                 } else {
-                    format!("{rule_count} rules")
+                    localization::text_for_app_with_args(
+                        app,
+                        "custom_router_editor.rules.count.plural",
+                        &[("count", &rule_count.to_string())],
+                    )
                 };
                 flex.add_child(
                     Container::new(
