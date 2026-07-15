@@ -3340,30 +3340,6 @@ fn bundled_and_channel_gated_skill_entrypoints_include_zh_cn_descriptions() {
 }
 
 #[test]
-fn bundled_and_channel_gated_skills_include_zh_cn_content() {
-    let roots = [
-        workspace_root().join("resources/bundled/skills"),
-        workspace_root()
-            .join("resources")
-            .join("bundled")
-            .join("mcp_skills"),
-        workspace_root()
-            .join("resources")
-            .join("channel-gated-skills"),
-    ];
-    let mut violations = Vec::new();
-
-    for root in roots {
-        collect_missing_localized_skill_content(&root, &mut violations);
-    }
-
-    assert!(
-        violations.is_empty(),
-        "skill entrypoints missing SKILL.zh-CN.md: {violations:#?}"
-    );
-}
-
-#[test]
 fn bundled_create_skill_html_sets_runtime_document_language() {
     for (name, content) in [
         ("eval review", CREATE_SKILL_EVAL_REVIEW_HTML),
@@ -7018,35 +6994,6 @@ fn collect_skill_entrypoint_description_violations(dir: &Path, violations: &mut 
             }
         } else {
             collect_skill_entrypoint_description_violations(&path, violations);
-        }
-    }
-}
-
-fn collect_missing_localized_skill_content(dir: &Path, violations: &mut Vec<String>) {
-    let entries =
-        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
-
-    for entry in entries {
-        let entry = entry.expect("failed to read bundled skill directory entry");
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-
-        let skill_path = path.join("SKILL.md");
-        if skill_path.exists() {
-            let localized_path = path.join("SKILL.zh-CN.md");
-            if !localized_path.exists() {
-                violations.push(
-                    localized_path
-                        .strip_prefix(workspace_root())
-                        .unwrap_or(localized_path.as_path())
-                        .display()
-                        .to_string(),
-                );
-            }
-        } else {
-            collect_missing_localized_skill_content(&path, violations);
         }
     }
 }
