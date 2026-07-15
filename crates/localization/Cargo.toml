@@ -12,6 +12,7 @@ schemars = "1"
 serde.workspace = true
 serde_json.workspace = true
 settings_value = { workspace = true, features = ["derive"] }
+sys-locale.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

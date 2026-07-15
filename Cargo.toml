@@ -395,6 +395,7 @@ sysinfo = { version = "0.37.0", default-features = false, features = [
   "system",
   "multithread",
 ] }
+sys-locale = "0.3.2"
 windows = { version = "0.62.2", features = [
   "Win32",
   "Win32_System",

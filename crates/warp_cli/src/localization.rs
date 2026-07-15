@@ -3,7 +3,8 @@ use std::sync::LazyLock;
 use anyhow::Context as _;
 use clap::Command;
 use warp_localization::{
-    AppLanguage, Catalog, CatalogBundle, LocaleId, TranslationSource, replace_placeholders,
+    native_locale_candidates, replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId,
+    TranslationSource,
 };
 
 static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {
@@ -93,7 +94,11 @@ fn command_key(parent_key: &str, name: &str) -> String {
 }
 
 fn current_locale() -> LocaleId {
-    AppLanguage::System.effective_locale_from_candidates(environment_locale_candidates())
+    AppLanguage::System.effective_locale_from_candidates(
+        environment_locale_candidates()
+            .into_iter()
+            .chain(native_locale_candidates()),
+    )
 }
 
 fn environment_locale_candidates() -> Vec<String> {

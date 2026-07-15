@@ -15664,6 +15664,7 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.8.26",
  "settings_value",
+ "sys-locale",
  "thiserror 2.0.17",
 ]
 

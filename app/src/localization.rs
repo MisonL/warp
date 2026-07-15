@@ -4,7 +4,8 @@ use std::sync::LazyLock;
 use anyhow::Context as _;
 use parking_lot::RwLock;
 use warp_localization::{
-    replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId, TranslationSource,
+    native_locale_candidates, replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId,
+    TranslationSource,
 };
 use warpui::{AppContext, AssetProvider as _, Entity, ModelContext, SingletonEntity as _};
 
@@ -113,7 +114,7 @@ fn load_catalog(locale: LocaleId) -> anyhow::Result<Catalog> {
 }
 
 fn system_locale_candidates() -> Vec<String> {
-    platform_locale_candidates()
+    native_locale_candidates()
         .into_iter()
         .chain(environment_locale_candidates())
         .collect()
@@ -158,80 +159,6 @@ fn environment_locale_candidates_from(mut get: impl FnMut(&str) -> Option<String
             })
         })
         .collect()
-}
-
-#[cfg(target_os = "macos")]
-fn platform_locale_candidates() -> Vec<String> {
-    use objc::rc::autoreleasepool;
-    use objc::runtime::Object;
-    use objc::{class, msg_send, sel, sel_impl};
-    use warpui::platform::mac::utils::nsstring_as_str;
-
-    autoreleasepool(|| unsafe {
-        let locale_class = class!(NSLocale);
-        let languages: *const Object = msg_send![locale_class, preferredLanguages];
-        if languages.is_null() {
-            return Vec::new();
-        }
-
-        let count: usize = msg_send![languages, count];
-        (0..count)
-            .filter_map(|index| {
-                let language: *const Object = msg_send![languages, objectAtIndex: index];
-                if language.is_null() {
-                    return None;
-                }
-                nsstring_as_str(language).map(str::to_owned).ok()
-            })
-            .collect()
-    })
-}
-
-#[cfg(target_os = "windows")]
-fn platform_locale_candidates() -> Vec<String> {
-    use windows::core::PWSTR;
-    use windows::Win32::Globalization::{GetUserPreferredUILanguages, MUI_LANGUAGE_NAME};
-
-    let mut language_count = 0;
-    let mut buffer_len = 0;
-    if unsafe {
-        GetUserPreferredUILanguages(
-            MUI_LANGUAGE_NAME,
-            &mut language_count,
-            None,
-            &mut buffer_len,
-        )
-    }
-    .is_err()
-        || buffer_len == 0
-    {
-        return Vec::new();
-    }
-
-    let mut buffer = vec![0u16; buffer_len as usize];
-    if unsafe {
-        GetUserPreferredUILanguages(
-            MUI_LANGUAGE_NAME,
-            &mut language_count,
-            Some(PWSTR(buffer.as_mut_ptr())),
-            &mut buffer_len,
-        )
-    }
-    .is_err()
-    {
-        return Vec::new();
-    }
-
-    buffer
-        .split(|value| *value == 0)
-        .filter(|language| !language.is_empty())
-        .filter_map(|language| String::from_utf16(language).ok())
-        .collect()
-}
-
-#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-fn platform_locale_candidates() -> Vec<String> {
-    Vec::new()
 }
 
 pub(crate) struct LocalizationUpdater;

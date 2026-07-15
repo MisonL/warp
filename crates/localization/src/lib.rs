@@ -4,6 +4,18 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+pub fn native_locale_candidates() -> Vec<String> {
+    #[cfg(any(target_vendor = "apple", windows))]
+    {
+        sys_locale::get_locales().collect()
+    }
+
+    #[cfg(not(any(target_vendor = "apple", windows)))]
+    {
+        Vec::new()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LocaleId {
     EnUs,

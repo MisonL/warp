@@ -2,7 +2,9 @@ use std::sync::LazyLock;
 
 use anyhow::Context as _;
 use parking_lot::RwLock;
-use warp_localization::{replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId};
+use warp_localization::{
+    native_locale_candidates, replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId,
+};
 use warpui_core::AppContext;
 
 static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {
@@ -49,7 +51,11 @@ pub(crate) fn sync_from_app(app: &AppContext) -> bool {
 }
 
 fn environment_locale() -> LocaleId {
-    AppLanguage::System.effective_locale_from_candidates(environment_locale_candidates())
+    AppLanguage::System.effective_locale_from_candidates(
+        environment_locale_candidates()
+            .into_iter()
+            .chain(native_locale_candidates()),
+    )
 }
 
 fn replace_current_locale(cache: &RwLock<LocaleId>, locale: LocaleId) -> bool {
