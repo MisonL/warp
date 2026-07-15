@@ -9,7 +9,7 @@ use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::model::CoreEditorModel;
 use warpui::App;
 
-use super::{deltas_for, verb_and_name};
+use super::{deltas_for, verb_and_name, FileEditVerb};
 
 fn delta(range: std::ops::Range<usize>, insertion: &str) -> DiffDelta {
     DiffDelta {
@@ -36,11 +36,14 @@ fn verbs_follow_the_diff_op() {
         "/tmp/a/new.rs".to_owned(),
         DiffType::creation("fn main() {}\n".to_owned()),
     );
-    assert_eq!(verb_and_name(&create), ("Created", "new.rs".to_owned()));
+    assert_eq!(
+        verb_and_name(&create),
+        (FileEditVerb::Created, "new.rs".to_owned())
+    );
 
     assert_eq!(
         verb_and_name(&update_diff("/tmp/a/lib.rs", None)),
-        ("Updated", "lib.rs".to_owned())
+        (FileEditVerb::Updated, "lib.rs".to_owned())
     );
 
     let delete = FileDiff::new(
@@ -50,19 +53,22 @@ fn verbs_follow_the_diff_op() {
             delta: delta(1..2, ""),
         },
     );
-    assert_eq!(verb_and_name(&delete), ("Deleted", "old.rs".to_owned()));
+    assert_eq!(
+        verb_and_name(&delete),
+        (FileEditVerb::Deleted, "old.rs".to_owned())
+    );
 }
 
 #[test]
 fn renames_display_old_and_new_names() {
     assert_eq!(
         verb_and_name(&update_diff("/tmp/a/old.rs", Some("/tmp/a/new.rs"))),
-        ("Updated", "old.rs → new.rs".to_owned())
+        (FileEditVerb::Updated, "old.rs → new.rs".to_owned())
     );
     // A rename to the same file name (e.g. a directory move) shows one name.
     assert_eq!(
         verb_and_name(&update_diff("/tmp/a/lib.rs", Some("/tmp/b/lib.rs"))),
-        ("Updated", "lib.rs".to_owned())
+        (FileEditVerb::Updated, "lib.rs".to_owned())
     );
 }
 
