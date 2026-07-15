@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde_json::json;
+use serde_yaml::Value as YamlValue;
 use settings_value::SettingsValue as _;
 use warp_localization::{
     replace_placeholders, settings_schema_translation_key, AppLanguage, Catalog, CatalogBundle,
@@ -3336,6 +3337,31 @@ fn bundled_and_channel_gated_skill_entrypoints_include_zh_cn_descriptions() {
     assert!(
         violations.is_empty(),
         "skill entrypoints missing description_zh_CN: {violations:#?}"
+    );
+}
+
+#[test]
+fn bundled_skill_localized_descriptions_preserve_trigger_semantics() {
+    let roots = [
+        workspace_root().join("resources/bundled/skills"),
+        workspace_root()
+            .join("resources")
+            .join("bundled")
+            .join("mcp_skills")
+            .join("figma"),
+        workspace_root()
+            .join("resources")
+            .join("channel-gated-skills"),
+    ];
+    let mut violations = Vec::new();
+
+    for root in roots {
+        collect_skill_description_semantic_violations(&root, &mut violations);
+    }
+
+    assert!(
+        violations.is_empty(),
+        "localized skill descriptions changed trigger semantics: {violations:#?}"
     );
 }
 
@@ -6996,6 +7022,112 @@ fn collect_skill_entrypoint_description_violations(dir: &Path, violations: &mut 
             collect_skill_entrypoint_description_violations(&path, violations);
         }
     }
+}
+
+fn collect_skill_description_semantic_violations(dir: &Path, violations: &mut Vec<String>) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+
+    for entry in entries {
+        let entry = entry.expect("failed to read bundled skill directory entry");
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let skill_path = path.join("SKILL.md");
+        if !skill_path.exists() {
+            collect_skill_description_semantic_violations(&path, violations);
+            continue;
+        }
+
+        let content = fs::read_to_string(&skill_path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", skill_path.display()));
+        let Some(front_matter) = content
+            .strip_prefix("---\n")
+            .and_then(|content| content.split_once("\n---\n").map(|(yaml, _)| yaml))
+        else {
+            violations.push(format!(
+                "{}: missing YAML front matter",
+                skill_path.display()
+            ));
+            continue;
+        };
+        let yaml: YamlValue = serde_yaml::from_str(front_matter)
+            .unwrap_or_else(|err| panic!("failed to parse {}: {err}", skill_path.display()));
+        let Some(mapping) = yaml.as_mapping() else {
+            violations.push(format!(
+                "{}: front matter is not a mapping",
+                skill_path.display()
+            ));
+            continue;
+        };
+        let value = |key: &str| {
+            mapping
+                .get(&YamlValue::String(key.to_owned()))
+                .and_then(YamlValue::as_str)
+        };
+        let Some(description) = value("description") else {
+            violations.push(format!("{}: missing description", skill_path.display()));
+            continue;
+        };
+        let Some(localized) = value("description_zh_CN") else {
+            violations.push(format!(
+                "{}: missing description_zh_CN",
+                skill_path.display()
+            ));
+            continue;
+        };
+
+        if !localized
+            .chars()
+            .any(|ch| ('\u{4e00}'..='\u{9fff}').contains(&ch))
+        {
+            violations.push(format!(
+                "{}: description_zh_CN contains no Simplified Chinese text",
+                skill_path.display()
+            ));
+        }
+
+        for anchor in inline_code_spans(description) {
+            if !localized.contains(&anchor) {
+                violations.push(format!(
+                    "{}: description_zh_CN dropped technical anchor `{anchor}`",
+                    skill_path.display()
+                ));
+            }
+        }
+
+        let skill_name = value("name").unwrap_or_default();
+        let required_phrases: &[&str] = match skill_name {
+            "claude-api" => &[
+                "prompt caching",
+                "Claude 4.5",
+                "Claude 4.6",
+                "Claude 4.7",
+                "cache hit rate",
+                "provider-neutral",
+            ],
+            "figma-use" => &["绝不能", "难以调试"],
+            "verify-ui-change-in-cloud" => &["仅在非沙盒的本地环境"],
+            _ => &[],
+        };
+        for phrase in required_phrases {
+            if !localized.contains(phrase) {
+                violations.push(format!(
+                    "{}: description_zh_CN dropped required trigger phrase `{phrase}`",
+                    skill_path.display()
+                ));
+            }
+        }
+    }
+}
+
+fn inline_code_spans(text: &str) -> BTreeSet<&str> {
+    text.split('`')
+        .enumerate()
+        .filter_map(|(index, span)| (index % 2 == 1 && !span.is_empty()).then_some(span))
+        .collect()
 }
 
 fn collect_direct_ui_literal_violations_with_patterns(
