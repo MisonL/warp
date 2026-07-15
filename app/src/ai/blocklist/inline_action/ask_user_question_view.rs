@@ -49,6 +49,7 @@ use crate::ai::blocklist::inline_action::requested_action::CTRL_C_KEYSTROKE;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::AskUserQuestionPermission;
+use crate::localization::LocalizationUpdater;
 use crate::terminal::input::message_bar::common::{
     render_standard_message, standard_message_bar_height, styles,
 };
@@ -87,6 +88,22 @@ fn ask_user_question_header_height(appearance: &Appearance, app: &AppContext) ->
 
 fn ask_user_question_auto_advance_enabled(is_multiselect: bool, is_last_question: bool) -> bool {
     is_last_question || !is_multiselect
+}
+
+fn ask_user_question_permission_label(
+    permission: AskUserQuestionPermission,
+    app: &AppContext,
+) -> String {
+    let key = match permission {
+        AskUserQuestionPermission::Never => "settings.execution_profile.permission.never_ask",
+        AskUserQuestionPermission::AskExceptInAutoApprove => {
+            "settings.execution_profile.permission.ask_unless_auto_approve"
+        }
+        AskUserQuestionPermission::AlwaysAsk | AskUserQuestionPermission::Unknown => {
+            "settings.execution_profile.permission.always_ask"
+        }
+    };
+    localization::text_for_app(app, key)
 }
 
 pub fn init(app: &mut AppContext) {
@@ -718,6 +735,7 @@ pub(crate) struct AskUserQuestionView {
     /// Lazily created dropdown for the speedbump footer; owned here so the
     /// view handle (and its event subscription) survives re-renders.
     speedbump_dropdown: Option<ViewHandle<Dropdown<AskUserQuestionViewAction>>>,
+    speedbump_permission: AskUserQuestionPermission,
 }
 
 impl AskUserQuestionView {
@@ -779,6 +797,7 @@ impl AskUserQuestionView {
             next_button,
             speedbump_settings_link_handle: None,
             speedbump_dropdown: None,
+            speedbump_permission: AskUserQuestionPermission::default(),
         };
 
         ctx.subscribe_to_model(&action_model, |me, _, event, ctx| {
@@ -792,6 +811,11 @@ impl AskUserQuestionView {
             }
 
             ctx.emit(AskUserQuestionViewEvent::Updated);
+            ctx.notify();
+        });
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_speedbump_dropdown_items(ctx);
             ctx.notify();
         });
 
@@ -838,23 +862,39 @@ impl AskUserQuestionView {
             dropdown.set_vertical_margin(0., ctx);
             dropdown.set_top_bar_height(24., ctx);
             dropdown.set_main_axis_size(MainAxisSize::Min, ctx);
-            let permissions = [
-                AskUserQuestionPermission::Never,
-                AskUserQuestionPermission::AskExceptInAutoApprove,
-                AskUserQuestionPermission::AlwaysAsk,
-            ];
-            dropdown.set_items(
-                permissions
-                    .into_iter()
-                    .map(|p| {
-                        DropdownItem::new(p.label(), AskUserQuestionViewAction::SetPermission(p))
-                    })
-                    .collect(),
-                ctx,
-            );
             dropdown
         });
         self.speedbump_dropdown = Some(view);
+        self.refresh_speedbump_dropdown_items(ctx);
+    }
+
+    fn refresh_speedbump_dropdown_items(&self, ctx: &mut ViewContext<Self>) {
+        let Some(dropdown) = self.speedbump_dropdown.clone() else {
+            return;
+        };
+        let selected_permission = self.speedbump_permission;
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(
+                [
+                    AskUserQuestionPermission::Never,
+                    AskUserQuestionPermission::AskExceptInAutoApprove,
+                    AskUserQuestionPermission::AlwaysAsk,
+                ]
+                .into_iter()
+                .map(|permission| {
+                    DropdownItem::new(
+                        ask_user_question_permission_label(permission, ctx),
+                        AskUserQuestionViewAction::SetPermission(permission),
+                    )
+                })
+                .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_action(
+                AskUserQuestionViewAction::SetPermission(selected_permission),
+                ctx,
+            );
+        });
     }
 
     /// Updates the dropdown's selected item to match the active execution profile.
@@ -870,8 +910,14 @@ impl AskUserQuestionView {
             .active_profile(Some(terminal_view_id), ctx)
             .data()
             .ask_user_question;
+        let permission = match permission {
+            AskUserQuestionPermission::Unknown => AskUserQuestionPermission::AlwaysAsk,
+            permission => permission,
+        };
+        self.speedbump_permission = permission;
         dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_selected_by_name(permission.label(), ctx);
+            dropdown
+                .set_selected_by_action(AskUserQuestionViewAction::SetPermission(permission), ctx);
         });
     }
 

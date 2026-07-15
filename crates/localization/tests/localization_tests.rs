@@ -4256,7 +4256,11 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
         ),
         (
             "app/src/ai/blocklist/inline_action/ask_user_question_view.rs",
-            &["AskUserQuestionAnswerItem::display_text"][..],
+            &[
+                "AskUserQuestionAnswerItem::display_text",
+                "DropdownItem::new(p.label()",
+                "set_selected_by_name(permission.label()",
+            ][..],
         ),
     ];
 
