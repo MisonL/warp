@@ -232,7 +232,7 @@ use crate::input_suggestions::{
     Event as InputSuggestionsEvent, HistoryInputSuggestion, InputSuggestions,
     TabCompletionsPreselectOption,
 };
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::network::NetworkStatus;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::PaneGroupAction;
@@ -376,9 +376,8 @@ pub const DEBOUNCE_AI_QUERY_PREDICTION_PERIOD: Duration = Duration::from_millis(
 pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_MAX_HEIGHT: f32 = 236.;
 pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_TOP_PADDING: f32 = 10.;
 pub(super) const CLI_AGENT_RICH_INPUT_EDITOR_BOTTOM_PADDING: f32 = 8.;
-pub(super) const CLI_AGENT_RICH_INPUT_HINT_TEXT: &str = "Tell the agent what to build...";
-
-const CLOUD_MODE_V2_HINT_TEXT: &str = "Kick off a cloud agent";
+const CLI_AGENT_RICH_INPUT_HINT_KEY: &str = "terminal.input.hint.tell_agent_what_to_build";
+const CLOUD_MODE_V2_HINT_KEY: &str = "terminal.input.hint.kick_off_cloud_agent";
 const SHORT_CIRCUIT_HIGHLIGHTING_ACTIONS: [Option<PlainTextEditorViewAction>; 7] = [
     Some(PlainTextEditorViewAction::Space),
     Some(PlainTextEditorViewAction::NonExpandingSpace),
@@ -402,61 +401,61 @@ pub const COMPLETIONS_MENU_WIDTH: f32 = 330.;
 pub const OPEN_COMPLETIONS_KEYBINDING_NAME: &str = "input:open_completion_suggestions";
 pub const INPUT_A11Y_LABEL: &str = "Command Input.";
 pub const INPUT_A11Y_HELPER: &str = "Input your shell command, press enter to execute. Press cmd-up to navigate to output of previously executed commands. Press cmd-l to re-focus command input.";
-pub const AI_COMMAND_SEARCH_HINT_TEXT: &str = "Type '#' for AI command suggestions";
-
-const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT: &str = "Run commands";
+const AI_COMMAND_SEARCH_HINT_KEY: &str = "terminal.input.hint.ai_command_search";
+const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_KEY: &str =
+    "terminal.input.hint.run_commands";
 
 // Rotating hint text options for new Agent Mode conversations
-const AGENT_MODE_HINT_OPTIONS: &[&str] = &[
-    "Warp anything e.g. Deploy my React app to Vercel and set up environment variables",
-    "Warp anything e.g. Help me debug why my Python tests are failing in CI",
-    "Warp anything e.g. Set up a new microservice with Docker and create the deployment pipeline",
-    "Warp anything e.g. Find and fix the memory leak in my Node.js application",
-    "Warp anything e.g. Create a backup script for my PostgreSQL database and schedule it",
-    "Warp anything e.g. Help me migrate my data from MySQL to PostgreSQL",
-    "Warp anything e.g. Set up monitoring and alerts for my AWS infrastructure",
-    "Warp anything e.g. Build a REST API for my mobile app using FastAPI",
-    "Warp anything e.g. Help me optimize my SQL queries that are running slowly",
-    "Warp anything e.g. Create a GitHub Actions workflow to automatically deploy on merge",
-    "Warp anything e.g. Set up Redis caching for my web application",
-    "Warp anything e.g. Help me troubleshoot why my Kubernetes pods keep crashing",
-    "Warp anything e.g. Build a data pipeline to process CSV files and load them into BigQuery",
-    "Warp anything e.g. Set up SSL certificates and configure HTTPS for my domain",
-    "Warp anything e.g. Help me refactor this legacy code to use modern design patterns",
-    "Warp anything e.g. Create unit tests for my authentication service",
-    "Warp anything e.g. Set up log aggregation with ELK stack for my distributed system",
-    "Warp anything e.g. Help me implement OAuth2 authentication in my Express.js app",
-    "Warp anything e.g. Optimize my Docker images to reduce build times and size",
-    "Warp anything e.g. Set up A/B testing infrastructure for my web application",
+const AGENT_MODE_HINT_KEYS: &[&str] = &[
+    "terminal.input.agent_hint.deploy_react_vercel",
+    "terminal.input.agent_hint.help_debug_python_tests",
+    "terminal.input.agent_hint.setup_microservice_docker",
+    "terminal.input.agent_hint.fix_node_memory_leak",
+    "terminal.input.agent_hint.backup_postgres",
+    "terminal.input.agent_hint.migrate_mysql_postgres",
+    "terminal.input.agent_hint.monitor_aws",
+    "terminal.input.agent_hint.build_fastapi",
+    "terminal.input.agent_hint.optimize_sql",
+    "terminal.input.agent_hint.github_actions_deploy",
+    "terminal.input.agent_hint.redis_caching",
+    "terminal.input.agent_hint.troubleshoot_kubernetes",
+    "terminal.input.agent_hint.bigquery_pipeline",
+    "terminal.input.agent_hint.configure_https",
+    "terminal.input.agent_hint.refactor_legacy",
+    "terminal.input.agent_hint.create_auth_tests",
+    "terminal.input.agent_hint.elk_logs",
+    "terminal.input.agent_hint.oauth_express",
+    "terminal.input.agent_hint.optimize_docker",
+    "terminal.input.agent_hint.ab_testing",
 ];
 
-fn get_agent_mode_new_conversation_hint_text() -> &'static str {
+fn get_agent_mode_new_conversation_hint_key() -> &'static str {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static HINT_INDEX: AtomicUsize = AtomicUsize::new(0);
 
-    let index = HINT_INDEX.fetch_add(1, Ordering::Relaxed) % AGENT_MODE_HINT_OPTIONS.len();
-    AGENT_MODE_HINT_OPTIONS[index]
+    let index = HINT_INDEX.fetch_add(1, Ordering::Relaxed) % AGENT_MODE_HINT_KEYS.len();
+    AGENT_MODE_HINT_KEYS[index]
 }
 
-fn get_stable_agent_mode_hint_text(cached_hint: &mut Option<&'static str>) -> &'static str {
-    if let Some(hint) = cached_hint {
-        hint
+fn get_stable_agent_mode_hint_key(cached_key: &mut Option<&'static str>) -> &'static str {
+    if let Some(key) = cached_key {
+        key
     } else {
-        let new_hint = get_agent_mode_new_conversation_hint_text();
-        *cached_hint = Some(new_hint);
-        new_hint
+        let new_key = get_agent_mode_new_conversation_hint_key();
+        *cached_key = Some(new_key);
+        new_key
     }
 }
 
-const AGENT_MODE_AI_ENABLED_STEER_HINT_TEXT_UDI: &str = "Steer the running agent";
-const AGENT_MODE_AI_ENABLED_STEER_HINT_TEXT_CLASSIC: &str =
-    "Steer the running agent, or backspace to exit";
-const AGENT_MODE_AI_ENABLED_QUEUE_HINT_TEXT_UDI: &str = "Queue a follow up for the running agent";
-const AGENT_MODE_AI_ENABLED_QUEUE_HINT_TEXT_CLASSIC: &str =
-    "Queue a follow up for the running agent, or backspace to exit";
-const AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_TEXT_UDI: &str = "Ask a follow up";
-const AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_TEXT_CLASSIC: &str =
-    "Ask a follow up, or backspace to exit";
+const AGENT_MODE_AI_ENABLED_STEER_HINT_KEY_UDI: &str = "terminal.input.hint.steer_running_agent";
+const AGENT_MODE_AI_ENABLED_STEER_HINT_KEY_CLASSIC: &str =
+    "terminal.input.hint.steer_running_agent_classic";
+const AGENT_MODE_AI_ENABLED_QUEUE_HINT_KEY_UDI: &str = "terminal.input.hint.queue_follow_up";
+const AGENT_MODE_AI_ENABLED_QUEUE_HINT_KEY_CLASSIC: &str =
+    "terminal.input.hint.queue_follow_up_classic";
+const AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_KEY_UDI: &str = "terminal.input.hint.ask_follow_up";
+const AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_KEY_CLASSIC: &str =
+    "terminal.input.hint.ask_follow_up_classic";
 
 /// Action name for setting input mode to agent mode
 pub const SET_INPUT_MODE_AGENT_ACTION_NAME: &str = "input:set_mode_agent";
@@ -768,26 +767,34 @@ impl InputSuggestionsMode {
     }
 
     /// Returns the placeholder text for this mode, if it has a custom one.
-    pub fn placeholder_text(&self) -> Option<&'static str> {
+    pub fn placeholder_text_key(&self) -> Option<&'static str> {
         match self {
             InputSuggestionsMode::UserQueryMenu {
                 action: UserQueryMenuAction::ForkFrom,
                 ..
-            } => Some("Search queries"),
+            } => Some("terminal.input.placeholder.search_queries"),
             InputSuggestionsMode::UserQueryMenu {
                 action: UserQueryMenuAction::Rewind,
                 ..
-            } => Some("Search queries to rewind to"),
-            InputSuggestionsMode::ConversationMenu => Some("Search conversations"),
-            InputSuggestionsMode::SkillMenu => Some("Search skills"),
-            InputSuggestionsMode::ModelSelector => Some("Search models"),
-            InputSuggestionsMode::ProfileSelector => Some("Search profiles"),
-            InputSuggestionsMode::SlashCommands if FeatureFlag::AgentView.is_enabled() => {
-                Some("Search commands")
+            } => Some("terminal.input.placeholder.search_queries_to_rewind"),
+            InputSuggestionsMode::ConversationMenu => {
+                Some("terminal.input.placeholder.search_conversations")
             }
-            InputSuggestionsMode::PromptsMenu => Some("Search prompts"),
-            InputSuggestionsMode::IndexedReposMenu => Some("Search indexed repos"),
-            InputSuggestionsMode::PlanMenu { .. } => Some("Search plans"),
+            InputSuggestionsMode::SkillMenu => Some("terminal.input.placeholder.search_skills"),
+            InputSuggestionsMode::ModelSelector => Some("terminal.input.placeholder.search_models"),
+            InputSuggestionsMode::ProfileSelector => {
+                Some("terminal.input.placeholder.search_profiles")
+            }
+            InputSuggestionsMode::SlashCommands if FeatureFlag::AgentView.is_enabled() => {
+                Some("terminal.input.placeholder.search_commands")
+            }
+            InputSuggestionsMode::PromptsMenu => Some("terminal.input.placeholder.search_prompts"),
+            InputSuggestionsMode::IndexedReposMenu => {
+                Some("terminal.input.placeholder.search_indexed_repos")
+            }
+            InputSuggestionsMode::PlanMenu { .. } => {
+                Some("terminal.input.placeholder.search_plans")
+            }
             _ => None,
         }
     }
@@ -1657,7 +1664,7 @@ pub struct Input {
     conn: Option<Arc<Mutex<SqliteConnection>>>,
 
     /// Cached hint text to ensure it remains stable during shell initialization hooks
-    cached_agent_mode_hint_text: Option<&'static str>,
+    cached_agent_mode_hint_key: Option<&'static str>,
 
     predict_am_queries_future_handle: Option<SpawnedFutureHandle>,
 
@@ -2516,6 +2523,10 @@ impl Input {
         let is_shared_session_viewer = model.lock().shared_session_status().is_viewer();
         let handoff_compose_state = ctx.add_model(|_ctx| HandoffComposeState::default());
         ctx.subscribe_to_model(&handoff_compose_state, |me, _, _, ctx| {
+            me.set_zero_state_hint_text(ctx);
+            ctx.notify();
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
             me.set_zero_state_hint_text(ctx);
             ctx.notify();
         });
@@ -3838,7 +3849,7 @@ impl Input {
             inline_history_menu_view,
             cloud_mode_v2_history_menu_view,
             inline_terminal_menu_positioner,
-            cached_agent_mode_hint_text: None,
+            cached_agent_mode_hint_key: None,
             is_editor_empty_on_last_edit: is_editor_empty,
             weak_view_handle: ctx.handle(),
             buy_credits_banner,
@@ -6454,12 +6465,16 @@ impl Input {
             input_model.input_type(),
             input_model.should_run_input_autodetection(app),
         ) {
-            (InputType::Shell, false) => {
-                AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT.to_owned()
-            }
+            (InputType::Shell, false) => localization::text_for_app(
+                app,
+                AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_KEY,
+            ),
             (InputType::Shell, true) => {
                 // Ensure hint text is cached for new conversations
-                get_stable_agent_mode_hint_text(&mut self.cached_agent_mode_hint_text).to_owned()
+                localization::text_for_app(
+                    app,
+                    get_stable_agent_mode_hint_key(&mut self.cached_agent_mode_hint_key),
+                )
             }
             (InputType::AI, _) => {
                 if let Some(conversation) =
@@ -6469,11 +6484,23 @@ impl Input {
                         let agent_name = conversation.agent_name().unwrap_or("child");
                         if conversation.status().is_in_progress() {
                             if is_queue_next_prompt_enabled {
-                                return format!("Queue a follow up for the {agent_name} agent");
+                                return localization::text_for_app_with_args(
+                                    app,
+                                    "terminal.input.hint.child_agent.queue_follow_up",
+                                    &[("agent_name", agent_name)],
+                                );
                             }
-                            return format!("Steer the {agent_name} agent");
+                            return localization::text_for_app_with_args(
+                                app,
+                                "terminal.input.hint.child_agent.steer_running",
+                                &[("agent_name", agent_name)],
+                            );
                         }
-                        return format!("Ask the {agent_name} agent a follow up");
+                        return localization::text_for_app_with_args(
+                            app,
+                            "terminal.input.hint.child_agent.ask_follow_up",
+                            &[("agent_name", agent_name)],
+                        );
                     }
                 }
 
@@ -6489,27 +6516,47 @@ impl Input {
                     Some(status) if status.is_in_progress() => {
                         if is_queue_next_prompt_enabled {
                             if is_udi_enabled {
-                                AGENT_MODE_AI_ENABLED_QUEUE_HINT_TEXT_UDI.to_owned()
+                                localization::text_for_app(
+                                    app,
+                                    AGENT_MODE_AI_ENABLED_QUEUE_HINT_KEY_UDI,
+                                )
                             } else {
-                                AGENT_MODE_AI_ENABLED_QUEUE_HINT_TEXT_CLASSIC.to_owned()
+                                localization::text_for_app(
+                                    app,
+                                    AGENT_MODE_AI_ENABLED_QUEUE_HINT_KEY_CLASSIC,
+                                )
                             }
                         } else if is_udi_enabled {
-                            AGENT_MODE_AI_ENABLED_STEER_HINT_TEXT_UDI.to_owned()
+                            localization::text_for_app(
+                                app,
+                                AGENT_MODE_AI_ENABLED_STEER_HINT_KEY_UDI,
+                            )
                         } else {
-                            AGENT_MODE_AI_ENABLED_STEER_HINT_TEXT_CLASSIC.to_owned()
+                            localization::text_for_app(
+                                app,
+                                AGENT_MODE_AI_ENABLED_STEER_HINT_KEY_CLASSIC,
+                            )
                         }
                     }
                     Some(_) => {
                         if is_udi_enabled {
-                            AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_TEXT_UDI.to_owned()
+                            localization::text_for_app(
+                                app,
+                                AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_KEY_UDI,
+                            )
                         } else {
-                            AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_TEXT_CLASSIC.to_owned()
+                            localization::text_for_app(
+                                app,
+                                AGENT_MODE_AI_ENABLED_FOLLOW_UP_HINT_KEY_CLASSIC,
+                            )
                         }
                     }
                     None => {
                         // Ensure hint text is cached for new conversations
-                        get_stable_agent_mode_hint_text(&mut self.cached_agent_mode_hint_text)
-                            .to_owned()
+                        localization::text_for_app(
+                            app,
+                            get_stable_agent_mode_hint_key(&mut self.cached_agent_mode_hint_key),
+                        )
                     }
                 }
             }
@@ -6929,23 +6976,27 @@ impl Input {
 
     /// Clear the cached hint text to generate a new one on next render
     pub fn clear_cached_hint_text(&mut self) {
-        self.cached_agent_mode_hint_text = None;
+        self.cached_agent_mode_hint_key = None;
     }
-    fn cli_agent_rich_input_hint_text(&self, ctx: &ViewContext<Self>) -> Cow<'static, str> {
+    fn cli_agent_rich_input_hint_text(&self, ctx: &ViewContext<Self>) -> String {
         if self.is_locked_in_shell_mode(ctx) {
-            return Cow::Borrowed(AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT);
+            return localization::text_for_app(
+                ctx,
+                AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_KEY,
+            );
         }
 
         CLIAgentSessionsModel::as_ref(ctx)
             .session(self.terminal_view_id)
             .map(|session| match session.agent {
-                CLIAgent::Unknown => Cow::Borrowed(CLI_AGENT_RICH_INPUT_HINT_TEXT),
-                _ => Cow::Owned(format!(
-                    "Enter prompt for {}...",
-                    session.agent.display_name()
-                )),
+                CLIAgent::Unknown => localization::text_for_app(ctx, CLI_AGENT_RICH_INPUT_HINT_KEY),
+                _ => localization::text_for_app_with_args(
+                    ctx,
+                    "terminal.input.hint.enter_prompt_for_agent",
+                    &[("agent", session.agent.display_name())],
+                ),
             })
-            .unwrap_or(Cow::Borrowed(CLI_AGENT_RICH_INPUT_HINT_TEXT))
+            .unwrap_or_else(|| localization::text_for_app(ctx, CLI_AGENT_RICH_INPUT_HINT_KEY))
     }
 
     pub fn set_zero_state_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
@@ -6961,14 +7012,23 @@ impl Input {
                 .active_conversation(self.terminal_view_id)
                 .is_none_or(|c| c.is_empty());
             let hint = if conversation_is_empty {
-                CLOUD_MODE_V2_HINT_TEXT.to_owned()
+                localization::text_for_app(ctx, CLOUD_MODE_V2_HINT_KEY)
             } else {
                 self.handoff_compose_state
                     .as_ref(ctx)
                     .selected_environment_id()
                     .and_then(|id| CloudAmbientAgentEnvironment::get_by_id(id, ctx))
-                    .map(|env| format!("Hand off to {}", env.model().string_model.display_name()))
-                    .unwrap_or_else(|| "Handoff to cloud".to_owned())
+                    .map(|env| {
+                        let environment = env.model().string_model.display_name();
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.input.hint.handoff_to_environment",
+                            &[("environment", &environment)],
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        localization::text_for_app(ctx, "terminal.input.hint.handoff_to_cloud")
+                    })
             };
             self.editor.update(ctx, |editor, ctx| {
                 editor.set_placeholder_text(&hint, ctx);
@@ -6980,7 +7040,10 @@ impl Input {
             let show_hint = *InputSettings::as_ref(ctx).show_hint_text;
             self.editor.update(ctx, |editor, ctx| {
                 if show_hint {
-                    editor.set_placeholder_text(CLOUD_MODE_V2_HINT_TEXT, ctx);
+                    editor.set_placeholder_text(
+                        localization::text_for_app(ctx, CLOUD_MODE_V2_HINT_KEY),
+                        ctx,
+                    );
                 } else {
                     editor.clear_placeholder_text(ctx);
                 }
@@ -6989,12 +7052,13 @@ impl Input {
         }
         // If the current input suggestions mode has a custom placeholder,
         // that takes precedence over other placeholders.
-        if let Some(placeholder) = self
+        if let Some(placeholder_key) = self
             .suggestions_mode_model
             .as_ref(ctx)
             .mode()
-            .placeholder_text()
+            .placeholder_text_key()
         {
+            let placeholder = localization::text_for_app(ctx, placeholder_key);
             self.editor.update(ctx, |editor, ctx| {
                 editor.set_placeholder_text(placeholder, ctx);
             });
@@ -7022,7 +7086,10 @@ impl Input {
                 });
             } else {
                 self.editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(AI_COMMAND_SEARCH_HINT_TEXT, ctx);
+                    editor.set_placeholder_text(
+                        localization::text_for_app(ctx, AI_COMMAND_SEARCH_HINT_KEY),
+                        ctx,
+                    );
                 });
             }
         } else {

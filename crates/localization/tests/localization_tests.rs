@@ -3265,6 +3265,64 @@ fn terminal_input_toasts_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn terminal_input_placeholders_use_catalog_copy() {
+    let path = workspace_root().join("app/src/terminal/input.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+
+    for literal in [
+        "Tell the agent what to build...",
+        "Kick off a cloud agent",
+        "Run commands",
+        "Search queries",
+        "Search conversations",
+        "Search skills",
+        "Search models",
+        "Search profiles",
+        "Search commands",
+        "Search prompts",
+        "Search indexed repos",
+        "Search plans",
+        "Enter prompt for {}...",
+        "Hand off to {}",
+        "Handoff to cloud",
+        "Type '#' for AI command suggestions",
+    ] {
+        assert!(
+            !content.contains(literal),
+            "terminal input placeholder should use catalog copy instead of direct English literal: {literal}"
+        );
+    }
+
+    for key in [
+        "terminal.input.hint.tell_agent_what_to_build",
+        "terminal.input.hint.kick_off_cloud_agent",
+        "terminal.input.hint.run_commands",
+        "terminal.input.hint.enter_prompt_for_agent",
+        "terminal.input.hint.handoff_to_cloud",
+        "terminal.input.hint.handoff_to_environment",
+        "terminal.input.hint.ai_command_search",
+        "terminal.input.placeholder.search_queries",
+        "terminal.input.placeholder.search_queries_to_rewind",
+        "terminal.input.placeholder.search_conversations",
+        "terminal.input.placeholder.search_skills",
+        "terminal.input.placeholder.search_models",
+        "terminal.input.placeholder.search_profiles",
+        "terminal.input.placeholder.search_commands",
+        "terminal.input.placeholder.search_prompts",
+        "terminal.input.placeholder.search_indexed_repos",
+        "terminal.input.placeholder.search_plans",
+        "terminal.input.agent_hint.",
+        "LocalizationUpdater::handle(ctx)",
+    ] {
+        assert!(
+            content.contains(key),
+            "terminal input placeholder should reference catalog key or refresh path {key}"
+        );
+    }
+}
+
+#[test]
 fn workspace_toasts_do_not_use_direct_english_literals() {
     let path = workspace_root().join("app/src/workspace/view.rs");
     let content = fs::read_to_string(&path)
