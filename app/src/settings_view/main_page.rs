@@ -534,7 +534,10 @@ impl AccountWidget {
                         appearance
                             .ui_builder()
                             .link(
-                                "Contact support".into(),
+                                crate::localization::text_for_app(
+                                    app,
+                                    "settings.account.contact_support",
+                                ),
                                 Some("mailto:support@warp.dev".into()),
                                 None,
                                 self.ui_state_handles.enterprise_contact_us_link.clone(),

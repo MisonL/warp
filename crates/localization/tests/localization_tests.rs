@@ -3606,6 +3606,40 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/settings_view/features_page.rs",
+            &[
+                "wrappable_text(\"Warp is the default terminal\"",
+                "\"Make Warp the default terminal\".to_string()",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/appearance_page.rs",
+            &[
+                "\"Create your own custom theme\".to_string()",
+                "\"Use Window Blur (Acrylic texture)\".to_string()",
+                "The selected hardware may not support rendering transparent windows.",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/main_page.rs",
+            &["\"Contact support\".into()"][..],
+        ),
+        (
+            "app/src/drive/import/modal_body.rs",
+            &["\"Learn about file support and formatting\".to_string()"][..],
+        ),
+        (
+            "app/src/terminal/view/ssh_remote_server_choice_view.rs",
+            &["\"Manage Warpify settings\".into()"][..],
+        ),
+        (
+            "app/src/tab_configs/session_config_modal.rs",
+            &[
+                "\"Create your first tab config\"",
+                "Set up a reusable starting point for your tabs.",
+            ][..],
+        ),
+        (
             "app/src/context_chips/display_menu.rs",
             &[
                 "Search directories...",

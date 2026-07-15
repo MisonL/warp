@@ -2777,13 +2777,16 @@ impl SettingsWidget for CreateCustomThemeWidget {
         &self,
         _view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Align::new(
             appearance
                 .ui_builder()
                 .link(
-                    "Create your own custom theme".to_string(),
+                    crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.theme.create_custom_theme",
+                    ),
                     Some("https://docs.warp.dev/terminal/appearance/custom-themes".to_string()),
                     None,
                     self.mouse_state.clone(),
@@ -3447,7 +3450,7 @@ impl SettingsWidget for WindowBlurTextureWidget {
         let window_settings = WindowSettings::as_ref(app);
         let use_blur_texture = *window_settings.background_blur_texture;
         let mut col = Flex::column().with_child(render_body_item::<AppearancePageAction>(
-            "Use Window Blur (Acrylic texture)".to_string(),
+            crate::localization::text_for_app(app, "settings.appearance.window.blur_texture.label"),
             None,
             LocalOnlyIconState::for_setting(
                 BackgroundBlurTexture::storage_key(),
@@ -3473,7 +3476,10 @@ impl SettingsWidget for WindowBlurTextureWidget {
                 col.add_child(
                     Container::new(
                         FormattedTextElement::from_str(
-                            "The selected hardware may not support rendering transparent windows.",
+                            crate::localization::text_for_app(
+                                app,
+                                "settings.appearance.window.blur_texture.unsupported",
+                            ),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )

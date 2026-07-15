@@ -164,11 +164,11 @@ impl SessionConfigModal {
 
     // ── Rendering ──
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = FormattedTextElement::from_str(
-            "Create your first tab config",
+            crate::localization::text_for_app(app, "tab_config.guided.title"),
             appearance.ui_font_family(),
             24.,
         )
@@ -176,19 +176,18 @@ impl SessionConfigModal {
         .with_weight(Weight::Semibold)
         .finish();
 
-        let subtitle_text = if self.show_session_type_row {
-            "Set up a reusable starting point for your tabs. \
-             Pick a repo, choose a session type, and optionally attach a worktree. \
-             Use it whenever you want to open a new tab with this setup."
+        let subtitle_key = if self.show_session_type_row {
+            "tab_config.guided.subtitle_with_session_type"
         } else {
-            "Set up a reusable starting point for your tabs. \
-             Pick a repo, optionally attach a worktree, and \
-             use it whenever you want to open a new tab with this setup."
+            "tab_config.guided.subtitle_without_session_type"
         };
-        let subtitle =
-            FormattedTextElement::from_str(subtitle_text, appearance.ui_font_family(), 14.)
-                .with_color(blended_colors::text_sub(theme, theme.background()))
-                .finish();
+        let subtitle = FormattedTextElement::from_str(
+            crate::localization::text_for_app(app, subtitle_key),
+            appearance.ui_font_family(),
+            14.,
+        )
+        .with_color(blended_colors::text_sub(theme, theme.background()))
+        .finish();
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
@@ -281,7 +280,7 @@ impl View for SessionConfigModal {
 
         let mut form = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(self.render_header(appearance));
+            .with_child(self.render_header(appearance, app));
 
         if self.show_session_type_row {
             form.add_child(

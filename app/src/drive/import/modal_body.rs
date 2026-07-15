@@ -428,7 +428,7 @@ impl ImportModalBody {
         let link_to_document = appearance
             .ui_builder()
             .link(
-                "Learn about file support and formatting".to_string(),
+                localization::text_for_app(app, "drive.import.file_support_link"),
                 Some(FILE_TYPE_DOCS_URL.to_string()),
                 None,
                 self.link_mouse_state.clone(),

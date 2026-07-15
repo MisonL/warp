@@ -181,7 +181,10 @@ impl SshRemoteServerChoiceView {
         let manage_settings_link = appearance
             .ui_builder()
             .link(
-                "Manage Warpify settings".into(),
+                localization::text_for_app(
+                    app,
+                    "terminal.ssh_remote_choice.manage_warpify_settings",
+                ),
                 None,
                 Some(Box::new(|ctx| {
                     ctx.dispatch_typed_action(SshRemoteServerChoiceViewAction::OpenWarpifySettings);
