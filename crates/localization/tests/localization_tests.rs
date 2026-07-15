@@ -5077,6 +5077,14 @@ fn shared_session_agent_notifications_and_aws_status_use_catalog_copy() {
             &["Something went wrong. Please try sharing again."][..],
         ),
         (
+            "app/src/terminal/local_tty/terminal_view_adaptor.rs",
+            &[
+                "const ACL_UPDATE_FAILURE_RESPONSE",
+                "Something went wrong. Please try sharing again.",
+                "Failed to update permissions for shared session",
+            ][..],
+        ),
+        (
             "app/src/terminal/shared_session/sharer/network.rs",
             &[
                 "Session sharing usage exceeded for the day",
@@ -6040,6 +6048,15 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
                 "\"New Group\".to_string()",
                 "\"1 tab\".to_string()",
                 "format!(\"{member_count} tabs\")",
+            ][..],
+        ),
+        (
+            "app/src/workspace/view/global_search/view.rs",
+            &[
+                "\"Searching…\".to_string()",
+                "\"No results found. Review your gitignore files.\".to_string()",
+                "format!(\"1 result in {files} {file_word}\")",
+                "format!(\"{n} results in {files} {file_word}\")",
             ][..],
         ),
         (

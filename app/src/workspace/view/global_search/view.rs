@@ -2157,19 +2157,37 @@ impl View for GlobalSearchView {
             .with_child(query_row);
 
         let files = self.unique_match_count();
-        let file_word = if files == 1 { "file" } else { "files" };
+        let file_word = localization::text_for_app(
+            app,
+            if files == 1 {
+                "global_search.file.one"
+            } else {
+                "global_search.file.many"
+            },
+        );
 
-        let message = if let Some(error) = &self.last_error {
-            error.clone()
+        let message = if self.last_error.is_some() {
+            localization::text_for_app(app, "global_search.error.failed")
         } else if self.is_search_in_progress && self.total_match_count == 0 {
-            "Searching…".to_string()
+            localization::text_for_app(app, "global_search.searching")
         } else if !self.is_search_in_progress && self.total_match_count == 0 {
-            "No results found. Review your gitignore files.".to_string()
+            localization::text_for_app(app, "global_search.no_results")
         } else {
-            match self.total_match_count {
-                1 => format!("1 result in {files} {file_word}"),
-                n => format!("{n} results in {files} {file_word}"),
-            }
+            let count = self.total_match_count.to_string();
+            let files = files.to_string();
+            localization::text_for_app_with_args(
+                app,
+                if self.total_match_count == 1 {
+                    "global_search.results.one"
+                } else {
+                    "global_search.results.many"
+                },
+                &[
+                    ("count", count.as_str()),
+                    ("files", files.as_str()),
+                    ("file_word", file_word.as_str()),
+                ],
+            )
         };
 
         let match_text_styles = UiComponentStyles {
