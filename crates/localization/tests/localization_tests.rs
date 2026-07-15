@@ -4432,6 +4432,13 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
             &[".unwrap_or_else(|| \"Untitled\".to_string())"][..],
         ),
         (
+            "app/src/notebooks/file/mod.rs",
+            &[
+                ".unwrap_or_else(|| \"Unnamed\".to_string())",
+                "self.render_title(appearance, font_settings)",
+            ][..],
+        ),
+        (
             "app/src/settings_view/execution_profile_view.rs",
             &[
                 "\"Run agents:\"",

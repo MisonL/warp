@@ -327,7 +327,7 @@ impl FileNotebookView {
         // available yet, fall back to the raw file path.
         self.location
             .as_ref()
-            .map(|location| location.name.clone())
+            .and_then(|location| location.name.clone())
             .or_else(|| self.file_state.display_name())
             .unwrap_or_else(|| {
                 crate::localization::text_for_locale(
@@ -340,7 +340,7 @@ impl FileNotebookView {
     pub fn title_for_app(&self, app: &AppContext) -> String {
         self.location
             .as_ref()
-            .map(|location| location.name.clone())
+            .and_then(|location| location.name.clone())
             .or_else(|| self.file_state.display_name())
             .unwrap_or_else(|| {
                 crate::localization::text_for_app(app, "notebook.placeholder.untitled")
@@ -390,7 +390,7 @@ impl FileNotebookView {
     /// Set the notebook's location context.
     fn set_context(&mut self, path: &Path, session: Arc<Session>, ctx: &mut ViewContext<Self>) {
         self.location = Some(FileLocation::new(path, session.home_dir()));
-        let title = self.title();
+        let title = self.title_for_app(ctx);
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.set_title(title, ctx);
         });
@@ -782,11 +782,12 @@ impl FileNotebookView {
             EditorViewEvent::Focused => ctx.emit(FileNotebookEvent::Pane(PaneEvent::FocusSelf)),
             EditorViewEvent::RunWorkflow(workflow) => {
                 let workflow_type = workflow.named_workflow(|| {
-                    self.location.as_ref().map(|location| {
+                    self.location.as_ref().map(|_| {
+                        let title = self.title_for_app(ctx);
                         crate::localization::text_for_app_with_args(
                             ctx,
                             "notebook.workflow.command_from",
-                            &[("title", &location.name)],
+                            &[("title", &title)],
                         )
                     })
                 });
@@ -863,9 +864,10 @@ impl FileNotebookView {
         &self,
         appearance: &Appearance,
         font_settings: &FontSettings,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let title = Text::new_inline(
-            self.title(),
+            self.title_for_app(app),
             appearance.ui_font_family(),
             styles::title_font_size(font_settings),
         )
@@ -1054,7 +1056,7 @@ impl View for FileNotebookView {
         let font_settings = FontSettings::as_ref(app);
 
         let column = Flex::column().with_children([
-            self.render_title(appearance, font_settings),
+            self.render_title(appearance, font_settings, app),
             Shrinkable::new(1., self.render_body(appearance, app)).finish(),
         ]);
 
@@ -1256,7 +1258,7 @@ impl BackingView for FileNotebookView {
         ctx: &view::HeaderRenderContext<'_>,
         app: &AppContext,
     ) -> view::HeaderContent {
-        let title = self.pane_configuration.as_ref(app).title().to_owned();
+        let title = self.title_for_app(app);
 
         if self.shows_markdown_toggle() {
             // For markdown files (and rendered Jupyter notebooks) we use a custom header
@@ -1368,7 +1370,7 @@ struct FileLocation {
     /// Breadcrumb path to the file.
     breadcrumbs: String,
     /// The file's name.
-    name: String,
+    name: Option<String>,
 }
 
 impl FileLocation {
@@ -1382,8 +1384,7 @@ impl FileLocation {
         };
         let name = path
             .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "Unnamed".to_string());
+            .map(|name| name.to_string_lossy().into_owned());
 
         Self { breadcrumbs, name }
     }
