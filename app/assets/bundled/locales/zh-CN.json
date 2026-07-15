@@ -2567,6 +2567,7 @@
   "custom_router_editor.section.router_name": "路由器名称",
   "custom_router_editor.section.router_type": "路由器类型",
   "custom_router_editor.section.rules": "规则",
+  "custom_router_editor.summary.model_level": "{level}：",
   "custom_router_editor.type.complexity": "复杂度",
   "custom_router_editor.type.rules": "规则",
   "code.action.accept_and_save": "接受并保存",

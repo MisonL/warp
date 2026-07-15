@@ -4387,7 +4387,14 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
         ),
         (
             "app/src/settings_view/custom_router_view.rs",
-            &["\"1 rule\".to_string()", "format!(\"{rule_count} rules\")"][..],
+            &[
+                "\"1 rule\".to_string()",
+                "format!(\"{rule_count} rules\")",
+                "\"Default:\"",
+                "\"Easy:\"",
+                "\"Medium:\"",
+                "\"Hard:\"",
+            ][..],
         ),
         (
             "app/src/settings_view/mcp_servers_page.rs",

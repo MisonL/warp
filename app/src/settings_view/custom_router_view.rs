@@ -285,7 +285,7 @@ fn render_targets_row(
     match routing {
         CustomModelRouting::Complexity(c) => {
             flex.add_child(render_model_line(
-                "Default:",
+                model_level_label(app, "custom_router_editor.complexity.default"),
                 model_display_name(&c.default, app),
                 appearance,
                 sub_color,
@@ -293,7 +293,7 @@ fn render_targets_row(
             if let Some(easy) = &c.easy {
                 flex.add_child(
                     Container::new(render_model_line(
-                        "Easy:",
+                        model_level_label(app, "custom_router_editor.complexity.easy"),
                         model_display_name(easy, app),
                         appearance,
                         sub_color,
@@ -305,7 +305,7 @@ fn render_targets_row(
             if let Some(medium) = &c.medium {
                 flex.add_child(
                     Container::new(render_model_line(
-                        "Medium:",
+                        model_level_label(app, "custom_router_editor.complexity.medium"),
                         model_display_name(medium, app),
                         appearance,
                         sub_color,
@@ -317,7 +317,7 @@ fn render_targets_row(
             if let Some(hard) = &c.hard {
                 flex.add_child(
                     Container::new(render_model_line(
-                        "Hard:",
+                        model_level_label(app, "custom_router_editor.complexity.hard"),
                         model_display_name(hard, app),
                         appearance,
                         sub_color,
@@ -329,7 +329,7 @@ fn render_targets_row(
         }
         CustomModelRouting::Prompt(p) => {
             flex.add_child(render_model_line(
-                "Default:",
+                model_level_label(app, "custom_router_editor.complexity.default"),
                 model_display_name(&p.default_model, app),
                 appearance,
                 sub_color,
@@ -358,6 +358,15 @@ fn render_targets_row(
         }
     }
     flex.finish()
+}
+
+fn model_level_label(app: &AppContext, level_key: &str) -> String {
+    let level = localization::text_for_app(app, level_key);
+    localization::text_for_app_with_args(
+        app,
+        "custom_router_editor.summary.model_level",
+        &[("level", &level)],
+    )
 }
 
 /// Resolves a concrete model id (e.g. `claude-4-5-haiku`) to its display

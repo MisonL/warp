@@ -2567,6 +2567,7 @@
   "custom_router_editor.section.router_name": "Router name",
   "custom_router_editor.section.router_type": "Router type",
   "custom_router_editor.section.rules": "Rules",
+  "custom_router_editor.summary.model_level": "{level}:",
   "custom_router_editor.type.complexity": "Complexity",
   "custom_router_editor.type.rules": "Rules",
   "code.action.accept_and_save": "Accept and save",
