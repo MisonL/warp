@@ -1,5 +1,6 @@
 use fuzzy_match::FuzzyMatchResult;
 use ordered_float::OrderedFloat;
+use warp_localization::LocaleId;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, Icon, ParentElement, Text,
 };
@@ -20,51 +21,53 @@ pub struct DiffSetSearchItem {
 
 impl DiffSetSearchItem {
     pub fn name(&self) -> String {
-        match &self.diff_mode {
-            DiffMode::Head => "Uncommitted changes".to_string(),
-            DiffMode::MainBranch => "Changes vs. main branch".to_string(),
-            DiffMode::OtherBranch(branch) => format!("Changes vs. {branch}"),
-        }
+        self.name_for_locale(LocaleId::EnUs)
     }
 
-    pub fn description(&self) -> String {
-        match &self.diff_mode {
-            DiffMode::Head => "All uncommitted changes in the working directory".to_string(),
-            DiffMode::MainBranch => "All changes compared to the main branch".to_string(),
-            DiffMode::OtherBranch(branch) => format!("All changes compared to {branch}"),
-        }
-    }
-
-    fn localized_name(&self, app: &AppContext) -> String {
+    fn name_for_locale(&self, locale: LocaleId) -> String {
         match &self.diff_mode {
             DiffMode::Head => {
-                crate::localization::text_for_app(app, "search.diffset.name.uncommitted")
+                crate::localization::text_for_locale(locale, "search.diffset.name.uncommitted")
             }
             DiffMode::MainBranch => {
-                crate::localization::text_for_app(app, "search.diffset.name.main_branch")
+                crate::localization::text_for_locale(locale, "search.diffset.name.main_branch")
             }
-            DiffMode::OtherBranch(branch) => crate::localization::text_for_app_with_args(
-                app,
+            DiffMode::OtherBranch(branch) => crate::localization::text_for_locale_with_args(
+                locale,
                 "search.diffset.name.other_branch",
                 &[("branch", branch)],
             ),
         }
     }
 
-    fn localized_description(&self, app: &AppContext) -> String {
+    pub fn description(&self) -> String {
+        self.description_for_locale(LocaleId::EnUs)
+    }
+
+    fn description_for_locale(&self, locale: LocaleId) -> String {
         match &self.diff_mode {
-            DiffMode::Head => {
-                crate::localization::text_for_app(app, "search.diffset.description.uncommitted")
-            }
-            DiffMode::MainBranch => {
-                crate::localization::text_for_app(app, "search.diffset.description.main_branch")
-            }
-            DiffMode::OtherBranch(branch) => crate::localization::text_for_app_with_args(
-                app,
+            DiffMode::Head => crate::localization::text_for_locale(
+                locale,
+                "search.diffset.description.uncommitted",
+            ),
+            DiffMode::MainBranch => crate::localization::text_for_locale(
+                locale,
+                "search.diffset.description.main_branch",
+            ),
+            DiffMode::OtherBranch(branch) => crate::localization::text_for_locale_with_args(
+                locale,
                 "search.diffset.description.other_branch",
                 &[("branch", branch)],
             ),
         }
+    }
+
+    fn localized_name(&self, app: &AppContext) -> String {
+        self.name_for_locale(crate::localization::current_locale(app))
+    }
+
+    fn localized_description(&self, app: &AppContext) -> String {
+        self.description_for_locale(crate::localization::current_locale(app))
     }
 }
 
@@ -144,7 +147,22 @@ impl SearchItem for DiffSetSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("{} - {}", self.name(), self.description())
+        crate::localization::text_for_locale_with_args(
+            LocaleId::EnUs,
+            "search.diffset.a11y.label",
+            &[("name", &self.name()), ("description", &self.description())],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.diffset.a11y.label",
+            &[
+                ("name", &self.localized_name(app)),
+                ("description", &self.localized_description(app)),
+            ],
+        )
     }
 }
 
