@@ -1075,7 +1075,13 @@ fn render_header(
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
-    let label_text = header_label_text(count);
+    let count_text = count.to_string();
+    let label_text = localization::text_for_app_with_args(
+        app,
+        "terminal.queued_prompts.header",
+        &[("count", &count_text)],
+    );
+    let enter_hint_text = localization::text_for_app(app, "terminal.queued_prompts.hint.to_send");
     let sub_text_color: ColorU = theme.sub_text_color(theme.surface_1()).into();
     // The keycap is dimmed relative to the header text so it reads as a secondary affordance.
     let keycap_color: ColorU = internal_colors::text_disabled(theme, theme.surface_1());
@@ -1122,7 +1128,7 @@ fn render_header(
             );
             row.add_child(Container::new(keycap).with_margin_left(4.).finish());
             row.add_child(
-                Text::new("to send", ui_font_family, ui_font_size)
+                Text::new(enter_hint_text.clone(), ui_font_family, ui_font_size)
                     .with_style(Properties {
                         style: Style::Normal,
                         weight: Weight::Normal,
@@ -1407,9 +1413,4 @@ fn render_row(props: RenderRowProps<'_>, app: &AppContext) -> Box<dyn Element> {
         .finish();
 
     SavePosition::new(draggable, &position_id).finish()
-}
-
-/// Returns the user-visible header label for `count` queued prompts.
-fn header_label_text(count: usize) -> String {
-    format!("{count} queued")
 }

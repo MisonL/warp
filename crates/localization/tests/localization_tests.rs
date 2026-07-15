@@ -3858,6 +3858,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/terminal/view/queued_prompts_panel.rs",
+            &["format!(\"{count} queued\")", "Text::new(\"to send\""][..],
+        ),
+        (
             "app/src/workspace/view.rs",
             &[
                 "Access your tab configs here.",

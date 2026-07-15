@@ -6559,6 +6559,7 @@
   "terminal.prompt_suggestions.tooltip.restricted_payment_issue": "因付款问题受限",
   "terminal.prompt.loading": "正在加载提示...",
   "terminal.queued_prompts.header": "{count} 个排队提示词",
+  "terminal.queued_prompts.hint.to_send": "发送",
   "terminal.queued_prompts.row.queued_until_command_finishes": "（排队等待命令完成）",
   "terminal.queued_prompts.tooltip.copy": "复制排队提示词",
   "terminal.queued_prompts.tooltip.delete": "删除排队提示词",

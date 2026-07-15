@@ -6559,6 +6559,7 @@
   "terminal.prompt_suggestions.tooltip.restricted_payment_issue": "Restricted due to payment issue",
   "terminal.prompt.loading": "Loading prompt...",
   "terminal.queued_prompts.header": "{count} queued",
+  "terminal.queued_prompts.hint.to_send": "to send",
   "terminal.queued_prompts.row.queued_until_command_finishes": "(queued until the command finishes)",
   "terminal.queued_prompts.tooltip.copy": "Copy queued prompt",
   "terminal.queued_prompts.tooltip.delete": "Delete queued prompt",
