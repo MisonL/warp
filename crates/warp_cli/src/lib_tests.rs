@@ -162,6 +162,45 @@ fn run_cloud_rejects_codex_auth_secret_without_codex_harness() {
     assert!(err.contains("--codex-auth-secret"), "got: {err}");
 }
 
+#[test]
+#[serial_test::serial]
+fn harness_auth_secret_validation_uses_simplified_chinese_errors() {
+    let previous_language = set_env_var("LANGUAGE", "zh_CN");
+    let claude_args = parse_run_cloud(&[
+        "agent",
+        "run-cloud",
+        "--prompt",
+        "hi",
+        "--claude-auth-secret",
+        "my-secret",
+    ]);
+    let codex_args = parse_run_cloud(&[
+        "agent",
+        "run-cloud",
+        "--prompt",
+        "hi",
+        "--codex-auth-secret",
+        "my-secret",
+    ]);
+
+    let claude_error = claude_args
+        .validate_auth_secrets()
+        .expect_err("claude secret should require the claude harness");
+    let codex_error = codex_args
+        .validate_auth_secrets()
+        .expect_err("codex secret should require the codex harness");
+    restore_env_var("LANGUAGE", previous_language);
+
+    assert_eq!(
+        claude_error,
+        "--claude-auth-secret 只能与 --harness claude 一起使用。"
+    );
+    assert_eq!(
+        codex_error,
+        "--codex-auth-secret 只能与 --harness codex 一起使用。"
+    );
+}
+
 fn set_env_var(name: &str, value: &str) -> Option<OsString> {
     let previous = std::env::var_os(name);
     // Safety: tests that mutate process environment are marked `serial` so we
@@ -1735,19 +1774,43 @@ fn environment_create_description_max_length() {
 
     // 241 characters should be rejected
     let invalid_description = "a".repeat(241);
+    assert!(Args::try_parse_from([
+        "warp",
+        "environment",
+        "create",
+        "--name",
+        "test-env",
+        "--description",
+        &invalid_description,
+        "--docker-image",
+        "ubuntu:latest",
+    ])
+    .is_err());
+}
+
+#[test]
+#[serial_test::serial]
+fn environment_description_validation_uses_simplified_chinese_error() {
+    let previous_language = set_env_var("LANGUAGE", "zh_CN");
+    let invalid_description = "a".repeat(241);
+    let error = Args::try_parse_from([
+        "warp",
+        "environment",
+        "create",
+        "--name",
+        "test-env",
+        "--description",
+        &invalid_description,
+        "--docker-image",
+        "ubuntu:latest",
+    ])
+    .expect_err("overlong environment description should be rejected")
+    .to_string();
+    restore_env_var("LANGUAGE", previous_language);
+
     assert!(
-        Args::try_parse_from([
-            "warp",
-            "environment",
-            "create",
-            "--name",
-            "test-env",
-            "--description",
-            &invalid_description,
-            "--docker-image",
-            "ubuntu:latest",
-        ])
-        .is_err()
+        error.contains("描述最多可包含 240 个字符（当前为 241 个）"),
+        "unexpected error: {error}"
     );
 }
 

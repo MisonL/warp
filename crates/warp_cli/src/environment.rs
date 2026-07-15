@@ -1,5 +1,6 @@
 use clap::{ArgAction, ArgGroup, Args, Subcommand};
 
+use crate::localization::text_with_args;
 use crate::scope::ObjectScope;
 
 /// Maximum length for environment descriptions.
@@ -9,9 +10,12 @@ const MAX_DESCRIPTION_LENGTH: usize = 240;
 fn validate_description(s: &str) -> Result<String, String> {
     let len = s.chars().count();
     if len > MAX_DESCRIPTION_LENGTH {
-        Err(format!(
-            "Description must be at most {} characters (got {})",
-            MAX_DESCRIPTION_LENGTH, len
+        Err(text_with_args(
+            "cli.error.environment_description_too_long",
+            &[
+                ("maximum", &MAX_DESCRIPTION_LENGTH.to_string()),
+                ("actual", &len.to_string()),
+            ],
         ))
     } else {
         Ok(s.to_string())

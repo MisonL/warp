@@ -2,6 +2,8 @@ use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
 
+use crate::localization::text;
+
 /// A skill specifier that can reference a skill in a specific repo or search the current directory.
 ///
 /// The skill identifier (after the optional `repo:` or `org/repo:` prefix) can be either:
@@ -132,7 +134,7 @@ impl FromStr for SkillSpec {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
         if s.is_empty() {
-            return Err("Skill specifier cannot be empty".to_string());
+            return Err(text("cli.error.skill_specifier_empty"));
         }
 
         // Check for [qualifier:]skill_identifier format
@@ -141,12 +143,10 @@ impl FromStr for SkillSpec {
             let skill_identifier = skill_identifier.trim();
 
             if qualifier.is_empty() {
-                return Err(
-                    "Qualifier cannot be empty in 'repo:skill_identifier' format".to_string(),
-                );
+                return Err(text("cli.error.skill_qualifier_empty"));
             }
             if skill_identifier.is_empty() {
-                return Err("Skill identifier cannot be empty".to_string());
+                return Err(text("cli.error.skill_identifier_empty"));
             }
 
             // Check for org/repo format in qualifier
@@ -155,10 +155,10 @@ impl FromStr for SkillSpec {
                 let repo = repo.trim();
 
                 if org.is_empty() {
-                    return Err("Organization cannot be empty".to_string());
+                    return Err(text("cli.error.skill_organization_empty"));
                 }
                 if repo.is_empty() {
-                    return Err("Repository name cannot be empty".to_string());
+                    return Err(text("cli.error.skill_repository_empty"));
                 }
 
                 Ok(Self::with_org_and_repo(

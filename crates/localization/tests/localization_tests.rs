@@ -5675,6 +5675,12 @@ fn warp_cli_help_copy_uses_catalog_keys() {
         "cli.error.mcp_spec_utf8",
         "cli.error.share_recipient_utf8",
         "cli.error.share_subject_invalid",
+        "cli.error.environment_description_too_long",
+        "cli.error.skill_identifier_empty",
+        "cli.error.skill_organization_empty",
+        "cli.error.skill_qualifier_empty",
+        "cli.error.skill_repository_empty",
+        "cli.error.skill_specifier_empty",
         "cli.error.unrecognized_subcommand",
         "cli.help.after_help",
         "cli.help.command.warpctrl.after_help",
@@ -5733,6 +5739,10 @@ fn warp_cli_help_copy_uses_catalog_keys() {
             &["invalid jq filter"][..],
         ),
         (
+            "crates/warp_cli/src/environment.rs",
+            &["Description must be at most"][..],
+        ),
+        (
             "crates/warp_cli/src/mcp.rs",
             &[
                 "Invalid UTF-8 in MCP spec",
@@ -5749,6 +5759,23 @@ fn warp_cli_help_copy_uses_catalog_keys() {
                 "Share with anyone who has the link",
                 "Share with <user@email.com>",
                 "Cannot share with",
+            ][..],
+        ),
+        (
+            "crates/warp_cli/src/skill.rs",
+            &[
+                "Skill specifier cannot be empty",
+                "Qualifier cannot be empty in 'repo:skill_identifier' format",
+                "Skill identifier cannot be empty",
+                "Organization cannot be empty",
+                "Repository name cannot be empty",
+            ][..],
+        ),
+        (
+            "crates/warp_cli/src/agent.rs",
+            &[
+                "--claude-auth-secret is only valid with --harness claude.",
+                "--codex-auth-secret is only valid with --harness codex.",
             ][..],
         ),
     ];
