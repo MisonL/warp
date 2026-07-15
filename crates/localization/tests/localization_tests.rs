@@ -4223,6 +4223,17 @@ fn agent_tips_notebook_links_and_recorder_toasts_use_catalog_copy() {
             &[".unwrap_or_else(|| \"Untitled group\".to_string())"][..],
         ),
         (
+            "app/src/workflows/workflow_view.rs",
+            &[
+                "display_error_toast(\"Error saving aliases\".to_string()",
+                "\"This workflow cannot be saved because it contains secrets\".to_string()",
+                "String::from(\"Could not create workflow\")",
+                "\"Prompt copied.\".to_string()",
+                "\"Command copied.\".to_string()",
+                "\"Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.\".to_string()",
+            ][..],
+        ),
+        (
             "app/src/notebooks/link.rs",
             &[
                 "label: \"New session\"",
