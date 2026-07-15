@@ -4355,7 +4355,7 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
         ),
         (
             "app/src/ai/blocklist/agent_view/orchestration_pill_bar.rs",
-            &["status.to_string()"][..],
+            &["status.to_string()", "\"Agent\".to_string()"][..],
         ),
         (
             "app/src/settings/import/view.rs",

@@ -1328,7 +1328,7 @@ fn render_hover_card(
         .filter(|n| !n.is_empty())
         .map(|n| n.to_string())
         .or_else(|| conversation.title())
-        .unwrap_or_else(|| "Agent".to_string());
+        .unwrap_or_else(|| localization::text_for_app(app, "agent.orchestration.agent"));
 
     // Header: small avatar disc + bold agent name on the left, status
     // badge right-aligned. We use the conversation's `ConversationStatus`
