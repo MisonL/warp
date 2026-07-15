@@ -4387,7 +4387,15 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
         ),
         (
             "app/src/workspace/view/vertical_tabs.rs",
-            &["Text::new_inline(status.to_string(),"][..],
+            &[
+                "Text::new_inline(status.to_string(),",
+                "\"Untitled tab\"",
+                "\"New session\"",
+                "\"Terminal\".to_string()",
+                "\"Unsaved\".to_string()",
+                "typed.kind_label().to_string()",
+                "format!(\"and {extra_open_tabs} more\")",
+            ][..],
         ),
         (
             "app/src/ai/blocklist/inline_action/ask_user_question_view.rs",

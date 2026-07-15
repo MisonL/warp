@@ -17,6 +17,7 @@ use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill as WarpThemeFill, WarpTheme};
 use warp_core::ui::Icon as WarpIcon;
+use warp_localization::LocaleId;
 use warpui::elements::{
     resizable_state_handle, Border, ChildAnchor, Clipped, ClippedScrollStateHandle,
     ClippedScrollable, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -3257,7 +3258,7 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
     let theme = appearance.theme();
     let title = pane_group.display_title(app);
     let title = if title.is_empty() {
-        "Untitled tab".to_string()
+        localization::text_for_app(app, "workspace.vertical_tabs.untitled_tab")
     } else {
         title
     };
@@ -3572,22 +3573,27 @@ impl TypedPane<'_> {
         matches!(self, TypedPane::Terminal(_) | TypedPane::Code(_))
             || self.warp_drive_object_type().is_some()
     }
-    fn kind_label(&self) -> &'static str {
-        match self {
-            TypedPane::Terminal(_) => "Terminal",
-            TypedPane::Code(_) => "Code",
-            TypedPane::CodeDiff => "Code Diff",
-            TypedPane::File => "File",
-            TypedPane::Notebook { .. } => "Notebook",
-            TypedPane::Workflow { .. } => "Workflow",
-            TypedPane::Settings => "Settings",
-            TypedPane::EnvVarCollection => "Environment Variables",
-            TypedPane::EnvironmentManagement => "Environments",
-            TypedPane::AIFact => "Rules",
-            TypedPane::AIDocument => "Plan",
-            TypedPane::ExecutionProfileEditor => "Execution Profile",
-            TypedPane::Other => "Other",
-        }
+    fn kind_label(&self, app: &AppContext) -> String {
+        let key = match self {
+            TypedPane::Terminal(_) => "workspace.vertical_tabs.pane_kind.terminal",
+            TypedPane::Code(_) => "workspace.vertical_tabs.pane_kind.code",
+            TypedPane::CodeDiff => "workspace.vertical_tabs.pane_kind.code_diff",
+            TypedPane::File => "workspace.vertical_tabs.pane_kind.file",
+            TypedPane::Notebook { .. } => "workspace.vertical_tabs.pane_kind.notebook",
+            TypedPane::Workflow { .. } => "workspace.vertical_tabs.pane_kind.workflow",
+            TypedPane::Settings => "workspace.vertical_tabs.pane_kind.settings",
+            TypedPane::EnvVarCollection => {
+                "workspace.vertical_tabs.pane_kind.environment_variables"
+            }
+            TypedPane::EnvironmentManagement => "workspace.vertical_tabs.pane_kind.environments",
+            TypedPane::AIFact => "workspace.vertical_tabs.pane_kind.rules",
+            TypedPane::AIDocument => "workspace.vertical_tabs.pane_kind.plan",
+            TypedPane::ExecutionProfileEditor => {
+                "workspace.vertical_tabs.pane_kind.execution_profile"
+            }
+            TypedPane::Other => "workspace.vertical_tabs.pane_kind.other",
+        };
+        localization::text_for_app(app, key)
     }
 
     fn badge(&self, app: &AppContext) -> Option<String> {
@@ -3596,7 +3602,7 @@ impl TypedPane<'_> {
                 .file_view(app)
                 .as_ref(app)
                 .contains_unsaved_changes(app)
-                .then(|| "Unsaved".to_string()),
+                .then(|| localization::text_for_app(app, "workspace.vertical_tabs.badge.unsaved")),
             TypedPane::Terminal(_)
             | TypedPane::CodeDiff
             | TypedPane::File
@@ -3638,6 +3644,7 @@ fn pane_display_title_and_subtitle(
     typed: &TypedPane<'_>,
     title: &str,
     secondary_title: &str,
+    app: &AppContext,
 ) -> (String, String) {
     if matches!(typed, TypedPane::Code(_)) && !title.is_empty() {
         let path = Path::new(title);
@@ -3656,7 +3663,7 @@ fn pane_display_title_and_subtitle(
     } else {
         (
             if title.is_empty() {
-                typed.kind_label().to_string()
+                typed.kind_label(app)
             } else {
                 title.to_string()
             },
@@ -3688,6 +3695,7 @@ fn build_vertical_tabs_summary_data(
             &typed,
             pane_configuration.title().trim(),
             pane_configuration.title_secondary().trim(),
+            app,
         );
 
         match typed {
@@ -3714,6 +3722,7 @@ fn build_vertical_tabs_summary_data(
                     working_directory_text.as_str(),
                     terminal_title_fallback_font(&agent_text),
                     terminal_view.last_completed_command_text(),
+                    localization::current_locale(app),
                 );
                 let status = summary_conversation_status_for_terminal(terminal_view, app);
                 push_normalized_unique_summary_label(
@@ -3836,6 +3845,7 @@ impl<'a> PaneProps<'a> {
             &typed,
             pane_configuration.title().trim(),
             pane_configuration.title_secondary().trim(),
+            app,
         );
 
         Some(Self {
@@ -4009,6 +4019,7 @@ fn terminal_pane_search_text_fragments(
                 working_directory.as_str(),
                 terminal_title_fallback_font(&agent_text),
                 terminal_view.last_completed_command_text(),
+                localization::current_locale(app),
             )
             .text()
             .to_string()
@@ -4022,7 +4033,11 @@ fn terminal_pane_search_text_fragments(
         primary_text,
         working_directory,
         terminal_view.current_git_branch(app),
-        terminal_kind_badge_label(agent_text.is_oz_agent, agent_text.cli_agent),
+        terminal_kind_badge_label(
+            agent_text.is_oz_agent,
+            agent_text.cli_agent,
+            localization::current_locale(app),
+        ),
         pull_request_label,
         terminal_view.current_diff_line_changes(app),
     )
@@ -4057,6 +4072,7 @@ fn terminal_primary_line_data(
     working_directory: &str,
     terminal_title_font: TerminalPrimaryLineFont,
     last_completed_command: Option<String>,
+    locale: LocaleId,
 ) -> TerminalPrimaryLineData {
     let trimmed_title = terminal_title.trim();
     let trimmed_working_directory = working_directory.trim();
@@ -4093,18 +4109,22 @@ fn terminal_primary_line_data(
     }
 
     TerminalPrimaryLineData::Text {
-        text: "New session".to_string(),
+        text: localization::text_for_locale(locale, "workspace.vertical_tabs.new_session"),
         font: TerminalPrimaryLineFont::Ui,
     }
 }
 
-fn terminal_kind_badge_label(is_oz_agent: bool, cli_agent: Option<CLIAgent>) -> String {
+fn terminal_kind_badge_label(
+    is_oz_agent: bool,
+    cli_agent: Option<CLIAgent>,
+    locale: LocaleId,
+) -> String {
     if let Some(cli_agent) = cli_agent {
         cli_agent.display_name().to_string()
     } else if is_oz_agent {
         "Oz".to_string()
     } else {
-        "Terminal".to_string()
+        localization::text_for_locale(locale, "workspace.vertical_tabs.pane_kind.terminal")
     }
 }
 
@@ -5197,6 +5217,7 @@ fn render_terminal_primary_line_for_view(
             working_directory.as_str(),
             terminal_title_fallback_font(&agent_text),
             terminal_view.last_completed_command_text(),
+            localization::current_locale(app),
         ),
         terminal_view,
         appearance,
@@ -6762,7 +6783,11 @@ fn render_terminal_detail_section(
     let agent_text = terminal_agent_text(terminal_view, app);
     let (conversation_display_title, cli_agent_title) =
         preferred_agent_tab_titles(&agent_text, agent_tab_text_preference(app));
-    let kind_label = terminal_kind_badge_label(agent_text.is_oz_agent, agent_text.cli_agent);
+    let kind_label = terminal_kind_badge_label(
+        agent_text.is_oz_agent,
+        agent_text.cli_agent,
+        localization::current_locale(app),
+    );
     let status = if let Some(session) = cli_agent_session.filter(|s| s.supports_rich_status()) {
         Some(session.status.to_conversation_status())
     } else if agent_text.is_oz_agent {
@@ -6780,6 +6805,7 @@ fn render_terminal_detail_section(
         working_directory.as_deref().unwrap_or(title_text.as_str()),
         terminal_title_fallback_font(&agent_text),
         terminal_view.last_completed_command_text(),
+        localization::current_locale(app),
     );
 
     let mut section = Flex::column()
@@ -6895,8 +6921,13 @@ fn render_code_detail_section(
     }
 
     if extra_open_tabs > 0 {
+        let count = extra_open_tabs.to_string();
         section.add_child(render_detail_wrapping_text(
-            format!("and {extra_open_tabs} more"),
+            localization::text_for_app_with_args(
+                app,
+                "workspace.vertical_tabs.and_more",
+                &[("count", &count)],
+            ),
             12.,
             text_colors.sub,
             None,
@@ -6952,7 +6983,7 @@ fn render_warp_drive_object_detail_section(
         appearance,
     ));
     section.add_child(render_detail_badge(
-        props.typed.kind_label(),
+        props.typed.kind_label(app),
         Some(render_detail_kind_badge_icon(props, appearance, app)),
         None,
         text_colors.disabled,
@@ -7293,6 +7324,7 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
                         working_directory_text.as_str(),
                         terminal_title_fallback_font(&agent_text),
                         terminal_view.last_completed_command_text(),
+                        localization::current_locale(app),
                     );
                     Some(
                         Text::new_inline(line_data.text().to_string(), font_family, 10.)

@@ -208,6 +208,7 @@ fn terminal_primary_line_uses_terminal_title_when_disabled_cli_has_only_prompt()
         "~/warp",
         terminal_title_fallback_font(&agent_text),
         Some("claude".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "Generated Claude Code title");
@@ -261,6 +262,7 @@ fn terminal_primary_line_uses_cli_prompt_when_enabled_cli_has_prompt() {
         "~/warp",
         terminal_title_fallback_font(&agent_text),
         Some("claude".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "Latest CLI prompt");
@@ -287,6 +289,7 @@ fn terminal_primary_line_uses_cli_prompt_when_enabled_cli_is_long_running() {
         "~/warp",
         terminal_title_fallback_font(&agent_text),
         Some("claude".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "Latest CLI prompt");
@@ -702,6 +705,7 @@ fn terminal_primary_line_prefers_cli_agent_display_title() {
         "~/warp",
         TerminalPrimaryLineFont::Monospace,
         Some("cargo nextest run".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "Review the failing tests");
@@ -717,6 +721,7 @@ fn terminal_primary_line_prefers_cli_agent_display_title_over_conversation_title
         "~/warp",
         TerminalPrimaryLineFont::Monospace,
         Some("cargo nextest run".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "Summarize the failures");
@@ -732,6 +737,7 @@ fn terminal_primary_line_falls_through_to_terminal_title_when_cli_agent_has_no_p
         "~/warp",
         TerminalPrimaryLineFont::Monospace,
         Some("cargo nextest run".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "codex - ~/warp");
@@ -747,6 +753,7 @@ fn terminal_primary_line_uses_terminal_title_as_fallback() {
         "~/warp",
         TerminalPrimaryLineFont::Monospace,
         Some("cargo nextest run".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "nvim src/workspace/view/vertical_tabs.rs");
@@ -762,6 +769,7 @@ fn terminal_primary_line_uses_last_completed_command_when_shell_title_matches_wo
         "~/warp",
         TerminalPrimaryLineFont::Monospace,
         Some("cargo nextest run".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "cargo nextest run");
@@ -777,6 +785,7 @@ fn terminal_primary_line_falls_back_to_new_session() {
         "~/warp",
         TerminalPrimaryLineFont::Monospace,
         None,
+        warp_localization::LocaleId::EnUs,
     );
 
     assert_eq!(line.text(), "New session");
@@ -787,6 +796,18 @@ fn terminal_primary_line_falls_back_to_new_session() {
             ..
         }
     ));
+
+    let localized_line = terminal_primary_line_data(
+        false,
+        None,
+        None,
+        "~/warp",
+        "~/warp",
+        TerminalPrimaryLineFont::Monospace,
+        None,
+        warp_localization::LocaleId::ZhCn,
+    );
+    assert_eq!(localized_line.text(), "新会话");
 }
 
 #[test]
@@ -799,6 +820,7 @@ fn terminal_primary_line_uses_monospace_for_last_completed_command() {
         "~/warp",
         TerminalPrimaryLineFont::Monospace,
         Some("cargo nextest run".to_string()),
+        warp_localization::LocaleId::EnUs,
     );
 
     assert!(matches!(
@@ -816,7 +838,11 @@ fn terminal_search_fragments_include_rendered_terminal_badges() {
         "Review the failing tests".to_string(),
         "~/warp".to_string(),
         Some("main".to_string()),
-        terminal_kind_badge_label(false, Some(CLIAgent::Claude)),
+        terminal_kind_badge_label(
+            false,
+            Some(CLIAgent::Claude),
+            warp_localization::LocaleId::EnUs,
+        ),
         Some(terminal_pull_request_badge_label(
             "https://github.com/warpdotdev/warp-internal/pull/12345",
         )),
@@ -853,6 +879,18 @@ fn pane_search_fragments_prepend_custom_title_and_keep_generated_metadata() {
     assert!(search_fragments_contain_query(&fragments, "cargo nextest"));
     assert!(search_fragments_contain_query(&fragments, "~/warp"));
     assert!(search_fragments_contain_query(&fragments, "claude"));
+}
+
+#[test]
+fn terminal_kind_badge_localizes_plain_terminal() {
+    assert_eq!(
+        terminal_kind_badge_label(false, None, warp_localization::LocaleId::EnUs),
+        "Terminal"
+    );
+    assert_eq!(
+        terminal_kind_badge_label(false, None, warp_localization::LocaleId::ZhCn),
+        "终端"
+    );
 }
 
 #[test]
