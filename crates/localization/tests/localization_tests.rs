@@ -3596,6 +3596,16 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/auth/auth_view_body.rs",
+            &[
+                "const AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT",
+                "Click here to paste your token from the browser\".into()",
+                "In order to use Warp’s AI features",
+                "In order to create more objects in Warp Drive",
+                "In order to share, please create an account",
+            ][..],
+        ),
+        (
             "app/src/context_chips/display_menu.rs",
             &[
                 "Search directories...",

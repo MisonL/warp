@@ -33,7 +33,7 @@ use crate::editor::{
     EditorView, InteractionState, SingleLineEditorOptions, TextColors, TextOptions,
 };
 use crate::experiments::{AuthFlowInstructions, Experiment};
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::modal::MODAL_CORNER_RADIUS;
 use crate::network::NetworkStatus;
 use crate::server::telemetry::{AnonymousUserSignupEntrypoint, LoginEventSource, TelemetryEvent};
@@ -46,9 +46,6 @@ const TOS_URL: &str = "https://www.warp.dev/terms-of-service";
 
 const COMMON_BODY_UI_FONT_SIZE: f32 = 12.;
 const AUTH_MODAL_GAP: f32 = 16.;
-
-const AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT: &str = "Auth Token";
-const AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT_EXPERIMENTAL: &str = "Browser auth token";
 
 const AUTH_TOKEN_INPUT_BORDER_RADIUS: Radius = Radius::Pixels(4.);
 
@@ -142,8 +139,15 @@ pub enum AuthViewBodyAction {
 
 impl AuthViewBody {
     pub fn new(variant: AuthViewVariant, ctx: &mut ViewContext<Self>) -> Self {
-        let experiment_group = AuthFlowInstructions::get_group(ctx);
-        let auth_token_input = ctx.add_typed_action_view(|ctx| {
+        let placeholder_key = if matches!(
+            AuthFlowInstructions::get_group(ctx),
+            Some(AuthFlowInstructions::Experiment)
+        ) {
+            "auth.token.browser_placeholder"
+        } else {
+            "auth.token.placeholder"
+        };
+        let auth_token_input = ctx.add_typed_action_view(move |ctx| {
             let appearance = Appearance::as_ref(ctx);
             let mut editor = EditorView::single_line(
                 SingleLineEditorOptions {
@@ -163,14 +167,7 @@ impl AuthViewBody {
                 ctx,
             );
 
-            let placeholder_text =
-                if matches!(experiment_group, Some(AuthFlowInstructions::Experiment)) {
-                    AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT_EXPERIMENTAL
-                } else {
-                    AUTH_TOKEN_INPUT_PLACEHOLDER_TEXT
-                };
-
-            editor.set_placeholder_text(placeholder_text, ctx);
+            editor.set_placeholder_text(&localization::text_for_app(ctx, placeholder_key), ctx);
             editor
         });
 
@@ -180,6 +177,13 @@ impl AuthViewBody {
                 AltEnter | CmdEnter | Enter | Paste | ShiftEnter => me.emit_token_entered(ctx),
                 _ => {}
             };
+            ctx.notify();
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), move |me, _, _, ctx| {
+            let placeholder = localization::text_for_app(ctx, placeholder_key);
+            me.auth_token_input.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(&placeholder, ctx)
+            });
             ctx.notify();
         });
 
@@ -252,12 +256,16 @@ impl AuthViewBody {
         }
     }
 
-    fn render_auth_token_suggest(&self, ui_builder: &UiBuilder) -> Box<dyn Element> {
+    fn render_auth_token_suggest(
+        &self,
+        ui_builder: &UiBuilder,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Flex::row()
             .with_child(
                 ui_builder
                     .link(
-                        "Click here to paste your token from the browser".into(),
+                        localization::text_for_app(app, "auth.token.paste_from_browser"),
                         None,
                         Some(Box::new(|ctx| {
                             ctx.dispatch_typed_action(AuthViewBodyAction::EnterToken);
@@ -615,6 +623,7 @@ impl AuthViewBody {
         &self,
         appearance: &Appearance,
         ui_builder: &UiBuilder,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let disclaimer_color = appearance
             .theme()
@@ -626,22 +635,16 @@ impl AuthViewBody {
             ..Default::default()
         };
 
-        let text = match self.variant {
-            AuthViewVariant::RequireLoginCloseable  => {
-                "In order to use Warp’s AI features or collaborate with others, please create an account."
-            }
-            AuthViewVariant::HitDriveObjectLimitCloseable => {
-                "In order to create more objects in Warp Drive, please create an account."
-            }
-            AuthViewVariant::ShareRequirementCloseable => {
-                "In order to share, please create an account."
-            }
-            _ => "",
+        let key = match self.variant {
+            AuthViewVariant::RequireLoginCloseable => "auth.require_login.ai",
+            AuthViewVariant::HitDriveObjectLimitCloseable => "auth.require_login.drive_limit",
+            AuthViewVariant::ShareRequirementCloseable => "auth.require_login.share",
+            _ => "auth.empty",
         };
 
         Container::new(
             ui_builder
-                .paragraph(text)
+                .paragraph(localization::text_for_app(app, key))
                 .with_style(disclaimer_styles)
                 .build()
                 .finish(),
@@ -726,7 +729,8 @@ impl AuthViewBody {
         let sign_in_row = Container::new(self.render_sign_in_row(ui_builder, app))
             .with_margin_top(AUTH_MODAL_GAP)
             .finish();
-        let force_login_disclaimer = self.render_force_login_disclaimer(appearance, ui_builder);
+        let force_login_disclaimer =
+            self.render_force_login_disclaimer(appearance, ui_builder, app);
 
         match self.variant {
             AuthViewVariant::Initial => {
@@ -843,7 +847,7 @@ impl AuthViewBody {
             if let Some(auth_token_input) = self.render_auth_token_input(appearance) {
                 auth_token_input
             } else {
-                self.render_auth_token_suggest(ui_builder)
+                self.render_auth_token_suggest(ui_builder, app)
             },
         )
         .with_margin_top(AUTH_MODAL_GAP)
