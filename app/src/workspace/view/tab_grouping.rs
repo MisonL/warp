@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use itertools::{Either, Itertools};
 use warp_core::features::FeatureFlag;
-use warpui::{EntityId, UpdateView, ViewContext};
+use warpui::{AppContext, EntityId, UpdateView, ViewContext};
 
 use super::{group_member_indices, Workspace};
 use crate::localization;
@@ -685,6 +685,7 @@ impl Workspace {
     pub(super) fn build_move_to_group_sidecar_items(
         &self,
         tab_index: Option<usize>,
+        app: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
         // Exclude the source's current group (if any) — there's nowhere to
         // move it to. For a mixed selection (no shared group) every
@@ -714,7 +715,9 @@ impl Workspace {
                     .tab_groups
                     .get(&group_id)
                     .and_then(|g| g.name.clone())
-                    .unwrap_or_else(|| "Untitled group".to_string());
+                    .unwrap_or_else(|| {
+                        localization::text_for_app(app, "workspace.vertical_tabs.group.untitled")
+                    });
                 let action = match tab_index {
                     Some(tab_index) => WorkspaceAction::MoveTabToGroup {
                         tab_index,

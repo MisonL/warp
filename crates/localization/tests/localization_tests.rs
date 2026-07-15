@@ -4219,6 +4219,10 @@ fn agent_tips_notebook_links_and_recorder_toasts_use_catalog_copy() {
             ][..],
         ),
         (
+            "app/src/workspace/view/tab_grouping.rs",
+            &[".unwrap_or_else(|| \"Untitled group\".to_string())"][..],
+        ),
+        (
             "app/src/notebooks/link.rs",
             &[
                 "label: \"New session\"",

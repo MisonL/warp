@@ -10146,7 +10146,7 @@ impl Workspace {
             let source_tab_index = self
                 .show_tab_right_click_menu
                 .map(|(tab_index, _)| tab_index);
-            let items = self.build_move_to_group_sidecar_items(source_tab_index);
+            let items = self.build_move_to_group_sidecar_items(source_tab_index, ctx);
             if items.is_empty() {
                 self.hide_move_to_group_sidecar(ctx);
                 return;
@@ -22412,19 +22412,18 @@ impl Workspace {
                 AutoupdateStage::UnableToUpdateToNewVersion { new_version }
                     if !self.autoupdate_unable_to_update_banner_dismissed =>
                 {
-                    let description = if is_incoming_version_past_current(
-                        new_version.soft_cutoff.as_deref(),
-                    ) {
-                        localization::text_for_app(
+                    let description =
+                        if is_incoming_version_past_current(new_version.soft_cutoff.as_deref()) {
+                            localization::text_for_app(
                             app,
                             "workspace.banner.autoupdate.unable_to_update_deprecated.description",
                         )
-                    } else {
-                        localization::text_for_app(
-                            app,
-                            "workspace.banner.autoupdate.unable_to_update.description",
-                        )
-                    };
+                        } else {
+                            localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.unable_to_update.description",
+                            )
+                        };
 
                     Some(WorkspaceBannerFields {
                         banner_type: WorkspaceBanner::UnableToUpdateToNewVersion,
