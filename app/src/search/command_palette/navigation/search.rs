@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use fuzzy_match::match_indices_case_insensitive;
 use itertools::Itertools;
+use warp_localization::LocaleId;
 use warpui::{AppContext, ModelHandle};
 
 use crate::pane_group::PaneId;
@@ -92,6 +93,7 @@ impl SessionHighlightIndices {
 pub fn filter_sessions<'a, 'b, I>(
     sessions_iter: I,
     search_term: &'b str,
+    locale: LocaleId,
 ) -> impl Iterator<Item = MatchedSession> + use<'a, 'b, I>
 where
     I: IntoIterator<Item = &'a SessionNavigationData>,
@@ -103,7 +105,7 @@ where
                 Some((SessionMatchResult::no_match(), session.clone()))
             } else {
                 let (searchable_string, session_highlights) =
-                    searchable_session_string_and_ranges(session);
+                    searchable_session_string_and_ranges(session, locale);
 
                 match_indices_case_insensitive(&searchable_string, search_term).map(|result| {
                     let highlight_indices =
@@ -128,6 +130,7 @@ where
 /// where [command] may or may not be present.
 fn searchable_session_string_and_ranges(
     session: &SessionNavigationData,
+    locale: LocaleId,
 ) -> (String, SearchableSessionStringRanges) {
     let mut searchable_string = session.prompt().to_string();
     let prompt_end = session.prompt().chars().count();
@@ -166,7 +169,7 @@ fn searchable_session_string_and_ranges(
         CommandContext::None => None,
     };
 
-    let command_info = CommandRenderInfo::from_context(session.command_context());
+    let command_info = CommandRenderInfo::from_context(session.command_context(), locale);
     searchable_string.push(' ');
     searchable_string.push_str(command_info.hint_text.as_str());
     let hint_text_range = match &command_range {
@@ -227,9 +230,13 @@ impl SessionSearcher for FuzzySessionSearcher {
         let all_sessions =
             SessionNavigationData::all_sessions(app).sorted_by_key(|x| x.last_focus_ts());
 
-        Ok(filter_sessions(all_sessions.as_slice(), search_term)
-            .map(|matched_session| SearchItem::new(matched_session, active_session_id).into())
-            .collect())
+        Ok(filter_sessions(
+            all_sessions.as_slice(),
+            search_term,
+            crate::localization::current_locale(app),
+        )
+        .map(|matched_session| SearchItem::new(matched_session, active_session_id).into())
+        .collect())
     }
 
     fn active_session_id(&self, app: &AppContext) -> Option<PaneId> {
@@ -286,8 +293,10 @@ mod full_text_searcher {
                 SessionNavigationData::all_sessions(app)
                     .enumerate()
                     .map(|(idx, session)| {
-                        let (search_string, highlight) =
-                            searchable_session_string_and_ranges(&session);
+                        let (search_string, highlight) = searchable_session_string_and_ranges(
+                            &session,
+                            crate::localization::current_locale(app),
+                        );
                         let search_id = SessionSearchId(idx);
 
                         sessions.insert(search_id, (session, highlight, search_string.clone()));
