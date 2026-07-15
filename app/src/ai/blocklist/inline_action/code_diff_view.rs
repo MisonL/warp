@@ -1768,10 +1768,18 @@ impl CodeDiffView {
             let diff_type = diff.diff_view.as_ref(app).diff();
             let file_name = match diff.diff_view.as_ref(app).file_name() {
                 Some(file_name) if matches!(diff_type, Some(DiffType::Create { .. })) => {
-                    format!("{file_name} (new)")
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.code_diff.file_status.new",
+                        &[("file_name", &file_name)],
+                    )
                 }
                 Some(file_name) if matches!(diff_type, Some(DiffType::Delete { .. })) => {
-                    format!("{file_name} (deleted)")
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.code_diff.file_status.deleted",
+                        &[("file_name", &file_name)],
+                    )
                 }
                 Some(file_name) => {
                     // Check if this is a rename
@@ -1786,7 +1794,7 @@ impl CodeDiffView {
                         file_name
                     }
                 }
-                None => "No file name".to_string(),
+                None => crate::localization::text_for_app(app, "agent.code_diff.no_file_name"),
             };
 
             // Get the full path for the tooltip

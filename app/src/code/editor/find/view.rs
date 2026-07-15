@@ -967,20 +967,25 @@ impl View for CodeEditorFind {
         let match_count = self.searcher.as_ref(app).match_count();
         let selected_match = self.searcher.as_ref(app).selected_match();
         let description = match (match_count, selected_match) {
-            (0, _) | (_, None) => "Find bar for searching text in the editor.".to_string(),
-            (count, Some(current)) => format!(
-                "Find bar with {} matches found. Currently on match {} of {}.",
-                count,
-                current + 1,
-                count
+            (0, _) | (_, None) => {
+                crate::localization::text_for_app(app, "code.find.a11y.description")
+            }
+            (count, Some(current)) => crate::localization::text_for_app_with_args(
+                app,
+                "code.find.a11y.description_with_matches",
+                &[
+                    ("count", &count.to_string()),
+                    ("current", &(current + 1).to_string()),
+                    ("total", &count.to_string()),
+                ],
             ),
         };
 
         let is_replace_focused = self.is_replace_open && self.replace_editor.is_focused(app);
         let help_text = if is_replace_focused {
-            "Replace field focused. Type replacement text, press Enter to replace current match, Tab to return to find field. Use up/down arrows to navigate matches, Escape to close."
+            crate::localization::text_for_app(app, "code.find.a11y.replace_focused_help")
         } else {
-            "Find field focused. Type to search text. Use Enter and Shift-Enter or up/down arrows to navigate between matches. Press Escape to close find bar."
+            crate::localization::text_for_app(app, "code.find.a11y.find_focused_help")
         };
 
         Some(AccessibilityContent::new(

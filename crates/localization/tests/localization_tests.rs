@@ -4443,7 +4443,35 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
         ),
         (
             "app/src/code/view.rs",
-            &[".unwrap_or_else(|| \"Untitled\".to_string())"][..],
+            &[
+                ".unwrap_or_else(|| \"Untitled\".to_string())",
+                "None => \"Untitled\".to_string()",
+                "secondary.push_str(\" (new)\")",
+            ][..],
+        ),
+        (
+            "app/src/code/editor/find/view.rs",
+            &[
+                "Find bar for searching text in the editor.",
+                "Find bar with {} matches found.",
+                "Replace field focused. Type replacement text",
+                "Find field focused. Type to search text.",
+            ][..],
+        ),
+        (
+            "app/src/code/find_references_view.rs",
+            &[
+                "\"Showing 1 reference\".to_string()",
+                "format!(\"Showing {total_refs} references\")",
+            ][..],
+        ),
+        (
+            "app/src/ai/blocklist/inline_action/code_diff_view.rs",
+            &[
+                "format!(\"{file_name} (new)\")",
+                "format!(\"{file_name} (deleted)\")",
+                "\"No file name\".to_string()",
+            ][..],
         ),
         (
             "app/src/notebooks/file/mod.rs",

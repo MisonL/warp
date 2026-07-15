@@ -497,9 +497,13 @@ fn render_header(
 
     // "Showing X references" title
     let title_text = if total_refs == 1 {
-        "Showing 1 reference".to_string()
+        crate::localization::text_for_app(app, "code.find_references.showing_one")
     } else {
-        format!("Showing {total_refs} references")
+        crate::localization::text_for_app_with_args(
+            app,
+            "code.find_references.showing_many",
+            &[("count", &total_refs.to_string())],
+        )
     };
 
     let title = Align::new(

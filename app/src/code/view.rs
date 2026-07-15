@@ -831,7 +831,7 @@ impl CodeView {
 
         let title = match &file_location {
             Some(location) => display_path_with_host(location, false, ctx),
-            None => "Untitled".to_string(),
+            None => crate::localization::text_for_app(ctx, "code.tab.untitled"),
         };
 
         self.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -839,7 +839,10 @@ impl CodeView {
             if self.tab_group.len() > 1 {
                 secondary.push_str(&format!(" (+{})", self.tab_group.len() - 1));
             } else if is_new {
-                secondary.push_str(" (new)");
+                secondary.push_str(&crate::localization::text_for_app(
+                    ctx,
+                    "code.tab.new_suffix",
+                ));
             }
 
             pane_config.set_title(title, ctx);
