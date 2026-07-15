@@ -582,40 +582,46 @@ impl GitBranchTrackingStatus {
     }
 
     fn tooltip_text(&self, app: &AppContext) -> String {
+        self.tooltip_text_for_locale(crate::localization::current_locale(app))
+    }
+
+    fn tooltip_text_for_locale(&self, locale: warp_localization::LocaleId) -> String {
         match &self.upstream {
-            Some(upstream) if self.is_rebased() => crate::localization::text_for_app_with_args(
-                app,
+            Some(upstream) if self.is_rebased() => crate::localization::text_for_locale_with_args(
+                locale,
                 "context_chips.git_branch.tooltip.tracking_rebased",
                 &[("upstream", upstream)],
             ),
-            Some(upstream) if self.counts_available => crate::localization::text_for_app_with_args(
-                app,
-                "context_chips.git_branch.tooltip.tracking_counts",
-                &[
-                    ("upstream", upstream),
-                    ("ahead", &self.ahead.to_string()),
-                    ("behind", &self.behind.to_string()),
-                ],
-            ),
-            Some(upstream) => crate::localization::text_for_app_with_args(
-                app,
+            Some(upstream) if self.counts_available => {
+                crate::localization::text_for_locale_with_args(
+                    locale,
+                    "context_chips.git_branch.tooltip.tracking_counts",
+                    &[
+                        ("upstream", upstream),
+                        ("ahead", &self.ahead.to_string()),
+                        ("behind", &self.behind.to_string()),
+                    ],
+                )
+            }
+            Some(upstream) => crate::localization::text_for_locale_with_args(
+                locale,
                 "context_chips.git_branch.tooltip.tracking_counts_unavailable",
                 &[("upstream", upstream)],
             ),
-            None if self.is_rebased() => crate::localization::text_for_app(
-                app,
+            None if self.is_rebased() => crate::localization::text_for_locale(
+                locale,
                 "context_chips.git_branch.tooltip.rebased_upstream_unavailable",
             ),
-            None if self.counts_available => crate::localization::text_for_app_with_args(
-                app,
+            None if self.counts_available => crate::localization::text_for_locale_with_args(
+                locale,
                 "context_chips.git_branch.tooltip.counts_upstream_unavailable",
                 &[
                     ("ahead", &self.ahead.to_string()),
                     ("behind", &self.behind.to_string()),
                 ],
             ),
-            None => crate::localization::text_for_app(
-                app,
+            None => crate::localization::text_for_locale(
+                locale,
                 "context_chips.git_branch.tooltip.no_upstream",
             ),
         }

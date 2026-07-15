@@ -122,8 +122,12 @@ fn test_git_branch_tracking_status_tooltip_reports_fallback_counts_without_upstr
     let status = GitBranchTrackingStatus::from_display_text("feature-a • ↑2 ↓1").unwrap();
 
     assert_eq!(
-        status.tooltip_text(),
+        status.tooltip_text_for_locale(warp_localization::LocaleId::EnUs),
         "Ahead 2, behind 1; upstream name is unavailable"
+    );
+    assert_eq!(
+        status.tooltip_text_for_locale(warp_localization::LocaleId::ZhCn),
+        "领先 2，落后 1；无法获取上游名称"
     );
 }
 
