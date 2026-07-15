@@ -3610,6 +3610,8 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &[
                 "wrappable_text(\"Warp is the default terminal\"",
                 "\"Make Warp the default terminal\".to_string()",
+                "wrappable_text(\"Allowed Values: 1-20\"",
+                "wrappable_text(\"Changes will apply to new windows.\"",
             ][..],
         ),
         (
