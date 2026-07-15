@@ -3978,20 +3978,11 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
 #[test]
 fn settings_render_helpers_do_not_use_direct_english_literals() {
     let mut violations = Vec::new();
-    for relative_path in [
-        "app/src/settings_view/appearance_page.rs",
-        "app/src/settings_view/features_page.rs",
-    ] {
-        let path = workspace_root().join(relative_path);
-        let content = fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-        collect_direct_literal_after_patterns(
-            relative_path,
-            &content,
-            &["render_body_item::<", "render_dropdown_item("],
-            &mut violations,
-        );
-    }
+    collect_direct_literal_after_patterns_in_dir(
+        &workspace_root().join("app/src/settings_view"),
+        &["render_body_item::<", "render_dropdown_item("],
+        &mut violations,
+    );
 
     assert!(
         violations.is_empty(),
@@ -7608,6 +7599,41 @@ fn collect_direct_literal_after_patterns(
             }
             cursor = scan_start;
         }
+    }
+}
+
+fn collect_direct_literal_after_patterns_in_dir(
+    dir: &Path,
+    patterns: &[&str],
+    violations: &mut Vec<String>,
+) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+
+    for entry in entries {
+        let entry = entry.expect("failed to read source directory entry");
+        let path = entry.path();
+        if path.is_dir() {
+            collect_direct_literal_after_patterns_in_dir(&path, patterns, violations);
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs")
+            || path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with("_tests.rs") || name == "test.rs")
+        {
+            continue;
+        }
+
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        let relative_path = path
+            .strip_prefix(workspace_root())
+            .unwrap_or(path.as_path())
+            .display()
+            .to_string();
+        collect_direct_literal_after_patterns(&relative_path, &content, patterns, violations);
     }
 }
 
