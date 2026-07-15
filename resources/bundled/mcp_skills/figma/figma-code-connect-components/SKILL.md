@@ -1,7 +1,7 @@
 ---
 name: figma-code-connect-components
 description: Connects Figma design components to code components using Code Connect mapping tools. Use when user says "code connect", "connect this component to code", "map this component", "link component to code", "create code connect mapping", or wants to establish mappings between Figma designs and code implementations. For canvas writes via `use_figma`, use `figma-use`.
-description_zh_CN: 使用 Code Connect 映射工具将 Figma 设计组件连接到代码组件。适用于用户要求建立 Figma 设计与代码实现之间的映射时。若要通过 `use_figma` 写入画布，请使用 `figma-use`。
+description_zh_CN: 使用 Code Connect 映射工具将 Figma 设计组件连接到代码组件。用户提到 code connect、将组件连接到代码、映射组件、把组件链接到代码、创建 Code Connect 映射，或要在 Figma 设计与代码实现之间建立映射时使用。若要通过 `use_figma` 写入画布，请使用 `figma-use`。
 disable-model-invocation: false
 ---
 

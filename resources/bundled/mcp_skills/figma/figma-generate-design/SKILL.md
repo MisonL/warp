@@ -1,7 +1,7 @@
 ---
 name: figma-generate-design
 description: "Use this skill alongside figma-use when the task involves translating an application page, view, or multi-section layout into Figma. Triggers: 'write to Figma', 'create in Figma from code', 'push page to Figma', 'take this app/page and build it in Figma', 'create a screen', 'build a landing page in Figma', 'update the Figma screen to match code'. This is the preferred workflow skill whenever the user wants to build or update a full page, screen, or view in Figma from code or a description. Discovers design system components, variables, and styles via search_design_system, imports them, and assembles screens incrementally section-by-section using design system tokens instead of hardcoded values."
-description_zh_CN: "与 figma-use 搭配使用，将应用页面、视图或多区块布局转换到 Figma。适用于用户想从代码或描述创建/更新完整页面、屏幕或视图时，会发现并复用设计系统组件、变量和样式。"
+description_zh_CN: "与 `figma-use` 搭配使用，将应用页面、视图或多区块布局转换到 Figma。用户要求写入 Figma、从代码在 Figma 中创建、把页面推送到 Figma、将应用或页面构建到 Figma、创建屏幕、在 Figma 中构建落地页，或更新 Figma 屏幕以匹配代码时触发。凡是要从代码或描述在 Figma 中创建或更新完整页面、屏幕或视图，优先使用此工作流。它通过 `search_design_system` 发现并导入设计系统组件、变量和样式，再按区块渐进组装屏幕，并使用设计系统 token 而不是硬编码值。"
 ---
 
 # Build / Update Screens from Design System

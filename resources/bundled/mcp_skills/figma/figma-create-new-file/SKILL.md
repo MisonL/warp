@@ -1,7 +1,7 @@
 ---
 name: figma-create-new-file
 description: Create a new blank Figma file. Use when the user wants to create a new Figma design or FigJam file, or when you need a new file before calling use_figma. Handles plan resolution via whoami if needed. Usage — /figma-create-new-file [editorType] [fileName] (e.g. /figma-create-new-file figjam My Whiteboard)
-description_zh_CN: 创建新的空白 Figma 文件。适用于用户想创建新的 Figma 设计或 FigJam 文件，或调用 use_figma 前需要新文件时。必要时会通过 whoami 解析套餐信息。
+description_zh_CN: 创建新的空白 Figma 文件。适用于用户想创建新的 Figma 设计或 FigJam 文件，或调用 `use_figma` 前需要新文件时。必要时会通过 `whoami` 解析套餐信息。用法：`/figma-create-new-file [editorType] [fileName]`，例如 `/figma-create-new-file figjam My Whiteboard`。
 disable-model-invocation: true
 ---
 
