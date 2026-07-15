@@ -156,9 +156,10 @@ impl CommandSearchZeroStateView {
     /// clicked, the filter is emitted in a [`CommandSearchZeroStateEvent::FilterChipSelected`] event.
     fn render_filter_chips(
         &self,
-        appearance: &Appearance,
+        app: &AppContext,
         valid_filters: &[QueryFilter],
     ) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let mut row = Wrap::row().with_run_spacing(styles::FILTER_CHIP_MARGIN);
 
         for filter in valid_filters.iter() {
@@ -166,6 +167,7 @@ impl CommandSearchZeroStateView {
                 Container::new(filter.render_filter_chip(
                     self.filter_chip_to_mouse_state_handle[filter].clone(),
                     appearance,
+                    app,
                     |event_ctx, filter| {
                         event_ctx.dispatch_typed_action(
                             CommandSearchZeroStateAction::FilterChipClicked(filter),
@@ -230,7 +232,7 @@ impl View for CommandSearchZeroStateView {
                 .with_margin_bottom(styles::FILTER_PREFIX_TEXT_MARGIN_BOTTOM)
                 .finish(),
             )
-            .with_child(self.render_filter_chips(appearance, &valid_filters))
+            .with_child(self.render_filter_chips(app, &valid_filters))
             .with_child(
                 Container::new(
                     Text::new_inline(

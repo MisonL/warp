@@ -4,11 +4,12 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, Radius, Text,
 };
 use warpui::platform::Cursor;
-use warpui::{Element, EventContext};
+use warpui::{AppContext, Element, EventContext};
 
 use crate::appearance::Appearance;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::DriveObjectType;
+use crate::localization;
 use crate::search::{FilterChipRenderer as CommonFilterChipRenderer, QueryFilter};
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 
@@ -19,6 +20,7 @@ pub trait FilterChipRenderer: crate::search::FilterChipRenderer {
         &self,
         mouse_state_handle: MouseStateHandle,
         appearance: &Appearance,
+        app: &AppContext,
         on_click_fn: fn(&mut EventContext, Self),
     ) -> Box<dyn Element>;
 
@@ -31,10 +33,12 @@ impl FilterChipRenderer for QueryFilter {
         &self,
         mouse_state_handle: MouseStateHandle,
         appearance: &Appearance,
+        app: &AppContext,
         on_click_fn: fn(&mut EventContext, Self),
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let self_copy: QueryFilter = *self;
+        let display_name = localization::text_for_app(app, self.display_name_key());
         Hoverable::new(mouse_state_handle, |mouse_state| {
             let font_size = appearance.monospace_font_size() - 2.;
             Container::new({
@@ -42,7 +46,7 @@ impl FilterChipRenderer for QueryFilter {
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(
                         Text::new_inline(
-                            self.display_name(),
+                            display_name.clone(),
                             appearance.ui_font_family(),
                             font_size,
                         )

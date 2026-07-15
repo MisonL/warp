@@ -3997,6 +3997,14 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/search/filter_chip_renderer.rs",
+            &["Text::new_inline(self.display_name()"],
+        ),
+        (
+            "app/src/search/command_palette/filter_chip_renderer.rs",
+            &["self.display_name(),"],
+        ),
+        (
             "app/src/search/command_palette/conversations/data_source.rs",
             &[
                 "ConversationSection::ActivePane => \"Active pane conversations\"",
