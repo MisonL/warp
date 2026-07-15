@@ -3622,6 +3622,9 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "Enabling this setting disables global hotkey support.",
                 "secondary_text.push_str(\"\\n\\nRestart Warp",
                 "let label = \"Start Warp at login",
+                "val.display_name(),",
+                "DefaultSessionMode::Terminal.display_name()",
+                "other.display_name().to_string()",
                 "Use an improved implementation of find to keep the UI responsive",
             ][..],
         ),
@@ -4010,6 +4013,8 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &[
                 "DropdownItem::new(\n                    mode.display_name()",
                 "DropdownItem::new(\n                        mode.display_name()",
+                "DropdownItem::new(\n                            val.display_name()",
+                ".voice_input_toggle_key\n                        .value()\n                        .display_name()",
             ][..],
         ),
         (

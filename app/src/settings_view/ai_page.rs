@@ -931,38 +931,9 @@ impl AISettingsPageView {
         let voice_input_toggle_key_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
-            if !AISettings::as_ref(ctx).is_voice_input_enabled(ctx) {
-                dropdown.set_disabled(ctx);
-            }
-
-            let values = VoiceInputToggleKey::all_possible_values();
-            let current_value = AISettings::as_ref(ctx).voice_input_toggle_key.value();
-            let selected_index = values
-                .iter()
-                .position(|val| val == current_value)
-                .unwrap_or_else(|| {
-                    log::warn!(
-                        "Could not find current VoiceInputToggleKey value in dropdown option list"
-                    );
-                    0
-                });
-
-            dropdown.add_items(
-                values
-                    .into_iter()
-                    .map(|val| {
-                        DropdownItem::new(
-                            val.display_name(),
-                            AISettingsPageAction::SetVoiceInputToggleKey(val),
-                        )
-                    })
-                    .collect(),
-                ctx,
-            );
-            dropdown.set_selected_by_index(selected_index, ctx);
-
             dropdown
         });
+        Self::refresh_voice_input_toggle_key_dropdown(&voice_input_toggle_key_dropdown, ctx);
 
         let coding_model_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
@@ -1433,13 +1404,13 @@ impl AISettingsPageView {
                     );
                 }
                 AISettingsChangedEvent::VoiceInputToggleKey { .. } => {
-                    let current_value = AISettings::as_ref(ctx)
-                        .voice_input_toggle_key
-                        .value()
-                        .display_name();
+                    let current_value = *AISettings::as_ref(ctx).voice_input_toggle_key.value();
                     me.voice_input_toggle_key_dropdown
                         .update(ctx, |dropdown, ctx| {
-                            dropdown.set_selected_by_name(current_value, ctx)
+                            dropdown.set_selected_by_action(
+                                AISettingsPageAction::SetVoiceInputToggleKey(current_value),
+                                ctx,
+                            )
                         });
                 }
                 AISettingsChangedEvent::AgentModeCommandExecutionAllowlist { .. } => {
@@ -2135,6 +2106,7 @@ impl AISettingsPageView {
             orchestration_message_display_mode_dropdown.clone(),
             default_prompt_submission_mode_dropdown.clone(),
             lrc_submission_mode_dropdown.clone(),
+            voice_input_toggle_key_dropdown.clone(),
         );
         ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), move |_, _, _, ctx| {
             OtherAIWidget::refresh_thinking_display_mode_dropdown(&localized_mode_dropdowns.0, ctx);
@@ -2147,6 +2119,7 @@ impl AISettingsPageView {
                 ctx,
             );
             OtherAIWidget::refresh_lrc_submission_mode_dropdown(&localized_mode_dropdowns.3, ctx);
+            Self::refresh_voice_input_toggle_key_dropdown(&localized_mode_dropdowns.4, ctx);
             ctx.notify();
         });
 
@@ -2228,6 +2201,39 @@ impl AISettingsPageView {
                 }
             });
         ctx.notify();
+    }
+
+    fn refresh_voice_input_toggle_key_dropdown(
+        dropdown: &ViewHandle<Dropdown<AISettingsPageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let is_voice_enabled = AISettings::as_ref(ctx).is_voice_input_enabled(ctx);
+        let current_value = *AISettings::as_ref(ctx).voice_input_toggle_key.value();
+
+        dropdown.update(ctx, |dropdown, ctx| {
+            if is_voice_enabled {
+                dropdown.set_enabled(ctx);
+            } else {
+                dropdown.set_disabled(ctx);
+            }
+
+            dropdown.set_items(
+                VoiceInputToggleKey::all_possible_values()
+                    .into_iter()
+                    .map(|value| {
+                        DropdownItem::new(
+                            value.localized_display_name(ctx),
+                            AISettingsPageAction::SetVoiceInputToggleKey(value),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_action(
+                AISettingsPageAction::SetVoiceInputToggleKey(current_value),
+                ctx,
+            );
+        });
     }
 
     pub fn get_modal_content(&self, app: &AppContext) -> Option<Box<dyn Element>> {

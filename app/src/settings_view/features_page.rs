@@ -55,7 +55,7 @@ use crate::editor::{
 };
 use crate::features::FeatureFlag;
 use crate::gpu_state::{GPUState, GPUStateEvent};
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::root_view::QuakeModePinPosition;
 use crate::search::command_search::settings::{
     CommandSearchSettings, ShowGlobalWorkflowsInUniversalSearch,
@@ -2373,6 +2373,15 @@ impl FeaturesPageView {
         let default_session_mode_dropdown = ctx.add_typed_action_view(FilterableDropdown::new);
         Self::update_default_session_mode_dropdown(default_session_mode_dropdown.clone(), ctx);
 
+        let localized_default_session_mode_dropdown = default_session_mode_dropdown.clone();
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), move |_, _, _, ctx| {
+            Self::update_default_session_mode_dropdown(
+                localized_default_session_mode_dropdown.clone(),
+                ctx,
+            );
+            ctx.notify();
+        });
+
         ctx.subscribe_to_model(&WarpConfig::handle(ctx), |me, _, event, ctx| {
             if matches!(event, WarpConfigUpdateEvent::TabConfigs) {
                 Self::update_default_session_mode_dropdown(
@@ -3657,7 +3666,7 @@ impl FeaturesPageView {
                     })
                     .map(|val| {
                         DropdownItem::new(
-                            val.display_name(),
+                            localization::text_for_app(ctx, val.display_name_key()),
                             FeaturesPageAction::SetDefaultSessionMode(val),
                         )
                     })
@@ -3679,7 +3688,7 @@ impl FeaturesPageView {
                 dropdown.set_items(items, ctx);
 
                 // Select the currently active item.
-                let selected_name = match current_mode {
+                let selected_action = match current_mode {
                     DefaultSessionMode::TabConfig => tab_configs
                         .iter()
                         .find(|c| {
@@ -3687,11 +3696,18 @@ impl FeaturesPageView {
                                 .as_ref()
                                 .is_some_and(|p| p.to_string_lossy() == current_tab_config_path)
                         })
-                        .map(|c| c.name.clone())
-                        .unwrap_or_else(|| DefaultSessionMode::Terminal.display_name().to_string()),
-                    other => other.display_name().to_string(),
+                        .and_then(|c| c.source_path.as_ref())
+                        .map(|path| {
+                            FeaturesPageAction::SetDefaultTabConfig(
+                                path.to_string_lossy().into_owned(),
+                            )
+                        })
+                        .unwrap_or(FeaturesPageAction::SetDefaultSessionMode(
+                            DefaultSessionMode::Terminal,
+                        )),
+                    other => FeaturesPageAction::SetDefaultSessionMode(other),
                 };
-                dropdown.set_selected_by_name(&selected_name, ctx);
+                dropdown.set_selected_by_action(selected_action, ctx);
             },
         );
     }
