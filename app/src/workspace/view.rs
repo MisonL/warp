@@ -12173,7 +12173,7 @@ impl Workspace {
                             })
                         }
                     })
-                    .build();
+                    .build(ctx);
 
                 send_telemetry_from_ctx!(
                     TelemetryEvent::QuitModalShown {

@@ -4053,6 +4053,24 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/quit_warning/mod.rs",
+            &[
+                "You have {} {} running",
+                "You are sharing {} {}",
+                "Do you want to save the changes you made to",
+                "You have unsaved file changes",
+                "\"Yes, close\"",
+                "\"Yes, quit\"",
+                "\"Show running processes\"",
+                "\"Close pane?\"",
+                "\"Close tab?\"",
+                "\"Close tabs?\"",
+                "\"Close window?\"",
+                "\"Quit Warp?\"",
+                "\"Save changes?\"",
+            ][..],
+        ),
+        (
             "app/src/editor/view/voice.rs",
             &[
                 "[(\"key\", toggle_key.display_name())]",

@@ -7895,7 +7895,7 @@ impl BackingView for CodeReviewView {
                 .on_save_changes(handle_save_intent(PendingSaveIntent::Save))
                 .on_discard_changes(handle_save_intent(PendingSaveIntent::Discard))
                 .on_cancel(handle_save_intent(PendingSaveIntent::Cancel))
-                .build();
+                .build(ctx);
 
             if cfg!(all(not(target_family = "wasm"), target_os = "macos")) {
                 AppContext::show_native_platform_modal(ctx, dialog);
