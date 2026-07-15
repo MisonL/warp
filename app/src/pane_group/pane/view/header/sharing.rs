@@ -262,10 +262,12 @@ impl<P: BackingView> PaneHeader<P> {
         element.add_child(primary_button);
 
         if !editability.can_edit() {
-            let mut tooltip_text = String::from("Read-only");
-            if matches!(editability, ContentEditability::RequiresLogin) {
-                tooltip_text.push_str(". Sign in to edit");
-            }
+            let tooltip_key = match editability {
+                ContentEditability::RequiresLogin => "pane.header.sharing.read_only_sign_in",
+                ContentEditability::ReadOnly => "pane.header.sharing.read_only",
+                ContentEditability::Editable => unreachable!("editable content was handled above"),
+            };
+            let tooltip_text = localization::text_for_app(app, tooltip_key);
 
             let ui_builder = appearance.ui_builder().clone();
             let view_only_button = if let Some(icon_color) = icon_color_override {
