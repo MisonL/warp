@@ -14114,9 +14114,13 @@ impl TerminalView {
         };
 
         // Set fallback title since /init may have no initial query
-        BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, _ctx| {
+        let fallback_title = localization::text_for_app(
+            ctx,
+            "terminal.init_project.project_setup_title",
+        );
+        BlocklistAIHistoryModel::handle(ctx).update(ctx, move |history, _ctx| {
             if let Some(conversation) = history.conversation_mut(&conversation_id) {
-                conversation.set_fallback_display_title("Project setup".to_string());
+                conversation.set_fallback_display_title(fallback_title);
             }
         });
 

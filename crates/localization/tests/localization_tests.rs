@@ -4071,6 +4071,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["\"(none)\".to_string()"],
         ),
         (
+            "app/src/pane_group/pane/view/header/mod.rs",
+            &["\"Open files and review code diffs\".to_string()"],
+        ),
+        (
             "app/src/drive/items/item.rs",
             &[
                 "let mut owner_label = \"From \".to_string()",
@@ -4130,7 +4134,12 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "New Tab",
                 "Tab configs",
                 "Some features may be unavailable offline",
+                "set_fallback_display_title(\"Linear Issue\".to_string())",
             ][..],
+        ),
+        (
+            "app/src/terminal/view.rs",
+            &["set_fallback_display_title(\"Project setup\".to_string())"],
         ),
         (
             "app/src/workspace/view/global_search/view.rs",

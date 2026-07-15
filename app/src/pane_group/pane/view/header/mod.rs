@@ -151,9 +151,12 @@ impl<P: BackingView> PaneHeader<P> {
         let shared_content = SharedPaneContent::new(ctx);
 
         let toolbelt_feature_popup = ctx.add_view(|_| {
-            FeaturePopup::new_feature(NewFeaturePopupLabel::FromString(
-                "Open files and review code diffs".to_string(),
-            ))
+            FeaturePopup::new_feature(NewFeaturePopupLabel::FromCallable(Box::new(|app| {
+                crate::localization::text_for_app(
+                    app,
+                    "terminal.pane_header.toolbelt_feature_popup",
+                )
+            })))
         });
         ctx.subscribe_to_view(&toolbelt_feature_popup, move |me, _, event, ctx| {
             me.handle_toolbelt_feature_popup_event(event, ctx);
