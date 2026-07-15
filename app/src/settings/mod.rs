@@ -101,21 +101,39 @@ impl SettingsFileError {
     /// this error. Shared between the workspace-level banner
     /// (`Workspace::render_settings_error_banner`) and the settings nav rail
     /// footer (`render_settings_error_alert`) so the two UIs stay in sync.
-    pub fn heading_and_description(&self) -> (String, String) {
+    pub fn heading_and_description(&self, app: &AppContext) -> (String, String) {
         match self {
-            Self::FileParseFailed(_) => (
-                "Your settings file contains an error.".to_owned(),
-                format!("{self}. Open the file to fix it."),
+            Self::FileParseFailed(error) => (
+                crate::localization::text_for_app(app, "settings.error.settings_file.heading"),
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "settings.error.settings_file.parse_description",
+                    &[("error", error.as_str())],
+                ),
             ),
             Self::InvalidSettings(keys) => match keys.len() {
                 1 => (
-                    "Your settings file contains an error.".to_owned(),
-                    format!("{self}. The default value is being used."),
+                    crate::localization::text_for_app(app, "settings.error.settings_file.heading"),
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "settings.error.settings_file.invalid_single_description",
+                        &[("key", keys[0].as_str())],
+                    ),
                 ),
-                _ => (
-                    "Your settings file contains errors.".to_owned(),
-                    format!("{self}. Default values are being used."),
-                ),
+                _ => {
+                    let keys = keys.join(", ");
+                    (
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.error.settings_file.heading_many",
+                        ),
+                        crate::localization::text_for_app_with_args(
+                            app,
+                            "settings.error.settings_file.invalid_multiple_description",
+                            &[("keys", keys.as_str())],
+                        ),
+                    )
+                }
             },
         }
     }

@@ -598,10 +598,6 @@ const TAB_BAR_ICON_PADDING: f32 = 4.;
 
 const TAB_BAR_PILL_WIDTH: f32 = 100.;
 const PILL_FONT_SIZE: f32 = 12.;
-// We use the word "Warp" in the Update Ready button to make it obvious that the terminal is Warp.
-// This can lead to free advertising when users screen-share Warp when an update is available.
-const UPDATE_READY_TEXT: &str = "Update Warp";
-
 const TAB_BAR_OVERFLOW_MENU_WIDTH: f32 = 300.;
 
 #[cfg(not(target_family = "wasm"))]
@@ -626,10 +622,6 @@ const WELCOME_TIPS_POSITION_ID: &str = "welcome_tips_pill";
 const ELLIPSE_SVG_PATH: &str = "bundled/svg/ellipse.svg";
 
 const AI_ASSISTANT_BUTTON_ID: &str = "workspace_view:ai_assistant_button";
-
-const VERSION_DEPRECATION_BANNER_TEXT: &str = "Your app is out of date and some features may not work as expected. Please update immediately.";
-
-const VERSION_DEPRECATION_WITHOUT_PERMISSIONS_BANNER_TEXT: &str = "Some Warp features may not work as expected without updating immediately, but Warp is unable to perform the update.";
 
 const ASK_AI_ASSISTANT_KEYBINDING_NAME: &str = "workspace:toggle_ai_assistant";
 const TOGGLE_RESOURCE_CENTER_KEYBINDING_NAME: &str = "workspace:toggle_resource_center";
@@ -5850,7 +5842,7 @@ impl Workspace {
                     .unwrap_or_else(|| {
                         let title = configuration.title().trim();
                         if title.is_empty() {
-                            "Untitled pane".to_string()
+                            localization::text_for_app(ctx, "workspace.pane.untitled")
                         } else {
                             title.to_string()
                         }
@@ -7221,10 +7213,9 @@ impl Workspace {
         // Seed the editor with the existing name, or the "New Group" default
         // label when the group is unnamed. `insert_selected_text` selects the
         // seeded text so the user can type to replace it instantly.
-        let seed_text = group
-            .name
-            .clone()
-            .unwrap_or_else(|| "New Group".to_string());
+        let seed_text = group.name.clone().unwrap_or_else(|| {
+            localization::text_for_app(ctx, "workspace.vertical_tabs.group.new")
+        });
 
         self.current_workspace_state
             .set_tab_group_being_renamed(group_id);
@@ -10369,7 +10360,10 @@ impl Workspace {
                 .with_height(NEW_SESSION_SIDECAR_SEARCH_BOX_HEIGHT)
                 .finish()
             }),
-            Some("Search repos".to_string()),
+            Some(localization::text_for_app(
+                ctx,
+                "workspace.placeholder.search_repos",
+            )),
         )
         .with_no_interaction_on_hover()
         .no_highlight_on_hover()
@@ -10435,6 +10429,8 @@ impl Workspace {
                 let font_size = appearance.ui_font_size();
                 let border_fill = theme.outline();
                 let mouse_state = add_repo_mouse_state.clone();
+                let add_repo_text =
+                    localization::text_for_app(app, "workspace.action.add_new_repo");
                 Hoverable::new(mouse_state, move |state| {
                     let bg = if state.is_hovered() {
                         theme.accent_button_color()
@@ -10448,7 +10444,7 @@ impl Workspace {
                                 .with_main_axis_size(MainAxisSize::Max)
                                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                                 .with_child(
-                                    Text::new_inline(" + Add new repo", font_family, font_size)
+                                    Text::new_inline(add_repo_text.clone(), font_family, font_size)
                                         .with_color(text_color.into())
                                         .finish(),
                                 )
@@ -12945,7 +12941,10 @@ impl Workspace {
         self.add_tab_with_pane_layout(
             Default::default(),
             Arc::new(HashMap::new()),
-            Some("Install Update".to_owned()),
+            Some(localization::text_for_app(
+                ctx,
+                "workspace.tab.install_update",
+            )),
             ctx,
         );
 
@@ -15366,7 +15365,7 @@ impl Workspace {
             AuthSecretFtuxViewEvent::Failed { .. } => {}
         });
 
-        let title = "New API key".to_string();
+        let title = localization::text_for_app(ctx, "settings.platform.api_keys.modal_title.new");
         let modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(Some(title), body, ctx).with_modal_style(UiComponentStyles {
                 width: Some(520.),
@@ -20221,10 +20220,9 @@ impl Workspace {
         let is_being_renamed = self
             .current_workspace_state
             .is_tab_group_being_renamed(group_id);
-        let title = group
-            .name
-            .clone()
-            .unwrap_or_else(|| "New Group".to_string());
+        let title = group.name.clone().unwrap_or_else(|| {
+            localization::text_for_app(ctx, "workspace.vertical_tabs.group.new")
+        });
         let show_header_pin = FeatureFlag::PinnedTabs.is_enabled() && group.pinned;
         let normal_right_pad = if is_collapsed { 8. } else { 9. };
 
@@ -20792,7 +20790,7 @@ impl Workspace {
             button
                 .with_tooltip(self.render_tab_bar_icon_button_tooltip(
                     appearance,
-                    "Code review panel".to_string(),
+                    localization::text_for_app(ctx, "workspace.panel.code_review"),
                     keybinding_name_to_display_string("workspace:toggle_right_panel", ctx),
                 ))
                 .build()
@@ -22155,8 +22153,10 @@ impl Workspace {
                 Container::new(
                     Flex::row()
                         .with_child(
+                            // Keep the Warp name in this localized button so update prompts remain
+                            // identifiable when users share their screen.
                             Text::new_inline(
-                                UPDATE_READY_TEXT,
+                                localization::text_for_app(app, "workspace.update_ready"),
                                 appearance.ui_font_family(),
                                 PILL_FONT_SIZE,
                             )
@@ -22329,7 +22329,7 @@ impl Workspace {
         // than that they continue to see any of the autoupdate or crash recovery
         // banners.
         let banner_fields = self
-            .render_reauth_banner_element()
+            .render_reauth_banner_element(app)
             .or_else(|| self.render_settings_error_banner(app))
             .or_else(|| self.render_autoupdate_banner_element(app));
 
@@ -22344,12 +22344,12 @@ impl Workspace {
             return None;
         }
         let error = self.settings_file_error.as_ref()?;
-        let (heading, description) = error.heading_and_description();
+        let (heading, description) = error.heading_and_description(app);
         let secondary_button =
             AISettings::as_ref(app)
                 .is_any_ai_enabled(app)
                 .then(|| WorkspaceBannerButtonDetails {
-                    text: "Fix with Oz".to_owned(),
+                    text: localization::text_for_app(app, "settings.footer.fix_with_oz"),
                     action: WorkspaceAction::FixSettingsWithOz {
                         error_description: error.to_string(),
                     },
@@ -22364,7 +22364,7 @@ impl Workspace {
             description,
             secondary_button,
             button: Some(WorkspaceBannerButtonDetails {
-                text: "Open file".to_owned(),
+                text: localization::text_for_app(app, "settings.footer.open_file"),
                 action: WorkspaceAction::OpenSettingsFile,
                 variant: BannerButtonVariant::Outlined,
                 icon: None,
@@ -22379,10 +22379,10 @@ impl Workspace {
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
         self.banner_fields(app)
-            .map(|fields| self.render_workspace_banner(fields, appearance))
+            .map(|fields| self.render_workspace_banner(fields, appearance, app))
     }
 
-    fn render_reauth_banner_element(&self) -> Option<WorkspaceBannerFields> {
+    fn render_reauth_banner_element(&self, app: &AppContext) -> Option<WorkspaceBannerFields> {
         if self.reauth_banner_dismissed || !self.auth_state.needs_reauth() {
             return None;
         }
@@ -22390,11 +22390,14 @@ impl Workspace {
         Some(WorkspaceBannerFields {
             banner_type: WorkspaceBanner::Reauth,
             severity: BannerSeverity::Warning,
-            heading: Some("Your login has expired.".into()),
-            description: "Please sign in again to restore access to cloud-based features.".into(),
+            heading: Some(localization::text_for_app(
+                app,
+                "workspace.banner.reauth.heading",
+            )),
+            description: localization::text_for_app(app, "workspace.banner.reauth.description"),
             secondary_button: None,
             button: Some(WorkspaceBannerButtonDetails {
-                text: "Sign in".into(),
+                text: localization::text_for_app(app, "workspace.banner.reauth.sign_in"),
                 action: WorkspaceAction::Reauth,
                 variant: BannerButtonVariant::Outlined,
                 icon: None,
@@ -22409,13 +22412,19 @@ impl Workspace {
                 AutoupdateStage::UnableToUpdateToNewVersion { new_version }
                     if !self.autoupdate_unable_to_update_banner_dismissed =>
                 {
-                    let description =
-                        if is_incoming_version_past_current(new_version.soft_cutoff.as_deref()) {
-                            VERSION_DEPRECATION_WITHOUT_PERMISSIONS_BANNER_TEXT.to_owned()
-                        } else {
-                            "A new version is available but Warp is unable to perform the update."
-                                .to_owned()
-                        };
+                    let description = if is_incoming_version_past_current(
+                        new_version.soft_cutoff.as_deref(),
+                    ) {
+                        localization::text_for_app(
+                            app,
+                            "workspace.banner.autoupdate.unable_to_update_deprecated.description",
+                        )
+                    } else {
+                        localization::text_for_app(
+                            app,
+                            "workspace.banner.autoupdate.unable_to_update.description",
+                        )
+                    };
 
                     Some(WorkspaceBannerFields {
                         banner_type: WorkspaceBanner::UnableToUpdateToNewVersion,
@@ -22424,7 +22433,10 @@ impl Workspace {
                         description,
                         secondary_button: None,
                         button: Some(WorkspaceBannerButtonDetails {
-                            text: "Update Warp manually".to_string(),
+                            text: localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.update_manually",
+                            ),
                             action: WorkspaceAction::DownloadNewVersion,
                             variant: BannerButtonVariant::Outlined,
                             icon: None,
@@ -22437,9 +22449,15 @@ impl Workspace {
                 {
                     let description =
                         if is_incoming_version_past_current(new_version.soft_cutoff.as_deref()) {
-                            VERSION_DEPRECATION_WITHOUT_PERMISSIONS_BANNER_TEXT.to_owned()
+                            localization::text_for_app(
+                            app,
+                            "workspace.banner.autoupdate.unable_to_launch_deprecated.description",
+                        )
                         } else {
-                            "Warp was unable to launch the new installed version.".to_owned()
+                            localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.unable_to_launch.description",
+                            )
                         };
 
                     Some(WorkspaceBannerFields {
@@ -22449,7 +22467,10 @@ impl Workspace {
                         description,
                         secondary_button: None,
                         button: Some(WorkspaceBannerButtonDetails {
-                            text: "Update Warp manually".to_string(),
+                            text: localization::text_for_app(
+                                app,
+                                "workspace.banner.autoupdate.update_manually",
+                            ),
                             action: WorkspaceAction::DownloadNewVersion,
                             variant: BannerButtonVariant::Outlined,
                             icon: None,
@@ -22464,10 +22485,16 @@ impl Workspace {
                             banner_type: WorkspaceBanner::VersionDeprecated,
                             severity: BannerSeverity::Error,
                             heading: None,
-                            description: VERSION_DEPRECATION_BANNER_TEXT.to_string(),
+                            description: localization::text_for_app(
+                                app,
+                                "workspace.banner.version_deprecated.update_now.description",
+                            ),
                             secondary_button: None,
                             button: Some(WorkspaceBannerButtonDetails {
-                                text: "Update now".to_string(),
+                                text: localization::text_for_app(
+                                    app,
+                                    "workspace.banner.version_deprecated.update_now.button",
+                                ),
                                 action: WorkspaceAction::ApplyUpdate,
                                 variant: BannerButtonVariant::Outlined,
                                 icon: None,
@@ -22481,11 +22508,16 @@ impl Workspace {
                                     banner_type: WorkspaceBanner::VersionDeprecated,
                                     severity: BannerSeverity::Warning,
                                     heading: None,
-                                    description: "Your app is out of date and needs to update."
-                                        .to_string(),
+                                    description: localization::text_for_app(
+                                        app,
+                                        "workspace.banner.version_deprecated.restart_now.description",
+                                    ),
                                     secondary_button: None,
                                     button: Some(WorkspaceBannerButtonDetails {
-                                        text: "Restart app and update now".to_string(),
+                                        text: localization::text_for_app(
+                                            app,
+                                            "workspace.banner.version_deprecated.restart_now.button",
+                                        ),
                                         action: WorkspaceAction::ApplyUpdate,
                                         variant: BannerButtonVariant::Outlined,
                                         icon: None,
@@ -22514,6 +22546,7 @@ impl Workspace {
         &self,
         fields: WorkspaceBannerFields,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let bg_color = match fields.severity {
@@ -22593,7 +22626,7 @@ impl Workspace {
 
             if let Some(more_info_button_action) = more_info_button_action {
                 let more_info_details = WorkspaceBannerButtonDetails {
-                    text: "More info".to_owned(),
+                    text: localization::text_for_app(app, "workspace.button.more_info"),
                     action: more_info_button_action,
                     variant: BannerButtonVariant::Outlined,
                     icon: None,

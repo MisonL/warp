@@ -162,6 +162,7 @@ pub fn render_open_settings_file_button(
 /// messaging and actions.
 pub fn render_settings_error_alert(
     appearance: &Appearance,
+    app: &AppContext,
     error: &SettingsFileError,
     ai_enabled: bool,
     mouse_states: &SettingsFooterMouseStates,
@@ -177,7 +178,7 @@ pub fn render_settings_error_alert(
     // Copy is shared with `Workspace::render_settings_error_banner` via
     // `SettingsFileError::heading_and_description` so the two UIs can't
     // drift out of sync.
-    let (heading, description) = error.heading_and_description();
+    let (heading, description) = error.heading_and_description(app);
     let heading_char_count = heading.chars().count();
     let combined_text = format!("{heading} {description}");
     // Soft-wrap (the `Text::new` default) is appropriate here since the
@@ -234,7 +235,7 @@ pub fn render_settings_error_alert(
         ui_font_family,
         text_color,
         mouse_states.alert_open_file_button.clone(),
-        "Open file",
+        crate::localization::text_for_app(app, "settings.footer.open_file"),
         /*icon=*/ None,
         /*bordered=*/ true,
         WorkspaceAction::OpenSettingsFile,
@@ -256,7 +257,7 @@ pub fn render_settings_error_alert(
             ui_font_family,
             text_color,
             mouse_states.alert_fix_with_oz_button.clone(),
-            "Fix with Oz",
+            crate::localization::text_for_app(app, "settings.footer.fix_with_oz"),
             Some(Icon::Oz),
             /*bordered=*/ false,
             WorkspaceAction::FixSettingsWithOz { error_description },
@@ -305,7 +306,9 @@ pub fn render_footer(
             mouse_states.open_settings_file_button.clone(),
         ),
         SettingsFooterKind::ErrorAlert => match error {
-            Some(error) => render_settings_error_alert(appearance, error, ai_enabled, mouse_states),
+            Some(error) => {
+                render_settings_error_alert(appearance, app, error, ai_enabled, mouse_states)
+            }
             // Defensive fallback: if the error disappears between `choose` and
             // `render_footer`, fall back to the plain button rather than
             // rendering an empty alert shell.
@@ -329,7 +332,7 @@ fn render_alert_action_button(
     ui_font_family: FamilyId,
     text_color: ColorU,
     mouse_state: MouseStateHandle,
-    text: &'static str,
+    text: String,
     icon: Option<Icon>,
     bordered: bool,
     action: WorkspaceAction,
@@ -352,7 +355,7 @@ fn render_alert_action_button(
             );
         }
         row.add_child(
-            Text::new_inline(text.to_owned(), ui_font_family, FOOTER_FONT_SIZE)
+            Text::new_inline(text.clone(), ui_font_family, FOOTER_FONT_SIZE)
                 .with_color(text_color)
                 .with_style(Properties {
                     weight: Weight::Semibold,
