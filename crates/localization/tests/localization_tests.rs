@@ -3973,6 +3973,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/code_review/code_review_view.rs",
+            &["Text::new(\n                    reason.to_string()"][..],
+        ),
+        (
             "app/src/terminal/view.rs",
             &[
                 "A terminal program tried to access your clipboard.",

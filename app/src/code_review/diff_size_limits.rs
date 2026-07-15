@@ -59,6 +59,15 @@ pub enum UnrenderableReason {
     FileTooLarge,
 }
 
+impl UnrenderableReason {
+    pub fn localization_key(self) -> &'static str {
+        match self {
+            Self::DiffTooLarge => "code_review.diff_content.too_large",
+            Self::FileTooLarge => "code_review.diff_content.file_too_large",
+        }
+    }
+}
+
 impl fmt::Display for UnrenderableReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

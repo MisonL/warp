@@ -2425,6 +2425,7 @@
   "code_review.comments.send_to_cli_agent": "Send diff comments to {label}",
   "code_review.comments.view_in_github": "View in GitHub",
   "code_review.diff_content.binary_unavailable": "Binary file - no diff available",
+  "code_review.diff_content.file_too_large": "File is too large to render",
   "code_review.diff_content.new_empty_file": "New empty file",
   "code_review.diff_content.renamed_without_changes": "File renamed without changes",
   "code_review.diff_content.too_large": "Diff is too large to render",

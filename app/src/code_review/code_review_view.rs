@@ -5429,7 +5429,7 @@ impl CodeReviewView {
         if let DiffSize::Unrenderable(reason) = diff_size {
             return Self::styled_file_content_container(
                 Text::new(
-                    reason.to_string(),
+                    localization::text_for_app(app, reason.localization_key()),
                     appearance.monospace_font_family(),
                     appearance.monospace_font_size(),
                 )

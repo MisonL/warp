@@ -2425,6 +2425,7 @@
   "code_review.comments.send_to_cli_agent": "将差异评论发送给 {label}",
   "code_review.comments.view_in_github": "在 GitHub 中查看",
   "code_review.diff_content.binary_unavailable": "二进制文件，没有可用差异",
+  "code_review.diff_content.file_too_large": "文件过大，无法渲染",
   "code_review.diff_content.new_empty_file": "新的空文件",
   "code_review.diff_content.renamed_without_changes": "文件已重命名，无内容更改",
   "code_review.diff_content.too_large": "差异太大，无法渲染",
