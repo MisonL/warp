@@ -1948,6 +1948,7 @@ impl FileTreeView {
         &self,
         id: &FileTreeIdentifier,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let Some(root_dir) = self.root_directories.get(&id.root) else {
             return Empty::new().finish();
@@ -1957,7 +1958,7 @@ impl FileTreeView {
         };
 
         let item_highlight_state = ItemHighlightState::Selected;
-        let render_state = item.to_render_state(None /* is_expanded */, appearance);
+        let render_state = item.to_render_state(None /* is_expanded */, appearance, app);
 
         let text_color = item_highlight_state.text_and_icon_color(appearance);
         let text = Text::new(
@@ -1983,7 +1984,12 @@ impl FileTreeView {
     }
 
     /// Renders a clickable tree item with mouse state handle
-    fn render_item(&self, id: &FileTreeIdentifier, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_item(
+        &self,
+        id: &FileTreeIdentifier,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let Some(root_dir) = self.root_directories.get(&id.root) else {
             return Empty::new().finish();
         };
@@ -1993,7 +1999,7 @@ impl FileTreeView {
 
         let is_selected = self.selected_item.as_ref() == Some(id);
         let is_expanded = self.is_item_expanded(&id.root, item);
-        let render_state = item.to_render_state(is_expanded, appearance);
+        let render_state = item.to_render_state(is_expanded, appearance, app);
 
         let item_display_name = render_state.display_name.clone();
         let item_position_id = format!("file_tree_item:{item_display_name}");
@@ -2088,7 +2094,11 @@ impl FileTreeView {
                     });
                 }
             })
-            .with_alternate_drag_element(self.render_item_while_dragging(&id_for_drag, appearance))
+            .with_alternate_drag_element(self.render_item_while_dragging(
+                &id_for_drag,
+                appearance,
+                app,
+            ))
             .with_keep_original_visible(true)
             .finish();
 
@@ -2698,7 +2708,7 @@ impl FileTreeView {
                 range
                     .filter_map(|global_index| {
                         let item_id = view.identifier_from_global_index(global_index)?;
-                        Some(view.render_item(&item_id, appearance))
+                        Some(view.render_item(&item_id, appearance, app))
                     })
                     .collect::<Vec<_>>()
                     .into_iter()

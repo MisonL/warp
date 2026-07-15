@@ -2648,6 +2648,8 @@
   "code.file_tree.error.remote": "The Project Explorer requires access to your local workspace, which isn't supported in remote sessions.",
   "code.file_tree.error.too_many_files": "Folder has too many files to display in the file explorer.",
   "code.file_tree.error.wsl": "The Project Explorer doesn't currently work in WSL.",
+  "code.file_tree.fallback.file": "File",
+  "code.file_tree.fallback.folder": "Folder",
   "code.file_tree.menu.attach_as_context": "Attach as context",
   "code.file_tree.menu.cd_to_directory": "cd to directory",
   "code.file_tree.menu.copy_path": "Copy path",

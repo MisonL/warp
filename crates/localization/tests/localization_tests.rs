@@ -3820,6 +3820,13 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/code/file_tree/view/render.rs",
+            &[
+                "String::from(\"File\")",
+                "String::from(\"Folder\")",
+            ][..],
+        ),
+        (
             "app/src/ai/agent_management/cloud_setup_guide_view.rs",
             &[
                 "Workflow::new(\"Create Environment\"",

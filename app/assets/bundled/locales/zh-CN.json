@@ -2648,6 +2648,8 @@
   "code.file_tree.error.remote": "Project Explorer 需要访问你的本地工作区，远程会话不支持此功能。",
   "code.file_tree.error.too_many_files": "文件夹文件过多，无法在文件资源管理器中显示。",
   "code.file_tree.error.wsl": "Project Explorer 目前不支持 WSL。",
+  "code.file_tree.fallback.file": "文件",
+  "code.file_tree.fallback.folder": "文件夹",
   "code.file_tree.menu.attach_as_context": "作为上下文附加",
   "code.file_tree.menu.cd_to_directory": "cd 到目录",
   "code.file_tree.menu.copy_path": "复制路径",
