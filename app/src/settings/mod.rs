@@ -243,16 +243,6 @@ pub enum CtrlTabBehavior {
     CycleMostRecentTab,
 }
 
-impl CtrlTabBehavior {
-    pub fn as_dropdown_label(&self) -> &str {
-        match self {
-            Self::ActivatePrevNextTab => "Activate previous/next tab",
-            Self::CycleMostRecentSession => "Cycle most recent session",
-            Self::CycleMostRecentTab => "Cycle most recent tab",
-        }
-    }
-}
-
 impl ExtraMetaKeys {
     pub fn toggle_left_key(&self) -> Self {
         ExtraMetaKeys {
@@ -291,16 +281,6 @@ pub enum GlobalHotkeyMode {
     QuakeMode,
     /// "Activation hotkey" shows/hides all of the normal windows
     ActivationHotkey,
-}
-
-impl GlobalHotkeyMode {
-    pub fn as_dropdown_label(&self) -> &str {
-        match self {
-            Self::Disabled => "Disabled",
-            Self::QuakeMode => "Dedicated hotkey window",
-            Self::ActivationHotkey => "Show/hide all windows",
-        }
-    }
 }
 
 #[derive(

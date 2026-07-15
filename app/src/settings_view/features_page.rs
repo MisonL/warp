@@ -2395,13 +2395,8 @@ impl FeaturesPageView {
         #[cfg(feature = "local_fs")]
         let external_editor_view = ctx.add_typed_action_view(features::ExternalEditorView::new);
 
-        let global_hotkey_mode =
-            KeysSettings::handle(ctx).read(ctx, |settings, ctx| settings.global_hotkey_mode(ctx));
-        let global_hotkey_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = Dropdown::new(ctx);
-            init_global_hotkey_dropdown(global_hotkey_mode, &mut dropdown, ctx);
-            dropdown
-        });
+        let global_hotkey_dropdown = ctx.add_typed_action_view(Dropdown::new);
+        Self::update_global_hotkey_dropdown(global_hotkey_dropdown.clone(), ctx);
 
         // The state for this dropdown is initialized by `refresh_tab_behavior_state`.
         let tab_behavior_dropdown = ctx.add_typed_action_view(Dropdown::new);
@@ -2414,6 +2409,17 @@ impl FeaturesPageView {
             code_editor_line_number_mode_dropdown.clone(),
             ctx,
         );
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            Self::update_ctrl_tab_behavior_dropdown(me.ctrl_tab_behavior_dropdown.clone(), ctx);
+            Self::update_global_hotkey_dropdown(me.global_hotkey_dropdown.clone(), ctx);
+            Self::update_new_tab_placement_dropdown(me.new_tab_placement_dropdown.clone(), ctx);
+            Self::update_osc52_clipboard_access_dropdown(
+                me.osc52_clipboard_access_dropdown.clone(),
+                ctx,
+            );
+            ctx.notify();
+        });
 
         ctx.subscribe_to_model(&KeysSettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
@@ -3078,29 +3084,53 @@ impl FeaturesPageView {
 
             let current_value = *KeysSettings::as_ref(ctx).ctrl_tab_behavior;
 
-            let selected_index = values
-                .iter()
-                .position(|val| *val == current_value)
-                .unwrap_or_else(|| {
-                    report_error!(
-                        "Could not find current Ctrl-Tab behavior value in dropdown option list"
-                    );
-                    0
-                });
-
             dropdown.set_items(
                 values
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            val.as_dropdown_label(),
+                            localization::text_for_app(
+                                ctx,
+                                Self::ctrl_tab_behavior_dropdown_item_label_key(val),
+                            ),
                             FeaturesPageAction::SetCtrlTabBehavior(val),
                         )
                     })
                     .collect(),
                 ctx,
             );
-            dropdown.set_selected_by_index(selected_index, ctx);
+            dropdown
+                .set_selected_by_action(FeaturesPageAction::SetCtrlTabBehavior(current_value), ctx);
+        });
+    }
+
+    fn update_global_hotkey_dropdown(
+        dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let current =
+            KeysSettings::handle(ctx).read(ctx, |settings, ctx| settings.global_hotkey_mode(ctx));
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(
+                [
+                    GlobalHotkeyMode::Disabled,
+                    GlobalHotkeyMode::QuakeMode,
+                    GlobalHotkeyMode::ActivationHotkey,
+                ]
+                .into_iter()
+                .map(|value| {
+                    DropdownItem::new(
+                        localization::text_for_app(
+                            ctx,
+                            Self::global_hotkey_mode_dropdown_item_label_key(value),
+                        ),
+                        FeaturesPageAction::SetGlobalHotkeyMode(value),
+                    )
+                })
+                .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_action(FeaturesPageAction::SetGlobalHotkeyMode(current), ctx);
         });
     }
 
@@ -3115,29 +3145,23 @@ impl FeaturesPageView {
             ];
             let current_value = TabSettings::as_ref(ctx).new_tab_placement;
 
-            let selected_index = values
-                .iter()
-                .position(|val| *val == current_value)
-                .unwrap_or_else(|| {
-                    report_error!(
-                        "Could not find current NewTabPlacement value in dropdown option list"
-                    );
-                    0
-                });
-
             dropdown.set_items(
                 values
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            Self::new_tab_placement_dropdown_item_label(val),
+                            localization::text_for_app(
+                                ctx,
+                                Self::new_tab_placement_dropdown_item_label_key(val),
+                            ),
                             FeaturesPageAction::SetNewTabPlacement(val),
                         )
                     })
                     .collect(),
                 ctx,
             );
-            dropdown.set_selected_by_index(selected_index, ctx);
+            dropdown
+                .set_selected_by_action(FeaturesPageAction::SetNewTabPlacement(current_value), ctx);
         });
     }
 
@@ -3162,7 +3186,10 @@ impl FeaturesPageView {
         }
         // the selected item needs to update if the settings gets changed via the command palette
         self.global_hotkey_dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_selected_by_name(global_hotkey_mode.as_dropdown_label(), ctx);
+            dropdown.set_selected_by_action(
+                FeaturesPageAction::SetGlobalHotkeyMode(global_hotkey_mode),
+                ctx,
+            );
             ctx.notify();
         });
         ctx.notify();
@@ -3591,10 +3618,48 @@ impl FeaturesPageView {
         self.refresh_tab_behavior_state(ctx);
     }
 
-    fn new_tab_placement_dropdown_item_label(val: NewTabPlacement) -> &'static str {
+    fn ctrl_tab_behavior_dropdown_item_label_key(val: CtrlTabBehavior) -> &'static str {
         match val {
-            NewTabPlacement::AfterAllTabs => "After all tabs",
-            NewTabPlacement::AfterCurrentTab => "After current tab",
+            CtrlTabBehavior::ActivatePrevNextTab => {
+                "settings.features.ctrl_tab_behavior.option.activate_prev_next_tab"
+            }
+            CtrlTabBehavior::CycleMostRecentSession => {
+                "settings.features.ctrl_tab_behavior.option.cycle_most_recent_session"
+            }
+            CtrlTabBehavior::CycleMostRecentTab => {
+                "settings.features.ctrl_tab_behavior.option.cycle_most_recent_tab"
+            }
+        }
+    }
+
+    fn new_tab_placement_dropdown_item_label_key(val: NewTabPlacement) -> &'static str {
+        match val {
+            NewTabPlacement::AfterAllTabs => "settings.features.new_tab_placement.after_all_tabs",
+            NewTabPlacement::AfterCurrentTab => {
+                "settings.features.new_tab_placement.after_current_tab"
+            }
+        }
+    }
+
+    fn osc52_clipboard_access_dropdown_item_label_key(val: Osc52ClipboardAccess) -> &'static str {
+        match val {
+            Osc52ClipboardAccess::Deny => "settings.features.osc52_clipboard_access.option.deny",
+            Osc52ClipboardAccess::WriteOnly => {
+                "settings.features.osc52_clipboard_access.option.write_only"
+            }
+            Osc52ClipboardAccess::ReadWrite => {
+                "settings.features.osc52_clipboard_access.option.read_write"
+            }
+        }
+    }
+
+    fn global_hotkey_mode_dropdown_item_label_key(val: GlobalHotkeyMode) -> &'static str {
+        match val {
+            GlobalHotkeyMode::Disabled => "settings.features.global_hotkey.option.disabled",
+            GlobalHotkeyMode::QuakeMode => "settings.features.global_hotkey.option.quake_mode",
+            GlobalHotkeyMode::ActivationHotkey => {
+                "settings.features.global_hotkey.option.activation_hotkey"
+            }
         }
     }
 
@@ -3616,24 +3681,25 @@ impl FeaturesPageView {
             ];
             let current_value = *TerminalSettings::as_ref(ctx).osc52_clipboard_access;
 
-            let selected_index = values
-                .iter()
-                .position(|val| *val == current_value)
-                .unwrap_or(0);
-
             dropdown.set_items(
                 values
                     .into_iter()
                     .map(|val| {
                         DropdownItem::new(
-                            val.as_dropdown_label(),
+                            localization::text_for_app(
+                                ctx,
+                                Self::osc52_clipboard_access_dropdown_item_label_key(val),
+                            ),
                             FeaturesPageAction::SetOsc52ClipboardAccess(val),
                         )
                     })
                     .collect(),
                 ctx,
             );
-            dropdown.set_selected_by_index(selected_index, ctx);
+            dropdown.set_selected_by_action(
+                FeaturesPageAction::SetOsc52ClipboardAccess(current_value),
+                ctx,
+            );
         });
     }
 
@@ -4486,30 +4552,6 @@ pub(super) fn render_group(
     .with_margin_top(-4.)
     .with_margin_bottom(HEADER_PADDING)
     .finish()
-}
-
-fn init_global_hotkey_dropdown(
-    hotkey_mode: GlobalHotkeyMode,
-    dropdown: &mut Dropdown<FeaturesPageAction>,
-    ctx: &mut ViewContext<Dropdown<FeaturesPageAction>>,
-) {
-    let items = vec![
-        DropdownItem::new(
-            GlobalHotkeyMode::Disabled.as_dropdown_label(),
-            FeaturesPageAction::SetGlobalHotkeyMode(GlobalHotkeyMode::Disabled),
-        ),
-        DropdownItem::new(
-            GlobalHotkeyMode::QuakeMode.as_dropdown_label(),
-            FeaturesPageAction::SetGlobalHotkeyMode(GlobalHotkeyMode::QuakeMode),
-        ),
-        DropdownItem::new(
-            GlobalHotkeyMode::ActivationHotkey.as_dropdown_label(),
-            FeaturesPageAction::SetGlobalHotkeyMode(GlobalHotkeyMode::ActivationHotkey),
-        ),
-    ];
-
-    dropdown.set_items(items, ctx);
-    dropdown.set_selected_by_name(hotkey_mode.as_dropdown_label(), ctx);
 }
 
 fn init_display_count_dropdown(

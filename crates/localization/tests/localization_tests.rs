@@ -4266,7 +4266,13 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
         ),
         (
             "app/src/settings_view/features_page.rs",
-            &["val.dropdown_item_label()"][..],
+            &[
+                "val.dropdown_item_label()",
+                "val.as_dropdown_label()",
+                "global_hotkey_mode.as_dropdown_label()",
+                "new_tab_placement_dropdown_item_label(",
+                "init_global_hotkey_dropdown(",
+            ][..],
         ),
         (
             "app/src/settings_view/appearance_page.rs",
