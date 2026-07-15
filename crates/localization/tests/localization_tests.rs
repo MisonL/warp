@@ -3907,6 +3907,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/ai/blocklist/block/cli.rs",
+            &["This response won't count towards your usage."][..],
+        ),
+        (
             "app/src/ai/blocklist/block/view_impl/output.rs",
             &[
                 "Grant access to upload this artifact?",
@@ -3918,7 +3922,6 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "Failed to read files",
                 "Sorry you had a bad experience with this interaction. We've refunded you 1 credit.",
                 "Sorry you had a bad experience with this interaction. We've refunded you {request_refunded_count} credits.",
-                "This response won't count towards your usage.",
                 "Manage AI Autonomy permissions",
                 "Search in {}",
                 "Search in {} failed because the codebase isn't indexed",

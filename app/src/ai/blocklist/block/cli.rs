@@ -1211,8 +1211,10 @@ impl View for CLISubagentView {
                     output_items.add_child(
                         Container::new(render_informational_footer(
                             app,
-                            "This response won't count towards your usage. \"Take over\" to continue."
-                                .to_string(),
+                            crate::localization::text_for_app(
+                                app,
+                                "agent.cli.footer.response_not_counted",
+                            ),
                         ))
                         .with_margin_top(8.)
                         .with_margin_left(icon_size(app) + AVATAR_RIGHT_MARGIN)
