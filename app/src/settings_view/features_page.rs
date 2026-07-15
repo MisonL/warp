@@ -7706,11 +7706,13 @@ impl SettingsWidget for WindowSystemWidget {
         ));
 
         let mut secondary_text =
-            "Enabling this setting disables global hotkey support. When disabled, text \
-                    may be blurry if your Wayland compositor is using fraction scaling (ex: 125%)."
-                .to_string();
+            localization::text_for_app(app, "settings.features.window_system.wayland.description");
         if view.force_x11_changed {
-            secondary_text.push_str("\n\nRestart Warp for changes to take effect.");
+            secondary_text.push_str("\n\n");
+            secondary_text.push_str(&localization::text_for_app(
+                app,
+                "settings.features.restart.warp",
+            ));
         }
         let warp_theme = appearance.theme();
         children.add_child(
@@ -7772,7 +7774,14 @@ impl SettingsWidget for GraphicsBackendWidget {
             col.add_child(
                 appearance
                     .ui_builder()
-                    .wrappable_text(format!("Current backend: {}", backend.to_label()), true)
+                    .wrappable_text(
+                        localization::text_for_app_with_args(
+                            app,
+                            "settings.features.graphics_backend.current",
+                            &[("value", backend.to_label())],
+                        ),
+                        true,
+                    )
                     .with_style(UiComponentStyles {
                         font_color: Some(theme.sub_text_color(theme.background()).into_solid()),
                         ..Default::default()

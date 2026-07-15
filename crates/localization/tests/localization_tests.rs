@@ -87,6 +87,10 @@ const UI_LITERAL_PATTERNS: &[&str] = &[
     "FormattedTextFragment::plain_text(",
     "FormattedTextFragment::hyperlink(",
     "FormattedTextFragment::hyperlink_action(",
+    "button::Content::Label(",
+    "FormattedTextElement::from_str(",
+    ".link(",
+    ".wrappable_text(",
 ];
 
 const ONBOARDING_UI_LITERAL_PATTERNS: &[&str] = &[
@@ -3615,6 +3619,8 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "\"Make Warp the default terminal\".to_string()",
                 "wrappable_text(\"Allowed Values: 1-20\"",
                 "wrappable_text(\"Changes will apply to new windows.\"",
+                "Enabling this setting disables global hotkey support.",
+                "secondary_text.push_str(\"\\n\\nRestart Warp",
             ][..],
         ),
         (
