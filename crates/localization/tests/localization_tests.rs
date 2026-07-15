@@ -3156,7 +3156,7 @@ fn bundled_catalogs_only_use_intentional_empty_values() {
 #[test]
 fn app_localization_key_literals_are_catalog_backed() {
     let mut keys = BTreeSet::new();
-    for relative_root in ["app/src", "crates/warp_cli/src"] {
+    for relative_root in ["app/src", "crates/warp_cli/src", "crates/warp_tui/src"] {
         collect_app_localization_key_literals(&workspace_root().join(relative_root), &mut keys);
     }
 
@@ -3177,6 +3177,32 @@ fn app_ui_calls_do_not_use_direct_english_literals() {
     assert!(
         violations.is_empty(),
         "direct user-visible English literals in UI calls: {violations:#?}"
+    );
+}
+
+#[test]
+fn tui_ui_calls_do_not_use_direct_english_literals() {
+    let tui_src = workspace_root().join("crates/warp_tui/src");
+    let mut violations = Vec::new();
+    for pattern in [
+        "TuiText::new(",
+        "TuiInlineMenuStatus::Loading(",
+        "TuiInlineMenuStatus::Empty(",
+        "show_transient_hint(",
+        "show_success_hint(",
+        "render_warping_indicator(",
+    ] {
+        collect_direct_first_argument_literal_violations_in_dir(
+            &tui_src,
+            pattern,
+            &mut violations,
+            None,
+        );
+    }
+
+    assert!(
+        violations.is_empty(),
+        "direct user-visible English literals in TUI calls: {violations:#?}"
     );
 }
 
@@ -4203,15 +4229,16 @@ fn binding_description_new_does_not_use_direct_english_literals() {
 
 #[test]
 fn editable_binding_descriptions_do_not_use_direct_english_literals() {
-    let app_src = workspace_root().join("app/src");
     let mut violations = Vec::new();
-    collect_binding_description_literal_violations_in_dir(
-        &app_src,
-        "EditableBinding::new(",
-        1,
-        &mut violations,
-        Some(binding_description_catalog_map_source()),
-    );
+    for relative_root in ["app/src", "crates/warp_tui/src"] {
+        collect_binding_description_literal_violations_in_dir(
+            &workspace_root().join(relative_root),
+            "EditableBinding::new(",
+            1,
+            &mut violations,
+            Some(binding_description_catalog_map_source()),
+        );
+    }
 
     assert!(
         violations.is_empty(),
