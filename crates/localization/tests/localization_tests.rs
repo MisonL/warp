@@ -6068,6 +6068,24 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
             &["Couldn't navigate to conversation."][..],
         ),
         (
+            "app/src/ai/blocklist/block/view_impl/output.rs",
+            &[
+                "\"Recording computer-use session\".to_string()",
+                "primary: \"Recording started\".to_string()",
+                "primary: \"Recording failed to start\".to_string()",
+                "primary: \"Recording cancelled\".to_string()",
+                "primary: \"Starting recording\".to_string()",
+                "format!(\"Partial recording",
+                "primary: \"Recording saved\".to_string()",
+                "primary: \"Recording could not be saved\".to_string()",
+                "primary: \"Saving recording\".to_string()",
+                "RecordingSpanStatus::Active => \"Recording active\"",
+                "RecordingSpanStatus::Captured => \"Captured in recording\"",
+                "\"Open recording\",",
+                "\"View screenshot\",",
+            ][..],
+        ),
+        (
             "app/src/ai/blocklist/agent_view/orchestration_conversation_links.rs",
             &[
                 "\"Parent conversation\".to_string()",

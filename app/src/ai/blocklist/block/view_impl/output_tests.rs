@@ -5,6 +5,7 @@ use ai::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope};
 use computer_use::{Action, ScreenshotParams, Target, TargetedAction};
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{DirectoryWatcher, RepoMetadataModel};
+use warp_localization::LocaleId;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::remote_path::RemotePath;
@@ -99,7 +100,7 @@ fn start_recording_card_text_uses_static_title_and_description_subtext() {
         height_px: 720,
     });
 
-    let text = start_recording_card_text("Demo checkout flow", Some(&result));
+    let text = start_recording_card_text("Demo checkout flow", Some(&result), LocaleId::EnUs);
 
     assert_eq!(
         text,
@@ -114,7 +115,7 @@ fn start_recording_card_text_uses_static_title_and_description_subtext() {
 fn start_recording_card_text_includes_failure_copy() {
     let result = StartRecordingResult::Error("unsupported platform".to_string());
 
-    let text = start_recording_card_text("Demo checkout flow", Some(&result));
+    let text = start_recording_card_text("Demo checkout flow", Some(&result), LocaleId::EnUs);
 
     assert_eq!(
         text,
@@ -137,7 +138,7 @@ fn stop_recording_card_text_includes_complete_duration() {
         termination_reason: "Stopped by agent".to_string(),
     });
 
-    let text = stop_recording_card_text(Some(&result));
+    let text = stop_recording_card_text(Some(&result), LocaleId::EnUs);
 
     assert_eq!(
         text,
@@ -160,13 +161,34 @@ fn stop_recording_card_text_includes_partial_duration_without_raw_reason() {
         termination_reason: "internal raw reason".to_string(),
     });
 
-    let text = stop_recording_card_text(Some(&result));
+    let text = stop_recording_card_text(Some(&result), LocaleId::EnUs);
 
     assert_eq!(
         text,
         RecordingCardText {
             primary: "Recording saved".to_string(),
-            subtext: Some("Partial recording • 0:12".to_string()),
+            subtext: Some("Partial recording - 0:12".to_string()),
+        }
+    );
+}
+
+#[test]
+fn recording_card_text_uses_requested_locale() {
+    let start = start_recording_card_text("演示结账流程", None, LocaleId::ZhCn);
+    assert_eq!(
+        start,
+        RecordingCardText {
+            primary: "正在开始录制".to_string(),
+            subtext: Some("演示结账流程".to_string()),
+        }
+    );
+
+    let stop = stop_recording_card_text(None, LocaleId::ZhCn);
+    assert_eq!(
+        stop,
+        RecordingCardText {
+            primary: "正在保存录制内容".to_string(),
+            subtext: None,
         }
     );
 }

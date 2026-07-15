@@ -108,6 +108,7 @@ use crate::ai::skills::{
 use crate::appearance::Appearance;
 use crate::code::diff_viewer::DisplayMode;
 use crate::code::editor_management::CodeSource;
+use crate::localization;
 use crate::settings_view::SettingsSection;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::input::slash_commands::fork_button_action;
@@ -1942,7 +1943,7 @@ fn render_read_skill(
 fn render_inline_action_secondary_button(
     appearance: &Appearance,
     button: &ui_components::button::Button,
-    label: &'static str,
+    label: String,
     on_click: ui_components::MouseEventHandler,
 ) -> Box<dyn Element> {
     button.render(
@@ -3108,7 +3109,7 @@ fn recording_summary(props: Props, agent_summary: Option<&str>, app: &AppContext
         .filter(|s| !s.is_empty())
         .or_else(|| title.as_deref().map(str::trim).filter(|s| !s.is_empty()))
         .map(ToString::to_string)
-        .unwrap_or_else(|| "Recording computer-use session".to_string())
+        .unwrap_or_else(|| localization::text_for_app(app, "agent.output.recording.summary"))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -3120,28 +3121,32 @@ struct RecordingCardText {
 fn start_recording_card_text(
     description: &str,
     result: Option<&StartRecordingResult>,
+    locale: LocaleId,
 ) -> RecordingCardText {
     match result {
         Some(StartRecordingResult::Success(_)) => RecordingCardText {
-            primary: "Recording started".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.started"),
             subtext: Some(description.to_string()),
         },
         Some(StartRecordingResult::Error(error)) => RecordingCardText {
-            primary: "Recording failed to start".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.start_failed"),
             subtext: Some(error.clone()),
         },
         Some(StartRecordingResult::Cancelled) => RecordingCardText {
-            primary: "Recording cancelled".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.cancelled"),
             subtext: None,
         },
         None => RecordingCardText {
-            primary: "Starting recording".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.starting"),
             subtext: Some(description.to_string()),
         },
     }
 }
 
-fn stop_recording_card_text(result: Option<&StopRecordingResult>) -> RecordingCardText {
+fn stop_recording_card_text(
+    result: Option<&StopRecordingResult>,
+    locale: LocaleId,
+) -> RecordingCardText {
     match result {
         Some(StopRecordingResult::Success(stopped)) => {
             let duration = format_video_duration(stopped.duration);
@@ -3152,21 +3157,28 @@ fn stop_recording_card_text(result: Option<&StopRecordingResult>) -> RecordingCa
                 duration
             } else {
                 // TODO(vkodithala): Switch to typed, user-facing termination copy once finalization emits structured reasons.
-                format!("Partial recording • {duration}")
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent.output.recording.partial",
+                    &[("duration", duration.as_str())],
+                )
             };
             RecordingCardText {
-                primary: "Recording saved".to_string(),
+                primary: localization::text_for_locale(locale, "agent.output.recording.saved"),
                 subtext: Some(subtext),
             }
         }
         Some(StopRecordingResult::Error(_)) | Some(StopRecordingResult::Cancelled) => {
             RecordingCardText {
-                primary: "Recording could not be saved".to_string(),
+                primary: localization::text_for_locale(
+                    locale,
+                    "agent.output.recording.save_failed",
+                ),
                 subtext: None,
             }
         }
         None => RecordingCardText {
-            primary: "Saving recording".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.saving"),
             subtext: None,
         },
     }
@@ -3236,7 +3248,11 @@ fn render_start_recording(
             AIAgentActionResultType::StartRecording(result) => Some(result),
             _ => None,
         });
-    let text = start_recording_card_text(&recording_summary(props, agent_summary, app), result);
+    let text = start_recording_card_text(
+        &recording_summary(props, agent_summary, app),
+        result,
+        localization::current_locale(app),
+    );
     recording_card(text, None, app)
 }
 
@@ -3246,17 +3262,17 @@ fn render_recording_footer(status: RecordingSpanStatus, app: &AppContext) -> Box
     let icon_offset =
         icon_size(app) + crate::ai::blocklist::inline_action::inline_action_header::ICON_MARGIN;
     let text = match status {
-        RecordingSpanStatus::Active => "Recording active",
-        RecordingSpanStatus::Captured => "Captured in recording",
+        RecordingSpanStatus::Active => {
+            localization::text_for_app(app, "agent.output.recording.active")
+        }
+        RecordingSpanStatus::Captured => {
+            localization::text_for_app(app, "agent.output.recording.captured")
+        }
     };
     Container::new(
-        Text::new(
-            text.to_string(),
-            appearance.ui_font_family(),
-            appearance.ui_font_size(),
-        )
-        .with_color(theme.sub_text_color(theme.surface_1()).into())
-        .finish(),
+        Text::new(text, appearance.ui_font_family(), appearance.ui_font_size())
+            .with_color(theme.sub_text_color(theme.surface_1()).into())
+            .finish(),
     )
     .with_margin_left(icon_offset)
     .finish()
@@ -3284,7 +3300,7 @@ fn render_stop_recording(
                 render_inline_action_secondary_button(
                     appearance,
                     btn,
-                    "Open recording",
+                    localization::text_for_app(app, "agent.output.recording.open"),
                     Box::new(move |ctx, _, _| {
                         ctx.dispatch_typed_action(AIBlockAction::OpenRecordingArtifact {
                             artifact_uid: artifact_uid.clone(),
@@ -3295,7 +3311,11 @@ fn render_stop_recording(
         }
     }
 
-    recording_card(stop_recording_card_text(result), action_button, app)
+    recording_card(
+        stop_recording_card_text(result, localization::current_locale(app)),
+        action_button,
+        app,
+    )
 }
 
 fn render_use_computer(
@@ -3337,7 +3357,7 @@ fn render_use_computer(
             render_inline_action_secondary_button(
                 appearance,
                 btn,
-                "View screenshot",
+                localization::text_for_app(app, "agent.output.screenshot.view"),
                 Box::new(move |ctx, _, _| {
                     ctx.dispatch_typed_action(AIBlockAction::ViewScreenshot {
                         action_id: action_id_clone.clone(),
