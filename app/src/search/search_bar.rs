@@ -722,11 +722,13 @@ impl<T: Action + Clone> SearchBar<T> {
     fn emit_accessibility_content(&self, ctx: &mut ViewContext<Self>) {
         if let Some(loading_filters) = self.mixer.as_ref(ctx).loading_query_filters() {
             for loading_filter in loading_filters.into_iter() {
+                let loading_filter =
+                    localization::text_for_app(ctx, loading_filter.display_name_key());
                 ctx.emit_a11y_content(AccessibilityContent::new_without_help(
                     crate::localization::text_for_app_with_args(
                         ctx,
                         "search.a11y.loading_suggestions",
-                        &[("filter", loading_filter.display_name())],
+                        &[("filter", loading_filter.as_str())],
                     ),
                     WarpA11yRole::MenuItemRole,
                 ));
@@ -815,7 +817,10 @@ impl<T: Action + Clone> SearchBar<T> {
                 // Set the appropriate placeholder text if the editor buffer is empty.
                 match self.state.as_ref(ctx).query_filter {
                     Some(filter) => {
-                        editor.set_placeholder_text(filter.placeholder_text(), ctx);
+                        editor.set_placeholder_text(
+                            localization::text_for_app(ctx, filter.placeholder_key()),
+                            ctx,
+                        );
                     }
                     None => {
                         editor.set_placeholder_text(self.placeholder_text.resolve(ctx), ctx);

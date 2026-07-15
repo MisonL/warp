@@ -3987,6 +3987,32 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/search/search_bar.rs",
+            &[
+                "&[(\"filter\", loading_filter.display_name())]",
+                "editor.set_placeholder_text(filter.placeholder_text(), ctx)",
+            ][..],
+        ),
+        (
+            "app/src/search/command_palette/conversations/data_source.rs",
+            &[
+                "ConversationSection::ActivePane => \"Active pane conversations\"",
+                "ConversationSection::OtherActive => \"Other active conversations\"",
+                "ConversationSection::Past => \"Past conversations\"",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/billing_and_usage/billing_cycle_usage_rows.rs",
+            &["let label = filter.label();"][..],
+        ),
+        (
+            "app/src/ai/agent_management/notifications/view.rs",
+            &[
+                "filter.label().to_string()",
+                "format!(\"{} ({count})\", filter.label())",
+            ][..],
+        ),
+        (
             "app/src/terminal/view.rs",
             &[
                 "A terminal program tried to access your clipboard.",

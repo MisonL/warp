@@ -477,10 +477,11 @@ impl NotificationMailboxView {
 
             let is_active = self.active_filter == filter;
             let count = notifications.filtered_count(filter);
+            let filter_label = localization::text_for_app(app, filter.label_key());
             let label = if count == 0 {
-                filter.label().to_string()
+                filter_label
             } else {
-                format!("{} ({count})", filter.label())
+                format!("{filter_label} ({count})")
             };
             let text_color = if is_active {
                 theme.main_text_color(theme.surface_2())

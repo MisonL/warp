@@ -51,11 +51,11 @@ pub enum SourceFilter {
 }
 
 impl SourceFilter {
-    pub fn label(self) -> &'static str {
+    pub fn label_key(self) -> &'static str {
         match self {
-            SourceFilter::All => "All",
-            SourceFilter::Local => "Local",
-            SourceFilter::Cloud => "Cloud",
+            SourceFilter::All => "settings.billing.source_filter.all",
+            SourceFilter::Local => "settings.billing.source_filter.local",
+            SourceFilter::Cloud => "settings.billing.source_filter.cloud",
         }
     }
 
@@ -674,6 +674,7 @@ fn render_source_filter_toggle(
     current: SourceFilter,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
+    app: &AppContext,
     on_change: FilterChangeFn,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -692,7 +693,7 @@ fn render_source_filter_toggle(
         .with_main_axis_size(MainAxisSize::Min);
 
     for (filter, mouse_state) in options {
-        let label = filter.label();
+        let label = localization::text_for_app(app, filter.label_key());
         let is_selected = filter == current;
         let fg = if is_selected { main } else { sub };
         let font_family = appearance.ui_font_family();
@@ -700,7 +701,7 @@ fn render_source_filter_toggle(
 
         let cell = Hoverable::new(mouse_state, move |_state| {
             let mut cell = Container::new(
-                Text::new_inline(label, font_family, 11.)
+                Text::new_inline(label.clone(), font_family, 11.)
                     .with_color(fg)
                     .finish(),
             )
@@ -814,6 +815,7 @@ fn render_member_header(
                 source_filter,
                 mouse_states,
                 appearance,
+                app,
                 on_filter_change,
             ))
             .finish()
