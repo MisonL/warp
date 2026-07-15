@@ -4162,6 +4162,7 @@
   "settings.appearance.category.tabs": "标签页",
   "settings.appearance.category.text": "文本",
   "settings.appearance.category.themes": "主题",
+  "settings.appearance.category.tools_panel": "工具面板",
   "settings.appearance.category.window": "窗口",
   "settings.appearance.command_palette.match_agent_font": "Agent 字体匹配终端字体",
   "settings.appearance.command_palette.match_notebook_font_size": "Notebook 字号匹配终端字号",

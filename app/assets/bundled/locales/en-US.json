@@ -4162,6 +4162,7 @@
   "settings.appearance.category.tabs": "Tabs",
   "settings.appearance.category.text": "Text",
   "settings.appearance.category.themes": "Themes",
+  "settings.appearance.category.tools_panel": "Tools panel",
   "settings.appearance.category.window": "Window",
   "settings.appearance.command_palette.match_agent_font": "Agent font matches terminal font",
   "settings.appearance.command_palette.match_notebook_font_size": "Notebook font size matches terminal font size",

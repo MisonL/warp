@@ -3608,6 +3608,9 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
         (
             "app/src/settings_view/features_page.rs",
             &[
+                "Category::new(\"General\"",
+                "Category::new(\"Session\"",
+                "Category::new(\"Keys\"",
                 "wrappable_text(\"Warp is the default terminal\"",
                 "\"Make Warp the default terminal\".to_string()",
                 "wrappable_text(\"Allowed Values: 1-20\"",
@@ -3617,6 +3620,9 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
         (
             "app/src/settings_view/appearance_page.rs",
             &[
+                "Category::new(\"Window\"",
+                "Category::new(\"Tools panel\"",
+                "Category::new(\"Input\"",
                 "\"Create your own custom theme\".to_string()",
                 "\"Use Window Blur (Acrylic texture)\".to_string()",
                 "The selected hardware may not support rendering transparent windows.",

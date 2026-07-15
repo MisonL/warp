@@ -1684,10 +1684,11 @@ impl<V: warpui::View> PageType<V> {
                 let num_categories = categories.len();
                 for (i, category) in categories.into_iter().enumerate() {
                     let FilteredCategory {
-                        title,
+                        mut title,
                         subtitle,
                         widgets,
                     } = category;
+                    title = localization::text_for_app_or(app, &title, &title);
                     if !title.is_empty() {
                         if let Some(subtitle) = subtitle {
                             page.add_child(render_sub_header_with_description(

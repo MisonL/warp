@@ -2998,18 +2998,24 @@ impl FeaturesPageView {
         }
 
         let categories = vec![
-            Category::new("General", general_widgets),
-            Category::new("Session", session_widgets),
-            Category::new("Keys", keys_widgets),
-            Category::new("Text Editing", text_editing_widgets),
-            Category::new("Terminal Input", editor_widgets),
-            Category::new("Terminal", terminal_widgets),
-            Category::new("Notifications", notifications_widgets),
+            Category::new("settings.features.category.general", general_widgets),
+            Category::new("settings.features.category.session", session_widgets),
+            Category::new("settings.features.category.keys", keys_widgets),
             Category::new(
-                "Workflows",
+                "settings.features.category.text_editing",
+                text_editing_widgets,
+            ),
+            Category::new("settings.features.category.terminal_input", editor_widgets),
+            Category::new("settings.features.category.terminal", terminal_widgets),
+            Category::new(
+                "settings.features.category.notifications",
+                notifications_widgets,
+            ),
+            Category::new(
+                "settings.features.category.workflows",
                 vec![Box::new(WorkflowsInCommandSearch::default())],
             ),
-            Category::new("System", system_widgets),
+            Category::new("settings.features.category.system", system_widgets),
         ];
 
         PageType::new_categorized(categories, None)
