@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use chrono::TimeZone;
+use warp_localization::LocaleId;
 use warpui::{AppContext, EntityId, SingletonEntity, WindowId};
 
 use crate::ai::agent::api::ServerConversationToken;
@@ -70,11 +71,12 @@ impl ConversationNavigationData {
         is_selected: bool,
         is_in_active_pane: bool,
         is_closed: bool,
+        locale: LocaleId,
     ) -> Self {
         let initial_query = conversation.initial_query();
-        let title = conversation
-            .title()
-            .unwrap_or_else(|| "Untitled conversation".to_string());
+        let title = conversation.title().unwrap_or_else(|| {
+            crate::localization::text_for_locale(locale, "workspace.conversation.untitled")
+        });
         let last_updated = conversation
             .latest_exchange()
             .map(|exchange| exchange.start_time)
@@ -240,6 +242,7 @@ impl ConversationNavigationData {
                                         && pane_group_handle.id() == active_tab_pane_group_id
                                         && pane_group.focused_pane_id(app) == pane_id,
                                     is_closed,
+                                    crate::localization::current_locale(app),
                                 ),
                             );
                             all_conversation_ids.insert(conversation.id());
@@ -278,6 +281,7 @@ impl ConversationNavigationData {
                         false,
                         false,
                         false,
+                        crate::localization::current_locale(app),
                     ));
                 }
             });
@@ -308,6 +312,7 @@ impl ConversationNavigationData {
                         false,
                         false,
                         false,
+                        crate::localization::current_locale(app),
                     ));
                 }
             });

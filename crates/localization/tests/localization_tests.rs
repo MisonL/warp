@@ -4372,6 +4372,10 @@ fn current_ui_display_helpers_do_not_bypass_localization() {
             ][..],
         ),
         (
+            "app/src/ai/conversation_navigation/mod.rs",
+            &[".unwrap_or_else(|| \"Untitled conversation\".to_string())"][..],
+        ),
+        (
             "app/src/settings_view/execution_profile_view.rs",
             &[
                 "\"Run agents:\"",
