@@ -5349,6 +5349,11 @@ fn shared_session_agent_notifications_and_aws_status_use_catalog_copy() {
         "agent_management.notifications.cli_needs_attention_title",
         "agent_management.notifications.something_went_wrong",
         "agent_management.notifications.waiting_for_input",
+        "settings.ai.aws_bedrock.credentials.error.oidc_mint_token_failed",
+        "settings.ai.aws_bedrock.credentials.error.oidc_missing_credentials",
+        "settings.ai.aws_bedrock.credentials.error.oidc_sts_failed",
+        "settings.ai.aws_bedrock.credentials.error.oidc_task_id_required",
+        "settings.ai.aws_bedrock.credentials.error.refresh_interrupted",
         "settings.ai.aws_bedrock.credentials.status.loaded.detail",
         "settings.ai.aws_bedrock.credentials.status.loaded.detail_with_expiration",
         "terminal.shared_session.error.access_removed",
@@ -5390,6 +5395,16 @@ fn shared_session_agent_notifications_and_aws_status_use_catalog_copy() {
                 "state.user_facing_components()",
                 "Loaded at {}, expires {}",
                 "Loaded at {}",
+            ][..],
+        ),
+        (
+            "app/src/ai/aws_credentials.rs",
+            &[
+                "let message = \"AWS Bedrock inference requires",
+                ".context(\"Failed to mint AWS Bedrock task identity token\")",
+                "anyhow::anyhow!(\"STS AssumeRoleWithWebIdentity failed:",
+                ".context(\"STS response did not include credentials\")",
+                "Err(\"Credential refresh was interrupted\".to_string())",
             ][..],
         ),
         (

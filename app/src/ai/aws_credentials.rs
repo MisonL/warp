@@ -2,7 +2,6 @@ use std::time::{Duration, SystemTime};
 
 pub use ai::api_keys::AwsCredentials;
 use ai::api_keys::{ApiKeyManager, AwsCredentialsRefreshStrategy, AwsCredentialsState};
-use anyhow::Context;
 use aws_credential_types::provider::error::CredentialsError;
 use aws_credential_types::provider::ProvideCredentials;
 use futures::channel::oneshot::channel;
@@ -109,6 +108,52 @@ fn user_facing_aws_credentials_error_message(
 }
 
 impl std::error::Error for LoadAwsCredentialsError {}
+
+#[derive(Debug, thiserror::Error)]
+enum OidcRefreshError {
+    #[error("AWS Bedrock inference requires an ambient task ID before credentials can be minted")]
+    TaskIdRequired,
+    #[error("Failed to mint AWS Bedrock task identity token")]
+    MintToken(#[source] anyhow::Error),
+    #[error("STS AssumeRoleWithWebIdentity failed: {detail}")]
+    AssumeRole {
+        detail: String,
+        #[source]
+        source: anyhow::Error,
+    },
+    #[error("STS response did not include credentials")]
+    MissingCredentials,
+    #[error("Credential refresh was interrupted")]
+    RefreshInterrupted,
+}
+
+impl OidcRefreshError {
+    fn user_message(&self, locale: LocaleId) -> String {
+        match self {
+            Self::TaskIdRequired => crate::localization::text_for_locale(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.oidc_task_id_required",
+            ),
+            Self::MintToken(_) => crate::localization::text_for_locale(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.oidc_mint_token_failed",
+            ),
+            Self::AssumeRole { detail, .. } => crate::localization::text_for_locale_with_args(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.oidc_sts_failed",
+                &[("detail", detail)],
+            ),
+            Self::MissingCredentials => crate::localization::text_for_locale(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.oidc_missing_credentials",
+            ),
+            Self::RefreshInterrupted => crate::localization::text_for_locale(
+                locale,
+                "settings.ai.aws_bedrock.credentials.error.refresh_interrupted",
+            ),
+        }
+    }
+}
 
 pub(crate) const AWS_BEDROCK_STS_AUDIENCE: &str = "sts.amazonaws.com";
 pub(crate) const BEDROCK_IDENTITY_TOKEN_DURATION: Duration = Duration::from_secs(60 * 60);
@@ -339,6 +384,8 @@ fn refresh_aws_credentials_oidc(
     manager: &mut ApiKeyManager,
     ctx: &mut ModelContext<ApiKeyManager>,
 ) -> BoxFuture<'static, Result<(), String>> {
+    let locale = crate::localization::current_locale(ctx);
+
     // Skip if credentials are already loaded and have not yet expired.
     if let AwsCredentialsState::Loaded { credentials, .. } = manager.aws_credentials_state() {
         let still_valid = credentials
@@ -352,9 +399,7 @@ fn refresh_aws_credentials_oidc(
     }
 
     let Some(task_id) = task_id else {
-        let message = "AWS Bedrock inference requires an ambient task ID before credentials \
-                       can be minted"
-            .to_string();
+        let message = OidcRefreshError::TaskIdRequired.user_message(locale);
         manager.set_aws_credentials_state(
             AwsCredentialsState::Failed {
                 message: message.clone(),
@@ -377,9 +422,7 @@ fn refresh_aws_credentials_oidc(
     let (tx, rx) = channel();
     let _ = ctx.spawn(
         async move {
-            let token = token_future
-                .await
-                .context("Failed to mint AWS Bedrock task identity token")?;
+            let token = token_future.await.map_err(OidcRefreshError::MintToken)?;
 
             let client = sts_client(&region).await;
             let session_name = aws_role_session_name(&task_id);
@@ -396,14 +439,16 @@ fn refresh_aws_credentials_oidc(
                         .as_service_error()
                         .map(|e| e.to_string())
                         .unwrap_or_else(|| err.to_string());
-                    report_error!(anyhow::Error::new(err)
-                        .context("Bedrock OIDC: STS AssumeRoleWithWebIdentity SDK error"));
-                    anyhow::anyhow!("STS AssumeRoleWithWebIdentity failed: {detail}")
+                    OidcRefreshError::AssumeRole {
+                        detail,
+                        source: anyhow::Error::new(err)
+                            .context("Bedrock OIDC: STS AssumeRoleWithWebIdentity SDK error"),
+                    }
                 })?
                 .credentials
-                .context("STS response did not include credentials")?;
+                .ok_or(OidcRefreshError::MissingCredentials)?;
 
-            anyhow::Ok(AwsCredentials::new(
+            Result::<_, OidcRefreshError>::Ok(AwsCredentials::new(
                 credentials.access_key_id().to_string(),
                 credentials.secret_access_key().to_string(),
                 Some(credentials.session_token().to_string()),
@@ -422,9 +467,10 @@ fn refresh_aws_credentials_oidc(
                         Ok(()),
                     )
                 }
-                Err(e) => {
-                    let message = e.to_string();
-                    report_error!(e.context("Bedrock OIDC: failed to load credentials"));
+                Err(error) => {
+                    let message = error.user_message(crate::localization::current_locale(ctx));
+                    report_error!(anyhow::Error::new(error)
+                        .context("Bedrock OIDC: failed to load credentials"));
                     (
                         AwsCredentialsState::Failed {
                             message: message.clone(),
@@ -439,7 +485,7 @@ fn refresh_aws_credentials_oidc(
     );
     Box::pin(async move {
         rx.await
-            .unwrap_or_else(|_| Err("Credential refresh was interrupted".to_string()))
+            .unwrap_or_else(|_| Err(OidcRefreshError::RefreshInterrupted.user_message(locale)))
     })
 }
 
