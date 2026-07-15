@@ -669,7 +669,7 @@ impl DisplayChipMenu {
             .map(|repo| repo.repo.clone())
             .collect::<Vec<_>>();
         let repos_text = if repo_names.is_empty() {
-            "(none)".to_string()
+            crate::localization::text_for_app(app, "context_chips.environment.repos.none")
         } else {
             repo_names.join(", ")
         };

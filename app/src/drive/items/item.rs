@@ -439,20 +439,28 @@ impl<'a> WarpDriveRow<'a> {
             .permissions()
             .owner;
 
-        let mut owner_label = "From ".to_string();
-        match owner {
+        let owner_name = match owner {
             Owner::User { user_uid } => {
                 match UserProfiles::as_ref(app).displayable_identifier_for_uid(user_uid) {
-                    Some(user) => owner_label.push_str(&user),
-                    None => owner_label.push_str("unknown user"),
+                    Some(user) => user,
+                    None => crate::localization::text_for_app(
+                        app,
+                        "drive.shared_object_owner.unknown_user",
+                    ),
                 }
             }
-            Owner::Team { team_uid, .. } => owner_label.push_str(
-                UserWorkspaces::as_ref(app)
-                    .team_from_uid(team_uid)
-                    .map_or("unknown team", |team| &team.name),
-            ),
-        }
+            Owner::Team { team_uid, .. } => UserWorkspaces::as_ref(app)
+                .team_from_uid(team_uid)
+                .map(|team| team.name.clone())
+                .unwrap_or_else(|| {
+                    crate::localization::text_for_app(app, "drive.shared_object_owner.unknown_team")
+                }),
+        };
+        let owner_label = crate::localization::text_for_app_with_args(
+            app,
+            "drive.shared_object_owner.from",
+            &[("owner", &owner_name)],
+        );
 
         let background = appearance.theme().surface_1();
         let text_color = appearance.theme().sub_text_color(background);

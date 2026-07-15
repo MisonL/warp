@@ -4067,6 +4067,18 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/context_chips/display_menu.rs",
+            &["\"(none)\".to_string()"],
+        ),
+        (
+            "app/src/drive/items/item.rs",
+            &[
+                "let mut owner_label = \"From \".to_string()",
+                "owner_label.push_str(\"unknown user\")",
+                "map_or(\"unknown team\"",
+            ][..],
+        ),
+        (
             "app/src/quit_warning/mod.rs",
             &[
                 "You have {} {} running",
