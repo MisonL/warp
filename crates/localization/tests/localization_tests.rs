@@ -3984,6 +3984,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["Text::new(\n                    reason.to_string()"][..],
         ),
         (
+            "app/src/code_review/code_review_header/mod.rs",
+            &["unwrap_or(\"Reviewing open changes\".to_string())"][..],
+        ),
+        (
             "app/src/resource_center/view.rs",
             &[
                 "ResourceCenterFooterItem::Docs => \"Docs\"",
@@ -4105,6 +4109,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "Tab configs",
                 "Some features may be unavailable offline",
             ][..],
+        ),
+        (
+            "app/src/workspace/view/global_search/view.rs",
+            &["The result set only contains a subset of all matches."][..],
         ),
         (
             "app/src/terminal/input/models/data_source.rs",
