@@ -134,9 +134,10 @@ impl SearchItem for ProfileSearchItem {
             .with_child(label.finish());
 
         if is_selected {
-            let selected_label = "(selected)";
+            let selected_label =
+                localization::text_for_app(app, "terminal.profile_model_selector.selected");
             let selected_text = Text::new_inline(
-                selected_label.to_string(),
+                selected_label.clone(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -145,7 +146,7 @@ impl SearchItem for ProfileSearchItem {
             )
             .with_single_highlight(
                 Highlight::new().with_properties(Properties::default().style(Style::Italic)),
-                (0..selected_label.len()).collect(),
+                (0..selected_label.chars().count()).collect(),
             )
             .finish();
 
@@ -183,9 +184,16 @@ impl SearchItem for ProfileSearchItem {
     fn accessibility_label(&self) -> String {
         match &self.kind {
             ProfileSearchItemKind::Profile { profile_name, .. } => {
-                format!("Profile: {profile_name}")
+                localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.a11y.type.profile",
+                    &[("name", profile_name)],
+                )
             }
-            ProfileSearchItemKind::ManageProfiles => "Manage profiles".to_string(),
+            ProfileSearchItemKind::ManageProfiles => localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "terminal.profile_model_selector.manage_profiles",
+            ),
         }
     }
 

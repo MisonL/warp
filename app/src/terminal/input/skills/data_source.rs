@@ -454,6 +454,10 @@ impl SearchItem for SkillSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Skill: {}", self.skill_name)
+        localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "terminal.input.skills.a11y.label",
+            &[("name", &self.skill_name)],
+        )
     }
 }

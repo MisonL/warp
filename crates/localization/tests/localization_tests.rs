@@ -4278,6 +4278,14 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             "app/src/terminal/input/models/data_source.rs",
             &["Model: {}", "(selected)", "(disabled)"][..],
         ),
+        (
+            "app/src/terminal/input/profiles/search_item.rs",
+            &["Profile: {profile_name}", "\"(selected)\""][..],
+        ),
+        (
+            "app/src/terminal/input/skills/data_source.rs",
+            &["format!(\"Skill: {}\""][..],
+        ),
     ];
 
     let mut violations = Vec::new();

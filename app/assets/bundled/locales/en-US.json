@@ -6612,6 +6612,7 @@
   "terminal.profile_model_selector.custom_models": "Custom models",
   "terminal.profile_model_selector.manage_profiles": "Manage profiles",
   "terminal.profile_model_selector.profiles": "Profiles",
+  "terminal.profile_model_selector.selected": "(selected)",
   "terminal.prompt_suggestion.execute_this_plan": "Execute this plan",
   "terminal.prompt_suggestion.zero_state.code": "Help me write some code. What information do I need to provide to you to do this?",
   "terminal.prompt_suggestion.zero_state.deploy": "Help me deploy my project. What information do I need to provide to you to do this?",

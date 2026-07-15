@@ -6612,6 +6612,7 @@
   "terminal.profile_model_selector.custom_models": "自定义模型",
   "terminal.profile_model_selector.manage_profiles": "管理配置文件",
   "terminal.profile_model_selector.profiles": "配置文件",
+  "terminal.profile_model_selector.selected": "（已选择）",
   "terminal.prompt_suggestion.execute_this_plan": "执行此计划",
   "terminal.prompt_suggestion.zero_state.code": "帮我写一些代码。我要提供哪些信息？",
   "terminal.prompt_suggestion.zero_state.deploy": "帮我部署项目。我要提供哪些信息？",
