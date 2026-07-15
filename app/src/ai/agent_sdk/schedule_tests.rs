@@ -3,6 +3,7 @@ use warp_cli::agent::OutputFormat;
 use warp_localization::LocaleId;
 
 use super::ScheduleInfo;
+use crate::ai::agent_sdk::common::CANONICAL_UNSYNCED;
 use crate::ai::agent_sdk::output::write_list_for_locale;
 use crate::ai::ambient_agents::AgentConfigSnapshot;
 
@@ -18,6 +19,13 @@ fn schedule_info() -> ScheduleInfo {
         prompt: "Run checks".to_string(),
         last_spawn_error: Some("failed".to_string()),
         agent_config: AgentConfigSnapshot::default(),
+    }
+}
+
+fn unsynced_schedule_info() -> ScheduleInfo {
+    ScheduleInfo {
+        id: CANONICAL_UNSYNCED.to_owned(),
+        ..schedule_info()
     }
 }
 
@@ -46,4 +54,29 @@ fn schedule_list_text_localizes_status_rows() {
     assert!(rendered.contains(&localized_paused));
     assert!(rendered.contains(&localized_error_prefix));
     assert!(rendered.contains(&localized_scope));
+}
+
+#[test]
+fn schedule_list_localizes_text_without_localizing_json_id() {
+    let mut text_output = Vec::new();
+    write_list_for_locale(
+        [unsynced_schedule_info()],
+        OutputFormat::Text,
+        &mut text_output,
+        LocaleId::ZhCn,
+    )
+    .unwrap();
+    let text_output = String::from_utf8(text_output).unwrap();
+    assert!(text_output.contains("未同步"));
+
+    let mut json_output = Vec::new();
+    write_list_for_locale(
+        [unsynced_schedule_info()],
+        OutputFormat::Json,
+        &mut json_output,
+        LocaleId::ZhCn,
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&json_output).unwrap();
+    assert_eq!(value[0]["id"], CANONICAL_UNSYNCED);
 }

@@ -30,6 +30,8 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// How long to wait for workspace metadata to refresh.
 pub const WORKSPACE_METADATA_REFRESH_TIMEOUT: Duration = Duration::from_secs(10);
+pub(super) const CANONICAL_UNKNOWN: &str = "Unknown";
+pub(super) const CANONICAL_UNSYNCED: &str = "Unsynced";
 
 pub fn validate_agent_mode_base_model_id(
     model_id: &str,

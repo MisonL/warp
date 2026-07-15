@@ -235,14 +235,18 @@ impl ScheduleInfo {
         }
     }
 
-    fn last_ran_display(&self) -> String {
+    fn last_ran_display_for_locale(&self, locale: LocaleId) -> String {
         let timestamp = self
             .last_ran
             .map(format_approx_duration_from_now_utc)
             .unwrap_or("-".to_string());
 
         if self.last_spawn_error.is_some() {
-            format!("❌ {}", timestamp)
+            text_for_locale_with_args(
+                locale,
+                "agent_sdk.schedule.value.last_ran_with_error",
+                &[("timestamp", &timestamp)],
+            )
         } else {
             timestamp
         }
@@ -276,12 +280,17 @@ impl TableFormat for ScheduleInfo {
         } else {
             text_for_locale(locale, "agent_sdk.common.value.no")
         };
+        let id = if self.id == super::common::CANONICAL_UNSYNCED {
+            text_for_locale(locale, "agent_sdk.common.value.unsynced")
+        } else {
+            self.id.clone()
+        };
         vec![
-            Cell::new(&self.id),
+            Cell::new(id),
             Cell::new(&self.name),
             Cell::new(&self.cron_schedule),
             Cell::new(paused_display),
-            Cell::new(self.last_ran_display()),
+            Cell::new(self.last_ran_display_for_locale(locale)),
             Cell::new(self.next_run_display()),
             Cell::new(localized_scope(locale, &self.scope)),
         ]
@@ -352,7 +361,7 @@ fn print_schedule_info(
                 )
             );
 
-            let last_ran = info.last_ran_display();
+            let last_ran = info.last_ran_display_for_locale(locale);
             let next_run = info.next_run_display();
             println!(
                 "{}",
@@ -461,7 +470,7 @@ fn print_schedule_info(
                 Cell::new(paused_display),
             ]);
 
-            let last_ran = info.last_ran_display();
+            let last_ran = info.last_ran_display_for_locale(locale);
             let next_run = info.next_run_display();
             table.add_row(vec![
                 Cell::new(text_for_locale(locale, "agent_sdk.schedule.field.last_ran")),
@@ -780,9 +789,7 @@ fn list(ctx: &mut AppContext, output_format: OutputFormat) -> anyhow::Result<()>
 
                     let id = match sync_id {
                         SyncId::ServerId(server_id) => server_id.to_string(),
-                        SyncId::ClientId(_) => {
-                            text_for_locale(locale, "agent_sdk.common.value.unsynced")
-                        }
+                        SyncId::ClientId(_) => super::common::CANONICAL_UNSYNCED.to_owned(),
                     };
 
                     ScheduleInfo::new(id, scope, config, history.as_ref())
@@ -841,7 +848,7 @@ fn get(
 
             let id = match &schedule_id {
                 SyncId::ServerId(server_id) => server_id.to_string(),
-                SyncId::ClientId(_) => text_for_locale(locale, "agent_sdk.common.value.unsynced"),
+                SyncId::ClientId(_) => super::common::CANONICAL_UNSYNCED.to_owned(),
             };
             let scope = super::common::format_owner(&schedule.permissions().owner).to_string();
             let config = schedule.model().string_model.clone();
@@ -906,3 +913,7 @@ fn delete(ctx: &mut AppContext, args: DeleteScheduleArgs) -> anyhow::Result<()> 
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "schedule_tests.rs"]
+mod tests;

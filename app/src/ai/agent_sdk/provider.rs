@@ -12,6 +12,8 @@ use crate::ai::agent_sdk::output::{self, TableFormat};
 use crate::localization;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
+const PROVIDER_STATUS_NOT_CONNECTED: &str = "Not Connected";
+
 /// Handle provider-related CLI commands.
 pub fn run(
     ctx: &mut AppContext,
@@ -110,23 +112,14 @@ impl ProviderCommandRunner {
                 let mut allowed_for = Vec::new();
 
                 if provider.allowed_in_personal_context() {
-                    allowed_for.push(localization::text_for_locale(
-                        locale,
-                        "agent_sdk.secret.scope.personal",
-                    ));
+                    allowed_for.push("personal");
                 }
                 if provider.allowed_in_team_context() {
-                    allowed_for.push(localization::text_for_locale(
-                        locale,
-                        "agent_sdk.secret.scope.team",
-                    ));
+                    allowed_for.push("team");
                 }
 
                 let allowed_str = allowed_for.join(", ");
-                let status = localization::text_for_locale(
-                    locale,
-                    "agent_sdk.provider.status.not_connected",
-                ); // TODO(bens): get this from gql
+                let status = PROVIDER_STATUS_NOT_CONNECTED.to_owned(); // TODO(bens): get this from gql
 
                 ProviderInfo {
                     name,
@@ -181,6 +174,32 @@ impl TableFormat for ProviderInfo {
             Cell::new(&self.status),
         ]
     }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
+        let allowed_for = self
+            .allowed_for
+            .split(", ")
+            .map(|scope| match scope {
+                "personal" => {
+                    localization::text_for_locale(locale, "agent_sdk.secret.scope.personal")
+                }
+                "team" => localization::text_for_locale(locale, "agent_sdk.secret.scope.team"),
+                scope => scope.to_owned(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let status = if self.status == PROVIDER_STATUS_NOT_CONNECTED {
+            localization::text_for_locale(locale, "agent_sdk.provider.status.not_connected")
+        } else {
+            self.status.clone()
+        };
+        vec![
+            Cell::new(&self.name),
+            Cell::new(&self.slug),
+            Cell::new(allowed_for),
+            Cell::new(status),
+        ]
+    }
 }
 
 fn provider_info_header_for_locale(locale: LocaleId) -> Vec<Cell> {
@@ -203,3 +222,7 @@ fn provider_info_header_for_locale(locale: LocaleId) -> Vec<Cell> {
         )),
     ]
 }
+
+#[cfg(test)]
+#[path = "provider_tests.rs"]
+mod tests;

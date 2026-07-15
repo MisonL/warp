@@ -12,6 +12,8 @@ use crate::localization;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::SyncId;
 
+const UNSYNCED_PROFILE_ID: &str = super::common::CANONICAL_UNSYNCED;
+
 /// Handle Agent Profile-related CLI commands.
 pub fn run(
     ctx: &mut AppContext,
@@ -48,9 +50,7 @@ impl ProfilesCommandRunner {
                     let name = profile.data().display_name().to_string();
                     let id = match profile.sync_id() {
                         Some(SyncId::ServerId(server_id)) => server_id.to_string(),
-                        _ => {
-                            localization::text_for_locale(locale, "agent_sdk.common.value.unsynced")
-                        }
+                        _ => UNSYNCED_PROFILE_ID.to_owned(),
                     };
                     ProfileInfo { id, name }
                 })
@@ -96,4 +96,17 @@ impl TableFormat for ProfileInfo {
     fn row(&self) -> Vec<Cell> {
         vec![Cell::new(&self.id), Cell::new(&self.name)]
     }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
+        let id = if self.id == UNSYNCED_PROFILE_ID {
+            localization::text_for_locale(locale, "agent_sdk.common.value.unsynced")
+        } else {
+            self.id.clone()
+        };
+        vec![Cell::new(id), Cell::new(&self.name)]
+    }
 }
+
+#[cfg(test)]
+#[path = "profiles_tests.rs"]
+mod tests;

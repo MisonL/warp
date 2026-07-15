@@ -30,10 +30,9 @@ pub fn print_integrations(
     let integrations = &graphql_output.integrations;
 
     if integrations.is_empty() {
-        println!(
-            "{}",
-            localization::text_for_locale(locale, "agent_sdk.integration.output.none_found")
-        );
+        if let Some(message) = empty_integrations_output(output_format, locale) {
+            println!("{message}");
+        }
         return;
     }
 
@@ -77,6 +76,17 @@ pub fn print_integrations(
                 print_integration_card(integration, locale);
             }
         }
+    }
+}
+
+fn empty_integrations_output(output_format: OutputFormat, locale: LocaleId) -> Option<String> {
+    match output_format {
+        OutputFormat::Json => Some("[]".to_owned()),
+        OutputFormat::Ndjson => None,
+        OutputFormat::Pretty | OutputFormat::Text => Some(localization::text_for_locale(
+            locale,
+            "agent_sdk.integration.output.none_found",
+        )),
     }
 }
 
@@ -298,12 +308,30 @@ fn status_explanation(status: SimpleIntegrationConnectionStatus, locale: LocaleI
     }
 }
 
+fn canonical_status_explanation(status: SimpleIntegrationConnectionStatus) -> &'static str {
+    match status {
+        SimpleIntegrationConnectionStatus::NotConnected => "This integration is not connected.",
+        SimpleIntegrationConnectionStatus::ConnectionError => {
+            "This provider is connected but there is an error."
+        }
+        SimpleIntegrationConnectionStatus::IntegrationNotConfigured => {
+            "Connection is active, but the agent integration has not been configured yet."
+        }
+        SimpleIntegrationConnectionStatus::NotEnabled => {
+            "Integration is configured but currently disabled."
+        }
+        SimpleIntegrationConnectionStatus::Active => "Integration is connected and enabled.",
+    }
+}
+
 /// Serializable integration info for output.
 #[derive(Serialize)]
 struct IntegrationInfo {
     provider: String,
     description: String,
     status: String,
+    #[serde(skip_serializing)]
+    connection_status: SimpleIntegrationConnectionStatus,
     environment_uid: Option<String>,
     base_prompt: Option<String>,
     created_at: Option<DateTime<Utc>>,
@@ -318,7 +346,7 @@ impl IntegrationInfo {
     fn from_graphql(integration: &SimpleIntegration, locale: LocaleId) -> Self {
         let provider =
             crate::ai::agent_sdk::text_layout::title_case_identifier(&integration.provider_slug);
-        let status = status_explanation(integration.connection_status, locale);
+        let status = canonical_status_explanation(integration.connection_status).to_owned();
 
         let environment_uid = integration.integration_config.as_ref().and_then(|config| {
             if config.environment_uid.is_empty() {
@@ -355,6 +383,7 @@ impl IntegrationInfo {
             provider,
             description: integration.description.clone(),
             status,
+            connection_status: integration.connection_status,
             environment_uid,
             base_prompt,
             created_at,
@@ -382,7 +411,7 @@ impl TableFormat for IntegrationInfo {
         vec![
             Cell::new(&self.provider),
             Cell::new(&self.description),
-            Cell::new(&self.status),
+            Cell::new(status_explanation(self.connection_status, locale)),
             Cell::new(self.environment_uid.clone().unwrap_or_else(|| {
                 localization::text_for_locale(locale, "agent_sdk.common.value.none")
             })),
@@ -420,3 +449,7 @@ fn integration_header_for_locale(locale: LocaleId) -> Vec<Cell> {
         )),
     ]
 }
+
+#[cfg(test)]
+#[path = "integration_output_tests.rs"]
+mod tests;

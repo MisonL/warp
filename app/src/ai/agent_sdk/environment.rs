@@ -274,9 +274,7 @@ impl EnvironmentCommandRunner {
                                 .profile_for_uid(UserUid::new(uid))
                                 .map(|profile| profile.email.clone())
                         })
-                        .unwrap_or_else(|| {
-                            text_for_locale(locale, "agent_sdk.common.value.unknown")
-                        });
+                        .unwrap_or_else(|| super::common::CANONICAL_UNKNOWN.to_owned());
 
                     let last_edited_utc = environment.metadata().revision.as_ref().map(|r| r.utc());
 
@@ -291,9 +289,7 @@ impl EnvironmentCommandRunner {
 
                     let id = match environment.sync_id() {
                         SyncId::ServerId(server_id) => server_id.to_string(),
-                        SyncId::ClientId(_) => {
-                            text_for_locale(locale, "agent_sdk.common.value.unsynced")
-                        }
+                        SyncId::ClientId(_) => super::common::CANONICAL_UNSYNCED.to_owned(),
                     };
 
                     EnvironmentInfo {
@@ -1464,8 +1460,19 @@ impl TableFormat for EnvironmentInfo {
         let setup_commands_display = self.setup_commands.join("\n");
         let description_display = self.description.as_deref().unwrap_or("");
 
+        let id = if self.id == super::common::CANONICAL_UNSYNCED {
+            text_for_locale(locale, "agent_sdk.common.value.unsynced")
+        } else {
+            self.id.clone()
+        };
+        let creator_email = if self.creator_email == super::common::CANONICAL_UNKNOWN {
+            text_for_locale(locale, "agent_sdk.common.value.unknown")
+        } else {
+            self.creator_email.clone()
+        };
+
         vec![
-            Cell::new(&self.id),
+            Cell::new(id),
             Cell::new(&self.name),
             Cell::new(description_display),
             Cell::new(
@@ -1476,7 +1483,7 @@ impl TableFormat for EnvironmentInfo {
             ),
             Cell::new(github_repos_display),
             Cell::new(setup_commands_display),
-            Cell::new(&self.creator_email),
+            Cell::new(creator_email),
             Cell::new(&self.last_edited),
             Cell::new(localized_scope(locale, &self.scope)),
         ]
@@ -1557,3 +1564,7 @@ fn image_header_for_locale(locale: LocaleId) -> Vec<Cell> {
         )),
     ]
 }
+
+#[cfg(test)]
+#[path = "environment_tests.rs"]
+mod tests;
