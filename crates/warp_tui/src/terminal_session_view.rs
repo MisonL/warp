@@ -1,5 +1,6 @@
 //! Authenticated terminal-session TUI surface.
 use std::borrow::Cow;
+use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,11 +20,11 @@ use warp::tui_export::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, BlocklistAIInputModel, CLISubagentController,
     CLISubagentEvent, CancellationReason, ChangelogModel, ChangelogModelEvent,
     ChangelogRequestType, CloudConversationData, CommandExecutionSource, ConversationFileExport,
-    ConversationSelection, ConversationSelectionHandle, ConversationUsageTotals,
-    ExecuteCommandEvent, GetRelevantFilesController, GitRepoModels, GitRepoStatusModel,
-    GitStatusMetadata, LLMPreferences, LLMPreferencesEvent, ModelEvent, ParsedSlashCommandInput,
-    PtyIntent, PtyIntentEvent, RepoDetectionSessionType, RepoDetectionSource,
-    ServerConversationToken, ShellCommandExecutorEvent, SkillReference,
+    ConversationFileExportError, ConversationSelection, ConversationSelectionHandle,
+    ConversationUsageTotals, ExecuteCommandEvent, GetRelevantFilesController, GitRepoModels,
+    GitRepoStatusModel, GitStatusMetadata, LLMPreferences, LLMPreferencesEvent, ModelEvent,
+    ParsedSlashCommandInput, PtyIntent, PtyIntentEvent, RepoDetectionSessionType,
+    RepoDetectionSource, ServerConversationToken, ShellCommandExecutorEvent, SkillReference,
     SlashCommandDataSource as _, SlashCommandSelectionBehavior, StaticCommand, TerminalModel,
     TerminalSurface, TerminalSurfaceInit, TranscriptScope, TuiSlashCommand,
     TuiSlashCommandDataSource, TuiSlashCommandDataSourceArgs, TuiZeroStateDataSource,
@@ -53,6 +54,7 @@ use crate::inline_menu::TuiInlineMenu;
 use crate::input::{TuiInputView, TuiInputViewEvent};
 use crate::input_mode_policy::{self, TuiInputModePolicy};
 use crate::keybindings::TUI_BINDING_GROUP;
+use crate::localization;
 use crate::resume::TuiExitSummaryHandle;
 use crate::slash_commands::TuiSlashCommandModel;
 use crate::transcript_view::{TuiTranscriptView, TuiTranscriptViewEvent};
@@ -67,9 +69,6 @@ use crate::zero_state::render_zero_state;
 const INITIAL_INPUT_WIDTH: u16 = 80;
 const MAX_INPUT_TEXT_ROWS: u16 = 6;
 const MAX_INLINE_MENU_ROWS: u16 = 10;
-
-/// The footer hint shown while the ctrl-c exit confirmation is armed.
-const CTRL_C_EXIT_HINT: &str = "ctrl-c again to exit";
 
 /// Events emitted by the TUI terminal session surface.
 pub(crate) enum TuiTerminalSessionEvent {
@@ -94,14 +93,6 @@ impl PtyIntentEvent for TuiTerminalSessionEvent {
 
 /// Transient hint shown when a shell command is rejected because the PTY is
 /// already running a command.
-const COMMAND_ALREADY_RUNNING_HINT: &str = "cannot run — command already running";
-const NEW_CONVERSATION_COMMAND_RUNNING_HINT: &str =
-    "cannot start new conversation while terminal command is running";
-
-/// Footer hint shown while the input is in `!` shell mode.
-const SHELL_MODE_HINT: &str = "shell mode · esc to exit";
-const COPY_SELECTION_HINT: &str = "copied to clipboard";
-const COPY_FAILED_HINT: &str = "failed to copy to clipboard";
 /// Keeps an agent-requested command's canonical block out of the TUI's
 /// top-level transcript. The shell-command action embeds the block's terminal
 /// content inside its own disclosure, so the canonical block must have zero
@@ -150,11 +141,43 @@ enum ConversationRestoreState {
     Failed(String),
 }
 fn export_file_success_message(export: &ConversationFileExport) -> String {
-    let path = export.path().display();
+    let path = export.path().display().to_string();
     if export.overwrote_existing() {
-        format!("Conversation exported to {path} (overwrote existing file)")
+        localization::text_with_args("tui.session.export.success_overwrite", &[("path", &path)])
     } else {
-        format!("Conversation exported to {path}")
+        localization::text_with_args(
+            "terminal.input.conversation_export.success",
+            &[("path", &path)],
+        )
+    }
+}
+
+fn export_file_error_message(error: &ConversationFileExportError) -> String {
+    let path = error.path().display().to_string();
+    match error.io_error().kind() {
+        io::ErrorKind::PermissionDenied => localization::text_with_args(
+            "terminal.input.conversation_export.error.permission_denied",
+            &[("path", &path)],
+        ),
+        io::ErrorKind::NotFound => {
+            let directory = error
+                .path()
+                .parent()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default();
+            localization::text_with_args(
+                "terminal.input.conversation_export.error.directory_not_found",
+                &[("path", &directory)],
+            )
+        }
+        io::ErrorKind::AlreadyExists => localization::text_with_args(
+            "terminal.input.conversation_export.error.file_exists",
+            &[("path", &path)],
+        ),
+        _ => localization::text_with_args(
+            "terminal.input.conversation_export.error.failed",
+            &[("path", &path), ("error", &error.io_error().to_string())],
+        ),
     }
 }
 
@@ -189,7 +212,7 @@ pub(crate) struct TuiTerminalSessionView {
     /// the same way the request path does.
     terminal_surface_id: EntityId,
     /// Armed by a ctrl-c press; a second press while armed exits the TUI.
-    /// The footer shows [`CTRL_C_EXIT_HINT`] while armed.
+    /// The footer shows a localized exit hint while armed.
     exit_confirmation: ExitConfirmation,
     /// Credits⇄cost display state for the footer's clickable usage entry.
     usage_toggle: UsageToggle,
@@ -406,7 +429,7 @@ impl TuiTerminalSessionView {
                 Ok(()) => view.show_copy_hint(ctx),
                 Err(error) => {
                     log::warn!("Failed to copy TUI selection via OSC 52: {error}");
-                    view.show_transient_hint(COPY_FAILED_HINT.to_owned(), ctx);
+                    view.show_transient_hint(localization::text("tui.hint.copy_failed"), ctx);
                 }
             },
         });
@@ -635,7 +658,7 @@ impl TuiTerminalSessionView {
             Some(CloudConversationData::Oz(conversation)) => {
                 if conversation.server_conversation_token() != Some(&requested_token) {
                     view.fail_conversation_restore(
-                        "The restored conversation did not match the requested token.".to_owned(),
+                        localization::text("tui.session.restore.token_mismatch"),
                         ctx,
                     );
                     return;
@@ -644,13 +667,13 @@ impl TuiTerminalSessionView {
             }
             Some(CloudConversationData::CLIAgent(_)) => {
                 view.fail_conversation_restore(
-                    "The Warp TUI only supports Oz/Warp conversations.".to_owned(),
+                    localization::text("tui.session.restore.unsupported_conversation"),
                     ctx,
                 );
             }
             None => {
                 view.fail_conversation_restore(
-                    "The conversation could not be loaded.".to_owned(),
+                    localization::text("tui.session.restore.load_failed"),
                     ctx,
                 );
             }
@@ -775,13 +798,13 @@ impl TuiTerminalSessionView {
 
     /// Displays success-colored feedback in the transient footer slot.
     fn show_copy_hint(&mut self, ctx: &mut ViewContext<Self>) {
-        self.show_success_hint(COPY_SELECTION_HINT.to_owned(), ctx);
+        self.show_success_hint(localization::text("tui.hint.copied"), ctx);
     }
 
     /// Handles a ctrl-c press: a second press within [`CTRL_C_EXIT_WINDOW`]
     /// exits the TUI; otherwise one contextual action runs — cancel the running
     /// conversation if there is one, else clear the input — and the exit
-    /// confirmation is (re-)armed, surfacing [`CTRL_C_EXIT_HINT`] in the footer.
+    /// confirmation is (re-)armed, surfacing an exit hint in the footer.
     fn handle_interrupt(&mut self, ctx: &mut ViewContext<Self>) {
         if !matches!(
             self.conversation_restore_state,
@@ -851,7 +874,7 @@ impl TuiTerminalSessionView {
         // Left slot, highest priority first: while armed, the ctrl-c hint
         // replaces the other hints in place.
         let hint = if self.exit_confirmation.is_armed() {
-            Some((CTRL_C_EXIT_HINT.to_owned(), muted))
+            Some((localization::text("tui.hint.ctrl_c_exit"), muted))
         } else if let Some((transient, tone)) = self.transient_hint.current() {
             let style = match tone {
                 TransientHintTone::Muted => muted,
@@ -860,7 +883,7 @@ impl TuiTerminalSessionView {
             Some((transient.to_owned(), style))
         } else if self.is_shell_mode(ctx) {
             Some((
-                SHELL_MODE_HINT.to_owned(),
+                localization::text("tui.hint.shell_mode"),
                 builder.shell_mode_accent_style(),
             ))
         } else {
@@ -1072,7 +1095,7 @@ impl TuiTerminalSessionView {
             return;
         };
         if is_pty_busy {
-            self.show_transient_hint(COMMAND_ALREADY_RUNNING_HINT.to_owned(), ctx);
+            self.show_transient_hint(localization::text("tui.hint.command_already_running"), ctx);
             return;
         }
 
@@ -1244,7 +1267,10 @@ impl TuiTerminalSessionView {
                     .as_ref(ctx)
                     .can_start_new_conversation()
                 {
-                    self.show_transient_hint(NEW_CONVERSATION_COMMAND_RUNNING_HINT.to_owned(), ctx);
+                    self.show_transient_hint(
+                        localization::text("terminal.slash.new_conversation.command_running"),
+                        ctx,
+                    );
                     return;
                 }
                 self.cancel_active_conversation(ctx);
@@ -1270,8 +1296,7 @@ impl TuiTerminalSessionView {
                     .filter(|argument| !argument.is_empty())
                 else {
                     self.show_transient_hint(
-                        "Please describe the project you want to create after /create-new-project"
-                            .to_owned(),
+                        localization::text("terminal.slash.create_project.description_required"),
                         ctx,
                     );
                     return;
@@ -1293,17 +1318,25 @@ impl TuiTerminalSessionView {
                     match copy_to_clipboard(&markdown) {
                         Ok(()) => {
                             self.show_success_hint(
-                                "Conversation sent to terminal clipboard".to_owned(),
+                                localization::text("tui.session.export.copied_to_terminal"),
                                 ctx,
                             );
                         }
                         Err(error) => {
                             log::warn!("Failed to export TUI conversation via OSC 52: {error}");
-                            self.show_transient_hint(COPY_FAILED_HINT.to_owned(), ctx);
+                            self.show_transient_hint(
+                                localization::text("tui.hint.copy_failed"),
+                                ctx,
+                            );
                         }
                     }
                 } else {
-                    self.show_transient_hint("No active conversation to export".to_owned(), ctx);
+                    self.show_transient_hint(
+                        localization::text(
+                            "terminal.input.conversation_export.no_active_conversation",
+                        ),
+                        ctx,
+                    );
                 }
                 self.input_view.update(ctx, |input, ctx| input.clear(ctx));
                 record_static_slash_command_accepted(command.name, true, ctx);
@@ -1314,7 +1347,12 @@ impl TuiTerminalSessionView {
                     .as_ref(ctx)
                     .selected_conversation(ctx)
                 else {
-                    self.show_transient_hint("No active conversation to export".to_owned(), ctx);
+                    self.show_transient_hint(
+                        localization::text(
+                            "terminal.input.conversation_export.no_active_conversation",
+                        ),
+                        ctx,
+                    );
                     return;
                 };
                 let title = conversation.title();
@@ -1335,7 +1373,7 @@ impl TuiTerminalSessionView {
                         self.show_success_hint(export_file_success_message(&export), ctx);
                     }
                     Err(error) => {
-                        let message = error.user_message();
+                        let message = export_file_error_message(&error);
                         let path = error.path().to_path_buf();
                         report_error!(
                             anyhow::Error::new(error)
@@ -1494,12 +1532,12 @@ impl TuiView for TuiTerminalSessionView {
                     .and_then(|exchange| exchange.time_since_start());
                 if let Some(elapsed) = warping_elapsed {
                     let label = if conversation.is_summarizing() {
-                        "Summarizing conversation..."
+                        localization::text("agent.warping.status.summarizing_conversation")
                     } else {
-                        "Warping..."
+                        localization::text("agent.warping.status.warping")
                     };
                     content = content.child(
-                        TuiContainer::new(render_warping_indicator(label, elapsed, ctx))
+                        TuiContainer::new(render_warping_indicator(&label, elapsed, ctx))
                             .with_padding_top(1)
                             .finish(),
                     );

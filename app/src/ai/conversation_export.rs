@@ -32,6 +32,11 @@ impl ConversationFileExportError {
     }
 
     #[cfg_attr(not(feature = "tui"), allow(dead_code))]
+    pub fn io_error(&self) -> &io::Error {
+        &self.source
+    }
+
+    #[cfg_attr(not(feature = "tui"), allow(dead_code))]
     pub fn user_message(&self) -> String {
         match self.source.kind() {
             io::ErrorKind::PermissionDenied => format!(
