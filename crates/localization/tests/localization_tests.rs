@@ -3621,6 +3621,8 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "wrappable_text(\"Changes will apply to new windows.\"",
                 "Enabling this setting disables global hotkey support.",
                 "secondary_text.push_str(\"\\n\\nRestart Warp",
+                "let label = \"Start Warp at login",
+                "Use an improved implementation of find to keep the UI responsive",
             ][..],
         ),
         (
@@ -3632,6 +3634,11 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
                 "\"Create your own custom theme\".to_string()",
                 "\"Use Window Blur (Acrylic texture)\".to_string()",
                 "The selected hardware may not support rendering transparent windows.",
+                "The selected graphics settings may not support rendering transparent windows.",
+                "When enabled, reopening or restoring a window opens the vertical tabs panel",
+                "Show the latest user prompt instead of the generated conversation title",
+                "Some(\"Adjusts the default zoom level across all windows\")",
+                "RadioButtonItem::text(\"Shell (PS1)\")",
             ][..],
         ),
         (

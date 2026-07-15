@@ -4883,11 +4883,11 @@ impl SettingsWidget for LoginItemWidget {
         let general_settings = GeneralSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
         #[cfg(target_os = "macos")]
-        let label = "Start Warp at login (requires macOS 13+)";
+        let label = localization::text_for_app(app, "settings.features.login_item.label_macos");
         #[cfg(not(target_os = "macos"))]
-        let label = "Start Warp at login";
+        let label = localization::text_for_app(app, "settings.features.login_item.label");
         render_body_item::<FeaturesPageAction>(
-            label.into(),
+            label,
             None,
             LocalOnlyIconState::for_setting(
                 LoginItem::storage_key(),
@@ -7879,10 +7879,10 @@ impl SettingsWidget for AsyncFindWidget {
             label_with_chip,
             switch,
             appearance,
-            Some(
-                "Use an improved implementation of find to keep the UI responsive while searching for matches on large outputs."
-                    .into(),
-            ),
+            Some(localization::text_for_app(
+                app,
+                "settings.features.async_find.description",
+            )),
         )
     }
 }

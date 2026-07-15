@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -3355,8 +3354,9 @@ impl SettingsWidget for WindowOpacityWidget {
             // Skip showing the warning for OpenGL since WGPU often incorrectly reports it as not
             // supporting alpha.
             if !window.supports_transparency() && window.graphics_backend() != GraphicsBackend::Gl {
-                let mut message = Cow::Borrowed(
-                    "The selected graphics settings may not support rendering transparent windows.",
+                let mut message = crate::localization::text_for_app(
+                    app,
+                    "settings.appearance.window.opacity.graphics_warning",
                 );
                 let gpu_settings = GPUSettings::as_ref(app);
                 if (gpu_settings
@@ -3367,10 +3367,10 @@ impl SettingsWidget for WindowOpacityWidget {
                         .preferred_backend
                         .is_supported_on_current_platform()
                 {
-                    message.to_mut().push_str(
-                        " Try changing the settings for the graphics backend or integrated GPU in \
-                        Features > System.",
-                    );
+                    message.push_str(&crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.window.opacity.graphics_settings_hint",
+                    ));
                 }
 
                 col.add_child(
@@ -3793,8 +3793,14 @@ impl SettingsWidget for InputTypeWidget {
             .radio_buttons(
                 self.radio_buttons_states.clone(),
                 vec![
-                    RadioButtonItem::text("Warp"),
-                    RadioButtonItem::text("Shell (PS1)"),
+                    RadioButtonItem::text(crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.input.type.option.warp",
+                    )),
+                    RadioButtonItem::text(crate::localization::text_for_app(
+                        app,
+                        "settings.appearance.input.type.option.shell_ps1",
+                    )),
                 ],
                 view.input_type_radio_state.clone(),
                 Some(input_type as usize),
@@ -5131,7 +5137,10 @@ impl SettingsWidget for ShowVerticalTabPanelInRestoredWindowsWidget {
         let tab_settings = TabSettings::as_ref(app);
 
         render_body_item::<AppearancePageAction>(
-            crate::localization::text_for_app(app, "settings.appearance.tabs.restore_vertical_panel.label"),
+            crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.restore_vertical_panel.label",
+            ),
             None,
             LocalOnlyIconState::for_setting(
                 ShowVerticalTabPanelInRestoredWindows::storage_key(),
@@ -5152,10 +5161,10 @@ impl SettingsWidget for ShowVerticalTabPanelInRestoredWindowsWidget {
                     );
                 })
                 .finish(),
-            Some(
-                "When enabled, reopening or restoring a window opens the vertical tabs panel even if it was closed when the window was last saved."
-                    .to_string(),
-            ),
+            Some(crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.restore_vertical_panel.description",
+            )),
         )
     }
 }
@@ -5258,10 +5267,10 @@ impl SettingsWidget for UseLatestUserPromptAsConversationTitleInTabNamesWidget {
                     );
                 })
                 .finish(),
-            Some(
-                "Show the latest user prompt instead of the generated conversation title for Oz and third-party agent sessions in vertical tabs."
-                    .to_string(),
-            ),
+            Some(crate::localization::text_for_app(
+                app,
+                "settings.appearance.tabs.latest_prompt_title.description",
+            )),
         )
     }
 }
@@ -5715,7 +5724,10 @@ impl SettingsWidget for ZoomLevelWidget {
         render_dropdown_item(
             appearance,
             &crate::localization::text_for_app(app, "settings.appearance.zoom.label"),
-            Some("Adjusts the default zoom level across all windows"),
+            Some(&crate::localization::text_for_app(
+                app,
+                "settings.appearance.zoom.description",
+            )),
             Some(reset_button),
             LocalOnlyIconState::for_setting(
                 crate::window_settings::ZoomLevel::storage_key(),
