@@ -1,7 +1,9 @@
 use std::sync::LazyLock;
 
 use anyhow::Context as _;
+use parking_lot::RwLock;
 use warp_localization::{replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId};
+use warpui_core::AppContext;
 
 static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {
     let catalogs = [LocaleId::EnUs, LocaleId::ZhCn]
@@ -13,6 +15,9 @@ static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {
     CatalogBundle::new(LocaleId::EnUs, catalogs)
         .expect("default TUI localization catalog must be bundled")
 });
+
+static CURRENT_LOCALE: LazyLock<RwLock<LocaleId>> =
+    LazyLock::new(|| RwLock::new(environment_locale()));
 
 pub(crate) fn text(key: &str) -> String {
     text_for_locale(current_locale(), key)
@@ -36,7 +41,25 @@ pub(crate) fn text_with_args_for_locale(
 }
 
 pub(crate) fn current_locale() -> LocaleId {
+    *CURRENT_LOCALE.read()
+}
+
+pub(crate) fn sync_from_app(app: &AppContext) -> bool {
+    replace_current_locale(&CURRENT_LOCALE, warp::tui_export::current_locale(app))
+}
+
+fn environment_locale() -> LocaleId {
     AppLanguage::System.effective_locale_from_candidates(environment_locale_candidates())
+}
+
+fn replace_current_locale(cache: &RwLock<LocaleId>, locale: LocaleId) -> bool {
+    let mut current = cache.write();
+    if *current == locale {
+        false
+    } else {
+        *current = locale;
+        true
+    }
 }
 
 fn environment_locale_candidates() -> Vec<String> {

@@ -1,5 +1,9 @@
 //! Public app APIs used by the `warp_tui` frontend.
 
+pub fn current_locale(app: &warpui::AppContext) -> warp_localization::LocaleId {
+    crate::localization::current_locale(app)
+}
+
 pub use repo_metadata::repositories::RepoDetectionSource;
 
 pub use crate::ai::agent::api::ServerConversationToken;

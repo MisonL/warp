@@ -24,6 +24,15 @@ fn environment_locale_candidates_prioritize_language_override() {
 }
 
 #[test]
+fn replacing_current_locale_reports_only_changes() {
+    let locale = RwLock::new(LocaleId::EnUs);
+
+    assert!(!replace_current_locale(&locale, LocaleId::EnUs));
+    assert!(replace_current_locale(&locale, LocaleId::ZhCn));
+    assert_eq!(*locale.read(), LocaleId::ZhCn);
+}
+
+#[test]
 fn bundled_simplified_chinese_templates_are_available() {
     assert_eq!(
         &*CATALOGS.text(LocaleId::ZhCn, "tui.auth.sign_in"),

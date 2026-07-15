@@ -12,6 +12,7 @@ use warpui_core::{
 };
 
 use crate::keybindings::TUI_BINDING_GROUP;
+use crate::localization;
 use crate::resume::TuiExitSummaryHandle;
 use crate::terminal_session_view::TuiTerminalSessionView;
 use crate::ui::{login_failed, login_placeholder, terminal_starting};
@@ -100,6 +101,7 @@ impl TuiView for RootTuiView {
     }
 
     fn render(&self, ctx: &AppContext) -> Box<dyn TuiElement> {
+        localization::sync_from_app(ctx);
         match &self.state {
             RootTuiState::Terminal(terminal_session) => {
                 TuiChildView::new(terminal_session).finish()
