@@ -7,10 +7,12 @@ use warp_cli::memory_store::{
     ListVersionsArgs, MemoryCommand, MemoryStoreCommand, UpdateMemoryArgs, UpdateStoreArgs,
 };
 use warp_cli::GlobalOptions;
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
+use crate::localization;
 use crate::server::server_api::ai::{
     AIClient, AgentAttachmentItem, CreateMemoryRequest, CreateMemoryResponse, MemoryItem,
     MemorySource, MemoryStoreItem, MemoryVersionItem, UpdateMemoryRequest, UpdateMemoryResponse,
@@ -100,11 +102,12 @@ struct MemoryStoreCommandRunner;
 impl MemoryStoreCommandRunner {
     fn list_stores(&self, output_format: OutputFormat, ctx: &mut ModelContext<Self>) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
                 let stores = server_api.list_memory_stores().await?;
-                print_memory_stores(stores, output_format);
+                print_memory_stores(stores, output_format, locale);
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -118,13 +121,14 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
                 let memories = server_api
                     .list_memory_store_memories(&args.store_uid)
                     .await?;
-                print_memories(memories, output_format);
+                print_memories(memories, output_format, locale);
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -138,6 +142,7 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -151,7 +156,7 @@ impl MemoryStoreCommandRunner {
                 let response = server_api
                     .create_memory_store_memory(&args.store_uid, request)
                     .await?;
-                print_create_memory_response(response, output_format)?;
+                print_create_memory_response(response, output_format, locale)?;
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -165,6 +170,7 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
         ctx.spawn(
             async move {
                 let store = server_api.get_memory_store(&args.store_uid).await?;
@@ -172,7 +178,7 @@ impl MemoryStoreCommandRunner {
                     OutputFormat::Json => output::write_json(&store, std::io::stdout())?,
                     OutputFormat::Ndjson => output::write_json_line(&store, std::io::stdout())?,
                     OutputFormat::Pretty | OutputFormat::Text => {
-                        output::print_list([store], output_format);
+                        output::print_list_for_locale([store], output_format, locale);
                     }
                 }
                 Ok(())
@@ -188,6 +194,7 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
         ctx.spawn(
             async move {
                 let request = UpdateMemoryStoreRequest {
@@ -200,8 +207,15 @@ impl MemoryStoreCommandRunner {
                     OutputFormat::Json => output::write_json(&store, std::io::stdout())?,
                     OutputFormat::Ndjson => output::write_json_line(&store, std::io::stdout())?,
                     OutputFormat::Pretty | OutputFormat::Text => {
-                        println!("Updated store {}.", store.uid);
-                        output::print_list([store], output_format);
+                        println!(
+                            "{}",
+                            localization::text_for_locale_with_args(
+                                locale,
+                                "agent_sdk.memory_store.output.updated_store",
+                                &[("uid", &store.uid)],
+                            )
+                        );
+                        output::print_list_for_locale([store], output_format, locale);
                     }
                 }
                 Ok(())
@@ -217,16 +231,23 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
         ctx.spawn(
             async move {
                 let agents = server_api.list_memory_store_agents(&args.store_uid).await?;
                 if agents.is_empty()
                     && matches!(output_format, OutputFormat::Pretty | OutputFormat::Text)
                 {
-                    println!("No agents attached to this store.");
+                    println!(
+                        "{}",
+                        localization::text_for_locale(
+                            locale,
+                            "agent_sdk.memory_store.output.no_agents"
+                        )
+                    );
                     return Ok(());
                 }
-                output::print_list(agents, output_format);
+                output::print_list_for_locale(agents, output_format, locale);
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -240,6 +261,7 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
         ctx.spawn(
             async move {
                 let versions = server_api
@@ -248,10 +270,16 @@ impl MemoryStoreCommandRunner {
                 if versions.is_empty()
                     && matches!(output_format, OutputFormat::Pretty | OutputFormat::Text)
                 {
-                    println!("No versions found.");
+                    println!(
+                        "{}",
+                        localization::text_for_locale(
+                            locale,
+                            "agent_sdk.memory_store.output.no_versions"
+                        )
+                    );
                     return Ok(());
                 }
-                output::print_list(versions, output_format);
+                output::print_list_for_locale(versions, output_format, locale);
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -265,6 +293,7 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -276,7 +305,7 @@ impl MemoryStoreCommandRunner {
                 let response = server_api
                     .update_memory_store_memory(&args.store_uid, &args.memory_uid, request)
                     .await?;
-                print_update_memory_response(response, output_format)?;
+                print_update_memory_response(response, output_format, locale)?;
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -290,6 +319,7 @@ impl MemoryStoreCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -303,7 +333,14 @@ impl MemoryStoreCommandRunner {
                     OutputFormat::Json => output::write_json(&output, std::io::stdout())?,
                     OutputFormat::Ndjson => output::write_json_line(&output, std::io::stdout())?,
                     OutputFormat::Pretty | OutputFormat::Text => {
-                        println!("Deleted memory {}.", args.memory_uid);
+                        println!(
+                            "{}",
+                            localization::text_for_locale_with_args(
+                                locale,
+                                "agent_sdk.memory_store.output.deleted_memory",
+                                &[("uid", &args.memory_uid)],
+                            )
+                        );
                     }
                 }
                 Ok(())
@@ -319,16 +356,36 @@ impl warpui::Entity for MemoryStoreCommandRunner {
 
 impl SingletonEntity for MemoryStoreCommandRunner {}
 
+fn localized_header(locale: LocaleId, table: &str, fields: &[&str]) -> Vec<Cell> {
+    fields
+        .iter()
+        .map(|field| {
+            Cell::new(localization::text_for_locale(
+                locale,
+                &format!("agent_sdk.memory_store.{table}.{field}"),
+            ))
+        })
+        .collect()
+}
+
 impl TableFormat for MemoryStoreItem {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("UID"),
-            Cell::new("Owner Type"),
-            Cell::new("Owner UID"),
-            Cell::new("Description"),
-            Cell::new("Created"),
-            Cell::new("Updated"),
-        ]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        localized_header(
+            locale,
+            "table",
+            &[
+                "uid",
+                "owner_type",
+                "owner_uid",
+                "description",
+                "created",
+                "updated",
+            ],
+        )
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -345,13 +402,15 @@ impl TableFormat for MemoryStoreItem {
 
 impl TableFormat for MemoryVersionItem {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("UID"),
-            Cell::new("Version"),
-            Cell::new("Content"),
-            Cell::new("Reason"),
-            Cell::new("Created"),
-        ]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        localized_header(
+            locale,
+            "version_table",
+            &["uid", "version", "content", "reason", "created"],
+        )
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -367,12 +426,15 @@ impl TableFormat for MemoryVersionItem {
 
 impl TableFormat for AgentAttachmentItem {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("UID"),
-            Cell::new("Name"),
-            Cell::new("Access"),
-            Cell::new("Instructions"),
-        ]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        localized_header(
+            locale,
+            "agent_table",
+            &["uid", "name", "access", "instructions"],
+        )
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -387,14 +449,15 @@ impl TableFormat for AgentAttachmentItem {
 
 impl TableFormat for MemoryItem {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("UID"),
-            Cell::new("Version"),
-            Cell::new("Source"),
-            Cell::new("Content"),
-            Cell::new("Created"),
-            Cell::new("Updated"),
-        ]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        localized_header(
+            locale,
+            "memory_table",
+            &["uid", "version", "source", "content", "created", "updated"],
+        )
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -431,7 +494,11 @@ impl From<CreateMemoryResponse> for CreateMemoryOutput {
 
 impl TableFormat for CreateMemoryOutput {
     fn header() -> Vec<Cell> {
-        vec![Cell::new("Memory ID"), Cell::new("Version ID")]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        localized_header(locale, "output_table", &["memory_id", "version_id"])
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -439,20 +506,30 @@ impl TableFormat for CreateMemoryOutput {
     }
 }
 
-fn print_memory_stores(stores: Vec<MemoryStoreItem>, output_format: OutputFormat) {
+fn print_memory_stores(
+    stores: Vec<MemoryStoreItem>,
+    output_format: OutputFormat,
+    locale: LocaleId,
+) {
     if stores.is_empty() && matches!(output_format, OutputFormat::Pretty | OutputFormat::Text) {
-        println!("No memory stores found.");
+        println!(
+            "{}",
+            localization::text_for_locale(locale, "agent_sdk.memory_store.output.no_stores")
+        );
         return;
     }
-    output::print_list(stores, output_format);
+    output::print_list_for_locale(stores, output_format, locale);
 }
 
-fn print_memories(memories: Vec<MemoryItem>, output_format: OutputFormat) {
+fn print_memories(memories: Vec<MemoryItem>, output_format: OutputFormat, locale: LocaleId) {
     if memories.is_empty() && matches!(output_format, OutputFormat::Pretty | OutputFormat::Text) {
-        println!("No memories found.");
+        println!(
+            "{}",
+            localization::text_for_locale(locale, "agent_sdk.memory_store.output.no_memories")
+        );
         return;
     }
-    output::print_list(memories, output_format);
+    output::print_list_for_locale(memories, output_format, locale);
 }
 
 #[derive(Serialize)]
@@ -472,7 +549,11 @@ impl From<UpdateMemoryResponse> for UpdateMemoryOutput {
 
 impl TableFormat for UpdateMemoryOutput {
     fn header() -> Vec<Cell> {
-        vec![Cell::new("Memory ID"), Cell::new("Version ID")]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        localized_header(locale, "output_table", &["memory_id", "version_id"])
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -483,14 +564,22 @@ impl TableFormat for UpdateMemoryOutput {
 fn print_update_memory_response(
     response: UpdateMemoryResponse,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let output = UpdateMemoryOutput::from(response);
     match output_format {
         OutputFormat::Json => output::write_json(&output, std::io::stdout())?,
         OutputFormat::Ndjson => output::write_json_line(&output, std::io::stdout())?,
         OutputFormat::Pretty | OutputFormat::Text => {
-            println!("Updated memory {}.", output.memory_id);
-            output::print_list([output], output_format);
+            println!(
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.memory_store.output.updated_memory",
+                    &[("uid", &output.memory_id)],
+                )
+            );
+            output::print_list_for_locale([output], output_format, locale);
         }
     }
     Ok(())
@@ -499,14 +588,22 @@ fn print_update_memory_response(
 fn print_create_memory_response(
     response: CreateMemoryResponse,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let output = CreateMemoryOutput::from(response);
     match output_format {
         OutputFormat::Json => output::write_json(&output, std::io::stdout())?,
         OutputFormat::Ndjson => output::write_json_line(&output, std::io::stdout())?,
         OutputFormat::Pretty | OutputFormat::Text => {
-            println!("Created memory {}.", output.memory_id);
-            output::print_list([output], output_format);
+            println!(
+                "{}",
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.memory_store.output.created_memory",
+                    &[("uid", &output.memory_id)],
+                )
+            );
+            output::print_list_for_locale([output], output_format, locale);
         }
     }
     Ok(())
@@ -518,3 +615,7 @@ fn finish_command(result: Result<()>, ctx: &mut ModelContext<MemoryStoreCommandR
         Err(err) => super::report_fatal_error(err, ctx),
     }
 }
+
+#[cfg(test)]
+#[path = "memory_store_tests.rs"]
+mod tests;
