@@ -4777,7 +4777,7 @@ fn current_i18n_regression_targets_are_catalog_backed() {
         ),
         (
             "app/src/ai/blocklist/agent_view/zero_state_block.rs",
-            &["free cloud agent credits"][..],
+            &["free cloud agent credits", "\"RECENT ACTIVITY\""][..],
         ),
         (
             "app/src/editor/view/mod.rs",

@@ -902,7 +902,7 @@ fn render_recent_conversations_section(
         .with_child(
             Container::new(
                 Text::new(
-                    "RECENT ACTIVITY",
+                    localization::text_for_app(app, "agent.zero_state.recent_activity"),
                     appearance.ui_font_family(),
                     header_font_size,
                 )
