@@ -4057,6 +4057,16 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             ][..],
         ),
         (
+            "app/src/context_chips/display_chip.rs",
+            &[
+                "format!(\"Tracking {upstream}",
+                "\"Branch was rebased; upstream name is unavailable\"",
+                "\"No upstream configured\"",
+                "\".. (Parent Directory)\".to_string()",
+                "\"Monthly AI credits reset!\".to_string()",
+            ][..],
+        ),
+        (
             "app/src/quit_warning/mod.rs",
             &[
                 "You have {} {} running",

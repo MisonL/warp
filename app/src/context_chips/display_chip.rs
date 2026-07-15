@@ -581,26 +581,43 @@ impl GitBranchTrackingStatus {
         saw_status_token.then_some((ahead, behind, rebased))
     }
 
-    fn tooltip_text(&self) -> String {
+    fn tooltip_text(&self, app: &AppContext) -> String {
         match &self.upstream {
-            Some(upstream) if self.is_rebased() => {
-                format!("Tracking {upstream} • branch was rebased")
-            }
-            Some(upstream) if self.counts_available => format!(
-                "Tracking {upstream} • ahead {}, behind {}",
-                self.ahead, self.behind
+            Some(upstream) if self.is_rebased() => crate::localization::text_for_app_with_args(
+                app,
+                "context_chips.git_branch.tooltip.tracking_rebased",
+                &[("upstream", upstream)],
             ),
-            Some(upstream) => {
-                format!("Tracking {upstream}; ahead/behind counts are unavailable")
-            }
-            None if self.is_rebased() => {
-                "Branch was rebased; upstream name is unavailable".to_string()
-            }
-            None if self.counts_available => format!(
-                "Ahead {}, behind {}; upstream name is unavailable",
-                self.ahead, self.behind
+            Some(upstream) if self.counts_available => crate::localization::text_for_app_with_args(
+                app,
+                "context_chips.git_branch.tooltip.tracking_counts",
+                &[
+                    ("upstream", upstream),
+                    ("ahead", &self.ahead.to_string()),
+                    ("behind", &self.behind.to_string()),
+                ],
             ),
-            None => "No upstream configured".to_string(),
+            Some(upstream) => crate::localization::text_for_app_with_args(
+                app,
+                "context_chips.git_branch.tooltip.tracking_counts_unavailable",
+                &[("upstream", upstream)],
+            ),
+            None if self.is_rebased() => crate::localization::text_for_app(
+                app,
+                "context_chips.git_branch.tooltip.rebased_upstream_unavailable",
+            ),
+            None if self.counts_available => crate::localization::text_for_app_with_args(
+                app,
+                "context_chips.git_branch.tooltip.counts_upstream_unavailable",
+                &[
+                    ("ahead", &self.ahead.to_string()),
+                    ("behind", &self.behind.to_string()),
+                ],
+            ),
+            None => crate::localization::text_for_app(
+                app,
+                "context_chips.git_branch.tooltip.no_upstream",
+            ),
         }
     }
 }
@@ -952,7 +969,10 @@ impl DisplayChip {
                     DisplayChipMenu::new(
                         Vec::<DirectoryItem>::new(),
                         Some(FixedFooter::new(Arc::new(DirectoryItem {
-                            name: ".. (Parent Directory)".to_string(),
+                            name: crate::localization::text_for_app(
+                                ctx,
+                                "context_chips.directory.parent",
+                            ),
                             directory_type: DirectoryType::NavigateToParent,
                         }))), // Show parent directory option
                         ChipMenuType::Directories,
@@ -1105,9 +1125,9 @@ impl DisplayChip {
         };
 
         let quota_reset_popup = ctx.add_typed_action_view(|_| {
-            FeaturePopup::alert_icon(NewFeaturePopupLabel::FromString(
-                "Monthly AI credits reset!".to_string(),
-            ))
+            FeaturePopup::alert_icon(NewFeaturePopupLabel::FromCallable(Box::new(|app| {
+                crate::localization::text_for_app(app, "context_chips.quota.monthly_reset")
+            })))
         });
 
         ctx.subscribe_to_view(&quota_reset_popup, |_, _, event, ctx| match event {
@@ -1506,7 +1526,7 @@ impl DisplayChip {
             .or_else(|| GitBranchTrackingStatus::from_display_text(&self.text));
         let tooltip_text = tracking_status
             .as_ref()
-            .map(GitBranchTrackingStatus::tooltip_text);
+            .map(|status| status.tooltip_text(app));
 
         Hoverable::new(self.mouse_state.clone(), move |state| {
             let branch = tracking_status
