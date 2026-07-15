@@ -1526,7 +1526,7 @@ impl CodeView {
             .as_ref()
             .map(|loc| display_name_with_host(loc, app))
             .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| "Untitled".to_string());
+            .unwrap_or_else(|| crate::localization::text_for_app(app, "code.tab.untitled"));
         let language_icon =
             icon_from_file_path(&file_name, appearance, ItemHighlightState::Default);
         row.add_child(
@@ -1906,7 +1906,7 @@ impl CodeView {
                     .map(|loc| display_name_with_host(loc, app))
                     .filter(|n| !n.is_empty())
             })
-            .unwrap_or_else(|| "Untitled".to_string());
+            .unwrap_or_else(|| crate::localization::text_for_app(app, "code.tab.untitled"));
 
         let appearance = Appearance::as_ref(app);
         let is_pane_dragging = header_ctx.draggable_state.is_dragging();
