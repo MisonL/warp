@@ -4801,7 +4801,11 @@ fn agent_tips_notebook_links_and_recorder_toasts_use_catalog_copy() {
         ),
         (
             "app/src/terminal/recorder.rs",
-            &["ToastLink::new(\"Open\""][..],
+            &[
+                "ToastLink::new(\"Open\"",
+                "format!(\"PTY recording started: {display_path}\")",
+                "format!(\"PTY recording stopped: {display_path}\")",
+            ][..],
         ),
     ];
 
