@@ -3675,6 +3675,29 @@ fn mcp_provider_section_labels_use_catalog_copy() {
 }
 
 #[test]
+fn default_model_switch_prompts_use_catalog_copy() {
+    for literal in [
+        "You added your own {provider_name} API key",
+        "You added the \\\"{}\\\" custom endpoint",
+    ] {
+        assert!(
+            !AI_SETTINGS_PAGE_SOURCE.contains(literal),
+            "default model switch prompt should not use direct English copy: {literal}"
+        );
+    }
+
+    for key in [
+        "settings.ai.set_default_model.custom_endpoint_description",
+        "settings.ai.set_default_model.provider_key_description",
+    ] {
+        assert!(
+            AI_SETTINGS_PAGE_SOURCE.contains(key),
+            "default model switch prompt should reference catalog key {key}"
+        );
+    }
+}
+
+#[test]
 fn onboarding_ui_calls_do_not_use_direct_english_literals() {
     let onboarding_src = workspace_root().join("crates/onboarding/src");
     let mut violations = Vec::new();

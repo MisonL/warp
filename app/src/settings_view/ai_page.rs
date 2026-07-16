@@ -2416,10 +2416,13 @@ impl AISettingsPageView {
         }
         let provider_name = provider.display_name();
         let current_default = Self::active_base_model_display_name(ctx);
-        let description = format!(
-            "You added your own {provider_name} API key, but your default model is currently set \
-             to {current_default}, which won't work without Warp credits. Would you like to change \
-             your default model?"
+        let description = localization::text_for_app_with_args(
+            ctx,
+            "settings.ai.set_default_model.provider_key_description",
+            &[
+                ("provider", provider_name),
+                ("current_default", &current_default),
+            ],
         );
         self.show_set_default_model_modal(description, choices, ctx);
     }
@@ -2462,11 +2465,13 @@ impl AISettingsPageView {
             return;
         }
         let current_default = Self::active_base_model_display_name(ctx);
-        let description = format!(
-            "You added the \"{}\" custom endpoint, but your default model is currently set to \
-             {current_default}, which won't work without Warp credits. Would you like to change \
-             your default model?",
-            endpoint.name
+        let description = localization::text_for_app_with_args(
+            ctx,
+            "settings.ai.set_default_model.custom_endpoint_description",
+            &[
+                ("endpoint", &endpoint.name),
+                ("current_default", &current_default),
+            ],
         );
         self.show_set_default_model_modal(description, choices, ctx);
     }
