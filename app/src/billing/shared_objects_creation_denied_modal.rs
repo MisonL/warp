@@ -10,7 +10,7 @@ use warpui::{
 };
 
 use super::shared_objects_creation_denied_body::{
-    SharedObjectsCreationDeniedBody, SharedObjectsCreationDeniedBodyEvent,
+    shared_object_type_label, SharedObjectsCreationDeniedBody, SharedObjectsCreationDeniedBodyEvent,
 };
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::DriveObjectType;
@@ -126,11 +126,17 @@ impl SharedObjectsCreationDeniedModal {
     ) {
         let appearance = Appearance::as_ref(ctx);
         self.team_uid = Some(team_uid);
-        let title: Option<String> = if is_delinquent_due_to_payment_issue {
-            Some(format!("Shared {object_type}s restricted"))
+        let title_key = if is_delinquent_due_to_payment_issue {
+            "drive.shared_objects_limit.title.restricted"
         } else {
-            Some(format!("Shared {object_type}s limit reached"))
+            "drive.shared_objects_limit.title.limit_reached"
         };
+        let object_type_name = shared_object_type_label(object_type, ctx);
+        let title = Some(localization::text_for_app_with_args(
+            ctx,
+            title_key,
+            &[("object_type", &object_type_name)],
+        ));
         let (icon, icon_color) = match object_type {
             DriveObjectType::Notebook { is_ai_document } => (
                 Some(Icon::Notebook),

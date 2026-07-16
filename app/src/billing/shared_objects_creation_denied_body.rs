@@ -188,7 +188,7 @@ impl View for SharedObjectsCreationDeniedBody {
     }
 }
 
-fn shared_object_type_label(object_type: DriveObjectType, app: &AppContext) -> String {
+pub(super) fn shared_object_type_label(object_type: DriveObjectType, app: &AppContext) -> String {
     let key = match object_type {
         DriveObjectType::Notebook { .. } => "drive.object.lower.notebooks",
         DriveObjectType::Folder => "drive.object.lower.folders",

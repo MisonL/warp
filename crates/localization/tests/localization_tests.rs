@@ -3779,6 +3779,13 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["format!(\"Failed to export {name}\")", "\"Export failed\".to_string()"][..],
         ),
         (
+            "app/src/billing/shared_objects_creation_denied_modal.rs",
+            &[
+                "format!(\"Shared {object_type}s restricted\")",
+                "format!(\"Shared {object_type}s limit reached\")",
+            ][..],
+        ),
+        (
             "app/src/terminal/view/ssh_remote_server_choice_view.rs",
             &["\"Manage Warpify settings\".into()"][..],
         ),
