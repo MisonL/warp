@@ -14,6 +14,7 @@ pub use templatable_manager::McpIntegration;
 pub use templatable_manager::TemplatableMCPServerManager;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::Icon;
+use warpui::AppContext;
 
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
@@ -514,6 +515,16 @@ impl MCPProvider {
             MCPProvider::Codex => "Codex",
             MCPProvider::Agents => "Other Agents",
         }
+    }
+
+    pub fn display_name_for_app(&self, app: &AppContext) -> String {
+        let key = match self {
+            MCPProvider::Warp => "settings.mcp.provider.warp",
+            MCPProvider::Claude => "settings.mcp.provider.claude",
+            MCPProvider::Codex => "settings.mcp.provider.codex",
+            MCPProvider::Agents => "settings.mcp.provider.other_agents",
+        };
+        crate::localization::text_for_app(app, key)
     }
 
     pub fn icon(&self) -> Icon {

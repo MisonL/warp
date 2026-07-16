@@ -55,6 +55,9 @@ const LOCAL_AGENT_TASK_SYNC_MODEL_SOURCE: &str =
 const DRIVE_SOURCE: &str = include_str!("../../../app/src/drive/mod.rs");
 const WARPIFY_BANNER_SOURCE: &str =
     include_str!("../../../app/src/terminal/view/block_banner/warpify.rs");
+const MCP_SOURCE: &str = include_str!("../../../app/src/ai/mcp/mod.rs");
+const MCP_LIST_PAGE_SOURCE: &str =
+    include_str!("../../../app/src/settings_view/mcp_servers/list_page.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3645,6 +3648,30 @@ fn warpify_banner_action_uses_catalog_copy() {
         WARPIFY_BANNER_SOURCE.contains("terminal.use_agent_footer.action.warpify_subshell"),
         "Warpify banner action should reference its catalog copy"
     );
+}
+
+#[test]
+fn mcp_provider_section_labels_use_catalog_copy() {
+    assert!(
+        MCP_LIST_PAGE_SOURCE.contains("provider.display_name_for_app(app)"),
+        "MCP provider section should resolve its provider label for the active locale"
+    );
+    assert!(
+        !MCP_LIST_PAGE_SOURCE.contains("provider.display_name())"),
+        "MCP provider section should not interpolate the canonical English provider label"
+    );
+
+    for key in [
+        "settings.mcp.provider.claude",
+        "settings.mcp.provider.codex",
+        "settings.mcp.provider.other_agents",
+        "settings.mcp.provider.warp",
+    ] {
+        assert!(
+            MCP_SOURCE.contains(key),
+            "MCP provider display helper should reference catalog key {key}"
+        );
+    }
 }
 
 #[test]

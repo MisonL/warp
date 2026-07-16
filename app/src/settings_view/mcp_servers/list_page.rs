@@ -1322,7 +1322,7 @@ impl MCPServersListPageView {
                     let section_title = localization::text_for_app_with_args(
                         app,
                         "settings.mcp.list.section.detected_from",
-                        &[("provider", provider.display_name())],
+                        &[("provider", &provider.display_name_for_app(app))],
                     );
                     page.add_child(self.render_server_cards_section(
                         &section_title,
