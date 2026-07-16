@@ -375,8 +375,12 @@ impl ExportManager {
         let window_id = export.remove().window_id;
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             let message = match id.display_name(ctx) {
-                Some(name) => format!("Failed to export {name}"),
-                None => "Export failed".to_string(),
+                Some(name) => localization::text_for_app_with_args(
+                    ctx,
+                    "drive.export.failed_named",
+                    &[("name", &name)],
+                ),
+                None => localization::text_for_app(ctx, "drive.export.failed"),
             };
             toast_stack.add_persistent_toast(DismissibleToast::error(message), window_id, ctx);
         });

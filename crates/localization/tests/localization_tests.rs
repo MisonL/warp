@@ -3775,6 +3775,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
             &["\"Learn about file support and formatting\".to_string()"][..],
         ),
         (
+            "app/src/drive/export.rs",
+            &["format!(\"Failed to export {name}\")", "\"Export failed\".to_string()"][..],
+        ),
+        (
             "app/src/terminal/view/ssh_remote_server_choice_view.rs",
             &["\"Manage Warpify settings\".into()"][..],
         ),
