@@ -178,7 +178,11 @@ impl TerminalView {
             ctx.spawn(future, move |me, conversation, ctx| {
                 let Some(conversation) = conversation else {
                     me.show_error_toast(
-                        format!("Failed to load conversation with id: {conversation_id}"),
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.agent_view.error.load_conversation",
+                            &[("conversation_id", &conversation_id.to_string())],
+                        ),
                         ctx,
                     );
                     return;

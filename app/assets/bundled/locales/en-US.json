@@ -5909,6 +5909,7 @@
   "terminal.agent_view_header.for_terminal": "for terminal",
   "terminal.agent_view.confirmation.send_to_agent": "again to send to agent",
   "terminal.agent_view.error.agent_monitoring_new_conversation": "Cannot start a new conversation while agent is monitoring a command.",
+  "terminal.agent_view.error.load_conversation": "Failed to load conversation with id: {conversation_id}",
   "terminal.ambient_agent.cancelled.subtitle": "No cloud environment was started",
   "terminal.ambient_agent.cancelled.title": "Cloud Agent Run Cancelled",
   "terminal.ambient_agent.detail.authentication_required": "Authentication required",

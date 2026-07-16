@@ -5909,6 +5909,7 @@
   "terminal.agent_view_header.for_terminal": "返回终端",
   "terminal.agent_view.confirmation.send_to_agent": "再次按下以发送给 Agent",
   "terminal.agent_view.error.agent_monitoring_new_conversation": "Agent 正在监控命令，无法开始新对话。",
+  "terminal.agent_view.error.load_conversation": "加载 ID 为 {conversation_id} 的对话失败",
   "terminal.ambient_agent.cancelled.subtitle": "未启动云环境",
   "terminal.ambient_agent.cancelled.title": "云端 Agent 运行已取消",
   "terminal.ambient_agent.detail.authentication_required": "需要认证",

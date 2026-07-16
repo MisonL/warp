@@ -62,6 +62,8 @@ const MCP_SERVERS_PAGE_SOURCE: &str =
     include_str!("../../../app/src/settings_view/mcp_servers_page.rs");
 const SLASH_COMMANDS_SOURCE: &str =
     include_str!("../../../app/src/terminal/input/slash_commands/mod.rs");
+const TERMINAL_AGENT_VIEW_SOURCE: &str =
+    include_str!("../../../app/src/terminal/view/agent_view.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3785,6 +3787,19 @@ fn slash_command_feedback_uses_catalog_copy() {
             "slash command feedback should reference catalog key {key}"
         );
     }
+}
+
+#[test]
+fn terminal_agent_view_load_error_uses_catalog_copy() {
+    assert!(
+        !TERMINAL_AGENT_VIEW_SOURCE
+            .contains("format!(\"Failed to load conversation with id: {conversation_id}\")"),
+        "terminal agent view load failure should not use direct English copy"
+    );
+    assert!(
+        TERMINAL_AGENT_VIEW_SOURCE.contains("terminal.agent_view.error.load_conversation"),
+        "terminal agent view load failure should reference its catalog copy"
+    );
 }
 
 #[test]
