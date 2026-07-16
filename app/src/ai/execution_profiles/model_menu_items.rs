@@ -15,6 +15,7 @@ use crate::ai::llms::{
     should_show_gemini_enterprise_agent_platform_icon_for_model, should_show_key_icon_for_model,
     DisableReason, LLMId, LLMInfo,
 };
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields, MenuTooltipPosition};
 
 pub fn is_auto(llm: &LLMInfo) -> bool {
@@ -37,11 +38,15 @@ fn with_cost_and_profile_info<A: Action + Clone>(
     item: MenuItemFields<A>,
     llm: &LLMInfo,
     profile_default_model: Option<&LLMId>,
+    app: &AppContext,
 ) -> MenuItemFields<A> {
     let mut label = String::new();
 
     if Some(&llm.id) == profile_default_model {
-        label.push_str("Profile default");
+        label.push_str(&localization::text_for_app(
+            app,
+            "settings.execution_profile.model.profile_default",
+        ));
     }
 
     match llm.usage_metadata.credit_multiplier {
@@ -65,6 +70,24 @@ fn with_cost_and_profile_info<A: Action + Clone>(
     } else {
         // Using the key shortcut label to display extra info is a hack.
         item.with_key_shortcut_label(Some(label))
+    }
+}
+
+fn disable_reason_key(reason: &DisableReason) -> &'static str {
+    match reason {
+        DisableReason::AdminDisabled => {
+            "settings.execution_profile.model.disable_reason.admin_disabled"
+        }
+        DisableReason::OutOfRequests => {
+            "settings.execution_profile.model.disable_reason.out_of_requests"
+        }
+        DisableReason::ProviderOutage => {
+            "settings.execution_profile.model.disable_reason.provider_outage"
+        }
+        DisableReason::RequiresUpgrade => {
+            "settings.execution_profile.model.disable_reason.requires_upgrade"
+        }
+        DisableReason::Unavailable => "settings.execution_profile.model.disable_reason.unavailable",
     }
 }
 
@@ -163,16 +186,18 @@ fn make_item_fields<A: Action + Clone>(
 
     if let Some(reason) = &llm.disable_reason {
         item = item
-            .with_tooltip(reason.tooltip_text())
+            .with_tooltip(localization::text_for_app(app, disable_reason_key(reason)))
             .with_tooltip_position(MenuTooltipPosition::Above);
 
         if matches!(reason, DisableReason::RequiresUpgrade) {
-            item =
-                item.with_right_side_label("disabled", Properties::default().style(Style::Italic));
+            item = item.with_right_side_label(
+                localization::text_for_app(app, "settings.execution_profile.model.disabled"),
+                Properties::default().style(Style::Italic),
+            );
         }
     }
 
-    with_cost_and_profile_info(item, llm, model_id_to_add_profile_default_label_to).into_item()
+    with_cost_and_profile_info(item, llm, model_id_to_add_profile_default_label_to, app).into_item()
 }
 
 pub fn available_model_menu_items<A: Action + Clone>(
