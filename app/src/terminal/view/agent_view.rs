@@ -80,7 +80,7 @@ impl TerminalView {
                 anyhow::Error::new(e).context("Failed to enter agent view for new conversation"),
                 extra: { "origin" => ?origin }
             );
-            self.show_error_toast(e.to_string(), ctx);
+            self.show_error_toast(e.localized_message(ctx), ctx);
         }
         self.redetermine_global_focus(ctx);
     }
@@ -112,7 +112,7 @@ impl TerminalView {
                     anyhow::Error::new(e).context("Failed to enter agent view for restored CLI agent"),
                     extra: { "origin" => ?origin }
                 );
-                self.show_error_toast(e.to_string(), ctx);
+                self.show_error_toast(e.localized_message(ctx), ctx);
                 self.redetermine_global_focus(ctx);
                 None
             }
@@ -148,7 +148,7 @@ impl TerminalView {
                     anyhow::Error::new(e).context("Failed to enter agent view for existing conversation"),
                     extra: { "conversation_id" => ?conversation_id, "origin" => ?origin }
                 );
-                self.show_error_toast(e.to_string(), ctx);
+                self.show_error_toast(e.localized_message(ctx), ctx);
             }
         } else if let Some(conversation) = in_memory_conversation {
             self.restore_conversation_after_view_creation(
@@ -168,7 +168,7 @@ impl TerminalView {
                         .context("Failed to enter agent view for restored in-memory conversation"),
                     extra: { "conversation_id" => ?conversation_id, "origin" => ?origin }
                 );
-                self.show_error_toast(e.to_string(), ctx);
+                self.show_error_toast(e.localized_message(ctx), ctx);
             }
         } else {
             let conversation_id_copy = conversation_id;

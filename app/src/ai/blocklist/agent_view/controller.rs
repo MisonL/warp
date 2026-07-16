@@ -28,6 +28,16 @@ pub enum EnterAgentViewError {
     LongRunningCommand,
 }
 
+impl EnterAgentViewError {
+    pub fn localized_message(&self, app: &AppContext) -> String {
+        let key = match self {
+            Self::AlreadyInAgentView => "terminal.agent_view.error.already_in_agent_view",
+            Self::LongRunningCommand => "terminal.agent_view.error.command_running",
+        };
+        localization::text_for_app(app, key)
+    }
+}
+
 /// Error returned when exiting the agent view fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ExitAgentViewError {

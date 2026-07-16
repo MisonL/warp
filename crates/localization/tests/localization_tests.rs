@@ -64,6 +64,8 @@ const SLASH_COMMANDS_SOURCE: &str =
     include_str!("../../../app/src/terminal/input/slash_commands/mod.rs");
 const TERMINAL_AGENT_VIEW_SOURCE: &str =
     include_str!("../../../app/src/terminal/view/agent_view.rs");
+const AGENT_VIEW_CONTROLLER_SOURCE: &str =
+    include_str!("../../../app/src/ai/blocklist/agent_view/controller.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3800,6 +3802,28 @@ fn terminal_agent_view_load_error_uses_catalog_copy() {
         TERMINAL_AGENT_VIEW_SOURCE.contains("terminal.agent_view.error.load_conversation"),
         "terminal agent view load failure should reference its catalog copy"
     );
+}
+
+#[test]
+fn terminal_agent_view_entry_errors_use_catalog_copy() {
+    assert!(
+        !TERMINAL_AGENT_VIEW_SOURCE.contains("show_error_toast(e.to_string(), ctx)"),
+        "terminal agent view entry errors should not expose canonical English Display text"
+    );
+    assert!(
+        TERMINAL_AGENT_VIEW_SOURCE.contains("show_error_toast(e.localized_message(ctx), ctx)"),
+        "terminal agent view entry errors should resolve copy for the active locale"
+    );
+
+    for key in [
+        "terminal.agent_view.error.already_in_agent_view",
+        "terminal.agent_view.error.command_running",
+    ] {
+        assert!(
+            AGENT_VIEW_CONTROLLER_SOURCE.contains(key),
+            "agent view entry error should reference catalog key {key}"
+        );
+    }
 }
 
 #[test]
