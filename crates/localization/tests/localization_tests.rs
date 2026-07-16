@@ -3390,6 +3390,9 @@ fn workspace_toasts_do_not_use_direct_english_literals() {
         "OpenCode plugin set to: {new_entry}",
         "Failed to write opencode.json: {e}",
         "Failed to serialize opencode.json: {e}",
+        "let error_message = format!(\"Failed to create log bundle: {err}\")",
+        "format!(\"Process sample saved to {output_path}\")",
+        "\"Failed to sample process (check logs)\".to_string()",
     ];
     for literal in removed_literals {
         assert!(
@@ -3414,6 +3417,9 @@ fn workspace_toasts_do_not_use_direct_english_literals() {
         "workspace.opencode.failed_write_config",
         "workspace.opencode.plugin_set",
         "workspace.opencode.unexpected_plugin_structure",
+        "workspace.toast.failed_to_create_log_bundle",
+        "workspace.toast.failed_to_sample_process",
+        "workspace.toast.process_sample_saved",
     ];
     for key in required_keys {
         assert!(

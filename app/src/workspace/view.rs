@@ -6628,7 +6628,11 @@ impl Workspace {
                     ctx.open_file_path_in_explorer(&path);
                 }
                 Ok(Err(err)) => {
-                    let error_message = format!("Failed to create log bundle: {err}");
+                    let error_message = localization::text_for_app_with_args(
+                        ctx,
+                        "workspace.toast.failed_to_create_log_bundle",
+                        &[("error", &err.to_string())],
+                    );
                     report_error!(err.context("Failed to create log bundle"));
                     me.toast_stack.update(ctx, |toast_stack, ctx| {
                         let toast = DismissibleToast::error(error_message);
@@ -6636,7 +6640,11 @@ impl Workspace {
                     });
                 }
                 Err(err) => {
-                    let error_message = format!("Failed to create log bundle: {err}");
+                    let error_message = localization::text_for_app_with_args(
+                        ctx,
+                        "workspace.toast.failed_to_create_log_bundle",
+                        &[("error", &err.to_string())],
+                    );
                     report_error!(anyhow::Error::new(err).context("Failed to create log bundle"));
                     me.toast_stack.update(ctx, |toast_stack, ctx| {
                         let toast = DismissibleToast::error(error_message);
@@ -26222,7 +26230,11 @@ impl TypedActionView for Workspace {
                                     }
                                 }
 
-                                format!("Process sample saved to {output_path}")
+                                localization::text_for_app_with_args(
+                                    ctx,
+                                    "workspace.toast.process_sample_saved",
+                                    &[("path", &output_path)],
+                                )
                             }
                             Ok(Ok(output)) => {
                                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -26231,19 +26243,28 @@ impl TypedActionView for Workspace {
                                     "sample command failed",
                                     extra: { "status" => %output.status }
                                 );
-                                "Failed to sample process (check logs)".to_string()
+                                localization::text_for_app(
+                                    ctx,
+                                    "workspace.toast.failed_to_sample_process",
+                                )
                             }
                             Ok(Err(io_err)) => {
                                 report_error!(
                                     anyhow::Error::new(io_err).context("Failed to run sample command")
                                 );
-                                "Failed to sample process (check logs)".to_string()
+                                localization::text_for_app(
+                                    ctx,
+                                    "workspace.toast.failed_to_sample_process",
+                                )
                             }
                             Err(join_err) => {
                                 report_error!(
                                     anyhow::Error::new(join_err).context("Sample task panicked")
                                 );
-                                "Failed to sample process (check logs)".to_string()
+                                localization::text_for_app(
+                                    ctx,
+                                    "workspace.toast.failed_to_sample_process",
+                                )
                             }
                         };
                         me.toast_stack.update(ctx, |view, ctx| {
