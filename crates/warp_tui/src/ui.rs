@@ -59,6 +59,8 @@ pub(crate) fn compact_footer_path(path: &str) -> String {
 pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
     let muted = TuiUiBuilder::from_app(app).muted_text_style();
     let label = localization::text("tui.session.loading");
+    let hint = localization::text("tui.session.restore_cancel_hint");
+    let max_cols = label.chars().count().max(hint.chars().count()) as u16;
     centered_in_viewport(
         TuiConstrainedBox::new(
             TuiFlex::column()
@@ -72,10 +74,11 @@ pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
                         .truncate()
                         .finish(),
                 )
+                .child(TuiText::new(hint).with_style(muted).truncate().finish())
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .finish(),
         )
-        .with_max_cols(label.len() as u16)
+        .with_max_cols(max_cols)
         .finish(),
     )
 }

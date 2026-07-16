@@ -8,6 +8,7 @@ use warpui::{Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, V
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationEntryId;
 use crate::ai::blocklist::agent_view::AgentViewController;
+use crate::ai::blocklist::conversation_selection::ConversationSelectionHandle;
 use crate::features::FeatureFlag;
 use crate::localization;
 use crate::search::data_source::{Query, QueryFilter};
@@ -43,14 +44,14 @@ impl InlineConversationMenuView {
     pub fn new(
         input_suggestions_model: ModelHandle<InputSuggestionsModeModel>,
         agent_view_controller: ModelHandle<AgentViewController>,
+        conversation_selection: ConversationSelectionHandle,
         input_buffer_model: &ModelHandle<InputBufferModel>,
         positioner: &ModelHandle<InlineMenuPositioner>,
         active_session: ModelHandle<ActiveSession>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let data_source = ctx.add_model(|_| {
-            ConversationMenuDataSource::new(agent_view_controller.clone(), active_session)
-        });
+        let data_source = ctx
+            .add_model(|_| ConversationMenuDataSource::new(conversation_selection, active_session));
 
         let mut tab_configs = vec![InlineMenuTabConfig {
             id: InlineConversationMenuTab::All,

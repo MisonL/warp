@@ -18,8 +18,7 @@ static CATALOGS: LazyLock<CatalogBundle> = LazyLock::new(|| {
         .expect("default TUI localization catalog must be bundled")
 });
 
-static CURRENT_LOCALE: LazyLock<RwLock<LocaleId>> =
-    LazyLock::new(|| RwLock::new(environment_locale()));
+static CURRENT_LOCALE: LazyLock<RwLock<LocaleId>> = LazyLock::new(|| RwLock::new(LocaleId::EnUs));
 
 pub(crate) fn text(key: &str) -> String {
     text_for_locale(current_locale(), key)
@@ -48,6 +47,10 @@ pub(crate) fn current_locale() -> LocaleId {
 
 pub(crate) fn sync_from_app(app: &AppContext) -> bool {
     replace_current_locale(&CURRENT_LOCALE, warp::tui_export::current_locale(app))
+}
+
+pub(crate) fn sync_from_environment() -> bool {
+    replace_current_locale(&CURRENT_LOCALE, environment_locale())
 }
 
 fn environment_locale() -> LocaleId {

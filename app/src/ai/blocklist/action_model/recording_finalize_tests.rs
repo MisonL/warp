@@ -1,5 +1,6 @@
 use ai::agent::action_result::StopRecordingResult;
 use computer_use::RecordingHandle;
+use instant::Instant;
 use warp_localization::LocaleId;
 use warpui::{App, SingletonEntity};
 
@@ -27,6 +28,8 @@ fn cancellation_finalization_skips_upload() {
             id: "recording".to_string(),
             conversation_id: AIConversationId::new(),
             handle,
+            started_at: Instant::now(),
+            actions: Vec::new(),
         };
 
         let result = finalize_recording(
