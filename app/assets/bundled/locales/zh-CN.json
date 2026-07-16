@@ -1463,6 +1463,7 @@
   "agent.task_status.blocked_unknown": "任务已阻塞",
   "agent.task_status.cancel_failed": "取消任务失败：{error}",
   "agent.task_status.cancelled": "用户已取消",
+  "agent.task_status.cancelled_toast": "任务已取消",
   "agent.task_status.context_window_exceeded": "上下文窗口超出限制：{message}",
   "agent.task_status.error": "Agent 遇到错误",
   "agent.task_status.internal_error": "对话期间发生内部错误。请重试。",

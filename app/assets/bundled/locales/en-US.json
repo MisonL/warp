@@ -1463,6 +1463,7 @@
   "agent.task_status.blocked_unknown": "Task blocked",
   "agent.task_status.cancel_failed": "Failed to cancel task: {error}",
   "agent.task_status.cancelled": "Cancelled by user",
+  "agent.task_status.cancelled_toast": "Task cancelled",
   "agent.task_status.context_window_exceeded": "Context window exceeded: {message}",
   "agent.task_status.error": "Agent encountered an error",
   "agent.task_status.internal_error": "An internal error occurred during the conversation. Please try again.",

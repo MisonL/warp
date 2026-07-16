@@ -47,6 +47,7 @@ const AI_SETTINGS_PAGE_SOURCE: &str = include_str!("../../../app/src/settings_vi
 const AMBIENT_AGENT_MODEL_SELECTOR_SOURCE: &str =
     include_str!("../../../app/src/terminal/view/ambient_agent/model_selector.rs");
 const AGENT_SDK_AMBIENT_SOURCE: &str = include_str!("../../../app/src/ai/agent_sdk/ambient.rs");
+const AMBIENT_AGENT_TASK_SOURCE: &str = include_str!("../../../app/src/ai/ambient_agents/task.rs");
 const WORKSPACE_CLI_INSTALL_SOURCE: &str =
     include_str!("../../../app/src/workspace/cli_install.rs");
 const LOCAL_AGENT_TASK_SYNC_MODEL_SOURCE: &str =
@@ -3583,6 +3584,29 @@ fn ambient_agent_sdk_localizes_canonical_task_status_messages() {
             .any(|lines| { lines == ["&status_msg.message,", "MAX_LINE_WIDTH,"] }),
         "ambient agent SDK output should not render canonical task status messages directly"
     );
+}
+
+#[test]
+fn ambient_agent_task_cancel_toasts_use_catalog_copy() {
+    for literal in [
+        "\"Task cancelled\".to_string()",
+        "format!(\"Failed to cancel task: {e}\")",
+    ] {
+        assert!(
+            !AMBIENT_AGENT_TASK_SOURCE.contains(literal),
+            "ambient task cancellation toast should not use direct English copy: {literal}"
+        );
+    }
+
+    for key in [
+        "agent.task_status.cancel_failed",
+        "agent.task_status.cancelled_toast",
+    ] {
+        assert!(
+            AMBIENT_AGENT_TASK_SOURCE.contains(key),
+            "ambient task cancellation toast should reference catalog key {key}"
+        );
+    }
 }
 
 #[test]
