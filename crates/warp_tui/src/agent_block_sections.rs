@@ -289,10 +289,11 @@ pub(crate) fn render_todo_list_section(
 
     let collapsed = states.is_collapsed(message_id, false);
     let toggle_message_id = message_id.clone();
+    let count = todos.len().to_string();
     builder.prominent_collapsible(
         collapsed,
         TASK_LIST_HEADER_GLYPH,
-        format!("Tasks {}", todos.len()),
+        localization::text_with_args("tui.agent.todos.title_with_count", &[("count", &count)]),
         states.hover_state(message_id),
         body.finish(),
         move |event_ctx, _app| {
@@ -345,17 +346,22 @@ pub(crate) fn completed_todos_label(
 ) -> String {
     let mut label = String::new();
     for (index, item) in completed.iter().enumerate() {
-        let position = active_list
-            .and_then(|list| {
-                list.get_item_index(&item.id)
-                    .map(|i| format!(" ({}/{})", i + 1, list.len()))
-            })
-            .unwrap_or_default();
-        if index == 0 {
-            label += &format!("Completed {}{position}", item.title);
-        } else {
-            label += &format!(", {}{position}", item.title);
+        let position =
+            active_list.and_then(|list| list.get_item_index(&item.id).map(|i| (i + 1, list.len())));
+        let key = match (index == 0, position.is_some()) {
+            (true, true) => "tui.agent.todos.completed_first_with_index",
+            (true, false) => "tui.agent.todos.completed_first",
+            (false, true) => "tui.agent.todos.completed_next_with_index",
+            (false, false) => "tui.agent.todos.completed_next",
+        };
+        let index = position.map(|(index, _)| index.to_string());
+        let count = position.map(|(_, count)| count.to_string());
+        let mut args = vec![("title", item.title.as_str())];
+        if let (Some(index), Some(count)) = (&index, &count) {
+            args.push(("index", index));
+            args.push(("count", count));
         }
+        label.push_str(&localization::text_with_args(key, &args));
     }
     label
 }
