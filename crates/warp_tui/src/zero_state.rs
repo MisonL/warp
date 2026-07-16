@@ -113,10 +113,15 @@ fn render_mcp_section(mut column: TuiFlex, builder: &TuiUiBuilder, app: &AppCont
 
 fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, bool) {
     match &snapshot.config_state {
-        TuiMcpConfigState::Invalid { .. } => ("Config error · run /mcp".to_string(), true),
-        TuiMcpConfigState::Missing => ("Not configured · /mcp".to_string(), false),
+        TuiMcpConfigState::Invalid { .. } => {
+            (localization::text("tui.zero_state.mcp.config_error"), true)
+        }
+        TuiMcpConfigState::Missing => (
+            localization::text("tui.zero_state.mcp.not_configured"),
+            false,
+        ),
         TuiMcpConfigState::Ready if snapshot.servers.is_empty() => {
-            ("No servers configured · run /mcp".to_string(), false)
+            (localization::text("tui.zero_state.mcp.no_servers"), false)
         }
         TuiMcpConfigState::Ready => {
             let mut running = 0;
