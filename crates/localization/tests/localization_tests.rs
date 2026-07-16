@@ -58,6 +58,8 @@ const WARPIFY_BANNER_SOURCE: &str =
 const MCP_SOURCE: &str = include_str!("../../../app/src/ai/mcp/mod.rs");
 const MCP_LIST_PAGE_SOURCE: &str =
     include_str!("../../../app/src/settings_view/mcp_servers/list_page.rs");
+const MCP_SERVERS_PAGE_SOURCE: &str =
+    include_str!("../../../app/src/settings_view/mcp_servers_page.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3695,6 +3697,19 @@ fn default_model_switch_prompts_use_catalog_copy() {
             "default model switch prompt should reference catalog key {key}"
         );
     }
+}
+
+#[test]
+fn mcp_deeplink_install_error_uses_catalog_copy() {
+    assert!(
+        !MCP_SERVERS_PAGE_SOURCE
+            .contains("MCP server '{gallery_title}' cannot be installed from this link."),
+        "MCP deeplink installation failure should not use direct English copy"
+    );
+    assert!(
+        MCP_SERVERS_PAGE_SOURCE.contains("settings.mcp.page.error.cannot_install_from_link"),
+        "MCP deeplink installation failure should reference its catalog copy"
+    );
 }
 
 #[test]

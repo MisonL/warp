@@ -371,7 +371,11 @@ impl MCPServersSettingsPageView {
             // gallery entry cannot be turned into a valid template. Surface the
             // failure to the user rather than silently returning.
             self.add_error_toast(
-                format!("MCP server '{gallery_title}' cannot be installed from this link."),
+                localization::text_for_app_with_args(
+                    ctx,
+                    "settings.mcp.page.error.cannot_install_from_link",
+                    &[("name", &gallery_title)],
+                ),
                 ctx,
             );
             return;
