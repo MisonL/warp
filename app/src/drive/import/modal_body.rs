@@ -17,7 +17,8 @@ use warpui::{
 
 use super::modal::BODY_HEIGHT;
 use super::nodes::{
-    expand_dirs, parse_file, FileContent, FileId, FileUploadState, FolderId, UploadResult,
+    expand_dirs, parse_file, FileContent, FileId, FileUploadState, FolderId, ImportError,
+    ImportRenderContext, UploadResult,
 };
 use super::queue::{ImportQueue, ImportQueueArgs, ImportQueueEvent, ParentId, RequestContent};
 use crate::appearance::Appearance;
@@ -121,7 +122,7 @@ impl ImportModalBody {
                 ImportQueueEvent::FileCompleted { file_id, server_id } => {
                     let result = match server_id {
                         Some(id) => UploadResult::Success(id.clone()),
-                        None => UploadResult::Error("Failed to upload file to server".to_string()),
+                        None => UploadResult::Error(ImportError::FileUpload),
                     };
 
                     // Update the upstream folder status with the upload success state.
@@ -135,9 +136,7 @@ impl ImportModalBody {
                 } => {
                     let result = match server_id {
                         Some(id) => UploadResult::Success(id.clone()),
-                        None => {
-                            UploadResult::Error("Failed to upload folder to server".to_string())
-                        }
+                        None => UploadResult::Error(ImportError::FolderUpload),
                     };
 
                     state.mark_folder_synced(result, *folder_id);
@@ -266,7 +265,7 @@ impl ImportModalBody {
                         // upstream folders.
                         if let Err(e) = &response {
                             state.update_tree_with_file_upload_result(
-                                UploadResult::Error(e.to_string()),
+                                UploadResult::Error(ImportError::FileParse(e.to_string())),
                                 file_id,
                             );
                         }
@@ -461,7 +460,7 @@ impl ImportModalBody {
         &self,
         file_upload_state: &FileUploadState,
         sync_queue_dequeueing: bool,
-        appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut column = Flex::column();
         let folder_id_to_node = &file_upload_state.folder_id_to_node;
@@ -470,16 +469,16 @@ impl ImportModalBody {
         let folder_node = folder_id_to_node
             .get(&FolderId::root_id())
             .expect("Root node should exist");
+        let render_context = ImportRenderContext::new(
+            app,
+            sync_queue_dequeueing,
+            file_upload_state.is_complete(),
+            folder_id_to_node,
+            file_id_to_node,
+        );
 
         for item in folder_node.children() {
-            column.add_child(item.render(
-                appearance,
-                0,
-                file_upload_state.is_complete(),
-                sync_queue_dequeueing,
-                folder_id_to_node,
-                file_id_to_node,
-            ));
+            column.add_child(item.render(0, &render_context));
         }
 
         Container::new(column.finish())
@@ -508,7 +507,7 @@ impl View for ImportModalBody {
                 self.render_upload_state(appearance, app)
             }
             ImportState::PathExpanded(paths) => {
-                self.render_loaded_state(paths, sync_queue_dequeueing, appearance)
+                self.render_loaded_state(paths, sync_queue_dequeueing, app)
             }
         }
     }

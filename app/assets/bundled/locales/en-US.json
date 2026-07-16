@@ -2898,6 +2898,7 @@
   "drive.export.open_in_finder": "Open in Finder",
   "drive.export.open_in_folder": "Open in folder",
   "drive.import.choose_files": "Choose files...",
+  "drive.import.error.failed_parse_file": "Failed to parse file: {error}",
   "drive.import.error.failed_upload_file": "Failed to upload file to server",
   "drive.import.error.failed_upload_folder": "Failed to upload folder to server",
   "drive.import.file_support_link": "Learn about file support and formatting",

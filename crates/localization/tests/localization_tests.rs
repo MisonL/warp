@@ -66,6 +66,8 @@ const TERMINAL_AGENT_VIEW_SOURCE: &str =
     include_str!("../../../app/src/terminal/view/agent_view.rs");
 const AGENT_VIEW_CONTROLLER_SOURCE: &str =
     include_str!("../../../app/src/ai/blocklist/agent_view/controller.rs");
+const DRIVE_IMPORT_NODES_SOURCE: &str = include_str!("../../../app/src/drive/import/nodes.rs");
+const DRIVE_IMPORT_MODAL_SOURCE: &str = include_str!("../../../app/src/drive/import/modal_body.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3824,6 +3826,36 @@ fn terminal_agent_view_entry_errors_use_catalog_copy() {
             "agent view entry error should reference catalog key {key}"
         );
     }
+}
+
+#[test]
+fn drive_import_errors_are_structured_and_localized_at_render_time() {
+    for literal in [
+        "Failed to parse file: {e}",
+        "Failed to upload file to server",
+        "Failed to upload folder to server",
+    ] {
+        assert!(
+            !DRIVE_IMPORT_NODES_SOURCE.contains(literal)
+                && !DRIVE_IMPORT_MODAL_SOURCE.contains(literal),
+            "Drive import state should not store direct English error copy: {literal}"
+        );
+    }
+
+    for key in [
+        "drive.import.error.failed_parse_file",
+        "drive.import.error.failed_upload_file",
+        "drive.import.error.failed_upload_folder",
+    ] {
+        assert!(
+            DRIVE_IMPORT_NODES_SOURCE.contains(key),
+            "Drive import rendering should reference catalog key {key}"
+        );
+    }
+    assert!(
+        DRIVE_IMPORT_NODES_SOURCE.contains("error.localized_message(context.app)"),
+        "Drive import errors should resolve copy during rendering for runtime locale changes"
+    );
 }
 
 #[test]
