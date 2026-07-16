@@ -66,6 +66,8 @@ const TERMINAL_AGENT_VIEW_SOURCE: &str =
     include_str!("../../../app/src/terminal/view/agent_view.rs");
 const AGENT_VIEW_CONTROLLER_SOURCE: &str =
     include_str!("../../../app/src/ai/blocklist/agent_view/controller.rs");
+const INLINE_WEB_SEARCH_SOURCE: &str =
+    include_str!("../../../app/src/ai/blocklist/inline_action/web_search.rs");
 const DRIVE_IMPORT_NODES_SOURCE: &str = include_str!("../../../app/src/drive/import/nodes.rs");
 const DRIVE_IMPORT_MODAL_SOURCE: &str = include_str!("../../../app/src/drive/import/modal_body.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
@@ -3856,6 +3858,26 @@ fn drive_import_errors_are_structured_and_localized_at_render_time() {
         DRIVE_IMPORT_NODES_SOURCE.contains("error.localized_message(context.app)"),
         "Drive import errors should resolve copy during rendering for runtime locale changes"
     );
+}
+
+#[test]
+fn inline_web_search_failure_titles_use_catalog_copy() {
+    for literal in [
+        "\"Web search failed\".to_string()",
+        "format!(\"Web search failed for",
+    ] {
+        assert!(
+            !INLINE_WEB_SEARCH_SOURCE.contains(literal),
+            "inline web search failure titles should not use direct English copy: {literal}"
+        );
+    }
+
+    for key in ["agent.web_search.failed", "agent.web_search.failed_query"] {
+        assert!(
+            INLINE_WEB_SEARCH_SOURCE.contains(key),
+            "inline web search failure rendering should reference catalog key {key}"
+        );
+    }
 }
 
 #[test]

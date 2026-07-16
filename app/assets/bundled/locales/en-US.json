@@ -1618,6 +1618,8 @@
   "agent.web_fetch.fetched_partial": "Fetched {successful_count} of {count} web pages",
   "agent.web_fetch.fetching": "Fetching {count} web pages...",
   "agent.web_fetch.no_urls_fetched": "No URLs fetched",
+  "agent.web_search.failed": "Web search failed",
+  "agent.web_search.failed_query": "Web search failed for \"{query}\"",
   "agent.web_search.no_urls_found": "No URLs found",
   "agent.web_search.searched": "Searched the web",
   "agent.web_search.searched_query": "Searched the web for \"{query}\"",

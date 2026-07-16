@@ -1618,6 +1618,8 @@
   "agent.web_fetch.fetched_partial": "已抓取 {successful_count}/{count} 个网页",
   "agent.web_fetch.fetching": "正在抓取 {count} 个网页...",
   "agent.web_fetch.no_urls_fetched": "未抓取 URL",
+  "agent.web_search.failed": "网页搜索失败",
+  "agent.web_search.failed_query": "网页搜索失败：“{query}”",
   "agent.web_search.no_urls_found": "未找到 URL",
   "agent.web_search.searched": "已搜索网页",
   "agent.web_search.searched_query": "已搜索网页：\"{query}\"",
