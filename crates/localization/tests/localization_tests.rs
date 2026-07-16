@@ -68,6 +68,9 @@ const AGENT_VIEW_CONTROLLER_SOURCE: &str =
     include_str!("../../../app/src/ai/blocklist/agent_view/controller.rs");
 const INLINE_WEB_SEARCH_SOURCE: &str =
     include_str!("../../../app/src/ai/blocklist/inline_action/web_search.rs");
+const AI_BLOCK_SOURCE: &str = include_str!("../../../app/src/ai/blocklist/block.rs");
+const REQUESTED_COMMAND_SOURCE: &str =
+    include_str!("../../../app/src/ai/blocklist/inline_action/requested_command.rs");
 const DRIVE_IMPORT_NODES_SOURCE: &str = include_str!("../../../app/src/drive/import/nodes.rs");
 const DRIVE_IMPORT_MODAL_SOURCE: &str = include_str!("../../../app/src/drive/import/modal_body.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
@@ -3876,6 +3879,33 @@ fn inline_web_search_failure_titles_use_catalog_copy() {
         assert!(
             INLINE_WEB_SEARCH_SOURCE.contains(key),
             "inline web search failure rendering should reference catalog key {key}"
+        );
+    }
+}
+
+#[test]
+fn streamed_mcp_tool_titles_are_structured_and_localized_at_render_time() {
+    for literal in [
+        "format!(\"MCP Tool: {name}\")",
+        "format!(\"MCP Tool: {name} (",
+    ] {
+        assert!(
+            !AI_BLOCK_SOURCE.contains(literal),
+            "MCP stream handling should not persist direct English title copy: {literal}"
+        );
+    }
+
+    for expected in [
+        "pub name: String",
+        "view.update_mcp_request(name.to_string(), mcp_args)",
+        "agent.requested_command.mcp_tool.label",
+        "agent.requested_command.mcp_tool.label_with_input",
+        "self.display_text(app)",
+    ] {
+        assert!(
+            REQUESTED_COMMAND_SOURCE.contains(expected)
+                || AI_BLOCK_SOURCE.contains(expected),
+            "MCP tool title path should preserve structured data and localize during rendering: {expected}"
         );
     }
 }

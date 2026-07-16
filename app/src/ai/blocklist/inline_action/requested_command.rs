@@ -169,9 +169,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 /// Structured representation of an MCP tool call request for JSON tree rendering.
-///
-/// The tool name is derivable from `command_text` and is not duplicated here.
 pub struct McpRequest {
+    pub name: String,
     pub args: serde_json::Value,
 }
 
@@ -1186,8 +1185,29 @@ impl RequestedCommandView {
     }
 
     /// Stores the structured MCP tool request data for JSON tree rendering.
-    pub(crate) fn update_mcp_request(&mut self, args: serde_json::Value) {
-        self.mcp_request = Some(McpRequest { args });
+    pub(crate) fn update_mcp_request(&mut self, name: String, args: serde_json::Value) {
+        self.mcp_request = Some(McpRequest { name, args });
+    }
+
+    fn display_text(&self, app: &AppContext) -> String {
+        if let Some(request) = &self.mcp_request {
+            if request.args.is_null() {
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.requested_command.mcp_tool.label",
+                    &[("name", &request.name)],
+                )
+            } else {
+                let input = request.args.to_string();
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.requested_command.mcp_tool.label_with_input",
+                    &[("name", &request.name), ("input", &input)],
+                )
+            }
+        } else {
+            self.command_text.clone()
+        }
     }
 
     /// Extracts the tool name from MCP tool command text, removing parameters.
@@ -1225,7 +1245,7 @@ impl RequestedCommandView {
 
         match action_status {
             Some(AIActionStatus::Preprocessing) => {
-                title = self.get_header_title_text().into();
+                title = self.get_header_title_text(app).into();
                 font_override = Some(appearance.monospace_font_family());
                 if !self
                     .block_model
@@ -1238,7 +1258,7 @@ impl RequestedCommandView {
                 }
             }
             Some(AIActionStatus::Queued) => {
-                title = self.get_header_title_text().into();
+                title = self.get_header_title_text(app).into();
                 font_override = Some(appearance.monospace_font_family());
                 font_color_override = Some(blended_colors::text_disabled(
                     appearance.theme(),
@@ -1334,12 +1354,12 @@ impl RequestedCommandView {
                 } else if requested_command_block.is_some_and(|block| block.finished()) {
                     // If a finished command block exists but there's no action status,
                     // treat the same as a finished command (normal text styling).
-                    title = self.get_header_title_text().into();
+                    title = self.get_header_title_text(app).into();
                     font_override = Some(appearance.monospace_font_family());
                 } else {
                     // If there is no action status and response is not streaming, it was cancelled
                     // mid-flight.
-                    let title_str = self.get_header_title_text();
+                    let title_str = self.get_header_title_text(app);
                     title = if title_str.trim().is_empty() {
                         localization::text_for_app(
                             app,
@@ -1359,7 +1379,7 @@ impl RequestedCommandView {
                 }
             }
             _ => {
-                title = self.get_header_title_text().into();
+                title = self.get_header_title_text(app).into();
 
                 // Show cancelled command loading message when the command was cancelled during generation,
                 // and then restored with an empty title as a result.
@@ -1504,7 +1524,7 @@ impl RequestedCommandView {
                     ));
                 } else {
                     // Commands cancelled before execution should be right clickable only.
-                    let command_text_for_callback = self.command_text().to_string();
+                    let command_text_for_callback = self.display_text(app);
                     config = config.with_interaction_mode(InteractionMode::RightClickable(
                         RightClickConfig::new(
                             Rc::new(move |ctx: &mut EventContext| {
@@ -1533,10 +1553,20 @@ impl RequestedCommandView {
         config.render(app)
     }
 
-    fn get_header_title_text(&self) -> String {
+    fn get_header_title_text(&self, app: &AppContext) -> String {
         match &self.action_type {
             RequestedActionViewType::Command => format_command_text(self.command_text()),
-            RequestedActionViewType::McpTool => self.extract_mcp_tool_name(self.command_text()),
+            RequestedActionViewType::McpTool => self
+                .mcp_request
+                .as_ref()
+                .map(|request| {
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.requested_command.mcp_tool.label",
+                        &[("name", &request.name)],
+                    )
+                })
+                .unwrap_or_else(|| self.extract_mcp_tool_name(self.command_text())),
         }
     }
 
@@ -1545,7 +1575,7 @@ impl RequestedCommandView {
         requested_command_block: Option<&Block>,
         app: &AppContext,
     ) -> ExpandedConfig {
-        let command_text_for_callback = self.command_text().to_string();
+        let command_text_for_callback = self.display_text(app);
         let mut expansion_config =
             ExpandedConfig::new(self.is_header_expanded, self.header_mouse_state.clone())
                 .with_right_click_callback(move |ctx| {
@@ -1663,7 +1693,7 @@ impl View for RequestedCommandView {
         // For MCP tools, when expanded, show either the tool call details or the JSON response.
         let should_render_mcp_content = self.is_header_expanded
             && self.action_type.is_mcp_tool()
-            && !self.command_text.is_empty();
+            && (self.mcp_request.is_some() || !self.command_text.is_empty());
 
         let has_citations_footer =
             !self.derived_from_citations.is_empty() && !self.block_model.status(app).is_streaming();
@@ -1931,7 +1961,7 @@ impl View for RequestedCommandView {
                 );
             } else {
                 // Fallback: flat pretty-printed JSON.
-                let command_text = self.command_text();
+                let command_text = self.display_text(app);
                 let content_text = if let Some(AIAgentActionResultType::CallMCPTool(result)) =
                     action_status
                         .as_ref()
@@ -1959,12 +1989,12 @@ impl View for RequestedCommandView {
                     localization::text_for_app_with_args(
                         app,
                         "agent.requested_command.mcp_tool.response",
-                        &[("command", command_text), ("response", &result_text)],
+                        &[("command", &command_text), ("response", &result_text)],
                     )
                 } else if self.is_header_expanded {
-                    command_text.to_string()
+                    command_text
                 } else {
-                    self.extract_mcp_tool_name(command_text)
+                    self.extract_mcp_tool_name(&command_text)
                 };
                 let text_element = Text::new(
                     content_text,
