@@ -3844,6 +3844,7 @@ fn drive_import_errors_are_structured_and_localized_at_render_time() {
         "Failed to parse file: {e}",
         "Failed to upload file to server",
         "Failed to upload folder to server",
+        "DismissibleToast::error(format!(\"{err}\"))",
     ] {
         assert!(
             !DRIVE_IMPORT_NODES_SOURCE.contains(literal)
@@ -3856,9 +3857,10 @@ fn drive_import_errors_are_structured_and_localized_at_render_time() {
         "drive.import.error.failed_parse_file",
         "drive.import.error.failed_upload_file",
         "drive.import.error.failed_upload_folder",
+        "drive.import.error.file_picker",
     ] {
         assert!(
-            DRIVE_IMPORT_NODES_SOURCE.contains(key),
+            DRIVE_IMPORT_NODES_SOURCE.contains(key) || DRIVE_IMPORT_MODAL_SOURCE.contains(key),
             "Drive import rendering should reference catalog key {key}"
         );
     }
