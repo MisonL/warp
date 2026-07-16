@@ -53,6 +53,8 @@ const WORKSPACE_CLI_INSTALL_SOURCE: &str =
 const LOCAL_AGENT_TASK_SYNC_MODEL_SOURCE: &str =
     include_str!("../../../app/src/ai/blocklist/local_agent_task_sync_model.rs");
 const DRIVE_SOURCE: &str = include_str!("../../../app/src/drive/mod.rs");
+const WARPIFY_BANNER_SOURCE: &str =
+    include_str!("../../../app/src/terminal/view/block_banner/warpify.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3631,6 +3633,18 @@ fn warp_drive_sorting_menu_uses_catalog_copy() {
             "Warp Drive sorting menu should reference catalog key {key}"
         );
     }
+}
+
+#[test]
+fn warpify_banner_action_uses_catalog_copy() {
+    assert!(
+        !WARPIFY_BANNER_SOURCE.contains("\"Warpify subshell\""),
+        "Warpify banner action should not use direct English copy"
+    );
+    assert!(
+        WARPIFY_BANNER_SOURCE.contains("terminal.use_agent_footer.action.warpify_subshell"),
+        "Warpify banner action should reference its catalog copy"
+    );
 }
 
 #[test]
