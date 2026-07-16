@@ -3910,6 +3910,30 @@ fn agent_assisted_environment_picker_errors_are_structured_and_localized() {
 }
 
 #[test]
+fn remaining_file_picker_toasts_use_shared_localized_context() {
+    for relative_path in [
+        "app/src/workspace/view.rs",
+        "app/src/pane_group/pane/get_started_view.rs",
+        "app/src/editor/view/mod.rs",
+        "app/src/settings_view/code_page.rs",
+        "app/src/themes/theme_creator_modal.rs",
+        "app/src/ai/facts/view/rule.rs",
+        "app/src/ai/blocklist/agent_view/agent_input_footer/mod.rs",
+    ] {
+        let source = std::fs::read_to_string(workspace_root().join(relative_path))
+            .expect("file picker UI source should be readable");
+        assert!(
+            !source.contains("DismissibleToast::error(format!(\"{err}\"))"),
+            "file picker UI should not display an unlocalized error in {relative_path}"
+        );
+        assert!(
+            source.contains("file_picker_error_for_app"),
+            "file picker UI should add localized context in {relative_path}"
+        );
+    }
+}
+
+#[test]
 fn inline_web_search_failure_titles_use_catalog_copy() {
     for literal in [
         "\"Web search failed\".to_string()",

@@ -13100,7 +13100,9 @@ impl Workspace {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(format!("{err}")),
+                                DismissibleToast::error(
+                                    crate::localization::file_picker_error_for_app(ctx, err),
+                                ),
                                 window_id,
                                 ctx,
                             );

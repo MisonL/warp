@@ -1031,7 +1031,9 @@ impl TypedActionView for RuleView {
                         Err(err) => {
                             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                                 toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(format!("{err}")),
+                                    DismissibleToast::error(
+                                        localization::file_picker_error_for_app(ctx, err),
+                                    ),
                                     window_id,
                                     ctx,
                                 );

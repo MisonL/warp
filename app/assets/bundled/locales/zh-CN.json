@@ -3128,6 +3128,7 @@
   "external_secrets.link.cli_install_docs": "查看 {manager} CLI 安装文档",
   "external_secrets.link.integrate_1password_cli": "将 1Password 应用与 CLI 集成",
   "feature_popup.badge.new": "新",
+  "file_picker.error": "文件选择器失败：{error}",
   "global_search.capped_results": "结果集只包含所有匹配项的一部分。请使用更具体的搜索条件来缩小结果范围。",
   "global_search.error.failed": "全局搜索失败。",
   "global_search.file.many": "个文件",

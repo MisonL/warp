@@ -72,6 +72,11 @@ pub(crate) fn text_for_app_with_args(app: &AppContext, key: &str, args: &[(&str,
         .expect("localized text template arguments must match the catalog")
 }
 
+pub(crate) fn file_picker_error_for_app(app: &AppContext, error: impl std::fmt::Display) -> String {
+    let error = error.to_string();
+    text_for_app_with_args(app, "file_picker.error", &[("error", &error)])
+}
+
 pub(crate) fn text_for_app_or(app: &AppContext, key: &str, fallback: &str) -> String {
     let lookup = CATALOGS.lookup(current_locale(app), key);
     if lookup.source == TranslationSource::Key {

@@ -5119,7 +5119,9 @@ impl EditorView {
                     Err(err) => {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_persistent_toast(
-                                DismissibleToast::error(format!("{err}")),
+                                DismissibleToast::error(
+                                    crate::localization::file_picker_error_for_app(ctx, err),
+                                ),
                                 window_id,
                                 ctx,
                             );

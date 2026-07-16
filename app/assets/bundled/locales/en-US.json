@@ -3128,6 +3128,7 @@
   "external_secrets.link.cli_install_docs": "View {manager} CLI installation documentation",
   "external_secrets.link.integrate_1password_cli": "Integrate 1Password app with CLI",
   "feature_popup.badge.new": "NEW",
+  "file_picker.error": "File picker failed: {error}",
   "global_search.capped_results": "The result set only contains a subset of all matches. Be more specific in your search to narrow down results.",
   "global_search.error.failed": "Global search failed.",
   "global_search.file.many": "files",
