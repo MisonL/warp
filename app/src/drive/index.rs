@@ -3847,10 +3847,11 @@ impl DriveIndex {
 
         let mut menu_items = vec![];
         for sort_order in global_sort_orders {
-            let mut menu_item = MenuItemFields::new(sort_order.menu_text(self.index_variant))
-                .with_on_select_action(DriveIndexAction::UpdateSortingChoice {
-                    sorting_choice: sort_order,
-                });
+            let mut menu_item =
+                MenuItemFields::new(sort_order.menu_text_for_app(self.index_variant, ctx))
+                    .with_on_select_action(DriveIndexAction::UpdateSortingChoice {
+                        sorting_choice: sort_order,
+                    });
 
             if sort_order == self.sorting_choice {
                 menu_item = menu_item.with_icon(Icon::Check);

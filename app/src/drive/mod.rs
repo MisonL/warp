@@ -212,14 +212,24 @@ impl DriveSortOrder {
         }
     }
 
-    /// Returns the text that is used to display the sorting option in the KnowledgeIndex's sorting menu
-    pub fn menu_text(&self, index_variant: DriveIndexVariant) -> &str {
+    /// Returns the localized text used to display the sorting option in the Warp Drive menu.
+    pub fn menu_text_for_app(&self, index_variant: DriveIndexVariant, app: &AppContext) -> String {
         match (self, index_variant) {
-            (DriveSortOrder::ByTimestamp, DriveIndexVariant::MainIndex) => "Last updated",
-            (DriveSortOrder::ByTimestamp, DriveIndexVariant::Trash) => "Last trashed",
-            (DriveSortOrder::AlphabeticalDescending, _) => "A to Z",
-            (DriveSortOrder::AlphabeticalAscending, _) => "Z to A",
-            (DriveSortOrder::ByObjectType, _) => "Type",
+            (DriveSortOrder::ByTimestamp, DriveIndexVariant::MainIndex) => {
+                crate::localization::text_for_app(app, "drive.sort.last_updated")
+            }
+            (DriveSortOrder::ByTimestamp, DriveIndexVariant::Trash) => {
+                crate::localization::text_for_app(app, "drive.sort.last_trashed")
+            }
+            (DriveSortOrder::AlphabeticalDescending, _) => {
+                crate::localization::text_for_app(app, "drive.sort.a_to_z")
+            }
+            (DriveSortOrder::AlphabeticalAscending, _) => {
+                crate::localization::text_for_app(app, "drive.sort.z_to_a")
+            }
+            (DriveSortOrder::ByObjectType, _) => {
+                crate::localization::text_for_app(app, "drive.sort.type")
+            }
         }
     }
 }

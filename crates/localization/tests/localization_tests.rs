@@ -52,6 +52,7 @@ const WORKSPACE_CLI_INSTALL_SOURCE: &str =
     include_str!("../../../app/src/workspace/cli_install.rs");
 const LOCAL_AGENT_TASK_SYNC_MODEL_SOURCE: &str =
     include_str!("../../../app/src/ai/blocklist/local_agent_task_sync_model.rs");
+const DRIVE_SOURCE: &str = include_str!("../../../app/src/drive/mod.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3605,6 +3606,29 @@ fn ambient_agent_task_cancel_toasts_use_catalog_copy() {
         assert!(
             AMBIENT_AGENT_TASK_SOURCE.contains(key),
             "ambient task cancellation toast should reference catalog key {key}"
+        );
+    }
+}
+
+#[test]
+fn warp_drive_sorting_menu_uses_catalog_copy() {
+    for literal in ["Last updated", "Last trashed", "A to Z", "Z to A", "Type"] {
+        assert!(
+            !DRIVE_SOURCE.contains(&format!("=> \"{literal}\"")),
+            "Warp Drive sorting menu should not return direct English copy: {literal}"
+        );
+    }
+
+    for key in [
+        "drive.sort.a_to_z",
+        "drive.sort.last_trashed",
+        "drive.sort.last_updated",
+        "drive.sort.type",
+        "drive.sort.z_to_a",
+    ] {
+        assert!(
+            DRIVE_SOURCE.contains(key),
+            "Warp Drive sorting menu should reference catalog key {key}"
         );
     }
 }
