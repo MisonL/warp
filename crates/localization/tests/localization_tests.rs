@@ -60,6 +60,8 @@ const MCP_LIST_PAGE_SOURCE: &str =
     include_str!("../../../app/src/settings_view/mcp_servers/list_page.rs");
 const MCP_SERVERS_PAGE_SOURCE: &str =
     include_str!("../../../app/src/settings_view/mcp_servers_page.rs");
+const SLASH_COMMANDS_SOURCE: &str =
+    include_str!("../../../app/src/terminal/input/slash_commands/mod.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
     include_str!("../../../app/resources/tab_configs/default_worktree.toml");
 const DEFAULT_WORKTREE_TAB_CONFIG_ZH_CN: &str =
@@ -3716,6 +3718,73 @@ fn mcp_deeplink_install_error_uses_catalog_copy() {
         MCP_SERVERS_PAGE_SOURCE.contains("settings.mcp.page.error.cannot_install_from_link"),
         "MCP deeplink installation failure should reference its catalog copy"
     );
+}
+
+#[test]
+fn slash_command_feedback_uses_catalog_copy() {
+    for literal in [
+        "requires AI to be enabled",
+        "cannot start new conversation while terminal command is running",
+        "Please provide a tab name after /rename-tab",
+        "/rename-conversation requires an active conversation",
+        "Please provide a color after /set-tab-color",
+        "Unknown tab color",
+        "Please describe the project you want to create after /create-new-project",
+        "The /open-file command only works for files, not directories",
+        "File not found:",
+        "The /open-file command is not supported in this build",
+        "No active conversation to export",
+        "Conversation exported to clipboard",
+        "Export conversation to file unsupported in web",
+        "Session is already being shared",
+        "Cannot show conversation cost:",
+        "Nothing to hand off",
+        "/fork requires an active conversation",
+        "/continue-locally requires an active conversation",
+        "/continue-locally is only available for cloud Oz conversations",
+        "/fork-and-compact requires an active conversation",
+        "/compact-and requires an active conversation",
+        "/queue requires an active conversation",
+        "/queue requires a prompt argument",
+    ] {
+        assert!(
+            !SLASH_COMMANDS_SOURCE.contains(literal),
+            "slash command feedback should not use direct English copy: {literal}"
+        );
+    }
+
+    for key in [
+        "terminal.slash.error.ai_required",
+        "terminal.slash.new_conversation.command_running",
+        "terminal.slash.rename_tab.name_required",
+        "terminal.slash.rename_conversation.no_active",
+        "terminal.slash.set_tab_color.required",
+        "terminal.slash.set_tab_color.unknown",
+        "terminal.slash.create_project.description_required",
+        "terminal.slash.open_file.files_only",
+        "terminal.slash.open_file.not_found",
+        "terminal.slash.open_file.unsupported_build",
+        "terminal.slash.export.no_active",
+        "terminal.slash.export.copied",
+        "terminal.slash.export.file_unsupported_web",
+        "terminal.slash.remote_control.already_shared",
+        "terminal.slash.cost.no_active",
+        "terminal.slash.cost.empty",
+        "terminal.slash.cost.in_progress",
+        "terminal.slash.handoff.no_active",
+        "terminal.slash.fork.no_active",
+        "terminal.slash.continue_locally.no_active",
+        "terminal.slash.continue_locally.cloud_only",
+        "terminal.slash.fork_and_compact.no_active",
+        "terminal.slash.compact_and.no_active",
+        "terminal.slash.queue.no_active",
+        "terminal.slash.queue.prompt_required",
+    ] {
+        assert!(
+            SLASH_COMMANDS_SOURCE.contains(key),
+            "slash command feedback should reference catalog key {key}"
+        );
+    }
 }
 
 #[test]
