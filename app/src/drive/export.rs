@@ -156,8 +156,14 @@ impl ExportManager {
             Err(err) => {
                 if let Some(export) = ids.first().and_then(|id| self.exports.get(id)) {
                     let window_id = export.window_id;
+                    let error = err.to_string();
+                    let message = localization::text_for_app_with_args(
+                        ctx,
+                        "drive.export.error.file_picker",
+                        &[("error", &error)],
+                    );
                     ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
-                        let toast = DismissibleToast::error(format!("{err}"));
+                        let toast = DismissibleToast::error(message);
                         toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                     });
                 }

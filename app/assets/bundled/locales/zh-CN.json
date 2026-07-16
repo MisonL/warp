@@ -2894,6 +2894,7 @@
   "drive.confirmation.remove_team_member_reload_credits.title": "确定要移除此成员吗？",
   "drive.export.exported_named": "已导出 {name}",
   "drive.export.exported_object": "对象已导出",
+  "drive.export.error.file_picker": "选择导出位置失败：{error}",
   "drive.export.failed": "导出失败",
   "drive.export.failed_named": "导出 {name} 失败",
   "drive.export.finished_objects": "对象已导出完成",

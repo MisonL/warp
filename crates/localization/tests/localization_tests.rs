@@ -76,6 +76,7 @@ const MODEL_DATA_SOURCE: &str =
     include_str!("../../../app/src/terminal/input/models/data_source.rs");
 const PROFILE_MODEL_SELECTOR_SOURCE: &str =
     include_str!("../../../app/src/terminal/profile_model_selector.rs");
+const DRIVE_EXPORT_SOURCE: &str = include_str!("../../../app/src/drive/export.rs");
 const DRIVE_IMPORT_NODES_SOURCE: &str = include_str!("../../../app/src/drive/import/nodes.rs");
 const DRIVE_IMPORT_MODAL_SOURCE: &str = include_str!("../../../app/src/drive/import/modal_body.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
@@ -3867,6 +3868,18 @@ fn drive_import_errors_are_structured_and_localized_at_render_time() {
     assert!(
         DRIVE_IMPORT_NODES_SOURCE.contains("error.localized_message(context.app)"),
         "Drive import errors should resolve copy during rendering for runtime locale changes"
+    );
+}
+
+#[test]
+fn drive_export_file_picker_errors_use_catalog_copy() {
+    assert!(
+        !DRIVE_EXPORT_SOURCE.contains("DismissibleToast::error(format!(\"{err}\"))"),
+        "Drive export file picker errors should not bypass localization"
+    );
+    assert!(
+        DRIVE_EXPORT_SOURCE.contains("drive.export.error.file_picker"),
+        "Drive export file picker errors should retain localized context"
     );
 }
 

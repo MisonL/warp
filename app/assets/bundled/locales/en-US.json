@@ -2894,6 +2894,7 @@
   "drive.confirmation.remove_team_member_reload_credits.title": "Are you sure you want to remove this member?",
   "drive.export.exported_named": "Exported {name}",
   "drive.export.exported_object": "Exported object",
+  "drive.export.error.file_picker": "Failed to choose an export location: {error}",
   "drive.export.failed": "Export failed",
   "drive.export.failed_named": "Failed to export {name}",
   "drive.export.finished_objects": "Finished exporting objects",
