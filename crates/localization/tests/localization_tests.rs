@@ -3270,6 +3270,7 @@ fn tui_high_risk_formatting_surfaces_do_not_restore_removed_english_literals() {
             "crates/warp_tui/src/agent_block_sections.rs",
             &["Tasks {}", "Completed {}{position}"][..],
         ),
+        ("app/src/tui/mcp.rs", &["Failed to start"][..]),
     ];
 
     for (relative_path, literals) in cases {

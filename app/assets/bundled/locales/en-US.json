@@ -7059,6 +7059,7 @@
   "tui.mcp_menu.server_description": "{transport} · {status}",
   "tui.mcp_menu.status.authentication_required": "authentication required",
   "tui.mcp_menu.status.failed": "failed · {message}",
+  "tui.mcp_menu.status.failed_to_start": "failed to start",
   "tui.mcp_menu.status.offline": "offline",
   "tui.mcp_menu.status.running.many": "running · {count} tools",
   "tui.mcp_menu.status.running.one": "running · {count} tool",

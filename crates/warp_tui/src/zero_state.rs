@@ -137,7 +137,9 @@ fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, boo
                     TuiMcpServerStatus::Authenticating => authenticating += 1,
                     TuiMcpServerStatus::Running => running += 1,
                     TuiMcpServerStatus::Stopping => stopping += 1,
-                    TuiMcpServerStatus::Failed { .. } => failed += 1,
+                    TuiMcpServerStatus::FailedToStart | TuiMcpServerStatus::Failed { .. } => {
+                        failed += 1
+                    }
                 }
             }
             let mut parts = Vec::new();

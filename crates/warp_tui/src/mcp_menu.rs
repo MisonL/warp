@@ -43,6 +43,7 @@ enum TuiMcpMenuServerStatus {
     AuthenticationRequired,
     Running { tool_count: usize },
     Stopping,
+    FailedToStart,
     Failed { message: String },
 }
 
@@ -92,6 +93,7 @@ impl TuiMcpMenuServerStatus {
                 &[("count", &tool_count.to_string())],
             ),
             Self::Stopping => localization::text("tui.mcp_menu.status.stopping"),
+            Self::FailedToStart => localization::text("tui.mcp_menu.status.failed_to_start"),
             Self::Failed { message } => {
                 localization::text_with_args("tui.mcp_menu.status.failed", &[("message", message)])
             }
@@ -325,6 +327,10 @@ impl TuiMcpMenuModel {
                     Some(TuiMcpAction::Stop(server.id)),
                 ),
                 TuiMcpServerStatus::Stopping => (TuiMcpMenuServerStatus::Stopping, None),
+                TuiMcpServerStatus::FailedToStart => (
+                    TuiMcpMenuServerStatus::FailedToStart,
+                    Some(TuiMcpAction::Retry(server.id)),
+                ),
                 TuiMcpServerStatus::Failed { message } => (
                     TuiMcpMenuServerStatus::Failed {
                         message: message.clone(),
