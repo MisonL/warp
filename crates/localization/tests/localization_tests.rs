@@ -3242,6 +3242,50 @@ fn tui_ui_calls_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn tui_high_risk_formatting_surfaces_do_not_restore_removed_english_literals() {
+    let cases = [
+        (
+            "crates/warp_tui/src/zero_state.rs",
+            &[
+                "{running} connected",
+                "{starting} starting",
+                "{authenticating} needs auth",
+                "{stopping} stopping",
+                "{failed} failed",
+                "{offline} offline",
+                "Config error \u{b7} run /mcp",
+                "Not configured \u{b7} /mcp",
+                "No servers configured \u{b7} run /mcp",
+            ][..],
+        ),
+        (
+            "crates/warp_tui/src/tui_markdown.rs",
+            &[
+                "Image: {description}",
+                "Image: {}",
+                "[Image without description]",
+            ][..],
+        ),
+        (
+            "crates/warp_tui/src/agent_block_sections.rs",
+            &["Tasks {}", "Completed {}{position}"][..],
+        ),
+    ];
+
+    for (relative_path, literals) in cases {
+        let path = workspace_root().join(relative_path);
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        for literal in literals {
+            assert!(
+                !content.contains(literal),
+                "{relative_path} should use catalog copy instead of direct English literal: {literal}"
+            );
+        }
+    }
+}
+
+#[test]
 fn terminal_input_toasts_do_not_use_direct_english_literals() {
     let path = workspace_root().join("app/src/terminal/input.rs");
     let content = fs::read_to_string(&path)

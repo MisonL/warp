@@ -18,6 +18,7 @@ use warpui_core::elements::tui::{
 use warpui_core::elements::{CrossAxisAlignment, ListNumbering};
 use warpui_core::AppContext;
 
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 mod table;
 
@@ -299,11 +300,20 @@ fn image_fallback(image: &FormattedImage, palette: TuiMarkdownPalette) -> Box<dy
         image.title.as_deref()
     };
     let mut spans = if let Some(description) = description {
-        vec![(format!("Image: {description}"), palette.fallback)]
+        vec![(
+            localization::text_with_args("tui.markdown.image", &[("description", description)]),
+            palette.fallback,
+        )]
     } else if !image.source.is_empty() {
-        vec![(format!("Image: {}", image.source), palette.link)]
+        vec![(
+            localization::text_with_args("tui.markdown.image", &[("description", &image.source)]),
+            palette.link,
+        )]
     } else {
-        vec![("[Image without description]".to_owned(), palette.fallback)]
+        vec![(
+            localization::text("tui.markdown.image_without_description"),
+            palette.fallback,
+        )]
     };
     if description.is_some() && !image.source.is_empty() {
         spans.push((format!(" ({})", image.source), palette.link));

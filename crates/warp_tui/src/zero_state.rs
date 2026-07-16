@@ -142,24 +142,49 @@ fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, boo
             }
             let mut parts = Vec::new();
             if running > 0 {
-                parts.push(format!("{running} connected"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.connected",
+                    &[("count", &running.to_string())],
+                ));
             }
             if starting > 0 {
-                parts.push(format!("{starting} starting"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.starting",
+                    &[("count", &starting.to_string())],
+                ));
             }
             if authenticating > 0 {
-                parts.push(format!("{authenticating} needs auth"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.needs_auth",
+                    &[("count", &authenticating.to_string())],
+                ));
             }
             if stopping > 0 {
-                parts.push(format!("{stopping} stopping"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.stopping",
+                    &[("count", &stopping.to_string())],
+                ));
             }
             if failed > 0 {
-                parts.push(format!("{failed} failed"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.failed",
+                    &[("count", &failed.to_string())],
+                ));
             }
             if offline > 0 {
-                parts.push(format!("{offline} offline"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.offline",
+                    &[("count", &offline.to_string())],
+                ));
             }
-            (format!("{} · /mcp", parts.join(" · ")), false)
+            let statuses = parts.join(" · ");
+            (
+                localization::text_with_args(
+                    "tui.zero_state.mcp.summary",
+                    &[("statuses", &statuses)],
+                ),
+                false,
+            )
         }
     }
 }
