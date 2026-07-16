@@ -3373,6 +3373,14 @@ fn workspace_toasts_do_not_use_direct_english_literals() {
         "You {verb} synchronized inputs in this tab.",
         "Press {} to undo.",
         ".unwrap_or_else(|| \"Conversation\".to_string())",
+        "Failed to determine home directory",
+        "Failed to parse opencode.json: {e}",
+        "Failed to read opencode.json: {e}",
+        "opencode.json has unexpected structure (plugin is not an array)",
+        "Failed to create config directory: {e}",
+        "OpenCode plugin set to: {new_entry}",
+        "Failed to write opencode.json: {e}",
+        "Failed to serialize opencode.json: {e}",
     ];
     for literal in removed_literals {
         assert!(
@@ -3389,6 +3397,14 @@ fn workspace_toasts_do_not_use_direct_english_literals() {
         "workspace.toast.sync_tab_inputs_disabled",
         "workspace.toast.sync_tab_inputs_enabled",
         "workspace.conversation.fallback_title",
+        "workspace.opencode.failed_create_config_dir",
+        "workspace.opencode.failed_home_dir",
+        "workspace.opencode.failed_parse_config",
+        "workspace.opencode.failed_read_config",
+        "workspace.opencode.failed_serialize_config",
+        "workspace.opencode.failed_write_config",
+        "workspace.opencode.plugin_set",
+        "workspace.opencode.unexpected_plugin_structure",
     ];
     for key in required_keys {
         assert!(

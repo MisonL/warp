@@ -26123,7 +26123,8 @@ impl TypedActionView for Workspace {
             }
             #[cfg(debug_assertions)]
             InstallOpenCodeWarpPlugin => {
-                let message = set_opencode_warp_plugin("github:warpdotdev/opencode-warp-internal");
+                let message = set_opencode_warp_plugin("github:warpdotdev/opencode-warp-internal")
+                    .localized_message(ctx);
                 self.toast_stack.update(ctx, |view, ctx| {
                     view.add_ephemeral_toast(DismissibleToast::default(message), ctx);
                 });
@@ -26136,8 +26137,9 @@ impl TypedActionView for Workspace {
                         let entry = format!("file://{}", plugin_path.display());
                         set_opencode_warp_plugin(&entry)
                     }
-                    None => "Failed to determine home directory".to_string(),
+                    None => OpenCodeWarpPluginResult::HomeDirectoryUnavailable,
                 };
+                let message = message.localized_message(ctx);
                 self.toast_stack.update(ctx, |view, ctx| {
                     view.add_ephemeral_toast(DismissibleToast::default(message), ctx);
                 });
@@ -29707,9 +29709,65 @@ fn compute_default_panel_widths(
 /// Removes any existing opencode-warp plugin entries (both local file:// and github:) and adds
 /// the given `new_entry`. Creates the config file with a default structure if it doesn't exist.
 #[cfg(debug_assertions)]
-fn set_opencode_warp_plugin(new_entry: &str) -> String {
+enum OpenCodeWarpPluginResult {
+    HomeDirectoryUnavailable,
+    FailedToParseConfig(String),
+    FailedToReadConfig(String),
+    UnexpectedPluginStructure,
+    FailedToCreateConfigDirectory(String),
+    PluginSet(String),
+    FailedToWriteConfig(String),
+    FailedToSerializeConfig(String),
+}
+
+#[cfg(debug_assertions)]
+impl OpenCodeWarpPluginResult {
+    fn localized_message(&self, app: &AppContext) -> String {
+        match self {
+            Self::HomeDirectoryUnavailable => {
+                localization::text_for_app(app, "workspace.opencode.failed_home_dir")
+            }
+            Self::FailedToParseConfig(error) => localization::text_for_app_with_args(
+                app,
+                "workspace.opencode.failed_parse_config",
+                &[("error", error)],
+            ),
+            Self::FailedToReadConfig(error) => localization::text_for_app_with_args(
+                app,
+                "workspace.opencode.failed_read_config",
+                &[("error", error)],
+            ),
+            Self::UnexpectedPluginStructure => {
+                localization::text_for_app(app, "workspace.opencode.unexpected_plugin_structure")
+            }
+            Self::FailedToCreateConfigDirectory(error) => localization::text_for_app_with_args(
+                app,
+                "workspace.opencode.failed_create_config_dir",
+                &[("error", error)],
+            ),
+            Self::PluginSet(entry) => localization::text_for_app_with_args(
+                app,
+                "workspace.opencode.plugin_set",
+                &[("entry", entry)],
+            ),
+            Self::FailedToWriteConfig(error) => localization::text_for_app_with_args(
+                app,
+                "workspace.opencode.failed_write_config",
+                &[("error", error)],
+            ),
+            Self::FailedToSerializeConfig(error) => localization::text_for_app_with_args(
+                app,
+                "workspace.opencode.failed_serialize_config",
+                &[("error", error)],
+            ),
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+fn set_opencode_warp_plugin(new_entry: &str) -> OpenCodeWarpPluginResult {
     let Some(home) = dirs::home_dir() else {
-        return "Failed to determine home directory".to_string();
+        return OpenCodeWarpPluginResult::HomeDirectoryUnavailable;
     };
 
     let config_dir = home.join(".config/opencode");
@@ -29719,9 +29777,11 @@ fn set_opencode_warp_plugin(new_entry: &str) -> String {
         match std::fs::read_to_string(&config_path) {
             Ok(contents) => match serde_json::from_str(&contents) {
                 Ok(val) => val,
-                Err(e) => return format!("Failed to parse opencode.json: {e}"),
+                Err(error) => {
+                    return OpenCodeWarpPluginResult::FailedToParseConfig(error.to_string())
+                }
             },
-            Err(e) => return format!("Failed to read opencode.json: {e}"),
+            Err(error) => return OpenCodeWarpPluginResult::FailedToReadConfig(error.to_string()),
         }
     } else {
         serde_json::json!({
@@ -29736,7 +29796,7 @@ fn set_opencode_warp_plugin(new_entry: &str) -> String {
     });
 
     let Some(plugins) = plugins else {
-        return "opencode.json has unexpected structure (plugin is not an array)".to_string();
+        return OpenCodeWarpPluginResult::UnexpectedPluginStructure;
     };
 
     // Remove any existing opencode-warp entries
@@ -29747,15 +29807,15 @@ fn set_opencode_warp_plugin(new_entry: &str) -> String {
 
     plugins.push(serde_json::Value::String(new_entry.to_string()));
 
-    if let Err(e) = std::fs::create_dir_all(&config_dir) {
-        return format!("Failed to create config directory: {e}");
+    if let Err(error) = std::fs::create_dir_all(&config_dir) {
+        return OpenCodeWarpPluginResult::FailedToCreateConfigDirectory(error.to_string());
     }
 
     match serde_json::to_string_pretty(&config) {
         Ok(json_str) => match std::fs::write(&config_path, format!("{json_str}\n")) {
-            Ok(()) => format!("OpenCode plugin set to: {new_entry}"),
-            Err(e) => format!("Failed to write opencode.json: {e}"),
+            Ok(()) => OpenCodeWarpPluginResult::PluginSet(new_entry.to_string()),
+            Err(error) => OpenCodeWarpPluginResult::FailedToWriteConfig(error.to_string()),
         },
-        Err(e) => format!("Failed to serialize opencode.json: {e}"),
+        Err(error) => OpenCodeWarpPluginResult::FailedToSerializeConfig(error.to_string()),
     }
 }
