@@ -2839,9 +2839,10 @@ impl AISettingsPageView {
                 );
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::error(format!(
-                        "{}: {err}",
-                        ai_settings_text(ctx, "settings.ai.grok.toast.start_login_failed")
+                    let label = ai_settings_text(ctx, "settings.ai.grok.toast.start_login_failed");
+                    let message = err.to_string();
+                    let toast = DismissibleToast::error(localization::labeled_error_for_app(
+                        ctx, &label, &message,
                     ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -2921,9 +2922,10 @@ impl AISettingsPageView {
                         },
                         ctx
                     );
-                    DismissibleToast::error(format!(
-                        "{}: {err}",
-                        ai_settings_text(ctx, "settings.ai.grok.toast.connect_failed")
+                    let label = ai_settings_text(ctx, "settings.ai.grok.toast.connect_failed");
+                    let message = err.to_string();
+                    DismissibleToast::error(localization::labeled_error_for_app(
+                        ctx, &label, &message,
                     ))
                 }
             };
@@ -2993,9 +2995,10 @@ impl AISettingsPageView {
                             },
                             ctx
                         );
-                        DismissibleToast::error(format!(
-                            "{}: {err}",
-                            ai_settings_text(ctx, "settings.ai.grok.toast.connect_failed")
+                        let label = ai_settings_text(ctx, "settings.ai.grok.toast.connect_failed");
+                        let message = err.to_string();
+                        DismissibleToast::error(localization::labeled_error_for_app(
+                            ctx, &label, &message,
                         ))
                     }
                 };

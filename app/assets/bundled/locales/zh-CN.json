@@ -3122,6 +3122,7 @@
   "env_vars.validation.secret_conflict.enterprise": "由于与你的企业密钥遮挡设置冲突，无法创建此环境变量。请联系团队管理员了解详情。",
   "env_vars.validation.secret_conflict.user": "由于与你的密钥遮挡设置冲突，无法创建此环境变量。请将该密钥保存为环境变量（在 shell 配置或 .env 文件中），或在“设置 > 隐私”中更新密钥遮挡设置。",
   "env_vars.variables": "变量",
+  "error.labeled": "{label}：{message}",
   "external_secrets.error.cli_not_installed": "未安装 {manager} CLI",
   "external_secrets.error.fetch_failed": "{manager} 未返回密钥（可能尚未配置或未认证）",
   "external_secrets.error.platform_not_supported": "不支持当前平台",

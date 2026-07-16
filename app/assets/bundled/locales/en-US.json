@@ -3122,6 +3122,7 @@
   "env_vars.validation.secret_conflict.enterprise": "This environment variable cannot be created due to conflicts with your enterprise's secret redaction settings. Contact a team admin for details.",
   "env_vars.validation.secret_conflict.user": "This environment variable cannot be created due to conflicts with your secret redaction settings. Save the secret as an environment variable (in your shell config or a .env file), or update your secret redaction settings in Settings > Privacy.",
   "env_vars.variables": "Variables",
+  "error.labeled": "{label}: {message}",
   "external_secrets.error.cli_not_installed": "{manager} CLI is not installed",
   "external_secrets.error.fetch_failed": "{manager} didn't return secrets (likely not configured or authenticated)",
   "external_secrets.error.platform_not_supported": "Platform not supported",

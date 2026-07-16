@@ -1641,8 +1641,9 @@ impl AgentInputFooter {
                                 },
                             );
                             let error_label = localization::text_for_app(ctx, error_label_key);
-                            let mut toast =
-                                DismissibleToast::error(format!("{error_label}: {message}"));
+                            let mut toast = DismissibleToast::error(
+                                localization::labeled_error_for_app(ctx, &error_label, &message),
+                            );
                             if let Some(log_path) = log_path {
                                 toast = toast.with_link(
                                     ToastLink::new(localization::text_for_app(

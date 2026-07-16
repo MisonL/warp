@@ -3949,6 +3949,28 @@ fn platform_api_key_load_errors_use_catalog_copy() {
 }
 
 #[test]
+fn labeled_error_toasts_use_localized_separators() {
+    for (relative_path, direct_format) in [
+        ("app/src/settings_view/ai_page.rs", "\"{}: {err}\""),
+        (
+            "app/src/ai/blocklist/agent_view/agent_input_footer/mod.rs",
+            "format!(\"{error_label}: {message}\")",
+        ),
+    ] {
+        let source = std::fs::read_to_string(workspace_root().join(relative_path))
+            .expect("labeled error source should be readable");
+        assert!(
+            !source.contains(direct_format),
+            "labeled errors should not hard-code punctuation in {relative_path}"
+        );
+        assert!(
+            source.contains("labeled_error_for_app"),
+            "labeled errors should resolve punctuation from the catalog in {relative_path}"
+        );
+    }
+}
+
+#[test]
 fn inline_web_search_failure_titles_use_catalog_copy() {
     for literal in [
         "\"Web search failed\".to_string()",

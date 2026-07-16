@@ -77,6 +77,14 @@ pub(crate) fn file_picker_error_for_app(app: &AppContext, error: impl std::fmt::
     text_for_app_with_args(app, "file_picker.error", &[("error", &error)])
 }
 
+pub(crate) fn labeled_error_for_app(app: &AppContext, label: &str, message: &str) -> String {
+    text_for_app_with_args(
+        app,
+        "error.labeled",
+        &[("label", label), ("message", message)],
+    )
+}
+
 pub(crate) fn text_for_app_or(app: &AppContext, key: &str, fallback: &str) -> String {
     let lookup = CATALOGS.lookup(current_locale(app), key);
     if lookup.source == TranslationSource::Key {
