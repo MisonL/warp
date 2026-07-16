@@ -160,9 +160,14 @@ impl PlatformPageView {
                     }
                     Err(err) => {
                         let window_id = ctx.window_id();
+                        let error = err.to_string();
+                        let message = localization::text_for_app_with_args(
+                            ctx,
+                            "settings.platform.api_keys.error.load_failed",
+                            &[("error", &error)],
+                        );
                         crate::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                            let toast =
-                                crate::view_components::DismissibleToast::error(format!("{err}"));
+                            let toast = crate::view_components::DismissibleToast::error(message);
                             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                         });
                         ctx.notify();

@@ -5135,6 +5135,7 @@
   "settings.platform.api_keys.error.create_failed": "创建 API 密钥失败。请重试。",
   "settings.platform.api_keys.error.delete_failed": "删除 API 密钥失败。请重试。",
   "settings.platform.api_keys.error.load_agents_failed": "加载 Agent 失败。请关闭后重试。",
+  "settings.platform.api_keys.error.load_failed": "加载 API 密钥失败：{error}",
   "settings.platform.api_keys.error.no_agent_selected": "请选择一个 Agent。",
   "settings.platform.api_keys.error.no_current_team": "无法创建团队 API 密钥，因为当前没有团队。",
   "settings.platform.api_keys.expiration.label": "过期时间",

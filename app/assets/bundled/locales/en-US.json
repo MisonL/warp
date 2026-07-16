@@ -5135,6 +5135,7 @@
   "settings.platform.api_keys.error.create_failed": "Failed to create API key. Please try again.",
   "settings.platform.api_keys.error.delete_failed": "Failed to delete API key. Please try again.",
   "settings.platform.api_keys.error.load_agents_failed": "Failed to load agents. Please close and try again.",
+  "settings.platform.api_keys.error.load_failed": "Failed to load API keys: {error}",
   "settings.platform.api_keys.error.no_agent_selected": "Please select an agent.",
   "settings.platform.api_keys.error.no_current_team": "Unable to create a team API key because there is no current team.",
   "settings.platform.api_keys.expiration.label": "Expiration",

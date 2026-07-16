@@ -3934,6 +3934,21 @@ fn remaining_file_picker_toasts_use_shared_localized_context() {
 }
 
 #[test]
+fn platform_api_key_load_errors_use_catalog_copy() {
+    let source =
+        std::fs::read_to_string(workspace_root().join("app/src/settings_view/platform_page.rs"))
+            .expect("platform settings source should be readable");
+    assert!(
+        !source.contains("DismissibleToast::error(format!(\"{err}\"))"),
+        "platform API key load errors should not bypass localization"
+    );
+    assert!(
+        source.contains("settings.platform.api_keys.error.load_failed"),
+        "platform API key load errors should retain localized context"
+    );
+}
+
+#[test]
 fn inline_web_search_failure_titles_use_catalog_copy() {
     for literal in [
         "\"Web search failed\".to_string()",
