@@ -51,15 +51,6 @@ pub enum HostPickerEvent {
     Closed,
 }
 
-#[cfg(test)]
-const CUSTOM_HOST_FALLBACK: &str = concat!("Custom ", "host", "\u{2026}");
-#[cfg(test)]
-const DEFAULT_BADGE_FALLBACK: &str = concat!("Def", "ault");
-#[cfg(test)]
-const CONNECTED_BADGE_FALLBACK: &str = concat!("Conn", "ected");
-#[cfg(test)]
-const DISCONNECTED_BADGE_FALLBACK: &str = concat!("Disconn", "ected");
-
 // ── Internal action plumbing ────────────────────────────────────────
 
 /// Dispatched by the inner dropdown items and the inline cancel button.
@@ -426,38 +417,6 @@ fn normalize_slug(slug: &str) -> String {
         ORCHESTRATION_WARP_WORKER_HOST.to_string()
     } else {
         trimmed.to_string()
-    }
-}
-
-/// Builds the menu items shown in list mode, in the order: workspace default
-/// (badged "Default" if set), warp, connected worker hosts (badged
-/// "Connected"), recent custom slug (badged "Disconnected" when it is not
-/// currently connected), then a "Custom host…" entry.
-#[cfg(test)]
-pub(crate) fn build_menu_items(
-    default_host: Option<&str>,
-    recent_host: Option<&str>,
-    connected_hosts: &[String],
-) -> Vec<MenuItem<DropdownAction>> {
-    build_menu_items_with_labels(
-        default_host,
-        recent_host,
-        connected_hosts,
-        DEFAULT_BADGE_FALLBACK,
-        CONNECTED_BADGE_FALLBACK,
-        DISCONNECTED_BADGE_FALLBACK,
-        CUSTOM_HOST_FALLBACK,
-    )
-}
-
-/// Returns the menu label corresponding to `slug`, including the "Default"
-/// badge when it matches the workspace default.
-#[cfg(test)]
-pub(crate) fn menu_label_for(slug: &str, default_host: Option<&str>) -> String {
-    if default_host == Some(slug) {
-        format_known_label(slug, Some(DEFAULT_BADGE_FALLBACK))
-    } else {
-        format_known_label(slug, None)
     }
 }
 

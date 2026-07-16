@@ -3,9 +3,35 @@
 //! testing.
 
 use super::{
-    build_menu_items, menu_label_for, normalize_slug, DropdownAction, InternalAction, MenuItem,
-    ORCHESTRATION_WARP_WORKER_HOST,
+    build_menu_items_with_labels, format_known_label, normalize_slug, DropdownAction,
+    InternalAction, MenuItem, ORCHESTRATION_WARP_WORKER_HOST,
 };
+
+const CUSTOM_HOST_LABEL: &str = "Custom host\u{2026}";
+const DEFAULT_BADGE: &str = "Default";
+const CONNECTED_BADGE: &str = "Connected";
+const DISCONNECTED_BADGE: &str = "Disconnected";
+
+fn build_menu_items(
+    default_host: Option<&str>,
+    recent_host: Option<&str>,
+    connected_hosts: &[String],
+) -> Vec<MenuItem<DropdownAction>> {
+    build_menu_items_with_labels(
+        default_host,
+        recent_host,
+        connected_hosts,
+        DEFAULT_BADGE,
+        CONNECTED_BADGE,
+        DISCONNECTED_BADGE,
+        CUSTOM_HOST_LABEL,
+    )
+}
+
+fn menu_label_for(slug: &str, default_host: Option<&str>) -> String {
+    let badge = (default_host == Some(slug)).then_some(DEFAULT_BADGE);
+    format_known_label(slug, badge)
+}
 
 /// Extracts the visible label text out of a `MenuItem::Item`, panicking
 /// on the unreachable `Header` / `Separator` cases that our builder

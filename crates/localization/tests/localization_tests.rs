@@ -7183,6 +7183,10 @@ fn selected_accessibility_and_fallback_surfaces_do_not_use_direct_english_litera
                 "const EDITOR_PLACEHOLDER:",
                 "\"Custom host",
                 "\"Default\"",
+                "concat!(\"Custom \",",
+                "concat!(\"Def\",",
+                "concat!(\"Conn\",",
+                "concat!(\"Disconn\",",
             ][..],
         ),
         (
