@@ -4590,6 +4590,7 @@
   "settings.environment.agent_assisted.available_indexed_repos": "可用的已索引仓库",
   "settings.environment.agent_assisted.description": "选择仓库，为环境创建 Agent 提供上下文。",
   "settings.environment.agent_assisted.description_indexed": "选择本地已索引仓库，为环境创建 Agent 提供上下文。",
+  "settings.environment.agent_assisted.error.file_picker": "选择仓库文件夹失败：{error}",
   "settings.environment.agent_assisted.error.no_directory_selected": "未选择目录",
   "settings.environment.agent_assisted.error.not_git_repo": "所选文件夹不是 Git 仓库：{path}",
   "settings.environment.agent_assisted.loading_indexed_repos": "正在加载本地已索引仓库...",

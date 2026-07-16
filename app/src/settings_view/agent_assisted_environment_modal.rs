@@ -68,7 +68,13 @@ pub enum AgentAssistedEnvironmentModalAction {
     AddRepo(usize),
     RemoveRepo(usize),
     OpenDirectoryPicker,
-    DirectoryPicked(Result<PathBuf, FilePickerError>),
+    DirectoryPicked(Result<PathBuf, DirectoryPickerError>),
+}
+
+#[derive(Debug, Clone)]
+pub enum DirectoryPickerError {
+    NoSelection,
+    Platform(FilePickerError),
 }
 
 #[derive(Clone, Debug)]
@@ -640,10 +646,28 @@ impl AgentAssistedEnvironmentModal {
         });
     }
 
-    fn show_file_picker_error_toast(&self, error: &FilePickerError, ctx: &mut ViewContext<Self>) {
+    fn show_file_picker_error_toast(
+        &self,
+        error: &DirectoryPickerError,
+        ctx: &mut ViewContext<Self>,
+    ) {
         let window_id = ctx.window_id();
+        let message = match error {
+            DirectoryPickerError::NoSelection => localization::text_for_app(
+                ctx,
+                "settings.environment.agent_assisted.error.no_directory_selected",
+            ),
+            DirectoryPickerError::Platform(error) => {
+                let error = error.to_string();
+                localization::text_for_app_with_args(
+                    ctx,
+                    "settings.environment.agent_assisted.error.file_picker",
+                    &[("error", &error)],
+                )
+            }
+        };
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(format!("{error}"));
+            let toast = DismissibleToast::error(message);
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -676,11 +700,15 @@ impl AgentAssistedEnvironmentModal {
 
         ctx.open_file_picker(
             move |paths_result, ctx| {
-                let result = paths_result.and_then(|paths| {
-                    paths.into_iter().next().map(PathBuf::from).ok_or_else(|| {
-                        FilePickerError::DialogFailed("No directory selected".to_string())
-                    })
-                });
+                let result = paths_result
+                    .map_err(DirectoryPickerError::Platform)
+                    .and_then(|paths| {
+                        paths
+                            .into_iter()
+                            .next()
+                            .map(PathBuf::from)
+                            .ok_or(DirectoryPickerError::NoSelection)
+                    });
 
                 ctx.dispatch_typed_action_for_view(
                     window_id,
