@@ -3916,6 +3916,31 @@ fn streamed_mcp_tool_titles_are_structured_and_localized_at_render_time() {
 }
 
 #[test]
+fn suggested_new_conversation_buttons_resolve_catalog_copy_during_rendering() {
+    for literal in [
+        "\"Start a new conversation\".to_owned()",
+        "\"Continue current conversation\".to_owned()",
+    ] {
+        assert!(
+            !AI_BLOCK_SOURCE.contains(literal),
+            "suggested conversation buttons should not store direct English copy: {literal}"
+        );
+    }
+    for expected in [
+        "agent.output.new_conversation.start",
+        "agent.output.new_conversation.continue_current",
+        "localization::text_for_app(app, accept_text_key)",
+        "localization::text_for_app(app, reject_text_key)",
+        "buttons.update(ctx, |_, ctx| ctx.notify())",
+    ] {
+        assert!(
+            AI_BLOCK_SOURCE.contains(expected),
+            "suggested conversation buttons should refresh localized copy: {expected}"
+        );
+    }
+}
+
+#[test]
 fn custom_endpoint_model_descriptions_are_localized_at_display_boundaries() {
     assert!(
         !LLMS_SOURCE.contains("Custom \u{00b7}"),

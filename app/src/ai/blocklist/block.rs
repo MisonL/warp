@@ -1606,6 +1606,9 @@ impl AIBlock {
         self.refresh_requested_action_buttons(ctx);
         self.refresh_imported_comment_buttons(ctx);
         self.update_imported_comments_disabled_state(ctx);
+        if let Some(buttons) = &self.keyboard_navigable_buttons {
+            buttons.update(ctx, |_, ctx| ctx.notify());
+        }
         ctx.notify();
     }
 
@@ -2236,10 +2239,6 @@ impl AIBlock {
                     action: AIAgentActionType::SuggestNewConversation { .. },
                     ..
                 } => {
-                    let start_new_conversation_button_text = "Start a new conversation".to_owned();
-                    let continue_current_conversation_button_text =
-                        "Continue current conversation".to_owned();
-
                     let server_output_id = self.model.server_output_id(ctx);
                     let accept_action = AIBlockAction::StartNewConversationButtonClicked {
                         action_id: action_id.clone(),
@@ -2251,8 +2250,8 @@ impl AIBlock {
                     };
 
                     self.set_keyboard_navigable_buttons(
-                        start_new_conversation_button_text,
-                        continue_current_conversation_button_text,
+                        "agent.output.new_conversation.start",
+                        "agent.output.new_conversation.continue_current",
                         accept_action,
                         reject_action,
                         ctx,
@@ -2461,8 +2460,8 @@ impl AIBlock {
 
     fn set_keyboard_navigable_buttons(
         &mut self,
-        accept_text: String,
-        reject_text: String,
+        accept_text_key: &'static str,
+        reject_text_key: &'static str,
         accept_action: AIBlockAction,
         reject_action: AIBlockAction,
         ctx: &mut ViewContext<Self>,
@@ -2473,6 +2472,7 @@ impl AIBlock {
             KeyboardNavigableButtonBuilder::new(
                 move |is_selected, app| {
                     let appearance = Appearance::handle(app).as_ref(app);
+                    let accept_text = localization::text_for_app(app, accept_text_key);
                     let mut button = appearance
                         .ui_builder()
                         .button(ButtonVariant::Secondary, accept_button_handle.clone())
@@ -2504,7 +2504,7 @@ impl AIBlock {
                             ),
                         ));
                     } else {
-                        button = button.with_text_label(accept_text.clone());
+                        button = button.with_text_label(accept_text);
                     }
                     button
                 },
@@ -2515,6 +2515,7 @@ impl AIBlock {
             KeyboardNavigableButtonBuilder::new(
                 move |is_selected, app| {
                     let appearance = Appearance::handle(app).as_ref(app);
+                    let reject_text = localization::text_for_app(app, reject_text_key);
                     let mut button = appearance
                         .ui_builder()
                         .button(ButtonVariant::Secondary, reject_button_handle.clone())
@@ -2546,7 +2547,7 @@ impl AIBlock {
                             ),
                         ));
                     } else {
-                        button = button.with_text_label(reject_text.clone());
+                        button = button.with_text_label(reject_text);
                     }
                     button
                 },
