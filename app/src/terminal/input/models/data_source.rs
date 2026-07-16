@@ -348,7 +348,7 @@ impl ModelSearchItem {
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
             is_custom_router,
-            description: llm.description.clone(),
+            description: LLMPreferences::as_ref(app).model_description_for_app(llm, app),
             disable_reason,
             is_auto,
             is_using_bedrock,

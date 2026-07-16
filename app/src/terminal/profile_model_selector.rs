@@ -726,9 +726,11 @@ impl ProfileModelSelector {
             };
 
             // Don't append description for custom model routers — it would add a
-            // redundant "(Custom auto · Local)" suffix to the button label.
+            // redundant "(Custom auto - Local)" suffix to the button label.
             if !is_custom_router_id(active_llm.id.as_str()) {
-                if let Some(description) = &active_llm.description {
+                if let Some(description) =
+                    llm_preferences.model_description_for_app(active_llm, ctx)
+                {
                     format!("{} ({})", active_llm.display_name, description)
                 } else {
                     active_llm.display_name.clone()

@@ -4002,6 +4002,7 @@
   "settings.ai.custom_endpoint.modal.add_title": "添加自定义端点",
   "settings.ai.custom_endpoint.modal.edit_title": "编辑自定义端点",
   "settings.ai.custom_endpoint.model_alias_optional": "模型别名（可选）",
+  "settings.ai.custom_endpoint.model_description": "自定义端点：{endpoint}",
   "settings.ai.custom_endpoint.model_name": "模型名称",
   "settings.ai.custom_endpoint.name": "端点名称",
   "settings.ai.custom_endpoint.placeholder.api_key": "例如 sk-...",

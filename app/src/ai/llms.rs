@@ -402,7 +402,7 @@ impl LLMInfo {
     pub fn menu_display_name(&self) -> String {
         // Custom model routers carry a routing/source description that belongs in
         // the sidecar detail panel, not inline in the chip label. Appending it
-        // here would produce a redundant "(Routes by … · …)" suffix.
+        // here would produce a redundant "(Routes by ... - ...)" suffix.
         if custom_model_routers::is_custom_router_id(self.id.as_str()) {
             return self.display_name.clone();
         }
@@ -1141,6 +1141,19 @@ impl LLMPreferences {
             self.custom_endpoint_usage_display_label(config_key.as_str())
         } else {
             crate::localization::text_for_app(app, "settings.ai.custom_endpoint.usage_fallback")
+        }
+    }
+
+    pub fn model_description_for_app(&self, llm: &LLMInfo, app: &AppContext) -> Option<String> {
+        let description = llm.description.as_ref()?;
+        if self.custom_llm_info_for_id(&llm.id).is_some() {
+            Some(crate::localization::text_for_app_with_args(
+                app,
+                "settings.ai.custom_endpoint.model_description",
+                &[("endpoint", description)],
+            ))
+        } else {
+            Some(description.clone())
         }
     }
 
@@ -1883,7 +1896,7 @@ fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) 
             request_multiplier: 1,
             credit_multiplier: None,
         },
-        description: Some(format!("Custom · {}", endpoint.name)),
+        description: Some(endpoint.name.clone()),
         disable_reason: None,
         vision_supported: true,
         spec: None,

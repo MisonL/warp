@@ -4002,6 +4002,7 @@
   "settings.ai.custom_endpoint.modal.add_title": "Add custom endpoint",
   "settings.ai.custom_endpoint.modal.edit_title": "Edit custom endpoint",
   "settings.ai.custom_endpoint.model_alias_optional": "Model alias (optional)",
+  "settings.ai.custom_endpoint.model_description": "Custom endpoint: {endpoint}",
   "settings.ai.custom_endpoint.model_name": "Model name",
   "settings.ai.custom_endpoint.name": "Endpoint name",
   "settings.ai.custom_endpoint.placeholder.api_key": "e.g., sk-...",

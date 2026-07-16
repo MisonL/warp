@@ -180,10 +180,7 @@ fn custom_llm_infos_built_from_endpoints() {
     assert_eq!(infos.len(), 2);
     assert_eq!(infos[0].display_name, "fast");
     assert_eq!(infos[0].id.as_str(), "uuid-1");
-    assert_eq!(
-        infos[0].description.as_deref(),
-        Some("Custom · My Endpoint")
-    );
+    assert_eq!(infos[0].description.as_deref(), Some("My Endpoint"));
     assert_eq!(infos[1].display_name, "llama");
     assert_eq!(infos[1].id.as_str(), "uuid-2");
 }

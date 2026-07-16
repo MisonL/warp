@@ -71,6 +71,11 @@ const INLINE_WEB_SEARCH_SOURCE: &str =
 const AI_BLOCK_SOURCE: &str = include_str!("../../../app/src/ai/blocklist/block.rs");
 const REQUESTED_COMMAND_SOURCE: &str =
     include_str!("../../../app/src/ai/blocklist/inline_action/requested_command.rs");
+const LLMS_SOURCE: &str = include_str!("../../../app/src/ai/llms.rs");
+const MODEL_DATA_SOURCE: &str =
+    include_str!("../../../app/src/terminal/input/models/data_source.rs");
+const PROFILE_MODEL_SELECTOR_SOURCE: &str =
+    include_str!("../../../app/src/terminal/profile_model_selector.rs");
 const DRIVE_IMPORT_NODES_SOURCE: &str = include_str!("../../../app/src/drive/import/nodes.rs");
 const DRIVE_IMPORT_MODAL_SOURCE: &str = include_str!("../../../app/src/drive/import/modal_body.rs");
 const DEFAULT_WORKTREE_TAB_CONFIG: &str =
@@ -3906,6 +3911,24 @@ fn streamed_mcp_tool_titles_are_structured_and_localized_at_render_time() {
             REQUESTED_COMMAND_SOURCE.contains(expected)
                 || AI_BLOCK_SOURCE.contains(expected),
             "MCP tool title path should preserve structured data and localize during rendering: {expected}"
+        );
+    }
+}
+
+#[test]
+fn custom_endpoint_model_descriptions_are_localized_at_display_boundaries() {
+    assert!(
+        !LLMS_SOURCE.contains("Custom \u{00b7}"),
+        "custom endpoint model metadata should not persist English decorated copy"
+    );
+    assert!(
+        LLMS_SOURCE.contains("description: Some(endpoint.name.clone())"),
+        "custom endpoint model metadata should retain the endpoint name"
+    );
+    for source in [MODEL_DATA_SOURCE, PROFILE_MODEL_SELECTOR_SOURCE] {
+        assert!(
+            source.contains("model_description_for_app"),
+            "custom endpoint descriptions should be localized at each display boundary"
         );
     }
 }
