@@ -23,8 +23,8 @@ use crate::inline_menu::{
     result_row_capacity, TuiInlineMenuListState, TuiInlineMenuRow, TuiInlineMenuRowStyle,
     TuiInlineMenuSnapshot, TuiInlineMenuStatus, MAX_INLINE_MENU_ROWS,
 };
-use crate::localization;
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
+use crate::localization;
 
 const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, false, false);
 

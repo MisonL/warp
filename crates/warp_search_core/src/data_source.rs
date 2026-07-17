@@ -2,7 +2,7 @@ use std::any::Any;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use enum_iterator::{all, Sequence};
+use enum_iterator::{Sequence, all};
 use lazy_static::lazy_static;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};

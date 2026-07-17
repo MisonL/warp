@@ -920,10 +920,7 @@ impl TemplatableMCPServerManager {
                 OAuthCallbackMode::Loopback
             } else {
                 OAuthCallbackMode::CustomScheme {
-                    redirect_uri: format!(
-                        "{}://mcp/oauth2callback",
-                        ChannelState::url_scheme()
-                    ),
+                    redirect_uri: format!("{}://mcp/oauth2callback", ChannelState::url_scheme()),
                     result_rx: oauth_result_rx,
                 }
             };

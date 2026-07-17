@@ -265,7 +265,7 @@ pub(super) fn label_for_action(
                 }
                 State::Constructing => localization::text_with_args(
                     "tui.tool.mcp_resource.preparing_named",
-                    &[("name", &name)],
+                    &[("name", name)],
                 ),
                 State::Pending | State::AwaitingApproval | State::Succeeded => {
                     localization::text_with_args(

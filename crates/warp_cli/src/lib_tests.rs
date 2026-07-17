@@ -1774,18 +1774,20 @@ fn environment_create_description_max_length() {
 
     // 241 characters should be rejected
     let invalid_description = "a".repeat(241);
-    assert!(Args::try_parse_from([
-        "warp",
-        "environment",
-        "create",
-        "--name",
-        "test-env",
-        "--description",
-        &invalid_description,
-        "--docker-image",
-        "ubuntu:latest",
-    ])
-    .is_err());
+    assert!(
+        Args::try_parse_from([
+            "warp",
+            "environment",
+            "create",
+            "--name",
+            "test-env",
+            "--description",
+            &invalid_description,
+            "--docker-image",
+            "ubuntu:latest",
+        ])
+        .is_err()
+    );
 }
 
 #[test]

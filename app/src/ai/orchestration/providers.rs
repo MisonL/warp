@@ -23,6 +23,7 @@ use crate::LLMPreferences;
 const DEFAULT_HOST_ENV_VAR: &str = "WARP_CLOUD_MODE_DEFAULT_HOST";
 
 pub const ORCHESTRATION_WARP_WORKER_HOST: &str = WARP_WORKER_HOST;
+#[cfg(feature = "tui")]
 pub const ORCHESTRATION_ENV_NONE_LABEL: &str = "Empty environment";
 
 /// Returns Warp base-model choices for orchestration.

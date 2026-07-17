@@ -167,7 +167,7 @@ impl AuthViewBody {
                 ctx,
             );
 
-            editor.set_placeholder_text(&localization::text_for_app(ctx, placeholder_key), ctx);
+            editor.set_placeholder_text(localization::text_for_app(ctx, placeholder_key), ctx);
             editor
         });
 

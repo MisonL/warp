@@ -281,16 +281,14 @@ impl CommentListView {
                     &[("count", &total_count.to_string())],
                 )
             }
+        } else if non_outdated_count == 1 {
+            localization::text_for_app(ctx, "code_review.comments.one_comment")
         } else {
-            if non_outdated_count == 1 {
-                localization::text_for_app(ctx, "code_review.comments.one_comment")
-            } else {
-                localization::text_for_app_with_args(
-                    ctx,
-                    "code_review.comments.many_comments",
-                    &[("count", &non_outdated_count.to_string())],
-                )
-            }
+            localization::text_for_app_with_args(
+                ctx,
+                "code_review.comments.many_comments",
+                &[("count", &non_outdated_count.to_string())],
+            )
         };
 
         self.comments_button

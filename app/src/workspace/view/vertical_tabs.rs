@@ -876,6 +876,17 @@ enum TerminalPrimaryLineData {
     },
 }
 
+struct TerminalPrimaryLineInput<'a> {
+    is_long_running: bool,
+    conversation_display_title: Option<String>,
+    cli_agent_title: Option<String>,
+    terminal_title: &'a str,
+    working_directory: &'a str,
+    terminal_title_font: TerminalPrimaryLineFont,
+    last_completed_command: Option<String>,
+    locale: LocaleId,
+}
+
 impl TerminalPrimaryLineData {
     fn text(&self) -> &str {
         match self {
@@ -3714,16 +3725,16 @@ fn build_vertical_tabs_summary_data(
                 let (conversation_display_title, cli_agent_title) =
                     preferred_agent_tab_titles(&agent_text, agent_tab_text_preference(app));
 
-                let primary_label = terminal_primary_line_data(
-                    terminal_view.is_long_running_and_user_controlled(),
+                let primary_label = terminal_primary_line_data(TerminalPrimaryLineInput {
+                    is_long_running: terminal_view.is_long_running_and_user_controlled(),
                     conversation_display_title,
                     cli_agent_title,
-                    title_text.as_str(),
-                    working_directory_text.as_str(),
-                    terminal_title_fallback_font(&agent_text),
-                    terminal_view.last_completed_command_text(),
-                    localization::current_locale(app),
-                );
+                    terminal_title: title_text.as_str(),
+                    working_directory: working_directory_text.as_str(),
+                    terminal_title_font: terminal_title_fallback_font(&agent_text),
+                    last_completed_command: terminal_view.last_completed_command_text(),
+                    locale: localization::current_locale(app),
+                });
                 let status = summary_conversation_status_for_terminal(terminal_view, app);
                 push_normalized_unique_summary_label(
                     &mut primary_labels,
@@ -4011,16 +4022,16 @@ fn terminal_pane_search_text_fragments(
     let primary_text = display_title_override
         .map(str::to_owned)
         .unwrap_or_else(|| {
-            terminal_primary_line_data(
-                terminal_view.is_long_running_and_user_controlled(),
+            terminal_primary_line_data(TerminalPrimaryLineInput {
+                is_long_running: terminal_view.is_long_running_and_user_controlled(),
                 conversation_display_title,
                 cli_agent_title,
-                title_text.as_str(),
-                working_directory.as_str(),
-                terminal_title_fallback_font(&agent_text),
-                terminal_view.last_completed_command_text(),
-                localization::current_locale(app),
-            )
+                terminal_title: title_text.as_str(),
+                working_directory: working_directory.as_str(),
+                terminal_title_font: terminal_title_fallback_font(&agent_text),
+                last_completed_command: terminal_view.last_completed_command_text(),
+                locale: localization::current_locale(app),
+            })
             .text()
             .to_string()
         });
@@ -4064,16 +4075,17 @@ fn terminal_search_text_fragments(
     fragments
 }
 
-fn terminal_primary_line_data(
-    is_long_running: bool,
-    conversation_display_title: Option<String>,
-    cli_agent_title: Option<String>,
-    terminal_title: &str,
-    working_directory: &str,
-    terminal_title_font: TerminalPrimaryLineFont,
-    last_completed_command: Option<String>,
-    locale: LocaleId,
-) -> TerminalPrimaryLineData {
+fn terminal_primary_line_data(input: TerminalPrimaryLineInput<'_>) -> TerminalPrimaryLineData {
+    let TerminalPrimaryLineInput {
+        is_long_running,
+        conversation_display_title,
+        cli_agent_title,
+        terminal_title,
+        working_directory,
+        terminal_title_font,
+        last_completed_command,
+        locale,
+    } = input;
     let trimmed_title = terminal_title.trim();
     let trimmed_working_directory = working_directory.trim();
     if let Some(cli_agent_title) = cli_agent_title {
@@ -5209,16 +5221,16 @@ fn render_terminal_primary_line_for_view(
         preferred_agent_tab_titles(&agent_text, agent_tab_text_preference(app));
 
     render_terminal_primary_line(
-        terminal_primary_line_data(
-            terminal_view.is_long_running_and_user_controlled(),
+        terminal_primary_line_data(TerminalPrimaryLineInput {
+            is_long_running: terminal_view.is_long_running_and_user_controlled(),
             conversation_display_title,
             cli_agent_title,
-            title_text.as_str(),
-            working_directory.as_str(),
-            terminal_title_fallback_font(&agent_text),
-            terminal_view.last_completed_command_text(),
-            localization::current_locale(app),
-        ),
+            terminal_title: title_text.as_str(),
+            working_directory: working_directory.as_str(),
+            terminal_title_font: terminal_title_fallback_font(&agent_text),
+            last_completed_command: terminal_view.last_completed_command_text(),
+            locale: localization::current_locale(app),
+        }),
         terminal_view,
         appearance,
         text_color,
@@ -6797,16 +6809,16 @@ fn render_terminal_detail_section(
     };
 
     let title_text = terminal_view.terminal_title_from_shell();
-    let primary_line = terminal_primary_line_data(
-        terminal_view.is_long_running_and_user_controlled(),
+    let primary_line = terminal_primary_line_data(TerminalPrimaryLineInput {
+        is_long_running: terminal_view.is_long_running_and_user_controlled(),
         conversation_display_title,
         cli_agent_title,
-        title_text.as_str(),
-        working_directory.as_deref().unwrap_or(title_text.as_str()),
-        terminal_title_fallback_font(&agent_text),
-        terminal_view.last_completed_command_text(),
-        localization::current_locale(app),
-    );
+        terminal_title: title_text.as_str(),
+        working_directory: working_directory.as_deref().unwrap_or(title_text.as_str()),
+        terminal_title_font: terminal_title_fallback_font(&agent_text),
+        last_completed_command: terminal_view.last_completed_command_text(),
+        locale: localization::current_locale(app),
+    });
 
     let mut section = Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Start)
@@ -7316,16 +7328,16 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
                     let agent_text = terminal_agent_text(terminal_view, app);
                     let (conv_title, cli_title) =
                         preferred_agent_tab_titles(&agent_text, agent_tab_text_preference(app));
-                    let line_data = terminal_primary_line_data(
-                        terminal_view.is_long_running_and_user_controlled(),
-                        conv_title,
-                        cli_title,
-                        terminal_title.as_str(),
-                        working_directory_text.as_str(),
-                        terminal_title_fallback_font(&agent_text),
-                        terminal_view.last_completed_command_text(),
-                        localization::current_locale(app),
-                    );
+                    let line_data = terminal_primary_line_data(TerminalPrimaryLineInput {
+                        is_long_running: terminal_view.is_long_running_and_user_controlled(),
+                        conversation_display_title: conv_title,
+                        cli_agent_title: cli_title,
+                        terminal_title: terminal_title.as_str(),
+                        working_directory: working_directory_text.as_str(),
+                        terminal_title_font: terminal_title_fallback_font(&agent_text),
+                        last_completed_command: terminal_view.last_completed_command_text(),
+                        locale: localization::current_locale(app),
+                    });
                     Some(
                         Text::new_inline(line_data.text().to_string(), font_family, 10.)
                             .with_clip(ClipConfig::ellipsis())

@@ -484,10 +484,6 @@ impl Network {
         self.stage = Stage::Finished;
     }
 
-    pub fn max_session_size(&self) -> Byte {
-        self.max_session_size
-    }
-
     fn log_context(&self) -> (Option<SessionId>, Option<&str>) {
         (self.session_id, self.source.orchestrator_task_id())
     }

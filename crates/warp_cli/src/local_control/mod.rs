@@ -935,9 +935,9 @@ pub(crate) use commands::render_human_readable_for_test;
 #[cfg(test)]
 pub(crate) use completions::generate_completion_string;
 #[cfg(test)]
-pub(crate) use output::control_error_lines_for_test;
-#[cfg(test)]
 pub(crate) use output::ErrorSummary;
+#[cfg(test)]
+pub(crate) use output::control_error_lines_for_test;
 
 #[cfg(test)]
 #[path = "../local_control_tests.rs"]

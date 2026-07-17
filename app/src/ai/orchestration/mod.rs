@@ -13,7 +13,7 @@ mod validation;
 
 pub use config_state::{AuthSecretSelection, OrchestrationConfigState};
 pub use edit_state::OrchestrationEditState;
-#[cfg_attr(not(feature = "tui"), allow(unused_imports))]
+#[cfg(feature = "tui")]
 pub use providers::ORCHESTRATION_ENV_NONE_LABEL;
 pub(crate) use providers::{
     can_execute_with_auth_secret, get_base_model_choices, persist_auth_secret_selection,

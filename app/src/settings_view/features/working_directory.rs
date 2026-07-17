@@ -380,7 +380,7 @@ fn init_top_level_dropdown(
         dropdown.set_selected_by_index(advanced_item_index, ctx);
     } else {
         dropdown.set_selected_by_name(
-            &localization::text_for_app(ctx, config.global.mode.dropdown_item_label_key()),
+            localization::text_for_app(ctx, config.global.mode.dropdown_item_label_key()),
             ctx,
         );
     }
@@ -415,7 +415,7 @@ fn init_per_source_dropdown(
         NewSessionSource::Window => &config.new_window,
     };
     dropdown.set_selected_by_name(
-        &localization::text_for_app(ctx, source_config.mode.dropdown_item_label_key()),
+        localization::text_for_app(ctx, source_config.mode.dropdown_item_label_key()),
         ctx,
     );
 }

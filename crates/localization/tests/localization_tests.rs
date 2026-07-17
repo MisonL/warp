@@ -8433,7 +8433,7 @@ fn collect_skill_description_semantic_violations(dir: &Path, violations: &mut Ve
         }
 
         for anchor in inline_code_spans(description) {
-            if !localized.contains(&anchor) {
+            if !localized.contains(anchor) {
                 violations.push(format!(
                     "{}: description_zh_CN dropped technical anchor `{anchor}`",
                     skill_path.display()
