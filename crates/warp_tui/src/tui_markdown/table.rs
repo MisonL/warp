@@ -10,6 +10,7 @@ use warpui_core::AppContext;
 use super::{
     blank_row, inline_spans, push_span, TuiFixedWidth, TuiMarkdownPalette, TuiMarkdownRule,
 };
+use crate::localization;
 
 const TABLE_COLUMN_GAP: u16 = 3;
 const MIN_TABLE_COLUMN_WIDTH: u16 = 3;
@@ -45,7 +46,7 @@ impl TuiMarkdownTable {
         let (headers, rows, alignments) = normalized_table(&self.table);
         if headers.is_empty() {
             return TuiFlex::column().child(
-                TuiText::new("[Empty table]")
+                TuiText::new(localization::text("tui.markdown.empty_table"))
                     .with_style(self.palette.fallback)
                     .finish(),
             );
@@ -94,7 +95,7 @@ impl TuiMarkdownTable {
         let mut table = TuiFlex::column();
         if rows.is_empty() {
             table.add_child(
-                TuiText::new("[Table has no rows]")
+                TuiText::new(localization::text("tui.markdown.table_has_no_rows"))
                     .with_style(self.palette.fallback)
                     .finish(),
             );

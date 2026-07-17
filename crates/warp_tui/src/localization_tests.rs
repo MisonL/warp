@@ -46,4 +46,14 @@ fn bundled_simplified_chinese_templates_are_available() {
         .expect("localized TUI test template arguments should match the catalog"),
         "在浏览器中打开 https://example.com"
     );
+    for (key, expected) in [
+        ("tui.markdown.empty_table", "[空表格]"),
+        ("tui.markdown.table_has_no_rows", "[表格没有行]"),
+        (
+            "tui.markdown.unsupported_embedded_content",
+            "[不支持的嵌入内容]",
+        ),
+    ] {
+        assert_eq!(text_for_locale(LocaleId::ZhCn, key), expected);
+    }
 }

@@ -2,8 +2,8 @@ use std::cell::Cell;
 
 use futures::channel::oneshot;
 use markdown_parser::{
-    parse_markdown, parse_markdown_with_gfm_tables, FormattedText, FormattedTextFragment,
-    FormattedTextLine,
+    parse_markdown, parse_markdown_with_gfm_tables, FormattedTable, FormattedText,
+    FormattedTextFragment, FormattedTextLine,
 };
 use warp::tui_export::Appearance;
 use warpui::platform::WindowStyle;
@@ -116,6 +116,27 @@ fn tables_switch_from_columns_to_header_keyed_records() {
             assert_eq!(
                 narrow,
                 vec!["Name: Alice", "Description:", "Builds", "terminals"]
+            );
+        });
+    });
+}
+
+#[test]
+fn renders_empty_table_fallbacks() {
+    App::test((), |app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        app.read(|ctx| {
+            let empty_table = FormattedText::new([FormattedTextLine::Table(
+                FormattedTable::from_internal_format(""),
+            )]);
+            assert_eq!(render(&empty_table, 80, ctx).0, vec!["[Empty table]"]);
+
+            let table_without_rows = FormattedText::new([FormattedTextLine::Table(
+                FormattedTable::from_internal_format("A\tB\tC\tD\tE\tF\tG"),
+            )]);
+            assert_eq!(
+                render(&table_without_rows, 30, ctx).0,
+                vec!["[Table has no rows]"]
             );
         });
     });

@@ -3264,7 +3264,12 @@ fn tui_high_risk_formatting_surfaces_do_not_restore_removed_english_literals() {
                 "Image: {description}",
                 "Image: {}",
                 "[Image without description]",
+                "[Unsupported embedded content]",
             ][..],
+        ),
+        (
+            "crates/warp_tui/src/tui_markdown/table.rs",
+            &["[Empty table]", "[Table has no rows]"][..],
         ),
         (
             "crates/warp_tui/src/agent_block_sections.rs",
@@ -8223,6 +8228,8 @@ fn line_may_reference_localization_key(line: &str) -> bool {
 fn line_may_start_multiline_localization_call(line: &str) -> bool {
     line.contains("text_for_app")
         || line.contains("text_for_locale")
+        || line.contains("localization::text(")
+        || line.contains("localization::text_with_args(")
         || line.contains("language_option_label(")
         || line.contains("ai_settings_text(")
         || line.contains("workspace_text(")
