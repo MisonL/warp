@@ -536,6 +536,25 @@ fn finished_reasoning_renders_collapsed_thought_for_header() {
     });
 }
 
+#[test]
+fn finished_reasoning_renders_one_second_without_panicking() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        let block = test_agent_block(
+            &mut app,
+            FakeAgentBlockModel {
+                inputs: Vec::new(),
+                status: reasoning_status(Some(Duration::from_secs(1)), "hidden body"),
+            },
+        );
+        app.read(|app_ctx| {
+            let block = block.as_ref(app_ctx);
+            let rendered = render_block_lines(block, 40, app_ctx);
+            assert_eq!(rendered[0], "Thought for 1 second ▸");
+        });
+    });
+}
+
 /// Duration-only reasoning records do not create empty thinking sections.
 #[test]
 fn empty_finished_reasoning_is_omitted() {

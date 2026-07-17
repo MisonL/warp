@@ -197,14 +197,11 @@ pub(crate) fn render_summarization_section(
 
 fn localized_elapsed_seconds(duration: Duration) -> String {
     let count = duration.as_secs();
-    localization::text_with_args(
-        if count == 1 {
-            "agent.elapsed.one_second"
-        } else {
-            "agent.elapsed.seconds"
-        },
-        &[("count", &count.to_string())],
-    )
+    if count == 1 {
+        localization::text("agent.elapsed.one_second")
+    } else {
+        localization::text_with_args("agent.elapsed.seconds", &[("count", &count.to_string())])
+    }
 }
 
 fn render_collapsible_message_section(
