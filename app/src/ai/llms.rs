@@ -194,16 +194,24 @@ pub enum DisableReason {
 }
 
 impl DisableReason {
-    /// Returns a user-facing tooltip explaining why the model is disabled.
-    pub fn tooltip_text(&self) -> &'static str {
+    /// Returns the catalog key for the user-facing disabled-model tooltip.
+    pub(crate) fn localization_key(&self) -> &'static str {
         match self {
-            DisableReason::AdminDisabled => "This model has been disabled by your team admin.",
-            DisableReason::OutOfRequests => "Please upgrade your plan to make more requests.",
-            DisableReason::ProviderOutage => {
-                "This model is temporarily unavailable due to a provider outage."
+            DisableReason::AdminDisabled => {
+                "settings.execution_profile.model.disable_reason.admin_disabled"
             }
-            DisableReason::RequiresUpgrade => "Please upgrade your plan to access this model.",
-            DisableReason::Unavailable => "This model is unavailable.",
+            DisableReason::OutOfRequests => {
+                "settings.execution_profile.model.disable_reason.out_of_requests"
+            }
+            DisableReason::ProviderOutage => {
+                "settings.execution_profile.model.disable_reason.provider_outage"
+            }
+            DisableReason::RequiresUpgrade => {
+                "settings.execution_profile.model.disable_reason.requires_upgrade"
+            }
+            DisableReason::Unavailable => {
+                "settings.execution_profile.model.disable_reason.unavailable"
+            }
         }
     }
 

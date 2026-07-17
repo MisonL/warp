@@ -16,7 +16,31 @@ use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::LaunchMode;
 
-// -- DisableReason::should_clear_preference tests --
+// -- DisableReason tests --
+
+#[test]
+fn disable_reason_localization_keys_cover_every_variant() {
+    assert_eq!(
+        DisableReason::AdminDisabled.localization_key(),
+        "settings.execution_profile.model.disable_reason.admin_disabled"
+    );
+    assert_eq!(
+        DisableReason::OutOfRequests.localization_key(),
+        "settings.execution_profile.model.disable_reason.out_of_requests"
+    );
+    assert_eq!(
+        DisableReason::ProviderOutage.localization_key(),
+        "settings.execution_profile.model.disable_reason.provider_outage"
+    );
+    assert_eq!(
+        DisableReason::RequiresUpgrade.localization_key(),
+        "settings.execution_profile.model.disable_reason.requires_upgrade"
+    );
+    assert_eq!(
+        DisableReason::Unavailable.localization_key(),
+        "settings.execution_profile.model.disable_reason.unavailable"
+    );
+}
 
 #[test]
 fn should_clear_preference_admin_disabled() {

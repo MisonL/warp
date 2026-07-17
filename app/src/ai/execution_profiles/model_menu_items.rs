@@ -73,24 +73,6 @@ fn with_cost_and_profile_info<A: Action + Clone>(
     }
 }
 
-fn disable_reason_key(reason: &DisableReason) -> &'static str {
-    match reason {
-        DisableReason::AdminDisabled => {
-            "settings.execution_profile.model.disable_reason.admin_disabled"
-        }
-        DisableReason::OutOfRequests => {
-            "settings.execution_profile.model.disable_reason.out_of_requests"
-        }
-        DisableReason::ProviderOutage => {
-            "settings.execution_profile.model.disable_reason.provider_outage"
-        }
-        DisableReason::RequiresUpgrade => {
-            "settings.execution_profile.model.disable_reason.requires_upgrade"
-        }
-        DisableReason::Unavailable => "settings.execution_profile.model.disable_reason.unavailable",
-    }
-}
-
 fn make_item_fields<A: Action + Clone>(
     llm: &LLMInfo,
     action: impl Fn(&LLMInfo) -> A,
@@ -186,7 +168,7 @@ fn make_item_fields<A: Action + Clone>(
 
     if let Some(reason) = &llm.disable_reason {
         item = item
-            .with_tooltip(localization::text_for_app(app, disable_reason_key(reason)))
+            .with_tooltip(localization::text_for_app(app, reason.localization_key()))
             .with_tooltip_position(MenuTooltipPosition::Above);
 
         if matches!(reason, DisableReason::RequiresUpgrade) {

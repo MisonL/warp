@@ -346,6 +346,7 @@ struct ModelSearchItem {
     /// Source/routing description for custom model routers (from `LLMInfo.description`).
     description: Option<String>,
     disable_reason: Option<DisableReason>,
+    disabled_tooltip: Option<String>,
     is_auto: bool,
     is_using_bedrock: bool,
     is_using_gemini_enterprise_agent_platform: bool,
@@ -381,6 +382,10 @@ impl ModelSearchItem {
         let is_using_cloud_host = is_using_bedrock || is_using_gemini_enterprise_agent_platform;
         let credential_icon =
             (!is_using_cloud_host && byo_key_source.is_some()).then_some(Icon::Key);
+        let disabled_tooltip = choice
+            .disable_reason
+            .as_ref()
+            .map(|reason| localization::text_for_app(app, reason.localization_key()));
         Self {
             id: llm.id.clone(),
             provider: llm.provider.clone(),
@@ -393,6 +398,7 @@ impl ModelSearchItem {
             is_custom_router,
             description: LLMPreferences::as_ref(app).model_description_for_app(llm, app),
             disable_reason: choice.disable_reason,
+            disabled_tooltip,
             is_auto,
             is_using_bedrock,
             is_using_gemini_enterprise_agent_platform,
@@ -822,9 +828,7 @@ impl SearchItem for ModelSearchItem {
     }
 
     fn tooltip(&self) -> Option<String> {
-        self.disable_reason
-            .as_ref()
-            .map(|reason| reason.tooltip_text().to_string())
+        self.disabled_tooltip.clone()
     }
 
     fn accessibility_label(&self) -> String {

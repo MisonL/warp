@@ -16,7 +16,7 @@ use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISuba
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::llms::{LLMId, LLMPreferences, LLMPreferencesEvent};
 use crate::features::FeatureFlag;
-use crate::localization;
+use crate::localization::{self, LocalizationUpdater};
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{SearchMixer, SearchMixerEvent};
 use crate::settings_view::SettingsSection;
@@ -117,6 +117,7 @@ pub struct InlineModelSelectorView {
     /// shared-session viewer path (see `set_ambient_agent_view_model`). It also lives inside the
     /// search mixer; this handle points at the same model.
     model_selector_data_source: ModelHandle<ModelSelectorDataSource>,
+    manage_defaults_button: Option<ViewHandle<ActionButton>>,
 }
 
 impl InlineModelSelectorView {
@@ -158,7 +159,7 @@ impl InlineModelSelectorView {
             mixer
         });
 
-        let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
+        let (menu_view, manage_defaults_button) = if FeatureFlag::InlineMenuHeaders.is_enabled() {
             let manage_defaults_label =
                 localization::text_for_app(ctx, "settings.ai.model_selector.manage_defaults");
             let manage_defaults_button = ctx.add_view(move |_| {
@@ -172,14 +173,15 @@ impl InlineModelSelectorView {
                         });
                     })
             });
+            let manage_defaults_button_for_header = manage_defaults_button.clone();
             let header_config = InlineMenuHeaderConfig {
                 label: "/model".to_string(),
                 trailing_element: Some(Box::new(move |_app: &AppContext| {
-                    ChildView::new(&manage_defaults_button).finish()
+                    ChildView::new(&manage_defaults_button_for_header).finish()
                 })),
             };
 
-            ctx.add_typed_action_view(|ctx| {
+            let menu_view = ctx.add_typed_action_view(|ctx| {
                 let menu = InlineMenuView::new_with_tabs(
                     mixer.clone(),
                     positioner.clone(),
@@ -228,9 +230,10 @@ impl InlineModelSelectorView {
                         )
                     })
                 })
-            })
+            });
+            (menu_view, Some(manage_defaults_button))
         } else {
-            ctx.add_typed_action_view(|ctx| {
+            let menu_view = ctx.add_typed_action_view(|ctx| {
                 InlineMenuView::new_with_tabs(
                     mixer.clone(),
                     positioner.clone(),
@@ -240,7 +243,8 @@ impl InlineModelSelectorView {
                     None,
                     ctx,
                 )
-            })
+            });
+            (menu_view, None)
         };
 
         ctx.subscribe_to_view(&menu_view, |me, _, event, ctx| match event {
@@ -340,6 +344,9 @@ impl InlineModelSelectorView {
                 });
             }
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
         ctx.subscribe_to_model(&cli_subagent_controller, |me, _, event, ctx| match event {
             CLISubagentEvent::SpawnedSubagent { .. }
@@ -425,6 +432,7 @@ impl InlineModelSelectorView {
             filter_results_by_input: true,
             prompt_parked_for_search: false,
             model_selector_data_source: data_source,
+            manage_defaults_button,
         };
         // Route ambient wiring through the setter so construction and the lazy shared-session
         // viewer path share one implementation.
@@ -488,6 +496,33 @@ impl InlineModelSelectorView {
         self.mixer.update(ctx, |mixer, ctx| {
             mixer.run_query(Query { text, filters }, ctx);
         });
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        if let Some(manage_defaults_button) = &self.manage_defaults_button {
+            manage_defaults_button.update(ctx, |button, ctx| {
+                button.set_label(
+                    localization::text_for_app(ctx, "settings.ai.model_selector.manage_defaults"),
+                    ctx,
+                );
+            });
+        }
+
+        let tab_configs = build_tab_configs(ctx);
+        self.menu_view.update(ctx, |menu, ctx| {
+            menu.model().update(ctx, |model, _| {
+                model.set_tab_configs(tab_configs);
+            });
+            ctx.notify();
+        });
+
+        if self
+            .suggestions_mode_model
+            .as_ref(ctx)
+            .is_inline_model_selector()
+        {
+            self.rerun_query(ctx);
+        }
     }
 
     pub fn filter_results_by_input(&self) -> bool {
