@@ -3,14 +3,17 @@
 //! These drive a real [`CodeEditorModel`] (TUI char-cell mode) behind a real
 //! [`TuiInputView`] so they exercise the exact render/layout/cursor path the
 //! presenter uses, not a reimplementation of it.
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::ops::Range;
 use std::rc::Rc;
 
 use string_offset::CharOffset;
 use warp::appearance::Appearance;
 use warp::editor::CodeEditorModel;
+use warp::settings::AISettingsChangedEvent;
 use warp::tui_export::{
-    AcceptSlashCommandOrSavedPrompt, BlocklistAIInputModel, LLMId, SlashCommandId,
+    AcceptSlashCommandOrSavedPrompt, BlocklistAIInputModel, ConversationSelectionEvent,
+    InputConfig, InputModePolicy, InputType, LLMId, PolicyConfigUpdate, SlashCommandId,
     SlashCommandMixer,
 };
 use warp_editor::model::CoreEditorModel;
@@ -18,22 +21,26 @@ use warpui::EntityIdMap;
 use warpui_core::elements::tui::{
     TuiBuffer, TuiBufferExt, TuiConstraint, TuiElement, TuiEvent, TuiEventContext,
     TuiLayoutContext, TuiPaintContext, TuiPaintSurface, TuiPoint, TuiRect, TuiScene,
-    TuiScreenPosition, TuiSize,
+    TuiScreenPosition, TuiSize, TuiText,
 };
 use warpui_core::event::{KeyEventDetails, ModifiersState};
 use warpui_core::keymap::Keystroke;
 use warpui_core::platform::WindowStyle;
 use warpui_core::{
-    AddWindowOptions, App, AppContext, ModelHandle, TuiView, TypedActionView, ViewHandle,
+    AddWindowOptions, App, AppContext, Entity, ModelHandle, TuiView, TypedActionView, ViewHandle,
 };
 
 use super::{
     input_keymap_context, TuiInputAction, TuiInputView, TuiInputViewEvent,
     INPUT_HANDLES_ESCAPE_FLAG,
 };
-use crate::editor_element::TuiEditorElement;
-use crate::inline_menu::TuiInlineMenu;
-use crate::input_mode_policy::TuiInputModePolicy;
+use crate::editor_element::{TuiEditorAction, TuiEditorElement};
+use crate::editor_interaction::TuiEditorCommand;
+use crate::inline_menu::{
+    TuiInlineMenu, TuiInlineMenuAccepted, TuiInlineMenuHandle, TuiInlineMenuHeader,
+    TuiInlineMenuSnapshot, TuiInlineMenuStatus,
+};
+use crate::input_mode_policy::AI_LOCKED_CONFIG;
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
 use crate::model_menu::TuiModelMenuModel;
 use crate::slash_commands::{TuiSlashCommandModel, TuiSlashCommandRow};
@@ -42,15 +49,62 @@ use crate::tui_builder::TuiUiBuilder;
 
 const W: u16 = 80;
 
+struct TestInputModePolicy;
+
+impl InputModePolicy for TestInputModePolicy {
+    fn initial_config(&self, _app: &AppContext) -> InputConfig {
+        AI_LOCKED_CONFIG
+    }
+
+    fn allows_locked_ai_input(&self, _app: &AppContext) -> bool {
+        true
+    }
+
+    fn is_autodetection_enabled(&self, _app: &AppContext) -> bool {
+        false
+    }
+
+    fn config_on_conversation_selection_changed(
+        &self,
+        _event: &ConversationSelectionEvent,
+        _current: InputConfig,
+        _app: &AppContext,
+    ) -> Option<PolicyConfigUpdate> {
+        None
+    }
+
+    fn config_on_ai_settings_changed(
+        &self,
+        _event: &AISettingsChangedEvent,
+        _current: InputConfig,
+        _is_autodetection_enabled_for_current_context: bool,
+        _app: &AppContext,
+    ) -> Option<PolicyConfigUpdate> {
+        None
+    }
+}
+
 #[test]
 fn input_escape_context_is_present_only_while_escape_is_handled() {
-    let closed = input_keymap_context(false);
+    let closed = input_keymap_context(false, false, false);
     assert!(closed.set.contains("TuiInputView"));
     assert!(!closed.set.contains(INPUT_HANDLES_ESCAPE_FLAG));
+    assert!(!closed
+        .set
+        .contains(crate::keybindings::PLAN_TOGGLE_AVAILABLE_FLAG));
+    assert!(!closed
+        .set
+        .contains(crate::keybindings::KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG));
 
-    let open = input_keymap_context(true);
+    let open = input_keymap_context(true, true, true);
     assert!(open.set.contains("TuiInputView"));
     assert!(open.set.contains(INPUT_HANDLES_ESCAPE_FLAG));
+    assert!(open
+        .set
+        .contains(crate::keybindings::PLAN_TOGGLE_AVAILABLE_FLAG));
+    assert!(open
+        .set
+        .contains(crate::keybindings::KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG));
 }
 
 fn add_suggestions_mode(
@@ -116,6 +170,110 @@ fn render_input_buffer(view: &ViewHandle<TuiInputView>, ctx: &AppContext) -> Tui
     buffer
 }
 
+fn render_element_lines(
+    mut element: Box<dyn TuiElement>,
+    ctx: &AppContext,
+    width: u16,
+    height: u16,
+) -> Vec<String> {
+    let mut rendered_views = EntityIdMap::default();
+    let mut layout_ctx = TuiLayoutContext {
+        rendered_views: &mut rendered_views,
+    };
+    let size = element.layout(
+        TuiConstraint::loose(TuiSize::new(width, height)),
+        &mut layout_ctx,
+        ctx,
+    );
+    let area = TuiRect::new(0, 0, size.width, size.height);
+    let mut buffer = TuiBuffer::empty(area);
+    let mut paint_ctx = TuiPaintContext::new(&mut rendered_views);
+    {
+        let mut surface = TuiPaintSurface::new(&mut buffer);
+        element.render(
+            TuiScreenPosition::new(i32::from(area.x), i32::from(area.y)),
+            &mut surface,
+            &mut paint_ctx,
+        );
+    }
+    buffer.to_lines()
+}
+
+struct TestConversationMenu {
+    is_open: bool,
+    suggestions_mode: ModelHandle<TuiInputSuggestionsModeModel>,
+}
+
+impl Entity for TestConversationMenu {
+    type Event = ();
+}
+
+#[derive(Clone)]
+struct TestConversationMenuHandle(ModelHandle<TestConversationMenu>);
+
+impl TuiInlineMenuHandle for TestConversationMenuHandle {
+    fn mode(&self) -> TuiInputSuggestionsMode {
+        TuiInputSuggestionsMode::ConversationMenu
+    }
+
+    fn is_open(&self, ctx: &AppContext) -> bool {
+        self.0.as_ref(ctx).is_open
+            && self.0.as_ref(ctx).suggestions_mode.as_ref(ctx).mode()
+                == TuiInputSuggestionsMode::ConversationMenu
+    }
+
+    fn open(&self, ctx: &mut AppContext) {
+        self.0.update(ctx, |menu, ctx| {
+            if menu.suggestions_mode.update(ctx, |mode, ctx| {
+                mode.try_open(TuiInputSuggestionsMode::ConversationMenu, ctx)
+            }) {
+                menu.is_open = true;
+            }
+        });
+    }
+
+    fn input_highlight_range(&self, _ctx: &AppContext) -> Option<Range<CharOffset>> {
+        None
+    }
+
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+        None
+    }
+
+    fn select_previous(&self, _ctx: &mut AppContext) {}
+
+    fn select_next(&self, _ctx: &mut AppContext) {}
+
+    fn accept(&self, _ctx: &mut AppContext) -> Option<TuiInlineMenuAccepted> {
+        None
+    }
+
+    fn dismiss(&self, ctx: &mut AppContext) {
+        self.0.update(ctx, |menu, ctx| {
+            menu.is_open = false;
+            menu.suggestions_mode.update(ctx, |mode, ctx| {
+                mode.close_if_active(TuiInputSuggestionsMode::ConversationMenu, ctx);
+            });
+        });
+    }
+
+    fn snapshot(&self, ctx: &AppContext) -> Option<TuiInlineMenuSnapshot> {
+        self.is_open(ctx).then(|| TuiInlineMenuSnapshot {
+            header: Some(TuiInlineMenuHeader {
+                title: Some("Conversations".to_owned()),
+                tabs: Vec::new(),
+            }),
+            rows: Vec::new(),
+            selected_index: None,
+            scroll_offset: 0,
+            max_visible_rows: 8,
+            status: Some(TuiInlineMenuStatus::Empty(
+                "No conversations found".to_owned(),
+            )),
+        })
+    }
+}
+
 #[test]
 fn recognized_slash_command_prefix_matches_menu_color_after_menu_closes() {
     App::test((), |mut app| async move {
@@ -147,7 +305,7 @@ fn build_view(ctx: &mut AppContext) -> ViewHandle<TuiInputView> {
     // singleton, so register a mock one before constructing the editor.
     ctx.add_singleton_model(|_| Appearance::mock());
     add_test_semantic_selection(ctx);
-    let input_mode = BlocklistAIInputModel::mock(Rc::new(TuiInputModePolicy), ctx);
+    let input_mode = BlocklistAIInputModel::mock(Rc::new(TestInputModePolicy), ctx);
     let suggestions_mode = add_suggestions_mode(ctx, TuiInputSuggestionsMode::Closed);
     let (_window_id, view) = ctx.add_tui_window(
         AddWindowOptions {
@@ -156,10 +314,54 @@ fn build_view(ctx: &mut AppContext) -> ViewHandle<TuiInputView> {
         },
         |ctx| {
             let model = ctx.add_model(|ctx| CodeEditorModel::new_tui(W, ctx));
-            TuiInputView::new(model, input_mode, suggestions_mode, Vec::new(), ctx)
+            TuiInputView::new_for_test(
+                model,
+                input_mode,
+                suggestions_mode,
+                Vec::new(),
+                |_| false,
+                ctx,
+            )
         },
     );
     view
+}
+
+fn build_view_with_conversation_menu(
+    ctx: &mut AppContext,
+) -> (
+    ViewHandle<TuiInputView>,
+    ModelHandle<TestConversationMenu>,
+    TuiInlineMenu,
+) {
+    ctx.add_singleton_model(|_| Appearance::mock());
+    add_test_semantic_selection(ctx);
+    let input_model = ctx.add_model(|ctx| CodeEditorModel::new_tui(W, ctx));
+    let input_mode = BlocklistAIInputModel::mock(Rc::new(TestInputModePolicy), ctx);
+    let suggestions_mode = add_suggestions_mode(ctx, TuiInputSuggestionsMode::Closed);
+    let menu_model = ctx.add_model(|_| TestConversationMenu {
+        is_open: false,
+        suggestions_mode: suggestions_mode.clone(),
+    });
+    let inline_menu = TuiInlineMenu::new(TestConversationMenuHandle(menu_model.clone()));
+    let inline_menu_for_view = inline_menu.clone();
+    let (_window_id, view) = ctx.add_tui_window(
+        AddWindowOptions {
+            window_style: WindowStyle::NotStealFocus,
+            ..Default::default()
+        },
+        move |ctx| {
+            TuiInputView::new_for_test(
+                input_model,
+                input_mode,
+                suggestions_mode,
+                vec![inline_menu_for_view],
+                |_| false,
+                ctx,
+            )
+        },
+    );
+    (view, menu_model, inline_menu)
 }
 
 fn build_view_with_inline_menu(
@@ -172,7 +374,7 @@ fn build_view_with_inline_menu(
     ctx.add_singleton_model(|_| Appearance::mock());
     add_test_semantic_selection(ctx);
     let input_model = ctx.add_model(|ctx| CodeEditorModel::new_tui(W, ctx));
-    let input_mode = BlocklistAIInputModel::mock(Rc::new(TuiInputModePolicy), ctx);
+    let input_mode = BlocklistAIInputModel::mock(Rc::new(TestInputModePolicy), ctx);
     let suggestions_mode = add_suggestions_mode(ctx, TuiInputSuggestionsMode::SlashCommands);
     let mixer = ctx.add_model(|_| SlashCommandMixer::new());
     let ids = [SlashCommandId::new(), SlashCommandId::new()];
@@ -201,11 +403,12 @@ fn build_view_with_inline_menu(
             ..Default::default()
         },
         move |ctx| {
-            TuiInputView::new(
+            TuiInputView::new_for_test(
                 input_model,
                 input_mode,
                 suggestions_mode,
                 vec![inline_menu],
+                |_| false,
                 ctx,
             )
         },
@@ -223,7 +426,7 @@ fn build_view_with_model_menu(
     ctx.add_singleton_model(|_| Appearance::mock());
     add_test_semantic_selection(ctx);
     let input_model = ctx.add_model(|ctx| CodeEditorModel::new_tui(W, ctx));
-    let input_mode = BlocklistAIInputModel::mock(Rc::new(TuiInputModePolicy), ctx);
+    let input_mode = BlocklistAIInputModel::mock(Rc::new(TestInputModePolicy), ctx);
     let suggestions_mode = add_suggestions_mode(ctx, TuiInputSuggestionsMode::ModelSelector);
     let id = LLMId::from("gpt-5");
     let id_for_model = id.clone();
@@ -242,11 +445,12 @@ fn build_view_with_model_menu(
             ..Default::default()
         },
         move |ctx| {
-            TuiInputView::new(
+            TuiInputView::new_for_test(
                 input_model,
                 input_mode,
                 suggestions_mode,
                 vec![inline_menu],
+                |_| false,
                 ctx,
             )
         },
@@ -272,10 +476,18 @@ fn inline_menu_navigation_routes_before_editor_navigation() {
             let (view, menu_model, ids) = build_view_with_inline_menu(ctx);
             assert_eq!(selected_slash_command_id(&menu_model, ctx), Some(ids[0]));
 
-            dispatch(&view, ctx, &[TuiInputAction::MoveDown]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::MoveDown)],
+            );
             assert_eq!(selected_slash_command_id(&menu_model, ctx), Some(ids[1]));
 
-            dispatch(&view, ctx, &[TuiInputAction::MoveUp]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::MoveUp)],
+            );
             assert_eq!(selected_slash_command_id(&menu_model, ctx), Some(ids[0]));
         });
     });
@@ -394,7 +606,9 @@ fn multiline_paste_inserts_without_submitting_until_enter() {
             dispatch(
                 &view,
                 ctx,
-                &[TuiInputAction::InsertText(payload.to_owned())],
+                &[TuiInputAction::Editor(TuiEditorAction::InsertText(
+                    payload.to_owned(),
+                ))],
             );
         });
         app.read(|ctx| {
@@ -421,6 +635,100 @@ fn dispatch(view: &ViewHandle<TuiInputView>, ctx: &mut AppContext, actions: &[Tu
 }
 
 #[test]
+fn shift_up_requests_focus_above_only_on_first_row_without_selection() {
+    App::test((), |mut app| async move {
+        let (view, requests, available) = app.update(|ctx| {
+            ctx.add_singleton_model(|_| Appearance::mock());
+            add_test_semantic_selection(ctx);
+            let input_mode = BlocklistAIInputModel::mock(Rc::new(TestInputModePolicy), ctx);
+            let suggestions_mode = add_suggestions_mode(ctx, TuiInputSuggestionsMode::Closed);
+            let available = Rc::new(Cell::new(false));
+            let available_for_view = available.clone();
+            let (_window_id, view) = ctx.add_tui_window(
+                AddWindowOptions {
+                    window_style: WindowStyle::NotStealFocus,
+                    ..Default::default()
+                },
+                move |ctx| {
+                    let model = ctx.add_model(|ctx| CodeEditorModel::new_tui(W, ctx));
+                    TuiInputView::new_for_test(
+                        model,
+                        input_mode,
+                        suggestions_mode,
+                        Vec::new(),
+                        move |_| available_for_view.get(),
+                        ctx,
+                    )
+                },
+            );
+            let requests = Rc::new(RefCell::new(0usize));
+            let captured = requests.clone();
+            ctx.subscribe_to_view(&view, move |_, event, _| {
+                if let TuiInputViewEvent::MoveFocusUp = event {
+                    *captured.borrow_mut() += 1;
+                }
+            });
+            (view, requests, available)
+        });
+
+        app.update(|ctx| {
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::SelectUp)],
+            );
+        });
+        assert_eq!(*requests.borrow(), 0);
+
+        available.set(true);
+        app.update(|ctx| {
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::SelectUp)],
+            );
+        });
+        assert_eq!(*requests.borrow(), 1);
+
+        app.update(|ctx| {
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::Editor(TuiEditorAction::InsertText(
+                    "first\nsecond".to_string(),
+                ))],
+            );
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::SelectUp)],
+            );
+        });
+        assert_eq!(
+            *requests.borrow(),
+            1,
+            "second visual row stays in the input"
+        );
+
+        app.update(|ctx| {
+            view.update(ctx, |view, ctx| view.clear(ctx));
+            type_str(&view, ctx, "abc");
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::SelectLeft)],
+            );
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::SelectUp)],
+            );
+        });
+        assert_eq!(*requests.borrow(), 1, "active selection stays in the input");
+    });
+}
+
+#[test]
 fn clear_selection_collapses_to_head_without_changing_text() {
     App::test((), |mut app| async move {
         app.update(|ctx| {
@@ -440,7 +748,10 @@ fn clear_selection_collapses_to_head_without_changing_text() {
 }
 
 fn type_str(view: &ViewHandle<TuiInputView>, ctx: &mut AppContext, s: &str) {
-    let actions: Vec<TuiInputAction> = s.chars().map(TuiInputAction::InsertChar).collect();
+    let actions: Vec<TuiInputAction> = s
+        .chars()
+        .map(|c| TuiInputAction::Editor(TuiEditorAction::InsertChar(c)))
+        .collect();
     dispatch(view, ctx, &actions);
 }
 
@@ -512,6 +823,91 @@ fn is_drag_selecting(view: &ViewHandle<TuiInputView>, ctx: &AppContext) -> bool 
 }
 
 #[test]
+fn move_left_on_empty_buffer_opens_conversation_menu() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            let (view, menu_model, inline_menu) = build_view_with_conversation_menu(ctx);
+            assert!(!menu_model.as_ref(ctx).is_open);
+
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft)],
+            );
+
+            assert!(menu_model.as_ref(ctx).is_open);
+            let lines = render_element_lines(
+                inline_menu
+                    .render(ctx)
+                    .expect("open conversation menu should render"),
+                ctx,
+                40,
+                4,
+            );
+            assert_eq!(lines[0].trim(), "Conversations");
+            assert!(lines
+                .iter()
+                .any(|line| line.trim() == "No conversations found"));
+            assert_eq!(cursor_and_height(&view, ctx).0, Some((0, 0)));
+        });
+    });
+}
+
+#[test]
+fn move_left_on_non_empty_buffer_only_moves_cursor() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            let (view, menu_model, _) = build_view_with_conversation_menu(ctx);
+            type_str(&view, ctx, "ab");
+            assert_eq!(cursor_and_height(&view, ctx).0, Some((2, 0)));
+
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft)],
+            );
+
+            assert!(!menu_model.as_ref(ctx).is_open);
+            assert_eq!(cursor_and_height(&view, ctx).0, Some((1, 0)));
+            assert!(render_input_buffer(&view, ctx).to_lines()[0].starts_with("ab"));
+        });
+    });
+}
+
+/// The `!` shell prefix is not part of `plain_text`, so an empty shell command
+/// must not trip the empty-buffer Left branch: Left in shell mode stays a plain
+/// cursor move and never opens the conversation picker.
+#[test]
+fn move_left_in_shell_mode_does_not_open_conversation_menu() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            let (view, menu_model, _) = build_view_with_conversation_menu(ctx);
+            type_str(&view, ctx, "!");
+            assert!(view.as_ref(ctx).is_shell_mode(ctx));
+            assert!(
+                view.as_ref(ctx).is_empty(ctx),
+                "the `!` prefix is not buffered"
+            );
+
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft)],
+            );
+
+            assert!(
+                !menu_model.as_ref(ctx).is_open,
+                "Left in shell mode must not open the conversation picker"
+            );
+            assert!(
+                view.as_ref(ctx).is_shell_mode(ctx),
+                "input stays in shell mode"
+            );
+        });
+    });
+}
+
+#[test]
 fn cursor_at_origin_when_empty() {
     App::test((), |mut app| async move {
         app.update(|ctx| {
@@ -536,12 +932,12 @@ fn navigation_on_empty_buffer_does_not_panic() {
                 &view,
                 ctx,
                 &[
-                    TuiInputAction::MoveToLineStart,
-                    TuiInputAction::MoveToLineEnd,
-                    TuiInputAction::MoveLeft,
-                    TuiInputAction::MoveRight,
-                    TuiInputAction::MoveUp,
-                    TuiInputAction::MoveDown,
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveToLineStart),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveToLineEnd),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveRight),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveUp),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveDown),
                 ],
             );
             let (cursor, height) = cursor_and_height(&view, ctx);
@@ -573,7 +969,13 @@ fn cursor_renders_at_start_of_new_line() {
         app.update(|ctx| {
             let view = build_view(ctx);
             type_str(&view, ctx, "ab");
-            dispatch(&view, ctx, &[TuiInputAction::InsertNewline]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::InsertNewline,
+                )],
+            );
             let (cursor, height) = cursor_and_height(&view, ctx);
             assert_eq!(cursor, Some((0, 1)), "cursor should be at row 1, col 0");
             assert!(height >= 2, "two visual rows expected, got height {height}");
@@ -593,7 +995,10 @@ fn interior_empty_line_does_not_collapse() {
             dispatch(
                 &view,
                 ctx,
-                &[TuiInputAction::InsertNewline, TuiInputAction::InsertNewline],
+                &[
+                    TuiInputAction::EditorCommand(TuiEditorCommand::InsertNewline),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::InsertNewline),
+                ],
             );
             type_str(&view, ctx, "b");
             let (cursor, height) = cursor_and_height(&view, ctx);
@@ -614,11 +1019,18 @@ fn move_up_through_empty_line_positions_cursor() {
             dispatch(
                 &view,
                 ctx,
-                &[TuiInputAction::InsertNewline, TuiInputAction::InsertNewline],
+                &[
+                    TuiInputAction::EditorCommand(TuiEditorCommand::InsertNewline),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::InsertNewline),
+                ],
             );
             type_str(&view, ctx, "b");
             // Cursor on row 2 ("b"); move up to the empty row 1.
-            dispatch(&view, ctx, &[TuiInputAction::MoveUp]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::MoveUp)],
+            );
             let (cursor, height) = cursor_and_height(&view, ctx);
             assert_eq!(height, 3);
             assert_eq!(
@@ -642,9 +1054,18 @@ fn kill_to_line_end_from_midline() {
             dispatch(
                 &view,
                 ctx,
-                &[TuiInputAction::MoveLeft, TuiInputAction::MoveLeft],
+                &[
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft),
+                ],
             );
-            dispatch(&view, ctx, &[TuiInputAction::KillToLineEnd]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::KillToLineEnd,
+                )],
+            );
             assert_eq!(text(&view, ctx), "ab");
         });
     });
@@ -657,7 +1078,13 @@ fn kill_to_line_end_at_eol_is_noop() {
         app.update(|ctx| {
             let view = build_view(ctx);
             type_str(&view, ctx, "abcd");
-            dispatch(&view, ctx, &[TuiInputAction::KillToLineEnd]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::KillToLineEnd,
+                )],
+            );
             assert_eq!(text(&view, ctx), "abcd");
         });
     });
@@ -674,9 +1101,18 @@ fn kill_to_line_start_from_midline() {
             dispatch(
                 &view,
                 ctx,
-                &[TuiInputAction::MoveLeft, TuiInputAction::MoveLeft],
+                &[
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft),
+                ],
             );
-            dispatch(&view, ctx, &[TuiInputAction::KillToLineStart]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::KillToLineStart,
+                )],
+            );
             assert_eq!(text(&view, ctx), "cd");
         });
     });
@@ -692,10 +1128,23 @@ fn kill_then_yank_round_trips() {
             dispatch(
                 &view,
                 ctx,
-                &[TuiInputAction::MoveLeft, TuiInputAction::MoveLeft],
+                &[
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft),
+                    TuiInputAction::EditorCommand(TuiEditorCommand::MoveLeft),
+                ],
             );
-            dispatch(&view, ctx, &[TuiInputAction::KillToLineEnd]); // kills "cd" -> "ab"
-            dispatch(&view, ctx, &[TuiInputAction::Yank]); // yanks "cd" -> "abcd"
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::KillToLineEnd,
+                )],
+            ); // kills "cd" -> "ab"
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(TuiEditorCommand::Yank)],
+            ); // yanks "cd" -> "abcd"
             assert_eq!(text(&view, ctx), "abcd");
         });
     });
@@ -728,7 +1177,13 @@ fn select_word_left_selects_previous_word() {
         app.update(|ctx| {
             let view = build_view(ctx);
             type_str(&view, ctx, "hello world");
-            dispatch(&view, ctx, &[TuiInputAction::SelectWordLeft]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::SelectWordLeft,
+                )],
+            );
             assert_eq!(selected_text(&view, ctx).as_deref(), Some("world"));
         });
     });
@@ -741,8 +1196,20 @@ fn select_word_right_selects_next_word() {
         app.update(|ctx| {
             let view = build_view(ctx);
             type_str(&view, ctx, "hello world");
-            dispatch(&view, ctx, &[TuiInputAction::MoveToLineStart]);
-            dispatch(&view, ctx, &[TuiInputAction::SelectWordRight]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::MoveToLineStart,
+                )],
+            );
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::SelectWordRight,
+                )],
+            );
             assert_eq!(selected_text(&view, ctx).as_deref(), Some("hello"));
         });
     });
@@ -755,12 +1222,30 @@ fn move_to_line_start_and_end_multiline() {
         app.update(|ctx| {
             let view = build_view(ctx);
             type_str(&view, ctx, "abc");
-            dispatch(&view, ctx, &[TuiInputAction::InsertNewline]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::InsertNewline,
+                )],
+            );
             type_str(&view, ctx, "def");
             // Cursor is at end of "def" (row 1, col 3).
-            dispatch(&view, ctx, &[TuiInputAction::MoveToLineStart]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::MoveToLineStart,
+                )],
+            );
             assert_eq!(cursor_and_height(&view, ctx).0, Some((0, 1)));
-            dispatch(&view, ctx, &[TuiInputAction::MoveToLineEnd]);
+            dispatch(
+                &view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::MoveToLineEnd,
+                )],
+            );
             assert_eq!(cursor_and_height(&view, ctx).0, Some((3, 1)));
         });
     });
@@ -924,7 +1409,13 @@ fn scroll_wheel(x: u16, y: u16, delta_rows: isize) -> TuiEvent {
 fn type_lines(view: &ViewHandle<TuiInputView>, ctx: &mut AppContext, n: usize) {
     for i in 0..n {
         if i > 0 {
-            dispatch(view, ctx, &[TuiInputAction::InsertNewline]);
+            dispatch(
+                view,
+                ctx,
+                &[TuiInputAction::EditorCommand(
+                    TuiEditorCommand::InsertNewline,
+                )],
+            );
         }
         type_str(view, ctx, &i.to_string());
     }
@@ -946,6 +1437,33 @@ fn laid_out_element(
     let size = element.layout(TuiConstraint::loose(TuiSize::new(W, 20)), &mut lctx, ctx);
     (element, TuiRect::new(0, 0, size.width, size.height))
 }
+struct FocusTarget;
+
+impl Entity for FocusTarget {
+    type Event = ();
+}
+
+impl TuiView for FocusTarget {
+    fn ui_name() -> &'static str {
+        "FocusTarget"
+    }
+
+    fn render(&self, _ctx: &AppContext) -> Box<dyn TuiElement> {
+        TuiText::new("").finish()
+    }
+}
+
+fn printable_key(character: char) -> TuiEvent {
+    TuiEvent::KeyDown {
+        keystroke: Keystroke {
+            key: character.to_string(),
+            ..Default::default()
+        },
+        chars: character.to_string(),
+        details: KeyEventDetails::default(),
+        is_composing: false,
+    }
+}
 
 /// Paints `element` and returns its retained scene.
 fn paint_event_scene(element: &mut dyn TuiElement, area: TuiRect) -> Rc<TuiScene> {
@@ -962,6 +1480,42 @@ fn paint_event_scene(element: &mut dyn TuiElement, area: TuiRect) -> Rc<TuiScene
     }
     Rc::new(paint_ctx.scene.clone())
 }
+fn dispatch_element_event(
+    view: &ViewHandle<TuiInputView>,
+    ctx: &AppContext,
+    event: &TuiEvent,
+) -> bool {
+    let (mut element, area) = laid_out_element(view, ctx);
+    let scene = paint_event_scene(&mut element, area);
+    let mut rendered_views = EntityIdMap::default();
+    let mut event_ctx = TuiEventContext::new(scene, &mut rendered_views);
+    event_ctx.set_origin_view(Some(view.id()));
+    element.dispatch_event(event, &mut event_ctx, ctx)
+}
+
+#[test]
+fn printable_input_is_accepted_only_while_focused() {
+    App::test((), |mut app| async move {
+        let view = app.update(build_view);
+
+        assert!(app.read(|ctx| view.is_focused(ctx)));
+        assert!(app.read(|ctx| dispatch_element_event(&view, ctx, &printable_key('a'))));
+        assert_eq!(
+            app.read(|ctx| cursor_and_height(&view, ctx).0),
+            Some((0, 0))
+        );
+
+        let focus_target = view.update(&mut app, |_, ctx| ctx.add_tui_view(|_| FocusTarget));
+        focus_target.update(&mut app, |_, ctx| ctx.focus_self());
+
+        assert!(!app.read(|ctx| view.is_focused(ctx)));
+        assert!(!app.read(|ctx| dispatch_element_event(&view, ctx, &printable_key('b'))));
+        assert_eq!(app.read(|ctx| cursor_and_height(&view, ctx).0), None);
+
+        view.update(&mut app, |_, ctx| ctx.focus_self());
+        assert!(app.read(|ctx| dispatch_element_event(&view, ctx, &printable_key('c'))));
+    });
+}
 
 /// Drives the full mouse path for `event`: lay out the element, map the event to
 /// its editor action, and apply the corresponding [`TuiInputAction`] to the view.
@@ -976,7 +1530,7 @@ fn mouse(view: &ViewHandle<TuiInputView>, ctx: &mut AppContext, event: &TuiEvent
     };
     match action {
         Some(action) => {
-            dispatch(view, ctx, &[TuiInputAction::from(action)]);
+            dispatch(view, ctx, &[TuiInputAction::Editor(action)]);
             true
         }
         None => false,
@@ -1122,13 +1676,23 @@ fn drag_past_last_visible_row_autoscrolls() {
             // 10 logical lines, exceeding the 6-row viewport.
             for i in 0..10 {
                 if i > 0 {
-                    dispatch(&view, ctx, &[TuiInputAction::InsertNewline]);
+                    dispatch(
+                        &view,
+                        ctx,
+                        &[TuiInputAction::EditorCommand(
+                            TuiEditorCommand::InsertNewline,
+                        )],
+                    );
                 }
                 type_str(&view, ctx, &i.to_string());
             }
             // Scroll back to the top.
             for _ in 0..9 {
-                dispatch(&view, ctx, &[TuiInputAction::MoveUp]);
+                dispatch(
+                    &view,
+                    ctx,
+                    &[TuiInputAction::EditorCommand(TuiEditorCommand::MoveUp)],
+                );
             }
             assert_eq!(scroll_offset(&view, ctx), 0);
 
@@ -1232,6 +1796,71 @@ fn bang_at_start_enters_shell_mode() {
     });
 }
 
+#[test]
+fn explicit_shell_mode_survives_deleting_the_buffer() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            let view = build_view(ctx);
+            type_str(&view, ctx, "!cargo");
+            for _ in 0.."cargo".chars().count() {
+                dispatch(
+                    &view,
+                    ctx,
+                    &[TuiInputAction::EditorCommand(TuiEditorCommand::Backspace)],
+                );
+            }
+
+            assert_eq!(text(&view, ctx), "");
+            assert!(view.as_ref(ctx).is_shell_mode(ctx));
+        });
+    });
+}
+
+#[test]
+fn autodetected_unlocked_shell_uses_shell_mode_ui() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            let view = build_view(ctx);
+            let input_mode = view.as_ref(ctx).input_mode.clone();
+            input_mode.update(ctx, |input_mode, ctx| {
+                input_mode.set_input_config(
+                    InputConfig {
+                        input_type: InputType::Shell,
+                        is_locked: false,
+                    },
+                    false,
+                    None,
+                    ctx,
+                );
+            });
+
+            assert!(view.as_ref(ctx).is_shell_mode(ctx));
+            let mut element = view.as_ref(ctx).render(ctx);
+            let mut rendered_views = EntityIdMap::default();
+            let mut layout_ctx = TuiLayoutContext {
+                rendered_views: &mut rendered_views,
+            };
+            let size = element.layout(
+                TuiConstraint::loose(TuiSize::new(W, 20)),
+                &mut layout_ctx,
+                ctx,
+            );
+            let area = TuiRect::new(0, 0, size.width, size.height);
+            let mut buffer = TuiBuffer::empty(area);
+            let mut paint_ctx = TuiPaintContext::new(&mut rendered_views);
+            {
+                let mut surface = TuiPaintSurface::new(&mut buffer);
+                element.render(
+                    TuiScreenPosition::new(i32::from(area.x), i32::from(area.y)),
+                    &mut surface,
+                    &mut paint_ctx,
+                );
+            }
+            assert!(buffer.to_lines()[0].starts_with("! "));
+        });
+    });
+}
+
 /// A `!` typed anywhere but the buffer start inserts literally.
 #[test]
 fn bang_mid_text_inserts_literally() {
@@ -1304,13 +1933,13 @@ fn keymap_context_flags_shell_mode() {
             let view = build_view(ctx);
             assert_eq!(
                 view.as_ref(ctx).keymap_context(ctx),
-                input_keymap_context(false)
+                input_keymap_context(false, false, false)
             );
 
             type_str(&view, ctx, "!");
             assert_eq!(
                 view.as_ref(ctx).keymap_context(ctx),
-                input_keymap_context(true)
+                input_keymap_context(true, false, false)
             );
         });
     });
@@ -1393,9 +2022,10 @@ fn shell_mode_offsets_mouse_mapping_by_gutter() {
                 let event_ctx = TuiEventContext::new(scene, &mut rendered_views);
                 element
                     .mouse_action(&left_down(2 + 3, 0, 1, false), &event_ctx, ctx)
-                    .map(TuiInputAction::from)
+                    .map(TuiInputAction::Editor)
             };
-            let Some(TuiInputAction::SelectionStartAt { offset }) = action else {
+            let Some(TuiInputAction::Editor(TuiEditorAction::SelectionStartAt { offset })) = action
+            else {
                 panic!("expected SelectionStartAt, got {action:?}");
             };
             // Screen column 5 = content column 3 = gap offset 4 (1-based).

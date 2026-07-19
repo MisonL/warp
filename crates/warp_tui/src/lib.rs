@@ -9,6 +9,7 @@
 
 mod agent_block;
 mod agent_block_sections;
+mod agent_message;
 mod alt_screen_view;
 mod autoupdate;
 mod clipboard;
@@ -16,12 +17,15 @@ pub mod input;
 pub mod root_view;
 pub mod session;
 mod telemetry;
+mod tui_ask_question_view;
 mod tui_builder;
 mod ui;
 
 mod conversation_menu;
 mod conversation_selection;
 mod editor_element;
+mod editor_interaction;
+mod editor_view;
 mod exit_confirmation;
 mod inline_menu;
 mod input_mode_policy;
@@ -30,9 +34,15 @@ mod keybindings;
 mod localization;
 mod mcp_menu;
 mod model_menu;
+mod option_selector;
+mod orchestrated_agent_identity_styling;
+mod orchestration_block;
+mod orchestration_model;
 mod resume;
+mod session_registry;
 mod skills_menu;
 mod slash_commands;
+pub mod tab_bar;
 mod terminal_background;
 mod terminal_block;
 mod terminal_content_element;
@@ -45,15 +55,12 @@ mod transcript_view;
 mod transient_hint;
 mod tui_block_list_viewport_source;
 mod tui_cli_subagent_view;
-// The view's production consumer lands in the next PR in this stack.
-#[allow(dead_code)]
 mod tui_code_block_view;
 mod tui_column_layout;
 mod tui_diff_storage;
 mod tui_file_edits_view;
-// The renderer's production consumer lands in a follow-up change.
-#[allow(dead_code)]
 mod tui_markdown;
+mod tui_plan_view;
 mod tui_shell_command_view;
 mod usage;
 mod warping_indicator;

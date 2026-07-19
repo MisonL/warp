@@ -37,12 +37,11 @@ use crate::auth::auth_view_shared_helpers::{
 };
 use crate::auth::login_failure_notification::{self, LoginFailureReason};
 use crate::editor::{EditorView, SingleLineEditorOptions, TextColors, TextOptions};
-use crate::localization;
 use crate::server::telemetry::{LoginEventSource, TelemetryEvent};
 use crate::settings::PrivacySettings;
 use crate::themes::theme::Fill as ThemeFill;
 use crate::util::bindings::CustomAction;
-use crate::{send_telemetry_from_ctx, send_telemetry_sync_from_ctx};
+use crate::{localization, send_telemetry_from_ctx, send_telemetry_sync_from_ctx};
 
 const TOS_URL: &str = "https://www.warp.dev/terms-of-service";
 

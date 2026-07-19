@@ -16,7 +16,6 @@ use warpui::{
 };
 
 use super::config::{QuakeModeWindow, ThemeType};
-use crate::localization;
 use crate::settings::import::config::{Config, ParsedTerminalSetting, SettingType};
 use crate::settings::import::model::{ImportedConfigModel, TerminalTypeAndProfile};
 use crate::settings::{
@@ -30,7 +29,7 @@ use crate::themes::theme::{CustomTheme, SelectedSystemThemes, ThemeKind};
 use crate::ui_components::blended_colors;
 use crate::user_config::{self, WarpConfig};
 use crate::window_settings::WindowSettings;
-use crate::{send_telemetry_from_ctx, GlobalResourceHandlesProvider, TelemetryEvent};
+use crate::{localization, send_telemetry_from_ctx, GlobalResourceHandlesProvider, TelemetryEvent};
 
 fn setting_type_name(setting_type: &SettingType, app: &warpui::AppContext) -> String {
     let key = match setting_type {

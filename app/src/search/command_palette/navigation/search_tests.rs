@@ -1,8 +1,9 @@
+use warp_localization::LocaleId;
+
 use super::full_text_searcher::byte_indices_to_char_indices;
 use super::{SearchableSessionStringRanges, SessionHighlightIndices};
 use crate::search::command_palette::navigation::render::CommandRenderInfo;
 use crate::session_management::CommandContext;
-use warp_localization::LocaleId;
 
 #[test]
 fn command_render_info_localizes_status_text() {

@@ -57,3 +57,25 @@ fn bundled_simplified_chinese_templates_are_available() {
         assert_eq!(text_for_locale(LocaleId::ZhCn, key), expected);
     }
 }
+
+#[test]
+fn bundled_simplified_chinese_covers_new_tui_surfaces() {
+    for (key, expected) in [
+        ("tui.agent_message.orchestrator", "协调 Agent"),
+        ("tui.ask_question.title", "Agent 问题"),
+        ("tui.orchestration.binding.next_tab", "选择下一个编排标签页"),
+        ("tui.orchestration.option.default_model", "默认模型"),
+        ("tui.plan.updated", "已更新计划"),
+        ("tui.rich_text.code_unavailable", "[代码块不可用]"),
+    ] {
+        assert_eq!(text_for_locale(LocaleId::ZhCn, key), expected);
+    }
+    assert_eq!(
+        text_with_args_for_locale(
+            LocaleId::ZhCn,
+            "tui.tool.awaiting_approval",
+            &[("label", "运行 `cargo test`")],
+        ),
+        "运行 `cargo test`（等待批准）",
+    );
+}

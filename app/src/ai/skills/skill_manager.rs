@@ -10,6 +10,8 @@ pub use file_watchers::{
     extract_skill_parent_directory, read_skills_from_directories, SkillWatcher, SkillWatcherEvent,
 };
 use warp_core::features::FeatureFlag;
+#[cfg(test)]
+use warp_localization::LocaleId;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
@@ -23,8 +25,6 @@ use super::bundled::{BundledSkill, BundledSkills};
 use super::{ActiveSkillLookupError, SkillDescriptor, SkillManagerEvent, SkillPathQuery};
 use crate::ai::skills::skill_utils::SkillDeduplicator;
 use crate::localization::current_locale;
-#[cfg(test)]
-use warp_localization::LocaleId;
 
 #[cfg(test)]
 const _BUNDLED_SKILL_LOCALIZATION_SENTINELS: &[&str] = &[

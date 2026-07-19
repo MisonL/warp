@@ -10,12 +10,13 @@ use warp::tui_export::{
     StartAgentExecutionMode, SuggestNewConversationResult,
 };
 use warp_core::command::ExitCode;
+use warpui_core::elements::tui::TuiStyle;
 
 use self::ToolCallDisplayState as State;
-
 #[path = "tool_call_labels_actions.rs"]
 mod actions;
 use crate::localization;
+use crate::tui_builder::TuiUiBuilder;
 
 /// Ground-truth state of the terminal block backing a shell-command tool
 /// call, resolved by the caller. When a block exists, its state supersedes
@@ -46,27 +47,54 @@ pub(crate) struct ResolvedCommandBlock {
 /// so tool-call rows stay scannable one-liners.
 const MAX_INLINE_LEN: usize = 80;
 
-/// The coarse display state of a tool call, derived from its action status.
-///
-/// TUI-local presentation collapse of the shared [`AIActionStatus`]; the GUI
-/// has no equivalent enum — its per-tool views consume `AIActionStatus`
-/// directly and re-derive per-site booleans (queued/cancelled/streaming).
+/// Coarse presentation state for a tool call.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ToolCallDisplayState {
-    /// The tool call's arguments are still streaming in: it has no action
-    /// status yet and the exchange output is still streaming, so argument
-    /// fields may be empty or partial and must not be interpolated.
+    /// The tool call's arguments are still streaming and may be incomplete.
     Constructing,
-    /// No status yet (stream finished), preprocessing, or queued behind
-    /// other actions.
+    /// The tool call is waiting to begin execution.
     Pending,
-    /// Blocked on user confirmation.
-    AwaitingApproval,
-    /// Executing asynchronously.
+    /// The tool call is blocked on user confirmation.
+    Blocked,
+    /// The tool call is executing asynchronously.
     Running,
     Succeeded,
     Failed,
     Cancelled,
+}
+
+impl ToolCallDisplayState {
+    /// The compact leading glyph for this state.
+    pub(crate) fn glyph(self) -> &'static str {
+        match self {
+            Self::Constructing | Self::Pending => "○",
+            Self::Blocked | Self::Cancelled => "■",
+            Self::Running => "●",
+            Self::Succeeded => "✓",
+            Self::Failed => "×",
+        }
+    }
+
+    /// The semantic theme style for this state's glyph.
+    pub(crate) fn glyph_style(self, builder: &TuiUiBuilder) -> TuiStyle {
+        match self {
+            Self::Constructing | Self::Pending => builder.dim_text_style(),
+            Self::Blocked | Self::Running => builder.attention_glyph_style(),
+            Self::Succeeded => builder.success_glyph_style(),
+            Self::Failed => builder.error_text_style(),
+            Self::Cancelled => builder.muted_text_style(),
+        }
+    }
+
+    /// The semantic text style paired with this state.
+    pub(crate) fn label_style(self, builder: &TuiUiBuilder) -> TuiStyle {
+        match self {
+            Self::Constructing | Self::Pending => builder.dim_text_style(),
+            Self::Blocked | Self::Running | Self::Succeeded | Self::Failed | Self::Cancelled => {
+                builder.primary_text_style()
+            }
+        }
+    }
 }
 
 /// Collapses an optional action status into the coarse display state.
@@ -95,10 +123,11 @@ pub(crate) fn tool_call_display_state(
         }
         None => {}
     }
+
     match status {
         None if output_streaming => State::Constructing,
         None | Some(AIActionStatus::Preprocessing | AIActionStatus::Queued) => State::Pending,
-        Some(AIActionStatus::Blocked) => State::AwaitingApproval,
+        Some(AIActionStatus::Blocked) => State::Blocked,
         Some(AIActionStatus::RunningAsync) => State::Running,
         Some(finished @ AIActionStatus::Finished(_)) => {
             if finished.is_cancelled() {
@@ -109,21 +138,6 @@ pub(crate) fn tool_call_display_state(
                 State::Succeeded
             }
         }
-    }
-}
-
-/// The leading status glyph for a tool-call row; the caller colors it to
-/// mirror the GUI's inline action icons (`action_icon` in the GUI's
-/// `output.rs`): grey circle while pending, yellow block awaiting approval,
-/// yellow dot running, green check on success, red x on failure, grey block
-/// on cancellation.
-pub(crate) fn tool_call_glyph(state: ToolCallDisplayState) -> &'static str {
-    match state {
-        State::Constructing | State::Pending => "○",
-        State::AwaitingApproval | State::Cancelled => "■",
-        State::Running => "●",
-        State::Succeeded => "✓",
-        State::Failed => "✗",
     }
 }
 
@@ -139,8 +153,9 @@ pub(crate) fn tool_call_label(
         .and_then(AIActionStatus::finished_result)
         .map(|result| &result.result);
     let label = actions::label_for_action(&action.action, state, result, block);
+
     match state {
-        State::AwaitingApproval => {
+        State::Blocked => {
             localization::text_with_args("tui.tool.awaiting_approval", &[("label", &label)])
         }
         State::Constructing
@@ -162,9 +177,10 @@ fn file_glob_label(
 ) -> String {
     let patterns = single_line(&patterns.join(", "));
     let path = display_path(path.unwrap_or("."));
+
     match state {
         State::Constructing => localization::text("tui.tool.file_glob.preparing"),
-        State::Pending | State::AwaitingApproval => localization::text_with_args(
+        State::Pending | State::Blocked => localization::text_with_args(
             "tui.tool.file_glob.start",
             &[("patterns", &patterns), ("path", &path)],
         ),
@@ -210,7 +226,7 @@ fn summary_label(summary: &str, state: ToolCallDisplayState) -> String {
     let summary = single_line(summary);
     match state {
         State::Constructing => localization::text("tui.tool.computer.preparing"),
-        State::Pending | State::AwaitingApproval | State::Running | State::Succeeded => summary,
+        State::Pending | State::Blocked | State::Running | State::Succeeded => summary,
         State::Failed => {
             localization::text_with_args("tui.tool.generic.failed", &[("label", &summary)])
         }
@@ -224,7 +240,7 @@ fn summary_label(summary: &str, state: ToolCallDisplayState) -> String {
 /// action's user-friendly name.
 fn fallback_label(name: String, state: ToolCallDisplayState) -> String {
     match state {
-        State::Pending | State::AwaitingApproval => name,
+        State::Pending | State::Blocked => name,
         State::Constructing | State::Running => {
             localization::text_with_args("tui.tool.generic.running", &[("label", &name)])
         }

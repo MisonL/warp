@@ -1201,13 +1201,6 @@ impl SettingsWidget for IapCredentialsWidget {
                 ),
                 ansi_red,
             ),
-            IapCredentialsState::EnvInjected { .. } => (
-                crate::localization::text_for_app(
-                    app,
-                    "settings.account.iap.status.using_injected_token",
-                ),
-                active,
-            ),
         };
 
         let is_refreshing = matches!(state, IapCredentialsState::Refreshing { .. });

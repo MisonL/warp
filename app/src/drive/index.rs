@@ -69,7 +69,6 @@ use crate::drive::panel::DrivePanelAction;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
 use crate::env_vars::CloudEnvVarCollection;
 use crate::features::FeatureFlag;
-use crate::localization;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::network::NetworkStatus;
 use crate::notebooks::CloudNotebookModel;
@@ -97,7 +96,7 @@ use crate::workspace::active_terminal_in_window;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::WorkspaceUid;
-use crate::{send_telemetry_from_ctx, ObjectActions};
+use crate::{localization, send_telemetry_from_ctx, ObjectActions};
 
 // Team zero state consts
 const HINT_HORIZONTAL_PADDING: f32 = 18.;

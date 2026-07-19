@@ -368,6 +368,7 @@ impl CodeSettingsPageView {
                 Box::new(GlobalSearchToggleWidget::default()),
                 Box::new(ShowHiddenFilesToggleWidget::default()),
                 Box::new(FormatOnSaveToggleWidget::default()),
+                Box::new(AutoSaveToggleWidget::default()),
             ]);
             let categories = vec![
                 Category::new(
@@ -462,6 +463,7 @@ impl CodeSettingsPageView {
                             Box::new(GlobalSearchToggleWidget::default()),
                             Box::new(ShowHiddenFilesToggleWidget::default()),
                             Box::new(FormatOnSaveToggleWidget::default()),
+                            Box::new(AutoSaveToggleWidget::default()),
                         ]);
                     }
                 }
@@ -516,6 +518,7 @@ impl CodeSettingsPageView {
                 Box::new(GlobalSearchToggleWidget::default()),
                 Box::new(ShowHiddenFilesToggleWidget::default()),
                 Box::new(FormatOnSaveToggleWidget::default()),
+                Box::new(AutoSaveToggleWidget::default()),
             ]);
             let categories = vec![
                 Category::new(
@@ -648,6 +651,7 @@ pub enum CodeSettingsPageAction {
     ToggleGlobalSearch,
     ToggleShowHiddenFiles,
     ToggleFormatOnSave,
+    ToggleAutoSave,
     /// Install (if needed) and enable a suggested LSP server.
     InstallAndEnableLspServer {
         workspace_path: PathBuf,
@@ -857,6 +861,12 @@ impl TypedActionView for CodeSettingsPageView {
             CodeSettingsPageAction::ToggleFormatOnSave => {
                 CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings.format_on_save.toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
+            CodeSettingsPageAction::ToggleAutoSave => {
+                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.auto_save.toggle_and_save_value(ctx));
                 });
                 ctx.notify();
             }
@@ -3134,6 +3144,49 @@ impl SettingsWidget for FormatOnSaveToggleWidget {
             Some(code_settings_text(
                 app,
                 "settings.code.editor.format_on_save.description",
+            )),
+        )
+    }
+}
+
+#[derive(Default)]
+struct AutoSaveToggleWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for AutoSaveToggleWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "auto save autosave automatically save editor files on type focus"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let code_settings = CodeSettings::as_ref(app);
+
+        render_body_item::<CodeSettingsPageAction>(
+            code_settings_text(app, "settings.code.editor.auto_save.label"),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*code_settings.auto_save)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(CodeSettingsPageAction::ToggleAutoSave);
+                })
+                .finish(),
+            Some(code_settings_text(
+                app,
+                "settings.code.editor.auto_save.description",
             )),
         )
     }

@@ -13,8 +13,6 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use crate::appearance::Appearance;
 use crate::context_chips::prompt::Prompt;
-use crate::localization;
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{PromptChoice, TelemetryEvent};
 use crate::settings::EnforceMinimumContrast;
 use crate::terminal::blockgrid_element::BlockGridElement;
@@ -23,6 +21,7 @@ use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::view::block_onboarding::util;
 use crate::terminal::SizeInfo;
+use crate::{localization, send_telemetry_from_ctx};
 
 const CONFIRM_MARGIN_TOP: f32 = 16.;
 

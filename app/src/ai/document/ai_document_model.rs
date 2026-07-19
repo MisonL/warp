@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use ai::agent::orchestration_config::{OrchestrationConfig, OrchestrationConfigStatus};
 use ai::diff_validation::DiffDelta;
+use ai::document::DEFAULT_PLANNING_DOCUMENT_TITLE;
 // TODO(vorporeal): Remove this re-export at some point.
 pub use ai::document::{AIDocumentId, AIDocumentVersion};
 use chrono::{DateTime, Local, Utc};
@@ -229,7 +230,7 @@ impl AIDocumentModel {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "tui", feature = "test-util")))]
     pub fn new_for_test() -> Self {
         let (save_tx, _save_rx) = async_channel::unbounded();
         Self {

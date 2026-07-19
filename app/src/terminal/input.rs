@@ -297,6 +297,7 @@ use crate::terminal::input::slash_command_model::{SlashCommandEntryState, SlashC
 use crate::terminal::input::slash_commands::{
     slash_command_is_submitted_as_prompt, CloudModeV2SlashCommandView, GuiSlashCommandDataSource,
     InlineSlashCommandView, SlashCommandDataSource as _, SlashCommandTrigger,
+    UpdatedActiveCommands,
 };
 use crate::terminal::input::suggestions_mode_model::{
     InputSuggestionsModeEvent, InputSuggestionsModeModel,
@@ -3475,6 +3476,13 @@ impl Input {
             };
             GuiSlashCommandDataSource::new(args, ctx)
         });
+        ctx.subscribe_to_model(
+            &slash_command_data_source,
+            |me, _, _: &UpdatedActiveCommands, ctx| {
+                me.set_zero_state_hint_text(ctx);
+                ctx.notify();
+            },
+        );
 
         let cloud_mode_composer_slash_command_data_source =
             if FeatureFlag::CloudModeInputV2.is_enabled() {
@@ -4471,10 +4479,7 @@ impl Input {
                     });
                 }
                 Err(e) => {
-                    report_error!(
-                        anyhow::Error::new(e).context("Failed to read file"),
-                        extra: { "path" => %file.file_path.display() }
-                    );
+                    log::warn!("Failed to read file {}: {e}", file.file_path.display());
                 }
             }
         }
@@ -5992,9 +5997,9 @@ impl Input {
                     }
                 };
 
-                report_error!(
-                    anyhow::Error::new(error).context("Failed to write conversation to file"),
-                    extra: { "path" => %path.display() }
+                log::error!(
+                    "Failed to write conversation to file {}: {error}",
+                    path.display()
                 );
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
@@ -7003,6 +7008,24 @@ impl Input {
     }
 
     pub fn set_zero_state_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
+        let slash_command_hint_prefixes = COMMAND_REGISTRY
+            .all_commands()
+            .filter(|command| {
+                command
+                    .argument
+                    .as_ref()
+                    .and_then(|argument| argument.hint_text)
+                    .is_some()
+            })
+            .map(|command| format!("{} ", command.name))
+            .collect_vec();
+
+        self.editor.update(ctx, |editor, ctx| {
+            for prefix in slash_command_hint_prefixes {
+                editor.clear_placeholder_text_with_prefix(&prefix, ctx);
+            }
+        });
+
         if CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id) {
             let hint = self.cli_agent_rich_input_hint_text(ctx);
             self.editor.update(ctx, |editor, ctx| {
@@ -7070,12 +7093,23 @@ impl Input {
 
         let toggled_on = *InputSettings::as_ref(ctx).show_hint_text;
 
-        // Loop through all static commands and set placeholders for those with hint text
+        let slash_command_placeholders = self
+            .slash_command_data_source
+            .as_ref(ctx)
+            .active_commands()
+            .filter_map(|(_, command)| {
+                command
+                    .argument
+                    .as_ref()
+                    .and_then(|argument| argument.hint_text)
+                    .map(|hint_text| (command.name, hint_text))
+            })
+            .collect_vec();
+
+        // Loop through active static commands and set placeholders for those with hint text
         self.editor.update(ctx, |editor, ctx| {
-            for command in COMMAND_REGISTRY.all_commands() {
-                if let Some(hint) = command.argument_hint() {
-                    editor.set_placeholder_text_with_prefix(hint.input_prefix, hint.text, ctx);
-                }
+            for (command_name, hint_text) in slash_command_placeholders {
+                editor.set_placeholder_text_with_prefix(format!("{command_name} "), hint_text, ctx);
             }
         });
 
@@ -10195,17 +10229,7 @@ impl Input {
                             input_render_state_model.set_editor_modified_since_block_finished(true);
                         },
                     );
-
-                    if !self
-                        .model
-                        .lock()
-                        .block_list()
-                        .active_block()
-                        .has_received_precmd()
-                    {
-                        send_telemetry_from_ctx!(TelemetryEvent::EditedInputBeforePrecmd, ctx);
-                        ctx.notify();
-                    }
+                    ctx.notify();
                 }
 
                 let is_editor_empty = self.editor.as_ref(ctx).is_empty(ctx);
@@ -10911,17 +10935,9 @@ impl Input {
                 }
             }
             EditorEvent::AutosuggestionAccepted {
-                insertion_length,
-                buffer_char_length,
                 autosuggestion_type,
+                ..
             } => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::AutosuggestionInserted {
-                        insertion_length: *insertion_length,
-                        buffer_length: *buffer_char_length
-                    },
-                    ctx
-                );
                 ctx.emit(Event::AutosuggestionAccepted);
 
                 self.input_suggestions
@@ -11591,9 +11607,7 @@ impl Input {
         if let Err(e) = self.agent_view_controller.update(ctx, |controller, ctx| {
             controller.try_enter_agent_view(None, AgentViewEntryOrigin::ImageAdded, ctx)
         }) {
-            report_error!(
-                anyhow::Error::new(e).context("Failed to enter agent view when adding images")
-            );
+            log::warn!("Failed to enter agent view when adding images: {e}");
         }
     }
 
@@ -13826,9 +13840,9 @@ impl Input {
                     number_of_bottom_lines_per_grid,
                 )
             } else {
-                report_error!(
-                    "Failed to fetch predicted queries, could not find block with ID",
-                    extra: { "block_id" => ?block.serialized_block.id }
+                log::warn!(
+                    "Failed to fetch predicted queries, could not find block with ID {:?}",
+                    block.serialized_block.id
                 );
                 return;
             }
@@ -13860,9 +13874,7 @@ impl Input {
                 match server_api.predict_am_queries(&request).await {
                     Ok(resp) => Some(resp.suggestion),
                     Err(err) => {
-                        report_error!(
-                            anyhow::Error::new(err).context("Failed to fetch predicted queries")
-                        );
+                        log::warn!("Failed to fetch predicted queries: {err}");
                         None
                     }
                 }
@@ -14364,8 +14376,6 @@ impl Input {
             return;
         }
 
-        let has_requests_remaining = AIRequestUsageModel::as_ref(ctx).has_requests_remaining();
-
         let has_any_ai = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
         if !has_any_ai {
             AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
@@ -14374,15 +14384,6 @@ impl Input {
         }
 
         if PromptAlertView::does_alert_block_ai_requests(ctx) {
-            if !has_requests_remaining {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::AgentModeUserAttemptedQueryAtRequestLimit {
-                        limit: AIRequestUsageModel::as_ref(ctx).request_limit()
-                    },
-                    ctx
-                );
-            }
-
             AIRequestUsageModel::handle(ctx).update(ctx, |usage_model, ctx| {
                 // Rate limit requests to fetch the user's AI usage if triggered by enter
                 // keypress.
@@ -14680,10 +14681,7 @@ impl Input {
                     files_to_upload.push((file.file_name.clone(), file.mime_type.clone(), bytes));
                 }
                 Err(e) => {
-                    report_error!(
-                        anyhow::Error::new(e).context("Failed to read file"),
-                        extra: { "path" => %file.file_path.display() }
-                    );
+                    log::warn!("Failed to read file {}: {e}", file.file_path.display());
                 }
             }
         }
@@ -14704,9 +14702,8 @@ impl Input {
                 {
                     Ok(resp) => resp,
                     Err(e) => {
-                        report_error!(
-                            e.context("Failed to prepare attachment uploads for task"),
-                            extra: { "task_id" => %task_id }
+                        log::error!(
+                            "Failed to prepare attachment uploads for task {task_id}: {e:#}"
                         );
                         return None;
                     }
@@ -14732,16 +14729,13 @@ impl Input {
                             });
                         }
                         Ok(resp) => {
-                            report_error!(
-                                "Failed to upload attachment: unexpected HTTP status",
-                                extra: { "file_name" => %file_name, "status" => %resp.status() }
+                            log::warn!(
+                                "Failed to upload attachment {file_name}: unexpected HTTP status {}",
+                                resp.status()
                             );
                         }
                         Err(e) => {
-                            report_error!(
-                                anyhow::Error::new(e).context("Failed to upload attachment"),
-                                extra: { "file_name" => %file_name }
-                            );
+                            log::warn!("Failed to upload attachment {file_name}: {e}");
                         }
                     }
                 }

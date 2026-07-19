@@ -32,7 +32,6 @@ use crate::appearance::Appearance;
 use crate::editor::EditorView;
 use crate::features::FeatureFlag;
 use crate::launch_configs::launch_config::LaunchConfig;
-use crate::localization;
 use crate::menu::{MenuAction, MenuItem, MenuItemFields};
 use crate::pane_group::{PaneGroup, PaneId};
 use crate::shell_indicator::ShellIndicatorType;
@@ -53,7 +52,7 @@ use crate::workspace::tab_settings::{
 use crate::workspace::{
     PaneViewLocator, TabBarDropTargetData, TabBarLocation, TabContextMenuAnchor, WorkspaceAction,
 };
-use crate::BlocklistAIHistoryModel;
+use crate::{localization, BlocklistAIHistoryModel};
 
 pub const TAB_BAR_BORDER_HEIGHT: f32 = 1.0;
 pub(crate) const TAB_INDICATOR_HEIGHT: f32 = 14.0;
@@ -1033,24 +1032,16 @@ impl<'a> TabComponent<'a> {
             .pane_group
             .as_ref(ctx)
             .active_session_view(ctx)
-            .map(|view| {
-                let view = view.as_ref(ctx);
-                view.is_ambient_agent_session(ctx) || {
-                    let model = view.model.lock();
-                    model.is_shared_ambient_agent_session()
-                        || matches!(
-                            model.conversation_transcript_viewer_status(),
-                            Some(
-                                crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus::ViewingAmbientConversation(_)
-                            )
-                        )
-                }
-            })
+            .map(|view| view.as_ref(ctx).is_cloud_agent_session(ctx))
             .unwrap_or(false);
+        // Auto-save persists edits automatically, so the tab-level unsaved
+        // indicator is suppressed for changes it can persist (avoiding flicker
+        // as the user types); unsaveable changes (untitled buffers,
+        // disconnected remotes) still surface it.
         let active_pane_has_unsaved_code_changes = tab
             .pane_group
             .as_ref(ctx)
-            .has_active_code_pane_with_unsaved_changes(ctx);
+            .has_active_code_pane_with_unsaved_indicator(ctx);
         let is_being_shared = tab
             .pane_group
             .as_ref(ctx)

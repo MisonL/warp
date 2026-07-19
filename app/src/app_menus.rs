@@ -20,11 +20,9 @@ use warpui::windowing::WindowManager;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::auth;
 use crate::auth::AuthStateProvider;
 use crate::default_terminal::DefaultTerminal;
 use crate::features::{runtime_flags_menu_items, FeatureFlag};
-use crate::localization;
 use crate::root_view::OpenLaunchConfigArg;
 use crate::server::telemetry::LaunchConfigUiLocation;
 use crate::settings::{
@@ -38,6 +36,7 @@ use crate::user_config::WarpConfig;
 use crate::util::bindings::{self, trigger_to_keystroke, CustomAction};
 use crate::util::links;
 use crate::workspace::sync_inputs::SyncedInputState;
+use crate::{auth, localization};
 
 type CheckmarkStatusGetter = dyn 'static + Fn(&mut AppContext) -> bool;
 

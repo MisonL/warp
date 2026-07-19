@@ -1727,6 +1727,64 @@ fn test_ambient_agent_conversations_excluded_from_list_but_accessible_by_id() {
 }
 
 #[test]
+fn test_child_agent_conversations_excluded_from_list_but_accessible_by_id() {
+    use crate::ai::agent::conversation::AIConversation;
+
+    App::test((), |mut app| async move {
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+
+        let regular_id = AIConversationId::new();
+
+        // One child linked via a local parent placeholder, one via the
+        // parent's server-side run identifier (driver-hosted processes).
+        let mut local_child = AIConversation::new(false, false);
+        local_child.set_parent_conversation_id(AIConversationId::new());
+        let local_child_id = local_child.id();
+        let mut driver_child = AIConversation::new(false, false);
+        driver_child.set_parent_agent_id("parent-run-id".to_string());
+        let driver_child_id = driver_child.id();
+
+        history_model.update(&mut app, |model, _| {
+            let regular_metadata = AIConversationMetadata::from_server_metadata(
+                regular_id,
+                create_server_metadata(
+                    "Regular Conversation",
+                    "token-regular-child-test",
+                    5.0,
+                    None,
+                ),
+            );
+            model
+                .all_conversations_metadata
+                .insert(regular_id, regular_metadata);
+            model
+                .all_conversations_metadata
+                .insert(local_child_id, AIConversationMetadata::from(&local_child));
+            model
+                .all_conversations_metadata
+                .insert(driver_child_id, AIConversationMetadata::from(&driver_child));
+        });
+
+        history_model.read(&app, |model, _| {
+            let listed: Vec<AIConversationId> = model
+                .get_local_conversations_metadata()
+                .map(|m| m.id)
+                .collect();
+            assert_eq!(
+                listed,
+                vec![regular_id],
+                "child agent conversations must be excluded from the navigable list"
+            );
+
+            // Both children remain accessible by ID.
+            assert!(model.get_conversation_metadata(&local_child_id).is_some());
+            assert!(model.get_conversation_metadata(&driver_child_id).is_some());
+        });
+    });
+}
+
+#[test]
 fn test_initialize_historical_conversations_indexes_child_conversations() {
     use chrono::NaiveDateTime;
 
@@ -1864,6 +1922,66 @@ fn test_set_parent_multiple_children() {
             assert!(children.contains(&child_a));
             assert!(children.contains(&child_b));
             assert_eq!(model.child_conversations_of(parent_id).len(), 2);
+        });
+    });
+}
+
+#[test]
+fn test_remove_child_conversation_cleans_parent_index() {
+    App::test((), |mut app| async move {
+        let terminal_view_id = EntityId::new();
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let parent_id = history_model.update(&mut app, |model, ctx| {
+            model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+        });
+        let child_id = history_model.update(&mut app, |model, ctx| {
+            let child_id = model.start_new_conversation(terminal_view_id, false, false, false, ctx);
+            model.set_parent_for_conversation(child_id, parent_id);
+            child_id
+        });
+
+        history_model.update(&mut app, |model, ctx| {
+            model.remove_conversation(child_id, terminal_view_id, ctx);
+        });
+
+        history_model.read(&app, |model, _| {
+            assert!(model.conversation(&child_id).is_none());
+            assert!(model.child_conversation_ids_of(&parent_id).is_empty());
+        });
+    });
+}
+
+#[test]
+fn test_remove_parent_conversation_cleans_incoming_and_outgoing_index_entries() {
+    App::test((), |mut app| async move {
+        let terminal_view_id = EntityId::new();
+        let history_model =
+            app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], vec![], &[]));
+        let grandparent_id = history_model.update(&mut app, |model, ctx| {
+            model.start_new_conversation(terminal_view_id, false, false, false, ctx)
+        });
+        let parent_id = history_model.update(&mut app, |model, ctx| {
+            let parent_id =
+                model.start_new_conversation(terminal_view_id, false, false, false, ctx);
+            model.set_parent_for_conversation(parent_id, grandparent_id);
+            parent_id
+        });
+        let child_id = history_model.update(&mut app, |model, ctx| {
+            let child_id = model.start_new_conversation(terminal_view_id, false, false, false, ctx);
+            model.set_parent_for_conversation(child_id, parent_id);
+            child_id
+        });
+
+        history_model.update(&mut app, |model, ctx| {
+            model.remove_conversation(parent_id, terminal_view_id, ctx);
+        });
+
+        history_model.read(&app, |model, _| {
+            assert!(model.conversation(&parent_id).is_none());
+            assert!(model.conversation(&child_id).is_some());
+            assert!(model.child_conversation_ids_of(&grandparent_id).is_empty());
+            assert!(model.child_conversation_ids_of(&parent_id).is_empty());
         });
     });
 }

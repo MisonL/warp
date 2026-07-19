@@ -190,6 +190,7 @@ pub(crate) fn initialize_app(app: &mut App) {
         warp_server_client::iap::IapManager::new(
             None,
             Box::new(|_| futures::FutureExt::boxed(futures::future::ready(None::<String>))),
+            None,
             ctx,
         )
     });
@@ -3115,6 +3116,47 @@ fn test_tab_config_menu_disambiguates_by_localized_name() {
                 disambiguated_tab_config_display_names(&tab_configs, ctx),
                 vec!["同名配置".to_string(), "同名配置 (1)".to_string()]
             );
+        });
+    });
+}
+
+#[test]
+fn test_new_session_menu_is_capped_to_window_height() {
+    let _tab_configs_guard = FeatureFlag::TabConfigs.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            let window_height = ctx
+                .windows()
+                .platform_window(ctx.window_id())
+                .expect("expected workspace window")
+                .size()
+                .y();
+
+            workspace.open_new_session_dropdown_menu(
+                crate::workspace::action::NewSessionMenuAnchor::AddTabButton(Vector2F::zero()),
+                ctx,
+            );
+
+            let expected_height =
+                (window_height - NEW_SESSION_MENU_WINDOW_MARGIN - NEW_SESSION_MENU_CHROME_HEIGHT)
+                    .max(NEW_SESSION_MENU_MIN_HEIGHT);
+            let menu_height = workspace.new_session_menu_max_height(
+                crate::workspace::action::NewSessionMenuAnchor::AddTabButton(Vector2F::zero()),
+                ctx,
+            );
+
+            assert!((menu_height - expected_height).abs() < f32::EPSILON);
+
+            workspace.open_new_session_dropdown_menu(
+                crate::workspace::action::NewSessionMenuAnchor::AddTabButton(Vector2F::zero()),
+                ctx,
+            );
+            assert!(workspace.show_new_session_dropdown_menu.is_some());
         });
     });
 }

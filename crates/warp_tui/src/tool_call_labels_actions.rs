@@ -25,7 +25,7 @@ pub(super) fn label_for_action(
             let cmd = single_line(executed.unwrap_or(command));
             match state {
                 State::Constructing => localization::text("tui.tool.command.generating"),
-                State::Pending | State::AwaitingApproval => {
+                State::Pending | State::Blocked => {
                     localization::text_with_args("tui.tool.command.run", &[("command", &cmd)])
                 }
                 State::Running => {
@@ -78,9 +78,7 @@ pub(super) fn label_for_action(
         }
         AIAgentActionType::WriteToLongRunningShellCommand { .. } => match state {
             State::Constructing => localization::text("tui.tool.command_input.preparing"),
-            State::Pending | State::AwaitingApproval => {
-                localization::text("tui.tool.command_input.write")
-            }
+            State::Pending | State::Blocked => localization::text("tui.tool.command_input.write"),
             State::Running => localization::text("tui.tool.command_input.writing"),
             State::Succeeded => localization::text("tui.tool.command_input.wrote"),
             State::Failed => localization::text("tui.tool.command_input.failed"),
@@ -90,7 +88,7 @@ pub(super) fn label_for_action(
             let files = files_summary(request.locations.iter().map(|location| &location.name));
             match state {
                 State::Constructing => localization::text("tui.tool.files.reading"),
-                State::Pending | State::AwaitingApproval | State::Succeeded => {
+                State::Pending | State::Blocked | State::Succeeded => {
                     localization::text_with_args("tui.tool.files.read", &[("files", &files)])
                 }
                 State::Running => localization::text_with_args(
@@ -110,7 +108,7 @@ pub(super) fn label_for_action(
             let file = single_line(&request.file_path);
             match state {
                 State::Constructing => localization::text("tui.tool.upload.preparing"),
-                State::Pending | State::AwaitingApproval => {
+                State::Pending | State::Blocked => {
                     localization::text_with_args("tui.tool.upload.start", &[("file", &file)])
                 }
                 State::Running => {
@@ -139,7 +137,7 @@ pub(super) fn label_for_action(
                 .unwrap_or_default();
             match state {
                 State::Constructing => localization::text("tui.tool.search.preparing"),
-                State::Pending | State::AwaitingApproval => localization::text_with_args(
+                State::Pending | State::Blocked => localization::text_with_args(
                     "tui.tool.search.start",
                     &[("query", &query), ("scope", &scope)],
                 ),
@@ -204,7 +202,7 @@ pub(super) fn label_for_action(
             let path = display_path(path);
             match state {
                 State::Constructing => localization::text("tui.tool.grep.preparing"),
-                State::Pending | State::AwaitingApproval => localization::text_with_args(
+                State::Pending | State::Blocked => localization::text_with_args(
                     "tui.tool.grep.start",
                     &[("queries", &queries), ("path", &path)],
                 ),
@@ -267,12 +265,10 @@ pub(super) fn label_for_action(
                     "tui.tool.mcp_resource.preparing_named",
                     &[("name", name)],
                 ),
-                State::Pending | State::AwaitingApproval | State::Succeeded => {
-                    localization::text_with_args(
-                        "tui.tool.mcp_resource.read",
-                        &[("resource", &resource)],
-                    )
-                }
+                State::Pending | State::Blocked | State::Succeeded => localization::text_with_args(
+                    "tui.tool.mcp_resource.read",
+                    &[("resource", &resource)],
+                ),
                 State::Running => localization::text_with_args(
                     "tui.tool.mcp_resource.reading",
                     &[("resource", &resource)],
@@ -299,7 +295,7 @@ pub(super) fn label_for_action(
                     "tui.tool.mcp_tool.preparing_named",
                     &[("name", &name)],
                 ),
-                State::Pending | State::AwaitingApproval => {
+                State::Pending | State::Blocked => {
                     localization::text_with_args("tui.tool.mcp_tool.start", &[("name", &name)])
                 }
                 State::Running => {
@@ -318,7 +314,7 @@ pub(super) fn label_for_action(
         }
         AIAgentActionType::SuggestNewConversation { .. } => match state {
             State::Constructing => localization::text("tui.tool.conversation.suggesting"),
-            State::Pending | State::AwaitingApproval | State::Running | State::Failed => {
+            State::Pending | State::Blocked | State::Running | State::Failed => {
                 localization::text("tui.tool.conversation.suggested")
             }
             State::Succeeded => match result {
@@ -348,12 +344,10 @@ pub(super) fn label_for_action(
             );
             match state {
                 State::Constructing => localization::text("tui.tool.documents.reading"),
-                State::Pending | State::AwaitingApproval | State::Succeeded => {
-                    localization::text_with_args(
-                        "tui.tool.documents.read",
-                        &[("documents", &documents)],
-                    )
-                }
+                State::Pending | State::Blocked | State::Succeeded => localization::text_with_args(
+                    "tui.tool.documents.read",
+                    &[("documents", &documents)],
+                ),
                 State::Running => localization::text_with_args(
                     "tui.tool.documents.reading_count",
                     &[("documents", &documents)],
@@ -363,7 +357,7 @@ pub(super) fn label_for_action(
             }
         }
         AIAgentActionType::EditDocuments(request) => match state {
-            State::Pending | State::AwaitingApproval => localization::text("tui.tool.plan.update"),
+            State::Pending | State::Blocked => localization::text("tui.tool.plan.update"),
             State::Constructing | State::Running => localization::text("tui.tool.plan.updating"),
             State::Succeeded => {
                 let edits = localized_count_label(
@@ -377,7 +371,7 @@ pub(super) fn label_for_action(
             State::Cancelled => localization::text("tui.tool.plan.update_cancelled"),
         },
         AIAgentActionType::CreateDocuments(request) => match state {
-            State::Pending | State::AwaitingApproval => localization::text("tui.tool.plan.create"),
+            State::Pending | State::Blocked => localization::text("tui.tool.plan.create"),
             State::Constructing | State::Running => localization::text("tui.tool.plan.generating"),
             State::Succeeded => {
                 let count = request.documents.len();
@@ -394,7 +388,7 @@ pub(super) fn label_for_action(
             State::Cancelled => localization::text("tui.tool.plan.create_cancelled"),
         },
         AIAgentActionType::ReadShellCommandOutput { .. } => match state {
-            State::Pending | State::AwaitingApproval | State::Succeeded => {
+            State::Pending | State::Blocked | State::Succeeded => {
                 localization::text("tui.tool.command_output.read")
             }
             State::Constructing | State::Running => {
@@ -412,7 +406,7 @@ pub(super) fn label_for_action(
             );
             match state {
                 State::Constructing => localization::text("tui.tool.review.preparing"),
-                State::Pending | State::AwaitingApproval => localization::text_with_args(
+                State::Pending | State::Blocked => localization::text_with_args(
                     "tui.tool.review.insert",
                     &[("comments", &comments)],
                 ),
@@ -432,9 +426,7 @@ pub(super) fn label_for_action(
             summary_label(&request.task_summary, state)
         }
         AIAgentActionType::StartRecording { .. } => match state {
-            State::Pending | State::AwaitingApproval => {
-                localization::text("tui.tool.recording.start")
-            }
+            State::Pending | State::Blocked => localization::text("tui.tool.recording.start"),
             State::Constructing | State::Running => {
                 localization::text("tui.tool.recording.starting")
             }
@@ -443,9 +435,7 @@ pub(super) fn label_for_action(
             State::Cancelled => localization::text("tui.tool.recording.start_cancelled"),
         },
         AIAgentActionType::StopRecording { .. } => match state {
-            State::Pending | State::AwaitingApproval => {
-                localization::text("tui.tool.recording.stop")
-            }
+            State::Pending | State::Blocked => localization::text("tui.tool.recording.stop"),
             State::Constructing | State::Running => {
                 localization::text("tui.tool.recording.stopping")
             }
@@ -457,7 +447,7 @@ pub(super) fn label_for_action(
             let skill = single_line(&request.skill.display_label());
             match state {
                 State::Constructing => localization::text("tui.tool.skill.reading"),
-                State::Pending | State::AwaitingApproval | State::Succeeded => {
+                State::Pending | State::Blocked | State::Succeeded => {
                     localization::text_with_args("tui.tool.skill.read", &[("skill", &skill)])
                 }
                 State::Running => localization::text_with_args(
@@ -473,9 +463,7 @@ pub(super) fn label_for_action(
             }
         }
         AIAgentActionType::FetchConversation { .. } => match state {
-            State::Pending | State::AwaitingApproval => {
-                localization::text("tui.tool.conversation.fetch")
-            }
+            State::Pending | State::Blocked => localization::text("tui.tool.conversation.fetch"),
             State::Constructing | State::Running => {
                 localization::text("tui.tool.conversation.fetching")
             }
@@ -495,7 +483,7 @@ pub(super) fn label_for_action(
             };
             match state {
                 State::Constructing => localization::text("tui.tool.agent.configuring"),
-                State::Pending | State::AwaitingApproval => {
+                State::Pending | State::Blocked => {
                     localization::text_with_args("tui.tool.agent.start", &[("agent", &agent)])
                 }
                 State::Running => {
@@ -519,7 +507,7 @@ pub(super) fn label_for_action(
             let subject = single_line(subject);
             match state {
                 State::Constructing => localization::text("tui.tool.message.composing"),
-                State::Pending | State::AwaitingApproval => {
+                State::Pending | State::Blocked => {
                     localization::text_with_args("tui.tool.message.send", &[("subject", &subject)])
                 }
                 State::Running => {
@@ -545,7 +533,7 @@ pub(super) fn label_for_action(
         }
         AIAgentActionType::TransferShellCommandControlToUser { reason } => match state {
             State::Constructing => localization::text("tui.tool.control.handing"),
-            State::Pending | State::AwaitingApproval | State::Running => {
+            State::Pending | State::Blocked | State::Running => {
                 let reason = single_line(reason);
                 localization::text_with_args(
                     "tui.tool.control.handing_reason",
@@ -558,7 +546,7 @@ pub(super) fn label_for_action(
         },
         AIAgentActionType::AskUserQuestion { questions } => match state {
             State::Constructing => localization::text("tui.tool.question.preparing"),
-            State::Pending | State::AwaitingApproval | State::Running => {
+            State::Pending | State::Blocked | State::Running => {
                 let questions = localized_count_label(
                     questions.len(),
                     "tui.count.question.one",
@@ -605,7 +593,7 @@ pub(super) fn label_for_action(
         AIAgentActionType::RunAgents(request) => {
             let total = request.agent_run_configs.len();
             match state {
-                State::Constructing | State::Pending | State::AwaitingApproval => {
+                State::Constructing | State::Pending | State::Blocked => {
                     localization::text("tui.tool.orchestration.configuring")
                 }
                 State::Running => {
@@ -684,7 +672,7 @@ pub(super) fn label_for_action(
             }
         }
         AIAgentActionType::WaitForEvents { .. } => match state {
-            State::Constructing | State::Pending | State::AwaitingApproval | State::Running => {
+            State::Constructing | State::Pending | State::Blocked | State::Running => {
                 localization::text("tui.tool.events.waiting")
             }
             State::Succeeded => localization::text("tui.tool.events.done"),

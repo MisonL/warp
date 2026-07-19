@@ -38,7 +38,6 @@ use crate::context_chips::prompt_snapshot::PromptSnapshot;
 use crate::context_chips::prompt_type::PromptType;
 use crate::editor::CrdtOperation;
 use crate::features::FeatureFlag;
-use crate::localization;
 use crate::network::{NetworkStatusEvent, NetworkStatusKind};
 use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
@@ -70,7 +69,7 @@ use crate::terminal::view::{ConversationRestorationInNewPaneType, Event as Termi
 use crate::terminal::writeable_pty::terminal_manager_util::wire_up_remote_server_controller_with_view;
 use crate::terminal::{TerminalManager as TerminalManagerTrait, TerminalModel, TerminalView};
 use crate::view_components::ToastFlavor;
-use crate::NetworkStatus;
+use crate::{localization, NetworkStatus};
 
 /// Whether the given CRDT operation should be dropped when broadcasting
 /// sharer input to viewers. In ambient agent sessions the sharer is a
