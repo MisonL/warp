@@ -3,6 +3,7 @@ use warpui::{AppContext, SingletonEntity as _, ViewContext};
 
 use super::{Workspace, WorkspaceBannerFields};
 use crate::crash_recovery::CrashRecovery;
+#[cfg(target_os = "linux")]
 use crate::localization;
 
 pub fn banner_metadata(ctx: &AppContext) -> Option<WorkspaceBannerFields> {

@@ -140,6 +140,15 @@ pub const MAX_IMAGES_PER_CONVERSATION: usize = 200;
 
 use warpui::clipboard_utils::CLIPBOARD_IMAGE_MIME_TYPES;
 
+#[cfg(windows)]
+fn binding_description(
+    fallback: &'static str,
+    key: &'static str,
+) -> warpui::keymap::BindingDescription {
+    warpui::keymap::BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
+
 #[derive(Clone, Copy)]
 pub enum AutosuggestionLocation {
     EndOfBuffer,

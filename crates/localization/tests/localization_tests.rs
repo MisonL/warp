@@ -3571,6 +3571,21 @@ fn bundled_skill_localized_descriptions_preserve_trigger_semantics() {
 }
 
 #[test]
+fn extracts_skill_front_matter_with_lf_or_crlf_line_endings() {
+    let lf_content = "---\nname: sample\ndescription: Sample description\n---\n\n# Sample\n";
+    let crlf_content = lf_content.replace('\n', "\r\n");
+
+    assert_eq!(
+        skill_front_matter(lf_content).as_deref(),
+        Some("name: sample\ndescription: Sample description")
+    );
+    assert_eq!(
+        skill_front_matter(&crlf_content).as_deref(),
+        Some("name: sample\ndescription: Sample description")
+    );
+}
+
+#[test]
 fn bundled_create_skill_html_sets_runtime_document_language() {
     for (name, content) in [
         ("eval review", CREATE_SKILL_EVAL_REVIEW_HTML),
@@ -8386,17 +8401,14 @@ fn collect_skill_description_semantic_violations(dir: &Path, violations: &mut Ve
 
         let content = fs::read_to_string(&skill_path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", skill_path.display()));
-        let Some(front_matter) = content
-            .strip_prefix("---\n")
-            .and_then(|content| content.split_once("\n---\n").map(|(yaml, _)| yaml))
-        else {
+        let Some(front_matter) = skill_front_matter(&content) else {
             violations.push(format!(
                 "{}: missing YAML front matter",
                 skill_path.display()
             ));
             continue;
         };
-        let yaml: YamlValue = serde_yaml::from_str(front_matter)
+        let yaml: YamlValue = serde_yaml::from_str(&front_matter)
             .unwrap_or_else(|err| panic!("failed to parse {}: {err}", skill_path.display()));
         let Some(mapping) = yaml.as_mapping() else {
             violations.push(format!(
@@ -8464,6 +8476,15 @@ fn collect_skill_description_semantic_violations(dir: &Path, violations: &mut Ve
             }
         }
     }
+}
+
+fn skill_front_matter(content: &str) -> Option<String> {
+    let content = content.replace("\r\n", "\n");
+    content.strip_prefix("---\n").and_then(|content| {
+        content
+            .split_once("\n---\n")
+            .map(|(yaml, _)| yaml.to_owned())
+    })
 }
 
 fn inline_code_spans(text: &str) -> BTreeSet<&str> {
