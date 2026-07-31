@@ -16,11 +16,11 @@ use warp_core::ui::color::coloru_with_opacity;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::new_scrollable::{NewScrollable, SingleAxisConfig};
 use warpui::elements::{
-    resizable_state_handle, Border, ChildAnchor, ChildView, ClippedScrollStateHandle,
-    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DragBarSide, Empty, Expanded,
-    Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
-    ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Resizable, ResizableStateHandle,
-    SelectableArea, SelectionHandle, Shrinkable, Stack, Text, Wrap,
+    Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, DragBarSide, Empty, Expanded, Flex, Hoverable,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, Resizable, ResizableStateHandle, SelectableArea,
+    SelectionHandle, Shrinkable, Stack, Text, Wrap, resizable_state_handle,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::FixedBinding;
@@ -46,7 +46,7 @@ use crate::ai::agent_management::details_action_buttons::{
 use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, OpenedFrom};
 use crate::ai::ambient_agents::task::TaskPrincipalInfo;
 use crate::ai::ambient_agents::{
-    cancel_task_with_toast, localized_task_status_message, AmbientAgentTaskId,
+    AmbientAgentTaskId, cancel_task_with_toast, localized_task_status_message,
 };
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
@@ -71,13 +71,13 @@ use crate::util::time_format::{
     localized_approx_duration_from_now, localized_human_readable_precise_duration,
     localized_numeric_date_time,
 };
+use crate::view_components::DismissibleToast;
 #[cfg(not(target_family = "wasm"))]
 use crate::view_components::action_button::PrimaryTheme;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
 use crate::view_components::copyable_text_field::{
-    render_copyable_text_field, CopyableTextFieldConfig, COPY_FEEDBACK_DURATION,
+    COPY_FEEDBACK_DURATION, CopyableTextFieldConfig, render_copyable_text_field,
 };
-use crate::view_components::DismissibleToast;
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::{localization, send_telemetry_from_ctx};
@@ -1665,25 +1665,25 @@ impl ConversationDetailsPanel {
             .with_child(Shrinkable::new(1., oz_link).finish());
 
         // Add GitHub source link if we have enough info to construct it.
-        if let (Some(org), Some(repo)) = (&skill_spec.org, &skill_spec.repo) {
-            if skill_spec.is_full_path() {
-                let github_url = format!(
-                    "https://github.com/{}/{}/blob/HEAD/{}",
-                    org, repo, skill_spec.skill_identifier
-                );
-                let source_link = appearance
-                    .ui_builder()
-                    .link(
-                        conversation_details_text(app, "conversation_details.link.open_in_github"),
-                        Some(github_url),
-                        None,
-                        self.mouse_states.skill_source_link.clone(),
-                    )
-                    .build()
-                    .finish();
-                row.add_child(separator());
-                row.add_child(Shrinkable::new(1., source_link).finish());
-            }
+        if let (Some(org), Some(repo)) = (&skill_spec.org, &skill_spec.repo)
+            && skill_spec.is_full_path()
+        {
+            let github_url = format!(
+                "https://github.com/{}/{}/blob/HEAD/{}",
+                org, repo, skill_spec.skill_identifier
+            );
+            let source_link = appearance
+                .ui_builder()
+                .link(
+                    conversation_details_text(app, "conversation_details.link.open_in_github"),
+                    Some(github_url),
+                    None,
+                    self.mouse_states.skill_source_link.clone(),
+                )
+                .build()
+                .finish();
+            row.add_child(separator());
+            row.add_child(Shrinkable::new(1., source_link).finish());
         }
 
         Some(row.finish())

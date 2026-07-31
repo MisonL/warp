@@ -8,7 +8,7 @@ use warpui::{AppContext, Element};
 
 use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView};
 use crate::localization;
-use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::ui_components::dialog::{Dialog, dialog_styles};
 
 const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_PADDING: f32 = 12.;

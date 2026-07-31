@@ -6,8 +6,8 @@ use serde_json::json;
 use serde_yaml::Value as YamlValue;
 use settings_value::SettingsValue as _;
 use warp_localization::{
-    replace_placeholders, settings_schema_translation_key, AppLanguage, Catalog, CatalogBundle,
-    CatalogError, LocaleId, TemplateError, TranslationSource,
+    AppLanguage, Catalog, CatalogBundle, CatalogError, LocaleId, TemplateError, TranslationSource,
+    replace_placeholders, settings_schema_translation_key,
 };
 
 const EN_US: &str = r#"{
@@ -462,6 +462,14 @@ fn replaces_template_placeholders_once() {
     .unwrap();
 
     assert_eq!(text, "Failed to load /tmp/{error}.json: not found");
+}
+
+#[test]
+fn preserves_escaped_braces_in_templates() {
+    let text =
+        replace_placeholders("Use {{name}} for {value}", &[("value", "the result")]).unwrap();
+
+    assert_eq!(text, "Use {name} for the result");
 }
 
 #[test]
@@ -3292,6 +3300,74 @@ fn tui_high_risk_formatting_surfaces_do_not_restore_removed_english_literals() {
 }
 
 #[test]
+fn tui_attachment_and_generic_permission_surfaces_do_not_bypass_catalogs() {
+    let cases = [
+        (
+            "crates/warp_tui/src/attachment_bar/model.rs",
+            &[
+                "\"image\".to_owned()",
+                "\"clipboard-image.png\".to_owned()",
+                "Image attachments are unavailable.",
+                "Wait for the current image attachment to finish.",
+                "Image attachment limit is {MAX_IMAGE_COUNT_FOR_QUERY} per query.",
+                "The selected model does not support image attachments.",
+            ][..],
+        ),
+        (
+            "crates/warp_tui/src/attachment_bar/image_processing.rs",
+            &[
+                "Could not read image {}.",
+                "Image path is not a file: {}.",
+                "Image is too large: {}.",
+                "Unsupported image type for {}. Use PNG, JPG, GIF, or WebP.",
+                "Could not process image {}.",
+                "Image has no valid filename: {}.",
+                "The system clipboard is unavailable.",
+                "The clipboard does not contain an image.",
+                "The clipboard does not contain a supported image.",
+                "The clipboard image is too large.",
+                "The clipboard image could not be processed.",
+            ][..],
+        ),
+        (
+            "crates/warp_tui/src/attachment_bar/view.rs",
+            &[
+                "TuiText::new(\"loading image",
+                "AttachmentType::Image => \"[image]\"",
+                "AttachmentType::File => \"[file]\"",
+                "TuiText::new(\" \u{b7} loading",
+            ][..],
+        ),
+        (
+            "crates/warp_tui/src/tui_generic_tool_call_view.rs",
+            &[
+                "Is it OK if I read these files?",
+                "Is it OK if I upload this artifact?",
+                "Is it OK if I search this codebase?",
+                "Is it OK if I search these files?",
+                "Is it OK if I find files matching these patterns?",
+                "Is it OK if I call this MCP tool?",
+                "Is it OK if I read this MCP resource?",
+                "Is it OK if I use the computer?",
+                "Is it OK if I write this input to the running command?",
+                "Should I start a new conversation?",
+                "Is it OK if I hand control of the running command to you?",
+                "Continue the agent's next step in a fresh conversation.",
+                "  in {path}",
+                "action.user_friendly_name()",
+            ][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "TUI attachment and generic permission copy must use catalogs: {violations:#?}"
+    );
+}
+
+#[test]
 fn terminal_input_toasts_do_not_use_direct_english_literals() {
     let path = workspace_root().join("app/src/terminal/input.rs");
     let content = fs::read_to_string(&path)
@@ -3429,16 +3505,29 @@ fn settings_shared_tooltips_use_catalog_copy() {
     let features_path = workspace_root().join("app/src/settings_view/features_page.rs");
     let features = fs::read_to_string(&features_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", features_path.display()));
-    let tab_icon_call = features
-        .split_once("tab_key_span.add_child(render_local_only_icon(")
-        .and_then(|(_, suffix)| suffix.split_once("));"))
-        .map(|(call, _)| call)
+    let call_marker = "tab_key_span.add_child(render_local_only_icon";
+    let call_start = features
+        .find(call_marker)
         .expect("tab behavior local-only icon call should exist");
+    let open_paren = call_start + call_marker.len();
+    let close_paren = matching_paren_end(&features, open_paren)
+        .expect("tab behavior local-only icon call should have balanced parentheses");
+    let tab_icon_arguments = top_level_arguments(&features[open_paren + 1..close_paren]);
+    let tooltip_argument = tab_icon_arguments
+        .get(2)
+        .expect("tab behavior local-only icon call should include a tooltip argument");
     assert!(
-        tab_icon_call.contains("\"settings.local_only.tooltip\"")
-            && !tab_icon_call.contains("None"),
+        tooltip_argument.contains("\"settings.local_only.tooltip\"")
+            && !tooltip_argument.contains("None"),
         "direct local-only icon rendering must provide localized tooltip text"
     );
+}
+
+#[test]
+fn source_field_scanner_accepts_unicode_whitespace_boundaries() {
+    let content = "说明：\u{3000}key: \"value\"";
+
+    assert_eq!(field_string_literal(content, "key"), Some("value"));
 }
 
 #[test]
@@ -4075,8 +4164,7 @@ fn streamed_mcp_tool_titles_are_structured_and_localized_at_render_time() {
         "self.display_text(app)",
     ] {
         assert!(
-            REQUESTED_COMMAND_SOURCE.contains(expected)
-                || AI_BLOCK_SOURCE.contains(expected),
+            REQUESTED_COMMAND_SOURCE.contains(expected) || AI_BLOCK_SOURCE.contains(expected),
             "MCP tool title path should preserve structured data and localize during rendering: {expected}"
         );
     }
@@ -4332,7 +4420,10 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
         ),
         (
             "app/src/drive/export.rs",
-            &["format!(\"Failed to export {name}\")", "\"Export failed\".to_string()"][..],
+            &[
+                "format!(\"Failed to export {name}\")",
+                "\"Export failed\".to_string()",
+            ][..],
         ),
         (
             "app/src/billing/shared_objects_creation_denied_modal.rs",
@@ -4397,10 +4488,7 @@ fn selected_misc_ui_surfaces_do_not_use_direct_english_literals() {
         ),
         (
             "app/src/code/file_tree/view/render.rs",
-            &[
-                "String::from(\"File\")",
-                "String::from(\"Folder\")",
-            ][..],
+            &["String::from(\"File\")", "String::from(\"Folder\")"][..],
         ),
         (
             "app/src/remote_server/codebase_index_model.rs",
@@ -4958,6 +5046,57 @@ fn current_i18n_multiline_ui_calls_do_not_use_direct_english_literals() {
 }
 
 #[test]
+fn execution_profile_and_model_selector_ui_uses_catalog_copy() {
+    let cases = [
+        (
+            "app/src/terminal/profile_model_selector.rs",
+            &[
+                "Choose an AI execution profile",
+                "Choose an agent model",
+                "Follow-ups use the original run's model",
+                "Request edit access to change model",
+                "auto-select the best model for the task",
+                "New models available",
+                "\"Intelligence\".to_string()",
+                "\"Speed\".to_string()",
+                "\"Cost\".to_string()",
+                "\"Model Specs\".to_string()",
+                "Warp\u{2019}s benchmarks for how well a model performs",
+                "\"Auto mode\"",
+                "Auto will select the best model for the task",
+                "\"Reasoning level\"",
+                "Increased reasoning levels consume more credits",
+                "active_profile.data().display_name()",
+                "MenuItemFields::new(profile.display_name())",
+            ][..],
+        ),
+        (
+            "app/src/ai/execution_profiles/editor/mod.rs",
+            &[
+                "\"Default\".to_string()",
+                "if let EditorEvent::Edited(_) = event",
+                "editor.set_buffer_text(&display_name, ctx)",
+            ][..],
+        ),
+        (
+            "app/src/settings_view/execution_profile_view.rs",
+            &["profile.display_name()"][..],
+        ),
+        (
+            "app/src/terminal/input/profiles/data_source.rs",
+            &["profile_info.data().display_name()"][..],
+        ),
+    ];
+
+    let violations = selected_snippet_violations(&cases);
+
+    assert!(
+        violations.is_empty(),
+        "execution profile and model selector UI must use catalog-backed copy: {violations:#?}"
+    );
+}
+
+#[test]
 fn current_ui_display_helpers_do_not_bypass_localization() {
     let cases = [
         (
@@ -5311,7 +5450,10 @@ fn static_slash_command_english_hint_fallbacks_have_catalog_keys() {
 
     while let Some(found_at) = content[cursor..].find(".with_hint_text(\"") {
         let invocation_start = cursor + found_at;
-        let scan_end = (invocation_start + 192).min(content.len());
+        let mut scan_end = (invocation_start + 192).min(content.len());
+        while scan_end < content.len() && !content.is_char_boundary(scan_end) {
+            scan_end += 1;
+        }
         if !content[invocation_start..scan_end].contains(".with_hint_text_key(") {
             violations.push(format!(
                 "{}:{}: with_hint_text literal has no catalog key",
@@ -8043,9 +8185,12 @@ fn field_start(content: &str, field: &str) -> Option<usize> {
     let mut cursor = 0;
     while let Some(found_at) = content[cursor..].find(&pattern) {
         let start = cursor + found_at;
-        let has_field_boundary = start == 0
-            || content.as_bytes()[start - 1].is_ascii_whitespace()
-            || matches!(content.as_bytes()[start - 1], b'{' | b',' | b'\n');
+        let has_field_boundary = content[..start]
+            .chars()
+            .next_back()
+            .is_none_or(|character| {
+                character.is_whitespace() || matches!(character, '{' | ',' | '\n')
+            });
         if has_field_boundary {
             return Some(start);
         }
@@ -8563,19 +8708,19 @@ fn collect_direct_first_argument_literal_violations(
             cursor = arg_start;
             continue;
         }
-        if let Some(literal) = first_argument_string_literal(&content[arg_start..]) {
-            if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal) && looks_like_english_ui_text(literal)
-            {
-                if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
-                    cursor = arg_start;
-                    continue;
-                }
-                violations.push(format!(
-                    "{}:{}: {literal:?}",
-                    relative_path,
-                    line_number_for_offset(content, invocation_start)
-                ));
+        if let Some(literal) = first_argument_string_literal(&content[arg_start..])
+            && !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
+            && looks_like_english_ui_text(literal)
+        {
+            if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
+                cursor = arg_start;
+                continue;
             }
+            violations.push(format!(
+                "{}:{}: {literal:?}",
+                relative_path,
+                line_number_for_offset(content, invocation_start)
+            ));
         }
         cursor = arg_start;
     }
@@ -8706,20 +8851,19 @@ fn collect_binding_description_literal_violations(
         let arguments = top_level_arguments(&content[open_paren + 1..close_paren]);
         if let Some(argument) = arguments.get(description_argument_index) {
             let argument = argument.trim_start();
-            if let Some(literal) = argument_string_literal(argument) {
-                if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
-                    && looks_like_english_ui_text(literal)
-                {
-                    if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
-                        cursor = close_paren + 1;
-                        continue;
-                    }
-                    violations.push(format!(
-                        "{}:{}: {literal:?}",
-                        relative_path,
-                        line_number_for_offset(content, invocation_start)
-                    ));
+            if let Some(literal) = argument_string_literal(argument)
+                && !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
+                && looks_like_english_ui_text(literal)
+            {
+                if catalog_map_contains_literal(allowed_catalog_map_source, literal) {
+                    cursor = close_paren + 1;
+                    continue;
                 }
+                violations.push(format!(
+                    "{}:{}: {literal:?}",
+                    relative_path,
+                    line_number_for_offset(content, invocation_start)
+                ));
             }
         }
         cursor = close_paren + 1;
@@ -8783,19 +8927,20 @@ fn collect_direct_literal_after_patterns(
         while let Some(found_at) = content[cursor..].find(pattern) {
             let invocation_start = cursor + found_at;
             let scan_start = invocation_start + pattern.len();
-            let scan_end = (scan_start + SCAN_WINDOW).min(content.len());
+            let mut scan_end = (scan_start + SCAN_WINDOW).min(content.len());
+            while scan_end < content.len() && !content.is_char_boundary(scan_end) {
+                scan_end += 1;
+            }
             if let Some((literal, offset)) =
                 first_string_literal_with_offset(&content[scan_start..scan_end])
+                && !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
+                && looks_like_english_ui_text(literal)
             {
-                if !ALLOWED_DIRECT_UI_LITERALS.contains(&literal)
-                    && looks_like_english_ui_text(literal)
-                {
-                    violations.push(format!(
-                        "{}:{}: {literal:?}",
-                        relative_path,
-                        line_number_for_offset(content, scan_start + offset)
-                    ));
-                }
+                violations.push(format!(
+                    "{}:{}: {literal:?}",
+                    relative_path,
+                    line_number_for_offset(content, scan_start + offset)
+                ));
             }
             cursor = scan_start;
         }

@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::{
-    compare_versions, run_cli_command_logged, CliAgentPluginManager, PluginInstallError,
-    PluginInstructionStep, PluginInstructions,
+    CliAgentPluginManager, PluginInstallError, PluginInstructionStep, PluginInstructions,
+    compare_versions, run_cli_command_logged,
 };
 use crate::features::FeatureFlag;
 use crate::terminal::model::session::LocalCommandExecutor;
@@ -274,24 +274,22 @@ impl CliAgentPluginManager for CodexPluginManager {
     }
 }
 
-static PLUGIN_INSTALL_INSTRUCTIONS: LazyLock<PluginInstructions> =
-    LazyLock::new(|| PluginInstructions {
+static PLUGIN_INSTALL_INSTRUCTIONS: LazyLock<PluginInstructions> = LazyLock::new(|| {
+    PluginInstructions {
         title_key: "terminal.plugin_instructions.codex.plugin_install.title",
         title: "Install Warp Plugin for Codex",
         subtitle_key: "terminal.plugin_instructions.codex.plugin_install.subtitle",
         subtitle: "Run the following commands, then restart Codex.",
         steps: &[
             PluginInstructionStep {
-                description_key:
-                    "terminal.plugin_instructions.codex.plugin_install.step.add_marketplace",
+                description_key: "terminal.plugin_instructions.codex.plugin_install.step.add_marketplace",
                 description: "Add the Warp plugin marketplace repository",
                 command: "codex plugin marketplace add warpdotdev/codex-warp",
                 executable: true,
                 link: None,
             },
             PluginInstructionStep {
-                description_key:
-                    "terminal.plugin_instructions.codex.plugin_install.step.install_plugin",
+                description_key: "terminal.plugin_instructions.codex.plugin_install.step.install_plugin",
                 description: "Install the Warp plugin",
                 command: "codex plugin add warp@codex-warp",
                 executable: true,
@@ -300,7 +298,8 @@ static PLUGIN_INSTALL_INSTRUCTIONS: LazyLock<PluginInstructions> =
         ],
         post_install_note_keys: &["terminal.plugin_instructions.codex.plugin_install.note.restart"],
         post_install_notes: &["Restart Codex to activate the plugin."],
-    });
+    }
+});
 
 static NATIVE_INSTALL_INSTRUCTIONS: LazyLock<PluginInstructions> = LazyLock::new(|| {
     PluginInstructions {
@@ -354,8 +353,7 @@ static PLUGIN_UPDATE_INSTRUCTIONS: LazyLock<PluginInstructions> = LazyLock::new(
                 link: None,
             },
             PluginInstructionStep {
-                description_key:
-                    "terminal.plugin_instructions.codex.plugin_update.step.reinstall_plugin",
+                description_key: "terminal.plugin_instructions.codex.plugin_update.step.reinstall_plugin",
                 description: "Reinstall the Warp plugin",
                 command: "codex plugin add warp@codex-warp",
                 executable: true,
@@ -490,10 +488,10 @@ fn codex_warp_marketplace_config(codex_dir: &Path) -> Option<CodexWarpMarketplac
 
 /// Checks `CODEX_HOME` first, falls back to `~/.codex`.
 fn codex_home_dir() -> io::Result<PathBuf> {
-    if let Ok(codex_home) = env::var(CODEX_HOME_ENV) {
-        if !codex_home.is_empty() {
-            return Ok(PathBuf::from(codex_home));
-        }
+    if let Ok(codex_home) = env::var(CODEX_HOME_ENV)
+        && !codex_home.is_empty()
+    {
+        return Ok(PathBuf::from(codex_home));
     }
     dirs::home_dir()
         .map(|home| home.join(CODEX_CONFIG_DIR))

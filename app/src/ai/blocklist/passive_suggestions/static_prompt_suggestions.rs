@@ -316,14 +316,13 @@ pub fn apply_captures(template: &str, captures: &regex::Captures) -> String {
         };
 
         let index = &rest[..end];
-        if let Ok(index) = index.parse::<usize>() {
-            if index > 0 {
-                if let Some(capture) = captures.get(index) {
-                    result.push_str(capture.as_str());
-                    rest = &rest[end + 1..];
-                    continue;
-                }
-            }
+        if let Ok(index) = index.parse::<usize>()
+            && index > 0
+            && let Some(capture) = captures.get(index)
+        {
+            result.push_str(capture.as_str());
+            rest = &rest[end + 1..];
+            continue;
         }
 
         result.push('{');

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use settings::Setting as _;
 use warp_core::context_flag::ContextFlag;
 use warp_core::ui::builder::UiBuilder;
-use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::AnsiColors;
+use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, DragAxis, Draggable, DraggableState, DropTarget, Element, Empty, Fill,
@@ -25,7 +25,7 @@ use warpui::ui_components::text_input::TextInput;
 use warpui::{AppContext, SingletonEntity, ViewHandle};
 
 use crate::ai::agent::conversation::ConversationStatus;
-use crate::ai::conversation_status_ui::{render_status_element, STATUS_ELEMENT_PADDING};
+use crate::ai::conversation_status_ui::{STATUS_ELEMENT_PADDING, render_status_element};
 use crate::appearance::Appearance;
 /// Tab module contains structures related to Tabs (such as TabData or TabComponent) that simplify
 /// the rendering and management of tabs in general.
@@ -39,9 +39,9 @@ use crate::terminal::shared_session::render_util::shared_session_indicator_color
 use crate::terminal::view::TerminalViewState;
 use crate::themes::theme::{AnsiColorIdentifier, Fill as ThemeFill, VerticalGradient};
 use crate::ui_components::buttons::icon_button;
-use crate::ui_components::color_dot::{render_color_dot, TAB_COLOR_OPTIONS};
-use crate::ui_components::icons::{Icon, ICON_DIMENSIONS};
-use crate::util::color::{coloru_with_opacity, Opacity};
+use crate::ui_components::color_dot::{TAB_COLOR_OPTIONS, render_color_dot};
+use crate::ui_components::icons::{ICON_DIMENSIONS, Icon};
+use crate::util::color::{Opacity, coloru_with_opacity};
 use crate::util::truncation::truncate_from_end;
 use crate::window_settings::WindowSettings;
 use crate::workspace::sync_inputs::SyncedInputState;
@@ -52,7 +52,7 @@ use crate::workspace::tab_settings::{
 use crate::workspace::{
     PaneViewLocator, TabBarDropTargetData, TabBarLocation, TabContextMenuAnchor, WorkspaceAction,
 };
-use crate::{localization, BlocklistAIHistoryModel};
+use crate::{BlocklistAIHistoryModel, localization};
 
 pub const TAB_BAR_BORDER_HEIGHT: f32 = 1.0;
 pub(crate) const TAB_INDICATOR_HEIGHT: f32 = 14.0;
@@ -512,12 +512,11 @@ impl TabData {
         if !self.tab_name_hidden_in_grouped_pane_view(ctx) {
             // TODO add option to show the keybinding once we figure out a nice API to retrieve
             // the actual keybinding (based on the user's preferences etc.)
-            menu_items.append(&mut vec![MenuItemFields::new(localization::text_for_app(
-                ctx,
-                "tab.menu.rename_tab",
-            ))
-            .with_on_select_action(WorkspaceAction::RenameTab(index))
-            .into_item()]);
+            menu_items.append(&mut vec![
+                MenuItemFields::new(localization::text_for_app(ctx, "tab.menu.rename_tab"))
+                    .with_on_select_action(WorkspaceAction::RenameTab(index))
+                    .into_item(),
+            ]);
             // Group together with rename option (note, resetting doesn't make
             // sense unless you're able to rename a tab).
             let title = self.pane_group.as_ref(ctx).custom_title(ctx);
@@ -578,12 +577,11 @@ impl TabData {
             .custom_vertical_tabs_title()
             .is_some();
 
-        let mut menu_items =
-            vec![
-                MenuItemFields::new(localization::text_for_app(ctx, target.rename_label_key))
-                    .with_on_select_action(WorkspaceAction::RenamePane(target.locator))
-                    .into_item(),
-            ];
+        let mut menu_items = vec![
+            MenuItemFields::new(localization::text_for_app(ctx, target.rename_label_key))
+                .with_on_select_action(WorkspaceAction::RenamePane(target.locator))
+                .into_item(),
+        ];
         if has_custom_name {
             menu_items.push(
                 MenuItemFields::new(localization::text_for_app(ctx, target.reset_label_key))
@@ -636,12 +634,14 @@ impl TabData {
         if !FeatureFlag::TabConfigs.is_enabled() {
             return vec![];
         }
-        vec![MenuItemFields::new(localization::text_for_app(
-            ctx,
-            "tab.menu.save_as_new_config",
-        ))
-        .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
-        .into_item()]
+        vec![
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "tab.menu.save_as_new_config",
+            ))
+            .with_on_select_action(WorkspaceAction::SaveCurrentTabAsNewConfig(index))
+            .into_item(),
+        ]
     }
 
     /// Pin/unpin entry for the per-tab right-click menu.
@@ -661,9 +661,11 @@ impl TabData {
                 WorkspaceAction::PinTab(index),
             )
         };
-        vec![MenuItemFields::new(label)
-            .with_on_select_action(action)
-            .into_item()]
+        vec![
+            MenuItemFields::new(label)
+                .with_on_select_action(action)
+                .into_item(),
+        ]
     }
 
     /// Returns the tab-group entries for the top-level right-click menu:
@@ -1639,11 +1641,7 @@ impl<'a> TabComponent<'a> {
                     // tint. A grouped member sits on the group's color backdrop,
                     // so it needs a bigger step to read as selected against it;
                     // at rest it just shows its own color over that backdrop.
-                    if self.grouped_member {
-                        55
-                    } else {
-                        30
-                    }
+                    if self.grouped_member { 55 } else { 30 }
                 } else if is_hovered {
                     40
                 } else {
@@ -1742,19 +1740,20 @@ impl<'a> TabComponent<'a> {
         };
 
         let compact_icon = {
-            if let Some(indicator) = self.render_indicator() {
-                indicator
-            } else {
-                // Fallback to terminal icon if no indicator is present
-                Icon::Terminal
-                    .to_warpui_icon(
-                        self.styles
-                            .default
-                            .font_color
-                            .unwrap_or(ColorU::white())
-                            .into(),
-                    )
-                    .finish()
+            match self.render_indicator() {
+                Some(indicator) => indicator,
+                _ => {
+                    // Fallback to terminal icon if no indicator is present
+                    Icon::Terminal
+                        .to_warpui_icon(
+                            self.styles
+                                .default
+                                .font_color
+                                .unwrap_or(ColorU::white())
+                                .into(),
+                        )
+                        .finish()
+                }
             }
         };
         let compact_tab_content = Clipped::new(

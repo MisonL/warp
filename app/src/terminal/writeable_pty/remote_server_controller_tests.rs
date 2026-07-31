@@ -1,6 +1,6 @@
 use super::{
-    connection_label_from_session_hosts, connection_label_from_ssh_host,
-    connection_label_from_user_and_host, AppContextLike,
+    AppContextLike, connection_label_from_session_hosts, connection_label_from_ssh_host,
+    connection_label_from_user_and_host,
 };
 
 struct TestAppContext {

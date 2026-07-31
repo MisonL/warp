@@ -7,7 +7,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use crate::appearance::Appearance;
 use crate::localization;
-use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::ui_components::dialog::{Dialog, dialog_styles};
 
 // This follows our new design standard for confirmation dialogs (e.g. used in the session sharing dialog)
 // Design team has discouraged us from continuing to use CloudActionConfirmationDialog's current design

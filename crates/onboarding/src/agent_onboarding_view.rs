@@ -6,10 +6,11 @@ use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
 use warpui_core::assets::asset_cache::AssetSource;
 use warpui_core::image_cache::ImageType;
-use warpui_core::windowing::state::{ApplicationStage, StateEvent};
 use warpui_core::windowing::WindowManager;
+use warpui_core::windowing::state::{ApplicationStage, StateEvent};
 
-use crate::components::feature_optout_dialog::{render_feature_optout_dialog, FeatureOptOutDialog};
+use crate::OnboardingCopy;
+use crate::components::feature_optout_dialog::{FeatureOptOutDialog, render_feature_optout_dialog};
 use crate::model::{
     OnboardingAuthState, OnboardingStateEvent, OnboardingStateModel, OnboardingStep,
     SelectedSettings,
@@ -20,7 +21,6 @@ use crate::slides::{
     ThemePickerSlide, ThemePickerSlideEvent, ThirdPartySlide,
 };
 use crate::telemetry::OnboardingEvent;
-use crate::OnboardingCopy;
 
 const APP_BECAME_ACTIVE_DEBOUNCE: Duration = Duration::from_secs(15);
 
@@ -28,10 +28,10 @@ const PLAN_ACTIVATED_TOAST_DURATION: Duration = Duration::from_secs(5);
 
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use ui_components::{button, Component as _, Options as _};
+use ui_components::{Component as _, Options as _, button};
+use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::{Fill, WarpTheme};
-use warp_core::ui::Icon;
 use warpui_core::elements::{
     Align, CacheOption, ChildAnchor, ConstrainedBox, Container, CrossAxisAlignment, Dismiss, Empty,
     Flex, Image, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
@@ -594,31 +594,34 @@ impl View for AgentOnboardingView {
 
         let mut stack = Stack::new();
 
-        if let Some(img) = theme.background_image() {
-            // Render the image behind everything.
-            stack.add_child(
-                Shrinkable::new(
-                    1.,
-                    Image::new(img.source(), CacheOption::Original)
-                        .cover()
-                        .finish(),
-                )
-                .finish(),
-            );
+        match theme.background_image() {
+            Some(img) => {
+                // Render the image behind everything.
+                stack.add_child(
+                    Shrinkable::new(
+                        1.,
+                        Image::new(img.source(), CacheOption::Original)
+                            .cover()
+                            .finish(),
+                    )
+                    .finish(),
+                );
 
-            // Overlay the theme background so the image shows through at img.opacity.
-            let overlay_opacity = (100u8).saturating_sub(img.opacity);
-            stack.add_child(
-                Rect::new()
-                    .with_background(theme.background().with_opacity(overlay_opacity))
-                    .finish(),
-            );
-        } else {
-            stack.add_child(
-                Container::new(Empty::new().finish())
-                    .with_background(theme.background())
-                    .finish(),
-            );
+                // Overlay the theme background so the image shows through at img.opacity.
+                let overlay_opacity = (100u8).saturating_sub(img.opacity);
+                stack.add_child(
+                    Rect::new()
+                        .with_background(theme.background().with_opacity(overlay_opacity))
+                        .finish(),
+                );
+            }
+            _ => {
+                stack.add_child(
+                    Container::new(Empty::new().finish())
+                        .with_background(theme.background())
+                        .finish(),
+                );
+            }
         }
 
         let selected_slide = self.onboarding_state.as_ref(app).step();

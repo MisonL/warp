@@ -8,11 +8,11 @@ mod imp;
 use std::path::Path;
 use std::path::PathBuf;
 
+#[cfg(feature = "local_fs")]
+pub use imp::SaveNewLaunchConfigError;
 pub(crate) use imp::load_tab_configs;
 #[cfg(feature = "local_fs")]
 pub use imp::load_workflows;
-#[cfg(feature = "local_fs")]
-pub use imp::SaveNewLaunchConfigError;
 pub use imp::{load_launch_configs, load_theme_configs};
 use lazy_static::lazy_static;
 use warp_core::ui::theme::WarpTheme;
@@ -345,13 +345,13 @@ pub(crate) fn materialize_default_worktree_config(
 
     replace_default_worktree_placeholders(&mut toml_value, repo_path, pane_type, &worktree_path);
 
-    if let Some(doc) = toml_value.as_table_mut() {
-        if let Some(params) = doc.get_mut("params").and_then(toml::Value::as_table_mut) {
-            params.remove("repo");
-            params.remove("pane_type");
-            if params.is_empty() {
-                doc.remove("params");
-            }
+    if let Some(doc) = toml_value.as_table_mut()
+        && let Some(params) = doc.get_mut("params").and_then(toml::Value::as_table_mut)
+    {
+        params.remove("repo");
+        params.remove("pane_type");
+        if params.is_empty() {
+            doc.remove("params");
         }
     }
 
@@ -374,10 +374,10 @@ fn default_worktree_canonical_config_name(
         if has_worktree_template_prefix(config_name, template_name) {
             return config_name.to_string();
         }
-        if let Some(template_name_zh_cn) = template_name_zh_cn {
-            if has_worktree_template_prefix(config_name, template_name_zh_cn) {
-                return format!("{template_name}: {repo_display_name}");
-            }
+        if let Some(template_name_zh_cn) = template_name_zh_cn
+            && has_worktree_template_prefix(config_name, template_name_zh_cn)
+        {
+            return format!("{template_name}: {repo_display_name}");
         }
     }
 

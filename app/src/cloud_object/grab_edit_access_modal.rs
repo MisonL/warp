@@ -8,7 +8,7 @@ use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewCon
 use crate::appearance::Appearance;
 use crate::localization;
 use crate::ui_components::buttons::close_button;
-use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::ui_components::dialog::{Dialog, dialog_styles};
 
 #[derive(Default)]
 struct MouseStateHandles {

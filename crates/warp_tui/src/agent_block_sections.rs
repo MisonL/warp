@@ -10,15 +10,15 @@ use std::time::Duration;
 use warp::tui_export::{
     AIActionStatus, AIAgentAction, AIAgentTodo, AIAgentTodoList, MessageId, TodoStatus,
 };
+use warpui_core::AppContext;
+use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::elements::tui::{
     Modifier, TuiContainer, TuiElement, TuiFlex, TuiParentElement, TuiStyle, TuiText,
 };
-use warpui_core::elements::CrossAxisAlignment;
-use warpui_core::AppContext;
 
 use crate::agent_block::{CollapsibleSectionStates, TuiAIBlockAction};
 use crate::localization;
-use crate::tool_call_labels::{tool_call_display_state, tool_call_label, ResolvedCommandBlock};
+use crate::tool_call_labels::{ResolvedCommandBlock, tool_call_display_state, tool_call_label};
 use crate::tui_builder::TuiUiBuilder;
 
 const INPUT_PREFIX: &str = "> ";

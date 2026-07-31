@@ -14,17 +14,17 @@ use warpui::{AppContext, Element, SingletonEntity, ViewHandle};
 use super::{ExecutionProfileEditorView, ExecutionProfileEditorViewAction};
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::{
-    long_context_pricing_warning_title, AIExecutionProfile, AIExecutionProfileAppExt as _,
-    ActionPermission,
+    AIExecutionProfile, AIExecutionProfileAppExt as _, ActionPermission,
+    long_context_pricing_warning_title,
 };
 use crate::editor::EditorView;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::{
-    render_warning_box, Dropdown, DropdownItemAction, FilterableDropdown, SubmittableTextInput,
-    WarningBoxConfig,
+    Dropdown, DropdownItemAction, FilterableDropdown, SubmittableTextInput, WarningBoxConfig,
+    render_warning_box,
 };
-use crate::{localization, Appearance, TemplatableMCPServerManager};
+use crate::{Appearance, TemplatableMCPServerManager, localization};
 
 const CONTEXT_WINDOW_SLIDER_WIDTH: f32 = 220.;
 const CONTEXT_WINDOW_INPUT_BOX_WIDTH: f32 = 120.;
@@ -65,7 +65,7 @@ fn nice_step(raw: f64) -> f64 {
     nice * magnitude
 }
 
-use crate::settings_view::{render_input_list, render_separator, InputListItem};
+use crate::settings_view::{InputListItem, render_input_list, render_separator};
 
 pub fn render_header_section(
     app: &AppContext,

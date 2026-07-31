@@ -13,18 +13,18 @@ use warpui::{
 
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::profiles::{
-    AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId,
+    AIExecutionProfilesModel, AIExecutionProfilesModelEvent,
 };
 use crate::ai::execution_profiles::{
-    ActionPermission, AskUserQuestionPermission, RunAgentsPermission, WriteToPtyPermission,
+    AIExecutionProfileAppExt as _, ActionPermission, AskUserQuestionPermission, ExecutionProfileId,
+    RunAgentsPermission, WriteToPtyPermission,
 };
 use crate::ai::llms::LLMPreferences;
 use crate::appearance::Appearance;
-use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
-use crate::{localization, TemplatableMCPServerManager};
+use crate::{TemplatableMCPServerManager, localization};
 
 #[derive(Debug, Clone)]
 pub enum ExecutionProfileViewAction {
@@ -36,14 +36,14 @@ pub enum ExecutionProfileViewEvent {
 }
 
 pub struct ExecutionProfileView {
-    profile_id: ClientProfileId,
+    profile_id: ExecutionProfileId,
     edit_button: ViewHandle<ActionButton>,
 }
 
 impl ExecutionProfileView {
-    pub fn new(profile_id: ClientProfileId, ctx: &mut ViewContext<Self>) -> Self {
+    pub fn new(profile_id: ExecutionProfileId, ctx: &mut ViewContext<Self>) -> Self {
         ctx.subscribe_to_model(&AIExecutionProfilesModel::handle(ctx), |me, _, event, ctx| {
-            if matches!(event, AIExecutionProfilesModelEvent::ProfileUpdated(profile_id) if *profile_id == me.profile_id) {
+            if matches!(event, AIExecutionProfilesModelEvent::ProfileUpdated(profile_id) if profile_id == &me.profile_id) {
                 ctx.notify();
             }
         });
@@ -51,6 +51,19 @@ impl ExecutionProfileView {
         ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |_me, _, _, ctx| {
             ctx.notify();
         });
+
+        ctx.subscribe_to_model(
+            &localization::LocalizationUpdater::handle(ctx),
+            |me, _, _, ctx| {
+                me.edit_button.update(ctx, |button, ctx| {
+                    button.set_label(
+                        localization::text_for_app(ctx, "settings.execution_profile.edit"),
+                        ctx,
+                    );
+                });
+                ctx.notify();
+            },
+        );
 
         let edit_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
@@ -99,7 +112,7 @@ impl View for ExecutionProfileView {
         let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
 
         let permissions = BlocklistAIPermissions::as_ref(app);
-        let profile = permissions.permissions_profile_for_id(app, self.profile_id);
+        let profile = permissions.permissions_profile_for_id(app, &self.profile_id);
 
         let llm_preferences = LLMPreferences::as_ref(app);
 
@@ -147,14 +160,18 @@ impl View for ExecutionProfileView {
                         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
                         .with_child(
-                            Text::new(profile.display_name(), appearance.ui_font_family(), 14.)
-                                .with_style(Properties::default().weight(Weight::Medium))
-                                .with_color(if is_any_ai_enabled {
-                                    appearance.theme().active_ui_text_color().into()
-                                } else {
-                                    appearance.theme().disabled_ui_text_color().into()
-                                })
-                                .finish(),
+                            Text::new(
+                                profile.localized_display_name(app),
+                                appearance.ui_font_family(),
+                                14.,
+                            )
+                            .with_style(Properties::default().weight(Weight::Medium))
+                            .with_color(if is_any_ai_enabled {
+                                appearance.theme().active_ui_text_color().into()
+                            } else {
+                                appearance.theme().disabled_ui_text_color().into()
+                            })
+                            .finish(),
                         )
                         .with_child(self.edit_button.as_ref(app).render(app))
                         .finish(),

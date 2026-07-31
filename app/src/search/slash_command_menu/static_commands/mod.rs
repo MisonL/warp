@@ -109,6 +109,7 @@ pub struct StaticCommand {
 pub struct SlashCommandArgumentHint {
     pub input_prefix: String,
     pub text: &'static str,
+    pub localization_key: Option<&'static str>,
 }
 
 impl StaticCommand {
@@ -139,10 +140,12 @@ impl StaticCommand {
     }
 
     pub fn argument_hint(&self) -> Option<SlashCommandArgumentHint> {
-        let text = self.argument.as_ref()?.hint_text?;
+        let argument = self.argument.as_ref()?;
+        let text = argument.hint_text?;
         Some(SlashCommandArgumentHint {
             input_prefix: format!("{} ", self.name),
             text,
+            localization_key: argument.hint_text_key,
         })
     }
 }

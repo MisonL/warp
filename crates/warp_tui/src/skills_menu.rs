@@ -2,15 +2,15 @@
 
 use warp::editor::{CodeEditorModel, CodeEditorModelEvent};
 use warp::tui_export::{
-    query_selectable_skills, AcceptSkill, ActiveSession, ActiveSessionEvent, SkillReference,
-    TuiSlashCommandDataSource,
+    AcceptSkill, ActiveSession, ActiveSessionEvent, SkillReference, TuiSlashCommandDataSource,
+    UpdatedActiveCommands, query_selectable_skills,
 };
 use warp_editor::model::CoreEditorModel;
 use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle};
 
 use crate::inline_menu::{
-    result_row_capacity, TuiInlineMenuHeader, TuiInlineMenuListState, TuiInlineMenuRow,
-    TuiInlineMenuRowStyle, TuiInlineMenuSnapshot, TuiInlineMenuStatus, MAX_INLINE_MENU_ROWS,
+    MAX_INLINE_MENU_ROWS, TuiInlineMenuHeader, TuiInlineMenuListState, TuiInlineMenuRow,
+    TuiInlineMenuRowStyle, TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
 use crate::localization;
@@ -69,6 +69,14 @@ impl TuiSkillMenuModel {
                 model.refresh_rows(ctx);
             }
         });
+        ctx.subscribe_to_model(
+            &slash_commands_source,
+            |model, _, _: &UpdatedActiveCommands, ctx| {
+                if model.is_open(ctx) {
+                    model.refresh_rows(ctx);
+                }
+            },
+        );
         Self {
             input_editor,
             suggestions_mode,

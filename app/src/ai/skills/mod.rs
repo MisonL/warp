@@ -12,7 +12,9 @@ pub(crate) use remote::bundled_skill_snapshot_protos;
 #[cfg(feature = "local_fs")]
 mod bundled;
 #[cfg(all(not(target_family = "wasm"), feature = "local_fs"))]
-pub(crate) use bundled::{BundledSkill, BundledSkillActivation};
+pub(crate) use bundled::{
+    BundledSkill, BundledSkillActivation, localized_bundled_skill_description,
+};
 
 cfg_if::cfg_if! {
     if #[cfg(not(feature = "local_fs"))] {
@@ -23,9 +25,11 @@ cfg_if::cfg_if! {
 
 pub use ai::skills::SkillReference;
 
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub enum SkillManagerEvent {
     HomeSkillsChanged,
+    BundledSkillsChanged,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -89,7 +93,7 @@ impl SkillPathQuery for PathBuf {
 mod resolve_skill_spec;
 #[cfg(not(target_family = "wasm"))]
 pub use resolve_skill_spec::{
-    clone_repo_for_skill, resolve_skill_spec, ResolveSkillError, ResolvedSkill,
+    ResolveSkillError, ResolvedSkill, clone_repo_for_skill, resolve_skill_spec,
 };
 
 cfg_if::cfg_if! {

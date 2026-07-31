@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use anyhow::Context as _;
 use parking_lot::RwLock;
 use warp_localization::{
-    native_locale_candidates, replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId,
+    AppLanguage, Catalog, CatalogBundle, LocaleId, native_locale_candidates, replace_placeholders,
 };
 use warpui_core::AppContext;
 
@@ -97,10 +97,9 @@ fn environment_locale_candidates_from(mut get: impl FnMut(&str) -> Option<String
 
 fn load_catalog(locale: LocaleId) -> anyhow::Result<Catalog> {
     let path = format!("../../../app/assets/bundled/locales/{}.json", locale.code());
-    let source = if locale == LocaleId::EnUs {
-        include_str!("../../../app/assets/bundled/locales/en-US.json")
-    } else {
-        include_str!("../../../app/assets/bundled/locales/zh-CN.json")
+    let source = match locale {
+        LocaleId::EnUs => include_str!("../../../app/assets/bundled/locales/en-US.json"),
+        LocaleId::ZhCn => include_str!("../../../app/assets/bundled/locales/zh-CN.json"),
     };
 
     Catalog::from_json(locale, source).with_context(|| format!("invalid {path}"))

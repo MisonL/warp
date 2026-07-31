@@ -2,8 +2,8 @@
 //! We fall back to the existing Warpification behavior and display this banner so the user knows why advanced features are unavailable.
 
 use remote_server::transport::UserFacingError;
-use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::AnsiColorIdentifier;
+use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
     MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
@@ -13,7 +13,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use crate::terminal::model::session::SessionId;
 use crate::ui_components::icons::Icon;
-use crate::{localization, Appearance};
+use crate::{Appearance, localization};
 
 #[derive(Clone, Debug)]
 pub enum SshRemoteServerFailedBannerAction {

@@ -3,7 +3,7 @@ use std::time::Duration;
 use aws_credential_types::provider::error::CredentialsError;
 use warp_localization::LocaleId;
 
-use super::{user_facing_aws_credentials_error_message, OidcRefreshError};
+use super::{OidcRefreshError, user_facing_aws_credentials_error_message};
 
 #[test]
 fn maps_credentials_not_loaded_to_user_message() {

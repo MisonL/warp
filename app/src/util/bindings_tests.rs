@@ -1,6 +1,6 @@
+use warpui::App;
 use warpui::keymap::{EditableBinding, Keystroke, Trigger};
 use warpui::platform::OperatingSystem;
-use warpui::App;
 
 use crate::terminal;
 use crate::test_util::settings::initialize_localization_for_tests;

@@ -3,9 +3,9 @@ use std::io::Write as _;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context as _};
+use anyhow::{Context as _, anyhow};
 use comfy_table::Cell;
-use futures::{future, StreamExt};
+use futures::{StreamExt, future};
 use serde::Serialize;
 use warp_cli::agent::{Harness, OutputFormat, Prompt, RunCloudArgs};
 use warp_cli::json_filter::JsonOutput;
@@ -18,39 +18,39 @@ use warp_cli::{GlobalOptions, SortOrderArg};
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warp_localization::LocaleId;
-use warpui::platform::TerminationMode;
 use warpui::r#async::{Spawnable, Timer};
+use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::common::{
-    parse_ambient_task_id_for_locale, EnvironmentChoice, ResolveConfigurationError,
+    EnvironmentChoice, ResolveConfigurationError, parse_ambient_task_id_for_locale,
 };
-use crate::ai::agent::{extract_user_query_mode, UserQueryMode};
+use crate::ai::agent::{UserQueryMode, extract_user_query_mode};
 use crate::ai::agent_sdk::driver::attachments::{
-    process_attachment, MAX_ATTACHMENT_COUNT_FOR_CLOUD_QUERY,
+    MAX_ATTACHMENT_COUNT_FOR_CLOUD_QUERY, process_attachment,
 };
 use crate::ai::ambient_agents::spawn::{
-    spawn_task, AmbientAgentEvent, SessionJoinInfo, TASK_STATUS_POLLING_DURATION,
+    AmbientAgentEvent, SessionJoinInfo, TASK_STATUS_POLLING_DURATION, spawn_task,
 };
 use crate::ai::ambient_agents::task::HarnessConfig;
 use crate::ai::ambient_agents::{
-    localized_task_status_message_for_locale, AgentConfigSnapshot, AmbientAgentTask,
-    AmbientAgentTaskId, AmbientAgentTaskState,
+    AgentConfigSnapshot, AmbientAgentTask, AmbientAgentTaskId, AmbientAgentTaskState,
+    localized_task_status_message_for_locale,
 };
 use crate::ai::artifacts::Artifact;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::server::ids::{ServerId, SyncId};
+use crate::server::server_api::ServerApi;
 use crate::server::server_api::ai::{
     AIClient, AgentMessageHeader, AgentRunEvent, AgentSource, ArtifactType, ExecutionLocation,
     ListAgentMessagesRequest, ReadAgentMessageResponse, RunSortBy, RunSortOrder,
     SendAgentMessageRequest, SendAgentMessageResponse, SpawnAgentRequest, TaskListFilter,
 };
-use crate::server::server_api::ServerApi;
 use crate::terminal::shared_session;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{localization, ServerApiProvider};
+use crate::{ServerApiProvider, localization};
 
 const MAX_LINE_WIDTH: usize = 90;
 const STREAM_RETRY_BACKOFF_STEPS: &[u64] = &[1, 2, 5, 10];
@@ -437,13 +437,13 @@ impl AmbientAgentRunner {
             };
 
             let mut environment_args = args.environment;
-            if environment_args.environment.is_none() && !environment_args.no_environment {
-                if let Some(environment_id) = loaded_file
+            if environment_args.environment.is_none()
+                && !environment_args.no_environment
+                && let Some(environment_id) = loaded_file
                     .as_ref()
                     .and_then(|f| f.file.environment_id.clone())
-                {
-                    environment_args.environment = Some(environment_id);
-                }
+            {
+                environment_args.environment = Some(environment_id);
             }
 
             let environment_id = match EnvironmentChoice::resolve_for_create(environment_args, ctx)
@@ -711,18 +711,16 @@ impl AmbientAgentRunner {
 
             ctx.spawn(spawn_future, move |_, result, ctx| match result {
                 Ok(session_join_info) => {
-                    if should_open {
-                        if let Some(session_join_info) = session_join_info {
-                            let url =
-                                match (super::is_running_in_warp(), session_join_info.session_id) {
-                                    (true, Some(session_id)) => {
-                                        shared_session::join_native_intent(&session_id)
-                                    }
-                                    _ => session_join_info.session_link,
-                                };
+                    if should_open && let Some(session_join_info) = session_join_info {
+                        let url = match (super::is_running_in_warp(), session_join_info.session_id)
+                        {
+                            (true, Some(session_id)) => {
+                                shared_session::join_native_intent(&session_id)
+                            }
+                            _ => session_join_info.session_link,
+                        };
 
-                            ctx.open_url(&url);
-                        }
+                        ctx.open_url(&url);
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
                 }

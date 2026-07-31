@@ -15,6 +15,7 @@ use warpui::{
     AppContext, Element, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _,
 };
 
+use crate::ai::skills::{SkillManager, SkillManagerEvent};
 use crate::appearance::Appearance;
 use crate::localization;
 use crate::search::data_source::{Query, QueryResult};
@@ -22,11 +23,11 @@ use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::search::{SearchItem, SyncDataSource};
 use crate::terminal::input::inline_menu::{
-    default_navigation_message_items, styles as inline_styles, InlineMenuAction,
-    InlineMenuMessageArgs, InlineMenuType,
+    InlineMenuAction, InlineMenuMessageArgs, InlineMenuType, default_navigation_message_items,
+    styles as inline_styles,
 };
 use crate::terminal::input::message_bar::{Message, MessageItem};
-use crate::terminal::input::skills::{query_selectable_skills, SelectableSkill};
+use crate::terminal::input::skills::{SelectableSkill, query_selectable_skills};
 use crate::terminal::model::session::active_session::{ActiveSession, ActiveSessionEvent};
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 
@@ -93,6 +94,13 @@ impl SkillSelectorDataSource {
                 ctx.emit(UpdatedAvailableSkills);
             }
         });
+        if ctx.has_singleton_model::<SkillManager>() {
+            ctx.subscribe_to_model(&SkillManager::handle(ctx), |_, _, event, ctx| {
+                if matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                    ctx.emit(UpdatedAvailableSkills);
+                }
+            });
+        }
 
         Self {
             active_session,
@@ -267,13 +275,13 @@ impl SearchItem for SkillSearchItem {
         .with_color(primary_text_color.into())
         .with_clip(ClipConfig::ellipsis());
 
-        if let Some(name_match) = &self.name_match_result {
-            if !name_match.matched_indices.is_empty() {
-                name_text = name_text.with_single_highlight(
-                    Highlight::new().with_properties(Properties::default().weight(Weight::Bold)),
-                    name_match.matched_indices.clone(),
-                );
-            }
+        if let Some(name_match) = &self.name_match_result
+            && !name_match.matched_indices.is_empty()
+        {
+            name_text = name_text.with_single_highlight(
+                Highlight::new().with_properties(Properties::default().weight(Weight::Bold)),
+                name_match.matched_indices.clone(),
+            );
         }
 
         row.add_child(

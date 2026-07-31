@@ -10,6 +10,21 @@ fn command_names_are_unique() {
         assert!(seen.insert(name), "duplicate slash command name: {name}");
     }
 }
+#[test]
+fn tui_only_commands_are_registered_only_for_tui_mode() {
+    for command in [VIEW_LOGS, EXIT] {
+        assert!(
+            all_commands(settings::SettingsMode::Tui)
+                .iter()
+                .any(|candidate| candidate == &command)
+        );
+        assert!(
+            !all_commands(settings::SettingsMode::Gui)
+                .iter()
+                .any(|candidate| candidate == &command)
+        );
+    }
+}
 
 #[test]
 fn rename_tab_command_requires_argument() {

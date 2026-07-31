@@ -1,30 +1,164 @@
 use std::collections::HashMap;
 
+use settings::Setting as _;
 use warp_core::features::FeatureFlag;
-use warpui::App;
+use warp_localization::LocaleId;
+use warpui::{App, SingletonEntity as _};
 
 use super::ui_helpers::context_window_snap_values;
+use super::{
+    ExecutionProfileEditorView, ExecutionProfileEditorViewAction, updated_profile_name,
+    upgrade_footer_link_char_range,
+};
+use crate::LaunchMode;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{
-    has_configurable_context_window, should_show_long_context_pricing_warning, AIExecutionProfile,
-    AIExecutionProfileAppExt as _,
+    AIExecutionProfile, AIExecutionProfileAppExt as _, has_configurable_context_window,
+    should_show_long_context_pricing_warning,
 };
 use crate::ai::llms::{
     AvailableLLMs, LLMContextWindow, LLMInfo, LLMPreferences, LLMProvider, LLMUsageMetadata,
     ModelsByFeature,
 };
 use crate::ai::mcp::TemplatableMCPServerManager;
-use crate::auth::auth_manager::AuthManager;
 use crate::auth::AuthStateProvider;
+use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::sync_queue::SyncQueue;
-use crate::test_util::settings::initialize_settings_for_tests;
+use crate::settings::{AppLanguage, LanguageSettings};
+use crate::test_util::settings::{
+    initialize_localization_for_tests, initialize_settings_for_tests,
+};
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::LaunchMode;
+
+#[test]
+fn execution_profile_display_name_localizes_only_generated_labels() {
+    App::test((), |mut app| async move {
+        initialize_localization_for_tests(&mut app);
+
+        let default_profile = AIExecutionProfile {
+            name: "Untitled".to_owned(),
+            is_default_profile: true,
+            ..Default::default()
+        };
+        let untitled_profile = AIExecutionProfile {
+            name: "  ".to_owned(),
+            ..Default::default()
+        };
+        let user_named_default = AIExecutionProfile {
+            name: "Default".to_owned(),
+            ..Default::default()
+        };
+
+        app.read(|ctx| {
+            assert_eq!(default_profile.localized_display_name(ctx), "Default");
+            assert_eq!(untitled_profile.localized_display_name(ctx), "Untitled");
+            assert_eq!(user_named_default.localized_display_name(ctx), "Default");
+        });
+
+        app.update(|ctx| {
+            LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings
+                    .app_language
+                    .load_value(AppLanguage::SimplifiedChinese, true, ctx)
+                    .expect("language setting should update");
+            });
+        });
+
+        app.read(|ctx| {
+            assert_eq!(default_profile.localized_display_name(ctx), "默认");
+            assert_eq!(untitled_profile.localized_display_name(ctx), "未命名");
+            assert_eq!(user_named_default.localized_display_name(ctx), "Default");
+        });
+    });
+}
+
+#[test]
+fn execution_profile_permission_options_follow_simplified_chinese() {
+    App::test((), |mut app| async move {
+        initialize_localization_for_tests(&mut app);
+        app.update(|ctx| {
+            LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings
+                    .app_language
+                    .load_value(AppLanguage::SimplifiedChinese, true, ctx)
+                    .expect("language setting should update");
+            });
+        });
+
+        app.read(|ctx| {
+            let items = ExecutionProfileEditorView::action_permission_dropdown_items(
+                |permission| ExecutionProfileEditorViewAction::SetApplyCodeDiffs { permission },
+                ctx,
+            );
+            let labels = items
+                .iter()
+                .map(|item| item.display_text.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(labels, ["由 Agent 决定", "始终允许", "始终询问"]);
+        });
+    });
+}
+
+#[test]
+fn upgrade_footer_link_range_uses_character_indices_for_simplified_chinese() {
+    let label = crate::localization::text_for_locale(
+        LocaleId::ZhCn,
+        "settings.execution_profile.editor.upgrade_footer",
+    );
+    let upgrade_link = crate::localization::text_for_locale(
+        LocaleId::ZhCn,
+        "settings.execution_profile.editor.upgrade_footer.link",
+    );
+    let range = upgrade_footer_link_char_range(&label, &upgrade_link).unwrap();
+    let selected = label
+        .chars()
+        .skip(range.start)
+        .take(range.end - range.start)
+        .collect::<String>();
+
+    assert!(label.len() > label.chars().count());
+    assert_eq!(selected, upgrade_link);
+    assert_eq!(range.end - range.start, upgrade_link.chars().count());
+}
+
+#[test]
+fn upgrade_footer_link_range_is_absent_without_a_link_in_the_label() {
+    assert_eq!(
+        upgrade_footer_link_char_range("免费套餐无法使用 Frontier 模型。", "升级"),
+        None
+    );
+    assert_eq!(
+        upgrade_footer_link_char_range("Frontier models are unavailable on free plans.", ""),
+        None
+    );
+}
+
+#[test]
+fn generated_or_unchanged_profile_names_are_not_persisted() {
+    let default_profile = AIExecutionProfile {
+        name: "Untitled".to_owned(),
+        is_default_profile: true,
+        ..Default::default()
+    };
+    assert_eq!(updated_profile_name(&default_profile, "默认"), None);
+
+    let custom_profile = AIExecutionProfile {
+        name: "My profile".to_owned(),
+        ..Default::default()
+    };
+    assert_eq!(updated_profile_name(&custom_profile, "  "), None);
+    assert_eq!(updated_profile_name(&custom_profile, " My profile "), None);
+    assert_eq!(
+        updated_profile_name(&custom_profile, " Renamed "),
+        Some("Renamed".to_owned())
+    );
+}
+
 fn configurable_model(provider: LLMProvider) -> LLMInfo {
     LLMInfo {
         display_name: "test model".to_string(),
@@ -135,7 +269,9 @@ fn snap_values_for_classic_200k_range_match_legacy_layout() {
     let values = rounded(&context_window_snap_values(1_000, 200_000));
     assert_eq!(
         values,
-        vec![1_000, 25_000, 50_000, 75_000, 100_000, 125_000, 150_000, 175_000, 200_000]
+        vec![
+            1_000, 25_000, 50_000, 75_000, 100_000, 125_000, 150_000, 175_000, 200_000
+        ]
     );
 }
 
@@ -144,7 +280,9 @@ fn snap_values_for_claude_1m_range_pick_100k_steps() {
     let values = rounded(&context_window_snap_values(200_000, 1_000_000));
     assert_eq!(
         values,
-        vec![200_000, 300_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000, 1_000_000]
+        vec![
+            200_000, 300_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000, 1_000_000
+        ]
     );
 }
 

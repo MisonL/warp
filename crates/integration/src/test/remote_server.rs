@@ -23,7 +23,7 @@ use warp::integration_testing::terminal::{
 use warp::terminal::warpify::settings::{SshExtensionInstallMode, SshExtensionInstallModeSetting};
 use warpui_core::integration::TestStep;
 
-use super::{new_builder, Builder};
+use super::{Builder, new_builder};
 use crate::util::can_run_gcloud_ssh_tests;
 
 /// Common builder configuration for remote server tests: enables the

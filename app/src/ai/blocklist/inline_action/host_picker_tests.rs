@@ -3,8 +3,8 @@
 //! testing.
 
 use super::{
-    build_menu_items_with_labels, format_known_label, normalize_slug, DropdownAction,
-    InternalAction, MenuItem, ORCHESTRATION_WARP_WORKER_HOST,
+    DropdownAction, InternalAction, MenuItem, ORCHESTRATION_WARP_WORKER_HOST,
+    build_menu_items_with_labels, format_known_label, normalize_slug,
 };
 
 const CUSTOM_HOST_LABEL: &str = "Custom host\u{2026}";

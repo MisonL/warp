@@ -2,17 +2,23 @@ use ai::skills::SkillReference;
 use warp::appearance::Appearance;
 use warp::editor::CodeEditorModel;
 use warp::tui_export::{
-    slash_commands, AcceptSlashCommandOrSavedPrompt, DetectedCommand, DetectedSkillCommand,
-    ParsedSlashCommandInput, SlashCommandId, SlashCommandMixer,
+    AcceptSlashCommandOrSavedPrompt, DetectedCommand, DetectedSkillCommand,
+    ParsedSlashCommandInput, SlashCommandId, SlashCommandMixer, slash_commands,
 };
+use warp_localization::LocaleId;
 use warp_search_core::inline_menu::InlineMenuSelection;
-use warpui_core::App;
+use warpui_core::elements::tui::{
+    TuiBuffer, TuiBufferExt, TuiConstraint, TuiElement, TuiLayoutContext, TuiPaintContext,
+    TuiPaintSurface, TuiRect, TuiScreenPosition, TuiSize,
+};
+use warpui_core::{App, AppContext, EntityIdMap};
 
 use super::{
-    argument_hint_text_for_parsed_input, highlighted_prefix_len_for_parsed_input,
-    menu_query_for_parsed_input, TuiSlashCommandModel, TuiSlashCommandRow, MAX_VISIBLE_ROWS,
+    MAX_VISIBLE_ROWS, TuiSlashCommandModel, TuiSlashCommandRow, argument_hint_for_parsed_input,
+    highlighted_prefix_len_for_parsed_input, localized_argument_hint_text_for_locale,
+    menu_query_for_parsed_input,
 };
-use crate::inline_menu::keep_selected_visible;
+use crate::inline_menu::{TuiInlineMenu, keep_selected_visible};
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
 
 fn parsed_skill(argument: Option<&str>) -> ParsedSlashCommandInput {
@@ -24,22 +30,90 @@ fn parsed_skill(argument: Option<&str>) -> ParsedSlashCommandInput {
 }
 
 #[test]
-fn argument_hint_uses_shared_static_command_placeholder() {
+fn slash_command_menu_renders_view_logs_row() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            ctx.add_singleton_model(|_| Appearance::mock());
+            let input_editor = ctx.add_model(|ctx| CodeEditorModel::new_tui(80, ctx));
+            let suggestions_mode = ctx.add_model(|_| TuiInputSuggestionsModeModel::new());
+            suggestions_mode.update(ctx, |mode, ctx| {
+                mode.set_mode(TuiInputSuggestionsMode::SlashCommands, ctx);
+            });
+            let mixer = ctx.add_model(|_| SlashCommandMixer::new());
+            let model = ctx.add_model(|_| {
+                TuiSlashCommandModel::new_for_test(
+                    input_editor,
+                    suggestions_mode,
+                    mixer,
+                    vec![TuiSlashCommandRow {
+                        title: "/view-logs".to_owned(),
+                        description: Some("Bundle your TUI logs into a zip archive".to_owned()),
+                        action: AcceptSlashCommandOrSavedPrompt::SlashCommand {
+                            id: SlashCommandId::new(),
+                        },
+                    }],
+                    0,
+                )
+            });
+            let menu = TuiInlineMenu::new(model);
+            let element = menu.render(ctx).expect("slash command menu should render");
+            let lines = render_menu_lines(element, ctx);
+
+            assert!(lines.iter().any(|line| line.contains("/view-logs")));
+            assert!(
+                lines
+                    .iter()
+                    .any(|line| line.contains("Bundle your TUI logs"))
+            );
+        });
+    });
+}
+
+fn render_menu_lines(mut element: Box<dyn TuiElement>, ctx: &AppContext) -> Vec<String> {
+    let mut rendered_views = EntityIdMap::default();
+    let mut layout_ctx = TuiLayoutContext {
+        rendered_views: &mut rendered_views,
+    };
+    let size = element.layout(
+        TuiConstraint::loose(TuiSize::new(80, 20)),
+        &mut layout_ctx,
+        ctx,
+    );
+    let area = TuiRect::new(0, 0, size.width, size.height);
+    let mut buffer = TuiBuffer::empty(area);
+    let mut paint_ctx = TuiPaintContext::new(&mut rendered_views);
+    let mut surface = TuiPaintSurface::new(&mut buffer);
+    element.render(
+        TuiScreenPosition::new(i32::from(area.x), i32::from(area.y)),
+        &mut surface,
+        &mut paint_ctx,
+    );
+    buffer.to_lines()
+}
+
+#[test]
+fn argument_hint_uses_the_current_locale_when_a_catalog_key_is_available() {
     let command = ParsedSlashCommandInput::SlashCommand(DetectedCommand {
         command: slash_commands::EXPORT_TO_FILE.clone(),
         argument: Some(String::new()),
     });
 
+    let hint = argument_hint_for_parsed_input(&command, "/export-to-file ")
+        .expect("export-to-file should expose an argument hint");
     assert_eq!(
-        argument_hint_text_for_parsed_input(&command, "/export-to-file "),
-        Some("<optional filename>")
+        localized_argument_hint_text_for_locale(&hint, LocaleId::EnUs),
+        "<optional filename>"
     );
     assert_eq!(
-        argument_hint_text_for_parsed_input(&command, "/export-to-file notes.md"),
+        localized_argument_hint_text_for_locale(&hint, LocaleId::ZhCn),
+        "<可选文件名>"
+    );
+    assert_eq!(
+        argument_hint_for_parsed_input(&command, "/export-to-file notes.md"),
         None
     );
     assert_eq!(
-        argument_hint_text_for_parsed_input(&parsed_skill(Some("")), "/write-product-spec "),
+        argument_hint_for_parsed_input(&parsed_skill(Some("")), "/write-product-spec "),
         None
     );
 }

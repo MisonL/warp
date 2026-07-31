@@ -16,7 +16,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity as _, View, ViewContex
 
 use crate::features::FeatureFlag;
 use crate::menu::MenuItemFields;
-use crate::modal::{Modal, ModalEvent, MODAL_PADDING, MODAL_WIDTH};
+use crate::modal::{MODAL_PADDING, MODAL_WIDTH, Modal, ModalEvent};
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
 use crate::server::telemetry::{AutoReloadModalAction, TelemetryEvent};
 use crate::settings_view::create_discount_badge;
@@ -228,12 +228,10 @@ impl EnableAutoReloadModalBody {
                 app,
                 "settings.billing.auto_reload_modal.description.bold",
             )),
-            FormattedTextFragment::plain_text(
-                localization::text_for_app(
-                    app,
-                    "settings.billing.auto_reload_modal.description.suffix",
-                ),
-            ),
+            FormattedTextFragment::plain_text(localization::text_for_app(
+                app,
+                "settings.billing.auto_reload_modal.description.suffix",
+            )),
             FormattedTextFragment::hyperlink(
                 localization::text_for_app(
                     app,

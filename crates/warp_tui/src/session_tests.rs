@@ -1,7 +1,7 @@
 use clap::Parser;
 use warp_localization::LocaleId;
 
-use super::{parse_resume_token, tui_command_for, TuiArgs};
+use super::{TuiArgs, parse_resume_token, tui_command_for};
 
 #[test]
 fn parses_resume_server_token() {

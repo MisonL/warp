@@ -17,7 +17,7 @@ use crate::terminal::cli_agent_sessions::{
 use crate::terminal::{CLIAgent, TerminalView};
 use crate::workspace::util::is_terminal_view_in_same_tab;
 use crate::workspace::{Workspace, WorkspaceRegistry};
-use crate::{localization, BlocklistAIHistoryModel};
+use crate::{BlocklistAIHistoryModel, localization};
 
 /// Singleton model responsible for triggering in-app notifications on blocking conversation
 /// status updates and tracking/storing these notifications for the notifications mailbox.
@@ -627,10 +627,10 @@ fn find_terminal_view_by_id(
         for pane_group in workspace_handle.as_ref(app).tab_views() {
             let pane_group = pane_group.as_ref(app);
             for pane_id in pane_group.terminal_pane_ids() {
-                if let Some(terminal_view) = pane_group.terminal_view_from_pane_id(pane_id, app) {
-                    if terminal_view.id() == terminal_view_id {
-                        return Some(terminal_view);
-                    }
+                if let Some(terminal_view) = pane_group.terminal_view_from_pane_id(pane_id, app)
+                    && terminal_view.id() == terminal_view_id
+                {
+                    return Some(terminal_view);
                 }
             }
         }

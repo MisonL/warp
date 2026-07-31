@@ -14,14 +14,14 @@ use warp_editor::render::model::{
     ParagraphStyles, RichTextStyles, TableStyle,
 };
 use warp_util::user_input::UserInput;
+use warpui::AppContext;
 use warpui::elements::{Border, ListIndentLevel};
 use warpui::fonts::FamilyId;
 use warpui::ui_components::checkbox::HOVER_BACKGROUND_COLOR;
-use warpui::AppContext;
 
 use crate::appearance::Appearance;
 use crate::notebooks::editor::embedded_item::EmbeddedWorkflow;
-use crate::settings::{derived_notebook_font_size, FontSettings};
+use crate::settings::{FontSettings, derived_notebook_font_size};
 use crate::themes::theme::Fill;
 use crate::ui_components::icons::Icon;
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};

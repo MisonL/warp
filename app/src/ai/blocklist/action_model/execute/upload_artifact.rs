@@ -5,8 +5,8 @@ use std::path::PathBuf;
 #[path = "upload_artifact_tests.rs"]
 mod tests;
 
-use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::future::BoxFuture;
 #[cfg(not(target_family = "wasm"))]
 use warp_localization::LocaleId;
 #[cfg(not(target_family = "wasm"))]

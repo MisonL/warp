@@ -1,15 +1,15 @@
 use settings::Setting as _;
 use voice_input::{StartListeningError, VoiceInput, VoiceSessionResult};
 use warp_core::send_telemetry_from_ctx;
-use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::AnsiColorIdentifier;
+use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
+use warpui::r#async::SpawnedFutureHandle;
 use warpui::elements::{Container, CornerRadius, Icon, Radius};
 use warpui::platform::Cursor;
-use warpui::r#async::SpawnedFutureHandle;
 use warpui::ui_components::button::ButtonTooltipPosition;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{elements, AppContext, Element, SingletonEntity, ViewContext, ViewHandle};
+use warpui::{AppContext, Element, SingletonEntity, ViewContext, ViewHandle, elements};
 
 use super::{EditorAction, EditorView, VoiceTranscriber, VoiceTranscriptionOptions};
 use crate::ai::blocklist::InputType;
@@ -81,9 +81,11 @@ impl EditorView {
                 crate::view_components::NewFeaturePopupEvent::Dismissed
             ) {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    warp_errors::report_if_error!(settings
-                        .dismissed_voice_input_new_feature_popup
-                        .set_value(true, ctx));
+                    warp_errors::report_if_error!(
+                        settings
+                            .dismissed_voice_input_new_feature_popup
+                            .set_value(true, ctx)
+                    );
                 });
                 ctx.notify();
             }
@@ -287,8 +289,10 @@ impl EditorView {
                                     Self::show_microphone_access_toast(ctx);
                                 }
                                 _ => {
-                                    report_error!(anyhow::Error::new(e)
-                                        .context("Failed to start voice input"));
+                                    report_error!(
+                                        anyhow::Error::new(e)
+                                            .context("Failed to start voice input")
+                                    );
                                 }
                             }
                             ctx.notify();
@@ -508,7 +512,9 @@ impl EditorView {
                     self.voice_error_toast(&message, ctx)
                 }
                 _ => {
-                    report_error!(anyhow::Error::new(e).context("Failed to transcribe voice input"));
+                    report_error!(
+                        anyhow::Error::new(e).context("Failed to transcribe voice input")
+                    );
                     let message =
                         localization::text_for_app(ctx, "editor.voice.toast.processing_error");
                     self.voice_error_toast(&message, ctx)

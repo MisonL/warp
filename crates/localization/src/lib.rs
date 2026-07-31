@@ -303,28 +303,40 @@ pub fn replace_placeholders(
     let mut used_args = vec![false; args.len()];
     let mut rest = template;
 
-    while let Some(start) = rest.find('{') {
-        output.push_str(&rest[..start]);
-        rest = &rest[start + 1..];
-
-        if rest.starts_with('{') {
+    while !rest.is_empty() {
+        if rest.starts_with("{{") {
             output.push('{');
+            rest = &rest[2..];
+            continue;
+        }
+        if rest.starts_with("}}") {
+            output.push('}');
+            rest = &rest[2..];
+            continue;
+        }
+        if rest.starts_with('}') {
+            output.push('}');
             rest = &rest[1..];
             continue;
         }
+        if !rest.starts_with('{') {
+            let next_brace = rest.find(['{', '}']).unwrap_or(rest.len());
+            output.push_str(&rest[..next_brace]);
+            rest = &rest[next_brace..];
+            continue;
+        }
 
-        let Some(end) = rest.find('}') else {
-            output.push('{');
+        let Some(end) = rest[1..].find('}') else {
             output.push_str(rest);
             return ensure_all_args_used(args, &used_args, output);
         };
 
-        let name = &rest[..end];
+        let name = &rest[1..end + 1];
         if !is_placeholder_name(name) {
             output.push('{');
             output.push_str(name);
             output.push('}');
-            rest = &rest[end + 1..];
+            rest = &rest[end + 2..];
             continue;
         }
 
@@ -335,7 +347,7 @@ pub fn replace_placeholders(
         };
         output.push_str(args[arg_index].1);
         used_args[arg_index] = true;
-        rest = &rest[end + 1..];
+        rest = &rest[end + 2..];
     }
 
     output.push_str(rest);

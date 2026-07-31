@@ -7,12 +7,12 @@ use warp::tui_export::{
     AcceptSlashCommandOrSavedPrompt, AgentConversationEntryId, LLMId, TuiMcpAction,
 };
 use warp_search_core::inline_menu::{InlineMenuResultsUpdate, InlineMenuSelection};
+use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::elements::tui::{
     TuiConstrainedBox, TuiConstraint, TuiContainer, TuiElement, TuiEvent, TuiEventContext, TuiFlex,
     TuiLayoutContext, TuiPaintContext, TuiPaintSurface, TuiPresentationContext, TuiScreenPoint,
     TuiScreenPosition, TuiSize, TuiText,
 };
-use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::{AppContext, ModelHandle};
 
 use crate::conversation_menu::TuiConversationMenuModel;
@@ -23,7 +23,7 @@ use crate::skills_menu::TuiSkillMenuModel;
 use crate::slash_commands::TuiSlashCommandModel;
 use crate::tui_builder::TuiUiBuilder;
 use crate::tui_column_layout::{
-    format_tui_first_column, tui_two_column_layout, TuiTwoColumnConstraints, TuiTwoColumnLayout,
+    TuiTwoColumnConstraints, TuiTwoColumnLayout, format_tui_first_column, tui_two_column_layout,
 };
 
 const SLASH_COMMAND_COLUMN_CONSTRAINTS: TuiTwoColumnConstraints = TuiTwoColumnConstraints {
@@ -63,7 +63,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiMcpMenuModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 
@@ -275,7 +275,7 @@ pub(crate) trait TuiInlineMenuHandle {
     /// Returns the input range highlighted by this menu.
     fn input_highlight_range(&self, ctx: &AppContext) -> Option<Range<CharOffset>>;
     /// Returns the input argument hint shown by this menu.
-    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<&'static str>;
+    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<String>;
     /// Moves selection to the previous row.
     fn select_previous(&self, ctx: &mut AppContext);
     /// Moves selection to the next row.
@@ -316,7 +316,7 @@ impl TuiInlineMenu {
         self.0.input_highlight_range(ctx)
     }
 
-    pub(crate) fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<&'static str> {
+    pub(crate) fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<String> {
         self.0.input_argument_hint_text(ctx)
     }
 
@@ -352,7 +352,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiSlashCommandModel> {
         self.as_ref(ctx).highlighted_prefix_range()
     }
 
-    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<String> {
         self.as_ref(ctx).argument_hint_text()
     }
 
@@ -393,7 +393,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiConversationMenuModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 
@@ -430,7 +430,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiModelMenuModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 
@@ -469,7 +469,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiSkillMenuModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 

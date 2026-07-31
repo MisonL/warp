@@ -1,7 +1,7 @@
 use warp_cli::agent::OutputFormat;
 use warp_localization::LocaleId;
 
-use super::{ProviderInfo, PROVIDER_STATUS_NOT_CONNECTED};
+use super::{PROVIDER_STATUS_NOT_CONNECTED, ProviderInfo};
 use crate::ai::agent_sdk::output::write_list_for_locale;
 
 #[test]

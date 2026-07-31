@@ -2,34 +2,51 @@
 
 use ai::api_keys::ApiKeyManager;
 use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
+use settings::Setting;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
-use warpui::SingletonEntity as _;
+use warpui::{ModelContext, SingletonEntity as _};
 
+use crate::LaunchMode;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
+use crate::ai::agent::AIAgentAction;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::blocklist::local_agent_task_sync_model::LocalAgentTaskSyncModel;
 use crate::ai::blocklist::orchestration_event_streamer::OrchestrationEventStreamer;
 use crate::ai::blocklist::orchestration_events::OrchestrationEventService;
-use crate::ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions, QueuedQueryModel};
+use crate::ai::blocklist::{
+    BlocklistAIActionModel, BlocklistAIHistoryModel, BlocklistAIPermissions, QueuedQueryModel,
+};
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::connected_self_hosted_workers::ConnectedSelfHostedWorkersModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::llms::LLMPreferences;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
-use crate::auth::auth_manager::AuthManager;
 use crate::auth::AuthStateProvider;
+use crate::auth::auth_manager::AuthManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::git_repo_model::GitRepoModels;
 use crate::network::NetworkStatus;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::sync_queue::SyncQueue;
 use crate::settings::manager::SettingsManager;
-use crate::settings::{init_and_register_user_preferences, AISettings};
+use crate::settings::{
+    AISettings, AppLanguage, LanguageSettings, PrivacySettings, init_and_register_user_preferences,
+};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::user_config::WarpConfig;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::LaunchMode;
+
+/// Queues an action as the active confirmation request for a TUI view test.
+pub fn queue_tui_permission_action(
+    action_model: &mut BlocklistAIActionModel,
+    action: AIAgentAction,
+    conversation_id: AIConversationId,
+    ctx: &mut ModelContext<BlocklistAIActionModel>,
+) {
+    action_model.queue_confirmation_action(action, conversation_id, ctx);
+}
 
 /// Registers the app models required to construct full TUI session views in tests.
 ///
@@ -39,6 +56,15 @@ pub fn register_tui_session_view_test_singletons(app: &mut warpui::App) {
     app.update(init_and_register_user_preferences);
     app.add_singleton_model(|_| SettingsManager::default());
     app.add_singleton_model(WarpConfig::mock);
+    LanguageSettings::register(app);
+    app.update(|ctx| {
+        LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+            settings
+                .app_language
+                .load_value(AppLanguage::English, true, ctx)
+                .expect("test language setting should update");
+        });
+    });
     app.update(|ctx| {
         warpui_extras::secure_storage::register_noop("test", ctx);
     });
@@ -50,6 +76,7 @@ pub fn register_tui_session_view_test_singletons(app: &mut warpui::App) {
     app.add_singleton_model(|_| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(AuthManager::new_for_test);
+    app.add_singleton_model(PrivacySettings::mock);
     app.add_singleton_model(|ctx| {
         let (team_client, workspace_client) = {
             let provider = ServerApiProvider::as_ref(ctx);

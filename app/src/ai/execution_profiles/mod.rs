@@ -1,7 +1,7 @@
 pub use cloud_object_models::{
     AIExecutionProfile, ActionPermission, AskUserQuestionPermission, CloudAIExecutionProfile,
-    CloudAIExecutionProfileModel, ComputerUsePermission, RunAgentsPermission, WriteToPtyPermission,
-    PROFILE_NAME_MAX_LENGTH,
+    CloudAIExecutionProfileModel, ComputerUsePermission, PROFILE_NAME_MAX_LENGTH,
+    RunAgentsPermission, WriteToPtyPermission,
 };
 use markdown_parser::{FormattedTextFragment, FormattedTextInline};
 use warp_core::features::FeatureFlag;
@@ -21,6 +21,19 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 pub const LONG_CONTEXT_WARNING_THRESHOLD: u32 = 272_000;
 pub(crate) const LONG_CONTEXT_PRICING_WARNING_URL: &str =
     "https://developers.openai.com/api/docs/pricing";
+
+pub(crate) fn execution_profile_display_name_key(
+    profile: &AIExecutionProfile,
+) -> Option<&'static str> {
+    if profile.is_default_profile {
+        Some("settings.execution_profile.editor.default_profile_name")
+    } else if profile.name.trim().is_empty() {
+        Some("settings.execution_profile.untitled_profile_name")
+    } else {
+        None
+    }
+}
+
 pub(crate) fn long_context_pricing_warning_title(app: &AppContext) -> FormattedTextInline {
     vec![
         FormattedTextFragment::plain_text(localization::text_for_app(
@@ -37,9 +50,11 @@ pub(crate) fn long_context_pricing_warning_title(app: &AppContext) -> FormattedT
     ]
 }
 
+mod config;
 pub mod editor;
 pub mod model_menu_items;
 pub mod profiles;
+pub use config::{ExecutionProfileId, ExecutionProfilesConfig};
 
 /// Result of resolving the cloud agent computer use setting.
 /// Contains both the effective value and whether it's forced by organization policy.
@@ -122,6 +137,8 @@ pub fn create_default_from_legacy_settings(app: &AppContext) -> AIExecutionProfi
 }
 
 pub trait AIExecutionProfileAppExt {
+    fn localized_display_name(&self, app: &AppContext) -> String;
+
     fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow>;
 
     fn context_window_display_value(&self, app: &AppContext) -> Option<u32>;
@@ -134,6 +151,12 @@ pub trait AIExecutionProfileAppExt {
 }
 
 impl AIExecutionProfileAppExt for AIExecutionProfile {
+    fn localized_display_name(&self, app: &AppContext) -> String {
+        execution_profile_display_name_key(self)
+            .map(|key| localization::text_for_app(app, key))
+            .unwrap_or_else(|| self.name.clone())
+    }
+
     fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow> {
         let llm = effective_base_model(self, app);
         if has_configurable_context_window(

@@ -18,13 +18,13 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 use super::style::{self, BUTTON_GAP, MODAL_MARGIN};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::appearance::Appearance;
+use crate::terminal::TerminalModel;
 use crate::terminal::shared_session::ai_agent::encode_agent_response_event;
 use crate::terminal::shared_session::replay_agent_conversations::reconstruct_response_events_from_conversations;
 use crate::terminal::shared_session::role_change_modal::TEXT_FONT_SIZE;
 use crate::terminal::shared_session::{
-    max_session_size, SharedSessionActionSource, SharedSessionScrollbackType,
+    SharedSessionActionSource, SharedSessionScrollbackType, max_session_size,
 };
-use crate::terminal::TerminalModel;
 
 #[derive(Default)]
 struct ButtonMouseStateHandles {

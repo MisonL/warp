@@ -1,9 +1,9 @@
 use super::event::{
-    parse_event, CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventSource, CLIAgentEventType,
+    CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventSource, CLIAgentEventType, parse_event,
 };
 use super::{
-    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
-    CLIAgentSessionStatus, CLIAgentSessionsModel, CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION,
+    CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION, CLIAgentInputEntrypoint, CLIAgentInputState,
+    CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
 };
 use crate::ai::blocklist::{InputConfig, InputType};
 use crate::terminal::CLIAgent;

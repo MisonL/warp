@@ -4,10 +4,10 @@ use itertools::{Either, Itertools};
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, EntityId, UpdateView, ViewContext};
 
-use super::{group_member_indices, Workspace};
+use super::{Workspace, group_member_indices};
 use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::tab::{TabData, MOVE_TO_GROUP_IDENTIFIER};
+use crate::tab::{MOVE_TO_GROUP_IDENTIFIER, TabData};
 use crate::workspace::action::{TabContextMenuAnchor, WorkspaceAction};
 use crate::workspace::tab_group::{TabGroup, TabGroupId};
 use crate::workspace::util::PaneViewLocator;
@@ -148,14 +148,13 @@ impl Workspace {
     /// visually active across a tab reorder. Pass the pane group id captured
     /// before the reorder; no-op if it can't be found.
     pub(super) fn restore_active_tab_index(&mut self, pane_group_id: Option<EntityId>) {
-        if let Some(active_id) = pane_group_id {
-            if let Some(new_index) = self
+        if let Some(active_id) = pane_group_id
+            && let Some(new_index) = self
                 .tabs
                 .iter()
                 .position(|tab| tab.pane_group.id() == active_id)
-            {
-                self.active_tab_index = new_index;
-            }
+        {
+            self.active_tab_index = new_index;
         }
     }
 
@@ -465,12 +464,14 @@ impl Workspace {
     /// group" only when there's a destination group worth offering.
     fn tab_selection_menu_items(&self, ctx: &ViewContext<Self>) -> Vec<MenuItem<WorkspaceAction>> {
         let shared_group = self.selection_shared_group();
-        let mut menu_items = vec![MenuItemFields::new(localization::text_for_app(
-            ctx,
-            "workspace.tab_grouping.menu.create_group_from_tabs",
-        ))
-        .with_on_select_action(WorkspaceAction::NewTabGroupFromSelectedTabs)
-        .into_item()];
+        let mut menu_items = vec![
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "workspace.tab_grouping.menu.create_group_from_tabs",
+            ))
+            .with_on_select_action(WorkspaceAction::NewTabGroupFromSelectedTabs)
+            .into_item(),
+        ];
 
         // Only single-group selections have an unambiguous group to leave.
         if shared_group.is_some() {

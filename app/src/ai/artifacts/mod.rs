@@ -7,9 +7,9 @@ use ui_components::lightbox::{LightboxImage, LightboxImageSource};
 use warp_errors::report_error;
 use warp_localization::LocaleId;
 use warp_multi_agent_api as api;
+use warpui::SingletonEntity;
 #[cfg(feature = "local_fs")]
 use warpui::platform::SaveFilePickerConfiguration;
-use warpui::SingletonEntity;
 
 #[cfg(feature = "local_fs")]
 use crate::ai::artifact_download::default_download_filename;
@@ -17,8 +17,8 @@ use crate::ai::artifact_download::sanitized_basename;
 #[cfg(feature = "local_fs")]
 use crate::ai::artifact_download::{default_download_directory, download_artifact_bytes};
 use crate::notebooks::NotebookId;
-use crate::server::server_api::ai::ArtifactDownloadResponse;
 use crate::server::server_api::ServerApiProvider;
+use crate::server::server_api::ai::ArtifactDownloadResponse;
 use crate::view_components::DismissibleToast;
 #[cfg(feature = "local_fs")]
 use crate::view_components::ToastLink;

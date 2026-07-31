@@ -13,24 +13,24 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
-use warpui::r#async::SpawnedFutureHandle;
 use warpui::ModelSpawner;
+use warpui::r#async::SpawnedFutureHandle;
 
 use crate::ai::agent_events::{
-    run_agent_event_driver, AgentEventConsumer, AgentEventConsumerControlFlow,
-    AgentEventDriverConfig, AgentMessageEventMetadata, MessageHydrator, ServerApiAgentEventSource,
+    AgentEventConsumer, AgentEventConsumerControlFlow, AgentEventDriverConfig,
+    AgentMessageEventMetadata, MessageHydrator, ServerApiAgentEventSource, run_agent_event_driver,
 };
 use crate::ai::agent_sdk::driver::{AgentDriver, OZ_MESSAGE_LISTENER_STATE_ROOT_ENV};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::server::server_api::ai::{AIClient, AgentRunEvent};
 use crate::server::server_api::ServerApi;
+use crate::server::server_api::ai::{AIClient, AgentRunEvent};
 
 const LEGACY_MESSAGE_LISTENER_STATE_ROOT_ENV: &str = "OZ_PARENT_STATE_ROOT";
 const PARENT_BRIDGE_DEFAULT_STATE_ROOT: &str = ".claude-code/oz-parent-bridge";
@@ -249,10 +249,10 @@ pub(super) fn parent_bridge_root() -> Result<PathBuf> {
         OZ_MESSAGE_LISTENER_STATE_ROOT_ENV,
         LEGACY_MESSAGE_LISTENER_STATE_ROOT_ENV,
     ] {
-        if let Ok(dir) = std::env::var(env_name) {
-            if !dir.is_empty() {
-                return Ok(PathBuf::from(dir));
-            }
+        if let Ok(dir) = std::env::var(env_name)
+            && !dir.is_empty()
+        {
+            return Ok(PathBuf::from(dir));
         }
     }
     dirs::home_dir()

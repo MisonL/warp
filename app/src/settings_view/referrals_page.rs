@@ -22,10 +22,10 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use super::settings_page::{
-    MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, PAGE_PADDING,
-};
 use super::SettingsSection;
+use super::settings_page::{
+    MatchData, PAGE_PADDING, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+};
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
@@ -78,8 +78,7 @@ const CLAIMED_REFERRAL_COUNT_LEFT_MARGIN: f32 = 40.;
 
 const CLAIMED_REFERRAL_CLIP: usize = 999;
 
-const TERMS_URL: &str =
-    "https://docs.warp.dev/support-and-community/community/refer-a-friend#referral-program-terms-and-conditions";
+const TERMS_URL: &str = "https://docs.warp.dev/support-and-community/community/refer-a-friend#referral-program-terms-and-conditions";
 
 enum ApiState {
     Loading,
@@ -789,14 +788,14 @@ impl ReferralsWidget {
             )
             .with_child(self.render_rewards_list(view, appearance, app));
 
-        if !is_anonymous {
-            if let Some(count) = self.render_claimed_referrals_count(view, appearance, app) {
-                reward_status_row.add_child(
-                    Container::new(count)
-                        .with_margin_left(CLAIMED_REFERRAL_COUNT_LEFT_MARGIN)
-                        .finish(),
-                );
-            }
+        if !is_anonymous
+            && let Some(count) = self.render_claimed_referrals_count(view, appearance, app)
+        {
+            reward_status_row.add_child(
+                Container::new(count)
+                    .with_margin_left(CLAIMED_REFERRAL_COUNT_LEFT_MARGIN)
+                    .finish(),
+            );
         };
 
         rewards_section.add_child(reward_status_row.finish());

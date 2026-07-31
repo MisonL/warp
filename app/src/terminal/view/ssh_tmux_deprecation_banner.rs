@@ -18,7 +18,7 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 use crate::terminal::model::session::SessionId;
 use crate::terminal::warpify::render::SSH_DOCS_URL;
 use crate::ui_components::icons::Icon;
-use crate::{localization, Appearance};
+use crate::{Appearance, localization};
 
 #[derive(Clone, Debug)]
 pub enum SshTmuxDeprecationBannerAction {

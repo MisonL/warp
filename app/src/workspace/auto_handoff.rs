@@ -19,7 +19,7 @@ use crate::settings::AISettings;
 use crate::system::{SystemStats, SystemStatsEvent};
 use crate::terminal::view::TerminalView;
 use crate::view_components::DismissibleToast;
-use crate::{localization, BlocklistAIHistoryModel};
+use crate::{BlocklistAIHistoryModel, localization};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AutoCloudHandoffSkipReason {

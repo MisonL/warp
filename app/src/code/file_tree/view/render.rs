@@ -1,5 +1,5 @@
-use warpui::elements::{DraggableState, MouseStateHandle};
 use warpui::AppContext;
+use warpui::elements::{DraggableState, MouseStateHandle};
 
 use super::FileTreeItem;
 use crate::appearance::Appearance;

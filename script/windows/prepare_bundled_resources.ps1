@@ -11,6 +11,12 @@
 #   destination_directory: The directory where resources should be installed.
 #                          Resources will be copied to subdirectories within
 #                          this path (e.g., $DEST_DIR\skills).
+#
+# Environment variables:
+#   SETTINGS_SCHEMA_CACHE: Base path for generated-schema cache files. Each
+#                          effective channel and locale is cached independently
+#                          as "$env:SETTINGS_SCHEMA_CACHE.<channel>.<locale>.json".
+#                          An omitted channel uses "dev".
 
 Param(
     [Parameter(Mandatory = $true)]
@@ -28,6 +34,7 @@ $ErrorActionPreference = 'Stop'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = (Get-Item "$ScriptDir\..\.." | Select-Object -ExpandProperty FullName)
 $ResourcesSource = Join-Path $RepoRoot 'resources'
+$SettingsSchemaChannel = if ($Channel) { $Channel } else { 'dev' }
 
 # Validate that the source resources directory exists
 if (-Not (Test-Path $ResourcesSource -PathType Container)) {
@@ -161,24 +168,59 @@ foreach ($entry in $AdditionalLicenses) {
 
 # Generate settings JSON schema unless explicitly skipped.
 if ($env:SKIP_SETTINGS_SCHEMA -ne '1') {
-    $SchemaOutput = Join-Path $DestinationDir 'settings_schema.json'
-    Write-Output "Generating settings schema at $SchemaOutput"
+    function Write-SettingsSchema {
+        param(
+            [Parameter(Mandatory = $true)]
+            [String]$Locale,
 
-    $SchemaCmd = @('run')
-    if ($CargoProfile) {
-        $SchemaCmd += @('--profile', $CargoProfile)
-    }
-    $SchemaCmd += @('--manifest-path', (Join-Path $RepoRoot 'Cargo.toml'), '--bin', 'generate_settings_schema', '--')
-    if ($Channel) {
-        $SchemaCmd += @('--channel', $Channel)
-    }
-    $SchemaCmd += $SchemaOutput
+            [Parameter(Mandatory = $true)]
+            [String]$FileName,
 
-    & cargo @SchemaCmd
-    if (-Not $?) {
-        Write-Error 'Failed to generate settings schema'
-        exit 1
+            [Parameter(Mandatory = $false)]
+            [String]$SchemaCargoProfile = ''
+        )
+
+        $SchemaOutput = Join-Path $DestinationDir $FileName
+        $SchemaCache = $null
+        if ($env:SETTINGS_SCHEMA_CACHE) {
+            $SchemaCache = "$($env:SETTINGS_SCHEMA_CACHE).$SettingsSchemaChannel.$Locale.json"
+        }
+
+        if ($SchemaCache -and (Test-Path $SchemaCache -PathType Leaf)) {
+            Write-Output "Copying cached $Locale settings schema to $SchemaOutput"
+            Copy-Item -Path $SchemaCache -Destination $SchemaOutput -Force
+            return
+        }
+
+        Write-Output "Generating $Locale settings schema at $SchemaOutput"
+        $SchemaCmd = @('run')
+        if ($SchemaCargoProfile) {
+            $SchemaCmd += @('--profile', $SchemaCargoProfile)
+        }
+        $SchemaCmd += @('--manifest-path', (Join-Path $RepoRoot 'Cargo.toml'), '--bin', 'generate_settings_schema', '--')
+        if ($Channel) {
+            $SchemaCmd += @('--channel', $Channel)
+        }
+        $SchemaCmd += @('--locale', $Locale, $SchemaOutput)
+
+        & cargo @SchemaCmd
+        if (-Not $?) {
+            Write-Error "Failed to generate $Locale settings schema"
+            exit 1
+        }
+
+        if ($SchemaCache) {
+            $SchemaCacheDir = Split-Path -Parent $SchemaCache
+            if ($SchemaCacheDir -and -not (Test-Path $SchemaCacheDir -PathType Container)) {
+                New-Item -ItemType Directory -Path $SchemaCacheDir -Force | Out-Null
+            }
+            Write-Output "Caching $Locale settings schema at $SchemaCache"
+            Copy-Item -Path $SchemaOutput -Destination $SchemaCache -Force
+        }
     }
+
+    Write-SettingsSchema -Locale 'en-US' -FileName 'settings_schema.json' -SchemaCargoProfile $CargoProfile
+    Write-SettingsSchema -Locale 'zh-CN' -FileName 'settings_schema.zh-CN.json' -SchemaCargoProfile $CargoProfile
 }
 
 Write-Output "Successfully prepared bundled resources in $DestinationDir"

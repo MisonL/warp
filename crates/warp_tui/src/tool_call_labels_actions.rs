@@ -608,39 +608,7 @@ pub(super) fn label_for_action(
                     Some(AIAgentActionResultType::RunAgents(RunAgentsResult::Launched {
                         agents,
                         ..
-                    })) => {
-                        let launched = agents
-                            .iter()
-                            .filter(|agent| {
-                                matches!(agent.kind, RunAgentsAgentOutcomeKind::Launched { .. })
-                            })
-                            .count();
-                        let total = agents.len();
-                        let agents = localized_count_label(
-                            total,
-                            "tui.count.agent.one",
-                            "tui.count.agent.many",
-                        );
-                        if launched == total {
-                            localization::text_with_args(
-                                "tui.tool.orchestration.spawned",
-                                &[("agents", &agents)],
-                            )
-                        } else if launched == 0 {
-                            localization::text_with_args(
-                                "tui.tool.orchestration.spawn_failed",
-                                &[("agents", &agents)],
-                            )
-                        } else {
-                            localization::text_with_args(
-                                "tui.tool.orchestration.spawned_some",
-                                &[
-                                    ("launched", &launched.to_string()),
-                                    ("total", &total.to_string()),
-                                ],
-                            )
-                        }
-                    }
+                    })) => launched_agents_label(agents),
                     _ => {
                         let agents = localized_count_label(
                             total,
@@ -654,6 +622,10 @@ pub(super) fn label_for_action(
                     }
                 },
                 State::Failed => match result {
+                    Some(AIAgentActionResultType::RunAgents(RunAgentsResult::Launched {
+                        agents,
+                        ..
+                    })) => launched_agents_label(agents),
                     Some(AIAgentActionResultType::RunAgents(RunAgentsResult::Denied {
                         ..
                     })) => localization::text("tui.tool.orchestration.disabled"),

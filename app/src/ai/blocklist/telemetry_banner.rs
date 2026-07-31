@@ -13,7 +13,7 @@ use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::UgcCollectionEnablementSetting;
-use crate::{localization, Appearance, FeatureFlag, WorkspaceAction};
+use crate::{Appearance, FeatureFlag, WorkspaceAction, localization};
 
 const PRIVACY_URL: &str = "https://warp.dev/privacy";
 

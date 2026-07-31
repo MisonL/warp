@@ -11,17 +11,18 @@ use warp::editor::{CodeEditorModel, CodeEditorModelEvent};
 use warp::search::data_source::QueryResult;
 use warp::search::mixer::SearchMixerEvent;
 use warp::tui_export::{
-    should_close_slash_command_menu_for_exact_match, slash_command_query,
-    AcceptSlashCommandOrSavedPrompt, ParsedSlashCommandInput, SlashCommandDataSource as _,
-    SlashCommandMixer, TuiSlashCommandDataSource, UpdatedActiveCommands,
+    AcceptSlashCommandOrSavedPrompt, ParsedSlashCommandInput, SlashCommandArgumentHint,
+    SlashCommandDataSource as _, SlashCommandMixer, TuiSlashCommandDataSource,
+    UpdatedActiveCommands, should_close_slash_command_menu_for_exact_match, slash_command_query,
 };
 use warp_editor::model::CoreEditorModel;
+use warp_localization::LocaleId;
 use warp_search_core::inline_menu::{InlineMenuResultsUpdate, InputDrivenInlineMenuLifecycle};
 use warpui_core::{AppContext, Entity, ModelContext, ModelHandle};
 
 use crate::inline_menu::{
-    result_row_capacity, TuiInlineMenuListState, TuiInlineMenuRow, TuiInlineMenuRowStyle,
-    TuiInlineMenuSnapshot, TuiInlineMenuStatus, MAX_INLINE_MENU_ROWS,
+    MAX_INLINE_MENU_ROWS, TuiInlineMenuListState, TuiInlineMenuRow, TuiInlineMenuRowStyle,
+    TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
 use crate::localization;
@@ -51,10 +52,10 @@ fn highlighted_prefix_len_for_parsed_input(
     }
 }
 
-fn argument_hint_text_for_parsed_input(
+fn argument_hint_for_parsed_input(
     parsed_input: &ParsedSlashCommandInput,
     input: &str,
-) -> Option<&'static str> {
+) -> Option<SlashCommandArgumentHint> {
     let ParsedSlashCommandInput::SlashCommand(detected) = parsed_input else {
         return None;
     };
@@ -62,7 +63,15 @@ fn argument_hint_text_for_parsed_input(
         .command
         .argument_hint()
         .filter(|hint| hint.input_prefix == input)
-        .map(|hint| hint.text)
+}
+
+fn localized_argument_hint_text_for_locale(
+    hint: &SlashCommandArgumentHint,
+    locale: LocaleId,
+) -> String {
+    hint.localization_key
+        .map(|key| localization::text_for_locale(locale, key))
+        .unwrap_or_else(|| hint.text.to_owned())
 }
 
 #[allow(dead_code)]
@@ -87,7 +96,7 @@ pub(crate) struct TuiSlashCommandModel {
     state: TuiSlashCommandState,
     lifecycle: InputDrivenInlineMenuLifecycle,
     highlighted_prefix_len: Option<usize>,
-    argument_hint_text: Option<&'static str>,
+    argument_hint: Option<SlashCommandArgumentHint>,
 }
 
 impl TuiSlashCommandModel {
@@ -123,7 +132,7 @@ impl TuiSlashCommandModel {
             state: TuiSlashCommandState::Closed,
             lifecycle: InputDrivenInlineMenuLifecycle::default(),
             highlighted_prefix_len: None,
-            argument_hint_text: None,
+            argument_hint: None,
         };
         model.update_from_input(false, ctx);
         model
@@ -152,7 +161,7 @@ impl TuiSlashCommandModel {
             },
             lifecycle: InputDrivenInlineMenuLifecycle::default(),
             highlighted_prefix_len: None,
-            argument_hint_text: None,
+            argument_hint: None,
         }
     }
 
@@ -163,7 +172,11 @@ impl TuiSlashCommandModel {
 
     #[cfg(test)]
     pub(crate) fn set_argument_hint_text_for_test(&mut self, text: Option<&'static str>) {
-        self.argument_hint_text = text;
+        self.argument_hint = text.map(|text| SlashCommandArgumentHint {
+            input_prefix: String::new(),
+            text,
+            localization_key: None,
+        });
     }
 
     fn has_open_state(&self) -> bool {
@@ -179,8 +192,10 @@ impl TuiSlashCommandModel {
             .map(|len| CharOffset::zero()..CharOffset::from(len))
     }
 
-    pub(crate) fn argument_hint_text(&self) -> Option<&'static str> {
-        self.argument_hint_text
+    pub(crate) fn argument_hint_text(&self) -> Option<String> {
+        self.argument_hint.as_ref().map(|hint| {
+            localized_argument_hint_text_for_locale(hint, localization::current_locale())
+        })
     }
 
     pub(crate) fn selected_action(&self) -> Option<AcceptSlashCommandOrSavedPrompt> {
@@ -198,15 +213,15 @@ impl TuiSlashCommandModel {
         ctx.emit(TuiSlashCommandModelEvent);
     }
 
-    fn set_argument_hint_text(
+    fn set_argument_hint(
         &mut self,
-        argument_hint_text: Option<&'static str>,
+        argument_hint: Option<SlashCommandArgumentHint>,
         ctx: &mut ModelContext<Self>,
     ) {
-        if self.argument_hint_text == argument_hint_text {
+        if self.argument_hint == argument_hint {
             return;
         }
-        self.argument_hint_text = argument_hint_text;
+        self.argument_hint = argument_hint;
         ctx.emit(TuiSlashCommandModelEvent);
     }
 
@@ -281,7 +296,7 @@ impl TuiSlashCommandModel {
                 | TuiInputSuggestionsMode::Mcp
         ) {
             self.set_highlighted_prefix_len(None, ctx);
-            self.set_argument_hint_text(None, ctx);
+            self.set_argument_hint(None, ctx);
             self.close(ctx);
             return;
         }
@@ -290,7 +305,7 @@ impl TuiSlashCommandModel {
             .input_changed(input.is_empty(), input.starts_with('/'))
         {
             self.set_highlighted_prefix_len(None, ctx);
-            self.set_argument_hint_text(None, ctx);
+            self.set_argument_hint(None, ctx);
             self.close(ctx);
             return;
         }
@@ -303,10 +318,7 @@ impl TuiSlashCommandModel {
             highlighted_prefix_len_for_parsed_input(&parsed_input, &input),
             ctx,
         );
-        self.set_argument_hint_text(
-            argument_hint_text_for_parsed_input(&parsed_input, &input),
-            ctx,
-        );
+        self.set_argument_hint(argument_hint_for_parsed_input(&parsed_input, &input), ctx);
         let menu_was_open = self.is_open(ctx);
         let result_count = self.mixer.as_ref(ctx).results().len();
         let Some(query) = menu_query_for_parsed_input(&parsed_input, menu_was_open, result_count)

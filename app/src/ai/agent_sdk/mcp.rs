@@ -1,7 +1,7 @@
 use comfy_table::Cell;
 use serde::Serialize;
-use warp_cli::mcp::MCPCommand;
 use warp_cli::GlobalOptions;
+use warp_cli::mcp::MCPCommand;
 use warp_localization::LocaleId;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 

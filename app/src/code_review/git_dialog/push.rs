@@ -21,8 +21,8 @@ use warpui::{AppContext, SingletonEntity, ViewContext};
 
 use crate::code::editor::{add_color, remove_color};
 use crate::code_review::git_dialog::{
-    render_branch_section, render_chevron_icon, render_file_list, show_toast,
-    user_facing_git_error, GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode,
+    GitDialog, GitDialogAction, GitDialogEvent, GitDialogMode, render_branch_section,
+    render_chevron_icon, render_file_list, show_toast, user_facing_git_error,
 };
 use crate::code_review::telemetry_event::{
     CodeReviewTelemetryEvent, GitDialogStatus, GitOperationKind,

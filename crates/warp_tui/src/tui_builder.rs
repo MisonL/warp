@@ -7,19 +7,29 @@
 
 use pathfinder_color::ColorU;
 use warp::tui_export::Appearance;
-use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::Opacity;
+use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::{Fill as ThemeFill, WarpTheme};
 use warpui::SingletonEntity;
+use warpui_core::AppContext;
 use warpui_core::elements::tui::{
-    tui_collapsible, Color, Modifier, TuiElement, TuiEventContext, TuiStyle,
+    Color, Modifier, TuiElement, TuiEventContext, TuiStyle, tui_collapsible,
 };
 use warpui_core::elements::{Fill as CoreFill, MouseStateHandle};
-use warpui_core::AppContext;
 
-use crate::orchestrated_agent_identity_styling::{agent_identity_palette, AgentIdentity};
+use crate::orchestrated_agent_identity_styling::{AgentIdentity, agent_identity_palette};
 use crate::tab_bar::TuiTabBarStyles;
 use crate::terminal_background::probed_colors;
+
+#[derive(Clone, Copy)]
+pub(crate) struct CloudRunMarkStyles {
+    pub(crate) base: TuiStyle,
+    pub(crate) light: TuiStyle,
+    pub(crate) lighter: TuiStyle,
+    pub(crate) bright: TuiStyle,
+    pub(crate) brightest: TuiStyle,
+    pub(crate) ansi_bright: TuiStyle,
+}
 
 /// Theme-derived styles and components for the TUI, mirroring the GUI's
 /// `UiBuilder` (minus fonts, which terminal cells don't have). Cheap to
@@ -126,6 +136,25 @@ impl TuiUiBuilder {
     pub(crate) fn link_text_style(&self) -> TuiStyle {
         TuiStyle::default().fg(cell_color(ThemeFill::Solid(self.warp_theme.ansi_fg_blue())))
     }
+
+    pub(crate) fn cloud_run_mark_styles(&self) -> CloudRunMarkStyles {
+        let blue = ThemeFill::from(self.warp_theme.terminal_colors().normal.blue);
+        let foreground = self.warp_theme.foreground();
+        let blend = |opacity| {
+            TuiStyle::default().fg(cell_color(blue.blend(&foreground.with_opacity(opacity))))
+        };
+        CloudRunMarkStyles {
+            base: TuiStyle::default().fg(cell_color(blue)),
+            light: blend(25),
+            lighter: blend(50),
+            bright: blend(80),
+            brightest: blend(90),
+            ansi_bright: TuiStyle::default().fg(cell_color(ThemeFill::from(
+                self.warp_theme.terminal_colors().bright.blue,
+            ))),
+        }
+    }
+
     /// Blue command-name text used by the slash-command menu and recognized
     /// slash-command prefixes in the input.
     pub(crate) fn slash_command_text_style(&self) -> TuiStyle {
@@ -304,8 +333,23 @@ impl TuiUiBuilder {
 
     /// Accent-tinted surface behind an interactive ask-question card.
     pub(crate) fn question_surface_background(&self) -> Color {
+        self.permission_surface_background()
+    }
+
+    /// Accent-tinted body background for standard permission cards.
+    pub(crate) fn permission_surface_background(&self) -> Color {
         let accent = ThemeFill::from(self.warp_theme.terminal_colors().normal.cyan);
         cell_color(self.base_background().blend(&accent.with_opacity(10)))
+    }
+
+    /// Stronger accent tint for standard permission-card title rows.
+    pub(crate) fn permission_header_background(&self) -> Color {
+        let accent = ThemeFill::from(self.warp_theme.terminal_colors().normal.cyan);
+        cell_color(
+            self.base_background()
+                .blend(&accent.with_opacity(10))
+                .blend(&accent.with_opacity(10)),
+        )
     }
 
     /// Collapsible-header style while the pointer hovers it.

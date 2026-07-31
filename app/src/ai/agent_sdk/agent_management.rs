@@ -6,22 +6,22 @@ use std::io::Write as _;
 use anyhow::anyhow;
 use comfy_table::Cell;
 use serde::Serialize;
+use warp_cli::SortOrderArg;
 use warp_cli::agent::{
     AgentCreateArgs, AgentDeleteArgs, AgentGetArgs, AgentListArgs, AgentSortByArg, AgentUpdateArgs,
     OutputFormat,
 };
 use warp_cli::json_filter::JsonOutput;
-use warp_cli::SortOrderArg;
-use warp_localization::{replace_placeholders, LocaleId};
+use warp_localization::{LocaleId, replace_placeholders};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::TableFormat;
 use crate::localization;
+use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::{
     AgentResponse, CreateAgentRequest, SecretRef, UpdateAgentRequest,
 };
-use crate::server::server_api::ServerApiProvider;
 
 fn text_for_locale(locale: LocaleId, key: &str) -> String {
     localization::text_for_locale(locale, key)

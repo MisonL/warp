@@ -1,8 +1,8 @@
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
 use warp_localization::LocaleId;
 
-use crate::ai::agent_sdk::driver::terminal::{BootstrapError, ShareSessionError};
 use crate::ai::agent_sdk::driver::AgentDriverError;
+use crate::ai::agent_sdk::driver::terminal::{BootstrapError, ShareSessionError};
 
 fn classify_driver_error(
     error: &AgentDriverError,
@@ -220,12 +220,16 @@ fn mcp_startup_failed_is_failed_with_env_setup_and_per_server_details() {
         Some(PlatformErrorCode::EnvironmentSetupFailed)
     );
     // Each unavailable server is rendered as its own bullet line.
-    assert!(update
-        .message
-        .contains("- 'devin' failed to start: connection refused"));
-    assert!(update
-        .message
-        .contains("- 'datadog' did not start within 20s"));
+    assert!(
+        update
+            .message
+            .contains("- 'devin' failed to start: connection refused")
+    );
+    assert!(
+        update
+            .message
+            .contains("- 'datadog' did not start within 20s")
+    );
 }
 
 #[test]

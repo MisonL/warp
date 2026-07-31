@@ -51,16 +51,33 @@ MIME_OVERRIDES = {
 
 
 def current_language() -> str:
-    locale_value = (
-        os.environ.get("WARP_LOCALE")
-        or os.environ.get("LANGUAGE")
-        or os.environ.get("LC_ALL")
-        or os.environ.get("LC_MESSAGES")
-        or os.environ.get("LANG")
-        or locale.getlocale()[0]
-        or ""
-    )
-    return "zh" if locale_value.lower().replace("_", "-").startswith("zh") else "en"
+    def normalized(value: str) -> str:
+        return value.strip().lower().replace("_", "-").split(".", 1)[0].split("@", 1)[0]
+
+    def is_simplified_chinese(value: str) -> bool:
+        value = normalized(value)
+        return value in {"zh", "zh-cn", "zh-sg", "zh-hans"} or value.startswith("zh-hans-")
+
+    def is_english(value: str) -> bool:
+        value = normalized(value)
+        return value == "en" or value.startswith("en-")
+
+    def language_for_value(value: str, split_candidates: bool) -> str:
+        candidates = value.split(":") if split_candidates else [value]
+        for candidate in candidates:
+            if is_simplified_chinese(candidate):
+                return "zh"
+            if is_english(candidate):
+                return "en"
+        return "en"
+
+    for key in ("WARP_LOCALE", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        value = os.environ.get(key)
+        if not value:
+            continue
+        return language_for_value(value, key == "LANGUAGE")
+
+    return "zh" if is_simplified_chinese(locale.getlocale()[0] or "") else "en"
 
 
 def localized_text(en: str, zh: str) -> str:

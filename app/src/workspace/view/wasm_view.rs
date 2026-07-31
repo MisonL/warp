@@ -18,7 +18,7 @@ use crate::view_components::action_button::{
 use crate::wasm_nux_dialog::{WasmNUXDialog, WasmNUXDialogEvent};
 use crate::workspace::action::WorkspaceAction;
 use crate::workspace::view::{NotebookSource, OpenWarpDriveObjectSettings, Workspace};
-use crate::{localization, BlocklistAIHistoryModel};
+use crate::{BlocklistAIHistoryModel, localization};
 
 const TRANSCRIPT_PANEL_WIDTH: f32 = 280.0;
 

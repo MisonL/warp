@@ -7,9 +7,9 @@ pub use cloud_object_models::{CloudFolder, CloudFolderModel};
 pub use warp_server_client::ids::FolderId;
 
 // Re-exported from warp_server_client.
-use super::items::folder::WarpDriveFolder;
-use super::items::WarpDriveItem;
 use super::CloudObjectTypeAndId;
+use super::items::WarpDriveItem;
+use super::items::folder::WarpDriveFolder;
 use crate::appearance::Appearance;
 use crate::cloud_object::{
     CloudModelType, CloudObjectEventEntrypoint, CloudObjectUpsertParams, CreateCloudObjectResult,

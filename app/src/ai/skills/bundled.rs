@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use ai::skills::{parse_bundled_skill, ParsedSkill, SkillPathOrigin, SkillReference};
+use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, parse_bundled_skill};
 use futures::TryStreamExt;
 use serde_yaml::Value;
 use warp_core::channel::ChannelState;
+use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 use warp_core::safe_warn;
 use warp_core::ui::icons::Icon;
@@ -25,6 +26,8 @@ use crate::settings::user_preferences_toml_file_path;
 pub enum BundledSkillActivation {
     /// Always active.
     Always,
+    /// Active only in the TUI frontend.
+    TuiOnly,
     /// Active only when a specific Warp feature is enabled.
     RequiresFeature(FeatureFlag),
     /// Active only when a specific MCP server is running.
@@ -37,6 +40,7 @@ impl BundledSkillActivation {
     pub fn is_enabled(&self, ctx: &AppContext) -> bool {
         match self {
             Self::Always => true,
+            Self::TuiOnly => AppExecutionMode::as_ref(ctx).is_tui(),
             Self::RequiresFeature(feature) => feature.is_enabled(),
             Self::RequiresMcp(integration) => {
                 TemplatableMCPServerManager::as_ref(ctx).is_mcp_server_running(*integration)
@@ -203,6 +207,19 @@ impl BundledSkill {
         resources_dir: PathBuf,
         locale: LocaleId,
     ) -> Self {
+        if let Some(english_schema_path) =
+            english_settings_schema_fallback_path(&resources_dir, locale)
+        {
+            let localized_schema_path =
+                resources_dir.join(format!("settings_schema.{}.json", locale.code()));
+            log::warn!(
+                "Localized settings schema for {} is missing at {}; bundled modify-settings skill will use the English schema at {}",
+                locale.code(),
+                localized_schema_path.display(),
+                english_schema_path.display(),
+            );
+        }
+
         let (mut definitions, figma_definitions) = futures::join!(
             load_bundled_skill_definitions(&resources_dir, locale),
             load_figma_skill_definitions(&resources_dir, locale)
@@ -301,6 +318,7 @@ impl BundledSkill {
                 let icon = match &activation {
                     BundledSkillActivation::RequiresMcp(McpIntegration::Figma) => Icon::Figma,
                     BundledSkillActivation::Always
+                    | BundledSkillActivation::TuiOnly
                     | BundledSkillActivation::RequiresFeature(_)
                     | BundledSkillActivation::RequiresFile(_) => icon_for_bundled_skill(&id),
                 };
@@ -358,7 +376,7 @@ async fn load_bundled_skill_definitions(
         .into_iter()
         .map(|(id, skill)| {
             let icon = icon_for_bundled_skill(&id);
-            let activation = activation_for_bundled_skill(&id, resources_dir);
+            let activation = activation_for_bundled_skill(&id, resources_dir, locale);
             let bundled = BundledSkillDefinition {
                 skill,
                 activation,
@@ -448,7 +466,7 @@ pub(crate) async fn read_bundled_skills_for_locale(
             );
             continue;
         };
-        let context = build_bundled_skill_context(resources_dir, &entry_path);
+        let context = build_bundled_skill_context(resources_dir, &entry_path, locale);
 
         // Apply variable substitution to the skill content.
         skill.content = handlebars::render_template(&skill.content, &context);
@@ -460,7 +478,10 @@ pub(crate) async fn read_bundled_skills_for_locale(
     skills
 }
 
-fn localized_bundled_skill_description(content: &str, locale: LocaleId) -> Option<String> {
+pub(crate) fn localized_bundled_skill_description(
+    content: &str,
+    locale: LocaleId,
+) -> Option<String> {
     match locale {
         LocaleId::EnUs => None,
         LocaleId::ZhCn => extract_front_matter_string(content, "description_zh_CN"),
@@ -468,7 +489,8 @@ fn localized_bundled_skill_description(content: &str, locale: LocaleId) -> Optio
 }
 
 fn extract_front_matter_string(content: &str, key: &str) -> Option<String> {
-    let yaml = content.strip_prefix("---\n")?;
+    let normalized = content.replace("\r\n", "\n");
+    let yaml = normalized.strip_prefix("---\n")?;
     let yaml = yaml.split_once("\n---\n")?.0;
     let Value::Mapping(front_matter) = serde_yaml::from_str::<Value>(yaml).ok()? else {
         return None;
@@ -484,6 +506,10 @@ fn extract_front_matter_string(content: &str, key: &str) -> Option<String> {
     }
 }
 
+fn display_optional_path(path: Option<PathBuf>) -> String {
+    path.unwrap_or_default().display().to_string()
+}
+
 /// Builds the context map for bundled skill variable substitution.
 ///
 /// Supported variables:
@@ -492,13 +518,18 @@ fn extract_front_matter_string(content: &str, key: &str) -> Option<String> {
 /// - `{{warpctrl_binary_name}}` - The channel-specific Warp Control command name
 /// - `{{warpctrl_wrapper_path}}` - Path to the bundled Warp Control wrapper
 /// - `{{warp_url_scheme}}` - The URL scheme (e.g., `warp`, `warpdev`, `warppreview`)
-/// - `{{settings_schema_path}}` - Path to the bundled JSON settings schema
+/// - `{{settings_schema_path}}` - Path to the bundled JSON settings schema for the current locale
 /// - `{{skill_dir}}` - Path to the bundled skill's directory
 /// - `{{settings_file_path}}` - Path to the user's settings TOML file
 /// - `{{keybindings_file_path}}` - Path to the user's keybindings YAML file
+/// - `{{gui_settings_file_path}}` - Path to the GUI settings TOML file
+/// - `{{tui_settings_file_path}}` - Path to the TUI settings TOML file
+/// - `{{gui_mcp_config_file_path}}` - Path to the GUI global MCP config
+/// - `{{tui_mcp_config_file_path}}` - Path to the TUI global MCP config
 pub(crate) fn build_bundled_skill_context(
     resources_dir: &Path,
     skill_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, String> {
     [
         (
@@ -534,9 +565,32 @@ pub(crate) fn build_bundled_skill_context(
             keybinding_file_path().display().to_string(),
         ),
         (
+            "gui_settings_file_path".to_owned(),
+            display_optional_path(
+                warp_core::paths::gui_config_local_dir()
+                    .map(|config_dir| config_dir.join("settings.toml")),
+            ),
+        ),
+        (
+            "tui_settings_file_path".to_owned(),
+            warp_core::paths::tui_config_local_dir()
+                .join("settings.toml")
+                .display()
+                .to_string(),
+        ),
+        (
+            "gui_mcp_config_file_path".to_owned(),
+            display_optional_path(warp_core::paths::gui_mcp_config_file_path()),
+        ),
+        (
+            "tui_mcp_config_file_path".to_owned(),
+            warp_core::paths::tui_mcp_config_file_path()
+                .display()
+                .to_string(),
+        ),
+        (
             "settings_schema_path".to_owned(),
-            resources_dir
-                .join("settings_schema.json")
+            settings_schema_path(resources_dir, locale)
                 .display()
                 .to_string(),
         ),
@@ -544,6 +598,32 @@ pub(crate) fn build_bundled_skill_context(
     ]
     .into_iter()
     .collect()
+}
+
+/// Resolves the schema that matches the local client's locale. Bundles created
+/// before localized schemas are available continue to use the English schema.
+fn settings_schema_path(resources_dir: &Path, locale: LocaleId) -> PathBuf {
+    let localized_path = resources_dir.join(format!("settings_schema.{}.json", locale.code()));
+    if locale != LocaleId::EnUs && localized_path.is_file() {
+        localized_path
+    } else {
+        resources_dir.join("settings_schema.json")
+    }
+}
+
+/// Returns the English schema only when an older bundle lacks the requested
+/// localized schema but can still serve a compatible English schema.
+fn english_settings_schema_fallback_path(
+    resources_dir: &Path,
+    locale: LocaleId,
+) -> Option<PathBuf> {
+    if locale == LocaleId::EnUs {
+        return None;
+    }
+
+    let localized_path = resources_dir.join(format!("settings_schema.{}.json", locale.code()));
+    let english_path = resources_dir.join("settings_schema.json");
+    (!localized_path.is_file() && english_path.is_file()).then_some(english_path)
 }
 
 /// Returns the icon for a bundled skill, given its directory-based ID.
@@ -563,11 +643,13 @@ pub(crate) fn icon_for_bundled_skill(skill_id: &str) -> Icon {
 pub(crate) fn activation_for_bundled_skill(
     skill_id: &str,
     resources_dir: &Path,
+    locale: LocaleId,
 ) -> BundledSkillActivation {
     match skill_id {
         "modify-settings" => {
-            BundledSkillActivation::RequiresFile(resources_dir.join("settings_schema.json"))
+            BundledSkillActivation::RequiresFile(settings_schema_path(resources_dir, locale))
         }
+        "tui-migrate-setup" => BundledSkillActivation::TuiOnly,
         "warpctrl" => BundledSkillActivation::RequiresFeature(FeatureFlag::WarpControlCli),
         _ => BundledSkillActivation::Always,
     }

@@ -7,15 +7,85 @@ use warp::editor::{CodeEditorModel, CodeEditorModelEvent};
 use warp::tui_export::FileDiff;
 use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::model::CoreEditorModel;
+use warp_localization::LocaleId;
 use warpui::App;
 
-use super::{deltas_for, verb_and_name, FileEditVerb};
+use super::{
+    FileEditVerb, SectionKey, SectionStates, ToolCallDisplayState, deltas_for,
+    file_edit_header_label_for_locale, summary_header_label_for_locale, verb_and_name,
+};
 
 fn delta(range: std::ops::Range<usize>, insertion: &str) -> DiffDelta {
     DiffDelta {
         replacement_line_range: range,
         insertion: insertion.to_owned(),
     }
+}
+
+#[test]
+fn all_file_edit_sections_start_collapsed_and_toggle_independently() {
+    let states = SectionStates::default();
+
+    assert!(states.is_collapsed(SectionKey::Summary));
+    assert!(states.is_collapsed(SectionKey::File(0)));
+    assert!(states.is_collapsed(SectionKey::File(1)));
+
+    states.toggle_collapsed(SectionKey::File(0));
+    assert!(states.is_collapsed(SectionKey::Summary));
+    assert!(!states.is_collapsed(SectionKey::File(0)));
+    assert!(states.is_collapsed(SectionKey::File(1)));
+}
+#[test]
+fn blocked_file_edit_headers_use_in_progress_wording() {
+    assert_eq!(
+        file_edit_header_label_for_locale(
+            LocaleId::EnUs,
+            ToolCallDisplayState::Blocked,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "Editing lib.rs"
+    );
+    assert_eq!(
+        file_edit_header_label_for_locale(
+            LocaleId::ZhCn,
+            ToolCallDisplayState::Blocked,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "正在编辑 lib.rs"
+    );
+
+    assert_eq!(
+        file_edit_header_label_for_locale(
+            LocaleId::EnUs,
+            ToolCallDisplayState::Succeeded,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "Updated lib.rs"
+    );
+    assert_eq!(
+        file_edit_header_label_for_locale(
+            LocaleId::ZhCn,
+            ToolCallDisplayState::Succeeded,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "已更新 lib.rs"
+    );
+    assert_eq!(
+        summary_header_label_for_locale(LocaleId::EnUs, ToolCallDisplayState::Blocked, 2),
+        "Editing 2 files"
+    );
+    assert_eq!(
+        summary_header_label_for_locale(LocaleId::ZhCn, ToolCallDisplayState::Blocked, 2),
+        "正在编辑 2 个文件"
+    );
+    assert_eq!(
+        summary_header_label_for_locale(LocaleId::ZhCn, ToolCallDisplayState::Succeeded, 2),
+        "已编辑 2 个文件"
+    );
 }
 
 fn update_diff(path: &str, rename: Option<&str>) -> FileDiff {
@@ -86,10 +156,10 @@ fn diff_pipeline_computes_added_lines_and_ghost_blocks() {
         app.update(|ctx| {
             let mut tx = Some(tx);
             ctx.subscribe_to_model(&editor, move |_, event, _| {
-                if matches!(event, CodeEditorModelEvent::DiffUpdated) {
-                    if let Some(tx) = tx.take() {
-                        let _ = tx.send(());
-                    }
+                if matches!(event, CodeEditorModelEvent::DiffUpdated)
+                    && let Some(tx) = tx.take()
+                {
+                    let _ = tx.send(());
                 }
             });
             editor.update(ctx, |editor, ctx| {

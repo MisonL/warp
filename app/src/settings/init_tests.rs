@@ -9,9 +9,10 @@ use warpui::SingletonEntity;
 use warpui_extras::user_preferences;
 
 use super::{
-    migrate_native_settings_to_settings_file, needs_settings_file_migration_for_path,
-    SETTINGS_FILE_MIGRATION_COMPLETE_KEY,
+    SETTINGS_FILE_MIGRATION_COMPLETE_KEY, migrate_native_settings_to_settings_file,
+    needs_settings_file_migration_for_path, register_all_settings,
 };
+use crate::settings::LanguageSettings;
 use crate::terminal::session_settings::{NotificationsMode, NotificationsSettings};
 
 // A minimal settings group with one public and one private setting, used to
@@ -56,6 +57,32 @@ fn init_test_app(ctx: &mut warpui::AppContext) {
     });
     ctx.add_singleton_model(|_| SettingsManager::default());
     MigrationTestSettings::register(ctx);
+}
+
+#[test]
+fn test_register_all_settings_registers_language_settings() {
+    warpui::App::test((), |mut app| async move {
+        app.update(|ctx| {
+            ctx.add_singleton_model(move |_| {
+                PublicPreferences::new(
+                    Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
+                )
+            });
+            ctx.add_singleton_model(move |_| -> PrivatePreferences {
+                PrivatePreferences::new(
+                    Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
+                )
+            });
+            ctx.add_singleton_model(|_| SettingsManager::default());
+
+            register_all_settings(ctx);
+
+            assert!(
+                ctx.has_singleton_model::<LanguageSettings>(),
+                "register_all_settings must register LanguageSettings before localization starts"
+            );
+        });
+    });
 }
 
 #[test]
@@ -181,13 +208,15 @@ fn test_migration_skips_settings_absent_from_native_store() {
                     .unwrap()
                     .is_none()
             );
-            assert!(public
-                .read_value_with_hierarchy(
-                    PublicStringSetting::storage_key(),
-                    PublicStringSetting::hierarchy(),
-                )
-                .unwrap()
-                .is_none());
+            assert!(
+                public
+                    .read_value_with_hierarchy(
+                        PublicStringSetting::storage_key(),
+                        PublicStringSetting::hierarchy(),
+                    )
+                    .unwrap()
+                    .is_none()
+            );
         });
     });
 }
@@ -411,7 +440,7 @@ mod notifications_migration {
     }
 }
 use notifications_migration::{
-    init_notifications_migration_test_app, NotificationsMigrationTestSettings,
+    NotificationsMigrationTestSettings, init_notifications_migration_test_app,
 };
 
 // -- from_file_value unit tests: these demonstrate the derive-level bug ------

@@ -10,6 +10,7 @@
 use pathfinder_color::ColorU;
 use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::Fill;
+use warpui::AppContext;
 use warpui::elements::{
     Border, Clipped, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
     CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Flex, Highlight, Hoverable,
@@ -18,12 +19,11 @@ use warpui::elements::{
 };
 use warpui::fonts::{FamilyId, Properties, Weight};
 use warpui::platform::Cursor;
-use warpui::AppContext;
 
+use crate::WorkspaceAction;
 use crate::appearance::Appearance;
 use crate::settings::SettingsFileError;
 use crate::ui_components::icons::Icon;
-use crate::WorkspaceAction;
 
 /// Horizontal + vertical padding applied to the footer inside the sidebar.
 const FOOTER_PADDING: f32 = 12.;

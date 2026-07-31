@@ -8,8 +8,9 @@
 
 use ai::agent::action::RunAgentsExecutionMode;
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_cli::agent::Harness;
+use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warp_localization::LocaleId;
 use warpui::elements::{
@@ -30,27 +31,28 @@ use crate::ai::blocklist::inline_action::host_picker::HostPicker;
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
+use crate::ai::orchestration::{
+    AUTH_SECRETS_LOAD_FAILED_MESSAGE, OptionBadge, OptionFooter, OptionRow, OptionSnapshot,
+    OptionSourceStatus, RUNNERS_LOAD_FAILED_MESSAGE, RunnerFetchState, api_key_snapshot,
+    build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot, model_snapshot,
+    persist_auth_secret_selection,
+};
 pub use crate::ai::orchestration::{
-    accept_disabled_reason_with_auth, empty_env_recommendation_message,
+    AuthSecretSelection, ORCHESTRATION_WARP_WORKER_HOST, OrchestrationConfigState,
+    OrchestrationEditState, accept_disabled_reason_with_auth, empty_env_recommendation_message,
     persist_environment_selection, persist_host_selection,
     resolve_auth_secret_selection_for_harness, resolve_default_environment_id,
-    resolve_default_host_slug, should_show_auth_secret_picker, AuthSecretSelection,
-    OrchestrationConfigState, OrchestrationEditState, ORCHESTRATION_WARP_WORKER_HOST,
-};
-use crate::ai::orchestration::{
-    api_key_snapshot, environment_snapshot, harness_snapshot, host_snapshot, model_snapshot,
-    persist_auth_secret_selection, OptionBadge, OptionFooter, OptionRow, OptionSnapshot,
-    OptionSourceStatus, AUTH_SECRETS_LOAD_FAILED_MESSAGE,
+    resolve_default_host_slug, should_show_auth_secret_picker,
 };
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
+use crate::view_components::FilterableDropdown;
 use crate::view_components::dropdown::{
     Dropdown, DropdownAction, DropdownItemAction, DropdownStyle,
 };
-use crate::view_components::FilterableDropdown;
-use crate::{localization, LLMPreferences};
+use crate::{LLMPreferences, localization};
 
 // ── Shared constants ────────────────────────────────────────────────
 
@@ -64,6 +66,10 @@ const ORCHESTRATION_SEGMENTED_CONTROL_PADDING: f32 = 4.;
 const ORCHESTRATION_SEGMENT_VERTICAL_PADDING: f32 = 4.;
 const AUTH_SECRET_INHERIT_KEY: &str = "agent.orchestration.controls.auth_secret_inherit";
 const AUTH_SECRETS_LOAD_FAILED_KEY: &str = "agent.orchestration.controls.unable_to_load_secrets";
+const EMPTY_ENVIRONMENT_KEY: &str = "agent.orchestration.controls.empty_environment";
+const RUNNER_KEY: &str = "agent.orchestration.controls.runner";
+const RUNNER_USE_DEFAULT_KEY: &str = "agent.orchestration.controls.runner_use_default";
+const RUNNERS_LOAD_FAILED_KEY: &str = "agent.orchestration.controls.unable_to_load_runners";
 
 // ── Action trait ────────────────────────────────────────────────────
 
@@ -76,6 +82,9 @@ pub trait OrchestrationControlAction: DropdownItemAction + Clone {
     fn harness_changed(harness_type: String) -> Self;
     fn environment_changed(environment_id: String) -> Self;
     fn create_environment_requested() -> Self;
+    /// Runner UID selected in the Runner dropdown; empty clears the
+    /// override ("Use environment default").
+    fn runner_changed(runner_id: String) -> Self;
     /// `None` means Inherit; `Some(name)` means a named managed secret.
     fn auth_secret_changed(name: Option<String>) -> Self;
     /// User picked the "New API key…" item; opens the workspace create modal.
@@ -91,6 +100,9 @@ pub struct OrchestrationPickerHandles<A: OrchestrationControlAction> {
     pub model_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub harness_picker: Option<ViewHandle<Dropdown<A>>>,
     pub environment_picker: Option<ViewHandle<FilterableDropdown<A>>>,
+    /// Runner picker for the Cloud variant (gated on `CloudAgentRunners`).
+    /// `None` until built; runners are fetched via `FactoryClient::get_runners`.
+    pub runner_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub host_picker: Option<ViewHandle<HostPicker>>,
     /// Picker for the managed auth secret used by non-Oz cloud children.
     /// `None` when the picker hasn't been built yet (e.g. harness is Oz or
@@ -107,6 +119,7 @@ impl<A: OrchestrationControlAction> Default for OrchestrationPickerHandles<A> {
             model_picker: None,
             harness_picker: None,
             environment_picker: None,
+            runner_picker: None,
             host_picker: None,
             auth_secret_picker: None,
             local_toggle: MouseStateHandle::default(),
@@ -221,6 +234,7 @@ fn snapshot_execution_mode(is_local: bool) -> RunAgentsExecutionMode {
             environment_id: String::new(),
             worker_host: String::new(),
             computer_use_enabled: false,
+            runner_id: String::new(),
         }
     }
 }
@@ -234,6 +248,30 @@ fn selected_row_label(snapshot: &OptionSnapshot) -> Option<String> {
             .find(|row| &row.id == id)
             .map(|row| row.label.clone())
     })
+}
+
+fn localized_environment_row_label_for_locale(row: &OptionRow, locale: LocaleId) -> String {
+    if row.id.is_empty() {
+        localization::text_for_locale(locale, EMPTY_ENVIRONMENT_KEY)
+    } else {
+        row.label.clone()
+    }
+}
+
+fn localized_runner_row_label_for_locale(row: &OptionRow, locale: LocaleId) -> String {
+    if row.id.is_empty() {
+        localization::text_for_locale(locale, RUNNER_USE_DEFAULT_KEY)
+    } else {
+        row.label.clone()
+    }
+}
+
+fn localized_runner_status_message_for_locale(message: &str, locale: LocaleId) -> String {
+    if message == RUNNERS_LOAD_FAILED_MESSAGE {
+        localization::text_for_locale(locale, RUNNERS_LOAD_FAILED_KEY)
+    } else {
+        message.to_owned()
+    }
 }
 
 /// Rich menu items for Oz model rows. The snapshot owns inclusion,
@@ -401,10 +439,15 @@ pub fn populate_environment_picker<A: OrchestrationControlAction, V: View>(
             environment_id: initial_env_id.to_string(),
             worker_host: String::new(),
             computer_use_enabled: false,
+            runner_id: String::new(),
         },
     );
     dropdown_handle.update(ctx, |dropdown, ctx_dropdown| {
-        let snapshot = environment_snapshot(&state, ctx_dropdown);
+        let mut snapshot = environment_snapshot(&state, ctx_dropdown);
+        let locale = localization::current_locale(ctx_dropdown);
+        for row in &mut snapshot.rows {
+            row.label = localized_environment_row_label_for_locale(row, locale);
+        }
         let selected_label = selected_row_label(&snapshot);
         let items = snapshot
             .rows
@@ -415,6 +458,88 @@ pub fn populate_environment_picker<A: OrchestrationControlAction, V: View>(
                 ))
             })
             .collect();
+        dropdown.set_rich_items(items, ctx_dropdown);
+        if let Some(label) = &selected_label {
+            dropdown.set_selected_by_name(label, ctx_dropdown);
+        }
+    });
+}
+
+/// Creates the Runner picker dropdown with the shared orchestration
+/// chrome, then populates it from the supplied runners list. Runners are
+/// not cached client-side (unlike environments), so the owning view
+/// fetches them via `FactoryClient::get_runners` and passes them in;
+/// `fetch_state` renders loading and failure states until the request resolves.
+pub fn create_runner_picker<A: OrchestrationControlAction, V: View>(
+    initial_runner_id: &str,
+    runners: &[(String, String)],
+    fetch_state: RunnerFetchState,
+    styles: &UiComponentStyles,
+    ctx: &mut ViewContext<V>,
+) -> ViewHandle<FilterableDropdown<A>> {
+    let styles = *styles;
+    let dropdown_handle = ctx.add_typed_action_view(move |ctx_dropdown| {
+        let mut dropdown = FilterableDropdown::<A>::new(ctx_dropdown);
+        dropdown.set_use_overlay_layer(false, ctx_dropdown);
+        dropdown.set_match_menu_width_to_top_bar(true, ctx_dropdown);
+        dropdown.set_main_axis_size(MainAxisSize::Max, ctx_dropdown);
+        dropdown.set_button_variant(ButtonVariant::Secondary);
+        dropdown.set_style(styles);
+        dropdown.set_top_bar_height(ORCHESTRATION_PICKER_HEIGHT, ctx_dropdown);
+        dropdown.set_top_bar_max_width(f32::INFINITY);
+        dropdown
+    });
+    populate_runner_picker(
+        &dropdown_handle,
+        runners,
+        initial_runner_id,
+        fetch_state,
+        ctx,
+    );
+    dropdown_handle
+}
+
+/// Populates the runner picker from [`build_runner_snapshot`] ("Use
+/// environment default" plus the supplied runners).
+pub fn populate_runner_picker<A: OrchestrationControlAction, V: View>(
+    dropdown_handle: &ViewHandle<FilterableDropdown<A>>,
+    runners: &[(String, String)],
+    current_runner_id: &str,
+    fetch_state: RunnerFetchState,
+    ctx: &mut ViewContext<V>,
+) {
+    let mut snapshot = build_runner_snapshot(runners.to_vec(), current_runner_id, fetch_state);
+    let locale = localization::current_locale(ctx);
+    for row in &mut snapshot.rows {
+        row.label = localized_runner_row_label_for_locale(row, locale);
+    }
+    let selected_label = selected_row_label(&snapshot);
+    dropdown_handle.update(ctx, |dropdown, ctx_dropdown| {
+        let mut items: Vec<_> = snapshot
+            .rows
+            .into_iter()
+            .map(|row| {
+                MenuItem::Item(MenuItemFields::new(&row.label).with_on_select_action(
+                    DropdownAction::select_action_and_close(A::runner_changed(row.id)),
+                ))
+            })
+            .collect();
+        match snapshot.status {
+            OptionSourceStatus::Loading => items.push(MenuItem::Item(
+                MenuItemFields::new(localization::text_for_app(
+                    ctx_dropdown,
+                    "agent.orchestration.controls.loading",
+                ))
+                .with_disabled(true),
+            )),
+            OptionSourceStatus::Failed { message } => {
+                let message = localized_runner_status_message_for_locale(&message, locale);
+                items.push(MenuItem::Item(
+                    MenuItemFields::new(message).with_disabled(true),
+                ));
+            }
+            OptionSourceStatus::Ready | OptionSourceStatus::Empty { .. } => {}
+        }
         dropdown.set_rich_items(items, ctx_dropdown);
         if let Some(label) = &selected_label {
             dropdown.set_selected_by_name(label, ctx_dropdown);
@@ -493,6 +618,7 @@ pub fn populate_host_picker<V: View>(
             environment_id: String::new(),
             worker_host: initial_host.to_string(),
             computer_use_enabled: false,
+            runner_id: String::new(),
         },
     );
     let snapshot = host_snapshot(&state, ctx);
@@ -700,10 +826,11 @@ pub fn apply_harness_change<A: OrchestrationControlAction, V: View>(
     orchestration_edit_state.apply_harness_change(new_harness_type, fallback_base_model_id, ctx);
     let state = &orchestration_edit_state.orchestration_config_state;
     let is_local = !state.execution_mode.is_remote();
-    if is_local && state.harness_type != new_harness_type {
-        if let Some(handle) = &handles.harness_picker {
-            populate_harness_picker(handle, &state.harness_type, true, ctx);
-        }
+    if is_local
+        && state.harness_type != new_harness_type
+        && let Some(handle) = &handles.harness_picker
+    {
+        populate_harness_picker(handle, &state.harness_type, true, ctx);
     }
     if let Some(handle) = &handles.model_picker {
         populate_model_picker_for_harness(
@@ -1128,6 +1255,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
     let environment_label =
         localization::text_for_app(app, "agent.orchestration.controls.environment");
     let model_label = localization::text_for_app(app, "agent.orchestration.controls.base_model");
+    let runner_label = localization::text_for_app(app, RUNNER_KEY);
 
     if vertical {
         let mut column = Flex::column()
@@ -1177,6 +1305,16 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                     .as_ref()
                     .map(|p| ChildView::new(p).finish()),
             );
+            if FeatureFlag::CloudAgentRunners.is_enabled() {
+                add(
+                    &mut column,
+                    &runner_label,
+                    handles
+                        .runner_picker
+                        .as_ref()
+                        .map(|p| ChildView::new(p).finish()),
+                );
+            }
         }
         add(
             &mut column,
@@ -1224,6 +1362,16 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                     .as_ref()
                     .map(|p| ChildView::new(p).finish()),
             );
+            if FeatureFlag::CloudAgentRunners.is_enabled() {
+                add_picker(
+                    &mut row,
+                    &runner_label,
+                    handles
+                        .runner_picker
+                        .as_ref()
+                        .map(|p| ChildView::new(p).finish()),
+                );
+            }
         }
         add_picker(
             &mut row,

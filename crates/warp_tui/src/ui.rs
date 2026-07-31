@@ -1,12 +1,13 @@
 //! Small presentation helpers for the `warp-tui` front-end's TUI views.
 use std::time::Duration;
 
+use unicode_width::UnicodeWidthStr;
+use warpui_core::AppContext;
+use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::elements::animation::AnimationClock;
 use warpui_core::elements::tui::{
     Modifier, TuiConstrainedBox, TuiElement, TuiFlex, TuiStyle, TuiText,
 };
-use warpui_core::elements::CrossAxisAlignment;
-use warpui_core::AppContext;
 
 use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
@@ -16,10 +17,10 @@ use crate::warping_indicator::render_spinner;
 pub(crate) fn abbreviate_home_prefix(path: &str) -> String {
     if let Some(home) = dirs::home_dir() {
         let home = home.to_string_lossy();
-        if let Some(rest) = path.strip_prefix(&*home) {
-            if rest.is_empty() || rest.starts_with('/') || rest.starts_with('\\') {
-                return format!("~{rest}");
-            }
+        if let Some(rest) = path.strip_prefix(&*home)
+            && (rest.is_empty() || rest.starts_with('/') || rest.starts_with('\\'))
+        {
+            return format!("~{rest}");
         }
     }
     path.to_owned()
@@ -60,7 +61,7 @@ pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
     let muted = TuiUiBuilder::from_app(app).muted_text_style();
     let label = localization::text("tui.session.loading");
     let hint = localization::text("tui.session.restore_cancel_hint");
-    let max_cols = label.chars().count().max(hint.chars().count()) as u16;
+    let max_cols = conversation_restoring_max_cols(&label, &hint);
     centered_in_viewport(
         TuiConstrainedBox::new(
             TuiFlex::column()
@@ -81,6 +82,10 @@ pub(crate) fn conversation_restoring(app: &AppContext) -> Box<dyn TuiElement> {
         .with_max_cols(max_cols)
         .finish(),
     )
+}
+
+fn conversation_restoring_max_cols(label: &str, hint: &str) -> u16 {
+    UnicodeWidthStr::width(label).max(UnicodeWidthStr::width(hint)) as u16
 }
 
 /// Placeholder shown when a requested conversation cannot be restored.
@@ -109,7 +114,7 @@ fn vertically_centered(content: TuiFlex) -> Box<dyn TuiElement> {
 }
 
 /// Centers `content` horizontally and vertically within the viewport.
-fn centered_in_viewport(content: Box<dyn TuiElement>) -> Box<dyn TuiElement> {
+pub(crate) fn centered_in_viewport(content: Box<dyn TuiElement>) -> Box<dyn TuiElement> {
     let centered_row = TuiFlex::row()
         .flex_child(TuiFlex::row().finish())
         .child(content)

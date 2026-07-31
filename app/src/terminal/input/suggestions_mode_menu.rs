@@ -6,6 +6,7 @@
 //! - StaticWorkflowEnumSuggestions
 //! - DynamicWorkflowEnumSuggestions
 
+use warpui::AppContext;
 use warpui::elements::{
     Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DragBarSide,
     DropShadow, Element, Empty, Flex, ParentElement, Radius, Resizable, Shrinkable,
@@ -13,13 +14,12 @@ use warpui::elements::{
 };
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::AppContext;
 
 use super::{
-    DynamicEnumSuggestionStatus, Input, InputAction, MenuPositioning,
     DYNAMIC_ENUM_HORIZONTAL_TEXT_PADDING, DYNAMIC_ENUM_MENU_HEIGHT_OFFSET,
-    DYNAMIC_ENUM_MENU_PADDING, HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT,
-    RUN_DYNAMIC_ENUM_COMMAND_KEYSTROKE, TERMINAL_VIEW_PADDING_LEFT,
+    DYNAMIC_ENUM_MENU_PADDING, DynamicEnumSuggestionStatus, HISTORY_DETAILS_VIEW_WIDTH_REQUIREMENT,
+    Input, InputAction, MenuPositioning, RUN_DYNAMIC_ENUM_COMMAND_KEYSTROKE,
+    TERMINAL_VIEW_PADDING_LEFT,
 };
 use crate::appearance::Appearance;
 use crate::input_suggestions::{

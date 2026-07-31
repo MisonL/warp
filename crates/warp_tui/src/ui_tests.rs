@@ -1,9 +1,9 @@
 use warp::appearance::Appearance;
+use warpui_core::App;
 use warpui_core::elements::tui::{TuiBufferExt, TuiRect};
 use warpui_core::presenter::tui::TuiPresenter;
-use warpui_core::App;
 
-use super::{compact_footer_path, conversation_restoring};
+use super::{compact_footer_path, conversation_restoring, conversation_restoring_max_cols};
 
 #[test]
 fn compact_footer_path_preserves_short_paths() {
@@ -35,9 +35,11 @@ fn conversation_loader_is_centered_and_animated() {
                 .iter()
                 .find(|line| line.contains("Loading session..."))
                 .expect("loading label should render");
-            assert!(lines
-                .iter()
-                .any(|line| { line.contains("Esc or Ctrl-C to cancel and start a new session") }));
+            assert!(
+                lines.iter().any(|line| {
+                    line.contains("Esc or Ctrl-C to cancel and start a new session")
+                })
+            );
 
             assert!(
                 label.find("Loading session...").is_some_and(|x| x > 0),
@@ -49,4 +51,12 @@ fn conversation_loader_is_centered_and_animated() {
             );
         });
     });
+}
+
+#[test]
+fn conversation_loader_uses_terminal_display_width_for_cjk_text() {
+    assert_eq!(
+        conversation_restoring_max_cols("\u{4e2d}\u{6587}", "abc"),
+        4
+    );
 }

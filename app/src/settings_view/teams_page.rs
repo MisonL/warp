@@ -32,16 +32,16 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
+use super::SettingsSection;
 use super::admin_actions::AdminActions;
 use super::settings_page::{
-    render_customer_type_badge, render_separator, render_sub_header, MatchData, PageType,
-    SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+    MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+    render_customer_type_badge, render_separator, render_sub_header,
 };
 use super::tab_menu::Tabs;
 use super::transfer_ownership_confirmation_modal::{
     TransferOwnershipConfirmationEvent, TransferOwnershipConfirmationModal,
 };
-use super::SettingsSection;
 use crate::ai::AIRequestUsageModel;
 use crate::appearance::Appearance;
 use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
@@ -2725,52 +2725,52 @@ impl TeamsWidget {
         let mut shared_objects_usage_row =
             Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 
-        if let Some(policy) = team.billing_metadata.tier.shared_notebooks_policy {
-            if !policy.is_unlimited {
-                let mut shared_notebooks_column = Flex::column();
-                shared_notebooks_column.add_child(self.render_plan_usage_header(
-                    teams_text(app, "settings.teams.plan.shared_notebooks"),
+        if let Some(policy) = team.billing_metadata.tier.shared_notebooks_policy
+            && !policy.is_unlimited
+        {
+            let mut shared_notebooks_column = Flex::column();
+            shared_notebooks_column.add_child(self.render_plan_usage_header(
+                teams_text(app, "settings.teams.plan.shared_notebooks"),
+                appearance,
+            ));
+            let num_shared_notebooks = cloud_model
+                .active_notebooks_in_space(Space::Team { team_uid: team.uid }, app)
+                .count();
+            shared_notebooks_column.add_child(
+                Container::new(self.render_plan_usage_text(
+                    format!("{}/{}", num_shared_notebooks, policy.limit),
                     appearance,
-                ));
-                let num_shared_notebooks = cloud_model
-                    .active_notebooks_in_space(Space::Team { team_uid: team.uid }, app)
-                    .count();
-                shared_notebooks_column.add_child(
-                    Container::new(self.render_plan_usage_text(
-                        format!("{}/{}", num_shared_notebooks, policy.limit),
-                        appearance,
-                    ))
-                    .with_margin_top(4.)
+                ))
+                .with_margin_top(4.)
+                .finish(),
+            );
+            shared_objects_usage_row.add_child(
+                Container::new(shared_notebooks_column.finish())
+                    .with_margin_right(64.)
                     .finish(),
-                );
-                shared_objects_usage_row.add_child(
-                    Container::new(shared_notebooks_column.finish())
-                        .with_margin_right(64.)
-                        .finish(),
-                );
-            }
+            );
         }
 
-        if let Some(policy) = team.billing_metadata.tier.shared_workflows_policy {
-            if !policy.is_unlimited {
-                let mut shared_workflows_column = Flex::column();
-                shared_workflows_column.add_child(self.render_plan_usage_header(
-                    teams_text(app, "settings.teams.plan.shared_workflows"),
+        if let Some(policy) = team.billing_metadata.tier.shared_workflows_policy
+            && !policy.is_unlimited
+        {
+            let mut shared_workflows_column = Flex::column();
+            shared_workflows_column.add_child(self.render_plan_usage_header(
+                teams_text(app, "settings.teams.plan.shared_workflows"),
+                appearance,
+            ));
+            let num_shared_workflows = cloud_model
+                .active_workflows_in_space(Space::Team { team_uid: team.uid }, app)
+                .count();
+            shared_workflows_column.add_child(
+                Container::new(self.render_plan_usage_text(
+                    format!("{}/{}", num_shared_workflows, policy.limit),
                     appearance,
-                ));
-                let num_shared_workflows = cloud_model
-                    .active_workflows_in_space(Space::Team { team_uid: team.uid }, app)
-                    .count();
-                shared_workflows_column.add_child(
-                    Container::new(self.render_plan_usage_text(
-                        format!("{}/{}", num_shared_workflows, policy.limit),
-                        appearance,
-                    ))
-                    .with_margin_top(4.)
-                    .finish(),
-                );
-                shared_objects_usage_row.add_child(shared_workflows_column.finish());
-            }
+                ))
+                .with_margin_top(4.)
+                .finish(),
+            );
+            shared_objects_usage_row.add_child(shared_workflows_column.finish());
         }
 
         section.add_child(
@@ -3854,15 +3854,13 @@ impl TeamsWidget {
                 let list_element =
                     Container::new(row.finish()).with_uniform_padding(SCROLLABLE_LIST_ITEM_PADDING);
 
-                let container = if idx % 2 == 0 {
+                if idx % 2 == 0 {
                     list_element
                         .with_background(internal_colors::fg_overlay_1(appearance.theme()))
                         .finish()
                 } else {
                     list_element.finish()
-                };
-
-                container
+                }
             })
             .collect::<Vec<_>>()
             .into_iter();

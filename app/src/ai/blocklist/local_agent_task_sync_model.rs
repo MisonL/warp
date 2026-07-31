@@ -6,7 +6,7 @@ use std::sync::Arc;
 use session_sharing_protocol::common::SessionId;
 use update_queue::LocalTaskUpdateQueue;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
-use warp_localization::{replace_placeholders, LocaleId};
+use warp_localization::{LocaleId, replace_placeholders};
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 
 use super::history_model::{
@@ -16,8 +16,8 @@ use crate::ai::agent::conversation::{AIConversation, AIConversationId, Conversat
 use crate::ai::agent::{AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIError};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::localization;
-use crate::server::server_api::ai::{AIClient, TaskStatusUpdate};
 use crate::server::server_api::ServerApiProvider;
+use crate::server::server_api::ai::{AIClient, TaskStatusUpdate};
 use crate::terminal::cli_agent_sessions::{
     CLIAgentSessionStatus, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };

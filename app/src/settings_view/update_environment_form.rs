@@ -27,7 +27,7 @@ use warpui::{
 };
 
 use super::editor_text_colors;
-use super::settings_page::{render_input_list, InputListItem};
+use super::settings_page::{InputListItem, render_input_list};
 use crate::ai::ambient_agents::github_auth_notifier::{GitHubAuthEvent, GitHubAuthNotifier};
 use crate::ai::ambient_agents::github_auth_url::{self, AuthSource, GithubAuthRedirectTarget};
 use crate::ai::ambient_agents::telemetry::CloudAgentTelemetryEvent;
@@ -46,11 +46,11 @@ use crate::view_components::action_button::{
     ActionButton, DangerSecondaryTheme, PrimaryTheme, SecondaryTheme,
 };
 use crate::view_components::{
-    render_warning_box, SubmittableTextInput, SubmittableTextInputEvent, WarningBoxButtonConfig,
-    WarningBoxConfig,
+    SubmittableTextInput, SubmittableTextInputEvent, WarningBoxButtonConfig, WarningBoxConfig,
+    render_warning_box,
 };
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{localization, ChannelState};
+use crate::{ChannelState, localization};
 
 const SUBMIT_BUTTON_FOCUSED: &str = "SubmitButtonFocused";
 
@@ -328,9 +328,7 @@ impl EnvironmentFormCopy {
                 "settings.environment.form.docker_image.placeholder",
             ),
             description_placeholder: "",
-            description_placeholder_key: Some(
-                "settings.environment.form.description.placeholder",
-            ),
+            description_placeholder_key: Some("settings.environment.form.description.placeholder"),
             setup_commands_placeholder: "e.g. cd my-repo && pip install -r requirements.txt",
             setup_commands_placeholder_key: Some(
                 "settings.environment.form.setup_commands.placeholder",
@@ -460,9 +458,7 @@ impl Default for EnvironmentFormCopy {
             docker_image_placeholder: "e.g. python:3.11, node:20-alpine",
             docker_image_placeholder_key: None,
             description_placeholder: "",
-            description_placeholder_key: Some(
-                "settings.environment.form.description.placeholder",
-            ),
+            description_placeholder_key: Some("settings.environment.form.description.placeholder"),
             setup_commands_placeholder: "e.g. cd my-repo && pip install -r requirements.txt",
             setup_commands_placeholder_key: None,
             setup_commands_helper: "Setup commands run independently. Each command runs from the workspace root (/workspace). If a command depends on the previous one, combine them with &&.",
@@ -1284,10 +1280,10 @@ impl UpdateEnvironmentForm {
             }
         });
 
-        if let Ok(url) = parsed_url {
-            if matches!(url.host_str(), Some("github.com" | "www.github.com")) {
-                return parse_owner_repo(url.path_segments()?.filter(|p| !p.is_empty()));
-            }
+        if let Ok(url) = parsed_url
+            && matches!(url.host_str(), Some("github.com" | "www.github.com"))
+        {
+            return parse_owner_repo(url.path_segments()?.filter(|p| !p.is_empty()));
         }
 
         parse_owner_repo(trimmed.split('/').filter(|p| !p.is_empty()))
@@ -1565,13 +1561,13 @@ impl UpdateEnvironmentForm {
                         me.github_dropdown_state.auth_fetched_at = Some(Instant::now());
                         me.github_dropdown_state.app_install_link =
                             Some(auth_info.app_install_link);
-                        if open_auth_after_fetch {
-                            if let Some(auth_url) = me.github_dropdown_state.auth_url.as_deref() {
-                                if let Some(tx_id) = Self::extract_tx_id(auth_url) {
-                                    debug!("Refetched GitHub auth URL with tx_id={tx_id}");
-                                } else {
-                                    debug!("Refetched GitHub auth URL (tx_id missing)");
-                                }
+                        if open_auth_after_fetch
+                            && let Some(auth_url) = me.github_dropdown_state.auth_url.as_deref()
+                        {
+                            if let Some(tx_id) = Self::extract_tx_id(auth_url) {
+                                debug!("Refetched GitHub auth URL with tx_id={tx_id}");
+                            } else {
+                                debug!("Refetched GitHub auth URL (tx_id missing)");
                             }
                         }
                         me.update_repos_input_placeholder(ctx);
@@ -3202,10 +3198,11 @@ impl UpdateEnvironmentForm {
         };
 
         // Handle explicit "library/" prefix for official images (e.g. docker.io/library/python)
-        if let Some(official_name) = path.strip_prefix("library/") {
-            if !official_name.is_empty() && !official_name.contains('/') {
-                return Some(format!("https://hub.docker.com/_/{official_name}"));
-            }
+        if let Some(official_name) = path.strip_prefix("library/")
+            && !official_name.is_empty()
+            && !official_name.contains('/')
+        {
+            return Some(format!("https://hub.docker.com/_/{official_name}"));
         }
 
         // Validate the path has owner/repo format
@@ -3657,13 +3654,12 @@ impl TypedActionView for UpdateEnvironmentForm {
                         .any(|available| available.owner == *owner && available.repo == *repo)
                 });
 
-                if self.github_dropdown_state.is_expanded {
-                    if let Some(selected_index) = self.github_dropdown_state.selected_index {
-                        if parsed_repos.is_empty() || !has_custom_repo {
-                            self.toggle_repo_selection_at_index(selected_index, ctx);
-                            return;
-                        }
-                    }
+                if self.github_dropdown_state.is_expanded
+                    && let Some(selected_index) = self.github_dropdown_state.selected_index
+                    && (parsed_repos.is_empty() || !has_custom_repo)
+                {
+                    self.toggle_repo_selection_at_index(selected_index, ctx);
+                    return;
                 }
 
                 if parsed_repos.is_empty() {

@@ -6,7 +6,7 @@ use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::subshell::{
     enter_ssh_command, enter_ssh_password, setup_gcloud_sdk, wait_for_password_prompt,
 };
-use warp::integration_testing::terminal::util::{nonce, ExactLine, ExpectedExitStatus};
+use warp::integration_testing::terminal::util::{ExactLine, ExpectedExitStatus, nonce};
 use warp::integration_testing::terminal::{
     assert_active_block_output_for_single_terminal_in_tab,
     assert_long_running_block_executing_for_single_terminal_in_tab,
@@ -20,8 +20,8 @@ use warpui_core::integration::{AssertionCallback, AssertionOutcome, TestStep};
 use warpui_core::{async_assert, async_assert_eq};
 
 use super::new_builder;
-use crate::util::can_run_gcloud_ssh_tests;
 use crate::Builder;
+use crate::util::can_run_gcloud_ssh_tests;
 
 /// Verifies that the active block is part of a remote session.
 fn assert_active_block_is_remote(user: &'static str, host: &'static str) -> AssertionCallback {

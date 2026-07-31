@@ -1,5 +1,38 @@
-use super::prefix_match_bonus;
+use settings::Setting as _;
+use warpui::{App, SingletonEntity as _};
+
+use super::{InlineItem, prefix_match_bonus};
+use crate::search::slash_command_menu::SlashCommandId;
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
+use crate::search::slash_command_menu::static_commands::commands;
+use crate::settings::{AppLanguage, LanguageSettings};
+use crate::test_util::settings::initialize_localization_for_tests;
+
+#[test]
+fn static_command_descriptions_follow_app_language() {
+    App::test((), |mut app| async move {
+        initialize_localization_for_tests(&mut app);
+        app.add_singleton_model(|_| warp_core::ui::appearance::Appearance::mock());
+        app.update(|ctx| {
+            LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings
+                    .app_language
+                    .load_value(AppLanguage::SimplifiedChinese, true, ctx)
+                    .expect("language setting should update")
+            });
+        });
+
+        app.read(|ctx| {
+            for (command, expected) in [
+                (&commands::EXIT, "退出 Warp"),
+                (&commands::VIEW_LOGS, "将日志打包为 ZIP 压缩包"),
+            ] {
+                let item = InlineItem::from_slash_command(&SlashCommandId::new(), command, ctx);
+                assert_eq!(item.description.as_deref(), Some(expected));
+            }
+        });
+    });
+}
 
 #[test]
 fn exact_match_returns_full_bonus() {

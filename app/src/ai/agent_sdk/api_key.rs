@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::fmt;
 use std::io::{self, IsTerminal as _};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use comfy_table::Cell;
 use inquire::{Confirm, InquireError, Select};
@@ -17,14 +17,14 @@ use warp_graphql::mutations::expire_api_key::ExpireApiKeyResult;
 use warp_graphql::mutations::generate_api_key::GenerateApiKeyResult;
 use warp_graphql::queries::api_keys::ApiKeyProperties;
 use warp_graphql::scalars::Time;
-use warp_localization::{replace_placeholders, LocaleId};
+use warp_localization::{LocaleId, replace_placeholders};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::{self, TableFormat};
 use crate::server::ids::ApiKeyUid;
 use crate::util::time_format::format_approx_duration_from_now_utc;
-use crate::{localization, ServerApiProvider};
+use crate::{ServerApiProvider, localization};
 
 fn text_for_locale(locale: LocaleId, key: &str) -> String {
     localization::text_for_locale(locale, key)
@@ -131,7 +131,7 @@ impl ApiKeyCommandRunner {
                         return Err(anyhow!(text_for_locale(
                             locale,
                             "agent_sdk.api_key.error.create_failed"
-                        )))
+                        )));
                     }
                 };
                 print_created_api_key(result, output_format, json_output, locale)?;
@@ -248,7 +248,7 @@ impl ApiKeyCommandRunner {
                                 return Err(anyhow!(text_for_locale(
                                     locale,
                                     "agent_sdk.api_key.error.expire_failed"
-                                )))
+                                )));
                             }
                         };
                         print_expire_api_key_result(

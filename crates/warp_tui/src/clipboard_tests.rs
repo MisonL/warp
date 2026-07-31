@@ -1,9 +1,59 @@
 use std::io::{self, Write};
 
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 
-use super::{osc52_sequences, tmux_passthrough, write_osc52_sequences};
+use super::{
+    ClipboardCopy, copy_to_clipboard_with, osc52_sequences, tmux_passthrough, write_osc52_sequences,
+};
+
+#[test]
+fn local_copy_reports_copied() {
+    assert_eq!(
+        copy_to_clipboard_with("conversation", false, |_| Ok(()), |_| Ok(())).unwrap(),
+        ClipboardCopy::Copied
+    );
+}
+
+#[test]
+fn ssh_session_reports_sent_to_terminal() {
+    let mut copied = None;
+
+    assert_eq!(
+        copy_to_clipboard_with(
+            "conversation",
+            true,
+            |_| panic!("remote copies must not use the native clipboard"),
+            |text| {
+                copied = Some(text.to_owned());
+                Ok(())
+            },
+        )
+        .unwrap(),
+        ClipboardCopy::SentToTerminal
+    );
+    assert_eq!(copied.as_deref(), Some("conversation"));
+}
+
+#[test]
+fn native_failure_falls_back_to_osc52() {
+    let mut copied = None;
+
+    assert_eq!(
+        copy_to_clipboard_with(
+            "conversation",
+            false,
+            |_| anyhow::bail!("clipboard unavailable"),
+            |text| {
+                copied = Some(text.to_owned());
+                Ok(())
+            },
+        )
+        .unwrap(),
+        ClipboardCopy::SentToTerminal
+    );
+    assert_eq!(copied.as_deref(), Some("conversation"));
+}
 
 #[test]
 fn osc52_encodes_utf8_for_clipboard_and_primary() {
@@ -55,5 +105,18 @@ fn clipboard_writer_propagates_output_errors() {
             .unwrap_err()
             .kind(),
         io::ErrorKind::Other
+    );
+}
+
+#[test]
+fn hard_failure_reports_err() {
+    assert!(
+        copy_to_clipboard_with(
+            "conversation",
+            true,
+            |_| panic!("remote copies must not use the native clipboard"),
+            |_| anyhow::bail!("terminal write failed"),
+        )
+        .is_err()
     );
 }

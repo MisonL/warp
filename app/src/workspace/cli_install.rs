@@ -2,7 +2,7 @@ use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use command::blocking::Command;
 use warp_core::channel::ChannelState;
 use warp_util::path::ShellFamily;

@@ -21,12 +21,12 @@ use warpui::{
 };
 
 use super::settings_page::{
+    Category, HEADER_FONT_SIZE, HEADER_PADDING, LocalOnlyIconState, MatchData, PageType,
+    SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, ToggleState,
     add_setting, render_alternating_color_list, render_body_item, render_dropdown_item,
-    render_page_title, Category, LocalOnlyIconState, MatchData, PageType, SettingsPageEvent,
-    SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, ToggleState, HEADER_FONT_SIZE,
-    HEADER_PADDING,
+    render_page_title,
 };
-use super::{flags, SettingsAction, SettingsSection, ToggleSettingActionPair};
+use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::appearance::Appearance;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
@@ -447,9 +447,11 @@ impl TypedActionView for WarpifyPageView {
             RemoveAddedCommand(index) => self.remove_added_command(*index, ctx),
             ToggleSshWarpification => {
                 WarpifySettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
-                    report_if_error!(ssh_settings
-                        .enable_ssh_warpification
-                        .toggle_and_save_value(ctx));
+                    report_if_error!(
+                        ssh_settings
+                            .enable_ssh_warpification
+                            .toggle_and_save_value(ctx)
+                    );
                     send_telemetry_from_ctx!(
                         TelemetryEvent::ToggleSshWarpification {
                             enabled: *ssh_settings.enable_ssh_warpification.value(),
@@ -471,9 +473,11 @@ impl TypedActionView for WarpifyPageView {
             }
             ToggleReuseSshControlMaster => {
                 SshSettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
-                    report_if_error!(ssh_settings
-                        .reuse_existing_control_master
-                        .toggle_and_save_value(ctx));
+                    report_if_error!(
+                        ssh_settings
+                            .reuse_existing_control_master
+                            .toggle_and_save_value(ctx)
+                    );
                     send_telemetry_from_ctx!(
                         TelemetryEvent::FeaturesPageAction {
                             action: "ToggleSshReuseControlMaster".to_string(),
@@ -488,9 +492,11 @@ impl TypedActionView for WarpifyPageView {
             }
             SetSshExtensionInstallMode(mode) => {
                 WarpifySettings::handle(ctx).update(ctx, |warpify_settings, ctx| {
-                    report_if_error!(warpify_settings
-                        .ssh_extension_install_mode
-                        .set_value(*mode, ctx));
+                    report_if_error!(
+                        warpify_settings
+                            .ssh_extension_install_mode
+                            .set_value(*mode, ctx)
+                    );
                     send_telemetry_from_ctx!(
                         TelemetryEvent::SetSshExtensionInstallMode {
                             mode: mode.display_name(),

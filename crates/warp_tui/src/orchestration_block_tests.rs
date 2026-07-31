@@ -17,8 +17,8 @@ use warpui_core::TypedActionView as _;
 
 use super::configuration::localize_snapshot_for_locale;
 use super::{
-    build_request, CardMode, ConfigPage, OrchestrationBlockController, TuiOrchestrationBlock,
-    TuiOrchestrationBlockAction, TuiOrchestrationBlockEvent,
+    CardMode, ConfigPage, OrchestrationBlockController, TuiOrchestrationBlock,
+    TuiOrchestrationBlockAction, TuiOrchestrationBlockEvent, build_request,
 };
 use crate::option_selector::{TuiOptionSelectorAction, TuiOptionSelectorEvent};
 use crate::test_fixtures::TestHostView;
@@ -176,6 +176,7 @@ fn remote(environment_id: &str, worker_host: &str) -> RunAgentsExecutionMode {
         environment_id: environment_id.to_string(),
         worker_host: worker_host.to_string(),
         computer_use_enabled: true,
+        runner_id: String::new(),
     }
 }
 
@@ -252,6 +253,7 @@ fn edit_state_is_overridden_by_an_approved_config() {
         execution_mode: OrchestrationExecutionMode::Remote {
             environment_id: "env-2".to_string(),
             worker_host: "warp".to_string(),
+            runner_id: String::new(),
         },
     };
     let state = TuiOrchestrationBlock::config_state_from_request(
@@ -319,6 +321,7 @@ fn build_request_carries_card_fields_and_edited_run_wide_state() {
             environment_id: "env-9".to_string(),
             worker_host: "self-hosted".to_string(),
             computer_use_enabled: true,
+            runner_id: String::new(),
         },
     );
     assert_eq!(built.harness_auth_secret_name.as_deref(), Some("codex-key"));
@@ -495,10 +498,12 @@ fn selector_layout_invalidations_are_forwarded() {
             block.handle_selector_event(&TuiOptionSelectorEvent::LayoutInvalidated, ctx);
         });
 
-        assert!(events
-            .borrow()
-            .iter()
-            .any(|event| matches!(event, TuiOrchestrationBlockEvent::LayoutInvalidated)));
+        assert!(
+            events
+                .borrow()
+                .iter()
+                .any(|event| matches!(event, TuiOrchestrationBlockEvent::LayoutInvalidated))
+        );
     });
 }
 
@@ -519,11 +524,13 @@ fn selector_actions_commit_edits_and_follow_the_dynamic_page_sequence() {
         );
         app.read(|ctx| {
             let block = block.as_ref(ctx);
-            assert!(!block
-                .orchestration_edit_state
-                .orchestration_config_state
-                .execution_mode
-                .is_remote());
+            assert!(
+                !block
+                    .orchestration_edit_state
+                    .orchestration_config_state
+                    .execution_mode
+                    .is_remote()
+            );
             assert_eq!(
                 block.mode,
                 CardMode::Configuring {
@@ -542,11 +549,13 @@ fn selector_actions_commit_edits_and_follow_the_dynamic_page_sequence() {
         );
         app.read(|ctx| {
             let block = block.as_ref(ctx);
-            assert!(block
-                .orchestration_edit_state
-                .orchestration_config_state
-                .execution_mode
-                .is_remote());
+            assert!(
+                block
+                    .orchestration_edit_state
+                    .orchestration_config_state
+                    .execution_mode
+                    .is_remote()
+            );
             assert_eq!(
                 block.mode,
                 CardMode::Configuring {

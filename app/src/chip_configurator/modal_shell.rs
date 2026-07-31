@@ -18,7 +18,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{Action, AppContext, Element};
 
 use super::{ChipConfigurator, ChipConfiguratorAction};
-use crate::{localization, Appearance};
+use crate::{Appearance, localization};
 
 const MODAL_WIDTH: f32 = 700.;
 const BORDER_WIDTH: f32 = 1.;

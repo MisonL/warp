@@ -23,8 +23,8 @@ use crate::cloud_object::{CloudObject, CloudObjectLookup as _, Owner};
 use crate::localization;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
-use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::ServerApiProvider;
+use crate::server::server_api::ai::AIClient;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
@@ -161,7 +161,7 @@ pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyh
 pub fn refresh_workspace_metadata<C>(
     ctx: &mut C,
     locale: LocaleId,
-) -> impl Future<Output = anyhow::Result<()>> + Send + 'static
+) -> impl Future<Output = anyhow::Result<()>> + Send + 'static + use<C>
 where
     C: GetSingletonModelHandle + UpdateModel,
 {
@@ -186,7 +186,7 @@ where
 pub fn refresh_warp_drive(
     ctx: &AppContext,
     locale: LocaleId,
-) -> impl Future<Output = anyhow::Result<()>> + Send + 'static {
+) -> impl Future<Output = anyhow::Result<()>> + Send + 'static + use<> {
     UpdateManager::as_ref(ctx)
         .initial_load_complete()
         .with_timeout(WARP_DRIVE_SYNC_TIMEOUT)

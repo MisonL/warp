@@ -2,7 +2,7 @@ use warp_cli::agent::OutputFormat;
 use warp_graphql::queries::get_simple_integrations::SimpleIntegrationConnectionStatus;
 use warp_localization::LocaleId;
 
-use super::{canonical_status_explanation, empty_integrations_output, IntegrationInfo};
+use super::{IntegrationInfo, canonical_status_explanation, empty_integrations_output};
 use crate::ai::agent_sdk::output::write_list_for_locale;
 
 #[test]

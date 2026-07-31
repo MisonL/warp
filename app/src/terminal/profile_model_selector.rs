@@ -8,10 +8,10 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    DropShadow, Empty, Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
-    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement as _, ParentOffsetBounds,
-    Percentage, PositionedElementAnchor, PositionedElementOffsetBounds, Radius, Rect, SavePosition,
-    Stack, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
+    DEFAULT_UI_LINE_HEIGHT_RATIO, DropShadow, Empty, Expanded, Flex, Hoverable, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement as _,
+    ParentOffsetBounds, Percentage, PositionedElementAnchor, PositionedElementOffsetBounds, Radius,
+    Rect, SavePosition, Stack, Text,
 };
 use warpui::platform::Cursor;
 use warpui::text_layout::ClipConfig;
@@ -26,9 +26,9 @@ const SIDECAR_POSITION_ID: &str = "model_sidecar_panel";
 
 use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
-use warp_core::ui::color::{coloru_with_opacity, Opacity};
-use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::color::{Opacity, coloru_with_opacity};
 use warp_core::ui::theme::Fill;
+use warp_core::ui::theme::color::internal_colors;
 
 use crate::ai::blocklist::prompt::PromptIconButtonTheme;
 use crate::ai::blocklist::{
@@ -40,25 +40,25 @@ use crate::ai::execution_profiles::model_menu_items::{
     available_model_menu_items, has_reasoning_variants, is_auto,
 };
 use crate::ai::execution_profiles::profiles::{
-    AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId,
+    AIExecutionProfilesModel, AIExecutionProfilesModelEvent,
 };
+use crate::ai::execution_profiles::{AIExecutionProfileAppExt as _, ExecutionProfileId};
 use crate::ai::harness_availability::{
     HarnessAvailabilityEvent, HarnessAvailabilityModel, HarnessModelInfo,
 };
 use crate::ai::llms::{
-    byo_key_source_for_model, dedupe_model_display_names, should_show_key_icon_for_model,
     ByoKeySource, LLMId, LLMInfo, LLMPreferences, LLMPreferencesEvent, LLMSpec,
+    byo_key_source_for_model, dedupe_model_display_names, should_show_key_icon_for_model,
 };
 use crate::appearance::Appearance;
-use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::context_chips::display_chip::{udi_font_size, udi_icon_size};
 use crate::context_chips::spacing;
 use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::settings_view::SettingsSection;
+use crate::terminal::TerminalModel;
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
-use crate::terminal::TerminalModel;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, SecondaryTheme,
@@ -82,12 +82,6 @@ const ICON_SPACING: f32 = 8.0;
 const MAX_PROFILE_NAME_WIDTH_SCALE_FACTOR: f32 = 10.0;
 
 const PROFILE_SELECTOR_POSITION_ID: &str = "profile_selector";
-
-const PROFILE_PICKER_TOOLTIP: &str = "Choose an AI execution profile";
-const MODEL_PICKER_TOOLTIP: &str = "Choose an agent model";
-const MODEL_LOCKED_FOR_FOLLOWUP_TOOLTIP: &str = "Follow-ups use the original run's model";
-const MODEL_REQUIRES_EDIT_ACCESS_TOOLTIP: &str = "Request edit access to change model";
-const HARNESS_DEFAULT_MODEL_LABEL: &str = "default";
 
 pub fn calculate_scaled_font_size(appearance: &warp_core::ui::appearance::Appearance) -> f32 {
     if FeatureFlag::AgentView.is_enabled() {
@@ -194,7 +188,7 @@ pub enum ProfileModelSelectorEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProfileModelSelectorAction {
-    SelectProfile(ClientProfileId),
+    SelectProfile(ExecutionProfileId),
     SelectModel(LLMId),
     SelectAutoModel,
     SelectReasoningModel(String),
@@ -269,7 +263,10 @@ impl ProfileModelSelector {
                 ),
                 is_blurred: false,
             })
-            .with_tooltip(PROFILE_PICKER_TOOLTIP)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "settings.ai.profile_selector.tooltip",
+            ))
             .with_size(ButtonSize::UDIButton)
             .with_icon(Icon::Psychology)
         });
@@ -297,24 +294,33 @@ impl ProfileModelSelector {
                 ),
                 is_blurred: false,
             })
-            .with_tooltip(MODEL_PICKER_TOOLTIP)
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.tooltip",
+            ))
             .with_size(ButtonSize::UDIButton)
         });
 
-        let profile_compact_button = ctx.add_typed_action_view(|_| {
+        let profile_compact_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::Psychology)
-                .with_tooltip(PROFILE_PICKER_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "settings.ai.profile_selector.tooltip",
+                ))
                 .with_size(ButtonSize::UDIButton)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(ProfileModelSelectorAction::ToggleProfileMenu);
                 })
         });
 
-        let model_compact_button = ctx.add_typed_action_view(|_| {
+        let model_compact_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::Neurology)
-                .with_tooltip(MODEL_PICKER_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "settings.ai.model_selector.tooltip",
+                ))
                 .with_size(ButtonSize::UDIButton)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(ProfileModelSelectorAction::ToggleModelMenu);
@@ -351,9 +357,12 @@ impl ProfileModelSelector {
                         .iter()
                         .map(|name| {
                             if *name == "auto" {
-                                "auto-select the best model for the task"
+                                localization::text_for_app(
+                                    ctx,
+                                    "settings.ai.model_selector.auto_choice",
+                                )
                             } else {
-                                name
+                                (*name).to_owned()
                             }
                         })
                         .collect::<Vec<_>>()
@@ -363,7 +372,10 @@ impl ProfileModelSelector {
                     }
                     label
                 } else {
-                    "New models available".to_string()
+                    localization::text_for_app(
+                        ctx,
+                        "settings.ai.model_selector.new_models_available",
+                    )
                 }
             })))
         });
@@ -486,6 +498,12 @@ impl ProfileModelSelector {
         ctx.subscribe_to_model(&Appearance::handle(ctx), |me, _, _, ctx| {
             me.handle_appearance_change(ctx);
         });
+        ctx.subscribe_to_model(
+            &localization::LocalizationUpdater::handle(ctx),
+            |me, _, _, ctx| {
+                me.refresh_state(ctx);
+            },
+        );
 
         // Refresh model menu when BYO API keys update so the key icons reflect the latest state.
         ctx.subscribe_to_model(
@@ -695,12 +713,21 @@ impl ProfileModelSelector {
         self.refresh_profile_menu(ctx);
         self.refresh_model_menu(ctx);
 
+        let profile_tooltip =
+            localization::text_for_app(ctx, "settings.ai.profile_selector.tooltip");
+        self.profile_button.update(ctx, |button, ctx| {
+            button.set_tooltip(Some(profile_tooltip.clone()), ctx);
+        });
+        self.profile_compact_button.update(ctx, |button, ctx| {
+            button.set_tooltip(Some(profile_tooltip), ctx);
+        });
+
         let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
         if profiles_model.has_multiple_profiles() {
             let profile_name = {
                 let active_profile =
                     profiles_model.active_profile(Some(self.terminal_view_id), ctx);
-                active_profile.data().display_name()
+                active_profile.data().localized_display_name(ctx)
             };
 
             self.profile_button.update(ctx, |button, ctx| {
@@ -742,28 +769,42 @@ impl ProfileModelSelector {
 
         // Non-Oz runs lock silently: the harness owns model selection, and the
         // user already knows that, so no tooltip is shown.
-        let model_tooltip: Option<&str> = if self.is_locked_for_cloud_followup(ctx) {
-            Some(MODEL_LOCKED_FOR_FOLLOWUP_TOOLTIP)
+        let model_tooltip = if self.is_locked_for_cloud_followup(ctx) {
+            Some(localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.followup_original_model",
+            ))
         } else if self.is_locked_for_non_oz_run(ctx) {
             None
         } else {
-            Some(MODEL_PICKER_TOOLTIP)
+            Some(localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.tooltip",
+            ))
         };
         let locked = self.is_model_locked(ctx);
         self.model_button.update(ctx, |button, ctx| {
             button.set_label(model_name, ctx);
             button.set_disabled(locked, ctx);
-            match model_tooltip {
-                Some(t) => button.set_tooltip(Some(t), ctx),
+            match &model_tooltip {
+                Some(tooltip) => button.set_tooltip(Some(tooltip.clone()), ctx),
                 None => button.clear_tooltip(ctx),
             }
         });
         self.model_compact_button.update(ctx, |button, ctx| {
             button.set_disabled(locked, ctx);
             match model_tooltip {
-                Some(t) => button.set_tooltip(Some(t), ctx),
+                Some(tooltip) => button.set_tooltip(Some(tooltip), ctx),
                 None => button.clear_tooltip(ctx),
             }
+        });
+        let manage_api_keys_label =
+            localization::text_for_app(ctx, "settings.ai.model_selector.manage_api_keys");
+        let manage_api_keys_tooltip =
+            localization::text_for_app(ctx, "settings.ai.model_selector.manage_api_keys.tooltip");
+        self.manage_api_key_button.update(ctx, |button, ctx| {
+            button.set_label(manage_api_keys_label, ctx);
+            button.set_tooltip(Some(manage_api_keys_tooltip), ctx);
         });
         ctx.notify();
     }
@@ -866,11 +907,11 @@ impl ProfileModelSelector {
         ];
 
         for profile_id in all_profile_ids {
-            if let Some(profile_info) = profiles_model.get_profile_by_id(profile_id, ctx) {
+            if let Some(profile_info) = profiles_model.get_profile_by_id(&profile_id, ctx) {
                 let profile = profile_info.data();
-                let is_active = *active_profile.id() == profile_id;
+                let is_active = active_profile.id() == &profile_id;
 
-                let mut fields = MenuItemFields::new(profile.display_name());
+                let mut fields = MenuItemFields::new(profile.localized_display_name(ctx));
                 if is_active {
                     fields = fields.with_icon(Icon::Check);
                 } else {
@@ -894,7 +935,8 @@ impl ProfileModelSelector {
 
         self.profile_dropdown.update(ctx, |menu, ctx| {
             menu.set_items(menu_items, ctx);
-            let active_action = ProfileModelSelectorAction::SelectProfile(*active_profile.id());
+            let active_action =
+                ProfileModelSelectorAction::SelectProfile(active_profile.id().clone());
             menu.set_selected_by_action(&active_action, ctx);
         });
     }
@@ -915,7 +957,9 @@ impl ProfileModelSelector {
     fn harness_model_display_name(&self, app: &AppContext) -> String {
         self.active_harness_model_info(app)
             .map(|info| info.display_name.clone())
-            .unwrap_or_else(|| HARNESS_DEFAULT_MODEL_LABEL.to_string())
+            .unwrap_or_else(|| {
+                localization::text_for_app(app, "settings.ai.model_selector.default_model")
+            })
     }
 
     fn refresh_harness_model_menu(&mut self, ctx: &mut ViewContext<Self>) {
@@ -942,8 +986,11 @@ impl ProfileModelSelector {
             model_id: String::new(),
             reasoning_level: None,
         };
-        let mut default_fields =
-            MenuItemFields::new(HARNESS_DEFAULT_MODEL_LABEL).with_on_select_action(default_action);
+        let mut default_fields = MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "settings.ai.model_selector.default_model",
+        ))
+        .with_on_select_action(default_action);
         if default_selected {
             default_fields = default_fields.with_icon(Icon::Check);
         } else {
@@ -1607,7 +1654,7 @@ impl ProfileModelSelector {
         let max_label_width = calculate_max_profile_name_width(appearance);
         let profile_text = ConstrainedBox::new(
             Text::new_inline(
-                active_profile.data().display_name(),
+                active_profile.data().localized_display_name(app),
                 appearance.ui_font_family(),
                 scaled_font_size,
             )
@@ -1648,9 +1695,10 @@ impl ProfileModelSelector {
                     )))
                     .finish();
 
-                let tooltip = appearance
-                    .ui_builder()
-                    .tool_tip(PROFILE_PICKER_TOOLTIP.to_owned());
+                let tooltip = appearance.ui_builder().tool_tip(localization::text_for_app(
+                    app,
+                    "settings.ai.profile_selector.tooltip",
+                ));
                 let mut stack = Stack::new();
                 stack.add_child(button_with_hover);
                 stack.add_positioned_overlay_child(
@@ -1796,9 +1844,10 @@ impl ProfileModelSelector {
                     )))
                     .finish();
 
-                let tooltip = appearance
-                    .ui_builder()
-                    .tool_tip(MODEL_PICKER_TOOLTIP.to_owned());
+                let tooltip = appearance.ui_builder().tool_tip(localization::text_for_app(
+                    app,
+                    "settings.ai.model_selector.tooltip",
+                ));
                 let mut stack = Stack::new();
                 stack.add_child(button_with_hover);
                 stack.add_positioned_overlay_child(
@@ -1813,16 +1862,22 @@ impl ProfileModelSelector {
                 stack.finish()
             } else if state.is_hovered() {
                 // Non-Oz runs lock silently — skip the tooltip entirely.
-                let tooltip_text: Option<&str> = if is_locked_for_followup {
-                    Some(MODEL_LOCKED_FOR_FOLLOWUP_TOOLTIP)
+                let tooltip_text = if is_locked_for_followup {
+                    Some(localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.followup_original_model",
+                    ))
                 } else if is_locked_for_non_oz {
                     None
                 } else {
-                    Some(MODEL_REQUIRES_EDIT_ACCESS_TOOLTIP)
+                    Some(localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.request_edit_access",
+                    ))
                 };
 
                 if let Some(text) = tooltip_text {
-                    let tooltip = appearance.ui_builder().tool_tip(text.to_owned());
+                    let tooltip = appearance.ui_builder().tool_tip(text);
                     let mut stack = Stack::new();
                     stack.add_child(button_with_save_position);
                     stack.add_positioned_overlay_child(
@@ -2036,18 +2091,23 @@ impl ProfileModelSelector {
     ) -> Box<dyn Element> {
         let mut spec_values = vec![
             self.render_model_spec_value(
-                "Intelligence".to_string(),
+                localization::text_for_app(app, "terminal.input.models.spec.intelligence"),
                 spec.quality,
                 bg_bar_color,
                 app,
             ),
-            self.render_model_spec_value("Speed".to_string(), spec.speed, bg_bar_color, app),
+            self.render_model_spec_value(
+                localization::text_for_app(app, "terminal.input.models.spec.speed"),
+                spec.speed,
+                bg_bar_color,
+                app,
+            ),
         ];
         if let Some(byo_key_source) = byo_key_source {
             spec_values.push(self.render_model_spec_api_key(byo_key_source, app));
         } else {
             spec_values.push(self.render_model_spec_value(
-                "Cost".to_string(),
+                localization::text_for_app(app, "terminal.input.models.spec.cost"),
                 spec.cost,
                 bg_bar_color,
                 app,
@@ -2066,8 +2126,8 @@ impl ProfileModelSelector {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         let header = self.render_model_spec_header(
-            "Model Specs".to_string(),
-            "Warp’s benchmarks for how well a model performs in our harness, the rate at which it consumes credits, and task speed.".to_string(),
+            localization::text_for_app(app, "terminal.input.models.model_specs.title"),
+            localization::text_for_app(app, "terminal.input.models.model_specs.description"),
             app,
         );
         let spec = self.render_all_model_spec_values(
@@ -2104,18 +2164,22 @@ impl ProfileModelSelector {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
-        let (title, description) = match kind {
+        let (title_key, description_key) = match kind {
             ModelSpecSidecarKind::Auto => (
-                "Auto mode",
-                "Auto will select the best model for the task. Cost-efficiency optimizes for cost, Responsiveness optimizes for response speed.",
+                "settings.ai.model_selector.auto_mode.title",
+                "settings.ai.model_selector.auto_mode.description",
             ),
             ModelSpecSidecarKind::Reasoning => (
-                "Reasoning level",
-                "Increased reasoning levels consume more credits and have higher latency, but higher performance for complicated tasks.",
+                "terminal.input.models.reasoning_level.title",
+                "terminal.input.models.reasoning_level.description",
             ),
         };
 
-        let header = self.render_model_spec_header(title.to_string(), description.to_string(), app);
+        let header = self.render_model_spec_header(
+            localization::text_for_app(app, title_key),
+            localization::text_for_app(app, description_key),
+            app,
+        );
         let sidecar_menu = ChildView::new(&self.model_spec_sidecar.dropdown).finish();
         let spec_values = self.render_all_model_spec_values(
             &spec.clone().unwrap_or_default(),
@@ -2162,7 +2226,11 @@ impl TypedActionView for ProfileModelSelector {
         match action {
             ProfileModelSelectorAction::SelectProfile(profile_id) => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_active_profile(self.terminal_view_id, *profile_id, ctx);
+                    profiles_model.set_active_profile(
+                        self.terminal_view_id,
+                        profile_id.clone(),
+                        ctx,
+                    );
                 });
 
                 // Remove any LLM override when switching profiles

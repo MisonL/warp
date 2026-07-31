@@ -1,17 +1,17 @@
 //! Shared message producers for displaying attached blocks/text context.
 
 use warp_core::features::FeatureFlag;
-use warpui::keymap::Keystroke;
 use warpui::AppContext;
+use warpui::keymap::Keystroke;
 
 use crate::ai::blocklist::agent_view::{AgentMessageBarMouseStates, AgentViewController};
 use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIInputModel};
 use crate::localization;
+use crate::terminal::input::InputAction;
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::message_bar::{
-    truncated_command_for_block, Message, MessageItem, MessageProvider,
+    Message, MessageItem, MessageProvider, truncated_command_for_block,
 };
-use crate::terminal::input::InputAction;
 use crate::terminal::model::TerminalModel;
 
 /// Trait for message args that can provide attached context information.

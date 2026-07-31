@@ -1,13 +1,16 @@
+use std::collections::HashMap;
+
 use ::ai::project_context::model::{ProjectContextModel, ProjectRule};
 use ::ai::skills::{
-    get_provider_for_path, parse_skill_content_at_location, ParsedSkill, SkillProvider, SkillScope,
+    ParsedSkill, SkillProvider, SkillScope, get_provider_for_path, parse_skill_content_at_location,
 };
 use remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use remote_server::proto::{
-    remote_skill_proto, RemoteAgentContextSnapshot, RemoteContextFileProto, RemoteSkillProto,
+    RemoteAgentContextSnapshot, RemoteContextFileProto, RemoteSkillProto, remote_skill_proto,
 };
 use warp_core::features::FeatureFlag;
 use warp_core::safe_warn;
+use warp_localization::LocaleId;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::remote_path::RemotePath;
@@ -15,7 +18,10 @@ use warp_util::standardized_path::StandardizedPath;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::mcp::McpIntegration;
-use super::skills::{BundledSkill, BundledSkillActivation, SkillManager};
+use super::skills::{
+    BundledSkill, BundledSkillActivation, SkillManager, localized_bundled_skill_description,
+};
+use crate::localization::{LocalizationUpdater, current_locale};
 
 /// Home skills parsed from a remote agent context snapshot.
 struct HomeSkills {
@@ -30,7 +36,9 @@ struct RemoteAgentContextState {
     global_rules: Vec<ProjectRule>,
 }
 
-pub(crate) struct RemoteAgentContext;
+pub(crate) struct RemoteAgentContext {
+    bundled_skill_protos_by_host: HashMap<HostId, Vec<RemoteSkillProto>>,
+}
 
 impl RemoteAgentContext {
     pub(crate) fn new(ctx: &mut ModelContext<Self>) -> Self {
@@ -46,7 +54,15 @@ impl RemoteAgentContext {
                 me.remove_host_context(host_id, ctx);
             }
         });
-        Self
+        if ctx.has_singleton_model::<LocalizationUpdater>() {
+            let localization_updater = LocalizationUpdater::handle(ctx);
+            ctx.subscribe_to_model(&localization_updater, |me, _, _, ctx| {
+                me.refresh_remote_bundled_skill_descriptions(ctx);
+            });
+        }
+        Self {
+            bundled_skill_protos_by_host: HashMap::new(),
+        }
     }
 
     fn reconcile_snapshot(
@@ -55,16 +71,28 @@ impl RemoteAgentContext {
         snapshot: RemoteAgentContextSnapshot,
         ctx: &mut ModelContext<Self>,
     ) {
+        self.bundled_skill_protos_by_host.insert(
+            host_id.clone(),
+            snapshot
+                .skills
+                .iter()
+                .filter(|proto| {
+                    matches!(proto.source, Some(remote_skill_proto::Source::Bundled(_)))
+                })
+                .cloned()
+                .collect(),
+        );
         let RemoteAgentContextState {
             bundled_skills,
             home_skills,
             global_rules,
-        } = parse_snapshot(&host_id, snapshot);
-        SkillManager::handle(ctx).update(ctx, |manager, _| {
+        } = parse_snapshot_for_locale(&host_id, snapshot, current_locale(ctx));
+        SkillManager::handle(ctx).update(ctx, |manager, ctx| {
             manager.replace_remote_agent_context(
                 host_id.clone(),
                 bundled_skills,
                 home_skills.map(|home| (home.home_dir, home.skills)),
+                ctx,
             );
         });
         ProjectContextModel::handle(ctx).update(ctx, |model, _| {
@@ -73,22 +101,45 @@ impl RemoteAgentContext {
     }
 
     fn remove_host_context(&mut self, host_id: &HostId, ctx: &mut ModelContext<Self>) {
-        SkillManager::handle(ctx).update(ctx, |manager, _| {
-            manager.remove_remote_agent_context(host_id);
+        self.bundled_skill_protos_by_host.remove(host_id);
+        SkillManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.remove_remote_agent_context(host_id, ctx);
         });
         ProjectContextModel::handle(ctx).update(ctx, |model, _| {
             model.remove_remote_global_rules(host_id);
         });
     }
+
+    fn refresh_remote_bundled_skill_descriptions(&mut self, ctx: &mut ModelContext<Self>) {
+        if !FeatureFlag::BundledSkills.is_enabled() {
+            return;
+        }
+
+        let locale = current_locale(ctx);
+        let catalogs = self
+            .bundled_skill_protos_by_host
+            .iter()
+            .map(|(host_id, skills)| {
+                (
+                    host_id.clone(),
+                    bundled_skill_from_protos(host_id, skills, locale),
+                )
+            })
+            .collect::<Vec<_>>();
+        SkillManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.replace_remote_bundled_skill_catalogs(catalogs, ctx);
+        });
+    }
 }
 
-fn parse_snapshot(
+fn parse_snapshot_for_locale(
     host_id: &HostId,
     snapshot: RemoteAgentContextSnapshot,
+    locale: LocaleId,
 ) -> RemoteAgentContextState {
     let bundled_skills = FeatureFlag::BundledSkills
         .is_enabled()
-        .then(|| bundled_skill_from_protos(host_id, &snapshot.skills));
+        .then(|| bundled_skill_from_protos(host_id, &snapshot.skills, locale));
     let Some(home_dir) = remote_path(host_id, &snapshot.home_dir) else {
         safe_warn!(
             safe: ("Ignoring remote home context with an invalid home directory"),
@@ -156,18 +207,25 @@ fn parse_remote_skill(
     }
 }
 
-fn bundled_skill_from_protos(host_id: &HostId, skills: &[RemoteSkillProto]) -> BundledSkill {
+fn bundled_skill_from_protos(
+    host_id: &HostId,
+    skills: &[RemoteSkillProto],
+    locale: LocaleId,
+) -> BundledSkill {
     let definitions = skills.iter().filter_map(|proto| {
         let remote_skill_proto::Source::Bundled(metadata) = proto.source.as_ref()? else {
             return None;
         };
-        let skill = parse_remote_skill(
+        let mut skill = parse_remote_skill(
             host_id,
             proto,
             SkillScope::Bundled,
             None,
             |_| Some(SkillProvider::Warp),
         )?;
+        if let Some(description) = localized_bundled_skill_description(&skill.content, locale) {
+            skill.description = description;
+        }
         let activation = match metadata.requires_mcp.as_deref() {
             None => BundledSkillActivation::Always,
             Some(wire_id) => match mcp_integration_from_wire_id(wire_id) {

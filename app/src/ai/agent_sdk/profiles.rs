@@ -1,11 +1,12 @@
 use comfy_table::Cell;
 use serde::Serialize;
-use warp_cli::agent::AgentProfileCommand;
 use warp_cli::GlobalOptions;
+use warp_cli::agent::AgentProfileCommand;
 use warp_localization::LocaleId;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
+use crate::ai::execution_profiles::execution_profile_display_name_key;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::localization;
@@ -45,14 +46,16 @@ impl ProfilesCommandRunner {
 
             let profiles: Vec<_> = profile_ids
                 .iter()
-                .flat_map(|id| profiles_model.get_profile_by_id(*id, ctx))
+                .flat_map(|id| profiles_model.get_profile_by_id(id, ctx))
                 .map(|profile| {
-                    let name = profile.data().display_name().to_string();
+                    let profile_data = profile.data();
+                    let name = profile_data.display_name();
+                    let name_key = execution_profile_display_name_key(profile_data);
                     let id = match profile.sync_id() {
                         Some(SyncId::ServerId(server_id)) => server_id.to_string(),
                         _ => UNSYNCED_PROFILE_ID.to_owned(),
                     };
-                    ProfileInfo { id, name }
+                    ProfileInfo { id, name, name_key }
                 })
                 .collect();
 
@@ -73,6 +76,8 @@ impl SingletonEntity for ProfilesCommandRunner {}
 struct ProfileInfo {
     id: String,
     name: String,
+    #[serde(skip)]
+    name_key: Option<&'static str>,
 }
 
 impl TableFormat for ProfileInfo {
@@ -103,7 +108,11 @@ impl TableFormat for ProfileInfo {
         } else {
             self.id.clone()
         };
-        vec![Cell::new(id), Cell::new(&self.name)]
+        let name = self
+            .name_key
+            .map(|key| localization::text_for_locale(locale, key))
+            .unwrap_or_else(|| self.name.clone());
+        vec![Cell::new(id), Cell::new(name)]
     }
 }
 

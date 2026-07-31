@@ -127,6 +127,26 @@ def validate_skill(skill_path):
                 f"Description 过长（{len(description)} 个字符）。最大长度为 1024 个字符。",
             )
 
+    # Validate the optional Simplified Chinese description with the same rules.
+    if 'description_zh_CN' in frontmatter:
+        description_zh_cn = frontmatter['description_zh_CN']
+        if not isinstance(description_zh_cn, str):
+            return False, localized_text(
+                f"Description (zh-CN) must be a string, got {type(description_zh_cn).__name__}",
+                f"Description (zh-CN) 必须是字符串，实际为 {type(description_zh_cn).__name__}",
+            )
+        description_zh_cn = description_zh_cn.strip()
+        if '<' in description_zh_cn or '>' in description_zh_cn:
+            return False, localized_text(
+                "Description (zh-CN) cannot contain angle brackets (< or >)",
+                "Description (zh-CN) 不能包含尖括号（< 或 >）",
+            )
+        if len(description_zh_cn) > 1024:
+            return False, localized_text(
+                f"Description (zh-CN) is too long ({len(description_zh_cn)} characters). Maximum is 1024 characters.",
+                f"Description (zh-CN) 过长（{len(description_zh_cn)} 个字符）。最大长度为 1024 个字符。",
+            )
+
     # Validate compatibility field if present (optional)
     compatibility = frontmatter.get('compatibility', '')
     if compatibility:

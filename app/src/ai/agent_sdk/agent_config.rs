@@ -3,15 +3,15 @@
 use warp_cli::agent::ListAgentSkillsArgs;
 use warp_graphql::queries::get_oauth_connect_tx_status::OauthConnectTxStatus;
 use warp_graphql::queries::user_repo_auth_status::UserRepoAuthStatusEnum;
-use warp_localization::{replace_placeholders, LocaleId};
+use warp_localization::{LocaleId, replace_placeholders};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::oauth_flow::poll_oauth_until_terminal;
 use crate::ai::cloud_environments::GithubRepo;
 use crate::localization;
-use crate::server::server_api::ai::AgentSkillItem;
 use crate::server::server_api::ServerApiProvider;
+use crate::server::server_api::ai::AgentSkillItem;
 
 const MAX_LINE_WIDTH: usize = 90;
 const MAX_AUTH_ATTEMPTS: u32 = 8;

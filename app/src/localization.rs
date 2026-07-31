@@ -4,13 +4,13 @@ use std::sync::LazyLock;
 use anyhow::Context as _;
 use parking_lot::RwLock;
 use warp_localization::{
-    native_locale_candidates, replace_placeholders, AppLanguage, Catalog, CatalogBundle, LocaleId,
-    TranslationSource,
+    AppLanguage, Catalog, CatalogBundle, LocaleId, TranslationSource, native_locale_candidates,
+    replace_placeholders,
 };
 use warpui::{AppContext, AssetProvider as _, Entity, ModelContext, SingletonEntity as _};
 
-use crate::settings::{LanguageSettings, LanguageSettingsChangedEvent};
 use crate::ASSETS;
+use crate::settings::{LanguageSettings, LanguageSettingsChangedEvent};
 
 pub(crate) enum LocalizationEvent {
     LocaleChanged,

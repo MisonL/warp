@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use warp_graphql::queries::get_oauth_connect_tx_status::OauthConnectTxStatus;
 use warp_localization::LocaleId;
 use warpui::r#async::Timer;
@@ -20,7 +20,7 @@ pub async fn poll_oauth_until_terminal(
 ) -> Result<OauthConnectTxStatus> {
     const POLL_INTERVAL: Duration = Duration::from_secs(5);
     const MAX_ATTEMPTS: u32 = 120; // 10 minutes total
-                                   // TODO(bens): render some kind of spinner here
+    // TODO(bens): render some kind of spinner here
     println!(
         "{}\n",
         localization::text_for_locale(locale, "agent_sdk.oauth.waiting_for_authorization")

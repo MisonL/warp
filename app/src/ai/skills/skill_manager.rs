@@ -4,10 +4,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use ai::skills::{
-    provider_rank, ParsedSkill, SkillPathOrigin, SkillProvider, SkillReference, SkillScope,
+    ParsedSkill, SkillPathOrigin, SkillProvider, SkillReference, SkillScope, provider_rank,
 };
 pub use file_watchers::{
-    extract_skill_parent_directory, read_skills_from_directories, SkillWatcher, SkillWatcherEvent,
+    SkillWatcher, SkillWatcherEvent, extract_skill_parent_directory, read_skills_from_directories,
 };
 use warp_core::features::FeatureFlag;
 #[cfg(test)]
@@ -16,15 +16,15 @@ use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
+use super::bundled::{BundledSkill, BundledSkills};
 #[cfg(test)]
 use super::bundled::{
-    activation_for_bundled_skill, build_bundled_skill_context, read_bundled_skills,
-    read_bundled_skills_for_locale, BundledSkillActivation,
+    BundledSkillActivation, activation_for_bundled_skill, build_bundled_skill_context,
+    read_bundled_skills, read_bundled_skills_for_locale,
 };
-use super::bundled::{BundledSkill, BundledSkills};
 use super::{ActiveSkillLookupError, SkillDescriptor, SkillManagerEvent, SkillPathQuery};
 use crate::ai::skills::skill_utils::SkillDeduplicator;
-use crate::localization::current_locale;
+use crate::localization::{LocalizationUpdater, current_locale};
 
 #[cfg(test)]
 const _BUNDLED_SKILL_LOCALIZATION_SENTINELS: &[&str] = &[
@@ -52,6 +52,12 @@ pub struct SkillManager {
     skills_by_name: HashMap<String, HashSet<LocalOrRemotePath>>,
     /// Skills bundled into Warp for the local host and connected remote hosts.
     bundled_skills: BundledSkills,
+    /// Monotonically increasing identifier for local bundled-skill reloads.
+    ///
+    /// Loading bundled skills performs filesystem I/O off the main thread. A
+    /// locale change can start another load before an earlier one finishes, so
+    /// callbacks use this identifier to avoid restoring stale localized text.
+    local_bundled_skills_reload_epoch: u64,
     /// Home directories published by connected remote hosts.
     ///
     /// Remote home skills themselves live in the shared file-skill indexes above,
@@ -81,22 +87,70 @@ impl SkillManager {
         // Create skill watcher
         let skill_watcher = ctx.add_model(|ctx| SkillWatcher::new(ctx, skill_watcher_tx));
 
-        if FeatureFlag::BundledSkills.is_enabled() {
-            let locale = current_locale(ctx);
-            ctx.spawn(BundledSkill::detect_for_locale(locale), |me, result, _| {
-                me.bundled_skills.set_local(result);
-            });
-        }
-
-        Self {
+        let mut manager = Self {
             directory_skills: HashMap::new(),
             skills_by_path: HashMap::new(),
             skills_by_name: HashMap::new(),
             bundled_skills: BundledSkills::default(),
+            local_bundled_skills_reload_epoch: 0,
             remote_home_directories: HashMap::new(),
             is_cloud_environment: false,
             skill_watcher,
+        };
+
+        if FeatureFlag::BundledSkills.is_enabled() {
+            manager.reload_local_bundled_skills(ctx);
         }
+
+        // Some focused test harnesses intentionally omit localization. The
+        // full app refreshes local bundled skills when the language changes.
+        if ctx.has_singleton_model::<LocalizationUpdater>() {
+            let localization_updater = LocalizationUpdater::handle(ctx);
+            ctx.subscribe_to_model(&localization_updater, |me, _, _, ctx| {
+                me.reload_local_bundled_skills(ctx);
+            });
+        }
+
+        manager
+    }
+
+    fn reload_local_bundled_skills(&mut self, ctx: &mut ModelContext<Self>) {
+        if !FeatureFlag::BundledSkills.is_enabled() {
+            return;
+        }
+
+        let reload_epoch = self.next_local_bundled_skills_reload_epoch();
+        let locale = current_locale(ctx);
+        ctx.spawn(
+            BundledSkill::detect_for_locale(locale),
+            move |me, result, ctx| {
+                me.replace_local_bundled_skills_if_current(reload_epoch, result, ctx);
+            },
+        );
+    }
+
+    fn next_local_bundled_skills_reload_epoch(&mut self) -> u64 {
+        self.local_bundled_skills_reload_epoch = self
+            .local_bundled_skills_reload_epoch
+            .checked_add(1)
+            .expect("local bundled-skill reload epoch must not overflow");
+        self.local_bundled_skills_reload_epoch
+    }
+
+    fn replace_local_bundled_skills_if_current(
+        &mut self,
+        reload_epoch: u64,
+        bundled_skills: BundledSkill,
+        ctx: &mut ModelContext<Self>,
+    ) -> bool {
+        if reload_epoch != self.local_bundled_skills_reload_epoch {
+            return false;
+        }
+
+        self.bundled_skills.set_local(bundled_skills);
+        ctx.emit(SkillManagerEvent::BundledSkillsChanged);
+        ctx.notify();
+        true
     }
 
     /// Marks this manager as running in a cloud environment, enabling all
@@ -143,15 +197,15 @@ impl SkillManager {
             | (None, LocalOrRemotePath::Remote(_)) => false,
         };
 
-        if let Some(home_dir) = self.home_directory_for_origin(path_origin) {
-            if let Some(home_skill_paths) = self.directory_skills.get(&home_dir) {
-                skill_paths.extend(
-                    home_skill_paths
-                        .iter()
-                        .cloned()
-                        .map(|path| (home_dir.clone(), path)),
-                );
-            }
+        if let Some(home_dir) = self.home_directory_for_origin(path_origin)
+            && let Some(home_skill_paths) = self.directory_skills.get(&home_dir)
+        {
+            skill_paths.extend(
+                home_skill_paths
+                    .iter()
+                    .cloned()
+                    .map(|path| (home_dir.clone(), path)),
+            );
         }
 
         if self.is_cloud_environment {
@@ -442,6 +496,7 @@ impl SkillManager {
         host_id: HostId,
         bundled_skills: Option<BundledSkill>,
         home_skills: Option<(LocalOrRemotePath, Vec<ParsedSkill>)>,
+        ctx: &mut ModelContext<Self>,
     ) {
         match bundled_skills {
             Some(bundled_skills) => {
@@ -455,11 +510,37 @@ impl SkillManager {
             }
             None => self.remove_remote_home_skills(&host_id),
         }
+        self.notify_bundled_skills_changed(ctx);
     }
 
-    pub(crate) fn remove_remote_agent_context(&mut self, host_id: &HostId) {
+    pub(crate) fn replace_remote_bundled_skill_catalogs(
+        &mut self,
+        catalogs: impl IntoIterator<Item = (HostId, BundledSkill)>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let mut replaced = false;
+        for (host_id, bundled_skills) in catalogs {
+            self.set_remote_bundled_skill(host_id, bundled_skills);
+            replaced = true;
+        }
+        if replaced {
+            self.notify_bundled_skills_changed(ctx);
+        }
+    }
+
+    pub(crate) fn remove_remote_agent_context(
+        &mut self,
+        host_id: &HostId,
+        ctx: &mut ModelContext<Self>,
+    ) {
         self.remove_remote_bundled_skill(host_id);
         self.remove_remote_home_skills(host_id);
+        self.notify_bundled_skills_changed(ctx);
+    }
+
+    fn notify_bundled_skills_changed(&self, ctx: &mut ModelContext<Self>) {
+        ctx.emit(SkillManagerEvent::BundledSkillsChanged);
+        ctx.notify();
     }
 
     /// Replaces the home skills published by one remote host.
@@ -568,22 +649,25 @@ impl SkillManager {
 
     pub fn handle_skills_added(&mut self, skills: Vec<ParsedSkill>) {
         for skill in skills {
-            if let Ok(parent_dir) = extract_skill_parent_directory(&skill.path) {
-                self.directory_skills
-                    .entry(parent_dir)
-                    .or_default()
-                    .insert(skill.path.clone());
+            match extract_skill_parent_directory(&skill.path) {
+                Ok(parent_dir) => {
+                    self.directory_skills
+                        .entry(parent_dir)
+                        .or_default()
+                        .insert(skill.path.clone());
 
-                self.skills_by_name
-                    .entry(skill.name.clone())
-                    .or_default()
-                    .insert(skill.path.clone());
-                self.skills_by_path.insert(skill.path.clone(), skill);
-            } else {
-                log::warn!(
-                    "Could not extract parent directory for skill: {:?}",
-                    skill.path
-                );
+                    self.skills_by_name
+                        .entry(skill.name.clone())
+                        .or_default()
+                        .insert(skill.path.clone());
+                    self.skills_by_path.insert(skill.path.clone(), skill);
+                }
+                _ => {
+                    log::warn!(
+                        "Could not extract parent directory for skill: {:?}",
+                        skill.path
+                    );
+                }
             }
         }
     }

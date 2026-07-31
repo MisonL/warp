@@ -16,7 +16,7 @@ use crate::env_vars::view::env_var_collection::{EnvVarCollectionAction, EnvVarCo
 use crate::ui_components::breadcrumb::BreadcrumbState;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
-use crate::{localization, AppContext, Appearance, SingletonEntity};
+use crate::{AppContext, Appearance, SingletonEntity, localization};
 
 const VARIABLE_DIVIDER_HEIGHT: f32 = 2.;
 const SECTION_FONT_SIZE: f32 = 16.;

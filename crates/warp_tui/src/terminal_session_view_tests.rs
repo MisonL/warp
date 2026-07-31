@@ -1,37 +1,150 @@
 use warp::appearance::Appearance;
 use warp::tui_export::{
-    export_conversation_markdown, register_tui_session_view_test_singletons, PtyIntent,
-    PtyIntentEvent, SizeInfo, SizeUpdate,
+    BlockPadding, ConversationStatus, PtyIntent, PtyIntentEvent, SizeInfo, SizeUpdate,
+    export_conversation_markdown, register_tui_session_view_test_singletons,
 };
+use warp_editor::model::CoreEditorModel;
+use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;
 use warpui::{
     AddWindowOptions, EntityIdMap, ModelHandle, ReadModel, SingletonEntity, UpdateModel, ViewHandle,
 };
 use warpui_core::elements::tui::{
-    TuiBuffer, TuiBufferExt, TuiConstraint, TuiElement, TuiLayoutContext, TuiPaintContext,
-    TuiPaintSurface, TuiRect, TuiScreenPosition, TuiSize,
+    Color, TuiBuffer, TuiBufferExt, TuiConstrainedBox, TuiConstraint, TuiContainer, TuiElement,
+    TuiLayoutContext, TuiPaintContext, TuiPaintSurface, TuiRect, TuiScreenPosition, TuiSize,
+    TuiStyle, TuiText,
 };
 use warpui_core::keymap::{Context, Keystroke, Trigger};
-use warpui_core::{App, AppContext, TuiView};
+use warpui_core::presenter::tui::TuiPresenter;
+use warpui_core::{App, AppContext, TuiView, WindowInvalidation};
 
 use super::{
-    export_file_success_message, raw_prompt_if_not_blank, render_left_footer_hint,
-    TuiTerminalSessionEvent, ORCHESTRATION_TAB_BAR_FOCUSED_FLAG,
+    INLINE_MENU_TOP_PADDING_ROWS, TuiTerminalSessionEvent, binding_description_for_locale,
+    copy_selection_hint_for_locale, export_file_success_message,
+    export_to_clipboard_hint_for_locale, log_bundle_success_message_for_locale,
+    raw_prompt_if_not_blank, render_left_footer_hint, starting_shell_hint_for_locale,
 };
 use crate::autoupdate::TuiAutoupdater;
+use crate::clipboard::ClipboardCopy;
+use crate::inline_menu::MAX_INLINE_MENU_ROWS;
 use crate::keybindings::{
     CONTEXTUAL_PLAN_TOGGLE_BINDING_NAME, KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG,
-    PLAN_TOGGLE_AVAILABLE_FLAG, PLAN_TOGGLE_BINDING_NAME,
+    PLAN_TOGGLE_AVAILABLE_FLAG, PLAN_TOGGLE_BINDING_NAME, TUI_BINDING_GROUP,
 };
+use crate::orchestrated_agent_identity_styling::AgentIdentity;
 use crate::orchestration_model::TuiOrchestrationModel;
+use crate::orchestration_tab_bar::{
+    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, focus_sub_agents_hint_for_locale, orchestration_tab_icon,
+};
 use crate::root_view::RootTuiView;
 use crate::session_registry::{TuiSessionId, TuiSessions};
+use crate::terminal_block::{block_content_rows, should_render_terminal_block};
+use crate::terminal_use::TuiInputTarget;
 use crate::test_fixtures::{add_test_semantic_selection, add_test_terminal_session};
+use crate::transcript_view::TRANSCRIPT_BLOCK_SPACING;
 use crate::tui_builder::TuiUiBuilder;
 
 struct FocusTestFixture {
     window_id: warpui_core::WindowId,
     sessions: ModelHandle<TuiSessions>,
+}
+
+#[test]
+fn log_bundle_success_message_is_localized_with_the_absolute_path() {
+    let path = std::path::Path::new("/tmp/warp-20260718-132640.zip");
+    assert_eq!(
+        log_bundle_success_message_for_locale(path, LocaleId::EnUs),
+        "Log bundle saved to /tmp/warp-20260718-132640.zip"
+    );
+    assert_eq!(
+        log_bundle_success_message_for_locale(path, LocaleId::ZhCn),
+        "日志包已保存到 /tmp/warp-20260718-132640.zip"
+    );
+}
+
+#[test]
+fn clipboard_feedback_distinguishes_native_copy_from_terminal_transfer() {
+    assert_eq!(
+        copy_selection_hint_for_locale(ClipboardCopy::Copied, LocaleId::EnUs),
+        "copied to clipboard"
+    );
+    assert_eq!(
+        copy_selection_hint_for_locale(ClipboardCopy::SentToTerminal, LocaleId::EnUs),
+        "sent to terminal clipboard"
+    );
+    assert_eq!(
+        export_to_clipboard_hint_for_locale(ClipboardCopy::Copied, LocaleId::ZhCn),
+        "对话已复制到剪贴板"
+    );
+    assert_eq!(
+        export_to_clipboard_hint_for_locale(ClipboardCopy::SentToTerminal, LocaleId::ZhCn),
+        "对话已发送到终端剪贴板"
+    );
+}
+
+#[test]
+fn starting_shell_hint_is_localized() {
+    assert_eq!(
+        starting_shell_hint_for_locale(LocaleId::EnUs),
+        "Starting shell..."
+    );
+    assert_eq!(
+        starting_shell_hint_for_locale(LocaleId::ZhCn),
+        "正在启动 shell..."
+    );
+}
+
+#[test]
+fn attachment_session_binding_descriptions_are_localized() {
+    assert_eq!(
+        binding_description_for_locale(LocaleId::ZhCn, "tui.attachments.binding.focus"),
+        "聚焦图像附件"
+    );
+    assert_eq!(
+        binding_description_for_locale(LocaleId::ZhCn, "tui.attachments.binding.paste_image"),
+        "粘贴剪贴板中的图像"
+    );
+}
+
+#[test]
+fn orchestration_focus_hint_is_localized() {
+    assert_eq!(
+        focus_sub_agents_hint_for_locale(LocaleId::EnUs),
+        "Shift + ↑ sub-agents"
+    );
+    assert_eq!(
+        focus_sub_agents_hint_for_locale(LocaleId::ZhCn),
+        "Shift + 上箭头：聚焦子 Agent"
+    );
+}
+
+#[test]
+fn inline_menu_padding_preserves_result_capacity() {
+    App::test((), |app| async move {
+        app.read(|ctx| {
+            let menu_rows = (0..MAX_INLINE_MENU_ROWS)
+                .map(|row| format!("menu {row}"))
+                .collect::<Vec<_>>();
+            let menu = TuiConstrainedBox::new(
+                TuiContainer::new(TuiText::new(menu_rows.join("\n")).finish())
+                    .with_padding_top(INLINE_MENU_TOP_PADDING_ROWS)
+                    .finish(),
+            )
+            .with_max_rows(MAX_INLINE_MENU_ROWS + INLINE_MENU_TOP_PADDING_ROWS)
+            .finish();
+            let lines = render_element_with_size(
+                menu,
+                ctx,
+                20,
+                MAX_INLINE_MENU_ROWS + INLINE_MENU_TOP_PADDING_ROWS,
+            )
+            .to_lines();
+
+            assert_eq!(lines.len(), usize::from(MAX_INLINE_MENU_ROWS + 1));
+            assert!(lines[0].trim().is_empty());
+            assert_eq!(&lines[1..], menu_rows);
+        });
+    });
 }
 
 fn focus_test_fixture(app: &mut App) -> FocusTestFixture {
@@ -68,13 +181,22 @@ fn add_focus_test_session(
     (view, session_id)
 }
 
-fn render_element(mut element: Box<dyn TuiElement>, ctx: &AppContext, width: u16) -> TuiBuffer {
+fn render_element(element: Box<dyn TuiElement>, ctx: &AppContext, width: u16) -> TuiBuffer {
+    render_element_with_size(element, ctx, width, 1)
+}
+
+fn render_element_with_size(
+    mut element: Box<dyn TuiElement>,
+    ctx: &AppContext,
+    width: u16,
+    height: u16,
+) -> TuiBuffer {
     let mut rendered_views = EntityIdMap::default();
     let mut layout_ctx = TuiLayoutContext {
         rendered_views: &mut rendered_views,
     };
     let size = element.layout(
-        TuiConstraint::loose(TuiSize::new(width, 1)),
+        TuiConstraint::loose(TuiSize::new(width, height)),
         &mut layout_ctx,
         ctx,
     );
@@ -90,6 +212,284 @@ fn render_element(mut element: Box<dyn TuiElement>, ctx: &AppContext, width: u16
         );
     }
     buffer
+}
+fn render_session(
+    app: &mut App,
+    view: &ViewHandle<super::TuiTerminalSessionView>,
+    width: u16,
+    height: u16,
+) -> Vec<String> {
+    let mut presenter = TuiPresenter::new();
+    app.update(|ctx| {
+        let mut invalidation = WindowInvalidation::default();
+        invalidation.updated.insert(view.id());
+        invalidation
+            .updated
+            .extend(view.as_ref(ctx).child_view_ids(ctx));
+        presenter.invalidate(&invalidation, ctx, view.window_id(ctx));
+        presenter
+            .present(ctx, view, TuiRect::new(0, 0, width, height))
+            .buffer
+            .to_lines()
+    })
+}
+
+fn input_text(view: &ViewHandle<super::TuiTerminalSessionView>, ctx: &AppContext) -> String {
+    view.as_ref(ctx)
+        .input_view
+        .as_ref(ctx)
+        .model()
+        .as_ref(ctx)
+        .content()
+        .as_ref(ctx)
+        .text()
+        .into_string()
+}
+
+#[test]
+fn bootstrap_renders_starting_shell_above_input() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+        view.update(&mut app, |view, _| {
+            view.terminal_model.lock().block_list_mut().reinit_shell();
+        });
+
+        let lines = render_session(&mut app, &view, 80, 40);
+        let starting_shell_hint = starting_shell_hint_for_locale(LocaleId::EnUs);
+        let status_index = lines
+            .iter()
+            .position(|line| line.trim() == starting_shell_hint)
+            .unwrap_or_else(|| panic!("bootstrap status should render:\n{}", lines.join("\n")));
+        let input_index = lines
+            .iter()
+            .enumerate()
+            .skip(status_index + 1)
+            .find(|(_, line)| line.contains('┌') || line.contains('─'))
+            .map(|(index, _)| index)
+            .expect("bootstrap input border should render below the status");
+        assert!(status_index < input_index);
+    });
+}
+
+#[test]
+fn submit_is_blocked_during_bootstrap_and_allowed_at_prompt() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+
+        view.update(&mut app, |view, ctx| {
+            view.input_view.update(ctx, |input, ctx| {
+                input.set_text("draft", ctx);
+            });
+            view.terminal_model.lock().block_list_mut().reinit_shell();
+            view.handle_submitted("draft".to_owned(), ctx);
+        });
+
+        assert_eq!(
+            app.read(|ctx| input_text(&view, ctx)),
+            "draft",
+            "bootstrap submission must leave the draft untouched"
+        );
+        assert!(!view.read(&app, |view, _| {
+            view.input_target().agent_editor_owns_input()
+        }));
+        assert!(TuiInputTarget::AgentEditor.agent_editor_owns_input());
+    });
+}
+
+#[test]
+fn long_running_command_keeps_input_hidden() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+        view.update(&mut app, |view, _| {
+            view.terminal_model
+                .lock()
+                .simulate_long_running_block("cat", "");
+        });
+
+        let lines = render_session(&mut app, &view, 80, 40);
+        let starting_shell_hint = starting_shell_hint_for_locale(LocaleId::EnUs);
+        assert!(
+            !lines
+                .iter()
+                .any(|line| line.trim_end() == starting_shell_hint),
+            "LRC must not render bootstrap status:\n{}",
+            lines.join("\n")
+        );
+        assert!(
+            !lines
+                .iter()
+                .any(|line| line.contains('┌') || line.contains('─')),
+            "LRC must keep the input editor hidden:\n{}",
+            lines.join("\n")
+        );
+    });
+}
+
+#[test]
+fn zero_state_renders_with_only_zero_height_bootstrap_blocks() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+        view.update(&mut app, |view, _| {
+            let mut terminal_model = view.terminal_model.lock();
+            terminal_model.block_list_mut().reinit_shell();
+            terminal_model.update_blockheight_items(TRANSCRIPT_BLOCK_SPACING.block_padding, 0.0);
+            terminal_model.simulate_block("bootstrap", "");
+            terminal_model.simulate_long_running_block("shell init", "");
+            let bootstrap_block_id = terminal_model.block_list().active_block().id().clone();
+            terminal_model.finish_block();
+            let bootstrap_block = terminal_model
+                .block_list_mut()
+                .mut_block_from_id(&bootstrap_block_id)
+                .expect("bootstrap block should remain in the block list");
+            bootstrap_block.set_should_hide_command_grid(true);
+            terminal_model.update_blockheight_items(
+                BlockPadding {
+                    bottom: 1.0,
+                    ..TRANSCRIPT_BLOCK_SPACING.block_padding
+                },
+                0.0,
+            );
+
+            let block_list = terminal_model.block_list();
+            let bootstrap_block = block_list
+                .block_with_id(&bootstrap_block_id)
+                .expect("bootstrap block should remain in the block list");
+            assert!(
+                should_render_terminal_block(bootstrap_block, block_list),
+                "fixture should contain an eligible shell bootstrap block"
+            );
+            assert!(
+                block_content_rows(bootstrap_block).is_empty(),
+                "fixture bootstrap block should have zero displayed height"
+            );
+        });
+        view.read(&app, |view, ctx| {
+            assert!(
+                view.transcript.as_ref(ctx).is_empty(),
+                "zero-height terminal blocks should leave the transcript empty"
+            );
+        });
+
+        let mut presenter = TuiPresenter::new();
+        let frame = app.update(|ctx| {
+            let mut invalidation = WindowInvalidation::default();
+            invalidation.updated.insert(view.id());
+            invalidation
+                .updated
+                .extend(view.as_ref(ctx).child_view_ids(ctx));
+            presenter.invalidate(&invalidation, ctx, fixture.window_id);
+            presenter.present(ctx, &view, TuiRect::new(0, 0, 120, 40))
+        });
+        let lines = frame.buffer.to_lines();
+        let title_row = lines
+            .iter()
+            .position(|line| line.contains("Warp Agent"))
+            .expect("zero state should render the Warp Agent title");
+        assert!(
+            title_row < 28,
+            "zero-state title should render in the transcript area:\n{}",
+            lines.join("\n")
+        );
+    });
+}
+
+#[test]
+fn zero_state_transitions_through_bootstrap_lifecycle() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+
+        // Phase 1: an unfinished ScriptExecution block with visible output suppresses the zero
+        // state. The `|| !block.finished()` lifecycle guard covers this case: PTY input is still
+        // routed to the block, so the zero state must stay hidden while the block runs.
+        view.update(&mut app, |view, _| {
+            let mut terminal_model = view.terminal_model.lock();
+            terminal_model.block_list_mut().reinit_shell();
+            terminal_model.update_blockheight_items(TRANSCRIPT_BLOCK_SPACING.block_padding, 0.0);
+            // Advance past WarpInput to ScriptExecution.
+            terminal_model.simulate_block("bootstrap", "");
+            // Create an unfinished ScriptExecution block with visible output rows.
+            terminal_model.simulate_long_running_block("shell init", "startup output\r\n");
+        });
+        view.read(&app, |view, ctx| {
+            assert!(
+                !view.transcript.as_ref(ctx).is_empty(),
+                "unfinished startup block with visible content should suppress the zero state"
+            );
+        });
+
+        // Phase 2: once the startup block finishes it no longer satisfies the lifecycle guard
+        // (it is finished, not restored, and not PostBootstrapPrecmd), so the zero state returns.
+        view.update(&mut app, |view, _| {
+            let mut terminal_model = view.terminal_model.lock();
+            // Advance bootstrap stage so finish_block() promotes the list to PostBootstrapPrecmd.
+            terminal_model.block_list_mut().set_bootstrapped();
+            terminal_model.finish_block();
+        });
+        view.read(&app, |view, ctx| {
+            assert!(
+                view.transcript.as_ref(ctx).is_empty(),
+                "finished ScriptExecution block should no longer suppress the zero state"
+            );
+        });
+
+        // Phase 3: the first normal post-bootstrap command dismisses the zero state.
+        view.update(&mut app, |view, _| {
+            view.terminal_model
+                .lock()
+                .simulate_block("echo hello", "hello\r\n");
+        });
+        view.read(&app, |view, ctx| {
+            assert!(
+                !view.transcript.as_ref(ctx).is_empty(),
+                "post-bootstrap command with visible output should dismiss the zero state"
+            );
+        });
+    });
+}
+
+#[test]
+fn orchestration_tab_icon_replaces_identity_only_while_active_or_blocked() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            ctx.add_singleton_model(|_| Appearance::mock());
+            let builder = TuiUiBuilder::from_app(ctx);
+            let identity = AgentIdentity {
+                glyph: "✠",
+                style: TuiStyle::default().fg(Color::Blue),
+            };
+            for (status, expected_glyph) in [
+                (ConversationStatus::InProgress, "●"),
+                (ConversationStatus::TransientError, "●"),
+                (ConversationStatus::WaitingForEvents, "●"),
+                (
+                    ConversationStatus::Blocked {
+                        blocked_action: "approval".to_owned(),
+                    },
+                    "■",
+                ),
+            ] {
+                assert_eq!(
+                    orchestration_tab_icon(&status, &identity, &builder).0,
+                    expected_glyph,
+                );
+            }
+            for status in [
+                ConversationStatus::Success,
+                ConversationStatus::Error,
+                ConversationStatus::Cancelled,
+            ] {
+                assert_eq!(
+                    orchestration_tab_icon(&status, &identity, &builder),
+                    (identity.glyph, identity.style),
+                );
+            }
+        });
+    });
 }
 
 #[test]
@@ -121,6 +521,25 @@ fn footer_falls_back_to_conversations_callout() {
                     .expect("muted text has a foreground")
             );
         });
+    });
+}
+
+#[test]
+fn footer_does_not_render_credit_actions() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+
+        let lines = render_session(&mut app, &view, 80, 40);
+        assert!(
+            lines.iter().all(|line| {
+                !line.contains("Out of credits")
+                    && !line.contains("Compare plans")
+                    && !line.contains("Use your own API keys")
+            }),
+            "credit actions belong to the failed transcript block:\n{}",
+            lines.join("\n")
+        );
     });
 }
 
@@ -215,6 +634,46 @@ fn plan_toggle_uses_contextual_ctrl_p_and_ctrl_shift_p() {
 }
 
 #[test]
+fn ctrl_d_is_owned_by_the_session_surface_not_input_delete_forward() {
+    App::test((), |mut app| async move {
+        app.update(crate::keybindings::init);
+        app.read(|ctx| {
+            let ctrl_d = Trigger::Keystrokes(vec![Keystroke::parse("ctrl-d").unwrap()]);
+
+            // The prompt input no longer binds ctrl-d to delete-forward (the
+            // session surface owns it); only the `delete` key deletes forward.
+            let input_delete_forward_binds_ctrl_d = ctx
+                .editable_bindings()
+                .any(|b| b.name == "tui:input:delete_forward" && *b.trigger == ctrl_d);
+            assert!(
+                !input_delete_forward_binds_ctrl_d,
+                "input delete-forward must not bind ctrl-d"
+            );
+
+            // The generic editor keeps ctrl-d as delete-forward.
+            let editor_delete_forward_binds_ctrl_d = ctx
+                .editable_bindings()
+                .any(|b| b.name == "tui:editor:delete_forward" && *b.trigger == ctrl_d);
+            assert!(
+                editor_delete_forward_binds_ctrl_d,
+                "editor delete-forward should still bind ctrl-d"
+            );
+
+            // The session handles ctrl-d only while the prompt is focused.
+            // When a process owns focus, ctrl-d falls through to the terminal
+            // element's standard PTY key encoding.
+            let session_binds_ctrl_d = ctx.get_key_bindings().any(|b| {
+                *b.trigger == ctrl_d && b.name.is_empty() && b.group == Some(TUI_BINDING_GROUP)
+            });
+            assert!(
+                session_binds_ctrl_d,
+                "the session should bind ctrl-d for prompt exit / deletion"
+            );
+        });
+    });
+}
+
+#[test]
 fn non_command_prompt_preserves_leading_whitespace() {
     assert_eq!(raw_prompt_if_not_blank("  /compact"), Some("  /compact"));
 }
@@ -267,10 +726,12 @@ fn alternate_screen_clears_orchestration_tab_focus_and_bindings() {
         });
         view.read(&app, |view, ctx| {
             assert!(!view.orchestration_tabs_focused);
-            assert!(!view
-                .keymap_context(ctx)
-                .set
-                .contains(ORCHESTRATION_TAB_BAR_FOCUSED_FLAG));
+            assert!(
+                !view
+                    .keymap_context(ctx)
+                    .set
+                    .contains(ORCHESTRATION_TAB_BAR_FOCUSED_FLAG)
+            );
         });
     });
 }
@@ -297,8 +758,11 @@ fn orchestration_updates_refresh_only_the_focused_session() {
             }),
             Some(foreground_id)
         );
-        assert!(app
-            .read(|ctx| { ctx.check_view_or_child_focused(fixture.window_id, &foreground.id()) }));
+        assert!(
+            app.read(|ctx| {
+                ctx.check_view_or_child_focused(fixture.window_id, &foreground.id())
+            })
+        );
         assert!(background.read(&app, |view, _| view.orchestration_tabs_focused));
 
         app.update_model(&fixture.sessions, |sessions, ctx| {

@@ -51,10 +51,10 @@ use super::{add_highlights_to_rich_text, add_highlights_to_text};
 use crate::ai::agent::conversation::AIConversation;
 use crate::ai::agent::icons::red_stop_icon;
 use crate::ai::agent::{
-    icons, AIAgentAction, AIAgentActionType, AIAgentInput, AIAgentOutputMessageType,
-    AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout, AgentOutputMermaidDiagram,
-    AgentOutputTable, AgentOutputTableRendering, MessageId, ProgrammingLanguage, RenderableAIError,
-    ShellCommandDelay, SummarizationType, UserQueryMode, WebSearchStatus,
+    AIAgentAction, AIAgentActionType, AIAgentInput, AIAgentOutputMessageType, AIAgentTextSection,
+    AgentOutputImage, AgentOutputImageLayout, AgentOutputMermaidDiagram, AgentOutputTable,
+    AgentOutputTableRendering, MessageId, ProgrammingLanguage, RenderableAIError,
+    ShellCommandDelay, SummarizationType, UserQueryMode, WebSearchStatus, icons,
 };
 use crate::ai::blocklist::block::find::FindState;
 use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBarAction;
@@ -64,8 +64,8 @@ use crate::ai::blocklist::block::{
     TableSectionHandles,
 };
 use crate::ai::blocklist::code_block::{
-    render_code_block_plain, render_code_block_with_warp_text, CodeBlockOptions,
-    CodeSnippetButtonHandles,
+    CodeBlockOptions, CodeSnippetButtonHandles, render_code_block_plain,
+    render_code_block_with_warp_text,
 };
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::blocklist::inline_action::aws_bedrock_credentials_error::AwsBedrockCredentialsErrorView;
@@ -75,11 +75,12 @@ use crate::ai::blocklist::inline_action::inline_action_header::{
 use crate::ai::blocklist::inline_action::inline_action_icons::{self, icon_size};
 use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
 use crate::ai::blocklist::model::{AIBlockModel, AIBlockModelHelper};
-use crate::ai::blocklist::secret_redaction::{redact_secrets_in_element, SecretRedactionState};
-use crate::ai::blocklist::view_util::error_color;
+use crate::ai::blocklist::secret_redaction::{SecretRedactionState, redact_secrets_in_element};
+use crate::ai::blocklist::view_util::{
+    FailedOutputPresentation, error_color, failed_output_presentation,
+};
 use crate::ai::blocklist::{BlocklistAIActionModel, ShellCommandExecutor, TextLocation};
 use crate::ai::loading::shimmering_warp_loading_text;
-use crate::ai::AIRequestUsageModel;
 use crate::code::editor::view::CodeEditorView;
 use crate::code::editor_management::CodeSource;
 use crate::notebooks::editor::{markdown_table_appearance, rich_text_styles};
@@ -95,8 +96,8 @@ use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
-use crate::util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState};
-use crate::util::time_format::{format_elapsed_seconds, localized_month_day};
+use crate::util::link_detection::{DetectedLinksState, add_link_detection_mouse_interactions};
+use crate::util::time_format::format_elapsed_seconds;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::CustomerType;
@@ -1400,11 +1401,12 @@ fn collect_renderable_image_group<'a>(
         let (section_index, section) = indexed_sections[section_offset];
         // Skip whitespace-only plain text sections (e.g. blank lines between images)
         // so that adjacent images separated only by blank lines are grouped together.
-        if let AIAgentTextSection::PlainText { text } = section {
-            if !images.is_empty() && text.text().trim().is_empty() {
-                section_offset += 1;
-                continue;
-            }
+        if let AIAgentTextSection::PlainText { text } = section
+            && !images.is_empty()
+            && text.text().trim().is_empty()
+        {
+            section_offset += 1;
+            continue;
         }
         let AIAgentTextSection::Image { image } = section else {
             break;
@@ -1615,15 +1617,15 @@ pub(super) fn render_rich_text_output_text_section(
         }
 
         let secret_redaction = get_secret_obfuscation_mode(app);
-        if secret_redaction.should_redact_secret() {
-            if let Some(secrets) = props.secret_redaction_state.secrets_for_location(&location) {
-                frame = redact_secrets_in_element(
-                    frame,
-                    secrets,
-                    location,
-                    secret_redaction.is_visually_obfuscated(),
-                );
-            }
+        if secret_redaction.should_redact_secret()
+            && let Some(secrets) = props.secret_redaction_state.secrets_for_location(&location)
+        {
+            frame = redact_secrets_in_element(
+                frame,
+                secrets,
+                location,
+                secret_redaction.is_visually_obfuscated(),
+            );
         }
         frame
     });
@@ -2976,7 +2978,7 @@ pub fn get_highlight_ranges_for_find_matches(
     location: TextLocation,
     find_state: &FindState,
     find_model: &TerminalFindModel,
-) -> impl Iterator<Item = HighlightedRange> {
+) -> impl Iterator<Item = HighlightedRange> + use<> {
     let find_match_locations = find_state.matches_for_location(location);
     let focused_match_location = find_model
         .focused_rich_content_match_id()
@@ -3019,7 +3021,7 @@ pub(crate) fn resolve_absolute_file_path(
 ) -> Option<PathBuf> {
     use warp_util::path::CleanPathResult;
 
-    use crate::util::file::{absolute_path_if_valid, ShellPathType};
+    use crate::util::file::{ShellPathType, absolute_path_if_valid};
 
     let clean_path = CleanPathResult::with_line_and_column_number(&path.to_string_lossy());
 
@@ -3055,102 +3057,44 @@ pub struct FailedOutputProps<'a> {
 
 pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
-
-    // While an automatic retry/resume is still in flight, don't surface the underlying
-    // transport failure at all. These are typically transient and recover on their own,
-    // so showing the alarming "Warp lost connection" banner (plus debug info) for every
-    // blip is noisy and misleading. Render nothing during in-flight recovery; the full
-    // error banner is only shown once recovery has actually failed. Dogfood builds
-    // (Local/Dev) opt out so developers still see every transport failure aggressively.
-    if props.error.should_suppress_during_recovery() {
+    let Some(presentation) = failed_output_presentation(props.error, app) else {
         return Empty::new().finish();
-    }
+    };
 
-    let error_text = match props.error {
-        RenderableAIError::QuotaLimit {
-            user_display_message,
-        } => {
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            if let Some(message) = user_display_message {
-                if should_show_subscribe_cta(app) {
-                    return render_out_of_credits_error(
-                        message,
-                        props.subscribe_button_handle,
-                        props.is_ai_input_enabled,
-                        props.icon_right_margin,
-                        app,
-                    );
-                }
-                format!("{apology}\n\n{message}")
-            } else {
-                let ai_request_usage_model = AIRequestUsageModel::as_ref(app);
-                let formatted_next_refresh_time =
-                    localized_month_day(app, ai_request_usage_model.next_refresh_time_local());
-
-                crate::localization::text_for_app_with_args(
-                    app,
-                    "agent.error.quota_limit_resets",
-                    &[
-                        ("apology", &apology),
-                        ("date", &formatted_next_refresh_time),
-                    ],
-                )
-            }
+    let error_text = match presentation {
+        FailedOutputPresentation::Message(message) => message,
+        FailedOutputPresentation::OutOfCredits { title, detail, .. } => {
+            return render_out_of_credits_error(
+                &title,
+                &detail,
+                props.subscribe_button_handle,
+                props.is_ai_input_enabled,
+                props.icon_right_margin,
+                app,
+            );
         }
-        RenderableAIError::ServerOverloaded => {
-            crate::localization::text_for_app(app, "agent.error.server_overloaded")
-        }
-        RenderableAIError::InternalWarpError => {
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            let internal = crate::localization::text_for_app(app, "agent.error.internal_warp");
-            format!("{apology}\n\n{internal}")
-        }
-        RenderableAIError::Other { error_message, .. } => {
-            // A still-recovering `Other` error is handled by the early return above; once we
-            // reach here recovery has failed, so surface the error directly.
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            format!("{apology}\n\n{error_message}")
-        }
-        RenderableAIError::AgentExitedShell => {
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            format!("{apology}\n\n{}", props.error)
-        }
-        RenderableAIError::TransientNetworkError { .. } => {
-            // Recovering transient errors are handled by the early return above; once we
-            // reach here recovery has failed. These carry their own complete user-facing
-            // copy (plus debug info), so the apology prefix adds nothing.
-            props.error.to_string()
-        }
-        RenderableAIError::InvalidApiKey {
-            provider,
-            model_name,
-        } => {
+        FailedOutputPresentation::InvalidApiKey { title, detail } => {
             return render_invalid_api_key_error(
-                provider,
-                model_name,
+                &title,
+                &detail,
                 props.invalid_api_key_button_handle,
                 app,
             );
         }
-        RenderableAIError::ContextWindowExceeded(error) => {
+        FailedOutputPresentation::ContextWindowExceeded { message } => {
             // This is rendered in a different way, like a failed action.
-            return RenderableAction::new(error.as_str(), app)
+            return RenderableAction::new(message.as_str(), app)
                 .with_icon(inline_action_icons::cancelled_icon(appearance).finish())
                 .render(app)
                 .finish();
         }
-        RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { model_name } => {
+        FailedOutputPresentation::AwsBedrockCredentialsExpiredOrInvalid { fallback_message } => {
             // Use the rich stateful view if it exists, otherwise show a simple error message
             if let Some(view) = props.aws_bedrock_credentials_error_view {
                 return ChildView::new(view).finish();
             }
             // Fallback for contexts that don't have the stateful view (e.g. CLI subagent)
-            let apology = crate::localization::text_for_app(app, "agent.error.apology");
-            crate::localization::text_for_app_with_args(
-                app,
-                "agent.aws_bedrock_credentials.fallback",
-                &[("apology", &apology), ("model", model_name)],
-            )
+            fallback_message
         }
     };
 
@@ -3197,15 +3141,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
         )
         .finish()
 }
-
-/// Whether to show the out-of-credits CTAs: only for non-paid users. Paid users and the
-/// enterprise spend-limit variant of this message fall back to plain text.
-fn should_show_subscribe_cta(app: &AppContext) -> bool {
-    UserWorkspaces::as_ref(app)
-        .current_workspace()
-        .is_none_or(|workspace| !workspace.billing_metadata.is_user_on_paid_plan())
-}
-
 /// Builds an out-of-credits CTA button, styled like the invalid-API-key error's button.
 fn out_of_credits_cta_button(
     label: &str,
@@ -3240,7 +3175,8 @@ fn out_of_credits_cta_button(
 
 /// Renders the out-of-credits failure: alert icon + message with a Subscribe CTA below.
 fn render_out_of_credits_error(
-    message: &str,
+    title: &str,
+    detail: &str,
     subscribe_button_handle: &MouseStateHandle,
     is_ai_input_enabled: bool,
     icon_right_margin: f32,
@@ -3263,9 +3199,8 @@ fn render_out_of_credits_error(
     .with_margin_right(icon_right_margin)
     .finish();
 
-    let apology = crate::localization::text_for_app(app, "agent.error.apology");
     let text = Text::new(
-        format!("{apology}\n\n{message}"),
+        format!("{title}\n\n{detail}"),
         appearance.monospace_font_family(),
         appearance.monospace_font_size(),
     )
@@ -3318,8 +3253,8 @@ fn render_out_of_credits_error(
 }
 
 fn render_invalid_api_key_error(
-    provider: &str,
-    model_name: &str,
+    title: &str,
+    detail: &str,
     state_handle: &MouseStateHandle,
     app: &AppContext,
 ) -> Box<dyn Element> {
@@ -3335,30 +3270,18 @@ fn render_invalid_api_key_error(
     .with_height(icon_size(app))
     .finish();
 
-    let alert_text = Text::new(
-        crate::localization::text_for_app(app, "agent.error.invalid_api_key.title"),
-        appearance.ui_font_family(),
-        14.,
-    )
-    .with_color(error_color(appearance.theme()))
-    .with_selectable(false)
-    .finish();
+    let alert_text = Text::new(title.to_string(), appearance.ui_font_family(), 14.)
+        .with_color(error_color(appearance.theme()))
+        .with_selectable(false)
+        .finish();
 
-    let detail_text = Text::new(
-        crate::localization::text_for_app_with_args(
-            app,
-            "agent.error.invalid_api_key.description",
-            &[("provider", provider), ("model_name", model_name)],
-        ),
-        appearance.ui_font_family(),
-        14.,
-    )
-    .with_color(blended_colors::text_sub(
-        appearance.theme(),
-        appearance.theme().surface_1(),
-    ))
-    .with_selectable(false)
-    .finish();
+    let detail_text = Text::new(detail.to_string(), appearance.ui_font_family(), 14.)
+        .with_color(blended_colors::text_sub(
+            appearance.theme(),
+            appearance.theme().surface_1(),
+        ))
+        .with_selectable(false)
+        .finish();
 
     let settings_button = appearance
         .ui_builder()
@@ -3686,10 +3609,9 @@ pub(super) fn query_prefix_highlight_len(
     if let AIAgentInput::UserQuery {
         user_query_mode, ..
     } = input
+        && let Some(prefix_len) = user_query_mode_prefix_highlight_len(*user_query_mode)
     {
-        if let Some(prefix_len) = user_query_mode_prefix_highlight_len(*user_query_mode) {
-            return Some(prefix_len);
-        }
+        return Some(prefix_len);
     }
 
     if displayed_query.starts_with(commands::CREATE_ENVIRONMENT.name) {

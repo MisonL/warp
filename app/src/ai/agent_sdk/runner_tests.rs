@@ -1,8 +1,8 @@
 use warp_localization::LocaleId;
 
 use super::{
-    confirm_delete, merge_instance_shape, resolve_arch, resolve_updated_name, RunnerArch,
-    RunnerArchArg, RunnerOsArg,
+    RunnerArch, RunnerArchArg, RunnerOsArg, confirm_delete, merge_instance_shape, resolve_arch,
+    resolve_updated_name,
 };
 
 #[test]

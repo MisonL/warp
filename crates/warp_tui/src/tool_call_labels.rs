@@ -3,6 +3,7 @@
 
 use std::path::Path;
 
+use ai::agent::action_result::RunAgentsAgentOutcome;
 use warp::tui_export::{
     AIActionStatus, AIAgentAction, AIAgentActionResultType, AIAgentActionType,
     AskUserQuestionResult, FileGlobV2Result, GrepResult, RequestCommandOutputResult,
@@ -164,6 +165,38 @@ pub(crate) fn tool_call_label(
         | State::Succeeded
         | State::Failed
         | State::Cancelled => label,
+    }
+}
+
+pub(crate) fn blocked_tool_call_label(action: &AIAgentActionType) -> String {
+    actions::label_for_action(action, State::Blocked, None, None)
+}
+
+/// Summarizes the outcomes of an orchestration launch using the same catalog
+/// entries as the rest of the TUI tool-call labels.
+fn launched_agents_label(agents: &[RunAgentsAgentOutcome]) -> String {
+    let launched = agents
+        .iter()
+        .filter(|agent| matches!(agent.kind, RunAgentsAgentOutcomeKind::Launched { .. }))
+        .count();
+    let total = agents.len();
+    let agents = localized_count_label(total, "tui.count.agent.one", "tui.count.agent.many");
+
+    if launched == total {
+        localization::text_with_args("tui.tool.orchestration.spawned", &[("agents", &agents)])
+    } else if launched == 0 {
+        localization::text_with_args(
+            "tui.tool.orchestration.spawn_failed",
+            &[("agents", &agents)],
+        )
+    } else {
+        localization::text_with_args(
+            "tui.tool.orchestration.spawned_some",
+            &[
+                ("launched", &launched.to_string()),
+                ("total", &total.to_string()),
+            ],
+        )
     }
 }
 

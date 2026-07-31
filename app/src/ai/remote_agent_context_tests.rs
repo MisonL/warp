@@ -1,10 +1,11 @@
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::{DirectoryWatcher, RepoMetadataModel};
-use warpui::App;
+use settings::Setting as _;
+use warpui::{App, SingletonEntity as _};
 use watcher::HomeDirectoryWatcher;
 
 use super::*;
-use crate::settings::AISettings;
+use crate::settings::{AISettings, AppLanguage, LanguageSettings};
 use crate::test_util::settings::initialize_localization_for_tests;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 
@@ -51,7 +52,7 @@ fn snapshot() -> RemoteAgentContextSnapshot {
             bundled_skill(
                 "bundled",
                 "/bundled/skills/bundled/SKILL.md",
-                "---\nname: bundled\ndescription: Bundled skill\n---\nbody",
+                "---\nname: bundled\ndescription: Bundled skill\ndescription_zh_CN: 捆绑技能\n---\nbody",
                 None,
             ),
             bundled_skill(
@@ -82,15 +83,69 @@ fn setup_context_models(app: &mut App) {
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
     app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
+    app.add_singleton_model(RemoteServerManager::new);
     app.add_singleton_model(SkillManager::new);
     app.add_singleton_model(|_| ProjectContextModel::default());
+}
+
+#[test]
+fn snapshot_decoding_localizes_bundled_descriptions_for_the_client_locale() {
+    let _bundled_skills = FeatureFlag::BundledSkills.override_enabled(true);
+    let host_id = HostId::new("remote-host".to_string());
+    let state = parse_snapshot_for_locale(&host_id, snapshot(), LocaleId::ZhCn);
+    let bundled_skills = state.bundled_skills.unwrap();
+    let skill = bundled_skills.skill("bundled").unwrap();
+
+    assert_eq!(skill.description, "捆绑技能");
+    assert!(skill.content.contains("description: Bundled skill"));
+    assert!(skill.content.contains("description_zh_CN: 捆绑技能"));
+}
+
+#[test]
+fn remote_bundled_descriptions_refresh_when_the_client_language_changes() {
+    let _bundled_skills = FeatureFlag::BundledSkills.override_enabled(true);
+    let host_id = HostId::new("remote-host".to_string());
+    let bundled_path = remote_path(&host_id, "/bundled/skills/bundled/SKILL.md").unwrap();
+
+    App::test((), |mut app| async move {
+        setup_context_models(&mut app);
+        let skills = SkillManager::handle(&app);
+        let context = app.add_singleton_model(RemoteAgentContext::new);
+
+        context.update(&mut app, |context, ctx| {
+            context.reconcile_snapshot(host_id.clone(), snapshot(), ctx);
+        });
+        skills.read(&app, |manager, _| {
+            assert_eq!(
+                manager
+                    .skill_by_path(&bundled_path)
+                    .map(|skill| skill.description.as_str()),
+                Some("Bundled skill")
+            );
+        });
+
+        app.update(|ctx| {
+            LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+                settings
+                    .app_language
+                    .load_value(AppLanguage::SimplifiedChinese, true, ctx)
+                    .expect("language setting should update");
+            });
+        });
+
+        skills.read(&app, |manager, _| {
+            let skill = manager.skill_by_path(&bundled_path).unwrap();
+            assert_eq!(skill.description, "捆绑技能");
+            assert!(skill.content.contains("description: Bundled skill"));
+        });
+    });
 }
 
 #[test]
 fn snapshot_decoding_keeps_valid_context_from_each_source() {
     let _bundled_skills = FeatureFlag::BundledSkills.override_enabled(true);
     let host_id = HostId::new("remote-host".to_string());
-    let state = parse_snapshot(&host_id, snapshot());
+    let state = parse_snapshot_for_locale(&host_id, snapshot(), LocaleId::EnUs);
     let bundled = state.bundled_skills.unwrap();
     let home = state.home_skills.unwrap();
 
@@ -121,7 +176,7 @@ fn invalid_home_directory_drops_only_home_context() {
     let mut snapshot = snapshot();
     snapshot.home_dir = "relative/home".to_string();
 
-    let state = parse_snapshot(&host_id, snapshot);
+    let state = parse_snapshot_for_locale(&host_id, snapshot, LocaleId::EnUs);
     assert!(state.bundled_skills.unwrap().skill("bundled").is_some());
     assert!(state.home_skills.is_none());
     assert!(state.global_rules.is_empty());
@@ -138,7 +193,7 @@ fn reconcile_snapshot_fully_replaces_all_host_context() {
         setup_context_models(&mut app);
         let skills = SkillManager::handle(&app);
         let rules = ProjectContextModel::handle(&app);
-        let context = app.add_singleton_model(|_| RemoteAgentContext);
+        let context = app.add_singleton_model(RemoteAgentContext::new);
 
         context.update(&mut app, |context, ctx| {
             context.reconcile_snapshot(host_id.clone(), snapshot(), ctx);
@@ -175,9 +230,11 @@ fn reconcile_snapshot_fully_replaces_all_host_context() {
             assert!(manager.skill_by_path(&home_path).is_none());
         });
         rules.read(&app, |model, _| {
-            assert!(model
-                .find_applicable_rules(&remote_path(&host_id, "/repo").unwrap())
-                .is_none());
+            assert!(
+                model
+                    .find_applicable_rules(&remote_path(&host_id, "/repo").unwrap())
+                    .is_none()
+            );
         });
     });
 }
@@ -195,7 +252,7 @@ fn remove_host_context_clears_only_the_matching_host() {
         setup_context_models(&mut app);
         let skills = SkillManager::handle(&app);
         let rules = ProjectContextModel::handle(&app);
-        let context = app.add_singleton_model(|_| RemoteAgentContext);
+        let context = app.add_singleton_model(RemoteAgentContext::new);
 
         for host_id in [&first_host, &second_host] {
             context.update(&mut app, |context, ctx| {
@@ -211,9 +268,11 @@ fn remove_host_context_clears_only_the_matching_host() {
             assert!(manager.skill_by_path(&second_bundled_path).is_some());
         });
         rules.read(&app, |model, _| {
-            assert!(model
-                .find_applicable_rules(&remote_path(&first_host, "/repo").unwrap())
-                .is_none());
+            assert!(
+                model
+                    .find_applicable_rules(&remote_path(&first_host, "/repo").unwrap())
+                    .is_none()
+            );
             assert_eq!(
                 model
                     .find_applicable_rules(&remote_path(&second_host, "/repo").unwrap())

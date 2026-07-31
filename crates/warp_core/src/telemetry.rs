@@ -145,7 +145,7 @@ pub fn all_events() -> impl Iterator<Item = Box<dyn TelemetryEventDesc>> {
 // To send a telemetry event synchronously, use [`send_telemetry_sync_from_ctx`].
 #[macro_export]
 macro_rules! send_telemetry_from_ctx {
-    ($event:expr, $ctx:expr) => {
+    ($event:expr_2021, $ctx:expr_2021) => {
         #[allow(unused_imports)]
         use warp_core::telemetry::TelemetryEvent as _;
         let event = $event;
@@ -174,7 +174,7 @@ macro_rules! send_telemetry_from_ctx {
 /// If possible, use [`send_telemetry_from_ctx`].
 #[macro_export]
 macro_rules! send_telemetry_from_app_ctx {
-    ($event:expr, $app_ctx:expr) => {
+    ($event:expr_2021, $app_ctx:expr_2021) => {
         let event = $event;
         if event.enablement_state().is_enabled() {
             let auth_state =

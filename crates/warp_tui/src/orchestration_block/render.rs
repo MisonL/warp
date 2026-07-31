@@ -1,22 +1,22 @@
 //! Element construction for the orchestration card.
 
 use warp::tui_export::{
-    empty_env_recommendation_message, should_show_auth_secret_picker, AIActionStatus,
-    AuthSecretSelection, Harness, HarnessAvailabilityModel, OptionSnapshot, RunAgentsExecutionMode,
-    ORCHESTRATION_WARP_WORKER_HOST,
+    AIActionStatus, AuthSecretSelection, Harness, HarnessAvailabilityModel,
+    ORCHESTRATION_WARP_WORKER_HOST, OptionSnapshot, RunAgentsExecutionMode,
+    empty_env_recommendation_message, should_show_auth_secret_picker,
 };
 use warpui::SingletonEntity;
+use warpui_core::AppContext;
+use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::elements::tui::{
     Modifier, TuiChildView, TuiContainer, TuiElement, TuiFlex, TuiParentElement, TuiText,
 };
-use warpui_core::elements::CrossAxisAlignment;
-use warpui_core::AppContext;
 
 use super::configuration::ConfigPage;
 use super::{CardMode, TuiOrchestrationBlock};
 use crate::agent_block_sections::render_fallback_tool_call_section;
 use crate::localization;
-use crate::orchestrated_agent_identity_styling::{assign_agent_identity_indices, AgentIdentity};
+use crate::orchestrated_agent_identity_styling::{AgentIdentity, assign_agent_identity_indices};
 use crate::tui_builder::TuiUiBuilder;
 
 impl TuiOrchestrationBlock {
