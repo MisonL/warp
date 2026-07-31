@@ -1,16 +1,102 @@
 //! Configuration pages and shared-model adapters for the orchestration card.
 
 use warp::tui_export::{
-    AIActionStatus, AIAgentActionId, BlocklistAIActionModel, OptionSnapshot,
-    OrchestrationConfigState, OrchestrationEditState, RunAgentsExecutionMode, RunAgentsRequest,
-    accept_disabled_reason_with_auth, api_key_snapshot, environment_snapshot, harness_snapshot,
-    host_snapshot, location_snapshot, model_snapshot, persist_environment_selection,
-    persist_host_selection,
+    AIActionStatus, AIAgentActionId, BlocklistAIActionModel, OptionFooter, OptionSnapshot,
+    OptionSourceStatus, OrchestrationConfigState, OrchestrationEditState, RunAgentsExecutionMode,
+    RunAgentsRequest, accept_disabled_reason_with_auth, api_key_snapshot, environment_snapshot,
+    harness_snapshot, host_snapshot, location_snapshot, model_snapshot,
+    persist_environment_selection, persist_host_selection,
 };
+use warp_localization::LocaleId;
 use warpui_core::{AppContext, ModelHandle};
+
+use crate::localization;
 
 /// Row id emitted by `location_snapshot` for remote execution.
 const LOCATION_CLOUD_ID: &str = "cloud";
+const LOCATION_LOCAL_ID: &str = "local";
+
+/// Localizes fixed labels emitted by the shared, frontend-neutral snapshots.
+/// User-created names and server-provided labels remain unchanged.
+pub(super) fn localize_snapshot(page: ConfigPage, snapshot: OptionSnapshot) -> OptionSnapshot {
+    localize_snapshot_for_locale(page, snapshot, localization::current_locale())
+}
+
+/// Locale-explicit form of [`localize_snapshot`] for deterministic callers and tests.
+pub(super) fn localize_snapshot_for_locale(
+    page: ConfigPage,
+    mut snapshot: OptionSnapshot,
+    locale: LocaleId,
+) -> OptionSnapshot {
+    for row in &mut snapshot.rows {
+        let key = match page {
+            ConfigPage::Location => match row.id.as_str() {
+                LOCATION_CLOUD_ID => Some("tui.orchestration.option.cloud"),
+                LOCATION_LOCAL_ID => Some("tui.orchestration.option.local"),
+                _ => None,
+            },
+            ConfigPage::ApiKey => row
+                .id
+                .is_empty()
+                .then_some("tui.orchestration.option.skip_advanced"),
+            ConfigPage::Environment => row
+                .id
+                .is_empty()
+                .then_some("tui.orchestration.option.empty_environment"),
+            ConfigPage::Model => row
+                .id
+                .is_empty()
+                .then_some("tui.orchestration.option.default_model"),
+            ConfigPage::Harness | ConfigPage::Host => None,
+        };
+        if let Some(key) = key {
+            row.label = localization::text_for_locale(locale, key);
+        }
+        if let Some(reason) = &row.disabled_reason {
+            row.disabled_reason = Some(localize_snapshot_message_for_locale(reason, locale));
+        }
+    }
+
+    match &mut snapshot.status {
+        OptionSourceStatus::Failed { message } | OptionSourceStatus::Empty { message } => {
+            *message = localize_snapshot_message_for_locale(message, locale);
+        }
+        OptionSourceStatus::Ready | OptionSourceStatus::Loading => {}
+    }
+
+    if let (ConfigPage::Host, Some(OptionFooter::CustomText { label })) =
+        (page, &mut snapshot.footer)
+    {
+        *label = localization::text_for_locale(locale, "tui.orchestration.option.custom_host");
+    }
+
+    snapshot
+}
+
+fn localize_snapshot_message_for_locale(message: &str, locale: LocaleId) -> String {
+    let key = match message {
+        "Disabled by your administrator" => {
+            Some("terminal.ambient_agent.harness_selector.tooltip.disabled_by_admin")
+        }
+        "Install Claude Code to use this local harness." => {
+            Some("agent.orchestration.controls.local_claude_install_required")
+        }
+        "Install Codex to use this local harness." => {
+            Some("agent.orchestration.controls.local_codex_install_required")
+        }
+        "Local Codex child agents are temporarily disabled." => {
+            Some("agent.orchestration.controls.local_codex_disabled")
+        }
+        "No harnesses available" => Some("tui.orchestration.status.no_harnesses"),
+        "No models available" => Some("tui.orchestration.status.no_models"),
+        "Unable to load secrets" => Some("tui.orchestration.status.unable_to_load_secrets"),
+        _ => None,
+    };
+    key.map_or_else(
+        || message.to_string(),
+        |key| localization::text_for_locale(locale, key),
+    )
+}
 
 /// Applies the TUI policy that Local configuration has no harness page and
 /// therefore always uses Oz.
@@ -54,17 +140,28 @@ pub(super) enum ConfigPage {
 }
 
 impl ConfigPage {
+    /// Returns the shared selector heading for an editable configuration page.
+    pub(super) fn header_label() -> String {
+        localization::text("tui.orchestration.edit_configuration")
+    }
+
     /// Returns the page question with the request's agent count pluralized.
     pub(super) fn question(self, agent_count: usize) -> String {
-        let agent = if agent_count == 1 { "agent" } else { "agents" };
-        match self {
-            Self::Location => format!("Where should the {agent} run?"),
-            Self::Harness => format!("Which harness should the {agent} use?"),
-            Self::ApiKey => format!("Which API key should the {agent} use?"),
-            Self::Host => format!("Which host should run the {agent}?"),
-            Self::Environment => format!("Which environment should the {agent} use?"),
-            Self::Model => format!("Which model should the {agent} use?"),
-        }
+        let key = match (self, agent_count == 1) {
+            (Self::Location, true) => "tui.orchestration.question.location.one",
+            (Self::Location, false) => "tui.orchestration.question.location.many",
+            (Self::Harness, true) => "tui.orchestration.question.harness.one",
+            (Self::Harness, false) => "tui.orchestration.question.harness.many",
+            (Self::ApiKey, true) => "tui.orchestration.question.api_key.one",
+            (Self::ApiKey, false) => "tui.orchestration.question.api_key.many",
+            (Self::Host, true) => "tui.orchestration.question.host.one",
+            (Self::Host, false) => "tui.orchestration.question.host.many",
+            (Self::Environment, true) => "tui.orchestration.question.environment.one",
+            (Self::Environment, false) => "tui.orchestration.question.environment.many",
+            (Self::Model, true) => "tui.orchestration.question.model.one",
+            (Self::Model, false) => "tui.orchestration.question.model.many",
+        };
+        localization::text(key)
     }
 
     /// Whether this page opts into the selector's pinned search editor.

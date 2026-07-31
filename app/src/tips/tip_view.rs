@@ -17,6 +17,7 @@ use warpui::{
 
 use super::WELCOME_TIP_FEATURE_LENGTH;
 use crate::appearance::Appearance;
+use crate::localization::{self, LocalizationUpdater};
 use crate::resource_center::{Tip, TipAction, TipsCompleted};
 use crate::themes::theme::{Blend, Fill};
 use crate::util::bindings::trigger_to_keystroke;
@@ -108,6 +109,41 @@ pub enum TipsEvent {
 }
 
 impl TipsView {
+    fn tip_items(ctx: &mut AppContext) -> Vec<TipItem> {
+        vec![
+            TipItem::new(
+                localization::text_for_app(ctx, "tips.command_palette.title"),
+                localization::text_for_app(ctx, "tips.command_palette.description"),
+                TipAction::CommandPalette,
+                ctx,
+            ),
+            TipItem::new(
+                localization::text_for_app(ctx, "tips.split_pane.title"),
+                localization::text_for_app(ctx, "tips.split_pane.description"),
+                TipAction::SplitPane,
+                ctx,
+            ),
+            TipItem::new(
+                localization::text_for_app(ctx, "tips.history_search.title"),
+                localization::text_for_app(ctx, "tips.history_search.description"),
+                TipAction::HistorySearch,
+                ctx,
+            ),
+            TipItem::new(
+                localization::text_for_app(ctx, "tips.ai_command_search.title"),
+                localization::text_for_app(ctx, "tips.ai_command_search.description"),
+                TipAction::AiCommandSearch,
+                ctx,
+            ),
+            TipItem::new(
+                localization::text_for_app(ctx, "tips.theme_picker.title"),
+                localization::text_for_app(ctx, "tips.theme_picker.description"),
+                TipAction::ThemePicker,
+                ctx,
+            ),
+        ]
+    }
+
     fn on_tips_model_changed(
         &mut self,
         _: ModelHandle<TipsCompleted>,
@@ -122,40 +158,11 @@ impl TipsView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         ctx.observe(&tips_completed, TipsView::on_tips_model_changed);
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
-        let tip_items = vec![
-            TipItem::new(
-                "Command Palette".to_string(),
-                "Easily discover everything you can do in Warp without your hands leaving the keyboard.".to_string(),
-                TipAction::CommandPalette,
-                ctx,
-            ),
-            TipItem::new(
-                "Split Pane".to_string(),
-                "Split tabs into multiple panes to make your ideal layout."
-                    .to_string(),
-                TipAction::SplitPane,
-                ctx,
-            ),
-            TipItem::new(
-                "History Search".to_string(),
-                "Find, edit and re-run previously executed commands.".to_string(),
-                TipAction::HistorySearch,
-                ctx,
-            ),
-            TipItem::new(
-                "AI Command Search".to_string(),
-                "Generate shell commands with natural language.".to_string(),
-                TipAction::AiCommandSearch,
-                ctx,
-            ),
-            TipItem::new(
-                "Theme Picker".to_string(),
-                "Make Warp your own by choosing a built-in theme. Or create your own.".to_string(),
-                TipAction::ThemePicker,
-                ctx,
-            ),
-        ];
+        let tip_items = Self::tip_items(ctx);
 
         // Initialize the action target cache. This will be updated when the tip menu is opened
         let action_target = ctx.add_model(|_| ActionTarget::None);
@@ -172,6 +179,13 @@ impl TipsView {
             parent_position_id,
             clipped_scroll_state: Default::default(),
         }
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.tip_items = Self::tip_items(ctx);
+        self.button_mouse_states.tip_handles =
+            self.tip_items.iter().map(|_| Default::default()).collect();
+        ctx.notify();
     }
 
     pub fn set_action_target(
@@ -215,6 +229,7 @@ impl TipsView {
         &self,
         tip_item: TipItem,
         appearance: &Appearance,
+        app: &AppContext,
         index: usize,
         is_tip_completed: bool,
     ) -> Box<dyn Element> {
@@ -260,7 +275,7 @@ impl TipsView {
                 .with_child(
                     Container::new(
                         ui_builder
-                            .wrappable_text("Shortcut".to_string(), false)
+                            .wrappable_text(localization::text_for_app(app, "tips.shortcut"), false)
                             .with_style(UiComponentStyles {
                                 font_family_id: Some(appearance.ui_font_family()),
                                 font_size: Some(appearance.monospace_font_size() * 0.8),
@@ -357,6 +372,7 @@ impl TipsView {
         &self,
         appearance: &Appearance,
         tips_completed: &TipsCompleted,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let mut tips = Flex::column();
@@ -365,6 +381,7 @@ impl TipsView {
                 self.render_tip_item(
                     tip_item.clone(),
                     appearance,
+                    app,
                     index,
                     tips_completed.features_used.contains(&tip_item.tip_feature),
                 )
@@ -395,7 +412,10 @@ impl TipsView {
                         Align::new(
                             appearance
                                 .ui_builder()
-                                .paragraph("Skip Welcome Tips".to_string())
+                                .paragraph(crate::localization::text_for_app(
+                                    app,
+                                    "tips.welcome.skip",
+                                ))
                                 .build()
                                 .finish(),
                         )
@@ -435,11 +455,15 @@ impl TipsView {
         .finish()
     }
 
-    fn render_completed_overlay(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_completed_overlay(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
         // TODO: We should render this as a SVG.
         let confetti = ui_builder
-            .span("🎉")
+            .span("*")
             .with_style(UiComponentStyles {
                 font_size: Some(60.),
                 ..Default::default()
@@ -448,7 +472,10 @@ impl TipsView {
             .finish();
 
         let title = ui_builder
-            .span("Complete!")
+            .span(crate::localization::text_for_app(
+                app,
+                "tips.welcome.complete",
+            ))
             .with_style(UiComponentStyles {
                 font_weight: Some(Weight::Bold),
                 // Set to white here as the background has 85% black overlay.
@@ -460,7 +487,10 @@ impl TipsView {
             .finish();
 
         let sub_text = ui_builder
-            .paragraph("Nice work on finishing the welcome tips!")
+            .paragraph(crate::localization::text_for_app(
+                app,
+                "tips.welcome.complete_description",
+            ))
             .with_style(UiComponentStyles {
                 font_size: Some(12.),
                 font_color: Some(Fill::white().into()),
@@ -480,7 +510,7 @@ impl TipsView {
                     .set_width(152.)
                     .set_height(34.),
             )
-            .with_centered_text_label("Close Welcome Tips".to_string())
+            .with_centered_text_label(crate::localization::text_for_app(app, "tips.welcome.close"))
             .build()
             .on_click(|ctx, _, _| ctx.dispatch_typed_action(TipsAction::DismissTips))
             .finish();
@@ -589,7 +619,7 @@ impl View for TipsView {
         // rendered on. But then stack creates a new layer on top of it, which nullifies
         // the original position.
         stack.add_positioned_child(
-            self.render_body(appearance, tips_completed),
+            self.render_body(appearance, tips_completed, app),
             OffsetPositioning::offset_from_save_position_element(
                 self.parent_position_id.as_str(),
                 vec2f(0., 10.),
@@ -601,7 +631,7 @@ impl View for TipsView {
 
         if tips_completed.completed_count() == WELCOME_TIP_FEATURE_LENGTH {
             stack.add_positioned_child(
-                self.render_completed_overlay(appearance),
+                self.render_completed_overlay(appearance, app),
                 OffsetPositioning::offset_from_save_position_element(
                     self.parent_position_id.as_str(),
                     vec2f(0., 10.),

@@ -13,6 +13,7 @@ use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision, UniquePer,
 };
+use crate::localization;
 use crate::server::sync_queue::QueueItem;
 use crate::settings::AISettings;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -20,12 +21,32 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 pub const LONG_CONTEXT_WARNING_THRESHOLD: u32 = 272_000;
 pub(crate) const LONG_CONTEXT_PRICING_WARNING_URL: &str =
     "https://developers.openai.com/api/docs/pricing";
-pub(crate) fn long_context_pricing_warning_title() -> FormattedTextInline {
+
+pub(crate) fn execution_profile_display_name_key(
+    profile: &AIExecutionProfile,
+) -> Option<&'static str> {
+    if profile.is_default_profile {
+        Some("settings.execution_profile.editor.default_profile_name")
+    } else if profile.name.trim().is_empty() {
+        Some("settings.execution_profile.untitled_profile_name")
+    } else {
+        None
+    }
+}
+
+pub(crate) fn long_context_pricing_warning_title(app: &AppContext) -> FormattedTextInline {
     vec![
-        FormattedTextFragment::plain_text(
-            "OpenAI automatically applies long-context pricing when context exceeds 272,000 tokens. ",
+        FormattedTextFragment::plain_text(localization::text_for_app(
+            app,
+            "settings.execution_profile.long_context_pricing_warning.message",
+        )),
+        FormattedTextFragment::hyperlink(
+            localization::text_for_app(
+                app,
+                "settings.execution_profile.long_context_pricing_warning.learn_more",
+            ),
+            LONG_CONTEXT_PRICING_WARNING_URL,
         ),
-        FormattedTextFragment::hyperlink("Learn more", LONG_CONTEXT_PRICING_WARNING_URL),
     ]
 }
 
@@ -116,6 +137,8 @@ pub fn create_default_from_legacy_settings(app: &AppContext) -> AIExecutionProfi
 }
 
 pub trait AIExecutionProfileAppExt {
+    fn localized_display_name(&self, app: &AppContext) -> String;
+
     fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow>;
 
     fn context_window_display_value(&self, app: &AppContext) -> Option<u32>;
@@ -128,6 +151,12 @@ pub trait AIExecutionProfileAppExt {
 }
 
 impl AIExecutionProfileAppExt for AIExecutionProfile {
+    fn localized_display_name(&self, app: &AppContext) -> String {
+        execution_profile_display_name_key(self)
+            .map(|key| localization::text_for_app(app, key))
+            .unwrap_or_else(|| self.name.clone())
+    }
+
     fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow> {
         let llm = effective_base_model(self, app);
         if has_configurable_context_window(

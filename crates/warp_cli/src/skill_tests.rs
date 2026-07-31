@@ -1,4 +1,24 @@
+use std::ffi::OsString;
+
+use serial_test::serial;
+
 use super::*;
+
+fn set_env_var(name: &str, value: &str) -> Option<OsString> {
+    let previous = std::env::var_os(name);
+    // Safety: this environment-mutating test is serialized within the crate.
+    unsafe { std::env::set_var(name, value) };
+    previous
+}
+
+fn restore_env_var(name: &str, previous: Option<OsString>) {
+    match previous {
+        // Safety: this environment-mutating test is serialized within the crate.
+        Some(value) => unsafe { std::env::set_var(name, value) },
+        // Safety: this environment-mutating test is serialized within the crate.
+        None => unsafe { std::env::remove_var(name) },
+    }
+}
 
 #[test]
 fn test_parse_simple_skill_name() {
@@ -117,6 +137,28 @@ fn test_parse_empty_qualifier_fails() {
 fn test_parse_empty_path_fails() {
     let result: Result<SkillSpec, _> = "warp-internal:".parse();
     assert!(result.is_err());
+}
+
+#[test]
+#[serial]
+fn invalid_skill_specs_use_simplified_chinese_errors() {
+    let previous_language = set_env_var("LANGUAGE", "zh_CN");
+    let cases = [
+        ("", "技能说明符不能为空"),
+        (":code-review", "限定符不能为空"),
+        ("warp-internal:", "技能标识符不能为空"),
+        ("/warp-internal:code-review", "组织名不能为空"),
+        ("warpdotdev/:code-review", "仓库名不能为空"),
+    ];
+
+    for (input, expected) in cases {
+        let error = input
+            .parse::<SkillSpec>()
+            .expect_err("invalid skill spec should be rejected");
+        assert!(error.contains(expected), "unexpected error: {error}");
+    }
+
+    restore_env_var("LANGUAGE", previous_language);
 }
 
 #[test]

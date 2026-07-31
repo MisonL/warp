@@ -10,7 +10,7 @@ use warpui::elements::{
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
-use warpui::{Action, Element};
+use warpui::{Action, AppContext, Element};
 
 use super::context_chip::ContextChip;
 use super::display_chip::{chip_container, udi_font_size};
@@ -67,7 +67,6 @@ impl Renderer {
         availability: ChipAvailability,
     ) -> Self {
         let is_disabled = !availability.is_enabled();
-        let tooltip_override_text = availability.tooltip_override_text();
         Self {
             kind,
             chip,
@@ -77,7 +76,7 @@ impl Renderer {
             tooltip_state_handle: Default::default(),
             remove_button_state_handle: Default::default(),
             is_disabled,
-            tooltip_override_text,
+            tooltip_override_text: None,
         }
     }
 
@@ -85,8 +84,9 @@ impl Renderer {
         chip_kind: ContextChipKind,
         availability: ChipAvailability,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Self> {
-        Self::default_from_kind_with_agent_view(chip_kind, availability, false, appearance)
+        Self::default_from_kind_with_agent_view(chip_kind, availability, false, appearance, app)
     }
 
     pub fn default_from_kind_with_agent_view(
@@ -94,17 +94,24 @@ impl Renderer {
         availability: ChipAvailability,
         is_in_agent_view: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Self> {
         let chip = chip_kind.to_chip()?;
         let placeholder_value = chip_kind.placeholder_value();
         let styles = chip_kind.default_styles(appearance, is_in_agent_view);
-        Some(Self::new(
-            chip_kind,
+        let is_disabled = !availability.is_enabled();
+        let tooltip_override_text = availability.tooltip_override_text_for_app(app);
+        Some(Self {
+            kind: chip_kind,
             chip,
-            placeholder_value,
+            value: placeholder_value,
             styles,
-            availability,
-        ))
+            draggable_state: Default::default(),
+            tooltip_state_handle: Default::default(),
+            remove_button_state_handle: Default::default(),
+            is_disabled,
+            tooltip_override_text,
+        })
     }
 
     pub fn draggable_state(&self) -> DraggableState {

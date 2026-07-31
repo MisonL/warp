@@ -36,6 +36,7 @@ use crate::ai::blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHi
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::appearance::Appearance;
 use crate::changelog_model::{self, ChangelogModel};
+use crate::localization;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::event::BlockType;
 use crate::terminal::input::message_bar::common::render_standard_message;
@@ -46,11 +47,9 @@ use crate::terminal::model_events::{AnsiHandlerEvent, ModelEvent, ModelEventDisp
 use crate::terminal::view::TerminalAction;
 use crate::terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent};
 use crate::terminal::{self, TerminalModel, prompt};
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const CLOUD_AGENT_DOCS_URL: &str = "https://docs.warp.dev/agent-platform/cloud-agents/overview";
-const OZ_UPDATES_SECTION_HEADER: &str = "What's new in Oz";
-
 // The maximum number of Oz updates from the changelog rendered in-line in the 'What's new in Oz section'.
 const MAX_OZ_UPDATE_COUNT: usize = 4;
 
@@ -401,23 +400,28 @@ impl View for AgentViewZeroStateBlock {
 
         let header_props = if self.origin.is_cloud_agent() {
             HeaderProps {
-                title: "New Oz cloud agent conversation".into(),
+                title: localization::text_for_app(app, "agent.zero_state.cloud_title").into(),
                 description: AgentViewDescription::CloudModeWithDocsLink,
                 icon: Icon::OzCloud,
             }
         } else {
-            let mut local_description =
-                "Send a prompt below to start a new conversation".to_owned();
             let active_session = self.active_session(app);
             let location_label = active_session.as_deref().and_then(|session| {
                 format_session_location(session, self.current_working_directory.as_deref())
             });
-            if let Some(location_label) = location_label {
-                local_description += &format!(" in `{location_label}`");
-            }
+            let local_description = location_label.map_or_else(
+                || localization::text_for_app(app, "agent.zero_state.local_description"),
+                |location_label| {
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.zero_state.local_description_with_location",
+                        &[("location", &format!("`{location_label}`"))],
+                    )
+                },
+            );
 
             HeaderProps {
-                title: "New Oz agent conversation".into(),
+                title: localization::text_for_app(app, "agent.zero_state.local_title").into(),
                 description: AgentViewDescription::PlainText(vec![local_description.into()]),
                 icon: Icon::Oz,
             }
@@ -646,7 +650,7 @@ fn render_title_and_description(props: HeaderProps, app: &AppContext) -> Vec<Box
             items.push(
                 Container::new(
                     Text::new(
-                        "Run your agent task in an isolated cloud environment.",
+                        localization::text_for_app(app, "agent.zero_state.cloud_description"),
                         appearance.ui_font_family(),
                         appearance.monospace_font_size(),
                     )
@@ -659,10 +663,14 @@ fn render_title_and_description(props: HeaderProps, app: &AppContext) -> Vec<Box
 
             // Second line: text with "Visit docs" hyperlink.
             let description_with_link = FormattedText::new([FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(
-                    "Use cloud agents to run parallel agents, build agents that run autonomously, and check in on your agents from anywhere. ",
+                FormattedTextFragment::plain_text(localization::text_for_app(
+                    app,
+                    "agent.zero_state.cloud_docs_prefix",
+                )),
+                FormattedTextFragment::hyperlink(
+                    localization::text_for_app(app, "agent.zero_state.cloud_docs_link"),
+                    CLOUD_AGENT_DOCS_URL,
                 ),
-                FormattedTextFragment::hyperlink("Visit docs", CLOUD_AGENT_DOCS_URL),
             ])]);
 
             items.push(
@@ -735,7 +743,10 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                             MessageItem::keystroke(
                                 ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
                             ),
-                            MessageItem::text("start a new agent conversation"),
+                            MessageItem::text(localization::text_for_app(
+                                app,
+                                "agent.zero_state.shortcut.new_agent_conversation",
+                            )),
                         ],
                         |ctx| {
                             ctx.dispatch_typed_action(TerminalAction::StartNewAgentConversation {
@@ -754,7 +765,10 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                             MessageItem::keystroke(
                                 ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
                             ),
-                            MessageItem::text("start a new cloud agent conversation"),
+                            MessageItem::text(localization::text_for_app(
+                                app,
+                                "agent.zero_state.shortcut.new_cloud_agent_conversation",
+                            )),
                         ],
                         |ctx| {
                             ctx.dispatch_typed_action(TerminalAction::EnterCloudAgentView);
@@ -770,7 +784,10 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                                 key: "/model".to_owned(),
                                 ..Default::default()
                             }),
-                            MessageItem::text("switch model"),
+                            MessageItem::text(localization::text_for_app(
+                                app,
+                                "agent.zero_state.shortcut.switch_model",
+                            )),
                         ],
                         |ctx| {
                             ctx.dispatch_typed_action(TerminalAction::OpenModelSelector);
@@ -790,7 +807,10 @@ fn render_body(props: ZeroStateBodyProps<'_>, app: &AppContext) -> Vec<Box<dyn E
                                 key: "escape".to_owned(),
                                 ..Default::default()
                             }),
-                            MessageItem::text("go back to terminal"),
+                            MessageItem::text(localization::text_for_app(
+                                app,
+                                "agent.zero_state.shortcut.go_back_to_terminal",
+                            )),
                         ],
                         |ctx| {
                             ctx.dispatch_typed_action(TerminalAction::ExitAgentView);
@@ -886,7 +906,7 @@ fn render_recent_conversations_section(
         .with_child(
             Container::new(
                 Text::new(
-                    "RECENT ACTIVITY",
+                    localization::text_for_app(app, "agent.zero_state.recent_activity"),
                     appearance.ui_font_family(),
                     header_font_size,
                 )
@@ -955,7 +975,7 @@ fn render_recent_conversations_section(
                         .with_margin_right(8.)
                         .finish(),
                         Text::new_inline(
-                            format_approx_duration_from_now_utc(last_updated.to_utc()),
+                            localized_approx_duration_from_now_utc(app, last_updated.to_utc()),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size() - 1.,
                         )
@@ -1057,7 +1077,7 @@ fn render_oz_updates(props: OzUpdatesProps<'_>, app: &AppContext) -> Option<Box<
                         .with_child(
                             Container::new(
                                 Text::new(
-                                    OZ_UPDATES_SECTION_HEADER,
+                                    localization::text_for_app(app, "agent.zero_state.oz_updates"),
                                     appearance.ui_font_family(),
                                     appearance.monospace_font_size() - 2.,
                                 )
@@ -1117,7 +1137,10 @@ fn render_oz_updates(props: OzUpdatesProps<'_>, app: &AppContext) -> Option<Box<
                                 .with_child(
                                     Container::new(
                                         Text::new(
-                                            "View changelog",
+                                            crate::localization::text_for_app(
+                                                app,
+                                                "agent.zero_state.view_changelog",
+                                            ),
                                             appearance.ui_font_family(),
                                             appearance.monospace_font_size() - 2.,
                                         )
@@ -1235,7 +1258,11 @@ where
     let font_size = styles::CREDITS_BANNER_FONT_SIZE;
     let text_color = theme.terminal_colors().normal.blue;
 
-    let credits_text = format!("{credits} free cloud agent credits");
+    let credits_text = localization::text_for_app_with_args(
+        app,
+        "agent.zero_state.free_cloud_agent_credits",
+        &[("credits", &credits.to_string())],
+    );
     let text = Text::new(credits_text, font_family, font_size)
         .with_color(text_color.into())
         .with_style(Properties::default().weight(Weight::Semibold))

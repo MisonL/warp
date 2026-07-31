@@ -17,13 +17,15 @@ use warpui::ui_components::keyboard_shortcut::KeyboardShortcut;
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
 
 use crate::ai::agent_management::notifications::item_rendering::{
-    NotificationRenderContext, OnExpandClick, create_notification_artifact_buttons_view,
-    handle_notification_artifact_buttons_event, render_notification_item_content,
+    NotificationItemContentArgs, NotificationRenderContext, OnExpandClick,
+    create_notification_artifact_buttons_view, handle_notification_artifact_buttons_event,
+    render_notification_item_content,
 };
 use crate::ai::agent_management::notifications::{NotificationId, NotificationItem};
 use crate::ai::agent_management::{AgentManagementEvent, AgentNotificationsModel};
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::session_settings::SessionSettings;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::WorkspaceAction;
@@ -301,6 +303,7 @@ impl View for AgentNotificationToastStack {
                 entry.message_expanded,
                 is_newest.then(|| keystroke.clone()).flatten(),
                 appearance,
+                app,
             );
             column.add_child(Container::new(toast).with_margin_bottom(4.).finish());
         }
@@ -365,22 +368,24 @@ fn render_toast(
     message_expanded: bool,
     keystroke: Option<Keystroke>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let on_expand: OnExpandClick = Box::new(move |ctx: &mut warpui::EventContext| {
         ctx.dispatch_typed_action(AgentNotificationToastAction::ToggleMessageExpanded(id));
     });
-    let keybinding_hint = keystroke.map(|ks| render_keybinding_hint(ks, appearance));
+    let keybinding_hint = keystroke.map(|ks| render_keybinding_hint(ks, appearance, app));
 
-    let content = render_notification_item_content(
+    let content = render_notification_item_content(NotificationItemContentArgs {
         item,
         artifact_buttons,
-        NotificationRenderContext::Toast,
+        context: NotificationRenderContext::Toast,
         message_expanded,
-        on_expand,
-        keybinding_hint,
+        on_expand_click: on_expand,
+        extra_content: keybinding_hint,
         appearance,
-    );
+        app,
+    });
 
     let inner_column = Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -454,12 +459,19 @@ fn render_toast(
     .finish()
 }
 
-fn render_keybinding_hint(keystroke: Keystroke, appearance: &Appearance) -> Box<dyn Element> {
+fn render_keybinding_hint(
+    keystroke: Keystroke,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
 
     let hint_text = appearance
         .ui_builder()
-        .wrappable_text("Open conversation".to_string(), false)
+        .wrappable_text(
+            localization::text_for_app(app, "agent_management.notifications.open_conversation"),
+            false,
+        )
         .with_style(UiComponentStyles {
             font_size: Some(12.),
             font_color: Some(theme.disabled_text_color(theme.surface_2()).into()),

@@ -1,4 +1,5 @@
 use chrono::TimeZone;
+use warp_localization::LocaleId;
 
 use super::*;
 
@@ -25,7 +26,7 @@ fn sample_summaries() -> Vec<BillingCycleUsageSummary> {
 #[test]
 fn builds_one_plain_item_per_period() {
     let summaries = sample_summaries();
-    let items = build_period_menu_items(&summaries);
+    let items = build_period_menu_items(&summaries, LocaleId::EnUs);
 
     assert_eq!(items.len(), summaries.len());
     for (item, summary) in items.iter().zip(summaries.iter()) {
@@ -42,6 +43,16 @@ fn builds_one_plain_item_per_period() {
             other => panic!("expected MenuItem::Item, got {other:?}"),
         }
     }
+}
+
+#[test]
+fn period_range_uses_locale_specific_date_order() {
+    let start = utc(2026, 5, 13);
+    let end = utc(2026, 6, 13);
+
+    assert!(format_period_range(start, end, LocaleId::EnUs).contains("2026"));
+    assert!(format_period_range(start, end, LocaleId::ZhCn).contains("年"));
+    assert!(format_period_range(start, end, LocaleId::ZhCn).contains("月"));
 }
 
 #[test]

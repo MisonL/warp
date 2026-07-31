@@ -9,7 +9,8 @@ pub use conversion::{
     skill_reference_from_read_skill_ref,
 };
 pub use parse_skill::{
-    ParsedSkill, parse_bundled_skill, parse_skill, parse_skill_content_at_location,
+    ParsedSkill, parse_bundled_skill, parse_bundled_skill_content_at_path, parse_skill,
+    parse_skill_content_at_location,
 };
 pub use read_skills::read_skills;
 pub use skill_provider::{

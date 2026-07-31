@@ -61,10 +61,11 @@ use super::view::{
 use super::warpify::render::{draw_flag_pole, render_subshell_flag};
 use super::{HEIGHT_FUDGE_FACTOR_LINES, TerminalModel, heights_approx_eq};
 use crate::ai::blocklist::{ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, ai_brand_color};
-use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_AI_ASSISTANT_TEXT};
+use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_WARP_AI_MENU_KEY};
 use crate::appearance::Appearance;
 use crate::drive::settings::WarpDriveSettings;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::pane_group::SplitPaneState;
 use crate::settings::{
     AISettings, DebugSettings, EnforceMinimumContrast, PrivacySettings, TerminalSpacing,
@@ -90,6 +91,7 @@ use crate::terminal::{SizeInfo, grid_renderer};
 use crate::themes::theme::{Fill, WarpTheme};
 use crate::ui_components::{self, icons as UIIcon};
 use crate::util::color::Opacity;
+use crate::util::time_format::localized_weekday_month_day_time;
 
 /// The number of pixels at the bottom of padding where selection scrolling is performed.
 const BOTTOM_VERTICAL_MARGIN: f32 = 10.0;
@@ -147,11 +149,6 @@ const LINEAR_SCROLLING: ScrollingAcceleration = ScrollingAcceleration::Polynomia
 /// Without making the vertical size fixed, for some reason some elements (bookmark, block filter, shared session avatar)
 /// have a height that extends down to the bottom of the window when there's a horizontal scroll bar, which messes with the on-hover behavior.
 const BLOCK_HOVER_BUTTON_HEIGHT: f32 = 28.;
-
-const TAG_AGENT_FOR_ASSISTANCE_TEXT: &str = "Tag agent for assistance";
-
-const SAVE_AS_WORKFLOW_TEXT: &str = "Save as Workflow";
-const SAVE_AS_WORKFLOW_SECRETS_TEXT: &str = "Blocks containing secrets cannot be saved.";
 
 enum ScrollingAcceleration {
     Polynomial(f32),
@@ -1161,23 +1158,26 @@ impl BlockListElement {
                 if has_active_long_running_command && active_block.index() == block_index {
                     (
                         Some(TerminalAction::SetInputModeAgent),
-                        TAG_AGENT_FOR_ASSISTANCE_TEXT,
+                        crate::localization::text_for_app(
+                            app,
+                            "terminal.block_hover.tag_agent_for_assistance",
+                        ),
                     )
                 } else {
                     (
                         Some(TerminalAction::AskAIAssistant { block_index }),
-                        *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT,
+                        (*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT).to_owned(),
                     )
                 }
             } else {
                 (
                     Some(TerminalAction::AskAIAssistant { block_index }),
-                    ASK_AI_ASSISTANT_TEXT,
+                    crate::localization::text_for_app(app, ASK_WARP_AI_MENU_KEY),
                 )
             };
 
             let tooltip = ToolbeltButtonTooltip {
-                label: ai_button_tooltip.to_owned(),
+                label: ai_button_tooltip,
                 tool_tip_below_button: should_render_tooltip_below_button,
             };
 
@@ -1222,7 +1222,10 @@ impl BlockListElement {
                 render_hoverable_block_button(
                     icon,
                     Some(ToolbeltButtonTooltip {
-                        label: SAVE_AS_WORKFLOW_SECRETS_TEXT.to_owned(),
+                        label: crate::localization::text_for_app(
+                            app,
+                            "terminal.block_hover.save_as_workflow_secrets",
+                        ),
                         tool_tip_below_button: should_render_tooltip_below_button,
                     }),
                     false,
@@ -1242,7 +1245,10 @@ impl BlockListElement {
                 render_hoverable_block_button(
                     icon,
                     Some(ToolbeltButtonTooltip {
-                        label: SAVE_AS_WORKFLOW_TEXT.to_owned(),
+                        label: crate::localization::text_for_app(
+                            app,
+                            "terminal.menu.save_as_workflow",
+                        ),
                         tool_tip_below_button: should_render_tooltip_below_button,
                     }),
                     false,
@@ -3395,16 +3401,21 @@ impl Element for BlockListElement {
                     // we want to show different text in the separator if this is an individual conversation
                     // restored from the command palette
                     let banner_intro_text = if is_historical_conversation_restoration {
-                        "Conversation restored".to_string()
+                        localization::text_for_app(app, "terminal.block_list.separator.restored")
                     } else {
-                        "Previous session".to_string()
+                        localization::text_for_app(
+                            app,
+                            "terminal.block_list.separator.previous_session",
+                        )
                     };
 
                     let separator_text =
                         if let Some(ts) = (*model).block_list().restored_session_ts() {
-                            format!(
-                                "{banner_intro_text} from {}",
-                                ts.format("%a %b %-d at %-I:%M %p")
+                            let timestamp = localized_weekday_month_day_time(app, *ts);
+                            localization::text_for_app_with_args(
+                                app,
+                                "terminal.block_list.separator.with_timestamp",
+                                &[("text", &banner_intro_text), ("timestamp", &timestamp)],
                             )
                         } else {
                             banner_intro_text

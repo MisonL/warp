@@ -662,6 +662,10 @@ impl RunnableCommandModel for NotebookCommand {
             let start_anchor_rendered = self.start.clone();
             let tooltip_builder_raw = appearance.ui_builder().clone();
             let tooltip_builder_rendered = appearance.ui_builder().clone();
+            let raw_tooltip =
+                crate::localization::text_for_app(ctx, "notebook.code_block.display.raw");
+            let rendered_tooltip =
+                crate::localization::text_for_app(ctx, "notebook.code_block.display.rendered");
 
             let active_highlight = UiComponentStyles {
                 background: Some(appearance.theme().surface_3().into()),
@@ -677,7 +681,7 @@ impl RunnableCommandModel for NotebookCommand {
             .with_active_styles(active_highlight)
             .with_tooltip(move || {
                 tooltip_builder_raw
-                    .tool_tip("Raw".to_string())
+                    .tool_tip(raw_tooltip.clone())
                     .build()
                     .finish()
             })
@@ -702,7 +706,7 @@ impl RunnableCommandModel for NotebookCommand {
             .with_active_styles(active_highlight)
             .with_tooltip(move || {
                 tooltip_builder_rendered
-                    .tool_tip("Rendered".to_string())
+                    .tool_tip(rendered_tooltip.clone())
                     .build()
                     .finish()
             })

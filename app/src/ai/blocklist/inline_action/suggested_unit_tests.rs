@@ -30,10 +30,7 @@ use crate::view_components::action_button::{
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, MEDIUM_SIZE_SWITCH_THRESHOLD, render_compact_and_regular_button_rows,
 };
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
-
-const ACCEPT_LABEL: &str = "Generate tests";
-const CANCEL_LABEL: &str = "Dismiss";
+use crate::{TelemetryEvent, localization, send_telemetry_from_ctx};
 
 #[derive(Debug, Clone)]
 pub enum SuggestedUnitTestsEvent {
@@ -82,7 +79,7 @@ impl SuggestedUnitTestsView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let accept_button = CompactibleActionButton::new(
-            ACCEPT_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.suggested_unit_tests.generate_tests"),
             Some(KeystrokeSource::Binding(
                 ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
             )),
@@ -94,7 +91,7 @@ impl SuggestedUnitTestsView {
         );
 
         let cancel_button = CompactibleActionButton::new(
-            CANCEL_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.suggested_unit_tests.dismiss"),
             Some(KeystrokeSource::Fixed(
                 REJECT_PROMPT_SUGGESTION_KEYSTROKE.clone(),
             )),
@@ -312,7 +309,10 @@ impl SuggestedUnitTestsView {
 
         let checkbox_text = appearance
             .ui_builder()
-            .span("Don't show me suggested code banners again")
+            .span(localization::text_for_app(
+                app,
+                "settings.ai.active.suggested_code_banners.hide_again",
+            ))
             .with_style(UiComponentStyles {
                 font_color: Some(font_color),
                 font_size: Some(font_size),
@@ -325,7 +325,10 @@ impl SuggestedUnitTestsView {
         let formatted_text = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(vec![
                 FormattedTextFragment::hyperlink(
-                    "Manage suggested code banner settings",
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.active.suggested_code_banners.manage",
+                    ),
                     "Settings > AI",
                 ),
             ])]),

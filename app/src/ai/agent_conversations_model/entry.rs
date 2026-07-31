@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use session_sharing_protocol::common::SessionId;
 use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
@@ -17,7 +17,6 @@ use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::auth::{AuthStateProvider, UserUid};
-use crate::util::time_format::human_readable_precise_duration;
 use crate::workspace::RestoreConversationLayout;
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 
@@ -96,7 +95,7 @@ pub struct AgentConversationDisplayData {
     pub creator: AgentConversationPrincipal,
     pub executor: Option<AgentConversationPrincipal>,
     pub request_usage: Option<f32>,
-    pub run_time: Option<String>,
+    pub run_time: Option<Duration>,
     pub session_status: Option<SessionStatus>,
     pub source: Option<AgentSource>,
     pub working_directory: Option<String>,
@@ -342,8 +341,8 @@ fn task_session_status(task: &AmbientAgentTask) -> SessionStatus {
     }
 }
 
-fn task_run_time(task: &AmbientAgentTask) -> Option<String> {
-    task.run_time().map(human_readable_precise_duration)
+fn task_run_time(task: &AmbientAgentTask) -> Option<Duration> {
+    task.run_time()
 }
 
 fn task_harness(task: &AmbientAgentTask) -> Option<Harness> {

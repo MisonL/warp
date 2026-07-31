@@ -16,6 +16,7 @@ use crate::ai::blocklist::usage::conversation_usage_view::{
 use crate::settings_view::billing_and_usage_page::BillingAndUsagePageAction;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
+use crate::util::time_format::localized_numeric_date_time;
 
 pub struct UsageHistoryEntry {
     // If no entry is provided, we will assume that this is a placeholder entry
@@ -44,7 +45,7 @@ impl UsageHistoryEntry {
     pub fn render(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let mut res = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(self.render_header(appearance));
+            .with_child(self.render_header(appearance, app));
 
         if let Some(entry) = &self.entry
             && self.is_expanded
@@ -77,7 +78,7 @@ impl UsageHistoryEntry {
             .finish()
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let Some(entry) = &self.entry else {
             return self.render_loading_entry(appearance);
         };
@@ -96,12 +97,8 @@ impl UsageHistoryEntry {
             )
             .finish();
 
-        let formatted_time = entry
-            .last_updated
-            .utc()
-            .with_timezone(&Local)
-            .format("%-m/%-d/%y %-I:%M %p")
-            .to_string();
+        let formatted_time =
+            localized_numeric_date_time(app, entry.last_updated.utc().with_timezone(&Local));
         let time_text = Text::new_inline(formatted_time, appearance.ui_font_family(), 12.)
             .with_color(blended_colors::text_sub(
                 appearance.theme(),

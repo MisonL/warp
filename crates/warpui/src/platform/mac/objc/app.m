@@ -542,13 +542,11 @@ NSMenu *make_delegated_menu(NSString *title) {
 // Create Services, a system-defined standard menu on macOS
 // The result is autoreleased.
 NSMenuItem *make_services_menu_item() {
-    // Create the services menu. `servicesMenu` retains, so autorelease our +1 ownership.
-    NSApp.servicesMenu = [[[NSMenu alloc] init] autorelease];
-
-    // Create menu item for it
+    NSMenu *servicesMenu = [[[NSMenu alloc] init] autorelease];
     NSMenuItem *servicesItem = [[[NSMenuItem alloc] init] autorelease];
     servicesItem.title = @"Services";
-    servicesItem.submenu = NSApp.servicesMenu;
+    servicesItem.submenu = servicesMenu;
+    NSApp.servicesMenu = servicesMenu;
 
     return servicesItem;
 }

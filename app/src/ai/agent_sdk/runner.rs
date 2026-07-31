@@ -16,10 +16,12 @@ use warp_graphql::object_permissions::Owner as GqlOwner;
 use warp_graphql::queries::get_runners::{
     Runner, RunnerArch, RunnerConfig, RunnerMacOsVersion, RunnerOs, RunnerSortBy,
 };
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::{self, TableFormat};
+use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 use crate::util::time_format::format_approx_duration_from_now_utc;
 
@@ -68,6 +70,7 @@ impl RunnerCommandRunner {
     ) {
         let factory = ServerApiProvider::as_ref(ctx).get_factory_client();
         let sort_by = args.sort_by.map(sort_by_to_gql);
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -75,9 +78,13 @@ impl RunnerCommandRunner {
 
                 let infos: Vec<RunnerInfo> = runners.into_iter().map(RunnerInfo::from).collect();
                 if args.json_output.force_json_output() {
-                    output::print_raw_json(serde_json::to_value(&infos)?, &args.json_output)?;
+                    output::print_raw_json_for_locale(
+                        serde_json::to_value(&infos)?,
+                        &args.json_output,
+                        locale,
+                    )?;
                 } else {
-                    output::print_list(infos, output_format);
+                    output::write_list_for_locale(infos, output_format, std::io::stdout(), locale)?;
                 }
                 Ok(())
             },
@@ -91,19 +98,23 @@ impl RunnerCommandRunner {
         args: CreateRunnerArgs,
         ctx: &mut ModelContext<Self>,
     ) {
+        let locale = localization::current_locale(ctx);
         // Mirror the server rule client-side so users get a fast, clear error.
-        if let Err(msg) =
-            validate_os_config(args.os, args.docker_image.as_deref(), args.macos_version)
-        {
-            super::report_fatal_error(anyhow!(msg), ctx);
+        if let Err(err) = validate_os_config_for_locale(
+            args.os,
+            args.docker_image.as_deref(),
+            args.macos_version,
+            locale,
+        ) {
+            super::report_fatal_error(err, ctx);
             return;
         }
 
         // Refresh team metadata so owner resolution can default to the team.
-        let refresh = super::common::refresh_workspace_metadata(ctx);
+        let refresh = super::common::refresh_workspace_metadata(ctx, locale);
         ctx.spawn(refresh, move |_, result, ctx| {
-            if result.is_err() {
-                super::report_fatal_error(anyhow!("Timed out refreshing team metadata"), ctx);
+            if let Err(err) = result {
+                super::report_fatal_error(err, ctx);
                 return;
             }
 
@@ -122,7 +133,12 @@ impl RunnerCommandRunner {
             ctx.spawn(
                 async move {
                     let upserted = factory.upsert_runner(input).await?;
-                    print_upsert_result(&upserted.runner, upserted.is_update, output_format)?;
+                    print_upsert_result(
+                        &upserted.runner,
+                        upserted.is_update,
+                        output_format,
+                        locale,
+                    )?;
                     Ok(())
                 },
                 |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -137,6 +153,7 @@ impl RunnerCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let factory = ServerApiProvider::as_ref(ctx).get_factory_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -145,10 +162,11 @@ impl RunnerCommandRunner {
                 // full runner config).
                 let runners = factory.get_runners(None).await?;
 
-                let existing = resolve_runner(&runners, args.id.as_deref(), args.name.as_deref())?;
+                let existing =
+                    resolve_runner(&runners, args.id.as_deref(), args.name.as_deref(), locale)?;
                 let uid = existing.uid.inner().to_string();
 
-                let runner = build_update_input(&args, &existing.config)?;
+                let runner = build_update_input(&args, &existing.config, locale)?;
 
                 let input = UpsertRunnerInput {
                     uid: Some(cynic::Id::new(uid)),
@@ -156,7 +174,7 @@ impl RunnerCommandRunner {
                     runner,
                 };
                 let upserted = factory.upsert_runner(input).await?;
-                print_upsert_result(&upserted.runner, upserted.is_update, output_format)?;
+                print_upsert_result(&upserted.runner, upserted.is_update, output_format, locale)?;
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -166,8 +184,10 @@ impl RunnerCommandRunner {
     fn delete(&self, args: DeleteRunnerArgs, ctx: &mut ModelContext<Self>) {
         use std::io::IsTerminal as _;
 
+        let locale = localization::current_locale(ctx);
+
         if !args.force {
-            match confirm_delete(&args.id, std::io::stdin().is_terminal()) {
+            match confirm_delete(&args.id, std::io::stdin().is_terminal(), locale) {
                 Ok(true) => {}
                 Ok(false) => {
                     // Interactive decline: not an error, exit cleanly.
@@ -189,7 +209,14 @@ impl RunnerCommandRunner {
         ctx.spawn(
             async move {
                 let deleted_uid = factory.delete_runner(uid).await?;
-                println!("Runner deleted successfully: {deleted_uid}");
+                println!(
+                    "{}",
+                    localization::text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.runner.output.deleted",
+                        &[("uid", &deleted_uid)],
+                    )
+                );
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -207,17 +234,25 @@ impl SingletonEntity for RunnerCommandRunner {}
 /// Returns `Ok(true)`/`Ok(false)` for an interactive confirm/decline. In
 /// non-interactive mode (no TTY) without `--force`, returns `Err` so the caller
 /// fails loudly (non-zero exit) instead of silently skipping the delete.
-fn confirm_delete(uid: &str, is_terminal: bool) -> Result<bool> {
+fn confirm_delete(uid: &str, is_terminal: bool, locale: LocaleId) -> Result<bool> {
     if !is_terminal {
-        return Err(anyhow!(
-            "Refusing to delete runner '{uid}' without confirmation in non-interactive mode (use --force to bypass)"
-        ));
+        return Err(anyhow!(localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.runner.error.delete_non_interactive_requires_force",
+            &[("uid", uid)],
+        )));
     }
 
-    Ok(inquire::Confirm::new(&format!("Delete runner '{uid}'?"))
+    Ok(
+        inquire::Confirm::new(&localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.runner.confirm.delete",
+            &[("uid", uid)],
+        ))
         .with_default(false)
         .prompt()
-        .unwrap_or_default())
+        .unwrap_or_default(),
+    )
 }
 
 /// Resolve a runner by UID or (unambiguous) name from a fetched list.
@@ -225,25 +260,43 @@ fn resolve_runner<'a>(
     runners: &'a [Runner],
     id: Option<&str>,
     name: Option<&str>,
+    locale: LocaleId,
 ) -> Result<&'a Runner> {
     if let Some(id) = id {
         return runners
             .iter()
             .find(|runner| runner.uid.inner() == id)
-            .ok_or_else(|| anyhow!("Runner '{id}' not found"));
+            .ok_or_else(|| {
+                anyhow!(localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.runner.error.not_found",
+                    &[("identifier", id)],
+                ))
+            });
     }
 
-    let name = name.ok_or_else(|| anyhow!("A runner UID or --name is required"))?;
+    let name = name.ok_or_else(|| {
+        anyhow!(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.error.identifier_required",
+        ))
+    })?;
     let matches: Vec<&Runner> = runners
         .iter()
         .filter(|runner| runner.config.name == name)
         .collect();
     match matches.as_slice() {
-        [] => Err(anyhow!("Runner '{name}' not found")),
+        [] => Err(anyhow!(localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.runner.error.not_found",
+            &[("identifier", name)],
+        ))),
         [runner] => Ok(runner),
-        _ => Err(anyhow!(
-            "Multiple runners match '{name}'; specify the runner by UID"
-        )),
+        _ => Err(anyhow!(localization::text_for_locale_with_args(
+            locale,
+            "agent_sdk.runner.error.multiple_matches_specify_uid",
+            &[("name", name)],
+        ))),
     }
 }
 
@@ -293,7 +346,11 @@ fn build_create_input(args: CreateRunnerArgs, owner: GqlOwner) -> UpsertRunnerIn
 
 /// Build the [`RunnerInput`] for an update operation, preserving existing
 /// config fields that aren't being changed.
-fn build_update_input(args: &UpdateRunnerArgs, existing: &RunnerConfig) -> Result<RunnerInput> {
+fn build_update_input(
+    args: &UpdateRunnerArgs,
+    existing: &RunnerConfig,
+    locale: LocaleId,
+) -> Result<RunnerInput> {
     let effective_os = args.os.map(os_to_gql).unwrap_or(existing.os);
 
     // Validate against the effective OS (the new one if provided, else existing).
@@ -301,12 +358,12 @@ fn build_update_input(args: &UpdateRunnerArgs, existing: &RunnerConfig) -> Resul
         RunnerOs::Linux => RunnerOsArg::Linux,
         RunnerOs::Macos => RunnerOsArg::Macos,
     };
-    validate_os_config(
+    validate_os_config_for_locale(
         effective_os_arg,
         args.docker_image.as_deref(),
         args.macos_version,
-    )
-    .map_err(|msg| anyhow!(msg))?;
+        locale,
+    )?;
 
     let (linux, mac) = match effective_os {
         RunnerOs::Linux => {
@@ -334,7 +391,7 @@ fn build_update_input(args: &UpdateRunnerArgs, existing: &RunnerConfig) -> Resul
         .instance_shape
         .as_ref()
         .map(|shape| (shape.vcpus, shape.memory_gb));
-    let instance_shape = merge_instance_shape(args.vcpus, args.memory_gb, existing_shape)?
+    let instance_shape = merge_instance_shape(args.vcpus, args.memory_gb, existing_shape, locale)?
         .map(|(vcpus, memory_gb)| RunnerInstanceShapeInput { vcpus, memory_gb });
 
     let setup_commands = if args.setup_command.is_empty() {
@@ -381,17 +438,42 @@ fn merge_instance_shape(
     new_vcpus: Option<i32>,
     new_memory_gb: Option<i32>,
     existing: Option<(i32, i32)>,
+    locale: LocaleId,
 ) -> Result<Option<(i32, i32)>> {
     if new_vcpus.is_none() && new_memory_gb.is_none() {
         return Ok(existing);
     }
     let vcpus = new_vcpus.or(existing.map(|(v, _)| v)).ok_or_else(|| {
-        anyhow!("--vcpus is required when setting an instance shape for a runner that has none")
+        anyhow!(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.error.vcpus_required",
+        ))
     })?;
     let memory_gb = new_memory_gb.or(existing.map(|(_, m)| m)).ok_or_else(|| {
-        anyhow!("--memory-gb is required when setting an instance shape for a runner that has none")
+        anyhow!(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.error.memory_required",
+        ))
     })?;
     Ok(Some((vcpus, memory_gb)))
+}
+
+fn validate_os_config_for_locale(
+    os: RunnerOsArg,
+    docker_image: Option<&str>,
+    macos_version: Option<RunnerMacosVersionArg>,
+    locale: LocaleId,
+) -> Result<()> {
+    validate_os_config(os, docker_image, macos_version).map_err(|_| {
+        let key = match (os, docker_image.is_some(), macos_version.is_some()) {
+            (RunnerOsArg::Linux, _, true) => "agent_sdk.runner.error.macos_version_requires_macos",
+            (RunnerOsArg::Macos, true, _) => "agent_sdk.runner.error.docker_image_requires_linux",
+            (RunnerOsArg::Linux, _, false) | (RunnerOsArg::Macos, false, _) => {
+                "agent_sdk.runner.error.invalid_os_configuration"
+            }
+        };
+        anyhow!(localization::text_for_locale(locale, key))
+    })
 }
 
 fn os_to_gql(os: RunnerOsArg) -> RunnerOs {
@@ -465,17 +547,24 @@ fn print_upsert_result(
     runner: &Runner,
     is_update: bool,
     output_format: OutputFormat,
+    locale: LocaleId,
 ) -> Result<()> {
     let info = RunnerInfo::from_ref(runner);
     match output_format {
-        OutputFormat::Json => output::write_json(&info, std::io::stdout())?,
-        OutputFormat::Ndjson => output::write_json_line(&info, std::io::stdout())?,
+        OutputFormat::Json => output::write_json_for_locale(&info, std::io::stdout(), locale)?,
+        OutputFormat::Ndjson => {
+            output::write_json_line_for_locale(&info, std::io::stdout(), locale)?
+        }
         OutputFormat::Pretty | OutputFormat::Text => {
-            if is_update {
-                println!("Runner updated successfully: {}", info.uid);
+            let key = if is_update {
+                "agent_sdk.runner.output.updated"
             } else {
-                println!("Runner created successfully with UID: {}", info.uid);
-            }
+                "agent_sdk.runner.output.created"
+            };
+            println!(
+                "{}",
+                localization::text_for_locale_with_args(locale, key, &[("uid", &info.uid)],)
+            );
         }
     }
     Ok(())
@@ -546,21 +635,36 @@ impl RunnerInfo {
 
     /// The OS-specific config value shown in the combined "OS Settings" column,
     /// labeled with which kind of setting it is (empty when neither applies).
-    fn os_specific_display(&self) -> String {
+    fn os_specific_display_for_locale(&self, locale: LocaleId) -> String {
         if let Some(image) = &self.docker_image {
-            format!("Docker image: {image}")
+            localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.runner.value.docker_image",
+                &[("image", image)],
+            )
         } else if let Some(version) = &self.macos_version {
-            format!("macOS version: {version}")
+            localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.runner.value.macos_version",
+                &[("version", version)],
+            )
         } else {
             String::new()
         }
     }
 
     /// The instance-shape value shown in the table.
-    fn shape_display(&self) -> String {
+    fn shape_display_for_locale(&self, locale: LocaleId) -> String {
         match (self.vcpus, self.memory_gb) {
-            (Some(vcpus), Some(memory_gb)) => format!("{vcpus} vCPU / {memory_gb} GB"),
-            _ => "Default".to_string(),
+            (Some(vcpus), Some(memory_gb)) => localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.runner.value.shape",
+                &[
+                    ("vcpus", &vcpus.to_string()),
+                    ("memory_gb", &memory_gb.to_string()),
+                ],
+            ),
+            _ => localization::text_for_locale(locale, "agent_sdk.runner.value.default"),
         }
     }
 }
@@ -573,31 +677,78 @@ impl From<Runner> for RunnerInfo {
 
 impl TableFormat for RunnerInfo {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("UID"),
-            Cell::new("Name"),
-            Cell::new("Description"),
-            Cell::new("Shape"),
-            Cell::new("OS"),
-            Cell::new("Arch"),
-            Cell::new("OS Settings"),
-            Cell::new("Scope"),
-            Cell::new("Last updated"),
-        ]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        runner_info_header_for_locale(locale)
     }
 
     fn row(&self) -> Vec<Cell> {
+        self.row_for_locale(LocaleId::EnUs)
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
         vec![
             Cell::new(&self.uid),
             Cell::new(&self.name),
             Cell::new(self.description.as_deref().unwrap_or("")),
-            Cell::new(self.shape_display()),
+            Cell::new(self.shape_display_for_locale(locale)),
             Cell::new(&self.os),
             Cell::new(&self.arch),
-            Cell::new(self.os_specific_display()),
-            Cell::new(&self.scope),
+            Cell::new(self.os_specific_display_for_locale(locale)),
+            Cell::new(localized_scope(locale, &self.scope)),
             Cell::new(&self.last_updated_display),
         ]
+    }
+}
+
+fn runner_info_header_for_locale(locale: LocaleId) -> Vec<Cell> {
+    vec![
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.uid",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.name",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.description",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.shape",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.os",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.arch",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.os_settings",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.scope",
+        )),
+        Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.runner.table.last_updated",
+        )),
+    ]
+}
+
+fn localized_scope(locale: LocaleId, scope: &str) -> String {
+    match scope {
+        "Personal" => localization::text_for_locale(locale, "agent_sdk.secret.scope.personal"),
+        "Team" => localization::text_for_locale(locale, "agent_sdk.secret.scope.team"),
+        _ => scope.to_owned(),
     }
 }
 

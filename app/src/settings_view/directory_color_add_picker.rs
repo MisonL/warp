@@ -17,6 +17,7 @@ use warpui::{
 
 use crate::ai::persisted_workspace::{PersistedWorkspace, PersistedWorkspaceEvent};
 use crate::appearance::Appearance;
+use crate::localization::LocalizationUpdater;
 use crate::ui_components::icons;
 use crate::view_components::action_button::{ActionButton, SecondaryTheme};
 use crate::view_components::{DropdownItem, FilterableDropdown};
@@ -25,8 +26,8 @@ use crate::workspace::tab_settings::{
     canonical_directory_key,
 };
 
-const ADD_DIRECTORY_LABEL: &str = "+ Add directory…";
-const BUTTON_LABEL: &str = "Add directory color";
+const ADD_DIRECTORY_LABEL_KEY: &str = "settings.appearance.tabs.directory_colors.add_directory";
+const BUTTON_LABEL_KEY: &str = "settings.appearance.tabs.directory_colors.add_button";
 const MENU_WIDTH: f32 = 340.;
 
 /// A dropdown used by the Directory tab colors settings widget, with a button fallback
@@ -107,20 +108,27 @@ impl DirectoryColorAddPicker {
                 me.refresh_items(ctx);
             }
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
         let button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new(BUTTON_LABEL, SecondaryTheme)
-                .with_icon(icons::Icon::Plus)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(DirectoryColorAddPickerAction::AddNewDirectory);
-                })
+            ActionButton::new(
+                crate::localization::text_for_app(_ctx, BUTTON_LABEL_KEY),
+                SecondaryTheme,
+            )
+            .with_icon(icons::Icon::Plus)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(DirectoryColorAddPickerAction::AddNewDirectory);
+            })
         });
 
         let dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_top_bar_max_width(MENU_WIDTH);
             dropdown.set_menu_width(MENU_WIDTH, ctx);
-            dropdown.set_menu_header_to_static(BUTTON_LABEL);
+            let header = crate::localization::text_for_app(ctx, BUTTON_LABEL_KEY);
+            dropdown.set_menu_header_text_override(move |_| header.clone());
             dropdown
         });
 
@@ -157,7 +165,10 @@ impl DirectoryColorAddPicker {
                                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                                     .with_child(
                                         Text::new_inline(
-                                            ADD_DIRECTORY_LABEL,
+                                            crate::localization::text_for_app(
+                                                app,
+                                                ADD_DIRECTORY_LABEL_KEY,
+                                            ),
                                             font_family,
                                             font_size,
                                         )
@@ -187,6 +198,21 @@ impl DirectoryColorAddPicker {
 
         picker.refresh_items(ctx);
         picker
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.button.update(ctx, |button, ctx| {
+            button.set_label(
+                crate::localization::text_for_app(ctx, BUTTON_LABEL_KEY),
+                ctx,
+            );
+        });
+        self.dropdown.update(ctx, |dropdown, ctx| {
+            let header = crate::localization::text_for_app(ctx, BUTTON_LABEL_KEY);
+            dropdown.set_menu_header_text_override(move |_| header.clone());
+            ctx.notify();
+        });
+        ctx.notify();
     }
 
     fn refresh_items(&mut self, ctx: &mut ViewContext<Self>) {

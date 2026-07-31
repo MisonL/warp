@@ -5,6 +5,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::view_components::action_button::{ActionButton, DangerPrimaryTheme, NakedTheme};
 
@@ -51,29 +52,45 @@ pub enum DestructiveMCPConfirmationDialogVariant {
     Unshare,
 }
 
-impl From<&DestructiveMCPConfirmationDialogVariant>
-    for DestructiveMCPConfirmationDialogDisplayOptions
-{
-    fn from(variant: &DestructiveMCPConfirmationDialogVariant) -> Self {
-        match *variant {
-            DestructiveMCPConfirmationDialogVariant::DeleteLocal => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Delete MCP server?".to_string(),
-                "This will uninstall and remove this MCP server from all your devices.".to_string(),
-                "Delete MCP".to_string(),
-                "Cancel".to_string(),
-            ),
-            DestructiveMCPConfirmationDialogVariant::DeleteShared => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Delete shared MCP server?".to_string(),
-                "This will not only delete this MCP server for yourself, but also uninstall and remove this MCP server from Warp and across all of your teammates' devices.".to_string(),
-                "Delete MCP".to_string(),
-                "Cancel".to_string(),
-            ),
-            DestructiveMCPConfirmationDialogVariant::Unshare => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Remove shared MCP server from team?".to_string(),
-                "This will uninstall and remove this MCP server from Warp and across all of your teammates' devices.".to_string(),
-                "Remove from team".to_string(),
-                "Cancel".to_string(),
-            ),
+impl DestructiveMCPConfirmationDialogVariant {
+    fn display_options(&self, app: &AppContext) -> DestructiveMCPConfirmationDialogDisplayOptions {
+        match self {
+            DestructiveMCPConfirmationDialogVariant::DeleteLocal => {
+                DestructiveMCPConfirmationDialogDisplayOptions::new(
+                    localization::text_for_app(app, "settings.mcp.confirmation.delete_local.title"),
+                    localization::text_for_app(
+                        app,
+                        "settings.mcp.confirmation.delete_local.description",
+                    ),
+                    localization::text_for_app(app, "settings.mcp.edit.delete_mcp"),
+                    localization::text_for_app(app, "settings.action.cancel"),
+                )
+            }
+            DestructiveMCPConfirmationDialogVariant::DeleteShared => {
+                DestructiveMCPConfirmationDialogDisplayOptions::new(
+                    localization::text_for_app(
+                        app,
+                        "settings.mcp.confirmation.delete_shared.title",
+                    ),
+                    localization::text_for_app(
+                        app,
+                        "settings.mcp.confirmation.delete_shared.description",
+                    ),
+                    localization::text_for_app(app, "settings.mcp.edit.delete_mcp"),
+                    localization::text_for_app(app, "settings.action.cancel"),
+                )
+            }
+            DestructiveMCPConfirmationDialogVariant::Unshare => {
+                DestructiveMCPConfirmationDialogDisplayOptions::new(
+                    localization::text_for_app(app, "settings.mcp.confirmation.unshare.title"),
+                    localization::text_for_app(
+                        app,
+                        "settings.mcp.confirmation.unshare.description",
+                    ),
+                    localization::text_for_app(app, "settings.mcp.edit.remove_from_team"),
+                    localization::text_for_app(app, "settings.action.cancel"),
+                )
+            }
         }
     }
 }
@@ -112,7 +129,7 @@ impl DestructiveMCPConfirmationDialog {
         variant: DestructiveMCPConfirmationDialogVariant,
         ctx: &mut ViewContext<Self>,
     ) {
-        let display_options: DestructiveMCPConfirmationDialogDisplayOptions = (&variant).into();
+        let display_options = variant.display_options(ctx);
 
         self.cancel_button.update(ctx, |button, ctx| {
             button.set_label(display_options.cancel_button_label.clone(), ctx);
@@ -148,8 +165,7 @@ impl View for DestructiveMCPConfirmationDialog {
         }
 
         let appearance = Appearance::as_ref(app);
-        let display_options: DestructiveMCPConfirmationDialogDisplayOptions =
-            (&self.variant).into();
+        let display_options = self.variant.display_options(app);
 
         let dialog = Dialog::new(
             display_options.title_text.clone(),

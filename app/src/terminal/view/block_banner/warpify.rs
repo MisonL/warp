@@ -1,5 +1,4 @@
 use pathfinder_color::ColorU;
-use warpui::Element;
 use warpui::elements::{
     Align, Container, CrossAxisAlignment, Flex, MouseStateHandle, ParentElement, Shrinkable,
 };
@@ -7,9 +6,11 @@ use warpui::fonts::Weight;
 use warpui::keymap::Keystroke;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element};
 
 use super::render_block_banner;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::view::{RememberForWarpification, TerminalAction};
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
@@ -45,14 +46,6 @@ impl WarpifyBannerState {
         }
     }
 
-    pub fn title(&self) -> &str {
-        "Warpify subshell"
-    }
-
-    pub fn action(&self) -> TerminalAction {
-        TerminalAction::TriggerSubshellBootstrap
-    }
-
     fn remember_for_warpification(&self, should_remember: bool) -> RememberForWarpification {
         if should_remember {
             RememberForWarpification::RememberSubshellCommand(self.command.to_owned())
@@ -68,12 +61,13 @@ impl WarpifyBannerState {
 pub fn render_warpification_banner(
     state: &WarpifyBannerState,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let yes_button = render_yes_button(
-        state,
         &state.initialize_warpify_keybinding,
         &state.accept_button_mouse_state,
         appearance,
+        app,
     );
 
     let remember = state.remember_for_warpification(true);
@@ -84,7 +78,10 @@ pub fn render_warpification_banner(
                 ButtonVariant::Text,
                 state.dont_ask_button_mouse_state.clone(),
             )
-            .with_text_label("Do not show again".to_owned())
+            .with_text_label(localization::text_for_app(
+                app,
+                "terminal.warpify_banner.do_not_show_again",
+            ))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::DismissWarpifyBanner(
@@ -132,15 +129,17 @@ pub fn render_warpification_banner(
 }
 
 fn render_yes_button(
-    state: &WarpifyBannerState,
     initialize_warpification_keybinding: &Option<Keystroke>,
     mouse_state: &MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
+    let title =
+        localization::text_for_app(app, "terminal.use_agent_footer.action.warpify_subshell");
     let yes_button = match initialize_warpification_keybinding {
         Some(keystroke) => appearance
             .ui_builder()
-            .keyboard_shortcut_button(state.title().to_owned(), keystroke, mouse_state.clone())
+            .keyboard_shortcut_button(title, keystroke, mouse_state.clone())
             .with_style(UiComponentStyles {
                 height: Some(36.),
                 padding: Some(Coords {
@@ -154,7 +153,7 @@ fn render_yes_button(
         None => appearance
             .ui_builder()
             .button(ButtonVariant::Basic, mouse_state.clone())
-            .with_text_label(state.title().to_owned())
+            .with_text_label(title)
             .with_style(UiComponentStyles {
                 background: Some(Fill::Solid(ColorU::transparent_black()).into()),
                 height: Some(36.),
@@ -175,9 +174,10 @@ fn render_yes_button(
                 ..Default::default()
             }),
     };
-    let action = state.action();
     yes_button
         .build()
-        .on_click(move |ctx, _, _| ctx.dispatch_typed_action(action.to_owned()))
+        .on_click(move |ctx, _, _| {
+            ctx.dispatch_typed_action(TerminalAction::TriggerSubshellBootstrap)
+        })
         .finish()
 }

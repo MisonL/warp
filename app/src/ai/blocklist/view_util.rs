@@ -19,15 +19,11 @@ use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::RenderableAIError;
 use crate::themes::theme::{AnsiColorIdentifier, Fill, WarpTheme};
 use crate::ui_components::icons::Icon;
+use crate::util::time_format::localized_month_day;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const PROVIDER_BUTTON_ICON_SIZE: f32 = 14.;
 const PROVIDER_BUTTON_ICON_TEXT_GAP: f32 = 8.;
-const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
-const INTERNAL_WARP_ERROR: &str = "Internal Warp error.";
-const OUT_OF_CREDITS_TITLE: &str = "I’m sorry, I couldn’t complete that request.";
-const OUT_OF_CREDITS_DETAIL: &str =
-    "In order to use Warp’s AI features, subscribe to a Warp plan, or bring your own inference.";
 
 /// Text to use as a label throughout the app for user interactions that will attach selected
 /// block(s) or text selections to a new AI query.
@@ -66,12 +62,12 @@ pub fn error_color(theme: &WarpTheme) -> ColorU {
 pub enum FailedOutputPresentation {
     Message(String),
     OutOfCredits {
-        title: &'static str,
-        detail: &'static str,
+        title: String,
+        detail: String,
         can_use_own_api_keys: bool,
     },
     InvalidApiKey {
-        title: &'static str,
+        title: String,
         detail: String,
     },
     ContextWindowExceeded {
@@ -94,6 +90,7 @@ pub fn failed_output_presentation(
         return None;
     }
 
+    let apology = crate::localization::text_for_app(app, "agent.error.apology");
     Some(match error {
         RenderableAIError::QuotaLimit {
             user_display_message,
@@ -101,30 +98,42 @@ pub fn failed_output_presentation(
             if let Some(message) = user_display_message {
                 if should_show_subscribe_cta(app) {
                     FailedOutputPresentation::OutOfCredits {
-                        title: OUT_OF_CREDITS_TITLE,
-                        detail: OUT_OF_CREDITS_DETAIL,
+                        title: crate::localization::text_for_app(
+                            app,
+                            "agent.error.out_of_credits.title",
+                        ),
+                        detail: crate::localization::text_for_app(
+                            app,
+                            "agent.error.out_of_credits.detail",
+                        ),
                         can_use_own_api_keys: UserWorkspaces::as_ref(app)
                             .is_byo_api_key_enabled(app),
                     }
                 } else {
-                    FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{message}"))
+                    FailedOutputPresentation::Message(format!("{apology}\n\n{message}"))
                 }
             } else {
-                let formatted_next_refresh_time = AIRequestUsageModel::as_ref(app)
-                    .next_refresh_time()
-                    .format("%B %d")
-                    .to_string();
-                FailedOutputPresentation::Message(format!(
-                    "{ERROR_APOLOGY_TEXT}\n\nYou've reached your credit limit. Your credit limit resets on {formatted_next_refresh_time}.",
+                let formatted_next_refresh_time = localized_month_day(
+                    app,
+                    AIRequestUsageModel::as_ref(app).next_refresh_time_local(),
+                );
+                FailedOutputPresentation::Message(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.error.quota_limit_resets",
+                    &[
+                        ("apology", &apology),
+                        ("date", &formatted_next_refresh_time),
+                    ],
                 ))
             }
         }
         RenderableAIError::ServerOverloaded => FailedOutputPresentation::Message(
-            "Warp is currently overloaded. Please try again later.".to_string(),
+            crate::localization::text_for_app(app, "agent.error.server_overloaded"),
         ),
-        RenderableAIError::InternalWarpError => FailedOutputPresentation::Message(format!(
-            "{ERROR_APOLOGY_TEXT}\n\n{INTERNAL_WARP_ERROR}"
-        )),
+        RenderableAIError::InternalWarpError => {
+            let internal = crate::localization::text_for_app(app, "agent.error.internal_warp");
+            FailedOutputPresentation::Message(format!("{apology}\n\n{internal}"))
+        }
         RenderableAIError::ContextWindowExceeded(message) => {
             FailedOutputPresentation::ContextWindowExceeded {
                 message: message.clone(),
@@ -134,17 +143,19 @@ pub fn failed_output_presentation(
             provider,
             model_name,
         } => FailedOutputPresentation::InvalidApiKey {
-            title: "Provided API key is not valid",
-            detail: format!(
-                "Failed to authenticate with {provider} when using {model_name}. \
-                 Double-check that your API key is correct."
+            title: crate::localization::text_for_app(app, "agent.error.invalid_api_key.title"),
+            detail: crate::localization::text_for_app_with_args(
+                app,
+                "agent.error.invalid_api_key.description",
+                &[("provider", provider), ("model_name", model_name)],
             ),
         },
         RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { model_name } => {
             FailedOutputPresentation::AwsBedrockCredentialsExpiredOrInvalid {
-                fallback_message: format!(
-                    "{ERROR_APOLOGY_TEXT}\n\nAWS credentials expired or missing for {model_name}. \
-                     Please refresh your AWS credentials."
+                fallback_message: crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.aws_bedrock_credentials.fallback",
+                    &[("apology", &apology), ("model", model_name)],
                 ),
             }
         }
@@ -152,10 +163,10 @@ pub fn failed_output_presentation(
             FailedOutputPresentation::Message(error.to_string())
         }
         RenderableAIError::Other { error_message, .. } => {
-            FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}"))
+            FailedOutputPresentation::Message(format!("{apology}\n\n{error_message}"))
         }
         RenderableAIError::AgentExitedShell => {
-            FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{error}"))
+            FailedOutputPresentation::Message(format!("{apology}\n\n{error}"))
         }
     })
 }
@@ -206,7 +217,10 @@ pub fn render_ai_follow_up_icon(
             let tooltip_background = appearance.theme().tooltip_background();
             let tool_tip = appearance
                 .ui_builder()
-                .tool_tip("Follow up with existing conversation".to_owned())
+                .tool_tip(crate::localization::text_for_app(
+                    app,
+                    "agent.view_util.follow_up_existing_conversation",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(12.),
                     background: Some(warpui::elements::Fill::Solid(tooltip_background)),
@@ -271,17 +285,27 @@ pub fn get_ai_block_overflow_menu_element_position_id(view_id: EntityId) -> Stri
 /// otherwise displays with one decimal place.
 /// Returns a formatted string with proper pluralization ("credit" vs "credits").
 pub fn format_credits(credits: f32) -> String {
+    format_credits_for_locale(credits, warp_localization::LocaleId::EnUs)
+}
+
+pub fn format_credits_for_app(credits: f32, app: &AppContext) -> String {
+    format_credits_for_locale(credits, crate::localization::current_locale(app))
+}
+
+fn format_credits_for_locale(credits: f32, locale: warp_localization::LocaleId) -> String {
     // If the first part of the decimal is 0, we just display the whole number.
-    if credits.fract() < 0.1 {
+    let count = if credits.fract() < 0.1 {
         let whole = credits.trunc() as i32;
-        if whole == 1 {
-            format!("{whole} credit")
-        } else {
-            format!("{whole} credits")
-        }
+        whole.to_string()
     } else {
-        format!("{credits:.1} credits")
-    }
+        format!("{credits:.1}")
+    };
+    let key = if count == "1" {
+        "agent.usage.credit.singular"
+    } else {
+        "agent.usage.credit.plural"
+    };
+    crate::localization::text_for_locale_with_args(locale, key, &[("count", &count)])
 }
 
 /// Renders a secondary button with an MCP/skill provider icon and a text label.

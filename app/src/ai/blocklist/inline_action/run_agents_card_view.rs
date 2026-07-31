@@ -59,7 +59,9 @@ use crate::ai::harness_availability::{
     AuthSecretFetchState, HarnessAvailabilityEvent, HarnessAvailabilityModel,
 };
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
+use crate::ai::orchestration::RunnerFetchState;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
 use crate::server::server_api::ServerApiProvider;
 use crate::ui_components::blended_colors;
@@ -71,8 +73,6 @@ use crate::view_components::compactible_action_button::{
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
 use crate::view_components::dropdown::DropdownEvent;
 use crate::view_components::{FilterableDropdownEvent, FilterableDropdownOrientation};
-
-const RUN_AGENTS_CARD_TITLE: &str = "Can I start additional agents for this task?";
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -267,8 +267,8 @@ pub struct RunAgentsCardView {
     /// Runners fetched via `getRunners` for the Runner picker: (uid, name).
     /// Runners aren't cached client-side, so we fetch them lazily.
     runners: Vec<(String, String)>,
-    /// True while the `getRunners` fetch is in flight.
-    runners_loading: bool,
+    /// The state of the lazily fetched runner catalog.
+    runner_fetch_state: RunnerFetchState,
 }
 
 /// Resolves UI-only interactive defaults on edit state that has
@@ -338,7 +338,7 @@ impl RunAgentsCardView {
         let accept_keystroke = ENTER_KEYSTROKE.clone();
 
         let reject_button = CompactibleActionButton::new(
-            "Reject".to_string(),
+            localization::text_for_app(ctx, "agent.orchestration.run_agents.reject"),
             Some(KeystrokeSource::Fixed(reject_keystroke)),
             ButtonSize::Small,
             RunAgentsCardViewAction::Reject,
@@ -348,7 +348,7 @@ impl RunAgentsCardView {
         );
         let position_id_prefix = format!("{action_id:?}");
         let accept_button = CompactibleSplitActionButton::new(
-            "Accept".to_string(),
+            localization::text_for_app(ctx, "agent.orchestration.run_agents.accept"),
             Some(KeystrokeSource::Fixed(accept_keystroke)),
             ButtonSize::Small,
             RunAgentsCardViewAction::Accept,
@@ -554,7 +554,7 @@ impl RunAgentsCardView {
             decision_event_emitted: false,
             has_auto_opened_create_modal: false,
             runners: Vec::new(),
-            runners_loading: false,
+            runner_fetch_state: RunnerFetchState::NotFetched,
         };
 
         view.ensure_pickers(ctx);
@@ -862,8 +862,16 @@ impl RunAgentsCardView {
             return;
         };
         accept.set_disabled(reason.is_some(), ctx);
-        // Tooltip explains why the button is disabled; falls back to "Accept".
-        accept.set_tooltip(reason.or_else(|| Some("Accept".to_string())), ctx);
+        // Tooltip explains why the button is disabled; falls back to the action label.
+        accept.set_tooltip(
+            reason.or_else(|| {
+                Some(localization::text_for_app(
+                    ctx,
+                    "agent.orchestration.run_agents.accept",
+                ))
+            }),
+            ctx,
+        );
         self.handles.accept_button = Some(accept);
     }
 
@@ -1043,16 +1051,17 @@ impl RunAgentsCardView {
         let handle = oc::create_runner_picker(
             &initial_runner,
             &self.runners,
-            self.runners_loading,
+            self.runner_fetch_state,
             &styles,
             ctx,
         );
         handle.update(ctx, |d, _| {
             d.set_orientation(FilterableDropdownOrientation::Up)
         });
-        ctx.subscribe_to_view(&handle, |me, _, event, ctx| {
-            if let FilterableDropdownEvent::Close = event {
-                me.refocus_after_picker_close(ctx);
+        ctx.subscribe_to_view(&handle, |me, _, event, ctx| match event {
+            FilterableDropdownEvent::Close => me.refocus_after_picker_close(ctx),
+            FilterableDropdownEvent::ToggleExpanded => {
+                ctx.spawn(async {}, |me, _, ctx| me.fetch_runners(ctx));
             }
         });
         self.handles.pickers.runner_picker = Some(handle);
@@ -1064,23 +1073,28 @@ impl RunAgentsCardView {
     /// cached client-side (unlike environments), so this lazy fetch backs
     /// the picker.
     fn fetch_runners(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.runners_loading || !self.runners.is_empty() {
+        if matches!(
+            self.runner_fetch_state,
+            RunnerFetchState::Loading | RunnerFetchState::Loaded
+        ) {
             return;
         }
-        self.runners_loading = true;
+        self.runner_fetch_state = RunnerFetchState::Loading;
+        self.resync_runner_selection(ctx);
         let client = ServerApiProvider::as_ref(ctx).get_factory_client();
         ctx.spawn(
             async move { client.get_runners(Some(RunnerSortBy::Name)).await },
             |me, result, ctx| {
-                me.runners_loading = false;
                 match result {
                     Ok(runners) => {
                         me.runners = runners
                             .into_iter()
                             .map(|r| (r.uid.inner().to_string(), r.config.name))
                             .collect();
+                        me.runner_fetch_state = RunnerFetchState::Loaded;
                     }
                     Err(err) => {
+                        me.runner_fetch_state = RunnerFetchState::Failed;
                         log::warn!("Failed to fetch runners for orchestration picker: {err}");
                     }
                 }
@@ -1093,7 +1107,13 @@ impl RunAgentsCardView {
                     RunAgentsExecutionMode::Local => String::new(),
                 };
                 if let Some(handle) = me.handles.pickers.runner_picker.clone() {
-                    oc::populate_runner_picker(&handle, &me.runners, &current, false, ctx);
+                    oc::populate_runner_picker(
+                        &handle,
+                        &me.runners,
+                        &current,
+                        me.runner_fetch_state,
+                        ctx,
+                    );
                 }
                 ctx.notify();
             },
@@ -1116,7 +1136,13 @@ impl RunAgentsCardView {
             RunAgentsExecutionMode::Local => String::new(),
         };
         if let Some(handle) = self.handles.pickers.runner_picker.clone() {
-            oc::populate_runner_picker(&handle, &self.runners, &current, self.runners_loading, ctx);
+            oc::populate_runner_picker(
+                &handle,
+                &self.runners,
+                &current,
+                self.runner_fetch_state,
+                ctx,
+            );
         }
     }
 
@@ -1210,9 +1236,12 @@ impl RunAgentsCardView {
     fn toggle_accept_menu(&mut self, ctx: &mut ViewContext<Self>) {
         self.is_accept_menu_open = !self.is_accept_menu_open;
         if self.is_accept_menu_open {
-            let item = MenuItemFields::new_with_label("Accept w/o orchestration", "")
-                .with_on_select_action(RunAgentsCardViewAction::AcceptWithoutOrchestration)
-                .into_item();
+            let item = MenuItemFields::new_with_label(
+                localization::text_for_app(ctx, "agent.orchestration.run_agents.accept_without"),
+                "".to_string(),
+            )
+            .with_on_select_action(RunAgentsCardViewAction::AcceptWithoutOrchestration)
+            .into_item();
             self.accept_menu.update(ctx, |menu, ctx| {
                 menu.set_items(vec![item], ctx);
             });
@@ -1272,7 +1301,7 @@ impl View for RunAgentsCardView {
         // because restored blocks have no pending action status.
         if self.block_model.is_restored() {
             return render_status_only_card(
-                "Spawn agents cancelled".to_string(),
+                crate::localization::text_for_app(app, "agent.orchestration.run_agents.cancelled"),
                 appearance,
                 StatusKind::Cancelled,
                 app,
@@ -1284,7 +1313,10 @@ impl View for RunAgentsCardView {
         // and the action is queued for user confirmation).
         if !matches!(status, Some(AIActionStatus::Blocked)) {
             return render_status_only_card(
-                "Configuring agents\u{2026}".to_string(),
+                crate::localization::text_for_app(
+                    app,
+                    "agent.orchestration.run_agents.configuring",
+                ),
                 appearance,
                 StatusKind::Spawning,
                 app,
@@ -1586,9 +1618,12 @@ fn render_confirmation_card(
 
 fn render_header(handles: &RunAgentsCardHandles, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
-    let mut config = HeaderConfig::new(RUN_AGENTS_CARD_TITLE, app)
-        .with_icon(icons::yellow_stop_icon(appearance))
-        .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)));
+    let mut config = HeaderConfig::new(
+        crate::localization::text_for_app(app, "agent.orchestration.run_agents.title"),
+        app,
+    )
+    .with_icon(icons::yellow_stop_icon(appearance))
+    .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)));
 
     if let (Some(reject), Some(accept)) = (
         handles.reject_button.as_ref(),
@@ -1610,7 +1645,7 @@ fn render_body(card: &RunAgentsCardFields, app: &AppContext) -> Box<dyn Element>
     let theme = appearance.theme();
     let mut column = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
-    column.add_child(render_summary(card, appearance));
+    column.add_child(render_summary(card, appearance, app));
     column.add_child(render_agents_section(card, app));
 
     Container::new(column.finish())
@@ -1621,12 +1656,18 @@ fn render_body(card: &RunAgentsCardFields, app: &AppContext) -> Box<dyn Element>
         .finish()
 }
 
-fn render_summary(card: &RunAgentsCardFields, appearance: &Appearance) -> Box<dyn Element> {
+fn render_summary(
+    card: &RunAgentsCardFields,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
     let summary = if card.summary.trim().is_empty() {
-        format!(
-            "Spawn {} agent(s) to address this task.",
-            card.agent_run_configs.len()
+        let count = card.agent_run_configs.len().to_string();
+        localization::text_for_app_with_args(
+            app,
+            "agent.orchestration.run_agents.summary_default",
+            &[("count", &count)],
         )
     } else {
         card.summary.clone()
@@ -1648,8 +1689,13 @@ fn render_summary(card: &RunAgentsCardFields, appearance: &Appearance) -> Box<dy
 fn render_agents_section(card: &RunAgentsCardFields, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
+    let count = card.agent_run_configs.len().to_string();
     let label = Text::new(
-        format!("Agents ({})", card.agent_run_configs.len()),
+        localization::text_for_app_with_args(
+            app,
+            "agent.orchestration.run_agents.agents_count",
+            &[("count", &count)],
+        ),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 1.,
     )
@@ -1679,11 +1725,14 @@ fn render_terminal_state(
     appearance: &Appearance,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let (label, kind) = format_terminal_state(result);
+    let (label, kind) = format_terminal_state(result, app);
     render_status_only_card(label, appearance, kind, app)
 }
 
-pub(crate) fn format_terminal_state(result: &RunAgentsResult) -> (String, StatusKind) {
+pub(crate) fn format_terminal_state(
+    result: &RunAgentsResult,
+    app: &AppContext,
+) -> (String, StatusKind) {
     match result {
         RunAgentsResult::Launched { agents, .. } => {
             let total = agents.len();
@@ -1693,47 +1742,76 @@ pub(crate) fn format_terminal_state(result: &RunAgentsResult) -> (String, Status
                 .count();
             if launched == total {
                 let label = if total == 1 {
-                    "Spawned 1 agent".to_string()
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.orchestration.run_agents.spawned_one",
+                    )
                 } else {
-                    format!("Spawned {total} agents")
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.orchestration.run_agents.spawned_count",
+                        &[("count", &total.to_string())],
+                    )
                 };
                 (label, StatusKind::Success)
             } else if launched == 0 {
                 // Every child failed to launch: surface a terminal failure
                 // rather than the in-progress-looking mixed state.
                 let label = if total == 1 {
-                    "Failed to spawn agent".to_string()
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.orchestration.run_agents.failed_spawn_one",
+                    )
                 } else {
-                    format!("Failed to spawn {total} agents")
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.orchestration.run_agents.failed_spawn_count",
+                        &[("count", &total.to_string())],
+                    )
                 };
                 (label, StatusKind::Failure)
             } else {
                 (
-                    format!("Spawned {launched} of {total} agents"),
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "agent.orchestration.run_agents.spawned_partial",
+                        &[
+                            ("launched", &launched.to_string()),
+                            ("total", &total.to_string()),
+                        ],
+                    ),
                     StatusKind::Mixed,
                 )
             }
         }
         RunAgentsResult::Denied { reason } => {
             let body = if reason.is_empty() {
-                "Orchestration is currently disabled. Re-enable on the plan card to launch."
-                    .to_string()
+                crate::localization::text_for_app(app, "agent.orchestration.run_agents.denied")
             } else {
-                format!(
-                    "Orchestration is currently disabled. Re-enable on the plan card to launch. ({reason})"
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.orchestration.run_agents.denied_with_reason",
+                    &[("reason", reason)],
                 )
             };
             (body, StatusKind::Cancelled)
         }
         RunAgentsResult::Failure { error } => {
             let label = if error.is_empty() {
-                "Failed to start orchestration".to_string()
+                crate::localization::text_for_app(app, "agent.orchestration.run_agents.failure")
             } else {
-                format!("Failed to start orchestration: {error}")
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.orchestration.run_agents.failure_with_error",
+                    &[("error", error)],
+                )
             };
             (label, StatusKind::Failure)
         }
-        RunAgentsResult::Cancelled => ("Spawn agents cancelled".to_string(), StatusKind::Cancelled),
+        RunAgentsResult::Cancelled => (
+            crate::localization::text_for_app(app, "agent.orchestration.run_agents.cancelled"),
+            StatusKind::Cancelled,
+        ),
     }
 }
 
@@ -1753,9 +1831,14 @@ fn render_spawning_card(
 ) -> Box<dyn Element> {
     let total = snapshot.agent_count;
     let label = if total == 1 {
-        "Spawning 1 agent\u{2026}".to_string()
+        localization::text_for_app(app, "agent.orchestration.run_agents.spawning_one")
     } else {
-        format!("Spawning {total} agents\u{2026}")
+        let count = total.to_string();
+        localization::text_for_app_with_args(
+            app,
+            "agent.orchestration.run_agents.spawning_count",
+            &[("count", &count)],
+        )
     };
     render_status_only_card(label, appearance, StatusKind::Spawning, app)
 }
@@ -1819,6 +1902,7 @@ fn render_editor(
             appearance,
             None,
             false,
+            app,
         ))
         .with_margin_top(12.)
         .finish(),
@@ -1827,6 +1911,7 @@ fn render_editor(
         orchestration_config_state,
         &handles.pickers,
         appearance,
+        app,
     ));
 
     if let Some(reason) = oc::accept_disabled_reason_with_auth(orchestration_config_state, app) {

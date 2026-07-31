@@ -60,17 +60,17 @@ pub trait AppExt {
     fn set_dev_icon(&mut self, value: Cow<'static, [u8]>);
 
     /// Sets the main menu bar constructor function.
-    fn set_menu_bar_builder(&mut self, value: impl FnOnce(&mut AppContext) -> MenuBar + 'static);
+    fn set_menu_bar_builder(&mut self, value: impl Fn(&mut AppContext) -> MenuBar + 'static);
 
     /// Sets the macOS dock menu constructor function.
-    fn set_dock_menu_builder(&mut self, value: impl FnOnce(&mut AppContext) -> Menu + 'static);
+    fn set_dock_menu_builder(&mut self, value: impl Fn(&mut AppContext) -> Menu + 'static);
 
     /// Sets whether the application should show its Dock icon on launch.
     fn set_show_dock_icon_on_launch(&mut self, value: bool);
 }
 
-type MenuBarBuilderFn = Box<dyn FnOnce(&mut AppContext) -> MenuBar>;
-type DockMenuBuilderFn = Box<dyn FnOnce(&mut AppContext) -> Menu>;
+type MenuBarBuilderFn = Box<dyn Fn(&mut AppContext) -> MenuBar>;
+type DockMenuBuilderFn = Box<dyn Fn(&mut AppContext) -> Menu>;
 
 /// The actual application, from the perspective of the platform and the
 /// main event loop.  This is the true owner of all application state.
@@ -192,14 +192,14 @@ impl AppExt for AppBuilder {
         }
     }
 
-    fn set_menu_bar_builder(&mut self, value: impl FnOnce(&mut AppContext) -> MenuBar + 'static) {
+    fn set_menu_bar_builder(&mut self, value: impl Fn(&mut AppContext) -> MenuBar + 'static) {
         match self.as_inner_mut() {
             AppBackend::CurrentPlatform(app) => app.menu_bar_builder = Some(Box::new(value)),
             AppBackend::Headless(_) => (),
         }
     }
 
-    fn set_dock_menu_builder(&mut self, value: impl FnOnce(&mut AppContext) -> Menu + 'static) {
+    fn set_dock_menu_builder(&mut self, value: impl Fn(&mut AppContext) -> Menu + 'static) {
         match self.as_inner_mut() {
             AppBackend::CurrentPlatform(app) => app.dock_menu_builder = Some(Box::new(value)),
             AppBackend::Headless(_) => (),
@@ -284,13 +284,13 @@ pub unsafe extern "C-unwind" fn warp_app_will_finish_launching(this: &mut Object
             let _: () = msg_send![&*app_delegate, setReachabilityListener];
         }
 
-        if let Some(menu_bar_builder) = app.menu_bar_builder.take() {
+        if let Some(menu_bar_builder) = app.menu_bar_builder.as_ref() {
             let menu_bar = app.callbacks.with_mutable_app_context(menu_bar_builder);
             let nsmenu = make_main_menu(menu_bar);
             ns_app.setMainMenu(Some(&nsmenu));
         }
 
-        if let Some(dock_menu_builder) = app.dock_menu_builder.take() {
+        if let Some(dock_menu_builder) = app.dock_menu_builder.as_ref() {
             let dock_menu = app.callbacks.with_mutable_app_context(dock_menu_builder);
             let nsmenu = make_dock_menu(dock_menu);
             // `setDockMenu:` is a custom warp app-delegate selector.
@@ -304,6 +304,44 @@ pub unsafe extern "C-unwind" fn warp_app_will_finish_launching(this: &mut Object
         };
         // `setDockIconVisible:` is a custom warp app-delegate selector.
         let _: BOOL = msg_send![&*app_delegate, setDockIconVisible: show_dock_icon];
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn refresh_localized_menus() {
+    dispatch::Queue::main().exec_async(|| {
+        refresh_localized_menus_on_main_thread();
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn refresh_localized_menus_on_main_thread() {
+    unsafe {
+        // SAFETY: `get_warp_app()` returns the running NSApplication subclass instance
+        // after application launch. This is dispatched onto AppKit's main queue.
+        let app = get_app(&mut *get_warp_app());
+        if !app.callbacks.can_borrow_mut() {
+            log::warn!("Skipping localized menu refresh while app context is mutably borrowed");
+            return;
+        }
+
+        let mtm = MainThreadMarker::new_unchecked();
+        let ns_app = NSApplication::sharedApplication(mtm);
+
+        if let Some(menu_bar_builder) = app.menu_bar_builder.as_ref() {
+            let menu_bar = app.callbacks.with_mutable_app_context(menu_bar_builder);
+            let nsmenu = make_main_menu(menu_bar);
+            ns_app.setMainMenu(Some(&nsmenu));
+        }
+
+        if let Some(dock_menu_builder) = app.dock_menu_builder.as_ref() {
+            let dock_menu = app.callbacks.with_mutable_app_context(dock_menu_builder);
+            let nsmenu = make_dock_menu(dock_menu);
+            let app_delegate = ns_app
+                .delegate()
+                .expect("the warp app always has a delegate");
+            let _: () = msg_send![&*app_delegate, setDockMenu: &*nsmenu];
+        }
     }
 }
 

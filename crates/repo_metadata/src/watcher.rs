@@ -396,7 +396,7 @@ impl DirectoryWatcher {
         &mut self,
         directory_path: &StandardizedPath,
         ctx: &mut ModelContext<Self>,
-    ) -> impl Future<Output = Result<(), anyhow::Error>> {
+    ) -> impl Future<Output = Result<(), anyhow::Error>> + use<> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "local_fs")] {
                 let local_path = directory_path.to_local_path();
@@ -756,29 +756,23 @@ impl Task {
             Task::Scan {
                 repository,
                 subscriber_id,
-            } => {
-                if let Some(repository) = repository.upgrade(ctx) {
-                    repository.update(ctx, |repository, ctx| {
-                        repository.scan_subscriber(subscriber_id, ctx)
-                    })
-                } else {
-                    None
-                }
-            }
+            } => match repository.upgrade(ctx) {
+                Some(repository) => repository.update(ctx, |repository, ctx| {
+                    repository.scan_subscriber(subscriber_id, ctx)
+                }),
+                _ => None,
+            },
             #[cfg(feature = "local_fs")]
             Task::Update {
                 repository,
                 subscriber_id,
                 update,
-            } => {
-                if let Some(repository) = repository.upgrade(ctx) {
-                    repository.update(ctx, |repository, ctx| {
-                        repository.notify_subscriber(subscriber_id, &update, ctx)
-                    })
-                } else {
-                    None
-                }
-            }
+            } => match repository.upgrade(ctx) {
+                Some(repository) => repository.update(ctx, |repository, ctx| {
+                    repository.notify_subscriber(subscriber_id, &update, ctx)
+                }),
+                _ => None,
+            },
         }
     }
 }

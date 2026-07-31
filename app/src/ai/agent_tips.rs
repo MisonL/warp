@@ -9,6 +9,7 @@ use warpui::keymap::Keystroke;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::ai::persisted_workspace::PersistedWorkspace;
+use crate::localization;
 use crate::palette::PaletteMode;
 use crate::server::telemetry::PaletteSource;
 use crate::settings::AISettings;
@@ -38,8 +39,9 @@ pub trait AITip: Clone {
 
     /// Converts the tip to formatted text fragments for rendering.
     /// Default implementation adds "Tip: " prefix and parses backtick-wrapped text as inline code.
-    fn to_formatted_text(&self, _app: &AppContext) -> Vec<FormattedTextFragment> {
-        let text = format!("Tip: {}", self.description());
+    fn to_formatted_text(&self, app: &AppContext) -> Vec<FormattedTextFragment> {
+        let prefix = localization::text_for_app(app, "agent.tips.prefix");
+        let text = format!("{prefix}{}", self.description());
 
         // Style backtick-wrapped text as inline code
         let parts: Vec<&str> = text.split('`').collect();
@@ -67,6 +69,8 @@ pub trait AITip: Clone {
         true
     }
 }
+
+const VOICE_TIP_DESCRIPTION_KEY: &str = "agent.tips.voice";
 
 /// Kinds of agent tips for organizing and filtering.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -383,7 +387,8 @@ impl AITip for AgentTip {
     }
 
     fn to_formatted_text(&self, app: &AppContext) -> Vec<FormattedTextFragment> {
-        let mut text = format!("Tip: {}", self.description);
+        let prefix = localization::text_for_app(app, "agent.tips.prefix");
+        let mut text = format!("{prefix}{}", self.localized_description(app));
 
         // Replace <keybinding> with the actual keybinding string
         if let Some(keystroke) = self.keystroke(app) {
@@ -435,12 +440,39 @@ impl AITip for AgentTip {
     }
 }
 
+impl AgentTip {
+    fn localized_description(&self, app: &AppContext) -> String {
+        if self.description == VOICE_TIP_DESCRIPTION_KEY {
+            return localization::text_for_app(app, VOICE_TIP_DESCRIPTION_KEY);
+        }
+
+        let key = DEFAULT_TIPS
+            .iter()
+            .position(|tip| tip.description == self.description)
+            .map(|index| format!("agent.tips.default.{:02}", index + 1));
+
+        key.map_or_else(
+            || self.description.clone(),
+            |key| localization::text_for_app(app, &key),
+        )
+    }
+}
+
 impl WorkspaceAction {
-    pub fn display_text(&self) -> Option<String> {
+    pub fn display_text(&self, app: &AppContext) -> Option<String> {
         match self {
-            WorkspaceAction::OpenPalette { .. } => Some("Open palette".to_string()),
-            WorkspaceAction::OpenWarpDrive => Some("Warp Drive.".to_string()),
-            WorkspaceAction::ToggleRightPanel => Some("Show diff view".to_string()),
+            WorkspaceAction::OpenPalette { .. } => Some(localization::text_for_app(
+                app,
+                "agent.tips.action.open_palette",
+            )),
+            WorkspaceAction::OpenWarpDrive => Some(localization::text_for_app(
+                app,
+                "agent.tips.action.open_warp_drive",
+            )),
+            WorkspaceAction::ToggleRightPanel => Some(localization::text_for_app(
+                app,
+                "agent.tips.action.show_diff_view",
+            )),
             _ => None,
         }
     }
@@ -455,8 +487,7 @@ pub fn get_agent_tips(ctx: &AppContext) -> Vec<AgentTip> {
         && AISettings::as_ref(ctx).is_voice_input_enabled(ctx)
     {
         tips.push(AgentTip {
-            description: "Hold <keybinding> to speak your prompt directly to the agent."
-                .to_string(),
+            description: VOICE_TIP_DESCRIPTION_KEY.to_string(),
             link: Some(
                 "https://docs.warp.dev/agent-platform/local-agents/interacting-with-agents/voice"
                     .to_string(),

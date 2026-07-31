@@ -29,7 +29,6 @@ use warpui::{
     View, ViewAsRef, ViewContext, ViewHandle,
 };
 
-use crate::BlocklistAIHistoryModel;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
 use crate::ai::blocklist::prompt::PromptIconButtonTheme;
@@ -40,6 +39,7 @@ use crate::ai::blocklist::{
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::llms::LLMPreferences;
 use crate::cloud_object::model::generic_string_model::StringModel;
+use crate::localization::LocalizationUpdater;
 use crate::network::NetworkStatus;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::view::AIContextMenu;
@@ -65,6 +65,7 @@ use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, TooltipAlignment,
 };
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{BlocklistAIHistoryModel, localization};
 
 pub enum AtContextMenuDisabledReason {
     #[cfg(target_family = "wasm")]
@@ -80,24 +81,32 @@ pub enum AtContextMenuDisabledReason {
 }
 
 impl AtContextMenuDisabledReason {
-    fn tooltip_text(&self) -> String {
+    fn tooltip_text(&self, app: &AppContext) -> String {
         match self {
             #[cfg(not(target_family = "wasm"))]
-            AtContextMenuDisabledReason::NoObjectsAvailable => {
-                "No available objects in the current context.".to_string()
-            }
+            AtContextMenuDisabledReason::NoObjectsAvailable => localization::text_for_app(
+                app,
+                "terminal.universal_developer_input.context.no_objects",
+            ),
             #[cfg(not(target_family = "wasm"))]
-            AtContextMenuDisabledReason::SshWithoutRemoteServer => {
-                "Not supported in SSH sessions without remote server".to_string()
-            }
+            AtContextMenuDisabledReason::SshWithoutRemoteServer => localization::text_for_app(
+                app,
+                "terminal.universal_developer_input.context.ssh_session",
+            ),
             #[cfg(not(target_family = "wasm"))]
-            AtContextMenuDisabledReason::Subshell => "Not supported in subshells".to_string(),
+            AtContextMenuDisabledReason::Subshell => localization::text_for_app(
+                app,
+                "terminal.universal_developer_input.context.subshell",
+            ),
             #[cfg(target_family = "wasm")]
-            AtContextMenuDisabledReason::Wasm => "Requires a filesystem".to_string(),
-            #[cfg(not(target_family = "wasm"))]
-            AtContextMenuDisabledReason::DisabledInTerminalMode => {
-                "Disabled in terminal mode, re-enable in settings".to_string()
+            AtContextMenuDisabledReason::Wasm => {
+                localization::text_for_app(app, "terminal.universal_developer_input.context.wasm")
             }
+            #[cfg(not(target_family = "wasm"))]
+            AtContextMenuDisabledReason::DisabledInTerminalMode => localization::text_for_app(
+                app,
+                "terminal.universal_developer_input.context.disabled_terminal_mode",
+            ),
         }
     }
 
@@ -186,7 +195,7 @@ impl AtContextMenuDisabledReason {
     }
 }
 
-const AT_CONTEXT_TOOLTIP: &str = "Attach context";
+const AT_CONTEXT_TOOLTIP_KEY: &str = "terminal.universal_developer_input.tooltip.attach_context";
 
 const BLURRED_OPACITY: Opacity = 50;
 
@@ -338,11 +347,14 @@ impl UniversalDeveloperInputButtonBar {
     ) -> Self {
         let button_size = ButtonSize::UDIButton;
 
-        let mic_button_view = ctx.add_typed_action_view(|_ctx| {
+        let mic_button_view = ctx.add_typed_action_view(|ctx| {
             #[cfg_attr(not(feature = "voice_input"), allow(unused_mut))]
             let mut button = ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::Microphone)
-                .with_tooltip("Voice input")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.voice_input",
+                ))
                 .with_size(button_size)
                 .with_tooltip_alignment(TooltipAlignment::Left);
             #[cfg(feature = "voice_input")]
@@ -359,7 +371,7 @@ impl UniversalDeveloperInputButtonBar {
         let at_button_view = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::AtSign)
-                .with_tooltip(AT_CONTEXT_TOOLTIP)
+                .with_tooltip(localization::text_for_app(_ctx, AT_CONTEXT_TOOLTIP_KEY))
                 .with_size(button_size)
                 .with_disabled_theme(UDIDisabledButtonTheme)
                 .with_tooltip_alignment(TooltipAlignment::Left)
@@ -370,10 +382,13 @@ impl UniversalDeveloperInputButtonBar {
                 })
         });
 
-        let file_button_view = ctx.add_typed_action_view(|_ctx| {
+        let file_button_view = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::Plus)
-                .with_tooltip("Attach file")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.attach_file",
+                ))
                 .with_size(button_size)
                 .with_disabled_theme(UDIDisabledButtonTheme)
                 .with_tooltip_alignment(TooltipAlignment::Left)
@@ -382,10 +397,13 @@ impl UniversalDeveloperInputButtonBar {
                 })
         });
 
-        let slash_command_menu_view = ctx.add_typed_action_view(|_ctx| {
+        let slash_command_menu_view = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", PromptIconButtonTheme::new(false))
                 .with_icon(Icon::SlashCommands)
-                .with_tooltip("Slash commands")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.slash_commands",
+                ))
                 .with_size(button_size)
                 .with_disabled_theme(UDIDisabledButtonTheme)
                 .with_tooltip_alignment(TooltipAlignment::Left)
@@ -534,6 +552,9 @@ impl UniversalDeveloperInputButtonBar {
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
@@ -614,6 +635,44 @@ impl UniversalDeveloperInputButtonBar {
         me
     }
 
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.mic_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.voice_input",
+                )),
+                ctx,
+            );
+        });
+        self.at_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(ctx, AT_CONTEXT_TOOLTIP_KEY)),
+                ctx,
+            );
+        });
+        self.file_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.attach_file",
+                )),
+                ctx,
+            );
+        });
+        self.slash_command_button.update(ctx, |button, ctx| {
+            button.set_tooltip(
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.universal_developer_input.tooltip.slash_commands",
+                )),
+                ctx,
+            );
+        });
+        self.update_segmented_control_disabled_state(ctx);
+        self.notify_and_notify_children(ctx);
+    }
+
     pub fn set_voice_is_listening(&mut self, is_listening: bool, ctx: &mut ViewContext<Self>) {
         self.mic_button.update(ctx, |mic_button, ctx| {
             if is_listening {
@@ -676,9 +735,15 @@ impl UniversalDeveloperInputButtonBar {
         };
 
         let tooltip = if is_reader {
-            Some("Request edit access to change input mode".to_string())
+            Some(localization::text_for_app(
+                ctx,
+                "terminal.universal_developer_input.input_mode.request_edit_access",
+            ))
         } else if is_agent_in_control {
-            Some("Input mode locked while agent is monitoring a command".to_string())
+            Some(localization::text_for_app(
+                ctx,
+                "terminal.universal_developer_input.input_mode.agent_monitoring",
+            ))
         } else {
             None
         };
@@ -699,8 +764,11 @@ impl UniversalDeveloperInputButtonBar {
             button.set_disabled(disable_reason.is_some(), ctx);
             button.set_tooltip(
                 disable_reason
-                    .map(|reason| reason.tooltip_text())
-                    .or(Some(AT_CONTEXT_TOOLTIP.to_string())),
+                    .map(|reason| reason.tooltip_text(ctx))
+                    .or(Some(localization::text_for_app(
+                        ctx,
+                        AT_CONTEXT_TOOLTIP_KEY,
+                    ))),
                 ctx,
             );
             ctx.notify();
@@ -984,7 +1052,10 @@ fn build_renderable_option_config(
                 icon_color: fg_color,
                 label: None,
                 tooltip: Some(tooltip_config(
-                    "Terminal",
+                    localization::text_for_app(
+                        app,
+                        "terminal.universal_developer_input.mode.terminal",
+                    ),
                     Some(terminal_mode_tooltip_subtext(terminal_keybindings)),
                     app,
                 )),
@@ -1000,7 +1071,10 @@ fn build_renderable_option_config(
                 icon_color: fg_color,
                 label: None,
                 tooltip: Some(tooltip_config(
-                    "Agent Mode",
+                    localization::text_for_app(
+                        app,
+                        "terminal.universal_developer_input.mode.agent",
+                    ),
                     Some(agent_mode_tooltip_subtext(terminal_keybindings)),
                     app,
                 )),

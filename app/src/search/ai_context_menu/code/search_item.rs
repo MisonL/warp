@@ -263,4 +263,16 @@ impl SearchItem for CodeSearchItem {
             self.code_symbol.symbol.line_number
         )
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.code_symbol",
+            &[
+                ("name", &self.code_symbol.symbol.name),
+                ("path", &self.code_symbol.file_path.to_string_lossy()),
+                ("line", &self.code_symbol.symbol.line_number.to_string()),
+            ],
+        )
+    }
 }

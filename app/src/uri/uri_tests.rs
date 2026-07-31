@@ -139,6 +139,7 @@ fn test_find_matching_tab_config() {
 fn make_mock_tab_config(name: &str, source_path: Option<&str>) -> TabConfig {
     TabConfig {
         name: name.to_string(),
+        name_zh_cn: None,
         title: None,
         color: None,
         panes: vec![],

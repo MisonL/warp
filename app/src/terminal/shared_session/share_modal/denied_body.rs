@@ -7,9 +7,6 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 use super::style::{self, MODAL_PADDING};
 use crate::appearance::Appearance;
 
-const SESSION_BUILD_FREE_PLAN_SUBHEADER: &str = "Warp's free and pro plans come with a limited number of shared sessions.\n\nFor increased access to session sharing upgrade to the Build plan.";
-const VIEW_PLANS_TEXT: &str = "View plans";
-
 pub struct DeniedBody {
     button_mouse_state: MouseStateHandle,
 }
@@ -44,7 +41,8 @@ impl View for DeniedBody {
         let appearance = Appearance::as_ref(app);
 
         let mut col = Flex::column();
-        let subheader = SESSION_BUILD_FREE_PLAN_SUBHEADER;
+        let subheader =
+            crate::localization::text_for_app(app, "shared_session.share_modal.denied.subheader");
 
         let text = appearance
             .ui_builder()
@@ -56,7 +54,10 @@ impl View for DeniedBody {
         let button = appearance
             .ui_builder()
             .button(ButtonVariant::Accent, self.button_mouse_state.clone())
-            .with_centered_text_label(VIEW_PLANS_TEXT.to_owned())
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "shared_session.share_modal.denied.view_plans",
+            ))
             .with_style(style::button_styles())
             .build()
             .with_cursor(Cursor::PointingHand)

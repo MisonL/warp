@@ -19,17 +19,19 @@ use std::path::PathBuf;
 use warp::tui_export::{
     AIConversationId, BlocklistAIHistoryEvent, BlocklistAIHistoryModel, CloudAgentStartupIssue,
     ConversationStatus, Harness, OrchestrationEventStreamer, OrchestrationEventStreamerEvent,
-    PreparedRemoteChildLaunch, RemoteChildLaunchConfig, RenderableAIError, ServerApiProvider,
-    StartAgentExecutionMode, StartAgentRequest, apply_child_agent_model_override,
-    classify_cloud_agent_startup_error, descendant_conversations_in_pill_order,
-    inherit_child_agent_settings, orchestration_root_conversation_id, oz_run_url,
-    prepare_local_oz_child_launch, prepare_remote_child_launch, register_agent_event_consumer,
-    unregister_agent_event_consumer,
+    PrepareRemoteChildLaunchError, PreparedRemoteChildLaunch, RemoteChildLaunchConfig,
+    RenderableAIError, ServerApiProvider, StartAgentExecutionMode, StartAgentRequest,
+    apply_child_agent_model_override, classify_cloud_agent_startup_error,
+    descendant_conversations_in_pill_order, inherit_child_agent_settings,
+    orchestration_root_conversation_id, oz_run_url, prepare_local_oz_child_launch,
+    prepare_remote_child_launch, register_agent_event_consumer, unregister_agent_event_consumer,
 };
+use warp_localization::LocaleId;
 use warpui::SingletonEntity;
 use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle, ViewHandle};
 
 use crate::cloud_run::TuiCloudRunState;
+use crate::localization;
 use crate::session_registry::{RemoteChildSession, TuiSessionId, TuiSessions};
 use crate::tab_bar::TuiTabBarPagingState;
 use crate::terminal_session_view::TuiTerminalSessionView;
@@ -179,8 +181,8 @@ impl TuiOrchestrationModel {
                     label: conversation
                         .agent_name()
                         .filter(|name| !name.is_empty())
-                        .unwrap_or("Agent")
-                        .to_owned(),
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| localization::text("tui.agent_message.default_agent")),
                     spawn_index: descendant.spawn_index,
                     status: conversation.status().clone(),
                 })
@@ -269,8 +271,9 @@ impl TuiOrchestrationModel {
                 // orchestration card, so this should never be reached.
                 self.fail_child_request(
                     &request,
-                    format!(
-                        "Local {harness_type} child agents aren't supported in the Warp TUI yet."
+                    localization::text_with_args(
+                        "tui.orchestration.child.local_unsupported",
+                        &[("harness", &harness_type)],
                     ),
                     ctx,
                 );
@@ -323,7 +326,7 @@ impl TuiOrchestrationModel {
         let prepared = match prepare_remote_child_launch(&request, config, ctx) {
             Ok(prepared) => prepared,
             Err(error) => {
-                self.fail_child_request(&request, error.user_message(), ctx);
+                self.fail_child_request(&request, remote_child_launch_error_message(error), ctx);
                 return;
             }
         };
@@ -534,11 +537,17 @@ impl TuiOrchestrationModel {
                 task_id: prepared.task_id,
                 conversation_name: prepared.conversation_name,
             }),
-            Err(error) => me.fail_child_request(
-                &request,
-                format!("Failed to create local child task: {error}"),
-                ctx,
-            ),
+            Err(error) => {
+                let error = error.to_string();
+                me.fail_child_request(
+                    &request,
+                    localization::text_with_args(
+                        "tui.orchestration.child.local_create_failed",
+                        &[("error", &error)],
+                    ),
+                    ctx,
+                )
+            }
         });
     }
 
@@ -671,6 +680,30 @@ impl TuiOrchestrationModel {
         self.child_session_by_conversation
             .retain(|_, child_session_id| *child_session_id != session_id);
         ctx.notify();
+    }
+}
+
+fn remote_child_launch_error_message(error: PrepareRemoteChildLaunchError) -> String {
+    remote_child_launch_error_message_for_locale(error, localization::current_locale())
+}
+
+fn remote_child_launch_error_message_for_locale(
+    error: PrepareRemoteChildLaunchError,
+    locale: LocaleId,
+) -> String {
+    match error {
+        PrepareRemoteChildLaunchError::MissingParentRunId => localization::text_for_locale(
+            locale,
+            "tui.orchestration.child.remote_missing_parent_run_id",
+        ),
+        PrepareRemoteChildLaunchError::UnresolvedSkills { references } => {
+            let references = references.join(", ");
+            localization::text_with_args_for_locale(
+                locale,
+                "tui.orchestration.child.remote_skills_unresolved",
+                &[("references", &references)],
+            )
+        }
     }
 }
 

@@ -17,7 +17,7 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, Radius, Shrinkable, Stack,
 };
 use warpui::fonts::Weight;
-use warpui::keymap::{FixedBinding, Keystroke};
+use warpui::keymap::{BindingDescription, FixedBinding, Keystroke};
 use warpui::text_layout::TextAlignment;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
@@ -32,6 +32,7 @@ use crate::auth::login_failure_notification::LoginFailureReason;
 use crate::editor::{
     EditorView, InteractionState, SingleLineEditorOptions, TextColors, TextOptions,
 };
+use crate::localization;
 use crate::server::server_api::auth::UserAuthenticationError;
 use crate::themes::theme::Fill as ThemeFill;
 use crate::util::bindings::CustomAction;
@@ -55,7 +56,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Paste,
             PasteAuthTokenModalAction::PasteIntoEditor,
-            "Paste",
+            binding_description("Paste", "terminal.binding.paste"),
             id!(PasteAuthTokenModalView::ui_name()),
         ),
         FixedBinding::standard(
@@ -71,6 +72,11 @@ pub fn init(app: &mut AppContext) {
         PasteAuthTokenModalAction::PasteIntoEditor,
         id!(PasteAuthTokenModalView::ui_name()),
     )]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -122,7 +128,10 @@ impl PasteAuthTokenModalView {
                 },
                 ctx,
             );
-            editor.set_placeholder_text("Enter auth token", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "auth.paste_token.placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -243,7 +252,7 @@ impl View for PasteAuthTokenModalView {
         let ui_builder = appearance.ui_builder();
 
         let title = FormattedTextElement::from_str(
-            "Paste your auth token below",
+            localization::text_for_app(app, "auth.paste_token.title"),
             appearance.ui_font_family(),
             16.,
         )
@@ -270,7 +279,7 @@ impl View for PasteAuthTokenModalView {
 
         let subtitle_color = internal_colors::text_sub(theme, dialog_surface_solid);
         let subtitle = FormattedTextElement::from_str(
-            "Paste your auth token from the browser to get complete login.",
+            localization::text_for_app(app, "auth.paste_token.subtitle"),
             appearance.ui_font_family(),
             14.,
         )
@@ -311,7 +320,7 @@ impl View for PasteAuthTokenModalView {
 
         if let Some(reason) = &self.last_failure_reason {
             let error_text = FormattedTextElement::new(
-                reason.to_formatted_text(),
+                reason.to_formatted_text(app),
                 14.,
                 appearance.ui_font_family(),
                 appearance.monospace_font_family(),
@@ -330,7 +339,9 @@ impl View for PasteAuthTokenModalView {
         let cancel_button = self.cancel_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Cancel".into()),
+                content: button::Content::Label(
+                    localization::text_for_app(app, "auth.cancel").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -345,7 +356,9 @@ impl View for PasteAuthTokenModalView {
         let continue_button = self.continue_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Continue".into()),
+                content: button::Content::Label(
+                    localization::text_for_app(app, "auth.continue").into(),
+                ),
                 theme: &button::themes::Primary,
                 options: button::Options {
                     keystroke: Some(enter),

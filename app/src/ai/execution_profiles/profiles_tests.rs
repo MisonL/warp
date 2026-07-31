@@ -1,28 +1,36 @@
 use chrono::{DateTime, Utc};
+#[cfg(not(feature = "agent_mode_evals"))]
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 use warp_graphql::object_permissions::AccessLevel;
 use warpui::{App, SingletonEntity};
 
 use crate::LaunchMode;
+#[cfg(not(feature = "agent_mode_evals"))]
+use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{
-    AIExecutionProfile, ActionPermission, CloudAIExecutionProfileModel, ExecutionProfileId,
-    WriteToPtyPermission,
+    AIExecutionProfile, ActionPermission, CloudAIExecutionProfileModel, WriteToPtyPermission,
 };
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::auth::user::TEST_USER_UID;
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+#[cfg(not(feature = "agent_mode_evals"))]
+use crate::cloud_object::{ObjectIdType, ServerCreationInfo};
 use crate::cloud_object::{
-    ObjectIdType, Owner, Revision, ServerAIExecutionProfile, ServerCreationInfo,
-    ServerGuestSubject, ServerMetadata, ServerObjectGuest, ServerPermissions,
+    Owner, Revision, ServerAIExecutionProfile, ServerGuestSubject, ServerMetadata,
+    ServerObjectGuest, ServerPermissions,
 };
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::ids::{ServerId, ServerIdAndType, SyncId};
+#[cfg(not(feature = "agent_mode_evals"))]
+use crate::server::ids::ServerIdAndType;
+use crate::server::ids::{ServerId, SyncId};
 use crate::server::sync_queue::SyncQueue;
-use crate::settings::{AISettings, PrivacySettings};
+#[cfg(not(feature = "agent_mode_evals"))]
+use crate::settings::AISettings;
+use crate::settings::PrivacySettings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -41,6 +49,7 @@ fn mock_server_metadata(uid: ServerId) -> ServerMetadata {
     }
 }
 
+#[cfg(not(feature = "agent_mode_evals"))]
 fn owned_legacy_profile(
     sync_id: SyncId,
     metadata_id: ServerId,
@@ -104,6 +113,7 @@ fn install_singletons(app: &mut App, auth_state: AuthStateProvider) {
     app.add_singleton_model(UserWorkspaces::default_mock);
 }
 
+#[cfg(not(feature = "agent_mode_evals"))]
 fn collection_with_profile(
     id: &str,
     name: &str,
@@ -170,6 +180,35 @@ fn edits_persist_on_unsynced_default_profile_when_logged_out() {
     })
 }
 
+#[cfg(feature = "agent_mode_evals")]
+#[test]
+fn agent_mode_evals_use_fixed_profile_for_tui() {
+    App::test((), |app| async move {
+        // Eval initialization must be independent from user-editable AISettings.
+        app.add_singleton_model(|_| TemplatableMCPServerManager::default());
+        let profile_model = app.add_singleton_model(|ctx| {
+            AIExecutionProfilesModel::new(
+                &LaunchMode::Tui {
+                    mount: Box::new(|_| {}),
+                    api_key: None,
+                },
+                ctx,
+            )
+        });
+
+        profile_model.read(&app, |model, ctx| {
+            let profile = model.default_profile(ctx);
+            assert_eq!(profile.data().name, "Agent Mode Eval");
+            assert_eq!(
+                profile.data().execute_commands,
+                ActionPermission::AlwaysAllow
+            );
+            assert!(!model.default_profile_id().is_default());
+        });
+    });
+}
+
+#[cfg(not(feature = "agent_mode_evals"))]
 #[test]
 fn explicit_local_collection_is_preserved_from_onboarding() {
     let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
@@ -214,6 +253,7 @@ fn explicit_local_collection_is_preserved_from_onboarding() {
     });
 }
 
+#[cfg(not(feature = "agent_mode_evals"))]
 #[test]
 fn migration_retries_after_pending_legacy_profile_receives_server_id() {
     let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
@@ -281,6 +321,7 @@ fn migration_retries_after_pending_legacy_profile_receives_server_id() {
     });
 }
 
+#[cfg(not(feature = "agent_mode_evals"))]
 #[test]
 fn migration_imports_owned_legacy_profiles_with_deterministic_keys() {
     let _guard = FeatureFlag::FileBackedExecutionProfiles.override_enabled(true);
@@ -349,6 +390,7 @@ fn migration_imports_owned_legacy_profiles_with_deterministic_keys() {
     });
 }
 
+#[cfg(not(feature = "agent_mode_evals"))]
 #[test]
 fn profile_sources_preserve_state_across_migration_and_rollout() {
     App::test((), |mut app| async move {

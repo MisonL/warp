@@ -73,7 +73,7 @@ pub trait SectionView {
         ctx: &AppContext,
     ) -> Option<Box<dyn Element>>;
 
-    fn section_link(&self, appearance: &Appearance) -> Option<Box<dyn Element>>;
+    fn section_link(&self, appearance: &Appearance, ctx: &AppContext) -> Option<Box<dyn Element>>;
 
     fn render_section_header(
         &self,
@@ -91,7 +91,7 @@ pub trait SectionView {
                 Align::new(
                     appearance
                         .ui_builder()
-                        .wrappable_text(section_name.section_name_string().to_string(), false)
+                        .wrappable_text(section_name.section_name_string(ctx), false)
                         .with_style(UiComponentStyles {
                             font_family_id: Some(appearance.ui_font_family()),
                             font_size: Some(SECTION_HEADER_FONT_SIZE),
@@ -137,7 +137,7 @@ pub trait SectionView {
                 section_header.add_child(progress_indicator)
             }
 
-            if let Some(link) = self.section_link(appearance) {
+            if let Some(link) = self.section_link(appearance, ctx) {
                 section_header.add_child(link)
             }
 

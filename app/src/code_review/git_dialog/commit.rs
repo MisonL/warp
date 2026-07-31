@@ -28,6 +28,7 @@ use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, InteractionState,
     PropagateAndNoOpNavigationKeys, TextOptions,
 };
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::util::git::{FileChangeEntry, PrInfo, get_file_change_entries};
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
@@ -44,15 +45,15 @@ const EDITOR_FONT_SIZE: f32 = 12.;
 const EDITOR_MIN_HEIGHT: f32 = 72.;
 /// Placeholder shown while the open-time AI commit-message autogen is in
 /// flight.
-const GENERATING_PLACEHOLDER_TEXT: &str = "Generating commit message\u{2026}";
+const GENERATING_PLACEHOLDER_KEY: &str = "code_review.git_dialog.commit.generating_message";
 /// Placeholder shown once the open-time autogen resolves — either as a
 /// nudge if the user later clears the generated draft, or as guidance when
 /// autogen failed and the editor is blank. Also used when autogen is off.
-const FALLBACK_PLACEHOLDER_TEXT: &str = "Type a commit message";
+const FALLBACK_PLACEHOLDER_KEY: &str = "code_review.git_dialog.commit.type_message";
 /// Loading-state label while the commit / chain runs. Static regardless of
 /// which chain is in flight — the success toast communicates what actually
 /// ran.
-const LOADING_LABEL: &str = "Committing\u{2026}";
+const LOADING_LABEL_KEY: &str = "code_review.git_dialog.commit.committing";
 
 pub struct CommitState {
     pub(super) intent: CommitChainMode,
@@ -63,6 +64,8 @@ pub struct CommitState {
     summary_mouse_state: MouseStateHandle,
     changes_scroll_state: ClippedScrollStateHandle,
     pub(super) message_editor: ViewHandle<EditorView>,
+    placeholder_key: &'static str,
+    push_label_key: &'static str,
     commit_button: ViewHandle<ActionButton>,
     commit_and_push_button: ViewHandle<ActionButton>,
     /// `None` when creating a PR doesn't make sense for this branch —
@@ -84,19 +87,25 @@ pub(super) fn new_state(
     // `CommitAndPush` always runs `git push --set-upstream`, so it works
     // whether or not the branch already has an upstream — but the label
     // and icon flip to communicate the user-visible difference.
-    let (push_label, push_icon) = if has_upstream {
-        ("Commit and push", Icon::ArrowUp)
+    let (push_label_key, push_icon) = if has_upstream {
+        (
+            "code_review.git_dialog.commit.commit_and_push",
+            Icon::ArrowUp,
+        )
     } else {
-        ("Commit and publish", Icon::UploadCloud)
+        (
+            "code_review.git_dialog.commit.commit_and_publish",
+            Icon::UploadCloud,
+        )
     };
     // If AI autogen is on, the dialog opens with "Generating\u{2026}" and a
     // background request fills the editor when it resolves. Otherwise, we
     // land on the manual-type prompt immediately.
     let ai_autogen_enabled = should_send_git_ops_ai_request(ctx);
-    let initial_placeholder = if ai_autogen_enabled {
-        GENERATING_PLACEHOLDER_TEXT
+    let initial_placeholder_key = if ai_autogen_enabled {
+        GENERATING_PLACEHOLDER_KEY
     } else {
-        FALLBACK_PLACEHOLDER_TEXT
+        FALLBACK_PLACEHOLDER_KEY
     };
     let message_editor = ctx.add_typed_action_view(|ctx| {
         let appearance = Appearance::as_ref(ctx);
@@ -115,7 +124,10 @@ pub(super) fn new_state(
         };
 
         let mut editor = EditorView::new(options, ctx);
-        editor.set_placeholder_text(initial_placeholder, ctx);
+        editor.set_placeholder_text(
+            localization::text_for_app(ctx, initial_placeholder_key),
+            ctx,
+        );
         editor
     });
 
@@ -123,40 +135,52 @@ pub(super) fn new_state(
         handle_editor_event(me, event, ctx);
     });
 
-    let commit_button = ctx.add_typed_action_view(|_ctx| {
-        ActionButton::new("Commit", SecondaryTheme)
-            .with_size(ButtonSize::XSmall)
-            .with_height(32.)
-            .with_icon(Icon::GitCommit)
-            .on_click(|ctx| {
-                ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
-                    CommitChainMode::CommitOnly,
-                )))
-            })
+    let commit_button = ctx.add_typed_action_view(|ctx| {
+        ActionButton::new(
+            localization::text_for_app(ctx, "code_review.git.commit"),
+            SecondaryTheme,
+        )
+        .with_size(ButtonSize::XSmall)
+        .with_height(32.)
+        .with_icon(Icon::GitCommit)
+        .on_click(|ctx| {
+            ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
+                CommitChainMode::CommitOnly,
+            )))
+        })
     });
-    let commit_and_push_button = ctx.add_typed_action_view(move |_ctx| {
-        ActionButton::new(push_label, SecondaryTheme)
-            .with_size(ButtonSize::XSmall)
-            .with_height(32.)
-            .with_icon(push_icon)
-            .on_click(|ctx| {
-                ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
-                    CommitChainMode::CommitAndPush,
-                )))
-            })
+    let commit_and_push_button = ctx.add_typed_action_view(move |ctx| {
+        ActionButton::new(
+            localization::text_for_app(ctx, push_label_key),
+            SecondaryTheme,
+        )
+        .with_size(ButtonSize::XSmall)
+        .with_height(32.)
+        .with_icon(push_icon)
+        .on_click(|ctx| {
+            ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
+                CommitChainMode::CommitAndPush,
+            )))
+        })
     });
 
     let commit_and_create_pr_button = if allow_create_pr {
-        Some(ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Commit and create PR", SecondaryTheme)
-                .with_size(ButtonSize::XSmall)
-                .with_height(32.)
-                .with_icon(Icon::Github)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
-                        CommitChainMode::CommitAndCreatePr,
-                    )))
-                })
+        Some(ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(
+                    ctx,
+                    "code_review.git_dialog.commit.commit_and_create_pr",
+                ),
+                SecondaryTheme,
+            )
+            .with_size(ButtonSize::XSmall)
+            .with_height(32.)
+            .with_icon(Icon::Github)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(GitDialogAction::Commit(CommitSubAction::SetIntent(
+                    CommitChainMode::CommitAndCreatePr,
+                )))
+            })
         }))
     } else {
         None
@@ -192,12 +216,18 @@ pub(super) fn new_state(
         summary_mouse_state: MouseStateHandle::default(),
         changes_scroll_state: ClippedScrollStateHandle::default(),
         message_editor,
+        placeholder_key: initial_placeholder_key,
+        push_label_key,
         commit_button,
         commit_and_push_button,
         commit_and_create_pr_button,
     };
     apply_intent_selector(&state, ctx);
     state
+}
+
+pub(super) fn loading_label(app: &AppContext) -> String {
+    localization::text_for_app(app, LOADING_LABEL_KEY)
 }
 
 pub(super) fn on_focus(state: &CommitState, ctx: &mut ViewContext<GitDialog>) {
@@ -227,11 +257,14 @@ fn has_committable_changes(state: &CommitState) -> bool {
 
 /// Returns a tooltip to show on the disabled Confirm button when the
 /// user needs to take action, or `None` when no tooltip is needed.
-pub(super) fn confirm_tooltip(state: &CommitState, app: &AppContext) -> Option<&'static str> {
+pub(super) fn confirm_tooltip(state: &CommitState, app: &AppContext) -> Option<String> {
     // Only nudge for a missing message; an empty Changes box is self-evident,
     // and gating a tooltip on it would also flash during the open-time load.
     if has_committable_changes(state) && commit_message(state, app).is_none() {
-        return Some("Enter a commit message");
+        return Some(localization::text_for_app(
+            app,
+            "code_review.git_dialog.commit.enter_message",
+        ));
     }
     None
 }
@@ -247,8 +280,11 @@ pub(super) fn apply_generated_commit_message(
     result: Result<String, String>,
     ctx: &mut ViewContext<GitDialog>,
 ) {
-    let editor_handle = match me.mode() {
-        GitDialogMode::Commit(state) => state.message_editor.clone(),
+    let editor_handle = match me.mode_mut() {
+        GitDialogMode::Commit(state) => {
+            state.placeholder_key = FALLBACK_PLACEHOLDER_KEY;
+            state.message_editor.clone()
+        }
         _ => return,
     };
     match result {
@@ -257,7 +293,10 @@ pub(super) fn apply_generated_commit_message(
             editor_handle.update(ctx, |editor, ctx| {
                 // Swap "Generating\u{2026}" for the manual-type prompt so it
                 // shows if the user later clears the generated draft.
-                editor.set_placeholder_text(FALLBACK_PLACEHOLDER_TEXT, ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, FALLBACK_PLACEHOLDER_KEY),
+                    ctx,
+                );
                 // User input wins — don't clobber their text.
                 if !user_typed {
                     editor.system_reset_buffer_text(generated.trim(), ctx);
@@ -269,7 +308,10 @@ pub(super) fn apply_generated_commit_message(
         Err(err) => {
             log::warn!("Failed to autogenerate commit message: {err}");
             editor_handle.update(ctx, |editor, ctx| {
-                editor.set_placeholder_text(FALLBACK_PLACEHOLDER_TEXT, ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, FALLBACK_PLACEHOLDER_KEY),
+                    ctx,
+                );
             });
             me.refresh_confirm_enabled(ctx);
             ctx.notify();
@@ -378,7 +420,7 @@ pub(super) fn start_confirm(me: &mut GitDialog, ctx: &mut ViewContext<GitDialog>
     // user has it enabled (ignored for commit-only / commit-and-push).
     let autogenerate_pr_content = should_send_git_ops_ai_request(ctx);
 
-    me.set_loading(LOADING_LABEL, ctx);
+    me.set_loading(localization::text_for_app(ctx, LOADING_LABEL_KEY), ctx);
 
     // Lock the commit message editor while the async op is in flight.
     message_editor.update(ctx, |editor, ctx| {
@@ -417,16 +459,16 @@ pub(super) fn finish_commit_chain(
     match &result {
         Ok(Some(pr)) => show_pr_created_toast(pr, ctx),
         Ok(None) => {
-            let msg = if matches!(intent, CommitChainMode::CommitOnly) {
-                "Changes successfully committed."
+            let key = if matches!(intent, CommitChainMode::CommitOnly) {
+                "code_review.git_dialog.commit.committed"
             } else {
-                "Changes committed and pushed."
+                "code_review.git_dialog.commit.committed_and_pushed"
             };
-            show_toast(msg, ctx);
+            show_toast(localization::text_for_app(ctx, key), ctx);
         }
         Err(err) => {
             report_error!("Commit failed", extra: { "error" => %err });
-            show_toast(user_facing_git_error(err), ctx);
+            show_toast(user_facing_git_error(err, ctx), ctx);
         }
     }
     send_telemetry_from_ctx!(
@@ -466,6 +508,32 @@ fn apply_intent_selector(state: &CommitState, ctx: &mut ViewContext<GitDialog>) 
     if let Some(button) = &state.commit_and_create_pr_button {
         button.update(ctx, |b, ctx| {
             b.set_active(state.intent == CommitChainMode::CommitAndCreatePr, ctx);
+        });
+    }
+}
+
+pub(super) fn refresh_localized_text(state: &CommitState, ctx: &mut ViewContext<GitDialog>) {
+    state.message_editor.update(ctx, |editor, ctx| {
+        editor.set_placeholder_text(localization::text_for_app(ctx, state.placeholder_key), ctx);
+    });
+    state.commit_button.update(ctx, |button, ctx| {
+        button.set_label(
+            localization::text_for_app(ctx, "code_review.git.commit"),
+            ctx,
+        );
+    });
+    state.commit_and_push_button.update(ctx, |button, ctx| {
+        button.set_label(localization::text_for_app(ctx, state.push_label_key), ctx);
+    });
+    if let Some(button) = &state.commit_and_create_pr_button {
+        button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(
+                    ctx,
+                    "code_review.git_dialog.commit.commit_and_create_pr",
+                ),
+                ctx,
+            );
         });
     }
 }
@@ -512,8 +580,8 @@ pub(super) fn render_body(
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
 
-    let branch_section = render_branch_section(branch_name, appearance);
-    let changes_section = render_changes_section(state, appearance);
+    let branch_section = render_branch_section(branch_name, appearance, app);
+    let changes_section = render_changes_section(state, appearance, app);
     let message_section = render_message_editor(state, appearance, app);
     let intent_section = render_intent_buttons(state);
 
@@ -537,13 +605,17 @@ pub(super) fn render_body(
         .finish()
 }
 
-fn render_changes_section(state: &CommitState, appearance: &Appearance) -> Box<dyn Element> {
+fn render_changes_section(
+    state: &CommitState,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
     let main_color = theme.main_text_color(theme.surface_1()).into_solid();
     let sub_color = theme.sub_text_color(theme.surface_1()).into_solid();
 
     let changes_label = Text::new(
-        "Changes",
+        localization::text_for_app(app, "code_review.git_dialog.changes"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -551,7 +623,7 @@ fn render_changes_section(state: &CommitState, appearance: &Appearance) -> Box<d
     .finish();
 
     let include_label = Text::new(
-        "Include unstaged",
+        localization::text_for_app(app, "code_review.git_dialog.commit.include_unstaged"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
@@ -591,6 +663,7 @@ fn render_changes_section(state: &CommitState, appearance: &Appearance) -> Box<d
         &state.changes_scroll_state,
         GitDialogAction::Commit(CommitSubAction::ToggleChangesExpanded),
         appearance,
+        app,
     );
 
     Flex::column()
@@ -605,7 +678,7 @@ fn render_message_editor(
     app: &AppContext,
 ) -> Box<dyn Element> {
     let label = Text::new(
-        "Commit message",
+        localization::text_for_app(app, "code_review.git_dialog.commit.message"),
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )

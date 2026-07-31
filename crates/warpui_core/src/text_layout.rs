@@ -86,11 +86,12 @@ impl<T> TextCache<T> {
         }
 
         let mut curr_frame = RwLockUpgradableReadGuard::upgrade(curr_frame);
-        if let Some((key, val)) = self.prev_frame.lock().remove_entry(key) {
-            curr_frame.insert(key, val.clone());
-            Some(val)
-        } else {
-            None
+        match self.prev_frame.lock().remove_entry(key) {
+            Some((key, val)) => {
+                curr_frame.insert(key, val.clone());
+                Some(val)
+            }
+            _ => None,
         }
     }
 

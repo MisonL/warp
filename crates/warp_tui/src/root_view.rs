@@ -9,6 +9,7 @@ use warpui_core::platform::TerminationMode;
 use warpui_core::{AppContext, Entity, EntityId, TuiView, TypedActionView, ViewContext, keymap};
 
 use crate::keybindings::TUI_BINDING_GROUP;
+use crate::localization;
 use crate::session_registry::{TuiSessionView, TuiSessions};
 use crate::ui::{login_failed, login_placeholder, terminal_starting};
 
@@ -85,6 +86,7 @@ impl TuiView for RootTuiView {
     }
 
     fn render(&self, ctx: &AppContext) -> Box<dyn TuiElement> {
+        localization::sync_from_app(ctx);
         match self.state {
             RootTuiState::Auth => match TuiLoginModel::as_ref(ctx).phase() {
                 TuiLoginPhase::LoggedIn => terminal_starting(),

@@ -17,7 +17,7 @@ use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonE
 use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConversationsModelEvent};
 use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISubagentEvent};
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
-use crate::ai::skills::{SkillDescriptor, SkillManager};
+use crate::ai::skills::{SkillDescriptor, SkillManager, SkillManagerEvent};
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
 use crate::search::slash_command_menu::static_commands::{Availability, commands};
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
@@ -81,6 +81,13 @@ pub(super) fn subscribe_to_shared_dependencies<T>(
             recompute_active_commands(me, ctx);
         }
     });
+    if ctx.has_singleton_model::<SkillManager>() {
+        ctx.subscribe_to_model(&SkillManager::handle(ctx), |_, _, event, ctx| {
+            if matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                ctx.emit(UpdatedActiveCommands);
+            }
+        });
+    }
     ctx.subscribe_to_model(cli_subagent_controller, move |me, _, event, ctx| {
         if let CLISubagentEvent::SpawnedSubagent { .. }
         | CLISubagentEvent::FinishedSubagent { .. }
@@ -637,7 +644,7 @@ impl InlineItem {
             action: AcceptSlashCommandOrSavedPrompt::SlashCommand { id: *command_id },
             icon_path: command.icon_path,
             name: command.name.to_owned(),
-            description: Some(command.description.to_owned()),
+            description: Some(command.localized_description(app)),
             font_family: appearance.monospace_font_family(),
             name_match_result: None,
             description_match_result: None,

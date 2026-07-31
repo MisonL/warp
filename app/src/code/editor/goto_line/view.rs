@@ -15,6 +15,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 
 const GOTO_LINE_WIDTH: f32 = 300.;
 const GOTO_LINE_LABEL_FONT_SIZE: f32 = 12.;
@@ -51,7 +52,10 @@ impl GoToLineView {
                 },
                 ctx,
             );
-            editor.set_placeholder_text("Line number:Column", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "code.goto_line.placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -136,7 +140,7 @@ impl View for GoToLineView {
         let theme = appearance.theme();
 
         let label = Text::new_inline(
-            "Go to line",
+            localization::text_for_app(app, "code.goto_line.title"),
             appearance.ui_font_family(),
             GOTO_LINE_LABEL_FONT_SIZE,
         )

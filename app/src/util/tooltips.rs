@@ -201,7 +201,10 @@ where
             .with_child(
                 appearance
                     .ui_builder()
-                    .span("*Secrets are not sent to Warp's server.")
+                    .span(crate::localization::text_for_app(
+                        app,
+                        "tooltip.secrets_not_sent_to_server",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(12.),
                         margin: Some(Coords::default().top(4.)),

@@ -806,8 +806,9 @@ fn footer_model_token_usage_keeps_custom_endpoint_usage_distinct_from_same_label
             context_window_segments: Vec::new(),
         };
 
-        let model_usage =
-            app.read(|ctx| footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx)));
+        let model_usage = app.read(|ctx| {
+            footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx), ctx)
+        });
         let byok_usage = model_usage
             .iter()
             .find(|usage| usage.model_id == "Resolved custom" && usage.byok_tokens == 4)
@@ -864,8 +865,9 @@ fn footer_model_token_usage_preserves_unresolved_custom_endpoint_usage_with_fall
             context_window_segments: Vec::new(),
         };
 
-        let model_usage =
-            app.read(|ctx| footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx)));
+        let model_usage = app.read(|ctx| {
+            footer_model_token_usage(&usage_metadata, LLMPreferences::as_ref(ctx), ctx)
+        });
         let custom_usage = model_usage
             .iter()
             .find(|usage| usage.model_id == "Custom endpoint")

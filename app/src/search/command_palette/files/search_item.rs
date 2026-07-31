@@ -96,19 +96,51 @@ impl SearchItem for FileSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        if self.is_directory {
-            format!("Directory: {}", self.path.display())
+        let key = if self.is_directory {
+            "search.files.a11y.directory"
         } else {
-            format!("File: {}", self.path.display())
-        }
+            "search.files.a11y.file"
+        };
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            key,
+            &[("path", &self.path.display().to_string())],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let key = if self.is_directory {
+            "search.files.a11y.directory"
+        } else {
+            "search.files.a11y.file"
+        };
+        crate::localization::text_for_app_with_args(
+            app,
+            key,
+            &[("path", &self.path.display().to_string())],
+        )
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some(if self.is_directory {
-            "Press Enter to navigate to this directory".to_string()
-        } else {
-            "Press Enter to open this file".to_string()
-        })
+        Some(crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            if self.is_directory {
+                "search.files.a11y.navigate_directory"
+            } else {
+                "search.files.a11y.open_file"
+            },
+        ))
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(crate::localization::text_for_app(
+            app,
+            if self.is_directory {
+                "search.files.a11y.navigate_directory"
+            } else {
+                "search.files.a11y.open_file"
+            },
+        ))
     }
 
     fn render_details(&self, _ctx: &AppContext) -> Option<Box<dyn Element>> {
@@ -161,7 +193,11 @@ impl SearchItem for CreateFileSearchItem {
         let text_color = highlight_state.sub_text_fill(appearance).into_solid();
 
         let label = Text::new_inline(
-            format!("Create a file named {}…", &self.file_name),
+            crate::localization::text_for_app_with_args(
+                app,
+                "search.files.create_file",
+                &[("file", &self.file_name)],
+            ),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -195,13 +231,34 @@ impl SearchItem for CreateFileSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Create file: {}", self.file_name)
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.files.create_file",
+            &[("file", &self.file_name)],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.files.create_file",
+            &[("file", &self.file_name)],
+        )
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some(format!(
-            "Press Enter to create {} in the current directory",
-            self.file_name
+        Some(crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.files.a11y.create_file_in_current_directory",
+            &[("file", &self.file_name)],
+        ))
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(crate::localization::text_for_app_with_args(
+            app,
+            "search.files.a11y.create_file_in_current_directory",
+            &[("file", &self.file_name)],
         ))
     }
 

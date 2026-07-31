@@ -11,13 +11,14 @@ use warpui_core::elements::tui::{
     Modifier, TuiChildView, TuiContainer, TuiElement, TuiFlex, TuiParentElement, TuiText,
 };
 use warpui_core::keymap::macros::*;
-use warpui_core::keymap::{EditableBinding, FixedBinding};
+use warpui_core::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui_core::{
     AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext, ViewHandle,
 };
 
 use crate::editor_view::TuiEditorView;
 use crate::keybindings::{TUI_BINDING_GROUP, is_tui_owned_binding};
+use crate::localization;
 use crate::option_selector::{
     OptionSelectorPage, TuiOptionSelector, TuiOptionSelectorAction, TuiOptionSelectorEvent,
 };
@@ -27,6 +28,10 @@ const PERMISSION_PROMPT_ACTIVE: &str = "TuiPermissionPromptActive";
 const YES_ID: &str = "yes";
 const NO_ID: &str = "no";
 const EDIT_ID: &str = "edit";
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| Some(localization::text(key)))
+}
 
 /// Registers controls used while a permission prompt owns focus.
 pub(crate) fn init(app: &mut AppContext) {
@@ -40,7 +45,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "tui:permission-prompt:confirm",
-            "Confirm the selected permission response",
+            binding_description(
+                "Confirm the selected permission response",
+                "tui.permission_prompt.binding.confirm",
+            ),
             TuiPermissionPromptAction::Confirm,
         )
         .with_context_predicate(predicate.clone())
@@ -48,7 +56,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("enter"),
         EditableBinding::new(
             "tui:permission-prompt:previous",
-            "Select the previous permission response",
+            binding_description(
+                "Select the previous permission response",
+                "tui.permission_prompt.binding.previous",
+            ),
             TuiPermissionPromptAction::MoveUp,
         )
         .with_context_predicate(predicate.clone())
@@ -56,7 +67,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("up"),
         EditableBinding::new(
             "tui:permission-prompt:next",
-            "Select the next permission response",
+            binding_description(
+                "Select the next permission response",
+                "tui.permission_prompt.binding.next",
+            ),
             TuiPermissionPromptAction::MoveDown,
         )
         .with_context_predicate(predicate.clone())
@@ -64,7 +78,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("down"),
         EditableBinding::new(
             "tui:permission-prompt:edit",
-            "Edit or save the requested action",
+            binding_description(
+                "Edit or save the requested action",
+                "tui.permission_prompt.binding.edit",
+            ),
             TuiPermissionPromptAction::EditBody,
         )
         .with_context_predicate(predicate)
@@ -127,14 +144,14 @@ impl TuiPermissionPrompt {
             let mut rows = vec![
                 OptionRow {
                     id: YES_ID.to_owned(),
-                    label: "yes".to_owned(),
+                    label: localization::text("tui.permission_prompt.option.yes"),
                     harness: None,
                     badge: None,
                     disabled_reason: None,
                 },
                 OptionRow {
                     id: NO_ID.to_owned(),
-                    label: "no".to_owned(),
+                    label: localization::text("tui.permission_prompt.option.no"),
                     harness: None,
                     badge: None,
                     disabled_reason: None,
@@ -143,7 +160,7 @@ impl TuiPermissionPrompt {
             if body_editor.is_some() {
                 rows.push(OptionRow {
                     id: EDIT_ID.to_owned(),
-                    label: "edit command".to_owned(),
+                    label: localization::text("tui.permission_prompt.option.edit_command"),
                     harness: None,
                     badge: None,
                     disabled_reason: None,
@@ -157,7 +174,7 @@ impl TuiPermissionPrompt {
                         selected_id: Some(YES_ID.to_owned()),
                         status: OptionSourceStatus::Ready,
                         footer: body_editor.is_none().then(|| OptionFooter::CustomText {
-                            label: "Other".to_owned(),
+                            label: localization::text("tui.permission_prompt.option.other"),
                         }),
                     },
                     searchable: false,
@@ -267,17 +284,26 @@ impl TuiPermissionPrompt {
         let builder = TuiUiBuilder::from_app(app);
         let mut spans = vec![
             ("Esc".to_owned(), builder.primary_text_style()),
-            (" to cancel  ".to_owned(), builder.muted_text_style()),
+            (
+                localization::text("tui.permission_prompt.footer.cancel"),
+                builder.muted_text_style(),
+            ),
         ];
         if self.body_editor.is_some() {
             spans.extend([
                 ("Ctrl+E".to_owned(), builder.primary_text_style()),
-                (" to edit/save  ".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.permission_prompt.footer.edit_save"),
+                    builder.muted_text_style(),
+                ),
             ]);
         }
         spans.extend([
             ("Enter".to_owned(), builder.primary_text_style()),
-            (" to run".to_owned(), builder.muted_text_style()),
+            (
+                localization::text("tui.permission_prompt.footer.run"),
+                builder.muted_text_style(),
+            ),
         ]);
         TuiText::from_spans(spans).truncate().finish()
     }

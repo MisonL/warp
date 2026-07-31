@@ -136,12 +136,18 @@ const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
 const DEFAULT_TAB_SIZE: usize = 4;
 
 pub const ACCEPT_AUTOSUGGESTION_KEYBINDING_NAME: &str = "editor_view:insert_autosuggestion";
-pub const VOICE_LIMIT_HIT_TOAST_TEXT: &str = "You have hit the limit for Voice requests. Your limit will be refreshed as a part of your next cycle.";
-pub const VOICE_ERROR_TOAST_TEXT: &str = "An error occurred while processing your voice input.";
-
 pub const MAX_IMAGES_PER_CONVERSATION: usize = 200;
 
 use warpui::clipboard_utils::CLIPBOARD_IMAGE_MIME_TYPES;
+
+#[cfg(windows)]
+fn binding_description(
+    fallback: &'static str,
+    key: &'static str,
+) -> warpui::keymap::BindingDescription {
+    warpui::keymap::BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
 
 #[derive(Clone, Copy)]
 pub enum AutosuggestionLocation {
@@ -260,7 +266,7 @@ pub fn init(ctx: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::WindowsPaste,
             EditorAction::Paste,
-            "Paste",
+            binding_description("Paste", "terminal.binding.paste"),
             id!("EditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::new(
@@ -1694,7 +1700,7 @@ impl ImageContextOptions {
         matches!(self, ImageContextOptions::Enabled { .. })
     }
 
-    pub fn tooltip_text(&self) -> String {
+    pub fn tooltip_text_for_app(&self, app: &AppContext) -> String {
         if let ImageContextOptions::Enabled {
             unsupported_model,
             is_processing_attached_images,
@@ -1703,28 +1709,37 @@ impl ImageContextOptions {
         } = self
         {
             if *unsupported_model {
-                return "Image attachment isn't supported by this model".into();
+                return crate::localization::text_for_app(
+                    app,
+                    "editor.image_context.tooltip.unsupported_model",
+                );
             }
 
             if *is_processing_attached_images {
-                return "Loading...".into();
+                return crate::localization::text_for_app(app, "status.loading");
             }
 
             if *num_images_attached >= MAX_IMAGE_COUNT_FOR_QUERY {
-                return format!(
-                    "Image attachment is disabled — limit is {MAX_IMAGE_COUNT_FOR_QUERY} per query"
+                let count = MAX_IMAGE_COUNT_FOR_QUERY.to_string();
+                return crate::localization::text_for_app_with_args(
+                    app,
+                    "editor.image_context.tooltip.query_limit",
+                    &[("count", count.as_str())],
                 );
             }
 
             let total_images = *num_images_attached + *num_images_in_conversation;
             if total_images >= MAX_IMAGES_PER_CONVERSATION {
-                return format!(
-                    "Image attachment is disabled — limit is {MAX_IMAGES_PER_CONVERSATION} per conversation"
+                let count = MAX_IMAGES_PER_CONVERSATION.to_string();
+                return crate::localization::text_for_app_with_args(
+                    app,
+                    "editor.image_context.tooltip.conversation_limit",
+                    &[("count", count.as_str())],
                 );
             }
         }
 
-        "Attach images".into()
+        crate::localization::text_for_app(app, "editor.image_context.tooltip.attach")
     }
 
     pub fn num_images_attached(&self) -> usize {
@@ -5035,10 +5050,10 @@ impl EditorView {
                         if !image_paths.is_empty() && is_unsupported_model {
                             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                                 toast_stack.add_ephemeral_toast(
-                                    DismissibleToast::error(
-                                        "The selected model does not support images as context."
-                                            .to_string(),
-                                    ),
+                                    DismissibleToast::error(crate::localization::text_for_app(
+                                        ctx,
+                                        "editor.image_context.tooltip.unsupported_model",
+                                    )),
                                     window_id,
                                     ctx,
                                 );
@@ -5058,19 +5073,35 @@ impl EditorView {
                             .max(num_excess_images_by_conversation_limit);
 
                         if num_excess_images > 0 {
-                            let limit_reason = if num_excess_images
-                                == num_excess_images_by_query_limit
-                            {
-                                format!("limit is {MAX_IMAGE_COUNT_FOR_QUERY} per query")
-                            } else {
-                                format!("limit is {MAX_IMAGES_PER_CONVERSATION} per conversation")
-                            };
+                            let limit_reason =
+                                if num_excess_images == num_excess_images_by_query_limit {
+                                    crate::localization::text_for_app_with_args(
+                                        ctx,
+                                        "editor.toast.image_limit.per_query",
+                                        &[("limit", &MAX_IMAGE_COUNT_FOR_QUERY.to_string())],
+                                    )
+                                } else {
+                                    crate::localization::text_for_app_with_args(
+                                        ctx,
+                                        "editor.toast.image_limit.per_conversation",
+                                        &[("limit", &MAX_IMAGES_PER_CONVERSATION.to_string())],
+                                    )
+                                };
 
                             let message = if num_excess_images == 1 {
-                                format!("1 image wasn't attached - {limit_reason}.")
+                                crate::localization::text_for_app_with_args(
+                                    ctx,
+                                    "editor.toast.image_limit.single",
+                                    &[("limit_reason", &limit_reason)],
+                                )
                             } else {
-                                format!(
-                                    "{num_excess_images} images weren't attached - {limit_reason}."
+                                crate::localization::text_for_app_with_args(
+                                    ctx,
+                                    "editor.toast.image_limit.plural",
+                                    &[
+                                        ("count", &num_excess_images.to_string()),
+                                        ("limit_reason", &limit_reason),
+                                    ],
                                 )
                             };
 
@@ -5112,7 +5143,9 @@ impl EditorView {
                     Err(err) => {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_persistent_toast(
-                                DismissibleToast::error(format!("{err}")),
+                                DismissibleToast::error(
+                                    crate::localization::file_picker_error_for_app(ctx, err),
+                                ),
                                 window_id,
                                 ctx,
                             );
@@ -5141,9 +5174,10 @@ impl EditorView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(
-                            "The selected model does not support images as context".to_owned(),
-                        ),
+                        DismissibleToast::error(crate::localization::text_for_app(
+                            ctx,
+                            "editor.image_context.tooltip.unsupported_model",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -5200,11 +5234,21 @@ impl EditorView {
             move |this, (images, num_unsupported_images, num_read_errors), ctx| {
                 if num_unsupported_images > 0 {
                     let message = if num_unsupported_images == 1 && num_images_user_attached == 1 {
-                        "Image cannot be attached - supported types are PNG, JPG, GIF, WEBP.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_unsupported.single_only",
+                        )
                     } else if num_unsupported_images == 1 {
-                        "1 image wasn't attached - supported types are PNG, JPG, GIF, WEBP.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_unsupported.single",
+                        )
                     } else {
-                        format!("{num_unsupported_images} images weren't attached - supported types are PNG, JPG, GIF, WEBP.")
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            "editor.toast.image_unsupported.plural",
+                            &[("count", &num_unsupported_images.to_string())],
+                        )
                     };
 
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
@@ -5218,11 +5262,21 @@ impl EditorView {
 
                 if num_read_errors > 0 {
                     let message = if num_read_errors == 1 && num_images_user_attached == 1 {
-                        "Image cannot be attached - failed to read file.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_read_failed.single_only",
+                        )
                     } else if num_read_errors == 1 {
-                        "1 image wasn't attached - failed to read file.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_read_failed.single",
+                        )
                     } else {
-                        format!("{num_read_errors} images weren't attached - failed to read files.")
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            "editor.toast.image_read_failed.plural",
+                            &[("count", &num_read_errors.to_string())],
+                        )
                     };
 
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
@@ -5235,7 +5289,11 @@ impl EditorView {
                 }
 
                 if !images.is_empty() {
-                    this.process_and_attach_images_as_ai_context(num_images_user_attached, images, ctx);
+                    this.process_and_attach_images_as_ai_context(
+                        num_images_user_attached,
+                        images,
+                        ctx,
+                    );
                 }
             },
         );
@@ -5256,9 +5314,10 @@ impl EditorView {
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(
-                            "The selected model does not support images as context".to_owned(),
-                        ),
+                        DismissibleToast::error(crate::localization::text_for_app(
+                            ctx,
+                            "editor.image_context.tooltip.unsupported_model",
+                        )),
                         window_id,
                         ctx,
                     );
@@ -5326,12 +5385,20 @@ impl EditorView {
 
                 if num_oversized_images > 0 {
                     let message = if num_oversized_images == 1 && num_images_user_attached == 1 {
-                        "Image cannot be attached - file is too large.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_too_large.single_only",
+                        )
                     } else if num_oversized_images == 1 {
-                        "1 image wasn't attached — file is too large.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_too_large.single",
+                        )
                     } else {
-                        format!(
-                            "{num_oversized_images} images weren't attached — files are too large."
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            "editor.toast.image_too_large.plural",
+                            &[("count", &num_oversized_images.to_string())],
                         )
                     };
 
@@ -5346,12 +5413,20 @@ impl EditorView {
 
                 if num_unprocessed_images > 0 {
                     let message = if num_unprocessed_images == 1 && num_images_user_attached == 1 {
-                        "Image cannot be attached - error processing.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_processing_failed.single_only",
+                        )
                     } else if num_unprocessed_images == 1 {
-                        "1 image wasn't attached - error processing.".into()
+                        crate::localization::text_for_app(
+                            ctx,
+                            "editor.toast.image_processing_failed.single",
+                        )
                     } else {
-                        format!(
-                            "{num_unprocessed_images} images weren't attached - error processing."
+                        crate::localization::text_for_app_with_args(
+                            ctx,
+                            "editor.toast.image_processing_failed.plural",
+                            &[("count", &num_unprocessed_images.to_string())],
                         )
                     };
 
@@ -8135,6 +8210,7 @@ impl EditorView {
         &self,
         icon_size: f32,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let Some(ai_context_menu_state) = &self.ai_context_menu_state else {
             return None;
@@ -8154,19 +8230,21 @@ impl EditorView {
             padding: Some(Coords::uniform(icon_size / 10.)),
             ..Default::default()
         });
-        let button =
-            button
-                .with_tooltip_position(ButtonTooltipPosition::Above)
-                .with_tooltip(self.render_menu_button_tooltip(
-                    "Search files and directories".to_string(),
-                    appearance,
-                ))
-                .build()
-                .with_cursor(Cursor::PointingHand)
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(EditorAction::SetAIContextMenuOpen(true));
-                })
-                .finish();
+        let button = button
+            .with_tooltip_position(ButtonTooltipPosition::Above)
+            .with_tooltip(self.render_menu_button_tooltip(
+                crate::localization::text_for_app(
+                    app,
+                    "editor.ai_context_menu.search_files_tooltip",
+                ),
+                appearance,
+            ))
+            .build()
+            .with_cursor(Cursor::PointingHand)
+            .on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(EditorAction::SetAIContextMenuOpen(true));
+            })
+            .finish();
 
         Some(button)
     }
@@ -8293,7 +8371,8 @@ impl EditorView {
         let mut controls = Flex::row().with_main_axis_size(MainAxisSize::Min);
 
         if should_show_at_context_menu {
-            let at_context_menu_button = self.render_at_context_menu_button(icon_size, appearance);
+            let at_context_menu_button =
+                self.render_at_context_menu_button(icon_size, appearance, ctx);
             if let Some(at_context_menu_button) = at_context_menu_button {
                 controls.add_child(
                     Container::new(at_context_menu_button)
@@ -8307,7 +8386,7 @@ impl EditorView {
             controls.add_child(
                 Container::new(self.render_image_context_button(
                     !self.image_context_options.is_enabled(),
-                    self.image_context_options.tooltip_text(),
+                    self.image_context_options.tooltip_text_for_app(ctx),
                     icon_size,
                     appearance,
                 ))
@@ -8504,8 +8583,13 @@ impl TypedActionView for EditorView {
             | EditorAction::Delete
             | EditorAction::Backspace => ActionAccessibilityContent::Empty,
             EditorAction::Paste => {
+                let clipboard_text = self.clipboard_content(ctx);
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    format!("Pasting: {}", self.clipboard_content(ctx)),
+                    crate::localization::text_for_app_with_args(
+                        ctx,
+                        "editor.a11y.pasting",
+                        &[("content", &clipboard_text)],
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }

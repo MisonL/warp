@@ -9,6 +9,7 @@ use warpui::{
 
 use crate::ai::llms::LLMId;
 use crate::appearance::Appearance;
+use crate::localization::{self, LocalizationUpdater};
 use crate::view_components::action_button::{ActionButton, NakedTheme, PrimaryTheme};
 use crate::view_components::{DropdownItem, FilterableDropdown, FilterableDropdownEvent};
 
@@ -66,16 +67,28 @@ impl SetDefaultModelModalBody {
             }
         });
 
-        let cancel_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Not now", NakedTheme).on_click(|ctx| {
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.ai.set_default_model.not_now"),
+                NakedTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(SetDefaultModelModalBodyAction::Cancel);
             })
         });
 
-        let save_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Change default model", PrimaryTheme).on_click(|ctx| {
+        let save_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.ai.set_default_model.change"),
+                PrimaryTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(SetDefaultModelModalBodyAction::Save);
             })
+        });
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |body, _, _, ctx| {
+            body.refresh_localized_text(ctx);
         });
 
         Self {
@@ -87,6 +100,22 @@ impl SetDefaultModelModalBody {
             save_button,
             self_handle: ctx.handle(),
         }
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.cancel_button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(ctx, "settings.ai.set_default_model.not_now"),
+                ctx,
+            );
+        });
+        self.save_button.update(ctx, |button, ctx| {
+            button.set_label(
+                localization::text_for_app(ctx, "settings.ai.set_default_model.change"),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     /// Populates the prompt for a freshly added credential and focuses the body

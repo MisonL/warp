@@ -103,11 +103,8 @@ async fn read_message_with_timeout_retries_transient_failures_until_success() {
         });
 
     let ai_client: Arc<dyn AIClient> = Arc::new(ai_client);
-    let hydrator = MessageHydrator::with_fetch_timing(
-        ai_client,
-        Duration::from_millis(100),
-        Duration::from_millis(5),
-    );
+    let hydrator =
+        MessageHydrator::with_fetch_timing(ai_client, Duration::from_secs(5), Duration::ZERO);
 
     let message = hydrator.read_message_with_timeout("msg-123").await.unwrap();
 

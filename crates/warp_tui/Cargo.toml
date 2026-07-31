@@ -71,6 +71,7 @@ warp_channel_config.workspace = true
 warp_core.workspace = true
 warp_errors.workspace = true
 warp_editor.workspace = true
+warp_localization.workspace = true
 warp_files.workspace = true
 warp_logging.workspace = true
 warp_search_core.workspace = true
@@ -94,7 +95,11 @@ arboard = { workspace = true }
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 arboard = { workspace = true, features = ["wayland-data-control"] }
 
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
 [dev-dependencies]
+settings.workspace = true
 tempfile.workspace = true
 # `test-util` exposes `Appearance::mock()`, used to register the `Appearance`
 # singleton that the editor-backed TUI input view depends on in tests.
@@ -105,7 +110,7 @@ warp_editor = { workspace = true, features = ["test-util"] }
 # Process-level worker-dispatch regression test.
 command.workspace = true
 pathfinder_color.workspace = true
-warp = { workspace = true, features = ["tui", "test-util"] }
+warp = { workspace = true, features = ["tui", "test-util", "integration_tests"] }
 
 [features]
 # Declared so the `warp_channel_config::load_config!` macro's

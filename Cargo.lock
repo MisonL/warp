@@ -15340,6 +15340,7 @@ dependencies = [
  "warp_graphql",
  "warp_isolation_platform",
  "warp_js",
+ "warp_localization",
  "warp_logging",
  "warp_managed_secrets",
  "warp_multi_agent_api",
@@ -15459,6 +15460,7 @@ dependencies = [
  "url",
  "uuid",
  "warp_core",
+ "warp_localization",
  "warp_util",
  "windows 0.62.2",
 ]
@@ -15713,6 +15715,19 @@ dependencies = [
  "serde",
  "thiserror 2.0.17",
  "uuid",
+]
+
+[[package]]
+name = "warp_localization"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.0.4",
+ "serde",
+ "serde_json",
+ "serde_yaml 0.8.26",
+ "settings_value",
+ "sys-locale",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -15979,6 +15994,7 @@ dependencies = [
  "http_client",
  "instant",
  "itertools 0.14.0",
+ "libc",
  "log",
  "markdown_parser",
  "num-traits",
@@ -15987,6 +16003,7 @@ dependencies = [
  "pathfinder_geometry",
  "rangemap",
  "serde_json",
+ "settings",
  "shell-words",
  "similar",
  "string-offset",
@@ -16005,6 +16022,7 @@ dependencies = [
  "warp_editor",
  "warp_errors",
  "warp_files",
+ "warp_localization",
  "warp_logging",
  "warp_search_core",
  "warp_terminal",

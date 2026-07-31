@@ -19,6 +19,7 @@ use crate::ai::agent_conversations_model::{
     AgentConversationNavigationSubject, AgentConversationsModel,
 };
 use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::localization;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -140,11 +141,16 @@ pub(crate) fn parent_conversation_navigation_card(
     let parent_title = BlocklistAIHistoryModel::as_ref(app)
         .conversation(&parent_conversation_id)
         .and_then(|conversation| conversation.title())
-        .unwrap_or_else(|| "Parent conversation".to_string());
+        .unwrap_or_else(|| {
+            localization::text_for_app(app, "agent.orchestration.parent_conversation")
+        });
     let action = conversation_navigation_action(parent_conversation_id, app)?;
     Some(conversation_navigation_card(
         parent_title,
-        Some("Back to parent conversation".to_string()),
+        Some(localization::text_for_app(
+            app,
+            "agent.orchestration.back_to_parent_conversation",
+        )),
         move |ctx, _, _| {
             ctx.dispatch_typed_action(action.clone());
         },

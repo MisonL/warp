@@ -27,6 +27,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization::{self, LocalizationUpdater};
 use crate::referral_theme_status::ReferralThemeStatus;
 use crate::resource_center::{
     Tip, TipAction, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
@@ -46,7 +47,6 @@ use crate::window_settings::WindowSettings;
 use crate::workspace::PANEL_HEADER_HEIGHT;
 
 // All units in px
-const THEME_CHOOSER_TITLE: &str = "Themes";
 const CLOSE_BUTTON_MARGIN_RIGHT: f32 = 6.;
 const TITLE_FONT_SIZE: f32 = 16.;
 const TITLE_MARGIN: f32 = 12.;
@@ -112,18 +112,15 @@ impl ThemeChooserMode {
         }
     }
 
-    fn render_hint_text(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let hint_text = match self {
-            ThemeChooserMode::SystemAgnostic => appearance
-                .ui_builder()
-                .paragraph("Change your current theme.".to_string()),
-            ThemeChooserMode::SystemLight => appearance
-                .ui_builder()
-                .paragraph("Pick a theme for when your system is in light mode.".to_string()),
-            ThemeChooserMode::SystemDark => appearance
-                .ui_builder()
-                .paragraph("Pick a theme for when your system is in dark mode.".to_string()),
+    fn render_hint_text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let key = match self {
+            ThemeChooserMode::SystemAgnostic => "theme_chooser.hint.current",
+            ThemeChooserMode::SystemLight => "theme_chooser.hint.light",
+            ThemeChooserMode::SystemDark => "theme_chooser.hint.dark",
         };
+        let hint_text = appearance
+            .ui_builder()
+            .paragraph(localization::text_for_app(app, key));
         hint_text
             .build()
             .with_margin_left(TITLE_MARGIN)
@@ -224,6 +221,9 @@ impl ThemeChooser {
                 me.update_themes(ctx);
                 ctx.notify();
             }
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |_, _, _, ctx| {
+            ctx.notify();
         });
 
         // Subscribe to window state changes for focus dimming updates
@@ -630,7 +630,7 @@ impl ThemeChooser {
         )
     }
 
-    fn render_title_row(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_title_row(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let mut title_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
@@ -639,7 +639,7 @@ impl ThemeChooser {
                     Align::new(
                         appearance
                             .ui_builder()
-                            .span(THEME_CHOOSER_TITLE.to_string())
+                            .span(localization::text_for_app(app, "theme_chooser.title"))
                             .with_style(UiComponentStyles {
                                 font_family_id: Some(appearance.ui_font_family()),
                                 font_size: Some(TITLE_FONT_SIZE),
@@ -728,7 +728,7 @@ impl ThemeChooser {
         .finish()
     }
 
-    fn render_list(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_list(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let themes = self
             .filtered_themes
             .as_ref()
@@ -745,7 +745,10 @@ impl ThemeChooser {
                 .with_child(
                     appearance
                         .ui_builder()
-                        .span("No matching themes!".to_string())
+                        .span(localization::text_for_app(
+                            app,
+                            "theme_chooser.no_matching_themes",
+                        ))
                         .build()
                         .finish(),
                 )
@@ -840,10 +843,10 @@ impl View for ThemeChooser {
         "ThemeChooser"
     }
 
-    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Theme chooser. Unfortunately, theme chooser window isn't compatible with screen readers yet.",
-            "Press escape to close.",
+            localization::text_for_app(app, "theme_chooser.a11y.description"),
+            localization::text_for_app(app, "theme_chooser.a11y.help"),
             WarpA11yRole::WindowRole,
         ))
     }
@@ -855,10 +858,10 @@ impl View for ThemeChooser {
         Container::new(
             Flex::column()
                 .with_child(self.render_header(traffic_light_data.as_ref(), appearance, app))
-                .with_child(self.render_title_row(appearance))
-                .with_child(self.mode.render_hint_text(appearance))
+                .with_child(self.render_title_row(appearance, app))
+                .with_child(self.mode.render_hint_text(appearance, app))
                 .with_child(self.render_search_bar(appearance))
-                .with_child(self.render_list(appearance))
+                .with_child(self.render_list(appearance, app))
                 .finish(),
         )
         .finish()

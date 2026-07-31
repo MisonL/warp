@@ -24,6 +24,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::dropdown::{DROPDOWN_PADDING, TOP_MENU_BAR_HEIGHT};
@@ -38,6 +39,10 @@ const LABEL_FONT_SIZE: f32 = 14.;
 const INPUT_WIDTH: f32 = 428.; // 460px - (2 * 16px) padding
 const AGENT_DROPDOWN_POSITION_ID: &str = "create_api_key_modal_agent_dropdown";
 
+fn api_key_text(app: &AppContext, key: &str) -> String {
+    localization::text_for_app(app, key)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ApiKeyType {
     Personal,
@@ -46,17 +51,19 @@ pub(crate) enum ApiKeyType {
 }
 
 impl ApiKeyType {
-    fn description(&self) -> &'static str {
+    fn description_key(&self) -> &'static str {
         match self {
-            ApiKeyType::Personal => {
-                "This API key is tied to your user and can make requests against your Warp account."
-            }
-            ApiKeyType::Team => {
-                "This API key is tied to your team and can make requests on behalf of your team."
-            }
-            ApiKeyType::Agent => {
-                "This API key is tied to an agent and can make requests on behalf of the agent."
-            }
+            ApiKeyType::Personal => "settings.platform.api_keys.description.personal",
+            ApiKeyType::Team => "settings.platform.api_keys.description.team",
+            ApiKeyType::Agent => "settings.platform.api_keys.description.agent",
+        }
+    }
+
+    fn label_key(&self) -> &'static str {
+        match self {
+            ApiKeyType::Personal => "settings.platform.api_keys.type.personal",
+            ApiKeyType::Team => "settings.platform.api_keys.type.team",
+            ApiKeyType::Agent => "settings.platform.api_keys.type.agent",
         }
     }
 }
@@ -89,12 +96,20 @@ pub(crate) enum ExpirationOption {
 }
 
 impl ExpirationOption {
-    fn display_text(&self) -> &'static str {
+    fn display_text(&self, app: &AppContext) -> String {
         match self {
-            ExpirationOption::OneDay => "1 day",
-            ExpirationOption::ThirtyDays => "30 days",
-            ExpirationOption::NinetyDays => "90 days",
-            ExpirationOption::Never => "Never",
+            ExpirationOption::OneDay => {
+                api_key_text(app, "settings.platform.api_keys.expiration.one_day")
+            }
+            ExpirationOption::ThirtyDays => {
+                api_key_text(app, "settings.platform.api_keys.expiration.thirty_days")
+            }
+            ExpirationOption::NinetyDays => {
+                api_key_text(app, "settings.platform.api_keys.expiration.ninety_days")
+            }
+            ExpirationOption::Never => {
+                api_key_text(app, "settings.platform.api_keys.expiration.never")
+            }
         }
     }
 
@@ -163,7 +178,10 @@ impl CreateApiKeyModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Warp API Key", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.platform.api_keys.default_name"),
+                ctx,
+            );
             editor
         });
 
@@ -197,11 +215,7 @@ impl CreateApiKeyModal {
                         icon_path: "",
                         icon_color: theme.active_ui_text_color().into(),
                         label: Some(LabelConfig {
-                            label: match key_type {
-                                ApiKeyType::Personal => "Personal".into(),
-                                ApiKeyType::Team => "Team".into(),
-                                ApiKeyType::Agent => "Agent".into(),
-                            },
+                            label: api_key_text(app, key_type.label_key()).into(),
                             width_override: Some(55.0),
                             color: if is_selected {
                                 theme.active_ui_text_color().into()
@@ -240,15 +254,7 @@ impl CreateApiKeyModal {
         });
 
         let default_expiration = ExpirationOption::NinetyDays;
-        let items: Vec<DropdownItem<CreateApiKeyModalAction>> = ExpirationOption::all()
-            .into_iter()
-            .map(|opt| {
-                DropdownItem::new(
-                    opt.display_text(),
-                    CreateApiKeyModalAction::SetExpiration(opt),
-                )
-            })
-            .collect();
+        let items = Self::localized_expiration_items(ctx);
         expiration_dropdown.update(ctx, |dropdown, ctx| {
             dropdown.set_items(items, ctx);
             dropdown.set_top_bar_max_width(INPUT_WIDTH);
@@ -297,8 +303,10 @@ impl CreateApiKeyModal {
                     Err(err) => {
                         report_error!(err.context("Failed to load agent identities"));
                         ctx.emit(CreateApiKeyModalEvent::Error {
-                            message: "Failed to load agents. Please close and try again."
-                                .to_string(),
+                            message: localization::text_for_app(
+                                ctx,
+                                "settings.platform.api_keys.error.load_agents_failed",
+                            ),
                         });
                     }
                 }
@@ -341,7 +349,7 @@ impl CreateApiKeyModal {
         let name = self.name_editor.as_ref(ctx).buffer_text(ctx);
 
         let final_name = if name.trim().is_empty() {
-            "Warp API Key".to_string()
+            localization::text_for_app(ctx, "settings.platform.api_keys.default_name")
         } else {
             name.trim().to_string()
         };
@@ -365,7 +373,10 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message: "Please select an agent.".to_string(),
+                        message: localization::text_for_app(
+                            ctx,
+                            "settings.platform.api_keys.error.no_agent_selected",
+                        ),
                     });
                     ctx.notify();
                     return;
@@ -382,9 +393,10 @@ impl CreateApiKeyModal {
                 None => {
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message:
-                            "Unable to create a team API key because there is no current team."
-                                .to_string(),
+                        message: localization::text_for_app(
+                            ctx,
+                            "settings.platform.api_keys.error.no_current_team",
+                        ),
                     });
                     ctx.notify();
                     return;
@@ -415,7 +427,12 @@ impl CreateApiKeyModal {
                     }
                     Ok(warp_graphql::mutations::generate_api_key::GenerateApiKeyResult::Unknown) | Err(_) => {
                         me.request_state = RequestState::Idle;
-                        ctx.emit(CreateApiKeyModalEvent::Error { message: "Failed to create API key. Please try again.".to_string() });
+                        ctx.emit(CreateApiKeyModalEvent::Error {
+                            message: localization::text_for_app(
+                                ctx,
+                                "settings.platform.api_keys.error.create_failed",
+                            ),
+                        });
                         ctx.notify();
                     }
                 }
@@ -435,6 +452,45 @@ impl CreateApiKeyModal {
         self.name_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
         });
+    }
+
+    fn title_key(&self) -> &'static str {
+        match self.request_state {
+            RequestState::Idle => "settings.platform.api_keys.modal_title.new",
+            RequestState::Pending => "settings.platform.api_keys.modal_title.new",
+            RequestState::Succeeded => "settings.platform.api_keys.modal_title.save",
+        }
+    }
+
+    pub fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.name_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.platform.api_keys.default_name"),
+                ctx,
+            );
+        });
+        let selected_expiration = self.expiration;
+        self.expiration_dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(Self::localized_expiration_items(ctx), ctx);
+            dropdown.set_selected_by_action(
+                CreateApiKeyModalAction::SetExpiration(selected_expiration),
+                ctx,
+            );
+        });
+        self.api_key_type_control.update(ctx, |_, ctx| ctx.notify());
+        ctx.notify();
+    }
+
+    fn localized_expiration_items(ctx: &AppContext) -> Vec<DropdownItem<CreateApiKeyModalAction>> {
+        ExpirationOption::all()
+            .into_iter()
+            .map(|opt| {
+                DropdownItem::new(
+                    opt.display_text(ctx),
+                    CreateApiKeyModalAction::SetExpiration(opt),
+                )
+            })
+            .collect()
     }
 
     pub fn on_open(&mut self, ctx: &mut ViewContext<Self>) {
@@ -491,7 +547,7 @@ impl CreateApiKeyModal {
         };
 
         let info = Text::new(
-            "This secret key is shown only once. Copy and store it securely.",
+            localization::text_for_app(app, "settings.platform.api_keys.secret_once"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -513,9 +569,9 @@ impl CreateApiKeyModal {
         .finish();
 
         let copy_label = if self.raw_key_copied {
-            "Copied"
+            localization::text_for_app(app, "settings.action.copied")
         } else {
-            "Copy"
+            localization::text_for_app(app, "settings.action.copy")
         };
         let copy_icon = if self.raw_key_copied {
             warp_core::ui::icons::Icon::Check.to_warpui_icon(appearance.theme().background())
@@ -564,7 +620,7 @@ impl CreateApiKeyModal {
                 ButtonVariant::Accent,
                 self.cancel_button_mouse_state.clone(),
             )
-            .with_text_label("Done".to_string())
+            .with_text_label(localization::text_for_app(app, "settings.action.done"))
             .with_style(button_style)
             .build()
             .on_click(|ctx, _, _| ctx.dispatch_typed_action(CreateApiKeyModalAction::Cancel))
@@ -622,9 +678,15 @@ impl View for CreateApiKeyModal {
                 let description_text = if selected_key_type == ApiKeyType::Agent {
                     FormattedTextElement::new(
                         FormattedText::new([FormattedTextLine::Line(vec![
-                            FormattedTextFragment::plain_text(selected_key_type.description()),
+                            FormattedTextFragment::plain_text(api_key_text(
+                                app,
+                                selected_key_type.description_key(),
+                            )),
                             FormattedTextFragment::plain_text(" "),
-                            FormattedTextFragment::hyperlink("Learn more", API_KEY_DOCS_URL),
+                            FormattedTextFragment::hyperlink(
+                                api_key_text(app, "settings.action.learn_more"),
+                                API_KEY_DOCS_URL,
+                            ),
                         ])]),
                         LABEL_FONT_SIZE,
                         appearance.ui_font_family(),
@@ -639,7 +701,7 @@ impl View for CreateApiKeyModal {
                     .finish()
                 } else {
                     Text::new(
-                        selected_key_type.description(),
+                        api_key_text(app, selected_key_type.description_key()),
                         appearance.ui_font_family(),
                         LABEL_FONT_SIZE,
                     )
@@ -647,9 +709,13 @@ impl View for CreateApiKeyModal {
                     .finish()
                 };
 
-                let name_label = Text::new("Name", appearance.ui_font_family(), LABEL_FONT_SIZE)
-                    .with_color(theme.active_ui_text_color().into())
-                    .finish();
+                let name_label = Text::new(
+                    api_key_text(app, "settings.platform.api_keys.name"),
+                    appearance.ui_font_family(),
+                    LABEL_FONT_SIZE,
+                )
+                .with_color(theme.active_ui_text_color().into())
+                .finish();
 
                 let is_pending = self.request_state == RequestState::Pending;
 
@@ -663,7 +729,7 @@ impl View for CreateApiKeyModal {
                         ButtonVariant::Secondary,
                         self.cancel_button_mouse_state.clone(),
                     )
-                    .with_text_label("Cancel".to_string())
+                    .with_text_label(api_key_text(app, "settings.action.cancel"))
                     .with_style(button_style)
                     .build()
                     .on_click(move |ctx, _, _| {
@@ -681,9 +747,9 @@ impl View for CreateApiKeyModal {
                         self.create_button_mouse_state.clone(),
                     )
                     .with_text_label(if is_pending {
-                        "Creating…".to_string()
+                        api_key_text(app, "settings.platform.api_keys.creating")
                     } else {
-                        "Create key".to_string()
+                        api_key_text(app, "settings.platform.api_keys.create")
                     })
                     .with_style(button_style)
                     .build()
@@ -711,10 +777,13 @@ impl View for CreateApiKeyModal {
                 let mut render_agent_dropdown = false;
 
                 if self.has_team || self.has_named_agents {
-                    let type_label =
-                        Text::new("Type", appearance.ui_font_family(), LABEL_FONT_SIZE)
-                            .with_color(theme.active_ui_text_color().into())
-                            .finish();
+                    let type_label = Text::new(
+                        api_key_text(app, "settings.platform.api_keys.type"),
+                        appearance.ui_font_family(),
+                        LABEL_FONT_SIZE,
+                    )
+                    .with_color(theme.active_ui_text_color().into())
+                    .finish();
                     col.add_child(Container::new(type_label).with_margin_bottom(4.).finish());
                     col.add_child(
                         Container::new(ChildView::new(&self.api_key_type_control).finish())
@@ -730,10 +799,13 @@ impl View for CreateApiKeyModal {
                 );
 
                 if selected_key_type == ApiKeyType::Agent {
-                    let agent_label =
-                        Text::new("Agent", appearance.ui_font_family(), LABEL_FONT_SIZE)
-                            .with_color(theme.active_ui_text_color().into())
-                            .finish();
+                    let agent_label = Text::new(
+                        api_key_text(app, "settings.platform.api_keys.type.agent"),
+                        appearance.ui_font_family(),
+                        LABEL_FONT_SIZE,
+                    )
+                    .with_color(theme.active_ui_text_color().into())
+                    .finish();
                     col.add_child(Container::new(agent_label).with_margin_bottom(4.).finish());
 
                     let available_agents: Vec<&AgentIdentity> =
@@ -741,7 +813,7 @@ impl View for CreateApiKeyModal {
 
                     if !self.is_loading_agents && available_agents.is_empty() {
                         let empty_text = Text::new(
-                            "No agents available. Create one first.",
+                            api_key_text(app, "settings.platform.api_keys.agent.none_available"),
                             appearance.ui_font_family(),
                             LABEL_FONT_SIZE,
                         )
@@ -754,7 +826,10 @@ impl View for CreateApiKeyModal {
                                 ButtonVariant::Secondary,
                                 self.create_agent_button_mouse_state.clone(),
                             )
-                            .with_text_label("Create agent".to_string())
+                            .with_text_label(api_key_text(
+                                app,
+                                "settings.platform.api_keys.agent.create",
+                            ))
                             .with_style(button_style)
                             .build()
                             .on_click(|ctx, _, _| {
@@ -819,10 +894,13 @@ impl View for CreateApiKeyModal {
                     .finish(),
                 );
 
-                let expiration_label =
-                    Text::new("Expiration", appearance.ui_font_family(), LABEL_FONT_SIZE)
-                        .with_color(theme.active_ui_text_color().into())
-                        .finish();
+                let expiration_label = Text::new(
+                    api_key_text(app, "settings.platform.api_keys.expiration.label"),
+                    appearance.ui_font_family(),
+                    LABEL_FONT_SIZE,
+                )
+                .with_color(theme.active_ui_text_color().into())
+                .finish();
 
                 col.add_child(
                     Container::new(expiration_label)
@@ -880,7 +958,7 @@ impl TypedActionView for CreateApiKeyModal {
                 let window_id = ctx.window_id();
                 crate::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     let toast = crate::view_components::DismissibleToast::success(
-                        "Secret key copied.".to_string(),
+                        localization::text_for_app(ctx, "settings.platform.api_keys.secret_copied"),
                     );
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
@@ -932,6 +1010,18 @@ impl CreateApiKeyModalViewState {
     pub fn set_title<T: View>(&mut self, title: Option<String>, ctx: &mut ViewContext<T>) {
         self.state.view.update(ctx, |modal, ctx| {
             modal.set_title(title);
+            ctx.notify();
+        });
+        ctx.notify();
+    }
+
+    pub fn refresh_localized_text<T: View>(&mut self, ctx: &mut ViewContext<T>) {
+        self.state.view.update(ctx, |modal, ctx| {
+            let title_key = modal.body().read(ctx, |body, _| body.title_key());
+            modal.set_title(Some(localization::text_for_app(ctx, title_key)));
+            modal.body().update(ctx, |body, ctx| {
+                body.refresh_localized_text(ctx);
+            });
             ctx.notify();
         });
         ctx.notify();

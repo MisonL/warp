@@ -2,11 +2,12 @@ use std::collections::HashSet;
 
 use itertools::{Either, Itertools};
 use warp_core::features::FeatureFlag;
-use warpui::{EntityId, UpdateView, ViewContext};
+use warpui::{AppContext, EntityId, UpdateView, ViewContext};
 
 use super::{Workspace, group_member_indices};
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::tab::{MOVE_TO_GROUP_LABEL, TabData};
+use crate::tab::{MOVE_TO_GROUP_IDENTIFIER, TabData};
 use crate::workspace::action::{TabContextMenuAnchor, WorkspaceAction};
 use crate::workspace::tab_group::{TabGroup, TabGroupId};
 use crate::workspace::util::PaneViewLocator;
@@ -461,20 +462,26 @@ impl Workspace {
     /// the selection: "Create group from tabs" is always there; "Remove from
     /// group" only when the selection has an unambiguous group; "Move to
     /// group" only when there's a destination group worth offering.
-    fn tab_selection_menu_items(&self) -> Vec<MenuItem<WorkspaceAction>> {
+    fn tab_selection_menu_items(&self, ctx: &ViewContext<Self>) -> Vec<MenuItem<WorkspaceAction>> {
         let shared_group = self.selection_shared_group();
         let mut menu_items = vec![
-            MenuItemFields::new("Create group from tabs")
-                .with_on_select_action(WorkspaceAction::NewTabGroupFromSelectedTabs)
-                .into_item(),
+            MenuItemFields::new(localization::text_for_app(
+                ctx,
+                "workspace.tab_grouping.menu.create_group_from_tabs",
+            ))
+            .with_on_select_action(WorkspaceAction::NewTabGroupFromSelectedTabs)
+            .into_item(),
         ];
 
         // Only single-group selections have an unambiguous group to leave.
         if shared_group.is_some() {
             menu_items.push(
-                MenuItemFields::new("Remove from group")
-                    .with_on_select_action(WorkspaceAction::RemoveSelectedTabsFromGroup)
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "workspace.tab_grouping.menu.remove_from_group",
+                ))
+                .with_on_select_action(WorkspaceAction::RemoveSelectedTabsFromGroup)
+                .into_item(),
             );
         }
 
@@ -484,7 +491,14 @@ impl Workspace {
             .keys()
             .any(|group_id| Some(*group_id) != shared_group);
         if has_destination_group {
-            menu_items.push(MenuItemFields::new_submenu(MOVE_TO_GROUP_LABEL).into_item());
+            menu_items.push(
+                MenuItemFields::new_submenu(localization::text_for_app(
+                    ctx,
+                    "tab.menu.move_to_group",
+                ))
+                .with_identifier(MOVE_TO_GROUP_IDENTIFIER)
+                .into_item(),
+            );
         }
         menu_items
     }
@@ -505,7 +519,7 @@ impl Workspace {
             return;
         }
 
-        let menu_items = self.tab_selection_menu_items();
+        let menu_items = self.tab_selection_menu_items(ctx);
         ctx.update_view(&self.tab_right_click_menu, |context_menu, view_ctx| {
             context_menu.set_items(menu_items, view_ctx);
         });
@@ -672,6 +686,7 @@ impl Workspace {
     pub(super) fn build_move_to_group_sidecar_items(
         &self,
         tab_index: Option<usize>,
+        app: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
         // Exclude the source's current group (if any) — there's nowhere to
         // move it to. For a mixed selection (no shared group) every
@@ -701,7 +716,9 @@ impl Workspace {
                     .tab_groups
                     .get(&group_id)
                     .and_then(|g| g.name.clone())
-                    .unwrap_or_else(|| "Untitled group".to_string());
+                    .unwrap_or_else(|| {
+                        localization::text_for_app(app, "workspace.vertical_tabs.group.untitled")
+                    });
                 let action = match tab_index {
                     Some(tab_index) => WorkspaceAction::MoveTabToGroup {
                         tab_index,

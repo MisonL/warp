@@ -52,7 +52,10 @@ impl LinkEditor {
 
         let tag_editor = ctx.add_typed_action_view(|ctx| {
             let mut editor = EditorView::single_line(editor_options.clone(), ctx);
-            editor.set_placeholder_text("Text", ctx);
+            editor.set_placeholder_text(
+                crate::localization::text_for_app(ctx, "notebook.link_editor.text_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -62,7 +65,10 @@ impl LinkEditor {
 
         let url_editor = ctx.add_typed_action_view(|ctx| {
             let mut editor = EditorView::single_line(editor_options.clone(), ctx);
-            editor.set_placeholder_text("Link (web or file)", ctx);
+            editor.set_placeholder_text(
+                crate::localization::text_for_app(ctx, "notebook.link_editor.link_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -251,7 +257,10 @@ impl View for LinkEditor {
         let mut link_button = appearance
             .ui_builder()
             .button(ButtonVariant::Accent, self.apply_link_mouse_state.clone())
-            .with_centered_text_label("Apply link".to_string());
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "notebook.link_editor.apply",
+            ));
 
         // Disable the link button if either of the editors are empty.
         if !self.is_valid(app) {

@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 use itertools::Itertools;
 use settings::ToggleableSetting as _;
 use warp_errors::report_if_error;
@@ -17,7 +15,7 @@ use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::CodeSettings;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::workspace::Workspace;
-use crate::{TelemetryEvent, send_telemetry_from_app_ctx};
+use crate::{TelemetryEvent, localization, send_telemetry_from_app_ctx};
 
 /// Scope of what's being quit/closed.
 #[derive(Clone)]
@@ -395,56 +393,132 @@ impl<'a> UnsavedStateSummary<'a> {
     }
 
     /// Builds warning text describing what unsaved data there is.
-    pub fn warning_text(&self) -> String {
-        let mut info_text_lines = Vec::<String>::new();
+    pub fn warning_text(&self, app: &AppContext) -> String {
+        let scope = self.localized_scope(app);
+        [
+            self.running_process_warning(app, scope.as_deref()),
+            self.shared_sessions_warning(app, scope.as_deref()),
+            self.unsaved_changes_warning(app, scope.as_deref()),
+        ]
+        .into_iter()
+        .flatten()
+        .join("\n")
+    }
 
-        let scope_suffix = match self.scope {
-            QuitScope::Tabs(ref tabs) if tabs.len() == 1 => " in this tab.",
-            QuitScope::Window(_) => " in this window.",
-            QuitScope::Pane { .. } => " in this pane.",
-            QuitScope::App | QuitScope::Tabs(_) | QuitScope::EditorTab { .. } => ".",
-        };
+    fn localized_scope(&self, app: &AppContext) -> Option<String> {
+        match self.scope {
+            QuitScope::Tabs(ref tabs) if tabs.len() == 1 => Some(localization::text_for_app(
+                app,
+                "quit_warning.scope.this_tab",
+            )),
+            QuitScope::Window(_) => Some(localization::text_for_app(
+                app,
+                "quit_warning.scope.this_window",
+            )),
+            QuitScope::Pane { .. } => Some(localization::text_for_app(
+                app,
+                "quit_warning.scope.this_pane",
+            )),
+            QuitScope::App | QuitScope::Tabs(_) | QuitScope::EditorTab { .. } => None,
+        }
+    }
 
-        if self.total_long_running_commands > 0 {
-            let mut process_info_text = format!(
-                "You have {} {} running",
-                self.total_long_running_commands,
-                pluralize(self.total_long_running_commands, "process", "processes")
-            );
-            if self.windows_with_long_running_commands > 1 {
-                let _ = write!(
-                    &mut process_info_text,
-                    " in {} windows",
-                    self.windows_with_long_running_commands
-                );
-            } else if self.tabs_with_long_running_commands > 1 {
-                let _ = write!(
-                    &mut process_info_text,
-                    " in {} tabs",
-                    self.tabs_with_long_running_commands
-                );
-            }
-            process_info_text.push_str(scope_suffix);
-            info_text_lines.push(process_info_text);
+    fn running_process_warning(&self, app: &AppContext, scope: Option<&str>) -> Option<String> {
+        if self.total_long_running_commands == 0 {
+            return None;
         }
 
-        if self.shared_sessions > 0 {
-            info_text_lines.push(format!(
-                "You are sharing {} {}{scope_suffix}",
-                self.shared_sessions,
-                pluralize(self.shared_sessions, "session", "sessions")
-            ));
-        }
-
-        if self.unsaved_code_changes {
-            if let QuitScope::EditorTab { ref file_name, .. } = self.scope {
-                info_text_lines.push(format!("Do you want to save the changes you made to {}? Your changes will be discarded if you don't save them.", file_name.clone().unwrap_or("this file".to_string())));
+        let count = self.total_long_running_commands.to_string();
+        let text = if self.windows_with_long_running_commands > 1 {
+            localization::text_for_app_with_args(
+                app,
+                "quit_warning.process.running.in_windows",
+                &[
+                    ("count", &count),
+                    (
+                        "window_count",
+                        &self.windows_with_long_running_commands.to_string(),
+                    ),
+                ],
+            )
+        } else if self.tabs_with_long_running_commands > 1 {
+            localization::text_for_app_with_args(
+                app,
+                "quit_warning.process.running.in_tabs",
+                &[
+                    ("count", &count),
+                    (
+                        "tab_count",
+                        &self.tabs_with_long_running_commands.to_string(),
+                    ),
+                ],
+            )
+        } else if let Some(scope) = scope {
+            let key = if self.total_long_running_commands == 1 {
+                "quit_warning.process.running.scope.singular"
             } else {
-                info_text_lines.push(format!("You have unsaved file changes{scope_suffix}"));
-            }
+                "quit_warning.process.running.scope.plural"
+            };
+            localization::text_for_app_with_args(app, key, &[("count", &count), ("scope", scope)])
+        } else {
+            let key = if self.total_long_running_commands == 1 {
+                "quit_warning.process.running.singular"
+            } else {
+                "quit_warning.process.running.plural"
+            };
+            localization::text_for_app_with_args(app, key, &[("count", &count)])
+        };
+        Some(text)
+    }
+
+    fn shared_sessions_warning(&self, app: &AppContext, scope: Option<&str>) -> Option<String> {
+        if self.shared_sessions == 0 {
+            return None;
         }
 
-        info_text_lines.join("\n")
+        let count = self.shared_sessions.to_string();
+        let text = if let Some(scope) = scope {
+            let key = if self.shared_sessions == 1 {
+                "quit_warning.shared_sessions.scope.singular"
+            } else {
+                "quit_warning.shared_sessions.scope.plural"
+            };
+            localization::text_for_app_with_args(app, key, &[("count", &count), ("scope", scope)])
+        } else {
+            let key = if self.shared_sessions == 1 {
+                "quit_warning.shared_sessions.singular"
+            } else {
+                "quit_warning.shared_sessions.plural"
+            };
+            localization::text_for_app_with_args(app, key, &[("count", &count)])
+        };
+        Some(text)
+    }
+
+    fn unsaved_changes_warning(&self, app: &AppContext, scope: Option<&str>) -> Option<String> {
+        if !self.unsaved_code_changes {
+            return None;
+        }
+
+        let text = if let QuitScope::EditorTab { ref file_name, .. } = self.scope {
+            let file = file_name.clone().unwrap_or_else(|| {
+                localization::text_for_app(app, "quit_warning.editor.this_file")
+            });
+            localization::text_for_app_with_args(
+                app,
+                "quit_warning.editor.unsaved_changes",
+                &[("file", &file)],
+            )
+        } else if let Some(scope) = scope {
+            localization::text_for_app_with_args(
+                app,
+                "quit_warning.unsaved_file_changes.scope",
+                &[("scope", scope)],
+            )
+        } else {
+            localization::text_for_app(app, "quit_warning.unsaved_file_changes")
+        };
+        Some(text)
     }
 }
 
@@ -492,7 +566,7 @@ impl<'a> QuitWarningDialog<'a> {
         self
     }
 
-    pub fn build(self) -> AlertDialogWithCallbacks<AppModalCallback> {
+    pub fn build(self, app: &AppContext) -> AlertDialogWithCallbacks<AppModalCallback> {
         let QuitWarningDialog {
             state,
             on_confirm,
@@ -506,26 +580,34 @@ impl<'a> QuitWarningDialog<'a> {
 
         if let Some(callback) = on_confirm {
             let confirm_title = match state.scope {
-                QuitScope::Window(_) | QuitScope::Tabs(_) | QuitScope::Pane { .. } => "Yes, close",
-                QuitScope::App => "Yes, quit",
-                _ => "",
+                QuitScope::Window(_) | QuitScope::Tabs(_) | QuitScope::Pane { .. } => {
+                    localization::text_for_app(app, "quit_warning.action.yes_close")
+                }
+                QuitScope::App => localization::text_for_app(app, "quit_warning.action.yes_quit"),
+                QuitScope::EditorTab { .. } => String::new(),
             };
-            buttons.push(ModalButton::for_app(confirm_title.to_string(), callback));
+            buttons.push(ModalButton::for_app(confirm_title, callback));
         }
 
         if let Some(callback) = on_save_changes {
-            buttons.push(ModalButton::for_app("Save".to_string(), callback));
+            buttons.push(ModalButton::for_app(
+                localization::text_for_app(app, "quit_warning.action.save"),
+                callback,
+            ));
         }
 
         if let Some(callback) = on_discard_changes {
-            buttons.push(ModalButton::for_app("Don't Save".to_string(), callback));
+            buttons.push(ModalButton::for_app(
+                localization::text_for_app(app, "quit_warning.action.dont_save"),
+                callback,
+            ));
         }
 
         if let Some(callback) = on_show_processes
             && state.total_long_running_commands > 0
         {
             buttons.push(ModalButton::for_app(
-                "Show running processes".to_string(),
+                localization::text_for_app(app, "quit_warning.action.show_running_processes"),
                 move |app| {
                     callback(app);
                 },
@@ -533,21 +615,24 @@ impl<'a> QuitWarningDialog<'a> {
         }
 
         if let Some(callback) = on_cancel {
-            buttons.push(ModalButton::for_app("Cancel".to_string(), callback));
+            buttons.push(ModalButton::for_app(
+                localization::text_for_app(app, "quit_warning.action.cancel"),
+                callback,
+            ));
         }
 
-        let title = match &state.scope {
-            QuitScope::Pane { .. } => "Close pane?",
-            QuitScope::Tabs(tabs) if tabs.len() == 1 => "Close tab?",
-            QuitScope::Tabs(_) => "Close tabs?",
-            QuitScope::Window(_) => "Close window?",
-            QuitScope::App => "Quit Warp?",
-            QuitScope::EditorTab { .. } => "Save changes?",
+        let title_key = match &state.scope {
+            QuitScope::Pane { .. } => "quit_warning.title.close_pane",
+            QuitScope::Tabs(tabs) if tabs.len() == 1 => "quit_warning.title.close_tab",
+            QuitScope::Tabs(_) => "quit_warning.title.close_tabs",
+            QuitScope::Window(_) => "quit_warning.title.close_window",
+            QuitScope::App => "quit_warning.title.quit_warp",
+            QuitScope::EditorTab { .. } => "quit_warning.title.save_changes",
         };
 
         AlertDialogWithCallbacks::for_app(
-            title,
-            state.warning_text(),
+            localization::text_for_app(app, title_key),
+            state.warning_text(app),
             buttons,
             on_disable_warning_modal,
         )
@@ -566,7 +651,7 @@ impl<'a> QuitWarningDialog<'a> {
         );
 
         let session_summary = self.state.running_sessions();
-        let dialog = self.build();
+        let dialog = self.build(ctx);
         // We don't support showing a modal on all platforms.
         let mut shown = false;
         if cfg!(all(not(target_family = "wasm"), target_os = "macos")) {
@@ -597,10 +682,6 @@ impl<'a> QuitWarningDialog<'a> {
         }
         shown
     }
-}
-
-fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
-    if count > 1 { plural } else { singular }
 }
 
 /// Callback to disable the quit warning modal.

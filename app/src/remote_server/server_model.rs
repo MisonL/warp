@@ -689,6 +689,9 @@ impl ServerModel {
                 SkillManagerEvent::HomeSkillsChanged => {
                     me.refresh_remote_agent_context_snapshot(ctx);
                 }
+                // Bundled-skill catalogs are local to each endpoint. The daemon
+                // publishes its own catalog through the remote context snapshot.
+                SkillManagerEvent::BundledSkillsChanged => {}
             });
         }
         {

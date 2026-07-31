@@ -41,8 +41,8 @@ impl ViewerRequestBody {
 
     fn role_label(&self) -> &str {
         match self.role {
-            Role::Executor => "edit",
-            _ => "view",
+            Role::Executor => "shared_session.role_change.role.edit",
+            _ => "shared_session.role_change.role.view",
         }
     }
 
@@ -64,13 +64,25 @@ impl View for ViewerRequestBody {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let header = format!("You have requested {} mode", self.role_label());
-        let text = format!("Waiting for {}...", self.display_name);
+        let role = crate::localization::text_for_app(app, self.role_label());
+        let header = crate::localization::text_for_app_with_args(
+            app,
+            "shared_session.role_change.viewer_requested_mode",
+            &[("role", &role)],
+        );
+        let text = crate::localization::text_for_app_with_args(
+            app,
+            "shared_session.role_change.waiting_for",
+            &[("display_name", &self.display_name)],
+        );
 
         let cancel_button = appearance
             .ui_builder()
             .button(ButtonVariant::Outlined, self.mouse_state_handle.clone())
-            .with_centered_text_label(String::from("Cancel request"))
+            .with_centered_text_label(crate::localization::text_for_app(
+                app,
+                "shared_session.role_change.action.cancel_request",
+            ))
             .with_style(UiComponentStyles {
                 font_size: Some(TEXT_FONT_SIZE),
                 font_weight: Some(Weight::Bold),

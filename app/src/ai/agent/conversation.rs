@@ -108,6 +108,7 @@ pub enum RecordingSpanStatus {
 fn footer_model_token_usage(
     usage_metadata: &stream_finished::ConversationUsageMetadata,
     llm_preferences: &LLMPreferences,
+    app: &AppContext,
 ) -> Vec<ModelTokenUsage> {
     // warp + byok rows merge on their server-known model id. Custom endpoint
     // rows live in a separate bucket keyed by their upstream `config_key` so
@@ -149,7 +150,7 @@ fn footer_model_token_usage(
 
     let mut custom_usage: HashMap<String, ModelTokenUsage> = HashMap::new();
     for (config_key, usage) in &usage_metadata.custom_endpoint_token_usage {
-        let label = llm_preferences.custom_endpoint_usage_display_label(config_key);
+        let label = llm_preferences.custom_endpoint_usage_display_label_for_app(config_key, app);
         let entry = custom_usage
             .entry(config_key.clone())
             .or_insert_with(|| ModelTokenUsage {
@@ -2182,7 +2183,7 @@ impl AIConversation {
                 usage_metadata.platform_credits_spent;
             let llm_preferences = LLMPreferences::as_ref(ctx);
             self.conversation_usage_metadata.token_usage =
-                footer_model_token_usage(&usage_metadata, llm_preferences);
+                footer_model_token_usage(&usage_metadata, llm_preferences, ctx);
 
             self.conversation_usage_metadata.tool_usage_metadata = usage_metadata
                 .tool_usage_metadata

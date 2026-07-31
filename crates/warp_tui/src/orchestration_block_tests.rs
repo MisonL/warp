@@ -6,14 +6,16 @@ use ai::agent::orchestration_config::{
 };
 use warp::tui_export::{
     AIActionStatus, AIAgentAction, AIAgentActionId, AIAgentActionType, Appearance,
-    AuthSecretSelection, OptionRow, OptionSnapshot, OptionSourceStatus, OrchestrationConfigState,
-    OrchestrationEditState, RunAgentsAgentRunConfig, RunAgentsExecutionMode, RunAgentsRequest,
-    TaskId,
+    AuthSecretSelection, OptionFooter, OptionRow, OptionSnapshot, OptionSourceStatus,
+    OrchestrationConfigState, OrchestrationEditState, RunAgentsAgentRunConfig,
+    RunAgentsExecutionMode, RunAgentsRequest, TaskId,
 };
+use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;
 use warpui::{AddWindowOptions, App, ViewHandle};
 use warpui_core::TypedActionView as _;
 
+use super::configuration::localize_snapshot_for_locale;
 use super::{
     CardMode, ConfigPage, OrchestrationBlockController, TuiOrchestrationBlock,
     TuiOrchestrationBlockAction, TuiOrchestrationBlockEvent, build_request,
@@ -53,6 +55,119 @@ fn only_the_model_page_is_searchable() {
     ] {
         assert!(!page.is_searchable(), "{page:?}");
     }
+}
+
+#[test]
+fn localizes_fixed_snapshot_options_without_changing_dynamic_values() {
+    for (page, source, expected, dynamic_id, dynamic_label) in [
+        (
+            ConfigPage::ApiKey,
+            "Skip (advanced)",
+            "跳过（高级）",
+            "team-key",
+            "Team key",
+        ),
+        (
+            ConfigPage::Environment,
+            "Empty environment",
+            "空环境",
+            "environment-1",
+            "Production",
+        ),
+        (
+            ConfigPage::Model,
+            "Default model",
+            "默认模型",
+            "gpt-5",
+            "gpt-5",
+        ),
+    ] {
+        let snapshot = localize_snapshot_for_locale(
+            page,
+            OptionSnapshot {
+                rows: vec![row("", source), row(dynamic_id, dynamic_label)],
+                selected_id: Some(String::new()),
+                status: OptionSourceStatus::Ready,
+                footer: None,
+            },
+            LocaleId::ZhCn,
+        );
+
+        assert_eq!(snapshot.rows[0].label, expected);
+        assert_eq!(snapshot.rows[1].label, dynamic_label);
+    }
+
+    let location = localize_snapshot_for_locale(
+        ConfigPage::Location,
+        OptionSnapshot {
+            rows: vec![
+                row("cloud", "Cloud"),
+                row("local", "Local"),
+                row("self-hosted", "Self hosted"),
+            ],
+            selected_id: Some("cloud".to_string()),
+            status: OptionSourceStatus::Ready,
+            footer: None,
+        },
+        LocaleId::ZhCn,
+    );
+
+    assert_eq!(
+        location
+            .rows
+            .iter()
+            .map(|row| row.label.as_str())
+            .collect::<Vec<_>>(),
+        ["云端", "本地", "Self hosted"],
+    );
+}
+
+#[test]
+fn localizes_fixed_snapshot_messages_and_host_footer() {
+    let mut harness = row("claude", "Claude Code");
+    harness.disabled_reason = Some("Disabled by your administrator".to_string());
+    let harness = localize_snapshot_for_locale(
+        ConfigPage::Harness,
+        OptionSnapshot {
+            rows: vec![harness],
+            selected_id: Some("claude".to_string()),
+            status: OptionSourceStatus::Empty {
+                message: "No harnesses available".to_string(),
+            },
+            footer: None,
+        },
+        LocaleId::ZhCn,
+    );
+    assert_eq!(
+        harness.rows[0].disabled_reason.as_deref(),
+        Some("已被管理员停用"),
+    );
+    assert_eq!(
+        harness.status,
+        OptionSourceStatus::Empty {
+            message: "没有可用的执行框架".to_string(),
+        },
+    );
+
+    let host = localize_snapshot_for_locale(
+        ConfigPage::Host,
+        OptionSnapshot {
+            rows: vec![row("worker.example", "worker.example")],
+            selected_id: Some("worker.example".to_string()),
+            status: OptionSourceStatus::Ready,
+            footer: Some(OptionFooter::CustomText {
+                label: "Custom host…".to_string(),
+            }),
+        },
+        LocaleId::ZhCn,
+    );
+    assert_eq!(host.rows[0].label, "worker.example");
+    assert_eq!(
+        host.footer,
+        Some(OptionFooter::CustomText {
+            label: "自定义主机…".to_string(),
+        }),
+    );
 }
 
 /// A Cloud execution mode with the given env/host.

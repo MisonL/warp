@@ -1455,6 +1455,7 @@ fn test_debounced_resizes() {
         initialize_deps(&mut app);
 
         let model_handle = model_from_markdown("This is resizable text", &mut app, true);
+        layout_model(&mut app, &model_handle).await;
 
         let (events_tx, events_rx) = async_channel::unbounded();
         let render_state = app.read(|ctx| model_handle.as_ref(ctx).render_state().clone());
@@ -1483,14 +1484,9 @@ fn test_debounced_resizes() {
         });
 
         // The resizes should lead to a single re-layout.
-        // There is an extra layout updated here which we don't quite understand. It is coming from a rebuild
-        // layout call and doesn't increase / decrease with the number of consecutive calls. This also doesn't
-        // happen on a local build when tested manually.
-        // TODO(kevin): Figure out why this is happening.
         assert_eq!(events_rx.recv().await, Ok(RenderEvent::NeedsResize));
         assert_eq!(events_rx.recv().await, Ok(RenderEvent::NeedsResize));
         assert_eq!(events_rx.recv().await, Ok(RenderEvent::NeedsResize));
-        assert_eq!(events_rx.recv().await, Ok(RenderEvent::LayoutUpdated));
         assert_eq!(events_rx.recv().await, Ok(RenderEvent::LayoutUpdated));
 
         // Resize again after the debounce period.

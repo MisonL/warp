@@ -49,10 +49,26 @@ use crate::workspaces::workspace::CustomerType;
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
 
 const PHOTO_SIZE: f32 = 40.;
-const REFERRAL_CTA: &str = "Earn rewards by sharing Warp with friends & colleagues";
 const REGULAR_TEXT_FONT_SIZE: f32 = 12.;
 const VERTICAL_MARGIN: f32 = 24.;
-const LOG_OUT_TEXT: &str = "Log out";
+const LOG_OUT_TEXT_KEY: &str = "workspace.binding.log_out";
+const VERSION_LABEL_KEY: &str = "settings.account.version.label";
+const VERSION_STATUS_CHECKING_KEY: &str = "settings.account.version.status.checking";
+const VERSION_STATUS_DOWNLOADING_KEY: &str = "settings.account.version.status.downloading";
+const VERSION_STATUS_INSTALLED_UPDATE_KEY: &str =
+    "settings.account.version.status.installed_update";
+const VERSION_STATUS_UNABLE_TO_INSTALL_KEY: &str =
+    "settings.account.version.status.unable_to_install";
+const VERSION_STATUS_UNABLE_TO_LAUNCH_KEY: &str =
+    "settings.account.version.status.unable_to_launch";
+const VERSION_STATUS_UP_TO_DATE_KEY: &str = "settings.account.version.status.up_to_date";
+const VERSION_STATUS_UPDATE_AVAILABLE_KEY: &str =
+    "settings.account.version.status.update_available";
+const VERSION_STATUS_UPDATING_KEY: &str = "settings.account.version.status.updating";
+const VERSION_ACTION_CHECK_FOR_UPDATES_KEY: &str =
+    "settings.account.version.action.check_for_updates";
+const VERSION_ACTION_RELAUNCH_KEY: &str = "settings.account.version.action.relaunch";
+const VERSION_ACTION_UPDATE_MANUALLY_KEY: &str = "settings.account.version.action.update_manually";
 lazy_static! {
     static ref SETTINGS_SYNC_BINDINGS_ADDED: Arc<Mutex<bool>> = Default::default();
 }
@@ -300,7 +316,7 @@ impl MainSettingsPageView {
 
         widgets.push(Box::new(LogoutWidget::default()));
 
-        let page = PageType::new_uncategorized(widgets, Some("Account"));
+        let page = PageType::new_uncategorized(widgets, Some("settings.nav.account"));
 
         MainSettingsPageView { page, auth_state }
     }
@@ -332,6 +348,7 @@ impl AccountWidget {
         &self,
         auth_state: &AuthState,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let button_styles = UiComponentStyles {
             font_size: Some(14.),
@@ -353,7 +370,10 @@ impl AccountWidget {
                 self.ui_state_handles.anonymous_user_sign_up_button.clone(),
             )
             .with_style(button_styles)
-            .with_text_label("Sign up".to_owned())
+            .with_text_label(crate::localization::text_for_app(
+                app,
+                "settings.billing.action.sign_up",
+            ))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(MainPageAction::SignupAnonymousUser);
@@ -377,7 +397,10 @@ impl AccountWidget {
                     .with_text_and_icon_label(
                         TextAndIcon::new(
                             TextAndIconAlignment::IconFirst,
-                            "Compare plans",
+                            crate::localization::text_for_app(
+                                app,
+                                "settings.billing.action.compare_plans",
+                            ),
                             Icon::CoinsStacked.to_warpui_icon(appearance.theme().accent()),
                             MainAxisSize::Min,
                             MainAxisAlignment::Center,
@@ -513,7 +536,10 @@ impl AccountWidget {
                         appearance
                             .ui_builder()
                             .link(
-                                "Contact support".into(),
+                                crate::localization::text_for_app(
+                                    app,
+                                    "settings.account.contact_support",
+                                ),
                                 Some("mailto:support@warp.dev".into()),
                                 None,
                                 self.ui_state_handles.enterprise_contact_us_link.clone(),
@@ -530,7 +556,10 @@ impl AccountWidget {
                             appearance
                                 .ui_builder()
                                 .link(
-                                    "Manage billing".into(),
+                                    crate::localization::text_for_app(
+                                        app,
+                                        "settings.billing.action.manage_billing",
+                                    ),
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(
@@ -551,16 +580,25 @@ impl AccountWidget {
                     // If the team is upgradeable to self-serve tier, show them the upgrade link.
                     if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
                         let description = match team.billing_metadata.customer_type {
-                            CustomerType::Prosumer => "Upgrade to Turbo plan",
-                            CustomerType::Turbo => "Upgrade to Lightspeed plan",
-                            _ => "Compare plans",
+                            CustomerType::Prosumer => crate::localization::text_for_app(
+                                app,
+                                "settings.account.upgrade_to_turbo",
+                            ),
+                            CustomerType::Turbo => crate::localization::text_for_app(
+                                app,
+                                "settings.account.upgrade_to_lightspeed",
+                            ),
+                            _ => crate::localization::text_for_app(
+                                app,
+                                "settings.billing.action.compare_plans",
+                            ),
                         };
                         let team_uid = team.uid;
                         plan_info.add_child(
                             appearance
                                 .ui_builder()
                                 .link(
-                                    description.into(),
+                                    description,
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(MainPageAction::Upgrade {
@@ -586,7 +624,10 @@ impl AccountWidget {
                 appearance
                     .ui_builder()
                     .link(
-                        "Compare plans".into(),
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.billing.action.compare_plans",
+                        ),
                         None,
                         Some(Box::new(move |ctx| {
                             ctx.dispatch_typed_action(MainPageAction::Upgrade {
@@ -631,7 +672,7 @@ impl SettingsWidget for AccountWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let account_info = if view.auth_state.is_anonymous_or_logged_out() {
-            self.render_anonymous_account_info(view.auth_state.as_ref(), appearance)
+            self.render_anonymous_account_info(view.auth_state.as_ref(), appearance, app)
         } else {
             let profile_image_source = view.auth_state.user_photo_url().map(|url| {
                 asset_cache::url_source_with_persistence(url, &warp_core::paths::cache_dir())
@@ -708,6 +749,7 @@ impl SettingsWidget for SettingsSyncWidget {
 
         let label_info = AdditionalInfo {
             mouse_state: self.tooltip_state.clone(),
+            locale: crate::localization::current_locale(app),
             on_click_action: Some(MainPageAction::OpenUrl(
                 "https://docs.warp.dev/terminal/more-features/settings-sync".into(),
             )),
@@ -716,7 +758,7 @@ impl SettingsWidget for SettingsSyncWidget {
         };
 
         Container::new(render_body_item::<MainPageAction>(
-            "Settings sync".to_string(),
+            crate::localization::text_for_app(app, "settings.account.settings_sync"),
             Some(label_info),
             // Cloud prefs are always synced, so no need to show the local-only icon.
             LocalOnlyIconState::Hidden,
@@ -796,11 +838,11 @@ impl SettingsWidget for EarnRewardsWidget {
         Container::new(
             self.render_row(
                 appearance,
-                REFERRAL_CTA,
+                &crate::localization::text_for_app(_app, "settings.account.referral_cta"),
                 appearance
                     .ui_builder()
                     .link(
-                        "Refer a friend".into(),
+                        crate::localization::text_for_app(_app, "settings.account.refer_a_friend"),
                         None,
                         Some(Box::new(move |ctx| {
                             ctx.dispatch_typed_action(WorkspaceAction::ShowReferralSettingsPage);
@@ -836,95 +878,120 @@ impl VersionInfoWidget {
             .with_opacity(60)
             .into();
         struct StatusContent {
-            text: &'static str,
+            text: String,
             color: ColorU,
         }
         struct CallToActionContent {
-            text: &'static str,
+            text: String,
             action: MainPageAction,
         }
 
-        let (status_content, call_to_action_content) =
-            if ContextFlag::PromptForVersionUpdates.is_enabled() {
-                let ansi_red: ColorU = appearance.theme().terminal_colors().bright.red.into();
-                match autoupdate::get_update_state(app) {
-                    AutoupdateStage::NoUpdateAvailable => (
-                        Some(StatusContent {
-                            text: "Up to date",
-                            color: faded_text_color,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Check for updates",
-                            action: MainPageAction::CheckForUpdate,
-                        }),
-                    ),
-                    AutoupdateStage::CheckingForUpdate => (
-                        Some(StatusContent {
-                            text: "checking for update...",
-                            color: faded_text_color,
-                        }),
-                        None,
-                    ),
-                    AutoupdateStage::DownloadingUpdate => (
-                        Some(StatusContent {
-                            text: "downloading update...",
-                            color: faded_text_color,
-                        }),
-                        None,
-                    ),
-                    AutoupdateStage::UpdateReady { .. } => (
-                        Some(StatusContent {
-                            text: "Update available",
-                            color: ansi_red,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Relaunch Warp",
-                            action: MainPageAction::Relaunch,
-                        }),
-                    ),
-                    AutoupdateStage::Updating { .. } => (
-                        Some(StatusContent {
-                            text: "Updating...",
-                            color: faded_text_color,
-                        }),
-                        None,
-                    ),
-                    AutoupdateStage::UpdatedPendingRestart { .. } => (
-                        Some(StatusContent {
-                            text: "Installed update",
-                            color: faded_text_color,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Relaunch Warp",
-                            action: MainPageAction::Relaunch,
-                        }),
-                    ),
-                    AutoupdateStage::UnableToUpdateToNewVersion { .. } => (
-                        Some(StatusContent {
-                            text: "A new version of Warp is available but can't be installed",
-                            color: ansi_red,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Update Warp manually",
-                            // note: the handler for this action is a no-op
-                            action: MainPageAction::DownloadUpdate,
-                        }),
-                    ),
-                    AutoupdateStage::UnableToLaunchNewVersion { .. } => (
-                        Some(StatusContent {
-                            text: "A new version of Warp is installed but can't be launched.",
-                            color: ansi_red,
-                        }),
-                        Some(CallToActionContent {
-                            text: "Update Warp manually",
-                            // note: the handler for this action is a no-op
-                            action: MainPageAction::DownloadUpdate,
-                        }),
-                    ),
-                }
-            } else {
-                (None, None)
-            };
+        let (status_content, call_to_action_content) = if ContextFlag::PromptForVersionUpdates
+            .is_enabled()
+        {
+            let ansi_red: ColorU = appearance.theme().terminal_colors().bright.red.into();
+            match autoupdate::get_update_state(app) {
+                AutoupdateStage::NoUpdateAvailable => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(app, VERSION_STATUS_UP_TO_DATE_KEY),
+                        color: faded_text_color,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_ACTION_CHECK_FOR_UPDATES_KEY,
+                        ),
+                        action: MainPageAction::CheckForUpdate,
+                    }),
+                ),
+                AutoupdateStage::CheckingForUpdate => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(app, VERSION_STATUS_CHECKING_KEY),
+                        color: faded_text_color,
+                    }),
+                    None,
+                ),
+                AutoupdateStage::DownloadingUpdate => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_DOWNLOADING_KEY,
+                        ),
+                        color: faded_text_color,
+                    }),
+                    None,
+                ),
+                AutoupdateStage::UpdateReady { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_UPDATE_AVAILABLE_KEY,
+                        ),
+                        color: ansi_red,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(app, VERSION_ACTION_RELAUNCH_KEY),
+                        action: MainPageAction::Relaunch,
+                    }),
+                ),
+                AutoupdateStage::Updating { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(app, VERSION_STATUS_UPDATING_KEY),
+                        color: faded_text_color,
+                    }),
+                    None,
+                ),
+                AutoupdateStage::UpdatedPendingRestart { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_INSTALLED_UPDATE_KEY,
+                        ),
+                        color: faded_text_color,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(app, VERSION_ACTION_RELAUNCH_KEY),
+                        action: MainPageAction::Relaunch,
+                    }),
+                ),
+                AutoupdateStage::UnableToUpdateToNewVersion { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_UNABLE_TO_INSTALL_KEY,
+                        ),
+                        color: ansi_red,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_ACTION_UPDATE_MANUALLY_KEY,
+                        ),
+                        // note: the handler for this action is a no-op
+                        action: MainPageAction::DownloadUpdate,
+                    }),
+                ),
+                AutoupdateStage::UnableToLaunchNewVersion { .. } => (
+                    Some(StatusContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_STATUS_UNABLE_TO_LAUNCH_KEY,
+                        ),
+                        color: ansi_red,
+                    }),
+                    Some(CallToActionContent {
+                        text: crate::localization::text_for_app(
+                            app,
+                            VERSION_ACTION_UPDATE_MANUALLY_KEY,
+                        ),
+                        // note: the handler for this action is a no-op
+                        action: MainPageAction::DownloadUpdate,
+                    }),
+                ),
+            }
+        } else {
+            (None, None)
+        };
 
         let mut first_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
@@ -933,7 +1000,7 @@ impl VersionInfoWidget {
                     1.0,
                     Align::new(
                         Text::new_inline(
-                            "Version".to_string(),
+                            crate::localization::text_for_app(app, VERSION_LABEL_KEY),
                             appearance.ui_font_family(),
                             REGULAR_TEXT_FONT_SIZE,
                         )
@@ -950,7 +1017,7 @@ impl VersionInfoWidget {
                 appearance
                     .ui_builder()
                     .link(
-                        call_to_action_content.text.into(),
+                        call_to_action_content.text,
                         None,
                         Some(Box::new(move |ctx| {
                             ctx.dispatch_typed_action(call_to_action_content.action.clone());
@@ -1057,11 +1124,11 @@ struct LogoutWidget {
 }
 
 impl LogoutWidget {
-    fn render_logout_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_logout_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .button(ButtonVariant::Secondary, self.mouse_state.clone())
-            .with_text_label(LOG_OUT_TEXT.into())
+            .with_text_label(crate::localization::text_for_app(app, LOG_OUT_TEXT_KEY))
             .with_style(UiComponentStyles {
                 font_size: Some(14.),
                 padding: Some(Coords::uniform(8.).left(32.).right(32.)),
@@ -1106,23 +1173,43 @@ impl SettingsWidget for IapCredentialsWidget {
         let disabled: ColorU = appearance.theme().disabled_ui_text_color().into();
         let active: ColorU = appearance.theme().active_ui_text_color().into();
         let (status_text, status_color): (String, ColorU) = match &state {
-            IapCredentialsState::Missing => ("Not yet loaded".to_string(), disabled),
-            IapCredentialsState::Refreshing { .. } => ("Refreshing…".to_string(), active),
+            IapCredentialsState::Missing => (
+                crate::localization::text_for_app(app, "settings.account.iap.status.not_loaded"),
+                disabled,
+            ),
+            IapCredentialsState::Refreshing { .. } => (
+                crate::localization::text_for_app(app, "settings.account.iap.status.refreshing"),
+                active,
+            ),
             IapCredentialsState::Loaded(cached) => {
                 let remaining = cached
                     .expires_at
                     .saturating_duration_since(instant::Instant::now());
                 let mins = remaining.as_secs() / 60;
-                (format!("Loaded (refreshes in ~{mins}m)"), active)
+                (
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "settings.account.iap.status.loaded",
+                        &[("minutes", &mins.to_string())],
+                    ),
+                    active,
+                )
             }
-            IapCredentialsState::Failed { message, .. } => (format!("Failed: {message}"), ansi_red),
+            IapCredentialsState::Failed { message, .. } => (
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "settings.account.iap.status.failed",
+                    &[("message", message)],
+                ),
+                ansi_red,
+            ),
         };
 
         let is_refreshing = matches!(state, IapCredentialsState::Refreshing { .. });
 
         let label = Align::new(
             Text::new_inline(
-                "Staging IAP credentials".to_string(),
+                crate::localization::text_for_app(app, "settings.account.iap.label"),
                 appearance.ui_font_family(),
                 REGULAR_TEXT_FONT_SIZE,
             )
@@ -1154,9 +1241,9 @@ impl SettingsWidget for IapCredentialsWidget {
                 self.refresh_button_mouse_state.clone(),
             )
             .with_text_label(if is_refreshing {
-                "Refreshing…".into()
+                crate::localization::text_for_app(app, "settings.account.iap.action.refreshing")
             } else {
-                "Refresh".into()
+                crate::localization::text_for_app(app, "settings.account.iap.action.refresh")
             })
             .with_style(UiComponentStyles {
                 font_size: Some(12.),
@@ -1203,10 +1290,10 @@ impl SettingsWidget for LogoutWidget {
         &self,
         _view: &Self::View,
         appearance: &Appearance,
-        _app: &AppContext,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Container::new(
-            Align::new(self.render_logout_button(appearance))
+            Align::new(self.render_logout_button(appearance, app))
                 .left()
                 .finish(),
         )

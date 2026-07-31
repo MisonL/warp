@@ -23,6 +23,7 @@ use warpui_core::{
     AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext,
 };
 
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 
 pub(super) const TAKE_CONTROL_KEY_BINDING: &str = "ctrl-c";
@@ -34,43 +35,38 @@ fn terminal_use_status_text(
     output_streaming: bool,
 ) -> String {
     if command_finished {
-        return "Command finished".to_owned();
+        return localization::text("tui.cli_subagent.status.command_finished");
     }
-    let (status, key_binding, action) = match control_state {
+    let (key, key_binding) = match control_state {
         LongRunningCommandControlState::Agent {
             is_blocked: true, ..
         } => (
-            "Agent needs your input",
+            "tui.cli_subagent.status.needs_input",
             TAKE_CONTROL_KEY_BINDING,
-            "to take control",
         ),
         LongRunningCommandControlState::Agent { .. } if output_streaming => (
-            "Agent is monitoring command",
+            "tui.cli_subagent.status.monitoring",
             TAKE_CONTROL_KEY_BINDING,
-            "to take control",
         ),
-        LongRunningCommandControlState::Agent { .. } => (
-            "Agent waiting for instructions",
-            TAKE_CONTROL_KEY_BINDING,
-            "to take control",
-        ),
+        LongRunningCommandControlState::Agent { .. } => {
+            ("tui.cli_subagent.status.waiting", TAKE_CONTROL_KEY_BINDING)
+        }
         LongRunningCommandControlState::User { reason } => match reason {
-            UserTakeOverReason::Manual => {
-                ("User is in control", HAND_BACK_KEY_BINDING, "to hand back")
-            }
-            UserTakeOverReason::Stop { .. } => (
-                "Agent paused · user is in control",
+            UserTakeOverReason::Manual => (
+                "tui.cli_subagent.status.user_control",
                 HAND_BACK_KEY_BINDING,
-                "to hand back",
+            ),
+            UserTakeOverReason::Stop { .. } => (
+                "tui.cli_subagent.status.agent_paused",
+                HAND_BACK_KEY_BINDING,
             ),
             UserTakeOverReason::TransferFromAgent { .. } => (
-                "Agent handed control to you",
+                "tui.cli_subagent.status.control_transferred",
                 HAND_BACK_KEY_BINDING,
-                "to hand back",
             ),
         },
     };
-    format!("{status} · {key_binding} {action}")
+    localization::text_with_args(key, &[("key_binding", key_binding)])
 }
 
 fn resolve_latest_instruction(
@@ -89,9 +85,17 @@ fn remaining_for_fixed_delay(delay: Duration, elapsed: Duration) -> Option<Durat
 fn format_next_check_remaining(remaining: Duration) -> String {
     let seconds = remaining.as_secs();
     if seconds < 60 {
-        format!(" · Check in {seconds}s")
+        let seconds = seconds.to_string();
+        localization::text_with_args(
+            "tui.cli_subagent.next_check.seconds",
+            &[("seconds", &seconds)],
+        )
     } else {
-        format!(" · Check in {}m", seconds / 60)
+        let minutes = (seconds / 60).to_string();
+        localization::text_with_args(
+            "tui.cli_subagent.next_check.minutes",
+            &[("minutes", &minutes)],
+        )
     }
 }
 
@@ -281,7 +285,7 @@ impl TuiCLISubagentView {
     }
 
     fn render_action(
-        label: &'static str,
+        label: String,
         mouse_state: &MouseStateHandle,
         action: TuiCLISubagentViewAction,
         app: &AppContext,
@@ -319,8 +323,12 @@ impl TuiCLISubagentView {
                 .finish(),
         );
         if let Some(instruction) = self.latest_instruction(target, app) {
+            let instruction = localization::text_with_args(
+                "tui.cli_subagent.last_instruction",
+                &[("instruction", &instruction)],
+            );
             content.add_child(
-                TuiText::new(format!("Last instruction: {instruction}"))
+                TuiText::new(instruction)
                     .with_style(builder.muted_text_style())
                     .truncate()
                     .finish(),
@@ -329,7 +337,7 @@ impl TuiCLISubagentView {
         if target.control_state.is_agent_blocked() {
             content.add_child(
                 TuiContainer::new(Self::render_action(
-                    "Allow",
+                    localization::text("tui.cli_subagent.allow"),
                     &self.allow_mouse_state,
                     TuiCLISubagentViewAction::Allow,
                     app,

@@ -1,3 +1,4 @@
+use warpui::AppContext;
 use warpui::elements::{DraggableState, MouseStateHandle};
 
 use super::FileTreeItem;
@@ -11,6 +12,7 @@ impl FileTreeItem {
         &self,
         is_expanded: Option<bool>,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> RenderState {
         match self {
             FileTreeItem::File {
@@ -23,7 +25,9 @@ impl FileTreeItem {
                     .path
                     .file_name()
                     .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| String::from("File"));
+                    .unwrap_or_else(|| {
+                        crate::localization::text_for_app(app, "code.file_tree.fallback.file")
+                    });
 
                 let icon_from_file_path =
                     icon_from_file_path(metadata.path.as_str(), appearance).map(ImageOrIcon::Image);
@@ -48,7 +52,9 @@ impl FileTreeItem {
                     .path
                     .file_name()
                     .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| String::from("Folder"));
+                    .unwrap_or_else(|| {
+                        crate::localization::text_for_app(app, "code.file_tree.fallback.folder")
+                    });
                 RenderState {
                     display_name,
                     icon: ImageOrIcon::Icon(Icon::Folder),

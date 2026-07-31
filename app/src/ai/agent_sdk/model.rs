@@ -4,11 +4,13 @@ use comfy_table::Cell;
 use serde::Serialize;
 use warp_cli::GlobalOptions;
 use warp_cli::model::ModelCommand;
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::ai::agent_sdk::output::{self, TableFormat};
 use crate::ai::llms::LLMPreferences;
+use crate::localization;
 
 /// Handle model-related CLI commands.
 pub fn run(
@@ -31,14 +33,18 @@ struct ModelCommandRunner;
 impl ModelCommandRunner {
     fn list(&self, global_options: GlobalOptions, ctx: &mut ModelContext<Self>) {
         let output_format = global_options.output_format;
+        let locale = localization::current_locale(ctx);
 
         // Ensure workspace metadata is refreshed so LLM preferences are up-to-date.
-        let refresh_future = super::common::refresh_workspace_metadata(ctx);
+        let refresh_future = super::common::refresh_workspace_metadata(ctx, locale);
 
         ctx.spawn(refresh_future, move |_, refresh_result, ctx| {
             if refresh_result.is_err() {
                 super::report_fatal_error(
-                    anyhow::anyhow!("Timed out refreshing workspace metadata"),
+                    anyhow::anyhow!(localization::text_for_locale(
+                        locale,
+                        "agent_sdk.common.error.workspace_metadata_timeout"
+                    )),
                     ctx,
                 );
                 return;
@@ -55,7 +61,12 @@ impl ModelCommandRunner {
                 .map(|id| ModelListItem { id })
                 .collect::<Vec<_>>();
 
-            output::print_list(items, output_format);
+            if let Err(err) =
+                output::write_list_for_locale(items, output_format, std::io::stdout(), locale)
+            {
+                super::report_fatal_error(err, ctx);
+                return;
+            }
 
             ctx.terminate_app(TerminationMode::ForceTerminate, None);
         });
@@ -76,7 +87,14 @@ struct ModelListItem {
 
 impl TableFormat for ModelListItem {
     fn header() -> Vec<Cell> {
-        vec![Cell::new("MODEL ID")]
+        Self::header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        vec![Cell::new(localization::text_for_locale(
+            locale,
+            "agent_sdk.model.table.model_id",
+        ))]
     }
 
     fn row(&self) -> Vec<Cell> {

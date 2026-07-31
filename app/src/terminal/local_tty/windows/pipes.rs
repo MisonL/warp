@@ -153,7 +153,7 @@ mod ffi {
     use super::*;
 
     #[link(name = "ntdll.dll", kind = "raw-dylib", modifiers = "+verbatim")]
-    unsafe extern "system" {
+    extern "system" {
         pub fn NtCreateNamedPipeFile(
             FileHandle: *mut HANDLE,
             DesiredAccess: u32,

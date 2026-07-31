@@ -18,7 +18,6 @@ use warpui::{
 };
 
 use super::{AgentViewController, AgentViewEntryOrigin};
-use crate::BlocklistAIHistoryModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryEvent;
@@ -27,6 +26,7 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ToastStack, WorkspaceAction};
+use crate::{BlocklistAIHistoryModel, localization};
 
 #[derive(Default)]
 struct StateHandles {
@@ -207,6 +207,7 @@ fn render_deleted_state(
     cached_title: Option<String>,
     appearance: &Appearance,
     are_block_dividers_enabled: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let disabled_color =
         blended_colors::text_disabled(appearance.theme(), appearance.theme().background());
@@ -216,7 +217,9 @@ fn render_deleted_state(
         .with_main_axis_size(MainAxisSize::Max)
         .with_child(
             Text::new(
-                cached_title.unwrap_or_else(|| "Deleted conversation".to_string()),
+                cached_title.unwrap_or_else(|| {
+                    localization::text_for_app(app, "agent.view_block.deleted_conversation")
+                }),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -227,7 +230,10 @@ fn render_deleted_state(
             })
             .finish(),
         )
-        .with_child(render_subtext("Deleted".to_string(), appearance))
+        .with_child(render_subtext(
+            localization::text_for_app(app, "agent.view_block.deleted_status"),
+            appearance,
+        ))
         .finish();
 
     render_block_container(
@@ -263,6 +269,7 @@ impl View for AgentViewEntryBlock {
                 self.cached_title.clone(),
                 appearance,
                 are_block_dividers_enabled,
+                app,
             );
         };
 
@@ -292,9 +299,12 @@ impl View for AgentViewEntryBlock {
         let is_open_elsewhere = is_active && !is_active_in_this_pane;
 
         let subtext = if is_open_elsewhere {
-            Some("Open in different pane")
+            Some(localization::text_for_app(
+                app,
+                "agent.view_block.open_in_different_pane",
+            ))
         } else if self.is_restored {
-            Some("Restored")
+            Some(localization::text_for_app(app, "agent.view_block.restored"))
         } else if !self.is_new
             && !matches!(
                 &self.origin,
@@ -302,7 +312,10 @@ impl View for AgentViewEntryBlock {
                     | AgentViewEntryOrigin::AgentRequestedNewConversation
             )
         {
-            Some("Continued")
+            Some(localization::text_for_app(
+                app,
+                "agent.view_block.continued",
+            ))
         } else {
             None
         };
@@ -314,9 +327,9 @@ impl View for AgentViewEntryBlock {
                 Shrinkable::new(
                     1.,
                     Text::new(
-                        conversation
-                            .title()
-                            .unwrap_or("Untitled conversation".to_string()),
+                        conversation.title().unwrap_or_else(|| {
+                            localization::text_for_app(app, "workspace.conversation.untitled")
+                        }),
                         appearance.ui_font_family(),
                         appearance.monospace_font_size(),
                     )
@@ -335,7 +348,7 @@ impl View for AgentViewEntryBlock {
                 .finish(),
             );
         if let Some(subtext) = subtext {
-            title_section.add_child(render_subtext(subtext.to_string(), appearance));
+            title_section.add_child(render_subtext(subtext, appearance));
         }
 
         let conversation_id = self.conversation_id;
@@ -485,9 +498,10 @@ impl TypedActionView for AgentViewEntryBlock {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "Couldn't navigate to conversation.".to_string(),
-                                ),
+                                DismissibleToast::error(crate::localization::text_for_app(
+                                    ctx,
+                                    "terminal.input.toast.could_not_navigate_to_conversation",
+                                )),
                                 window_id,
                                 ctx,
                             );

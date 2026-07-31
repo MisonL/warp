@@ -17,6 +17,7 @@ use warpui::{AppContext, ModelHandle, SingletonEntity};
 use super::common::set_ambient_task_context_from_run_id;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::artifacts::Artifact;
+use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 
 /// Run harness-support commands.
@@ -26,7 +27,10 @@ pub fn run(
     args: HarnessSupportArgs,
 ) -> Result<()> {
     if !FeatureFlag::AgentHarness.is_enabled() {
-        return Err(anyhow::anyhow!("This feature is not enabled"));
+        return Err(anyhow::anyhow!(localization::text_for_app(
+            ctx,
+            "agent_sdk.common.error.feature_not_enabled"
+        )));
     }
 
     // Store the run ID so that it's included on all server requests, along with a workload token.
@@ -59,6 +63,7 @@ fn ping(
 ) -> Result<()> {
     runner.update(ctx, |_, ctx| {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -75,7 +80,7 @@ fn ping(
                             println!("{json}");
                         }
                         OutputFormat::Pretty | OutputFormat::Text => {
-                            super::ambient::print_tasks(&[task]);
+                            super::ambient::print_tasks_for_locale(&[task], locale);
                         }
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
@@ -99,6 +104,7 @@ fn report_artifact(
 ) -> Result<()> {
     runner.update(ctx, |_, ctx| {
         let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
+        let locale = localization::current_locale(ctx);
 
         let artifact = match args.command {
             ReportArtifactCommand::PullRequest(pr_args) => Artifact::PullRequest {
@@ -121,7 +127,14 @@ fn report_artifact(
                             println!("{json}");
                         }
                         OutputFormat::Pretty | OutputFormat::Text => {
-                            println!("Artifact reported: {}", response.artifact_uid);
+                            println!(
+                                "{}",
+                                localization::text_for_locale_with_args(
+                                    locale,
+                                    "agent_sdk.harness_support.output.artifact_reported",
+                                    &[("artifact_uid", &response.artifact_uid)]
+                                )
+                            );
                         }
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
@@ -145,6 +158,7 @@ fn notify_user(
 ) -> Result<()> {
     runner.update(ctx, |_, ctx| {
         let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move { client.notify_user(&args.message).await },
@@ -155,7 +169,13 @@ fn notify_user(
                             println!("{{}}");
                         }
                         OutputFormat::Pretty | OutputFormat::Text => {
-                            println!("Notification sent.");
+                            println!(
+                                "{}",
+                                localization::text_for_locale(
+                                    locale,
+                                    "agent_sdk.harness_support.output.notification_sent"
+                                )
+                            );
                         }
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
@@ -179,6 +199,7 @@ fn finish_task(
 ) -> Result<()> {
     runner.update(ctx, |_, ctx| {
         let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -192,7 +213,13 @@ fn finish_task(
                             println!("{{}}");
                         }
                         OutputFormat::Pretty | OutputFormat::Text => {
-                            println!("Task finished.");
+                            println!(
+                                "{}",
+                                localization::text_for_locale(
+                                    locale,
+                                    "agent_sdk.harness_support.output.task_finished"
+                                )
+                            );
                         }
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);
@@ -219,6 +246,7 @@ fn report_shutdown(
 ) -> Result<()> {
     runner.update(ctx, |_, ctx| {
         let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -227,9 +255,10 @@ fn report_shutdown(
                         client.report_error_shutdown(category, message).await
                     }
                     (None, None) => client.report_clean_shutdown().await,
-                    _ => anyhow::bail!(
-                        "--error-category and --error-message must be provided together"
-                    ),
+                    _ => anyhow::bail!(localization::text_for_locale(
+                        locale,
+                        "agent_sdk.harness_support.error.shutdown_error_args_required"
+                    )),
                 }
             },
             move |_, result, ctx| match result {
@@ -239,7 +268,13 @@ fn report_shutdown(
                             println!("{{}}");
                         }
                         OutputFormat::Pretty | OutputFormat::Text => {
-                            println!("Shutdown reported.");
+                            println!(
+                                "{}",
+                                localization::text_for_locale(
+                                    locale,
+                                    "agent_sdk.harness_support.output.shutdown_reported"
+                                )
+                            );
                         }
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);

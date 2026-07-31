@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Eval Review</title>
+  <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
@@ -544,16 +544,16 @@
   <div id="app" style="height:100vh; display:flex; flex-direction:column;">
     <div class="header">
       <div>
-        <h1>Eval Review: <span id="skill-name"></span></h1>
-        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into your agent session.</div>
+        <h1><span id="title-prefix"></span>: <span id="skill-name"></span></h1>
+        <div class="instructions" id="instructions"></div>
       </div>
       <div class="progress" id="progress"></div>
     </div>
 
     <!-- View tabs (only shown when benchmark data exists) -->
     <div class="view-tabs" id="view-tabs" style="display:none;">
-      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
-      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+      <button class="view-tab active" onclick="switchView('outputs')" id="outputs-tab"></button>
+      <button class="view-tab" onclick="switchView('benchmark')" id="benchmark-tab"></button>
     </div>
 
     <!-- Outputs panel (qualitative review) -->
@@ -561,7 +561,7 @@
     <div class="main">
       <!-- Prompt -->
       <div class="section">
-        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-header"><span id="prompt-header"></span> <span class="config-badge" id="config-badge" style="display:none;"></span></div>
         <div class="section-body">
           <div class="prompt-text" id="prompt-text"></div>
         </div>
@@ -569,9 +569,9 @@
 
       <!-- Outputs -->
       <div class="section">
-        <div class="section-header">Output</div>
+        <div class="section-header" id="output-header"></div>
         <div class="section-body" id="outputs-body">
-          <div class="empty-state">No output files found</div>
+          <div class="empty-state" id="no-output-files-found"></div>
         </div>
       </div>
 
@@ -580,7 +580,7 @@
         <div class="section-header">
           <div class="grades-toggle" onclick="togglePrevOutputs()">
             <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
-            Previous Output
+            <span id="previous-output-label"></span>
           </div>
         </div>
         <div class="grades-content" id="prev-outputs-content"></div>
@@ -591,7 +591,7 @@
         <div class="section-header">
           <div class="grades-toggle" onclick="toggleGrades()">
             <span class="arrow" id="grades-arrow">&#9654;</span>
-            Formal Grades
+            <span id="formal-grades-label"></span>
           </div>
         </div>
         <div class="grades-content" id="grades-content"></div>
@@ -599,16 +599,16 @@
 
       <!-- Feedback -->
       <div class="section">
-        <div class="section-header">Your Feedback</div>
+        <div class="section-header" id="your-feedback-header"></div>
         <div class="section-body">
           <textarea
             class="feedback-textarea"
             id="feedback"
-            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+            placeholder=""
           ></textarea>
           <div class="feedback-status" id="feedback-status"></div>
           <div class="prev-feedback" id="prev-feedback" style="display:none;">
-            <div class="prev-feedback-label">Previous feedback</div>
+            <div class="prev-feedback-label" id="previous-feedback-label"></div>
             <div id="prev-feedback-text"></div>
           </div>
         </div>
@@ -616,16 +616,16 @@
     </div>
 
     <div class="nav" id="outputs-nav">
-      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
-      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
-      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)"></button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()"></button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)"></button>
     </div>
     </div><!-- end panel-outputs -->
 
     <!-- Benchmark panel (quantitative stats) -->
     <div class="view-panel" id="panel-benchmark">
       <div class="benchmark-view" id="benchmark-content">
-        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+        <div class="benchmark-empty" id="benchmark-empty"></div>
       </div>
     </div>
   </div>
@@ -633,10 +633,10 @@
   <!-- Done overlay -->
   <div class="done-overlay" id="done-overlay">
     <div class="done-card">
-      <h2>Review Complete</h2>
-      <p>Your feedback has been saved. Go back to your agent session and tell the agent you're done reviewing.</p>
+      <h2 id="review-complete-title"></h2>
+      <p id="review-complete-description"></p>
       <div class="btn-row">
-        <button onclick="closeDoneDialog()">OK</button>
+        <button onclick="closeDoneDialog()" id="done-ok-button"></button>
       </div>
     </div>
   </div>
@@ -648,14 +648,150 @@
     // ---- Embedded data (injected by generate_review.py) ----
     /*__EMBEDDED_DATA__*/
 
+    const STRINGS = {
+      en: {
+        title: "Eval Review",
+        instructions: "Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into your agent session.",
+        outputs: "Outputs",
+        benchmark: "Benchmark",
+        prompt: "Prompt",
+        output: "Output",
+        noOutputFilesFound: "No output files found",
+        noOutputFiles: "No output files",
+        previousOutput: "Previous Output",
+        formalGrades: "Formal Grades",
+        yourFeedback: "Your Feedback",
+        feedbackPlaceholder: "What do you think of this output? Any issues, suggestions, or things that look great?",
+        previousFeedback: "Previous feedback",
+        previous: "Previous",
+        next: "Next",
+        submitAllReviews: "Submit All Reviews",
+        benchmarkEmpty: "No benchmark data available. Run a benchmark to see quantitative results here.",
+        reviewComplete: "Review Complete",
+        reviewCompleteDescription: "Your feedback has been saved. Go back to your agent session and tell the agent you're done reviewing.",
+        ok: "OK",
+        progress: "{current} of {total}",
+        benchmarkSummary: "{passed} passed, {failed} failed of {total}",
+        evalsPrefix: "Evals: ",
+        passRate: "Pass Rate",
+        perEvalBreakdown: "Per-Eval Breakdown",
+        config: "Config",
+        run: "Run",
+        analysisNotes: "Analysis Notes",
+        benchmarkResults: "Benchmark Results",
+        crashesDuringExecution: "Crashes During Execution",
+        delta: "Delta",
+        download: "Download",
+        downloadFile: "Download {file}",
+        evalFallback: "Eval {id}",
+        metric: "Metric",
+        runsPerConfiguration: "{count} runs per configuration",
+        saved: "Saved",
+        sheetLabel: "Sheet: {name}",
+        willDownloadOnSubmit: "Will download on submit",
+        spreadsheetRenderError: "Error rendering spreadsheet: {message}",
+        timeSeconds: "Time (s)",
+        tokens: "Tokens",
+        average: "Avg",
+        assertion: "Assertion",
+        runTooltip: "Run {run}: {evidence}",
+        passedShort: "Pass",
+        failedShort: "Fail",
+      },
+      zh: {
+        title: "评测审查",
+        instructions: "逐项审查输出并在下方留下反馈。可使用方向键或按钮导航。完成后，将反馈复制并粘贴回你的 agent 会话。",
+        outputs: "输出",
+        benchmark: "基准测试",
+        prompt: "提示词",
+        output: "输出",
+        noOutputFilesFound: "未找到输出文件",
+        noOutputFiles: "没有输出文件",
+        previousOutput: "上一次输出",
+        formalGrades: "正式评分",
+        yourFeedback: "你的反馈",
+        feedbackPlaceholder: "你如何评价这个输出？是否有问题、建议或表现不错的地方？",
+        previousFeedback: "上一次反馈",
+        previous: "上一项",
+        next: "下一项",
+        submitAllReviews: "提交全部审查",
+        benchmarkEmpty: "没有可用的基准数据。运行基准测试后可在此查看量化结果。",
+        reviewComplete: "审查完成",
+        reviewCompleteDescription: "你的反馈已保存。请回到 agent 会话并告诉 agent 你已完成审查。",
+        ok: "确定",
+        progress: "{current}/{total}",
+        benchmarkSummary: "{passed} 通过，{failed} 失败，共 {total}",
+        evalsPrefix: "评测：",
+        passRate: "通过率",
+        perEvalBreakdown: "单项评测明细",
+        config: "配置",
+        run: "运行",
+        analysisNotes: "分析备注",
+        benchmarkResults: "基准测试结果",
+        crashesDuringExecution: "执行期间崩溃",
+        delta: "差值",
+        download: "下载",
+        downloadFile: "下载 {file}",
+        evalFallback: "评测 {id}",
+        metric: "指标",
+        runsPerConfiguration: "每个配置运行 {count} 次",
+        saved: "已保存",
+        sheetLabel: "工作表：{name}",
+        willDownloadOnSubmit: "提交时会下载",
+        spreadsheetRenderError: "渲染电子表格出错：{message}",
+        timeSeconds: "耗时（秒）",
+        tokens: "Token",
+        average: "平均",
+        assertion: "断言",
+        runTooltip: "运行 {run}：{evidence}",
+        passedShort: "通过",
+        failedShort: "失败",
+      },
+    };
+    const requestedLanguage = EMBEDDED_DATA.language || navigator.language || "en";
+    const currentLanguage = requestedLanguage.toLowerCase().startsWith("zh")
+      ? "zh"
+      : "en";
+    document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
+    const t = (key) => STRINGS[currentLanguage][key] || STRINGS.en[key] || key;
+    function formatString(key, values) {
+      return Object.entries(values).reduce(
+        (text, [name, value]) => text.replace(`{${name}}`, value),
+        t(key),
+      );
+    }
+
     // ---- State ----
     let feedbackMap = {};  // run_id -> feedback text
     let currentIndex = 0;
     let visitedRuns = new Set();
 
+    function applyLocalizedLabels() {
+      document.title = t("title");
+      document.getElementById("title-prefix").textContent = t("title");
+      document.getElementById("instructions").textContent = t("instructions");
+      document.getElementById("outputs-tab").textContent = t("outputs");
+      document.getElementById("benchmark-tab").textContent = t("benchmark");
+      document.getElementById("prompt-header").textContent = t("prompt");
+      document.getElementById("output-header").textContent = t("output");
+      document.getElementById("no-output-files-found").textContent = t("noOutputFilesFound");
+      document.getElementById("previous-output-label").textContent = t("previousOutput");
+      document.getElementById("formal-grades-label").textContent = t("formalGrades");
+      document.getElementById("your-feedback-header").textContent = t("yourFeedback");
+      document.getElementById("feedback").placeholder = t("feedbackPlaceholder");
+      document.getElementById("previous-feedback-label").textContent = t("previousFeedback");
+      document.getElementById("prev-btn").textContent = "\u2190 " + t("previous");
+      document.getElementById("done-btn").textContent = t("submitAllReviews");
+      document.getElementById("next-btn").textContent = t("next") + " \u2192";
+      document.getElementById("benchmark-empty").textContent = t("benchmarkEmpty");
+      document.getElementById("review-complete-title").textContent = t("reviewComplete");
+      document.getElementById("review-complete-description").textContent = t("reviewCompleteDescription");
+      document.getElementById("done-ok-button").textContent = t("ok");
+    }
+
     // ---- Init ----
     async function init() {
-      // Load saved feedback from server — but only if this isn't a fresh
+      // Load saved feedback from server, but only if this isn't a fresh
       // iteration (indicated by previous_feedback being present). When
       // previous feedback exists, the feedback.json on disk is stale from
       // the prior iteration and should not pre-fill the textareas.
@@ -671,6 +807,7 @@
         } catch { /* first run, no feedback yet */ }
       }
 
+      applyLocalizedLabels();
       document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
       showRun(0);
 
@@ -705,8 +842,10 @@
       const run = EMBEDDED_DATA.runs[index];
 
       // Progress
-      document.getElementById("progress").textContent =
-        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+      document.getElementById("progress").textContent = formatString("progress", {
+        current: index + 1,
+        total: EMBEDDED_DATA.runs.length,
+      });
 
       // Prompt
       document.getElementById("prompt-text").textContent = run.prompt;
@@ -767,7 +906,7 @@
 
       const outputs = run.outputs || [];
       if (outputs.length === 0) {
-        container.innerHTML = '<div class="empty-state">No output files</div>';
+        container.innerHTML = `<div class="empty-state">${t("noOutputFiles")}</div>`;
         return;
       }
 
@@ -783,7 +922,7 @@
         header.appendChild(nameSpan);
         const dlBtn = document.createElement("a");
         dlBtn.className = "dl-btn";
-        dlBtn.textContent = "Download";
+        dlBtn.textContent = t("download");
         dlBtn.download = file.name;
         dlBtn.href = getDownloadUri(file);
         header.appendChild(dlBtn);
@@ -812,7 +951,7 @@
           a.className = "download-link";
           a.href = file.data_uri;
           a.download = file.name;
-          a.textContent = "Download " + file.name;
+          a.textContent = formatString("downloadFile", { file: file.name });
           content.appendChild(a);
         } else if (file.type === "error") {
           const pre = document.createElement("pre");
@@ -840,7 +979,7 @@
             const sheetLabel = document.createElement("div");
             sheetLabel.style.cssText =
               "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
-            sheetLabel.textContent = "Sheet: " + sheetName;
+            sheetLabel.textContent = formatString("sheetLabel", { name: sheetName });
             container.appendChild(sheetLabel);
           }
 
@@ -850,7 +989,9 @@
           container.appendChild(wrapper);
         }
       } catch (err) {
-        container.textContent = "Error rendering spreadsheet: " + err.message;
+        container.textContent = formatString("spreadsheetRenderError", {
+          message: err.message,
+        });
       }
     }
 
@@ -882,16 +1023,20 @@
       const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
       html += '<div class="grades-summary">';
       html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
-      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '<span>' + formatString("benchmarkSummary", {
+        passed: summary.passed || 0,
+        failed: summary.failed || 0,
+        total: summary.total || 0,
+      }) + '</span>';
       html += '</div>';
 
       // Assertions list
       html += '<ul class="assertion-list">';
       for (const exp of expectations) {
         const statusClass = exp.passed ? "pass" : "fail";
-        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        const statusLabel = exp.passed ? t("passedShort") : t("failedShort");
         html += '<li class="assertion-item">';
-        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusLabel + '</span>';
         html += '<span>' + escapeHtml(exp.text) + '</span>';
         if (exp.evidence) {
           html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
@@ -943,7 +1088,7 @@
         header.appendChild(nameSpan);
         const dlBtn = document.createElement("a");
         dlBtn.className = "dl-btn";
-        dlBtn.textContent = "Download";
+        dlBtn.textContent = t("download");
         dlBtn.download = file.name;
         dlBtn.href = getDownloadUri(file);
         header.appendChild(dlBtn);
@@ -972,7 +1117,7 @@
           a.className = "download-link";
           a.href = file.data_uri;
           a.download = file.name;
-          a.textContent = "Download " + file.name;
+          a.textContent = formatString("downloadFile", { file: file.name });
           fc.appendChild(a);
         }
 
@@ -1014,11 +1159,11 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reviews, status: "in_progress" }),
       }).then(() => {
-        document.getElementById("feedback-status").textContent = "Saved";
+        document.getElementById("feedback-status").textContent = t("saved");
       }).catch(() => {
-        // Static mode or server unavailable — no-op on auto-save,
+        // Static mode or server unavailable: no-op on auto-save,
         // feedback will be downloaded on final submit
-        document.getElementById("feedback-status").textContent = "Will download on submit";
+        document.getElementById("feedback-status").textContent = t("willDownloadOnSubmit");
       });
     }
 
@@ -1033,7 +1178,7 @@
         feedbackMap[run.id] = text;
       }
 
-      // POST once with status: complete — include ALL runs so the model
+      // POST once with status: complete; include ALL runs so the model
       // can distinguish "no feedback" (looks good) from "not reviewed"
       const reviews = [];
       const ts = new Date().toISOString();
@@ -1048,7 +1193,7 @@
       }).then(() => {
         document.getElementById("done-overlay").classList.add("visible");
       }).catch(() => {
-        // Server not available (static mode) — download as file
+        // Server not available (static mode): download as file.
         const blob = new Blob([payload], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -1126,23 +1271,25 @@
       let html = "";
 
       // Header
-      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>" + t("benchmarkResults") + "</h2>";
       html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
       if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
       if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
-      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
-      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      if (metadata.evals_run) html += t("evalsPrefix") + metadata.evals_run.join(", ") + " - ";
+      html += formatString("runsPerConfiguration", {
+        count: metadata.runs_per_configuration || "?",
+      });
       html += "</p>";
 
       // Summary table
       html += '<table class="benchmark-table">';
 
       function fmtStat(stat, pct) {
-        if (!stat) return "—";
+        if (!stat) return "-";
         const suffix = pct ? "%" : "";
         const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
         const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
-        return m + suffix + " ± " + s + suffix;
+        return m + suffix + " +/- " + s + suffix;
       }
 
       function deltaClass(val) {
@@ -1163,28 +1310,28 @@
       const b = summary[configB] || {};
       const delta = summary.delta || {};
 
-      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<thead><tr><th>" + t("metric") + "</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>" + t("delta") + "</th></tr></thead>";
       html += "<tbody>";
 
-      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<tr><td><strong>" + t("passRate") + "</strong></td>";
       html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
       html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
-      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "-") + "</td></tr>";
 
       // Time (only show row if data exists)
       if (a.time_seconds || b.time_seconds) {
-        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<tr><td><strong>" + t("timeSeconds") + "</strong></td>";
         html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
         html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
-        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "-") + "</td></tr>";
       }
 
       // Tokens (only show row if data exists)
       if (a.tokens || b.tokens) {
-        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<tr><td><strong>" + t("tokens") + "</strong></td>";
         html += "<td>" + fmtStat(a.tokens, false) + "</td>";
         html += "<td>" + fmtStat(b.tokens, false) + "</td>";
-        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "-") + "</td></tr>";
       }
 
       html += "</tbody></table>";
@@ -1194,20 +1341,20 @@
       if (runs.length > 0) {
         const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
 
-        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>" + t("perEvalBreakdown") + "</h3>";
 
         const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
         const hasErrors = runs.some(r => r.result && r.result.errors > 0);
 
         for (const evalId of evalIds) {
           const evalRuns = runs.filter(r => r.eval_id === evalId);
-          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : formatString("evalFallback", { id: evalId });
 
           html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
           html += '<table class="benchmark-table">';
-          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
-          if (hasTime) html += "<th>Time (s)</th>";
-          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "<thead><tr><th>" + t("config") + "</th><th>" + t("run") + "</th><th>" + t("passRate") + "</th>";
+          if (hasTime) html += "<th>" + t("timeSeconds") + "</th>";
+          if (hasErrors) html += "<th>" + t("crashesDuringExecution") + "</th>";
           html += "</tr></thead>";
           html += "<tbody>";
 
@@ -1228,7 +1375,7 @@
               html += "<td>" + configLabel + "</td>";
               html += "<td>" + run.run_number + "</td>";
               html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
-              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "-") + "</td>";
               if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
               html += "</tr>";
             }
@@ -1239,11 +1386,11 @@
             const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
             html += '<tr class="benchmark-row-avg ' + rowClass + '">';
             html += "<td>" + configLabel + "</td>";
-            html += "<td>Avg</td>";
+            html += "<td>" + t("average") + "</td>";
             html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
             if (hasTime) {
               const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
-              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "-") + "</td>";
             }
             if (hasErrors) html += "<td></td>";
             html += "</tr>";
@@ -1272,7 +1419,7 @@
             }
 
             html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
-            html += "<thead><tr><th>Assertion</th>";
+            html += "<thead><tr><th>" + t("assertion") + "</th>";
             for (const config of configGroups) {
               const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
               html += "<th>" + escapeHtml(label) + "</th>";
@@ -1288,10 +1435,14 @@
                   const exp = (run.expectations || []).find(e => e.text === assertionText);
                   if (exp) {
                     const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
-                    const icon = exp.passed ? "\u2713" : "\u2717";
-                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                    const resultLabel = exp.passed ? t("passedShort") : t("failedShort");
+                    const tooltip = formatString("runTooltip", {
+                      run: run.run_number,
+                      evidence: escapeHtml(exp.evidence || ""),
+                    });
+                    html += '<span class="' + cls + '" title="' + tooltip + '">' + resultLabel + "</span> ";
                   } else {
-                    html += "— ";
+                    html += "- ";
                   }
                 }
                 html += "</td>";
@@ -1306,7 +1457,7 @@
       // Notes
       if (notes.length > 0) {
         html += '<div class="benchmark-notes">';
-        html += "<h3>Analysis Notes</h3>";
+        html += "<h3>" + t("analysisNotes") + "</h3>";
         html += "<ul>";
         for (const note of notes) {
           html += "<li>" + escapeHtml(note) + "</li>";

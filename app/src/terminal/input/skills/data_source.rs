@@ -15,7 +15,9 @@ use warpui::{
     AppContext, Element, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _,
 };
 
+use crate::ai::skills::{SkillManager, SkillManagerEvent};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
@@ -42,12 +44,18 @@ impl InlineMenuAction for AcceptSkill {
         // If no item is selected, show "No skills found" message with escape hint
         if args.inline_menu_model.selected_item().is_none() {
             return Some(Message::new(vec![
-                MessageItem::text("No skills found"),
+                MessageItem::text(localization::text_for_app(
+                    args.app,
+                    "terminal.input.skills.no_skills_found",
+                )),
                 MessageItem::keystroke(Keystroke {
                     key: "escape".to_owned(),
                     ..Default::default()
                 }),
-                MessageItem::text(" to dismiss"),
+                MessageItem::text(localization::text_for_app(
+                    args.app,
+                    "terminal.inline_menu.navigation.to_dismiss",
+                )),
             ]));
         }
 
@@ -86,6 +94,13 @@ impl SkillSelectorDataSource {
                 ctx.emit(UpdatedAvailableSkills);
             }
         });
+        if ctx.has_singleton_model::<SkillManager>() {
+            ctx.subscribe_to_model(&SkillManager::handle(ctx), |_, _, event, ctx| {
+                if matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                    ctx.emit(UpdatedAvailableSkills);
+                }
+            });
+        }
 
         Self {
             active_session,
@@ -300,7 +315,7 @@ impl SearchItem for SkillSearchItem {
             let badge_text_color =
                 inline_styles::disabled_text_color(theme, background_color.into());
             let badge_text = Text::new_inline(
-                "Project Skill".to_string(),
+                localization::text_for_app(app, "terminal.skills.project_skill"),
                 appearance.ui_font_family(),
                 badge_font_size,
             )
@@ -352,7 +367,19 @@ impl SearchItem for SkillSearchItem {
         self.accept_result()
     }
 
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.skills.a11y.label",
+            &[("name", &self.skill_name)],
+        )
+    }
+
     fn accessibility_label(&self) -> String {
-        format!("Skill: {}", self.skill_name)
+        localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "terminal.input.skills.a11y.label",
+            &[("name", &self.skill_name)],
+        )
     }
 }

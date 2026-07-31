@@ -3,6 +3,7 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
+use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
     DropShadow, Empty, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkLens,
@@ -17,6 +18,7 @@ use warpui::{
 
 use crate::ai::AIRequestUsageModel;
 use crate::auth::{AuthManager, AuthStateProvider};
+use crate::localization::{self, LocalizationUpdater};
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::settings_view::admin_actions::AdminActions;
 use crate::settings_view::billing_and_usage::billing_cycle_usage_common::{
@@ -32,6 +34,9 @@ use crate::settings_view::billing_and_usage_page_v2::{
     BONUS_CREDITS_DOT_COLOR, PAYG_CREDITS_DOT_COLOR,
 };
 use crate::ui_components::icons::Icon;
+use crate::util::time_format::{
+    localized_month_day_for_locale, localized_month_day_time, localized_month_day_year_for_locale,
+};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{
@@ -84,6 +89,12 @@ impl BillingCycleUsageSectionView {
         });
         ctx.subscribe_to_model(&AuthManager::handle(ctx), |_, _, _, ctx| ctx.notify());
         ctx.subscribe_to_model(&TeamUpdateManager::handle(ctx), |_, _, _, ctx| ctx.notify());
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |view, _, _, ctx| {
+            if view.period_menu_open {
+                view.refresh_period_menu_items(ctx);
+            }
+            ctx.notify();
+        });
 
         // `prevent_interaction_with_other_elements` so a click on the
         // trigger button while the menu is open is consumed by the menu's
@@ -221,7 +232,7 @@ impl BillingCycleUsageSectionView {
         let Some(data) = workspace.billing_cycle_usage.as_ref() else {
             return;
         };
-        let items = build_period_menu_items(&data.summaries);
+        let items = build_period_menu_items(&data.summaries, localization::current_locale(ctx));
         let selected_index = selected_period_index(&data.summaries, self.selected_period_end);
 
         self.period_menu
@@ -286,12 +297,15 @@ impl BillingCycleUsageSectionView {
                 &visibility,
                 &self.row_mouse_states,
                 appearance,
+                app,
             ))
             .with_margin_top(16.)
             .finish(),
         );
 
-        if is_admin && let Some(banner) = self.render_visibility_cta_banner(workspace, appearance) {
+        if is_admin
+            && let Some(banner) = self.render_visibility_cta_banner(workspace, appearance, app)
+        {
             column.add_child(Container::new(banner).with_margin_top(16.).finish());
         }
 
@@ -376,10 +390,14 @@ impl BillingCycleUsageSectionView {
             .with_main_axis_size(MainAxisSize::Max);
 
         row.add_child(
-            Text::new_inline("Usage", appearance.ui_font_family(), HEADER_FONT_SIZE)
-                .with_style(Properties::default().weight(Weight::Bold))
-                .with_color(theme.active_ui_text_color().into())
-                .finish(),
+            Text::new_inline(
+                localization::text_for_app(app, "settings.billing.usage.title"),
+                appearance.ui_font_family(),
+                HEADER_FONT_SIZE,
+            )
+            .with_style(Properties::default().weight(Weight::Bold))
+            .with_color(theme.active_ui_text_color().into())
+            .finish(),
         );
 
         let mut right_side = Flex::row()
@@ -398,9 +416,9 @@ impl BillingCycleUsageSectionView {
             let use_selector =
                 visibility.max_prior_cycles != MaxPriorCycles::None && summary_count > 1;
             let period_element = if use_selector {
-                self.render_period_selector(workspace, appearance)
+                self.render_period_selector(workspace, appearance, app)
             } else {
-                self.render_period_range_static(workspace, appearance)
+                self.render_period_range_static(workspace, appearance, app)
             };
             right_side.add_child(period_element);
         }
@@ -411,7 +429,7 @@ impl BillingCycleUsageSectionView {
         column.add_child(row.finish());
 
         let resets_text = self.render_resets_label(appearance, app);
-        let legend = workspace.and_then(|workspace| self.render_legend(workspace, appearance));
+        let legend = workspace.and_then(|workspace| self.render_legend(workspace, appearance, app));
         if resets_text.is_some() || legend.is_some() {
             let mut secondary_row = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -439,10 +457,15 @@ impl BillingCycleUsageSectionView {
             return None;
         }
         let theme = appearance.theme();
-        let reset_str = AIRequestUsageModel::as_ref(app)
-            .next_refresh_time_local()
-            .format("Resets %b %d, %-I:%M %p")
-            .to_string();
+        let reset_str = localized_month_day_time(
+            app,
+            AIRequestUsageModel::as_ref(app).next_refresh_time_local(),
+        );
+        let reset_str = localization::text_for_app_with_args(
+            app,
+            "settings.billing.usage.resets",
+            &[("date", reset_str.as_str())],
+        );
         Some(
             Text::new_inline(
                 reset_str,
@@ -459,14 +482,25 @@ impl BillingCycleUsageSectionView {
         &self,
         workspace: &Workspace,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let label = self
             .current_summary(workspace)
-            .map(|s| format_period_range(s.period_start, s.period_end))
+            .map(|s| {
+                format_period_range(
+                    s.period_start,
+                    s.period_end,
+                    localization::current_locale(app),
+                )
+            })
             .or_else(|| {
                 workspace.billing_cycle_usage.as_ref().map(|data| {
-                    format_period_range(data.current_period_start, data.current_period_end)
+                    format_period_range(
+                        data.current_period_start,
+                        data.current_period_end,
+                        localization::current_locale(app),
+                    )
                 })
             })
             .unwrap_or_default();
@@ -483,12 +517,19 @@ impl BillingCycleUsageSectionView {
         &self,
         workspace: &Workspace,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let bg = theme.background();
         let label = self
             .current_summary(workspace)
-            .map(|s| format_period_range(s.period_start, s.period_end))
+            .map(|s| {
+                format_period_range(
+                    s.period_start,
+                    s.period_end,
+                    localization::current_locale(app),
+                )
+            })
             .unwrap_or_default();
 
         let mouse_state = self.period_selector_mouse_state.clone();
@@ -543,6 +584,7 @@ impl BillingCycleUsageSectionView {
         &self,
         workspace: &Workspace,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let summary = self.current_summary(workspace)?;
         // Only list buckets that actually contribute to the stacked bars: drop
@@ -564,7 +606,7 @@ impl BillingCycleUsageSectionView {
                         .finish(),
                 );
             }
-            row.add_child(self.render_legend_entry(bucket.clone(), appearance));
+            row.add_child(self.render_legend_entry(bucket.clone(), appearance, app));
         }
         Some(row.finish())
     }
@@ -573,8 +615,10 @@ impl BillingCycleUsageSectionView {
         &self,
         cost_type: AiCreditsUsageAndCostType,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        let (color, label) = legend_style_for(cost_type.clone());
+        let locale = localization::current_locale(app);
+        let (color, label) = legend_style_for(cost_type.clone(), locale);
         let theme = appearance.theme();
         let entry = {
             let mut row = Flex::row()
@@ -622,7 +666,7 @@ impl BillingCycleUsageSectionView {
             stack.add_child(entry);
             if state.is_hovered() {
                 stack.add_positioned_overlay_child(
-                    render_aggregate_legend_tooltip(appearance),
+                    render_aggregate_legend_tooltip(appearance, locale),
                     OffsetPositioning::offset_from_parent(
                         vec2f(0., 6.),
                         ParentOffsetBounds::WindowByPosition,
@@ -645,6 +689,7 @@ impl BillingCycleUsageSectionView {
         &self,
         workspace: &Workspace,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let admin_granularity = workspace
             .billing_metadata
@@ -657,7 +702,7 @@ impl BillingCycleUsageSectionView {
             return None;
         }
         let (link_text, trailing_copy, action, leading_icon) =
-            visibility_cta_for(admin_granularity)?;
+            visibility_cta_for(admin_granularity, localization::current_locale(app))?;
 
         // Only show when there are teammates -- a single-member workspace
         // doesn't benefit from any of the team-level visibility CTAs.
@@ -670,7 +715,7 @@ impl BillingCycleUsageSectionView {
         let body = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(vec![
                 FormattedTextFragment::hyperlink_action(link_text, action),
-                FormattedTextFragment::plain_text(format!(" {trailing_copy}")),
+                FormattedTextFragment::plain_text(trailing_copy),
             ])]),
             appearance.ui_font_size(),
             appearance.ui_font_family(),
@@ -714,53 +759,92 @@ impl BillingCycleUsageSectionView {
 /// visibility CTA banner, or `None` to suppress the banner entirely.
 fn visibility_cta_for(
     granularity: UsageVisibilityGranularity,
-) -> Option<(&'static str, &'static str, BillingCycleUsageAction, Icon)> {
+    locale: LocaleId,
+) -> Option<(String, String, BillingCycleUsageAction, Icon)> {
     match granularity {
         UsageVisibilityGranularity::OwnOnly => Some((
-            "Upgrade to Build",
-            "to see team-level credit usage.",
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.upgrade_build",
+            ),
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.team_level_usage",
+            ),
             BillingCycleUsageAction::OpenUpgrade,
             Icon::ArrowCircleBrokenUp,
         )),
         UsageVisibilityGranularity::TeamAggregate => Some((
-            "Upgrade to Business",
-            "to see per-user credit attribution.",
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.upgrade_business",
+            ),
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.per_user_attribution",
+            ),
             BillingCycleUsageAction::OpenUpgrade,
             Icon::ArrowCircleBrokenUp,
         )),
         UsageVisibilityGranularity::PerUserTotals => Some((
-            "Upgrade to Enterprise",
-            "to see fine-grained credit attribution and set per-user spend limits.",
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.upgrade_enterprise",
+            ),
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.fine_grained_attribution",
+            ),
             BillingCycleUsageAction::OpenUpgrade,
             Icon::ArrowCircleBrokenUp,
         )),
         // FullBreakdown viewers already have full visibility; nudge them to
         // the admin panel where per-user spend limits actually get configured.
         UsageVisibilityGranularity::FullBreakdown => Some((
-            "Open the admin panel",
-            "to set per-user spend limits.",
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.open_admin_panel",
+            ),
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.set_per_user_spend_limits",
+            ),
             BillingCycleUsageAction::OpenAdminPanel,
             Icon::Users,
         )),
     }
 }
 
-fn legend_style_for(cost_type: AiCreditsUsageAndCostType) -> (ColorU, &'static str) {
+fn legend_style_for(cost_type: AiCreditsUsageAndCostType, locale: LocaleId) -> (ColorU, String) {
     match cost_type {
-        AiCreditsUsageAndCostType::BaseLimit => (BASE_CREDITS_DOT_COLOR, "Base"),
-        AiCreditsUsageAndCostType::BonusGrant => (BONUS_CREDITS_DOT_COLOR, "Add-ons"),
-        AiCreditsUsageAndCostType::Payg => (PAYG_CREDITS_DOT_COLOR, "Pay-as-you-go"),
-        AiCreditsUsageAndCostType::AmbientBonusGrant => (AMBIENT_CREDITS_DOT_COLOR, "Cloud-only"),
-        AiCreditsUsageAndCostType::Aggregate => (AGGREGATE_CREDITS_DOT_COLOR, "Combined"),
-        AiCreditsUsageAndCostType::Other(_) => (BASE_CREDITS_DOT_COLOR, ""),
+        AiCreditsUsageAndCostType::BaseLimit => (
+            BASE_CREDITS_DOT_COLOR,
+            localization::text_for_locale(locale, "settings.billing.credits.legend.base"),
+        ),
+        AiCreditsUsageAndCostType::BonusGrant => (
+            BONUS_CREDITS_DOT_COLOR,
+            localization::text_for_locale(locale, "settings.billing.credits.legend.addons"),
+        ),
+        AiCreditsUsageAndCostType::Payg => (
+            PAYG_CREDITS_DOT_COLOR,
+            localization::text_for_locale(locale, "settings.billing.credits.legend.payg"),
+        ),
+        AiCreditsUsageAndCostType::AmbientBonusGrant => (
+            AMBIENT_CREDITS_DOT_COLOR,
+            localization::text_for_locale(locale, "settings.billing.credits.legend.cloud_only"),
+        ),
+        AiCreditsUsageAndCostType::Aggregate => (
+            AGGREGATE_CREDITS_DOT_COLOR,
+            localization::text_for_locale(locale, "settings.billing.credits.legend.combined"),
+        ),
+        AiCreditsUsageAndCostType::Other(_) => (BASE_CREDITS_DOT_COLOR, String::new()),
     }
 }
 
-fn render_aggregate_legend_tooltip(appearance: &Appearance) -> Box<dyn Element> {
+fn render_aggregate_legend_tooltip(appearance: &Appearance, locale: LocaleId) -> Box<dyn Element> {
     let theme = appearance.theme();
     let text = Text::new_inline(
-        "Other team members' usage across add-on, pay-as-you-go, and cloud-only credits."
-            .to_string(),
+        localization::text_for_locale(locale, "settings.billing.credits.legend.combined_tooltip"),
         appearance.ui_font_family(),
         12.,
     )
@@ -779,27 +863,32 @@ fn render_aggregate_legend_tooltip(appearance: &Appearance) -> Box<dyn Element> 
         .finish()
 }
 
-fn format_period_range(start: DateTime<Utc>, end: DateTime<Utc>) -> String {
+fn format_period_range(start: DateTime<Utc>, end: DateTime<Utc>, locale: LocaleId) -> String {
     let start = start.with_timezone(&Local);
     let end = end.with_timezone(&Local);
     if start.year() == end.year() {
-        format!("{} - {}", start.format("%b %d"), end.format("%b %d, %Y"))
+        format!(
+            "{} - {}",
+            localized_month_day_for_locale(locale, start),
+            localized_month_day_year_for_locale(locale, end)
+        )
     } else {
         format!(
             "{} - {}",
-            start.format("%b %d, %Y"),
-            end.format("%b %d, %Y")
+            localized_month_day_year_for_locale(locale, start),
+            localized_month_day_year_for_locale(locale, end)
         )
     }
 }
 
 fn build_period_menu_items(
     summaries: &[BillingCycleUsageSummary],
+    locale: LocaleId,
 ) -> Vec<MenuItem<BillingCycleUsageAction>> {
     summaries
         .iter()
         .map(|summary| {
-            let label = format_period_range(summary.period_start, summary.period_end);
+            let label = format_period_range(summary.period_start, summary.period_end, locale);
             MenuItem::Item(MenuItemFields::new(label).with_on_select_action(
                 BillingCycleUsageAction::SelectPeriod(Some(summary.period_end)),
             ))

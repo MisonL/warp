@@ -96,13 +96,15 @@ pub fn maybe_log_out(app: &mut AppContext) {
 
         let mut info_text_vec: Vec<String> = vec![];
         if num_long_running_commands > 0 {
-            let plural = if num_long_running_commands > 1 {
-                "processes"
+            let key = if num_long_running_commands == 1 {
+                "auth.logout.running_processes_singular"
             } else {
-                "process"
+                "auth.logout.running_processes_plural"
             };
-            info_text_vec.push(format!(
-                "You have {num_long_running_commands} {plural} running."
+            info_text_vec.push(crate::localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_long_running_commands.to_string())],
             ));
 
             button_data.push(ModalButton::for_app("Show running processes", move |ctx| {
@@ -138,35 +140,41 @@ pub fn maybe_log_out(app: &mut AppContext) {
         }
 
         if num_shared_sessions > 0 {
-            let plural = if num_shared_sessions > 1 {
-                "sessions"
+            let key = if num_shared_sessions == 1 {
+                "auth.logout.shared_sessions_singular"
             } else {
-                "session"
+                "auth.logout.shared_sessions_plural"
             };
-            info_text_vec.push(format!("You have {num_shared_sessions} shared {plural}."));
+            info_text_vec.push(crate::localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_shared_sessions.to_string())],
+            ));
         }
 
         if num_unsaved_objects > 0 {
-            let plural = if num_unsaved_objects > 1 {
-                "objects"
+            let key = if num_unsaved_objects == 1 {
+                "auth.logout.unsynced_objects_singular"
             } else {
-                "object"
+                "auth.logout.unsynced_objects_plural"
             };
-            info_text_vec.push(format!(
-                "You have {num_unsaved_objects} unsynced Warp Drive {plural}. \
-            Logging out will cause you to lose the {plural}."
+            info_text_vec.push(crate::localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_unsaved_objects.to_string())],
             ));
         }
 
         if num_unsaved_files > 0 {
-            let plural = if num_unsaved_files > 1 {
-                "files"
+            let key = if num_unsaved_files == 1 {
+                "auth.logout.unsaved_files_singular"
             } else {
-                "file"
+                "auth.logout.unsaved_files_plural"
             };
-            info_text_vec.push(format!(
-                "You have {num_unsaved_files} unsaved {plural}. \
-            Logging out will cause you to lose the {plural}."
+            info_text_vec.push(crate::localization::text_for_app_with_args(
+                app,
+                key,
+                &[("count", &num_unsaved_files.to_string())],
             ));
         }
 

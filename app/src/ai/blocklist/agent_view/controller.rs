@@ -9,7 +9,6 @@ use warpui::keymap::Keystroke;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use super::{DismissalStrategy, EphemeralMessage, EphemeralMessageModel};
-use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::orchestration_topology::{
     OrchestrationNavigationDirection, adjacent_orchestration_child_conversation_id,
@@ -18,6 +17,7 @@ use crate::terminal::TerminalModel;
 use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::terminal::input::slash_commands::SlashCommandTrigger;
 use crate::util::bindings::keybinding_name_to_keystroke;
+use crate::{BlocklistAIHistoryModel, localization};
 
 /// Error returned when entering the agent view fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -26,6 +26,16 @@ pub enum EnterAgentViewError {
     AlreadyInAgentView,
     #[error("Cannot enter agent mode while a command is running.")]
     LongRunningCommand,
+}
+
+impl EnterAgentViewError {
+    pub fn localized_message(&self, app: &AppContext) -> String {
+        let key = match self {
+            Self::AlreadyInAgentView => "terminal.agent_view.error.already_in_agent_view",
+            Self::LongRunningCommand => "terminal.agent_view.error.command_running",
+        };
+        localization::text_for_app(app, key)
+    }
 }
 
 /// Error returned when exiting the agent view fails.
@@ -1038,9 +1048,9 @@ fn exit_confirmation_message(
                 ..Default::default()
             },
             if should_stop_and_exit {
-                "again to stop and exit"
+                localization::text_for_app(app, "agent.message_bar.again_to_stop_and_exit")
             } else {
-                "again to exit"
+                localization::text_for_app(app, "agent.message_bar.again_to_exit")
             },
         ),
         ExitConfirmationTrigger::CtrlC => (
@@ -1049,7 +1059,7 @@ fn exit_confirmation_message(
                 ctrl: true,
                 ..Default::default()
             },
-            "again to exit",
+            localization::text_for_app(app, "agent.message_bar.again_to_exit"),
         ),
     };
 
@@ -1067,7 +1077,10 @@ fn new_conversation_keybinding_confirmation_message(
     let appearance = Appearance::handle(app).as_ref(app);
     Message::new(vec![
         MessageItem::keystroke(keystroke),
-        MessageItem::text("again to start new conversation"),
+        MessageItem::text(localization::text_for_app(
+            app,
+            "agent.message_bar.again_to_start_new_conversation",
+        )),
     ])
     .with_text_color(appearance.theme().ansi_fg_magenta())
 }

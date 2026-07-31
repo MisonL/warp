@@ -29,6 +29,7 @@ use crate::editor::{
     TextOptions,
 };
 use crate::keyboard::{UserDefinedKeybinding, write_custom_keybinding};
+use crate::localization::{self, LocalizationUpdater};
 use crate::search_bar::SearchBar;
 use crate::settings::CloudPreferencesSettings;
 use crate::util::bindings::{
@@ -45,13 +46,7 @@ const ROW_LEFT_MARGIN: f32 = 20.0;
 const ROW_HEIGHT: f32 = 28.;
 const EDIT_BUTTONS_BORDER_RADIUS: f32 = 4.0;
 
-pub const SEARCH_PLACEHOLDER: &str = "Search by name or by keys (ex. \"cmd d\")";
-const SHORTCUT_CONFLICT_WARNING_TEXT: &str = "This shortcut conflicts with other keybinds";
 const KEYBINDINGS_PAGE_SHORTCUT: &str = "workspace:toggle_keybindings_page";
-const RESET_BUTTON_TEXT: &str = "Default";
-const CANCEL_BUTTON_TEXT: &str = "Cancel";
-const CLEAR_BUTTON_TEXT: &str = "Clear";
-const SAVE_BUTTON_TEXT: &str = "Save";
 
 /// Notifier for custom keybinding changed. Views could subscribe to this for
 /// KeybindingChangedEvent.
@@ -204,6 +199,7 @@ impl KeybindingRow {
         is_disabled: bool,
         has_conflicting_binding: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let inner = if !is_disabled {
             let mut row = Hoverable::new(
@@ -217,7 +213,7 @@ impl KeybindingRow {
                         None
                     };
                     if self.editor_open {
-                        self.render_clicked(index, has_conflicting_binding, appearance)
+                        self.render_clicked(index, has_conflicting_binding, appearance, app)
                     } else {
                         self.render_summary(None, background, has_conflicting_binding, appearance)
                     }
@@ -310,10 +306,11 @@ impl KeybindingRow {
         index: usize,
         has_conflicting_binding: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let conflict_warning = if has_conflicting_binding {
             render_text(
-                SHORTCUT_CONFLICT_WARNING_TEXT,
+                &localization::text_for_app(app, "settings.keybindings.conflict_warning"),
                 Some(UiComponentStyles {
                     font_weight: Some(Weight::Bold),
                     ..Default::default()
@@ -324,7 +321,11 @@ impl KeybindingRow {
             Empty::new().finish()
         };
 
-        let press_new_shortcut_text = render_text("Press new keyboard shortcut", None, appearance);
+        let press_new_shortcut_text = render_text(
+            &localization::text_for_app(app, "settings.keybindings.press_new_shortcut"),
+            None,
+            appearance,
+        );
 
         let new_shortcut_element = Container::new(press_new_shortcut_text)
             .with_margin_left(ROW_LEFT_MARGIN)
@@ -360,7 +361,7 @@ impl KeybindingRow {
                             .finish(),
                         )
                         .with_child(
-                            Container::new(self.get_edit_button_row(appearance, index))
+                            Container::new(self.get_edit_button_row(appearance, index, app))
                                 .with_margin_right(CLEAR_CANCEL_BUTTONS_SPACING)
                                 .finish(),
                         )
@@ -392,20 +393,29 @@ impl KeybindingRow {
         }
     }
 
-    fn get_edit_button_row(&self, appearance: &Appearance, index: usize) -> Box<dyn Element> {
+    fn get_edit_button_row(
+        &self,
+        appearance: &Appearance,
+        index: usize,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let mut edit_buttons_based_on_state = Vec::new();
+        let clear_button_text = localization::text_for_app(app, "settings.action.clear");
+        let reset_button_text = localization::text_for_app(app, "settings.action.default");
+        let cancel_button_text = localization::text_for_app(app, "settings.action.cancel");
+        let save_button_text = localization::text_for_app(app, "settings.action.save");
 
         if self.binding.trigger.is_some() {
-            let clear = Hoverable::new(
-                self.mouse_state_handles.remove_mouse_state.clone(),
-                |state| {
+            let clear = Hoverable::new(self.mouse_state_handles.remove_mouse_state.clone(), {
+                let clear_button_text = clear_button_text.clone();
+                move |state| {
                     render_button(
-                        CLEAR_BUTTON_TEXT,
+                        clear_button_text.clone(),
                         appearance,
                         self.get_button_text_color(appearance, state),
                     )
-                },
-            )
+                }
+            })
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(KeybindingsViewAction::RemoveKeyStroke(index));
             })
@@ -419,12 +429,15 @@ impl KeybindingRow {
                 self.mouse_state_handles
                     .reset_to_default_mouse_state
                     .clone(),
-                |state| {
-                    render_button(
-                        RESET_BUTTON_TEXT,
-                        appearance,
-                        self.get_button_text_color(appearance, state),
-                    )
+                {
+                    let reset_button_text = reset_button_text.clone();
+                    move |state| {
+                        render_button(
+                            reset_button_text.clone(),
+                            appearance,
+                            self.get_button_text_color(appearance, state),
+                        )
+                    }
                 },
             )
             .on_click(move |ctx, _, _| {
@@ -437,21 +450,25 @@ impl KeybindingRow {
         edit_buttons_based_on_state.push(clear);
 
         let cancel = Container::new(
-            Hoverable::new(
-                self.mouse_state_handles.cancel_mouse_state.clone(),
-                |state| {
+            Hoverable::new(self.mouse_state_handles.cancel_mouse_state.clone(), {
+                let cancel_button_text = cancel_button_text.clone();
+                move |state| {
                     let cancel_button_color = self.get_button_text_color(appearance, state);
                     if index == 0 {
                         SavePosition::new(
-                            render_button(CANCEL_BUTTON_TEXT, appearance, cancel_button_color),
+                            render_button(
+                                cancel_button_text.clone(),
+                                appearance,
+                                cancel_button_color,
+                            ),
                             "first_keybinding_cancel",
                         )
                         .finish()
                     } else {
-                        render_button("Cancel", appearance, cancel_button_color)
+                        render_button(cancel_button_text.clone(), appearance, cancel_button_color)
                     }
-                },
-            )
+                }
+            })
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(KeybindingsViewAction::CancelKeyStrokeEditing(index));
             })
@@ -463,12 +480,15 @@ impl KeybindingRow {
         edit_buttons_based_on_state.push(cancel);
 
         let save = Container::new(
-            Hoverable::new(self.mouse_state_handles.save_mouse_state.clone(), |state| {
-                render_button(
-                    SAVE_BUTTON_TEXT,
-                    appearance,
-                    self.get_button_text_color(appearance, state),
-                )
+            Hoverable::new(self.mouse_state_handles.save_mouse_state.clone(), {
+                let save_button_text = save_button_text.clone();
+                move |state| {
+                    render_button(
+                        save_button_text.clone(),
+                        appearance,
+                        self.get_button_text_color(appearance, state),
+                    )
+                }
             })
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(KeybindingsViewAction::ConfirmKeyStroke(index));
@@ -506,10 +526,17 @@ impl KeybindingsView {
 
         search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
-            editor.set_placeholder_text(SEARCH_PLACEHOLDER, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
+                ctx,
+            );
         });
 
         let search_bar = ctx.add_typed_action_view(|_| SearchBar::new(search_editor.clone()));
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
         let page = PageType::new_monolith(KeybindingsWidget::default(), None, false);
         Self {
@@ -559,6 +586,57 @@ impl KeybindingsView {
             EditorEvent::Escape => ctx.focus_self(),
             _ => {}
         }
+    }
+
+    fn build_bindings(ctx: &AppContext) -> Vec<CommandBinding> {
+        // Materialize dynamic descriptions before sorting and deduplicating so
+        // all comparisons use concrete text for the current locale.
+        let lenses: Vec<_> = ctx.editable_bindings().collect();
+        lenses
+            .into_iter()
+            .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
+            .sorted_by(|a, b| {
+                // Sort by description then name so duplicate action variants are adjacent.
+                a.description
+                    .in_context(DescriptionContext::Default)
+                    .cmp(b.description.in_context(DescriptionContext::Default))
+                    .then(a.name.cmp(&b.name))
+            })
+            // Editable bindings may be registered once per view with the same persisted
+            // name and description. Show one row for those equivalent registrations while
+            // retaining bindings that share a name but have different semantics.
+            .dedup_by(|a, b| a.name == b.name && a.description == b.description)
+            .collect()
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.modifying_row.take().is_some() {
+            ctx.enable_key_bindings_dispatching();
+        }
+
+        let bindings = Self::build_bindings(ctx);
+        let search_term = self.search_editor.as_ref(ctx).buffer_text(ctx);
+        self.rows = Some(
+            filter_bindings_including_keystroke(
+                bindings.iter(),
+                &search_term,
+                DescriptionContext::Default,
+            )
+            .map(KeybindingRow::from)
+            .collect(),
+        );
+        self.conflict_map = bindings
+            .iter()
+            .map(|binding| binding.trigger.clone())
+            .collect();
+        self.bindings = Some(bindings);
+        self.search_editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "settings.keybindings.search_placeholder"),
+                ctx,
+            );
+        });
+        ctx.notify();
     }
 
     fn binding_row_clicked(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
@@ -749,61 +827,10 @@ impl SettingsPageMeta for KeybindingsView {
     fn on_page_selected(&mut self, allow_steal_focus: bool, ctx: &mut ViewContext<Self>) {
         // Reset previous modifying_row state.
         self.modifying_row = None;
-        // `from_editable_lens` materializes any dynamic description resolver
-        // before caching, so the dedup below (which compares descriptions)
-        // sees concrete strings.
-        let lenses: Vec<_> = ctx.editable_bindings().collect();
-        self.bindings = Some(
-            lenses
-                .into_iter()
-                .map(|lens| CommandBinding::from_editable_lens(lens, ctx))
-                .sorted_by(|a, b| {
-                    // Sort by description then name so that we can deduplicate bindings by name.
-                    a.description
-                        .in_context(DescriptionContext::Default)
-                        .cmp(b.description.in_context(DescriptionContext::Default))
-                        .then(a.name.cmp(&b.name))
-                })
-                // Effectively, editable bindings can only be used by one view, because the
-                // corresponding context predicate and typed action are view-specific.
-                //
-                // If multiple views need equivalent bindings, we handle this by declaring
-                // duplicates with the same name and description, but different actions and
-                // predicates. Because bindings are saved/loaded by name, changes to one binding
-                // will affect the others. To reduce clutter, only show one binding for a given name
-                // and description.
-                //
-                // There are some bindings with the same name, but different descriptions. Because
-                // we sort by description first, those bindings won't be deduplicated. This is
-                // alright for now, since those bindings have slightly different semantics despite
-                // being linked (e.g. find in block vs. find in terminal).
-                //
-                // TODO: Long-term, we should instead refactor TypedActionView so that common
-                // bindings can be declared once and handled by multiple views.
-                .dedup_by(|a, b| a.name == b.name && a.description == b.description)
-                .collect(),
-        );
-        self.rows = Some(
-            self.bindings
-                .iter()
-                .flatten()
-                .map(|b| (None, b))
-                .map(KeybindingRow::from)
-                .collect(),
-        );
-
-        // Populate the conflict map at startup.
-        self.conflict_map = self
-            .bindings
-            .iter()
-            .flatten()
-            .map(|binding| binding.trigger.clone())
-            .collect();
-
         self.search_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer_and_reset_undo_stack(ctx);
-            editor.set_placeholder_text(SEARCH_PLACEHOLDER, ctx);
         });
+        self.refresh_localized_text(ctx);
 
         if allow_steal_focus {
             ctx.focus(&self.search_editor);
@@ -895,7 +922,7 @@ fn render_columns(
 }
 
 fn render_button(
-    text: &'static str,
+    text: String,
     appearance: &Appearance,
     line_color: themes::theme::Fill,
 ) -> Box<dyn Element> {
@@ -968,10 +995,11 @@ impl KeybindingsWidget {
         &self,
         bindings: Option<&Vec<CommandBinding>>,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let font_size = appearance.ui_font_size() + FONT_DELTA;
         let mut description = Flex::column().with_child(render_text(
-            "Add your own custom keybindings to existing actions below.",
+            &localization::text_for_app(app, "settings.keybindings.description"),
             Some(UiComponentStyles {
                 font_size: Some(font_size),
                 font_color: Some(
@@ -997,7 +1025,10 @@ impl KeybindingsWidget {
                 Wrap::row()
                     .with_child(
                         Container::new(render_text(
-                            "Use",
+                            &localization::text_for_app(
+                                app,
+                                "settings.keybindings.use_shortcut_prefix",
+                            ),
                             Some(UiComponentStyles {
                                 font_size: Some(font_size),
                                 font_color: Some(
@@ -1026,7 +1057,10 @@ impl KeybindingsWidget {
                     )
                     .with_child(
                         Container::new(render_text(
-                            "to reference these keybindings in a side pane at anytime.",
+                            &localization::text_for_app(
+                                app,
+                                "settings.keybindings.use_shortcut_suffix",
+                            ),
                             Some(UiComponentStyles {
                                 font_size: Some(font_size),
                                 font_color: Some(
@@ -1053,6 +1087,7 @@ impl KeybindingsWidget {
         &self,
         view: &KeybindingsView,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         if let Some(rows) = view.rows.as_ref() {
             let rows = Flex::column().with_children(
@@ -1064,6 +1099,7 @@ impl KeybindingsWidget {
                             view.modifying_row.is_some() && !row.editor_open,
                             view.conflict_map.has_conflict(&row.binding.trigger),
                             appearance,
+                            app,
                         )
                     })
                     .collect::<Vec<_>>(),
@@ -1106,7 +1142,10 @@ impl SettingsWidget for KeybindingsWidget {
         {
             Some(LocalOnlyIconState::Visible {
                 mouse_state: self.local_only_icon_mouse_state.clone(),
-                custom_tooltip: Some("Keyboard shortcuts are not synced to the cloud".to_string()),
+                custom_tooltip: Some(localization::text_for_app(
+                    app,
+                    "settings.keybindings.not_synced_tooltip",
+                )),
             })
         } else {
             None
@@ -1114,17 +1153,17 @@ impl SettingsWidget for KeybindingsWidget {
 
         let subheader = render_sub_header(
             appearance,
-            "Configure keyboard shortcuts",
+            localization::text_for_app(app, "settings.keybindings.title"),
             local_only_icon_state,
         );
-        let description = self.render_description(view.bindings.as_ref(), appearance);
+        let description = self.render_description(view.bindings.as_ref(), appearance, app);
 
         Flex::column()
             .with_child(subheader)
             .with_child(description)
             .with_child(render_columns(
                 Container::new(render_text(
-                    "Command",
+                    &localization::text_for_app(app, "settings.keybindings.command_column"),
                     Some(UiComponentStyles {
                         font_size: Some(appearance.ui_font_size() + FONT_DELTA),
                         ..Default::default()
@@ -1145,7 +1184,9 @@ impl SettingsWidget for KeybindingsWidget {
                     left: 0.,
                 }),
             ))
-            .with_child(Shrinkable::new(1., self.render_binding_list(view, appearance)).finish())
+            .with_child(
+                Shrinkable::new(1., self.render_binding_list(view, appearance, app)).finish(),
+            )
             .finish()
     }
 }

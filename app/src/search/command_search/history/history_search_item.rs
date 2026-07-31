@@ -17,7 +17,7 @@ use crate::search::result_renderer::ItemHighlightState;
 use crate::terminal::HistoryEntry;
 use crate::terminal::rich_history::render_rich_history;
 use crate::ui_components::icons::Icon as UiIcon;
-use crate::util::time_format::format_approx_duration_from_now;
+use crate::util::time_format::localized_approx_duration_from_now;
 
 const COMMAND_METADATA_LEFT_MARGIN_FROM_METADATA: f32 = 8.;
 
@@ -128,7 +128,9 @@ impl SearchItem for HistorySearchItem {
             .with_main_axis_size(MainAxisSize::Max)
             .with_child(Shrinkable::new(1., command_and_workflow.finish()).finish());
 
-        if let Some(metadata) = self.render_command_level_metadata(&highlight_state, appearance) {
+        if let Some(metadata) =
+            self.render_command_level_metadata(app, &highlight_state, appearance)
+        {
             item.add_child(metadata);
         }
         item.finish()
@@ -158,11 +160,20 @@ impl SearchItem for HistorySearchItem {
     fn accessibility_label(&self) -> String {
         format!("History item: {}", self.entry.command)
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.history_item",
+            &[("command", &self.entry.command)],
+        )
+    }
 }
 
 impl HistorySearchItem {
     fn render_command_level_metadata(
         &self,
+        app: &AppContext,
         item_highlight_state: &ItemHighlightState,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
@@ -196,7 +207,7 @@ impl HistorySearchItem {
             metadata_row.add_child(
                 appearance
                     .ui_builder()
-                    .span(format_approx_duration_from_now(start))
+                    .span(localized_approx_duration_from_now(app, start))
                     .with_style(UiComponentStyles {
                         margin: Some(
                             Coords::uniform(0.).left(COMMAND_METADATA_LEFT_MARGIN_FROM_METADATA),

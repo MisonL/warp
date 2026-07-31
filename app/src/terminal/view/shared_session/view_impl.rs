@@ -59,7 +59,7 @@ use crate::terminal::shared_session::role_change_modal::{
 };
 use crate::terminal::shared_session::settings::SharedSessionSettings;
 use crate::terminal::shared_session::{
-    COPY_LINK_TEXT, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
+    SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
     SharedSessionStatus, join_link,
 };
 use crate::terminal::view::{
@@ -68,7 +68,7 @@ use crate::terminal::view::{
     TerminalView,
 };
 use crate::view_components::{DismissibleToast, ToastFlavor};
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
+use crate::{TelemetryEvent, localization, send_telemetry_from_ctx};
 
 impl TerminalView {
     pub fn sharer_session_kind(&self) -> Option<&Kind> {
@@ -954,12 +954,24 @@ impl TerminalView {
         }
 
         let Some(ambient_agent_view_model) = self.ambient_agent_view_model.as_ref() else {
-            self.show_error_toast("Couldn't continue this cloud task.".to_string(), ctx);
+            self.show_error_toast(
+                crate::localization::text_for_app(
+                    ctx,
+                    "terminal.cloud_followup.error.continue_failed",
+                ),
+                ctx,
+            );
             return;
         };
 
         if ambient_agent_view_model.as_ref(ctx).task_id() != Some(task_id) {
-            self.show_error_toast("Couldn't continue this cloud task.".to_string(), ctx);
+            self.show_error_toast(
+                crate::localization::text_for_app(
+                    ctx,
+                    "terminal.cloud_followup.error.continue_failed",
+                ),
+                ctx,
+            );
             return;
         }
         self.enable_cloud_followup_input_after_conversation_end(task_id, ctx);
@@ -994,7 +1006,10 @@ impl TerminalView {
             ctx,
         );
         self.show_persistent_toast(
-            "Sharing ended due to inactivity".to_owned(),
+            localization::text_for_app(
+                ctx,
+                "terminal.shared_session.toast.sharing_ended_inactivity",
+            ),
             ToastFlavor::Error,
             ctx,
         );
@@ -1569,7 +1584,10 @@ impl TerminalView {
 
         let window_id = ctx.window_id();
         crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::default(COPY_LINK_TEXT.to_string());
+            let toast = DismissibleToast::default(crate::localization::text_for_app(
+                ctx,
+                "terminal.shared_session.toast.link_copied",
+            ));
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
 
@@ -1905,35 +1923,43 @@ impl TerminalView {
         &self,
         model: &TerminalModel,
         is_share_session_disabled: bool,
+        app: &AppContext,
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = Vec::new();
 
         if !model.shared_session_status().is_sharer_or_viewer() {
             items.push(
-                MenuItemFields::new("Share session...")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::OpenShareSessionModal,
-                    ))
-                    .with_disabled(is_share_session_disabled)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    app,
+                    "terminal.shared_session.menu.share_session",
+                ))
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::OpenShareSessionModal,
+                ))
+                .with_disabled(is_share_session_disabled)
+                .into_item(),
             );
         } else if model.shared_session_status().is_active_sharer() {
             items.push(
-                MenuItemFields::new("Stop sharing")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::StopSharing,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    app,
+                    "terminal.shared_session.menu.stop_sharing",
+                ))
+                .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::StopSharing))
+                .into_item(),
             );
         }
 
         if model.shared_session_status().is_sharer_or_viewer() {
             items.push(
-                MenuItemFields::new("Copy session sharing link")
-                    .with_on_select_action(TerminalAction::CopySharedSessionLink {
-                        source: SharedSessionActionSource::RightClickMenu,
-                    })
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    app,
+                    "terminal.shared_session.menu.copy_link",
+                ))
+                .with_on_select_action(TerminalAction::CopySharedSessionLink {
+                    source: SharedSessionActionSource::RightClickMenu,
+                })
+                .into_item(),
             );
         }
 
@@ -2039,11 +2065,15 @@ impl TerminalView {
         &self,
         button_handle: MouseStateHandle,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         appearance
             .ui_builder()
             .button(ButtonVariant::Basic, button_handle)
-            .with_text_label("Request edit access".into())
+            .with_text_label(crate::localization::text_for_app(
+                app,
+                "terminal.shared_session.action.request_edit_access",
+            ))
             .build()
             .on_click(move |ctx, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::RequestSharedSessionRole(Role::Executor));

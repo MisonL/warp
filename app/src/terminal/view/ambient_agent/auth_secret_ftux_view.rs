@@ -26,6 +26,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::view::ambient_agent::auth_secret_ftux_dropdown::{
     AuthSecretFtuxDropdown, FtuxDropdownEvent,
@@ -218,7 +219,11 @@ impl AuthSecretFtuxView {
                         state.is_saving = false;
                         state.pending_name = None;
                         let window_id = ctx.window_id();
-                        let message = format!("Failed to save API key: {error}");
+                        let message = localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.auth_secret.save_failed",
+                            &[("error", &error.to_string())],
+                        );
                         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
                             ts.add_ephemeral_toast(
                                 DismissibleToast::error(message),
@@ -723,7 +728,11 @@ impl AuthSecretFtuxView {
         ctx: &mut ViewContext<Self>,
     ) {
         let window_id = ctx.window_id();
-        let message = format!("API key '{name}' saved.");
+        let message = localization::text_for_app_with_args(
+            ctx,
+            "terminal.auth_secret.saved",
+            &[("name", &name)],
+        );
         ToastStack::handle(ctx).update(ctx, |ts, ctx| {
             ts.add_ephemeral_toast(DismissibleToast::default(message), window_id, ctx);
         });
@@ -741,10 +750,14 @@ impl AuthSecretFtuxView {
 
         let main_text = {
             let description = if self.current_type_info().is_some() {
-                "Enter your credentials below.".to_string()
+                localization::text_for_app(app, "terminal.auth_secret.enter_credentials")
             } else {
                 let display_name = harness_display::display_name(self.harness);
-                format!("Select an API key type to use {display_name} in the cloud with Oz.")
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.auth_secret.select_type_description",
+                    &[("harness", display_name)],
+                )
             };
             Text::new_inline(description, font_family, DESCRIPTION_FONT_SIZE)
                 .with_color(theme.foreground().into())
@@ -753,7 +766,7 @@ impl AuthSecretFtuxView {
         };
 
         let privacy_text = Text::new_inline(
-            "Your credentials are encrypted end-to-end. ".to_string(),
+            localization::text_for_app(app, "terminal.auth_secret.privacy_prefix"),
             font_family,
             TYPE_DESCRIPTION_FONT_SIZE,
         )
@@ -766,8 +779,11 @@ impl AuthSecretFtuxView {
             .current_type_info()
             .map(|info| info.learn_more_url)
             .unwrap_or_else(|| learn_more_url_for_harness(self.harness));
-        let learn_more_label =
-            format!("Learn more about authentication for {harness_name} in Warp.");
+        let learn_more_label = localization::text_for_app_with_args(
+            app,
+            "terminal.auth_secret.learn_more_for_harness",
+            &[("harness", harness_name)],
+        );
         let learn_more = Hoverable::new(self.learn_more_mouse_state.clone(), move |state| {
             let color = if state.is_hovered() {
                 accent_color
@@ -874,7 +890,7 @@ impl AuthSecretFtuxView {
         let theme = appearance.theme();
         let label_color = internal_colors::text_sub(theme, theme.surface_1());
         let label = Text::new_inline(
-            "Share with team".to_string(),
+            localization::text_for_app(app, "terminal.auth_secret.share_with_team"),
             appearance.ui_font_family(),
             TYPE_DESCRIPTION_FONT_SIZE,
         )
@@ -901,15 +917,22 @@ impl AuthSecretFtuxView {
             .with_spacing(FORM_FIELD_SPACING);
 
         column.add_child(
-            Container::new(self.render_field_label("NAME", app))
-                .with_padding_top(CONTENT_SECTION_SPACING)
-                .finish(),
+            Container::new(self.render_field_label(
+                &localization::text_for_app(app, "terminal.auth_secret.field.name"),
+                app,
+            ))
+            .with_padding_top(CONTENT_SECTION_SPACING)
+            .finish(),
         );
         column.add_child(self.render_editor_container(&self.name_editor, app));
 
         for (idx, field) in info.fields.iter().enumerate() {
             let label = if field.optional {
-                format!("{} (optional)", field.label)
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.auth_secret.optional_label",
+                    &[("label", field.label)],
+                )
             } else {
                 field.label.to_string()
             };
@@ -926,7 +949,7 @@ impl AuthSecretFtuxView {
 
     fn render_button(
         &self,
-        label: &'static str,
+        label: String,
         mouse_state: MouseStateHandle,
         background: Option<Fill>,
         action: AuthSecretFtuxAction,
@@ -986,9 +1009,15 @@ impl AuthSecretFtuxView {
         row.add_child(Expanded::new(1., Empty::new().finish()).finish());
 
         let (label, action) = if self.creation_state.is_some() {
-            ("Back", AuthSecretFtuxAction::Back)
+            (
+                localization::text_for_app(app, "settings.action.back"),
+                AuthSecretFtuxAction::Back,
+            )
         } else {
-            ("Cancel", AuthSecretFtuxAction::Cancel)
+            (
+                localization::text_for_app(app, "settings.action.cancel"),
+                AuthSecretFtuxAction::Cancel,
+            )
         };
         row.add_child(self.render_button(
             label,
@@ -1002,7 +1031,7 @@ impl AuthSecretFtuxView {
         let accent_fill = Appearance::as_ref(app).theme().accent();
         let continue_disabled = !self.can_submit_creation_form(app);
         row.add_child(self.render_button(
-            "Continue",
+            localization::text_for_app(app, "settings.action.continue"),
             self.continue_mouse_state.clone(),
             Some(accent_fill),
             AuthSecretFtuxAction::Continue,

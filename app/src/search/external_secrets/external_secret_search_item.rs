@@ -94,6 +94,18 @@ impl SearchItem for ExternalSecretSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Secret: {}", &self.external_secret.get_display_name())
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.a11y.type.secret",
+            &[("name", &self.external_secret.get_display_name())],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.secret",
+            &[("name", &self.external_secret.get_display_name())],
+        )
     }
 }

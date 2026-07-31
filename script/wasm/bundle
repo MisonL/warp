@@ -145,7 +145,12 @@ for mapping in \
     env_var="${mapping##*:}"
     if [[ ",$FEATURES," =~ ,"$feature", ]]; then
         export "$env_var"=1
-        FEATURES="$(echo "$FEATURES" | sed "s/,$feature,/,/; s/^$feature,//; s/,$feature$//; s/^$feature$//")"
+        padded_features=",$FEATURES,"
+        while [[ "$padded_features" == *,"$feature",* ]]; do
+            padded_features="${padded_features/,"$feature",/,}"
+        done
+        FEATURES="${padded_features#,}"
+        FEATURES="${FEATURES%,}"
         FEATURES="$(echo "$FEATURES" | sed 's/,,*/,/g; s/^,//; s/,$//')"
         echo "Note: '$feature' is no longer a cargo feature; setting $env_var=1 instead."
     fi

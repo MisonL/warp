@@ -15,6 +15,7 @@ use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::{AI_ASSISTANT_LOGO_COLOR, GenerateCommandsFromNaturalLanguageError};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::command_search::searcher::CommandSearchItemAction;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::item::SearchItem;
@@ -29,8 +30,12 @@ use crate::ui_components::icons::Icon as UIIcon;
 use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 use crate::workflows::{AIWorkflowOrigin, WorkflowSource, WorkflowType};
 
-const OPEN_WARP_AI_ITEM_BODY_TEXT: &str = "Ask Warp AI for command suggestions";
-const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT: &str = "Translate into shell command using Warp AI";
+const OPEN_WARP_AI_ITEM_BODY_TEXT_KEY: &str = "search.command_search.warp_ai.open_body";
+const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_KEY: &str =
+    "search.command_search.warp_ai.translate_body";
+const OPEN_WARP_AI_ITEM_BODY_TEXT_FALLBACK: &str = "Ask Warp AI for command suggestions";
+const TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_FALLBACK: &str =
+    "Translate into shell command using Warp AI";
 
 #[derive(Clone, Debug)]
 pub enum WarpAISearchItem {
@@ -42,10 +47,17 @@ pub enum WarpAISearchItem {
 }
 
 impl WarpAISearchItem {
-    fn item_body_text(&self) -> &'static str {
+    fn item_body_text_key(&self) -> &'static str {
         match self {
-            WarpAISearchItem::Translate => TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT,
-            WarpAISearchItem::Open => OPEN_WARP_AI_ITEM_BODY_TEXT,
+            WarpAISearchItem::Translate => TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_KEY,
+            WarpAISearchItem::Open => OPEN_WARP_AI_ITEM_BODY_TEXT_KEY,
+        }
+    }
+
+    fn item_body_text_fallback(&self) -> &'static str {
+        match self {
+            WarpAISearchItem::Translate => TRANSLATE_WITH_WARP_AI_ITEM_BODY_TEXT_FALLBACK,
+            WarpAISearchItem::Open => OPEN_WARP_AI_ITEM_BODY_TEXT_FALLBACK,
         }
     }
 }
@@ -98,8 +110,9 @@ impl SearchItem for WarpAISearchItem {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let body_text = localization::text_for_app(app, self.item_body_text_key());
         Text::new_inline(
-            self.item_body_text(),
+            body_text,
             appearance.monospace_font_family(),
             appearance.monospace_font_size(),
         )
@@ -133,7 +146,16 @@ impl SearchItem for WarpAISearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Warp AI: {}", self.item_body_text())
+        format!("Warp AI: {}", self.item_body_text_fallback())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let body_text = localization::text_for_app(app, self.item_body_text_key());
+        localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.warp_ai",
+            &[("body", &body_text)],
+        )
     }
 }
 
@@ -234,13 +256,26 @@ impl AsyncDataSource for WarpAIDataSource {
 
 impl DataSourceRunError for GenerateCommandsFromNaturalLanguageError {
     fn user_facing_error(&self) -> String {
+        let key = match self {
+            Self::BadPrompt => "search.command_search.warp_ai.error.bad_prompt",
+            Self::AiProviderError | Self::Other => "search.command_search.warp_ai.error.generic",
+            Self::RateLimited => "search.command_search.warp_ai.error.rate_limited",
+        };
+        localization::text_for_locale(warp_localization::LocaleId::EnUs, key)
+    }
+
+    fn user_facing_error_for_app(&self, app: &AppContext) -> String {
         match self {
-            Self::BadPrompt => "No results found. Please try again with a more specific query.",
-            Self::AiProviderError => "Something went wrong. Please try again.",
-            Self::RateLimited => "Looks like you're out of AI credits. Please try again later.",
-            Self::Other => "Something went wrong. Please try again.",
+            Self::BadPrompt => {
+                localization::text_for_app(app, "search.command_search.warp_ai.error.bad_prompt")
+            }
+            Self::AiProviderError | Self::Other => {
+                localization::text_for_app(app, "search.command_search.warp_ai.error.generic")
+            }
+            Self::RateLimited => {
+                localization::text_for_app(app, "search.command_search.warp_ai.error.rate_limited")
+            }
         }
-        .to_string()
     }
 
     fn telemetry_payload(&self) -> serde_json::Value {

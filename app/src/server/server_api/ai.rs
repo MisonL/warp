@@ -115,6 +115,7 @@ use super::ServerApi;
 #[cfg(not(target_family = "wasm"))]
 use super::download::write_response_body_to_path;
 use super::harness_support::{UploadField, UploadFieldValue, UploadTarget};
+// Re-export ambient agent types for backwards compatibility
 #[cfg(not(feature = "agent_mode_evals"))]
 use crate::ai::BonusGrant;
 use crate::ai::RequestUsageInfo;
@@ -125,10 +126,9 @@ use crate::ai::agent::conversation::{
     ServerAIConversationMetadata,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-// Re-export ambient agent types for backwards compatibility
+pub use crate::ai::ambient_agents::task::{AttachmentInput, TaskAttachment};
 pub use crate::ai::ambient_agents::{
     AgentConfigSnapshot, AgentSource, AmbientAgentTask, AmbientAgentTaskState, TaskStatusMessage,
-    task::{AttachmentInput, TaskAttachment},
 };
 use crate::ai::artifacts::Artifact;
 use crate::ai::generate_code_review_content::api::{

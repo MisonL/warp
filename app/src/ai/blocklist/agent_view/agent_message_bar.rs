@@ -448,6 +448,10 @@ pub struct AgentMessageArgs<'a> {
 }
 
 impl AttachedContextArgs for AgentMessageArgs<'_> {
+    fn app(&self) -> &AppContext {
+        self.app
+    }
+
     fn terminal_model(&self) -> &TerminalModel {
         self.terminal_model
     }
@@ -484,7 +488,10 @@ impl MessageProvider<AgentMessageArgs<'_>> for BootstrappingMessageProducer {
         {
             None
         } else {
-            Some(Message::from_text("Starting shell..."))
+            Some(Message::from_text(crate::localization::text_for_app(
+                args.app,
+                "terminal.status.starting_shell",
+            )))
         }
     }
 }

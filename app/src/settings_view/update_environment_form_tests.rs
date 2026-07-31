@@ -8,8 +8,8 @@ use warpui::{
 };
 
 use super::{
-    EnvironmentFormCopy, EnvironmentFormInitArgs, EnvironmentFormValues, SuggestImageState,
-    UpdateEnvironmentForm, UpdateEnvironmentFormAction,
+    EnvironmentFormCopy, EnvironmentFormInitArgs, EnvironmentFormValues, LocalizedMessage,
+    SuggestImageState, UpdateEnvironmentForm, UpdateEnvironmentFormAction,
 };
 use crate::ai::ambient_agents::github_auth_notifier::GitHubAuthNotifier;
 use crate::ai::ambient_agents::github_auth_url::{self, AuthSource, GithubAuthRedirectTarget};
@@ -239,7 +239,10 @@ fn set_github_auth_call_state(form: &mut UpdateEnvironmentForm, state: GithubAut
         GithubAuthCallState::Error { message } => {
             form.github_dropdown_state.is_loading = false;
             form.github_dropdown_state.auth_url = None;
-            form.github_dropdown_state.load_error_message = Some(message);
+            form.github_dropdown_state.load_error_message = Some(LocalizedMessage::KeyWithArgs {
+                key: "settings.environment.form.repos.error.load_failed_with_error",
+                args: vec![("error", message)],
+            });
         }
     }
 }
@@ -476,7 +479,7 @@ fn test_render_repos_field_loading_state() {
             });
 
             let appearance = Appearance::as_ref(ctx);
-            let element = view_handle.as_ref(ctx).render_repos_field(appearance);
+            let element = view_handle.as_ref(ctx).render_repos_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -506,7 +509,7 @@ fn test_render_repos_field_authed_state() {
             });
 
             let appearance = Appearance::as_ref(ctx);
-            let element = view_handle.as_ref(ctx).render_repos_field(appearance);
+            let element = view_handle.as_ref(ctx).render_repos_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -539,7 +542,7 @@ fn test_render_repos_field_auth_required() {
             });
 
             let appearance = Appearance::as_ref(ctx);
-            let element = view_handle.as_ref(ctx).render_repos_field(appearance);
+            let element = view_handle.as_ref(ctx).render_repos_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -572,7 +575,7 @@ fn test_render_repos_field_error_state() {
             });
 
             let appearance = Appearance::as_ref(ctx);
-            let element = view_handle.as_ref(ctx).render_repos_field(appearance);
+            let element = view_handle.as_ref(ctx).render_repos_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -648,7 +651,7 @@ fn test_render_repos_field_with_selected_repos() {
             });
 
             let appearance = Appearance::as_ref(ctx);
-            let element = view_handle.as_ref(ctx).render_repos_field(appearance);
+            let element = view_handle.as_ref(ctx).render_repos_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -824,7 +827,7 @@ fn test_render_docker_image_field_shows_suggest_image_button_on_create() {
             let appearance = Appearance::as_ref(ctx);
             let element = view_handle
                 .as_ref(ctx)
-                .render_docker_image_field(appearance);
+                .render_docker_image_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -864,7 +867,7 @@ fn test_render_docker_image_field_shows_suggest_image_button_on_edit() {
             let appearance = Appearance::as_ref(ctx);
             let element = view_handle
                 .as_ref(ctx)
-                .render_docker_image_field(appearance);
+                .render_docker_image_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -899,7 +902,7 @@ fn test_render_docker_image_field_shows_generating_state() {
             let appearance = Appearance::as_ref(ctx);
             let element = view_handle
                 .as_ref(ctx)
-                .render_docker_image_field(appearance);
+                .render_docker_image_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -938,7 +941,7 @@ fn test_render_docker_image_field_shows_custom_image_warning() {
             let appearance = Appearance::as_ref(ctx);
             let element = view_handle
                 .as_ref(ctx)
-                .render_docker_image_field(appearance);
+                .render_docker_image_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(
@@ -984,7 +987,7 @@ fn test_render_docker_image_field_shows_github_auth_required_message() {
             let appearance = Appearance::as_ref(ctx);
             let element = view_handle
                 .as_ref(ctx)
-                .render_docker_image_field(appearance);
+                .render_docker_image_field(appearance, ctx);
             let text_content = element.debug_text_content().unwrap_or_default();
 
             assert!(

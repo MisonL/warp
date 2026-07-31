@@ -18,6 +18,7 @@ use crate::ai::blocklist::block::toggleable_items::{ToggleableItemBuilder, Toggl
 use crate::ai::blocklist::inline_action::inline_action_header::INLINE_ACTION_HORIZONTAL_PADDING;
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 
 #[derive(Debug, Clone)]
@@ -159,7 +160,10 @@ pub fn render_lsp_selector_block(
     let skip_button = appearance
         .ui_builder()
         .button(ButtonVariant::Text, skip_mouse_state.clone())
-        .with_text_label("Skip for now".to_string())
+        .with_text_label(localization::text_for_app(
+            ctx,
+            "terminal.init_project.action.skip_for_now",
+        ))
         .build()
         .on_click(|ctx, _, _| {
             ctx.dispatch_typed_action(InitProjectBlockAction::SkipLanguageServers);

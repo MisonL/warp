@@ -18,6 +18,7 @@ mod init;
 pub mod initializer;
 mod input;
 mod input_mode;
+mod language;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod linux;
 mod local_control;
@@ -55,6 +56,7 @@ pub use gpu::*;
 pub use init::*;
 pub use input::*;
 pub use input_mode::*;
+pub use language::*;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub use linux::*;
 pub use local_control::*;
@@ -101,21 +103,39 @@ impl SettingsFileError {
     /// this error. Shared between the workspace-level banner
     /// (`Workspace::render_settings_error_banner`) and the settings nav rail
     /// footer (`render_settings_error_alert`) so the two UIs stay in sync.
-    pub fn heading_and_description(&self) -> (String, String) {
+    pub fn heading_and_description(&self, app: &AppContext) -> (String, String) {
         match self {
-            Self::FileParseFailed(_) => (
-                "Your settings file contains an error.".to_owned(),
-                format!("{self}. Open the file to fix it."),
+            Self::FileParseFailed(error) => (
+                crate::localization::text_for_app(app, "settings.error.settings_file.heading"),
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "settings.error.settings_file.parse_description",
+                    &[("error", error.as_str())],
+                ),
             ),
             Self::InvalidSettings(keys) => match keys.len() {
                 1 => (
-                    "Your settings file contains an error.".to_owned(),
-                    format!("{self}. The default value is being used."),
+                    crate::localization::text_for_app(app, "settings.error.settings_file.heading"),
+                    crate::localization::text_for_app_with_args(
+                        app,
+                        "settings.error.settings_file.invalid_single_description",
+                        &[("key", keys[0].as_str())],
+                    ),
                 ),
-                _ => (
-                    "Your settings file contains errors.".to_owned(),
-                    format!("{self}. Default values are being used."),
-                ),
+                _ => {
+                    let keys = keys.join(", ");
+                    (
+                        crate::localization::text_for_app(
+                            app,
+                            "settings.error.settings_file.heading_many",
+                        ),
+                        crate::localization::text_for_app_with_args(
+                            app,
+                            "settings.error.settings_file.invalid_multiple_description",
+                            &[("keys", keys.as_str())],
+                        ),
+                    )
+                }
             },
         }
     }
@@ -225,16 +245,6 @@ pub enum CtrlTabBehavior {
     CycleMostRecentTab,
 }
 
-impl CtrlTabBehavior {
-    pub fn as_dropdown_label(&self) -> &str {
-        match self {
-            Self::ActivatePrevNextTab => "Activate previous/next tab",
-            Self::CycleMostRecentSession => "Cycle most recent session",
-            Self::CycleMostRecentTab => "Cycle most recent tab",
-        }
-    }
-}
-
 impl ExtraMetaKeys {
     pub fn toggle_left_key(&self) -> Self {
         ExtraMetaKeys {
@@ -273,16 +283,6 @@ pub enum GlobalHotkeyMode {
     QuakeMode,
     /// "Activation hotkey" shows/hides all of the normal windows
     ActivationHotkey,
-}
-
-impl GlobalHotkeyMode {
-    pub fn as_dropdown_label(&self) -> &str {
-        match self {
-            Self::Disabled => "Disabled",
-            Self::QuakeMode => "Dedicated hotkey window",
-            Self::ActivationHotkey => "Show/hide all windows",
-        }
-    }
 }
 
 #[derive(

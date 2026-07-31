@@ -1015,44 +1015,52 @@ impl RemoteServerClient {
                         {
                             log::warn!("Event channel closed, dropping push message");
                         }
-                    } else if let Some((_, tx)) = pending_requests.remove(&request_id) {
-                        // Session-scoped response — resolve the caller's oneshot.
-                        let _ = tx.send(Ok(msg));
                     } else {
-                        // Host-scoped response (either normal path or daemon
-                        // failover). Forward to the manager for matching.
-                        if host_response_tx.try_send(msg).is_err() {
-                            log::warn!(
-                                "Host response channel closed, dropping response \
+                        match pending_requests.remove(&request_id) {
+                            Some((_, tx)) => {
+                                // Session-scoped response — resolve the caller's oneshot.
+                                let _ = tx.send(Ok(msg));
+                            }
+                            _ => {
+                                // Host-scoped response (either normal path or daemon
+                                // failover). Forward to the manager for matching.
+                                if host_response_tx.try_send(msg).is_err() {
+                                    log::warn!(
+                                        "Host response channel closed, dropping response \
                                  with request_id={request_id}"
-                            );
+                                    );
+                                }
+                            }
                         }
                     }
                 }
                 Err(ProtocolError::Decode(ref err, Some(ref request_id))) => {
-                    if let Some((_, tx)) = pending_requests.remove(request_id) {
-                        log::warn!(
-                            "Reader task: malformed response \
+                    match pending_requests.remove(request_id) {
+                        Some((_, tx)) => {
+                            log::warn!(
+                                "Reader task: malformed response \
                              (request_id={request_id}): {err}"
-                        );
-                        let _ = tx.send(Err(ClientError::Protocol(ProtocolError::Decode(
-                            err.clone(),
-                            Some(request_id.clone()),
-                        ))));
-                    } else {
-                        // Not a session-scoped pending request — this is a
-                        // host-scoped response the manager is tracking. Tell
-                        // it so the caller fails fast rather than waiting for
-                        // the request timeout.
-                        log::warn!(
-                            "Reader task: malformed host-scoped response \
+                            );
+                            let _ = tx.send(Err(ClientError::Protocol(ProtocolError::Decode(
+                                err.clone(),
+                                Some(request_id.clone()),
+                            ))));
+                        }
+                        _ => {
+                            // Not a session-scoped pending request — this is a
+                            // host-scoped response the manager is tracking. Tell
+                            // it so the caller fails fast rather than waiting for
+                            // the request timeout.
+                            log::warn!(
+                                "Reader task: malformed host-scoped response \
                              (request_id={request_id}): {err}"
-                        );
-                        let _ = event_tx
-                            .send(ClientEvent::HostScopedDecodeFailed {
-                                request_id: request_id.clone(),
-                            })
-                            .await;
+                            );
+                            let _ = event_tx
+                                .send(ClientEvent::HostScopedDecodeFailed {
+                                    request_id: request_id.clone(),
+                                })
+                                .await;
+                        }
                     }
                 }
                 Err(ProtocolError::Decode(ref err, None)) => {

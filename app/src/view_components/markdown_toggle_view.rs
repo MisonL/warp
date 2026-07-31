@@ -9,6 +9,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::notebooks::file::MarkdownDisplayMode;
 
 #[derive(Debug, Clone)]
@@ -34,8 +35,16 @@ impl MarkdownToggleView {
                         icon_color: theme.main_text_color(theme.background()).into(),
                         label: Some(LabelConfig {
                             label: match mode {
-                                MarkdownDisplayMode::Rendered => "Rendered".into(),
-                                MarkdownDisplayMode::Raw => "Raw".into(),
+                                MarkdownDisplayMode::Rendered => localization::text_for_app(
+                                    app,
+                                    "view_components.markdown_toggle.rendered",
+                                )
+                                .into(),
+                                MarkdownDisplayMode::Raw => localization::text_for_app(
+                                    app,
+                                    "view_components.markdown_toggle.raw",
+                                )
+                                .into(),
                             },
                             width_override: Some(55.0),
                             color: if is_selected {

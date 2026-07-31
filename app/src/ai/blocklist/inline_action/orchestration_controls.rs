@@ -12,6 +12,7 @@ use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
+use warp_localization::LocaleId;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
@@ -26,15 +27,15 @@ use warpui::{
     SingletonEntity, SizeConstraint, View, ViewContext, ViewHandle,
 };
 
-use crate::LLMPreferences;
 use crate::ai::blocklist::inline_action::host_picker::HostPicker;
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
 use crate::ai::orchestration::{
-    AUTH_SECRET_INHERIT_LABEL, OptionBadge, OptionFooter, OptionRow, OptionSnapshot,
-    OptionSourceStatus, api_key_snapshot, build_runner_snapshot, environment_snapshot,
-    harness_snapshot, host_snapshot, model_snapshot, persist_auth_secret_selection,
+    AUTH_SECRETS_LOAD_FAILED_MESSAGE, OptionBadge, OptionFooter, OptionRow, OptionSnapshot,
+    OptionSourceStatus, RUNNERS_LOAD_FAILED_MESSAGE, RunnerFetchState, api_key_snapshot,
+    build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot, model_snapshot,
+    persist_auth_secret_selection,
 };
 pub use crate::ai::orchestration::{
     AuthSecretSelection, ORCHESTRATION_WARP_WORKER_HOST, OrchestrationConfigState,
@@ -51,6 +52,7 @@ use crate::view_components::FilterableDropdown;
 use crate::view_components::dropdown::{
     Dropdown, DropdownAction, DropdownItemAction, DropdownStyle,
 };
+use crate::{LLMPreferences, localization};
 
 // ── Shared constants ────────────────────────────────────────────────
 
@@ -62,10 +64,12 @@ pub const ORCHESTRATION_PICKER_MAX_WIDTH: f32 = 205.;
 
 const ORCHESTRATION_SEGMENTED_CONTROL_PADDING: f32 = 4.;
 const ORCHESTRATION_SEGMENT_VERTICAL_PADDING: f32 = 4.;
-
-/// Label for the auth secret column.
-pub const AUTH_SECRET_COLUMN_LABEL: &str = "API key";
-const AUTH_SECRET_CREATE_NEW_LABEL: &str = "New API key…";
+const AUTH_SECRET_INHERIT_KEY: &str = "agent.orchestration.controls.auth_secret_inherit";
+const AUTH_SECRETS_LOAD_FAILED_KEY: &str = "agent.orchestration.controls.unable_to_load_secrets";
+const EMPTY_ENVIRONMENT_KEY: &str = "agent.orchestration.controls.empty_environment";
+const RUNNER_KEY: &str = "agent.orchestration.controls.runner";
+const RUNNER_USE_DEFAULT_KEY: &str = "agent.orchestration.controls.runner_use_default";
+const RUNNERS_LOAD_FAILED_KEY: &str = "agent.orchestration.controls.unable_to_load_runners";
 
 // ── Action trait ────────────────────────────────────────────────────
 
@@ -246,6 +250,30 @@ fn selected_row_label(snapshot: &OptionSnapshot) -> Option<String> {
     })
 }
 
+fn localized_environment_row_label_for_locale(row: &OptionRow, locale: LocaleId) -> String {
+    if row.id.is_empty() {
+        localization::text_for_locale(locale, EMPTY_ENVIRONMENT_KEY)
+    } else {
+        row.label.clone()
+    }
+}
+
+fn localized_runner_row_label_for_locale(row: &OptionRow, locale: LocaleId) -> String {
+    if row.id.is_empty() {
+        localization::text_for_locale(locale, RUNNER_USE_DEFAULT_KEY)
+    } else {
+        row.label.clone()
+    }
+}
+
+fn localized_runner_status_message_for_locale(message: &str, locale: LocaleId) -> String {
+    if message == RUNNERS_LOAD_FAILED_MESSAGE {
+        localization::text_for_locale(locale, RUNNERS_LOAD_FAILED_KEY)
+    } else {
+        message.to_owned()
+    }
+}
+
 /// Rich menu items for Oz model rows. The snapshot owns inclusion,
 /// ordering, and selection; this maps each row id back to its `LLMInfo`
 /// and renders through [`available_model_menu_items`] so Oz rows keep
@@ -415,7 +443,11 @@ pub fn populate_environment_picker<A: OrchestrationControlAction, V: View>(
         },
     );
     dropdown_handle.update(ctx, |dropdown, ctx_dropdown| {
-        let snapshot = environment_snapshot(&state, ctx_dropdown);
+        let mut snapshot = environment_snapshot(&state, ctx_dropdown);
+        let locale = localization::current_locale(ctx_dropdown);
+        for row in &mut snapshot.rows {
+            row.label = localized_environment_row_label_for_locale(row, locale);
+        }
         let selected_label = selected_row_label(&snapshot);
         let items = snapshot
             .rows
@@ -437,11 +469,11 @@ pub fn populate_environment_picker<A: OrchestrationControlAction, V: View>(
 /// chrome, then populates it from the supplied runners list. Runners are
 /// not cached client-side (unlike environments), so the owning view
 /// fetches them via `FactoryClient::get_runners` and passes them in;
-/// `loading` renders the picker in its loading state until they arrive.
+/// `fetch_state` renders loading and failure states until the request resolves.
 pub fn create_runner_picker<A: OrchestrationControlAction, V: View>(
     initial_runner_id: &str,
     runners: &[(String, String)],
-    loading: bool,
+    fetch_state: RunnerFetchState,
     styles: &UiComponentStyles,
     ctx: &mut ViewContext<V>,
 ) -> ViewHandle<FilterableDropdown<A>> {
@@ -457,7 +489,13 @@ pub fn create_runner_picker<A: OrchestrationControlAction, V: View>(
         dropdown.set_top_bar_max_width(f32::INFINITY);
         dropdown
     });
-    populate_runner_picker(&dropdown_handle, runners, initial_runner_id, loading, ctx);
+    populate_runner_picker(
+        &dropdown_handle,
+        runners,
+        initial_runner_id,
+        fetch_state,
+        ctx,
+    );
     dropdown_handle
 }
 
@@ -467,13 +505,17 @@ pub fn populate_runner_picker<A: OrchestrationControlAction, V: View>(
     dropdown_handle: &ViewHandle<FilterableDropdown<A>>,
     runners: &[(String, String)],
     current_runner_id: &str,
-    loading: bool,
+    fetch_state: RunnerFetchState,
     ctx: &mut ViewContext<V>,
 ) {
-    let snapshot = build_runner_snapshot(runners.to_vec(), current_runner_id, loading);
+    let mut snapshot = build_runner_snapshot(runners.to_vec(), current_runner_id, fetch_state);
+    let locale = localization::current_locale(ctx);
+    for row in &mut snapshot.rows {
+        row.label = localized_runner_row_label_for_locale(row, locale);
+    }
     let selected_label = selected_row_label(&snapshot);
     dropdown_handle.update(ctx, |dropdown, ctx_dropdown| {
-        let items = snapshot
+        let mut items: Vec<_> = snapshot
             .rows
             .into_iter()
             .map(|row| {
@@ -482,6 +524,22 @@ pub fn populate_runner_picker<A: OrchestrationControlAction, V: View>(
                 ))
             })
             .collect();
+        match snapshot.status {
+            OptionSourceStatus::Loading => items.push(MenuItem::Item(
+                MenuItemFields::new(localization::text_for_app(
+                    ctx_dropdown,
+                    "agent.orchestration.controls.loading",
+                ))
+                .with_disabled(true),
+            )),
+            OptionSourceStatus::Failed { message } => {
+                let message = localized_runner_status_message_for_locale(&message, locale);
+                items.push(MenuItem::Item(
+                    MenuItemFields::new(message).with_disabled(true),
+                ));
+            }
+            OptionSourceStatus::Ready | OptionSourceStatus::Empty { .. } => {}
+        }
         dropdown.set_rich_items(items, ctx_dropdown);
         if let Some(label) = &selected_label {
             dropdown.set_selected_by_name(label, ctx_dropdown);
@@ -520,9 +578,16 @@ fn render_new_environment_footer<A: OrchestrationControlAction>(
                         .finish(),
                 )
                 .with_child(
-                    Text::new_inline("New environment", font_family, font_size)
-                        .with_color(text_color.into())
-                        .finish(),
+                    Text::new_inline(
+                        localization::text_for_app(
+                            app,
+                            "agent.orchestration.controls.new_environment",
+                        ),
+                        font_family,
+                        font_size,
+                    )
+                    .with_color(text_color.into())
+                    .finish(),
                 )
                 .finish(),
         )
@@ -582,15 +647,41 @@ pub fn populate_host_picker<V: View>(
 
 /// Trigger label for the auth-secret dropdown. `Unset` falls back to
 /// "+ New API key…" rather than auto-picking the first loaded key.
-fn auth_secret_trigger_label(selection: &AuthSecretSelection, supports_create_new: bool) -> String {
+fn auth_secret_trigger_label(
+    selection: &AuthSecretSelection,
+    supports_create_new: bool,
+    app: &AppContext,
+) -> String {
     match selection {
         AuthSecretSelection::Named(name) => name.clone(),
-        AuthSecretSelection::Inherit => AUTH_SECRET_INHERIT_LABEL.to_string(),
-        AuthSecretSelection::CreatingNew => AUTH_SECRET_CREATE_NEW_LABEL.to_string(),
-        AuthSecretSelection::Unset if supports_create_new => {
-            AUTH_SECRET_CREATE_NEW_LABEL.to_string()
+        AuthSecretSelection::Inherit => {
+            localization::text_for_app(app, "agent.orchestration.controls.auth_secret_inherit")
         }
-        AuthSecretSelection::Unset => AUTH_SECRET_INHERIT_LABEL.to_string(),
+        AuthSecretSelection::CreatingNew => {
+            localization::text_for_app(app, "agent.orchestration.controls.auth_secret_create_new")
+        }
+        AuthSecretSelection::Unset if supports_create_new => {
+            localization::text_for_app(app, "agent.orchestration.controls.auth_secret_create_new")
+        }
+        AuthSecretSelection::Unset => {
+            localization::text_for_app(app, "agent.orchestration.controls.auth_secret_inherit")
+        }
+    }
+}
+
+fn localized_auth_secret_row_label_for_locale(row: &OptionRow, locale: LocaleId) -> String {
+    if row.id.is_empty() {
+        localization::text_for_locale(locale, AUTH_SECRET_INHERIT_KEY)
+    } else {
+        row.label.clone()
+    }
+}
+
+fn localized_auth_secret_status_message_for_locale(message: &str, locale: LocaleId) -> String {
+    if message == AUTH_SECRETS_LOAD_FAILED_MESSAGE {
+        localization::text_for_locale(locale, AUTH_SECRETS_LOAD_FAILED_KEY)
+    } else {
+        message.to_owned()
     }
 }
 
@@ -623,6 +714,7 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
     state.auth_secret_selection = selection.clone();
     dropdown.update(ctx, |dropdown, ctx_dropdown| {
         let snapshot = api_key_snapshot(&state, ctx_dropdown);
+        let locale = localization::current_locale(ctx_dropdown);
         let supports_create_new =
             matches!(snapshot.footer, Some(OptionFooter::CreateNewAuthSecret));
         let mut items: Vec<MenuItem<DropdownAction>> = snapshot
@@ -631,31 +723,46 @@ pub fn populate_auth_secret_picker_for_harness<A: OrchestrationControlAction, V:
             .map(|row| {
                 // An empty row id is the Inherit entry; others are named
                 // managed secrets.
+                let label = localized_auth_secret_row_label_for_locale(&row, locale);
                 let name = (!row.id.is_empty()).then_some(row.id);
-                MenuItem::Item(MenuItemFields::new(&row.label).with_on_select_action(
+                MenuItem::Item(MenuItemFields::new(label).with_on_select_action(
                     DropdownAction::select_action_and_close(A::auth_secret_changed(name)),
                 ))
             })
             .collect();
         match snapshot.status {
             OptionSourceStatus::Loading => items.push(MenuItem::Item(
-                MenuItemFields::new("Loading…").with_disabled(true),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx_dropdown,
+                    "agent.orchestration.controls.loading",
+                ))
+                .with_disabled(true),
             )),
-            OptionSourceStatus::Failed { message } => items.push(MenuItem::Item(
-                MenuItemFields::new(&message).with_disabled(true),
-            )),
+            OptionSourceStatus::Failed { message } => {
+                let message = localized_auth_secret_status_message_for_locale(&message, locale);
+                items.push(MenuItem::Item(
+                    MenuItemFields::new(message).with_disabled(true),
+                ));
+            }
             OptionSourceStatus::Ready | OptionSourceStatus::Empty { .. } => {}
         }
         if supports_create_new {
             items.push(MenuItem::Separator);
             items.push(MenuItem::Item(
-                MenuItemFields::new(AUTH_SECRET_CREATE_NEW_LABEL).with_on_select_action(
-                    DropdownAction::select_action_and_close(A::create_new_auth_secret_requested()),
-                ),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx_dropdown,
+                    "agent.orchestration.controls.auth_secret_create_new",
+                ))
+                .with_on_select_action(DropdownAction::select_action_and_close(
+                    A::create_new_auth_secret_requested(),
+                )),
             ));
         }
-        let final_selection =
-            auth_secret_trigger_label(&state.auth_secret_selection, supports_create_new);
+        let final_selection = auth_secret_trigger_label(
+            &state.auth_secret_selection,
+            supports_create_new,
+            ctx_dropdown,
+        );
         dropdown.set_rich_items(items, ctx_dropdown);
         dropdown.set_selected_by_name(&final_selection, ctx_dropdown);
     });
@@ -858,7 +965,8 @@ pub fn sync_picker_selections<A: OrchestrationControlAction, V: View>(
             api_key_snapshot(state, ctx).footer,
             Some(OptionFooter::CreateNewAuthSecret)
         );
-        let label = auth_secret_trigger_label(&state.auth_secret_selection, supports_create_new);
+        let label =
+            auth_secret_trigger_label(&state.auth_secret_selection, supports_create_new, ctx);
         auth_secret_picker.update(ctx, |dropdown, ctx_dropdown| {
             dropdown.set_selected_by_name(&label, ctx_dropdown);
         });
@@ -1012,26 +1120,29 @@ pub fn render_mode_toggle<A: OrchestrationControlAction>(
     appearance: &Appearance,
     active_segment_bg: Option<Fill>,
     full_width: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let label = Text::new(
-        "Agent location".to_string(),
+        localization::text_for_app(app, "agent.orchestration.controls.agent_location"),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 1.,
     )
     .with_color(blended_colors::text_disabled(theme, theme.surface_1()))
     .finish();
 
+    let local_label = localization::text_for_app(app, "agent.orchestration.controls.local");
     let local_segment = render_segment_button::<A>(
-        "Local",
+        &local_label,
         !is_remote,
         A::execution_mode_toggled(false),
         handles.local_toggle.clone(),
         appearance,
         active_segment_bg,
     );
+    let cloud_label = localization::text_for_app(app, "agent.orchestration.controls.cloud");
     let cloud_segment = render_segment_button::<A>(
-        "Cloud",
+        &cloud_label,
         is_remote,
         A::execution_mode_toggled(true),
         handles.cloud_toggle.clone(),
@@ -1121,8 +1232,9 @@ pub fn render_picker_row<A: OrchestrationControlAction>(
     state: &OrchestrationConfigState,
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
-    render_picker_row_with_layout(state, handles, appearance, false)
+    render_picker_row_with_layout(state, handles, appearance, false, app)
 }
 
 /// Renders pickers vertically at full width when `vertical` is true,
@@ -1132,9 +1244,18 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
     vertical: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let is_remote = state.execution_mode.is_remote();
     let show_auth_picker = should_show_auth_secret_picker(state);
+    let harness_label =
+        localization::text_for_app(app, "agent.orchestration.controls.agent_harness");
+    let auth_secret_label = localization::text_for_app(app, "agent.orchestration.controls.api_key");
+    let host_label = localization::text_for_app(app, "agent.orchestration.controls.host");
+    let environment_label =
+        localization::text_for_app(app, "agent.orchestration.controls.environment");
+    let model_label = localization::text_for_app(app, "agent.orchestration.controls.base_model");
+    let runner_label = localization::text_for_app(app, RUNNER_KEY);
 
     if vertical {
         let mut column = Flex::column()
@@ -1151,7 +1272,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         // from the "Primary model…" subtext that follows the picker row.
         add(
             &mut column,
-            "Agent harness",
+            &harness_label,
             handles
                 .harness_picker
                 .as_ref()
@@ -1160,7 +1281,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_auth_picker {
             add(
                 &mut column,
-                AUTH_SECRET_COLUMN_LABEL,
+                &auth_secret_label,
                 handles
                     .auth_secret_picker
                     .as_ref()
@@ -1170,7 +1291,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if is_remote {
             add(
                 &mut column,
-                "Host",
+                &host_label,
                 handles
                     .host_picker
                     .as_ref()
@@ -1178,7 +1299,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             );
             add(
                 &mut column,
-                "Environment",
+                &environment_label,
                 handles
                     .environment_picker
                     .as_ref()
@@ -1187,7 +1308,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             if FeatureFlag::CloudAgentRunners.is_enabled() {
                 add(
                     &mut column,
-                    "Runner",
+                    &runner_label,
                     handles
                         .runner_picker
                         .as_ref()
@@ -1197,7 +1318,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         }
         add(
             &mut column,
-            "Base model",
+            &model_label,
             handles
                 .model_picker
                 .as_ref()
@@ -1218,7 +1339,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
 
         add_picker(
             &mut row,
-            "Agent harness",
+            &harness_label,
             handles
                 .harness_picker
                 .as_ref()
@@ -1227,7 +1348,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if is_remote {
             add_picker(
                 &mut row,
-                "Host",
+                &host_label,
                 handles
                     .host_picker
                     .as_ref()
@@ -1235,7 +1356,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             );
             add_picker(
                 &mut row,
-                "Environment",
+                &environment_label,
                 handles
                     .environment_picker
                     .as_ref()
@@ -1244,7 +1365,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
             if FeatureFlag::CloudAgentRunners.is_enabled() {
                 add_picker(
                     &mut row,
-                    "Runner",
+                    &runner_label,
                     handles
                         .runner_picker
                         .as_ref()
@@ -1254,7 +1375,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         }
         add_picker(
             &mut row,
-            "Base model",
+            &model_label,
             handles
                 .model_picker
                 .as_ref()
@@ -1263,7 +1384,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
         if show_auth_picker {
             add_picker(
                 &mut row,
-                AUTH_SECRET_COLUMN_LABEL,
+                &auth_secret_label,
                 handles
                     .auth_secret_picker
                     .as_ref()
@@ -1314,3 +1435,7 @@ pub fn render_validation_error(
     .with_margin_bottom(8.)
     .finish()
 }
+
+#[cfg(test)]
+#[path = "orchestration_controls_tests.rs"]
+mod tests;

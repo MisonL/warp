@@ -1,7 +1,6 @@
 //! Inline conversation menu view for selecting AI conversations.
 
 use std::collections::HashSet;
-use std::sync::LazyLock;
 
 use warpui::elements::ChildView;
 use warpui::{Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle};
@@ -11,6 +10,7 @@ use crate::ai::agent_conversations_model::AgentConversationEntryId;
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::conversation_selection::ConversationSelectionHandle;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::SearchMixer;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
@@ -33,23 +33,6 @@ pub enum InlineConversationMenuEvent {
     Dismissed,
 }
 
-static TAB_CONFIGS: LazyLock<Vec<InlineMenuTabConfig<InlineConversationMenuTab>>> =
-    LazyLock::new(|| {
-        let mut configs = vec![InlineMenuTabConfig {
-            id: InlineConversationMenuTab::All,
-            label: "All".to_string(),
-            filters: HashSet::new(),
-        }];
-        if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            configs.push(InlineMenuTabConfig {
-                id: InlineConversationMenuTab::CurrentDirectory,
-                label: "Current Directory".to_string(),
-                filters: HashSet::from([QueryFilter::CurrentDirectoryConversations]),
-            });
-        }
-        configs
-    });
-
 pub struct InlineConversationMenuView {
     menu_view: ViewHandle<InlineMenuView<AcceptConversation, InlineConversationMenuTab>>,
     mixer: ModelHandle<SearchMixer<AcceptConversation>>,
@@ -70,7 +53,21 @@ impl InlineConversationMenuView {
         let data_source = ctx
             .add_model(|_| ConversationMenuDataSource::new(conversation_selection, active_session));
 
-        let tab_configs = TAB_CONFIGS.clone();
+        let mut tab_configs = vec![InlineMenuTabConfig {
+            id: InlineConversationMenuTab::All,
+            label: localization::text_for_app(ctx, "terminal.inline_conversation.tab.all"),
+            filters: HashSet::new(),
+        }];
+        if FeatureFlag::InlineMenuHeaders.is_enabled() {
+            tab_configs.push(InlineMenuTabConfig {
+                id: InlineConversationMenuTab::CurrentDirectory,
+                label: localization::text_for_app(
+                    ctx,
+                    "terminal.inline_conversation.tab.current_directory",
+                ),
+                filters: HashSet::from([QueryFilter::CurrentDirectoryConversations]),
+            });
+        }
         let initial_filters = tab_configs
             .first()
             .map(|config| config.filters.clone())

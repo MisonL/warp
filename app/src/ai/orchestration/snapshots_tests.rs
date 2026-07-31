@@ -2,9 +2,10 @@ use warp_cli::agent::Harness;
 
 use super::{
     AUTH_SECRET_INHERIT_LABEL, AuthSecretNamesInput, DEFAULT_MODEL_LABEL, HarnessEntryInput,
-    ModelChoiceInput, OptionBadge, OptionFooter, OptionSourceStatus, build_api_key_snapshot,
-    build_environment_snapshot, build_harness_snapshot, build_host_snapshot,
-    build_non_oz_model_snapshot, build_oz_model_snapshot, build_runner_snapshot,
+    ModelChoiceInput, OptionBadge, OptionFooter, OptionSourceStatus, RunnerFetchState,
+    build_api_key_snapshot, build_environment_snapshot, build_harness_snapshot,
+    build_host_snapshot, build_non_oz_model_snapshot, build_oz_model_snapshot,
+    build_runner_snapshot,
 };
 use crate::ai::local_harness_setup::LocalHarnessSetupState;
 use crate::ai::orchestration::config_state::AuthSecretSelection;
@@ -288,7 +289,7 @@ fn runner_snapshot_puts_use_default_first_and_selects() {
             ("r-b".to_string(), "Beta".to_string()),
         ],
         "r-b",
-        false,
+        RunnerFetchState::Loaded,
     );
 
     assert_eq!(snapshot.rows[0].id, "");
@@ -302,8 +303,26 @@ fn runner_snapshot_puts_use_default_first_and_selects() {
 
 #[test]
 fn runner_snapshot_loading_reports_loading_status() {
-    let snapshot = build_runner_snapshot(vec![], "", true);
+    let snapshot = build_runner_snapshot(vec![], "", RunnerFetchState::Loading);
     assert_eq!(snapshot.status, OptionSourceStatus::Loading);
     // Empty selection maps to the "use environment default" row.
     assert_eq!(snapshot.selected_id.as_deref(), Some(""));
+}
+
+#[test]
+fn runner_snapshot_not_fetched_reports_ready_status() {
+    let snapshot = build_runner_snapshot(vec![], "", RunnerFetchState::NotFetched);
+    assert_eq!(snapshot.status, OptionSourceStatus::Ready);
+    assert_eq!(snapshot.selected_id.as_deref(), Some(""));
+}
+
+#[test]
+fn runner_snapshot_failed_reports_failure_status() {
+    let snapshot = build_runner_snapshot(vec![], "", RunnerFetchState::Failed);
+    assert_eq!(
+        snapshot.status,
+        OptionSourceStatus::Failed {
+            message: super::RUNNERS_LOAD_FAILED_MESSAGE.to_string(),
+        }
+    );
 }

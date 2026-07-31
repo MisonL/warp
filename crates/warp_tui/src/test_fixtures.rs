@@ -3,13 +3,15 @@ use std::any::Any;
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
+use settings::Setting as _;
+use warp::settings::{AppLanguage, LanguageSettings};
 use warp::tui_export::{
     ActiveSession, Appearance, BlocklistAIActionModel, BlocklistAIHistoryModel,
     GetRelevantFilesController, ModelEventDispatcher, Sessions, TerminalManagerTrait,
     TerminalModel, TerminalSurfaceInit,
 };
 use warp_core::semantic_selection::SemanticSelection;
-use warpui::{AddSingletonModel, App, EntityId, ModelHandle};
+use warpui::{AddSingletonModel, App, EntityId, ModelHandle, SingletonEntity as _};
 use warpui_core::elements::tui::{TuiElement, TuiText};
 use warpui_core::{AppContext, Entity, TuiView, TypedActionView, ViewHandle, WindowId};
 
@@ -73,6 +75,17 @@ pub(crate) fn add_test_action_model_and_events(
     if !app.read(|ctx| ctx.has_singleton_model::<Appearance>()) {
         app.add_singleton_model(|_| Appearance::mock());
     }
+    if !app.read(|ctx| ctx.has_singleton_model::<LanguageSettings>()) {
+        app.add_singleton_model(LanguageSettings::new_with_defaults);
+    }
+    app.update(|ctx| {
+        LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+            settings
+                .app_language
+                .load_value(AppLanguage::English, true, ctx)
+                .expect("test language setting should update");
+        });
+    });
     add_test_semantic_selection(app);
     // Read as a singleton by the action model's executors.
     app.add_singleton_model(|_| BlocklistAIHistoryModel::default());

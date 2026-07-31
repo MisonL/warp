@@ -3,7 +3,7 @@
 use warp::editor::{CodeEditorModel, CodeEditorModelEvent};
 use warp::tui_export::{
     AcceptSkill, ActiveSession, ActiveSessionEvent, SkillReference, TuiSlashCommandDataSource,
-    query_selectable_skills,
+    UpdatedActiveCommands, query_selectable_skills,
 };
 use warp_editor::model::CoreEditorModel;
 use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle};
@@ -13,6 +13,7 @@ use crate::inline_menu::{
     TuiInlineMenuRowStyle, TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
+use crate::localization;
 
 const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, true, false);
 
@@ -68,6 +69,14 @@ impl TuiSkillMenuModel {
                 model.refresh_rows(ctx);
             }
         });
+        ctx.subscribe_to_model(
+            &slash_commands_source,
+            |model, _, _: &UpdatedActiveCommands, ctx| {
+                if model.is_open(ctx) {
+                    model.refresh_rows(ctx);
+                }
+            },
+        );
         Self {
             input_editor,
             suggestions_mode,
@@ -161,7 +170,7 @@ impl TuiSkillMenuModel {
         };
         Some(TuiInlineMenuSnapshot {
             header: Some(TuiInlineMenuHeader {
-                title: Some("Skills".to_owned()),
+                title: Some(localization::text("tui.skills_menu.title")),
                 tabs: Vec::new(),
             }),
             rows: list
@@ -180,7 +189,7 @@ impl TuiSkillMenuModel {
             status: list
                 .rows()
                 .is_empty()
-                .then(|| TuiInlineMenuStatus::Empty("No skills found".to_owned())),
+                .then(|| TuiInlineMenuStatus::Empty(localization::text("tui.skills_menu.empty"))),
         })
     }
 

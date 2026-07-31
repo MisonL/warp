@@ -42,6 +42,7 @@ use crate::terminal::model::session::{
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::shell::Shell;
 use crate::terminal::view::PromptPosition;
+use crate::test_util::settings::initialize_localization_for_tests;
 #[cfg(feature = "local_fs")]
 use crate::util::git::PrInfo;
 
@@ -58,6 +59,7 @@ fn git_status_metadata(branch: &str) -> GitStatusMetadata {
 #[test]
 fn test_context_menu_items() {
     App::test((), |mut app| async move {
+        initialize_localization_for_tests(&mut app);
         app.add_singleton_model(|_| {
             Prompt::mock_with(
                 [

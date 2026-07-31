@@ -42,9 +42,16 @@ pub enum RemoteCodebaseSearchAvailability {
     },
     Unavailable {
         remote_path: RemotePath,
-        message: String,
+        reason: RemoteCodebaseUnavailableReason,
     },
     Ready(RemoteCodebaseSearchContext),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RemoteCodebaseUnavailableReason {
+    MissingRootHash,
+    Unavailable,
+    ServerMessage(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -924,7 +931,7 @@ fn search_availability_for_status(
             else {
                 return RemoteCodebaseSearchAvailability::Unavailable {
                     remote_path,
-                    message: "The remote codebase index is missing its root hash.".to_string(),
+                    reason: RemoteCodebaseUnavailableReason::MissingRootHash,
                 };
             };
             RemoteCodebaseSearchAvailability::Ready(RemoteCodebaseSearchContext {
@@ -941,10 +948,12 @@ fn search_availability_for_status(
         | RemoteCodebaseIndexState::Unavailable
         | RemoteCodebaseIndexState::Disabled => RemoteCodebaseSearchAvailability::Unavailable {
             remote_path,
-            message: status
+            reason: status
                 .failure_message
                 .clone()
-                .unwrap_or_else(|| "Remote codebase search is not available.".to_string()),
+                .filter(|message| !message.trim().is_empty())
+                .map(RemoteCodebaseUnavailableReason::ServerMessage)
+                .unwrap_or(RemoteCodebaseUnavailableReason::Unavailable),
         },
     }
 }

@@ -1,4 +1,7 @@
+use std::fs;
+
 use ai::skills::{ParsedSkill, SkillProvider, SkillScope};
+use tempfile::TempDir;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 
@@ -25,6 +28,68 @@ fn bundled_skill(content: &str) -> BundledSkill {
 #[test]
 fn unavailable_bundled_context_path_renders_as_empty_string() {
     assert_eq!(display_optional_path(None), "");
+}
+
+#[test]
+fn localized_settings_schema_path_uses_english_until_the_localized_resource_exists() {
+    let temp_dir = TempDir::new().unwrap();
+    let resources_dir = temp_dir.path();
+    let english_path = resources_dir.join("settings_schema.json");
+    let chinese_path = resources_dir.join("settings_schema.zh-CN.json");
+
+    assert_eq!(
+        settings_schema_path(resources_dir, LocaleId::EnUs),
+        english_path
+    );
+    assert_eq!(
+        settings_schema_path(resources_dir, LocaleId::ZhCn),
+        english_path
+    );
+
+    fs::write(&chinese_path, "{}\n").unwrap();
+
+    assert_eq!(
+        settings_schema_path(resources_dir, LocaleId::ZhCn),
+        chinese_path
+    );
+}
+
+#[test]
+fn localized_settings_schema_fallback_requires_an_english_schema() {
+    let temp_dir = TempDir::new().unwrap();
+    let resources_dir = temp_dir.path();
+    let english_path = resources_dir.join("settings_schema.json");
+    let chinese_path = resources_dir.join("settings_schema.zh-CN.json");
+
+    assert_eq!(
+        english_settings_schema_fallback_path(resources_dir, LocaleId::ZhCn),
+        None
+    );
+
+    fs::write(&english_path, "{}\n").unwrap();
+    assert_eq!(
+        english_settings_schema_fallback_path(resources_dir, LocaleId::ZhCn),
+        Some(english_path)
+    );
+
+    fs::write(&chinese_path, "{}\n").unwrap();
+    assert_eq!(
+        english_settings_schema_fallback_path(resources_dir, LocaleId::ZhCn),
+        None
+    );
+}
+
+#[test]
+fn modify_settings_activation_checks_the_same_locale_specific_schema_path() {
+    let temp_dir = TempDir::new().unwrap();
+    let resources_dir = temp_dir.path();
+    let expected_path = resources_dir.join("settings_schema.zh-CN.json");
+    fs::write(&expected_path, "{}\n").unwrap();
+
+    assert!(matches!(
+        activation_for_bundled_skill("modify-settings", resources_dir, LocaleId::ZhCn),
+        BundledSkillActivation::RequiresFile(path) if path == expected_path
+    ));
 }
 
 fn remote_content<'a>(bundled_skills: &'a BundledSkills, host_id: &HostId) -> Option<&'a str> {
@@ -77,5 +142,15 @@ fn local_and_remote_catalogs_are_isolated() {
     assert_eq!(
         remote_content(&bundled_skills, &second_host_id),
         Some("second")
+    );
+}
+
+#[test]
+fn localized_bundled_skill_description_accepts_windows_line_endings() {
+    let content = "---\r\nname: test-skill\r\ndescription: English description\r\ndescription_zh_CN: 简体中文描述\r\n---\r\n\r\nbody\r\n";
+
+    assert_eq!(
+        localized_bundled_skill_description(content, LocaleId::ZhCn),
+        Some("简体中文描述".to_string())
     );
 }

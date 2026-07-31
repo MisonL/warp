@@ -17,6 +17,25 @@ use crate::search::result_renderer::ItemHighlightState;
 
 const MAX_COMBINED_LENGTH: usize = 55;
 
+fn notebook_name_for_app(name: &str, app: &AppContext) -> String {
+    if name.is_empty() {
+        crate::localization::text_for_app(app, "notebook.placeholder.untitled")
+    } else {
+        name.to_owned()
+    }
+}
+
+fn notebook_name_fallback(name: &str) -> String {
+    if name.is_empty() {
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "notebook.placeholder.untitled",
+        )
+    } else {
+        name.to_owned()
+    }
+}
+
 #[derive(Debug)]
 pub struct NotebookSearchItem {
     pub notebook_name: String,
@@ -189,21 +208,46 @@ impl SearchItem for NotebookSearchItem {
 
     fn accessibility_label(&self) -> String {
         if let Some(description) = &self.notebook_description {
-            format!("Notebook: {} - {}", self.notebook_name, description)
+            crate::localization::text_for_locale_with_args(
+                warp_localization::LocaleId::EnUs,
+                "search.notebook.a11y.label_with_description",
+                &[
+                    ("title", &notebook_name_fallback(&self.notebook_name)),
+                    ("description", description),
+                ],
+            )
         } else {
-            format!("Notebook: {}", self.notebook_name)
+            crate::localization::text_for_locale_with_args(
+                warp_localization::LocaleId::EnUs,
+                "search.notebook.a11y.label",
+                &[("title", &notebook_name_fallback(&self.notebook_name))],
+            )
+        }
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        if let Some(description) = &self.notebook_description {
+            crate::localization::text_for_app_with_args(
+                app,
+                "search.notebook.a11y.label_with_description",
+                &[
+                    ("title", &notebook_name_for_app(&self.notebook_name, app)),
+                    ("description", description),
+                ],
+            )
+        } else {
+            crate::localization::text_for_app_with_args(
+                app,
+                "search.notebook.a11y.label",
+                &[("title", &notebook_name_for_app(&self.notebook_name, app))],
+            )
         }
     }
 
     fn render_details(&self, ctx: &AppContext) -> Option<Box<dyn Element>> {
         let appearance = Appearance::as_ref(ctx);
 
-        // Use notebook name, or "Untitled" if empty
-        let display_name = if self.notebook_name.is_empty() {
-            "Untitled".to_string()
-        } else {
-            self.notebook_name.clone()
-        };
+        let display_name = notebook_name_for_app(&self.notebook_name, ctx);
 
         let name_element = Text::new(
             display_name,

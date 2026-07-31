@@ -22,12 +22,12 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
-use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{FindOption, TelemetryEvent};
 use crate::settings::InputModeSettings;
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
+use crate::{localization, send_telemetry_from_ctx};
 
 pub const FIND_BAR_WIDTH: f32 = 500.;
 const ICON_PADDING: f32 = 4.;
@@ -40,13 +40,8 @@ pub(crate) const FIND_EDITOR_BORDER_WIDTH: f32 = 1.;
 const FIND_EDITOR_FONT_SIZE: f32 = 12.;
 
 pub const REGEX_TOGGLE_LABEL: &str = ". *";
-pub const REGEX_TOGGLE_TOOLTIP: &str = "Regex toggle";
 
 pub const CASE_SENSITIVE_LABEL: &str = "Aa";
-pub const CASE_SENSITIVE_TOOLTIP: &str = "Case sensitive search";
-
-pub const FIND_WITHIN_BLOCK_TOOLTIP: &str = "Find in selected block";
-pub const FIND_PLACEHOLDER_TEXT: &str = "Find";
 
 // Moving FindEvent, FindModel implementations away from terminal/.
 pub enum FindEvent {
@@ -168,7 +163,10 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
                 },
                 ctx,
             );
-            editor.set_placeholder_text(FIND_PLACEHOLDER_TEXT, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "code.find.placeholder.find"),
+                ctx,
+            );
             editor
         });
 
@@ -255,17 +253,22 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
     /// as `focus_next_match` may have multiple entrypoints (that are not Action).
     pub fn emit_result_a11y_content(&mut self, ctx: &mut ViewContext<Self>) {
         let content = if let Some(match_index) = self.model.as_ref(ctx).focused_match_index() {
+            let current = (match_index + 1).to_string();
+            let total = self.model.as_ref(ctx).match_count().to_string();
             AccessibilityContent::new(
-                format!(
-                    "Result {} of {}.",
-                    match_index + 1,
-                    self.model.as_ref(ctx).match_count()
+                crate::localization::text_for_app_with_args(
+                    ctx,
+                    "code.find.a11y.result_count",
+                    &[("current", &current), ("total", &total)],
                 ),
-                "Use enter and shift-enter to navigate between matches. Escape to quit.",
+                crate::localization::text_for_app(ctx, "code.find.a11y.result_help"),
                 WarpA11yRole::UserAction,
             )
         } else {
-            AccessibilityContent::new_without_help("No results.", WarpA11yRole::UserAction)
+            AccessibilityContent::new_without_help(
+                crate::localization::text_for_app(ctx, "code.find.a11y.no_results"),
+                WarpA11yRole::UserAction,
+            )
         };
         ctx.emit_a11y_content(content);
     }
@@ -329,7 +332,7 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
             let label = if match_count > 0 {
                 format!("{}+ ...", match_count)
             } else {
-                "Scanning...".to_string()
+                crate::localization::text_for_app(app, "code.find.scanning")
             };
             return Text::new_inline(label, appearance.ui_font_family(), FIND_EDITOR_FONT_SIZE)
                 .with_color(blended_colors::text_sub(
@@ -518,10 +521,10 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> View for Find<T> {
         "Find"
     }
 
-    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Type searched phrase.",
-            "Press escape to quit, use enter and shift-enter to navigate between matches",
+            crate::localization::text_for_app(app, "terminal.block_filter.a11y.content"),
+            crate::localization::text_for_app(app, "terminal.block_filter.a11y.hint"),
             WarpA11yRole::TextareaRole,
         ))
     }
@@ -552,7 +555,10 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> View for Find<T> {
             self.button_mouse_states.toggle_regex_search.clone(),
             FindAction::ToggleRegexSearch,
             editor_height,
-            Some(REGEX_TOGGLE_TOOLTIP),
+            Some(&localization::text_for_app(
+                app,
+                "code.find.tooltip.regex_toggle",
+            )),
             ICON_PADDING,
         );
         let case_sensitive_icon = Container::new(
@@ -564,7 +570,10 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> View for Find<T> {
                     self.button_mouse_states.toggle_case_sensitivity.clone(),
                     FindAction::ToggleCaseSensitivity,
                     editor_height,
-                    Some(CASE_SENSITIVE_TOOLTIP),
+                    Some(&localization::text_for_app(
+                        app,
+                        "code.find.tooltip.case_sensitive",
+                    )),
                     ICON_PADDING,
                 ),
                 "case_sensitive_button",
@@ -581,7 +590,10 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> View for Find<T> {
                     self.button_mouse_states.toggle_find_in_block.clone(),
                     FindAction::ToggleFindInBlock,
                     editor_height,
-                    Some(FIND_WITHIN_BLOCK_TOOLTIP),
+                    Some(&localization::text_for_app(
+                        app,
+                        "code.find.tooltip.find_within_block",
+                    )),
                     0.,
                 ),
                 "find_in_block_button",

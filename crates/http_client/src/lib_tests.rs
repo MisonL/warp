@@ -42,7 +42,10 @@ fn injects_trace_link_header_when_span_active() {
     assert_eq!(parts[2], span_context.span_id().to_string());
     assert_eq!(parts[1].len(), 32);
     assert_eq!(parts[2].len(), 16);
-    assert_eq!(parts[3].len(), 2);
+    assert_eq!(
+        parts[3],
+        format!("{:02x}", span_context.trace_flags().to_u8())
+    );
 }
 
 #[test]

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Eval Set Review - __SKILL_NAME_PLACEHOLDER__</title>
+  <title></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
@@ -38,20 +38,20 @@
   </style>
 </head>
 <body>
-  <h1>Eval Set Review: <span id="skill-name">__SKILL_NAME_PLACEHOLDER__</span></h1>
-  <p class="description">Current description: <span id="skill-desc">__SKILL_DESCRIPTION_PLACEHOLDER__</span></p>
+  <h1><span id="title-prefix"></span>: <span id="skill-name">__SKILL_NAME_PLACEHOLDER__</span></h1>
+  <p class="description"><span id="description-prefix"></span>: <span id="skill-desc">__SKILL_DESCRIPTION_PLACEHOLDER__</span></p>
 
   <div class="controls">
-    <button class="btn btn-add" onclick="addRow()">+ Add Query</button>
-    <button class="btn btn-export" onclick="exportEvalSet()">Export Eval Set</button>
+    <button class="btn btn-add" onclick="addRow()" id="add-query-button"></button>
+    <button class="btn btn-export" onclick="exportEvalSet()" id="export-button"></button>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th style="width:65%">Query</th>
-        <th style="width:18%">Should Trigger</th>
-        <th style="width:10%">Actions</th>
+        <th style="width:65%" id="query-header"></th>
+        <th style="width:18%" id="should-trigger-header"></th>
+        <th style="width:10%" id="actions-header"></th>
       </tr>
     </thead>
     <tbody id="eval-body"></tbody>
@@ -61,8 +61,57 @@
 
   <script>
     const EVAL_DATA = __EVAL_DATA_PLACEHOLDER__;
+    const STRINGS = {
+      "en": {
+        title: "Eval Set Review",
+        currentDescription: "Current description",
+        addQuery: "+ Add Query",
+        exportEvalSet: "Export Eval Set",
+        query: "Query",
+        shouldTrigger: "Should Trigger",
+        shouldNotTrigger: "Should NOT Trigger",
+        actions: "Actions",
+        yes: "Yes",
+        no: "No",
+        delete: "Delete",
+        summary: "{total} queries total: {trigger} should trigger, {noTrigger} should not trigger",
+      },
+      "zh": {
+        title: "评测集审查",
+        currentDescription: "当前描述",
+        addQuery: "+ 添加查询",
+        exportEvalSet: "导出评测集",
+        query: "查询",
+        shouldTrigger: "应该触发",
+        shouldNotTrigger: "不应触发",
+        actions: "操作",
+        yes: "是",
+        no: "否",
+        delete: "删除",
+        summary: "共 {total} 个查询：{trigger} 个应该触发，{noTrigger} 个不应触发",
+      },
+    };
+    const currentLanguage = (navigator.language || "en").toLowerCase().startsWith("zh")
+      ? "zh"
+      : "en";
+    document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
+    const t = (key) => STRINGS[currentLanguage][key] || STRINGS.en[key] || key;
+    function formatString(key, values) {
+      return Object.entries(values).reduce(
+        (text, [name, value]) => text.replace(`{${name}}`, value),
+        t(key),
+      );
+    }
 
     let evalItems = [...EVAL_DATA];
+    document.title = `${t("title")} - ${document.getElementById("skill-name").textContent}`;
+    document.getElementById("title-prefix").textContent = t("title");
+    document.getElementById("description-prefix").textContent = t("currentDescription");
+    document.getElementById("add-query-button").textContent = t("addQuery");
+    document.getElementById("export-button").textContent = t("exportEvalSet");
+    document.getElementById("query-header").textContent = t("query");
+    document.getElementById("should-trigger-header").textContent = t("shouldTrigger");
+    document.getElementById("actions-header").textContent = t("actions");
 
     function render() {
       const tbody = document.getElementById('eval-body');
@@ -79,7 +128,7 @@
         if (group !== lastGroup) {
           const headerRow = document.createElement('tr');
           headerRow.className = 'section-header';
-          headerRow.innerHTML = `<td colspan="3">${item.should_trigger ? 'Should Trigger' : 'Should NOT Trigger'}</td>`;
+          headerRow.innerHTML = `<td colspan="3">${item.should_trigger ? t('shouldTrigger') : t('shouldNotTrigger')}</td>`;
           tbody.appendChild(headerRow);
           lastGroup = group;
         }
@@ -93,9 +142,9 @@
               <input type="checkbox" ${item.should_trigger ? 'checked' : ''} onchange="updateTrigger(${idx}, this.checked)">
               <span class="slider"></span>
             </label>
-            <span style="margin-left:8px;font-size:0.8rem;color:#b0aea5">${item.should_trigger ? 'Yes' : 'No'}</span>
+            <span style="margin-left:8px;font-size:0.8rem;color:#b0aea5">${item.should_trigger ? t('yes') : t('no')}</span>
           </td>
-          <td><button class="btn-delete" onclick="deleteRow(${idx})">Delete</button></td>
+          <td><button class="btn-delete" onclick="deleteRow(${idx})">${t('delete')}</button></td>
         `;
         tbody.appendChild(tr);
       });
@@ -122,8 +171,11 @@
     function updateSummary() {
       const trigger = evalItems.filter(i => i.should_trigger).length;
       const noTrigger = evalItems.filter(i => !i.should_trigger).length;
-      document.getElementById('summary').textContent =
-        `${evalItems.length} queries total: ${trigger} should trigger, ${noTrigger} should not trigger`;
+      document.getElementById('summary').textContent = formatString('summary', {
+        total: evalItems.length,
+        trigger,
+        noTrigger,
+      });
     }
 
     function exportEvalSet() {

@@ -4,9 +4,7 @@ use chrono::{Duration, Utc};
 use warp_core::settings::Setting;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-use crate::ai::request_usage_model::{
-    AIRequestUsageModel, AIRequestUsageModelEvent, BonusGrant, BonusGrantScope,
-};
+use crate::ai::request_usage_model::{AIRequestUsageModel, AIRequestUsageModelEvent, BonusGrant};
 use crate::terminal::general_settings::GeneralSettings;
 
 pub struct BonusGrantNotificationModel {
@@ -18,7 +16,10 @@ pub struct BonusGrantNotificationModel {
 
 #[derive(Debug, Clone)]
 pub enum BonusGrantNotificationEvent {
-    ShowNotification { grant: BonusGrant, message: String },
+    ShowNotification {
+        grant: BonusGrant,
+        message: Option<String>,
+    },
 }
 
 impl Entity for BonusGrantNotificationModel {
@@ -72,12 +73,7 @@ impl BonusGrantNotificationModel {
                 continue;
             }
 
-            // Use server-provided message if available, otherwise fall back to generic message
-            let message = if let Some(user_facing_message) = &grant.user_facing_message {
-                user_facing_message.clone()
-            } else {
-                Self::format_generic_grant_message(grant)
-            };
+            let message = grant.user_facing_message.clone();
 
             let grant_key = Self::create_grant_key(grant);
 
@@ -102,17 +98,6 @@ impl BonusGrantNotificationModel {
             self.mark_grant_as_shown(&grant_key, ctx);
             self.shown_grants_session.insert(grant_key);
         }
-    }
-
-    fn format_generic_grant_message(grant: &BonusGrant) -> String {
-        let scope_text = match grant.scope {
-            BonusGrantScope::User => "account",
-            BonusGrantScope::Workspace(_) => "team",
-        };
-        format!(
-            "{} Reload Credits have been added to your {}.",
-            grant.request_credits_granted, scope_text
-        )
     }
 
     fn create_grant_key(grant: &BonusGrant) -> String {

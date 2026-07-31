@@ -73,6 +73,12 @@ pub struct Params<'a> {
     /// The index of the currently displayed image.
     pub current_index: usize,
 
+    /// Text shown when the lightbox has no images.
+    pub no_images_label: String,
+
+    /// Text shown while an image is loading.
+    pub loading_label: String,
+
     /// Handler to invoke when the lightbox is dismissed.
     pub on_dismiss: DismissHandler,
 
@@ -120,6 +126,8 @@ impl Component for Lightbox {
         let on_dismiss = params.on_dismiss;
         let image_count = params.images.len();
         let current_index = params.current_index;
+        let no_images_label = params.no_images_label;
+        let loading_label = params.loading_label;
 
         // Extract current image data via direct indexing.
         let current_image = params.images.get(current_index);
@@ -154,7 +162,10 @@ impl Component for Lightbox {
                         Image::new(asset_source.clone(), CacheOption::Original)
                             .contain()
                             .layout_using_paint_bounds()
-                            .before_load(Align::new(loading_element(appearance)).finish())
+                            .before_load(
+                                Align::new(loading_element(appearance, loading_label.clone()))
+                                    .finish(),
+                            )
                             .finish(),
                     )
                     .with_max_width(native_size.x())
@@ -167,12 +178,12 @@ impl Component for Lightbox {
                 }
                 // No images provided at all.
                 _ if image_count == 0 => {
-                    Text::new("No images", appearance.ui_font_family(), text_size)
+                    Text::new(no_images_label, appearance.ui_font_family(), text_size)
                         .with_color(ColorU::white())
                         .finish()
                 }
                 // Still loading (either metadata or image bytes).
-                _ => loading_element(appearance),
+                _ => loading_element(appearance, loading_label),
             };
 
         // Show the description only when the image is fully loaded (native size known).
@@ -284,9 +295,9 @@ impl Component for Lightbox {
 
 /// Builds the shared "Loading..." text element used in both the `Loading` state
 /// and as the `before_load` fallback while the `AssetCache` fetches image bytes.
-fn loading_element(appearance: &Appearance) -> Box<dyn Element> {
+fn loading_element(appearance: &Appearance, label: String) -> Box<dyn Element> {
     Text::new(
-        "Loading...",
+        label,
         appearance.ui_font_family(),
         lightbox_text_size(appearance),
     )

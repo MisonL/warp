@@ -142,6 +142,12 @@ impl WordBlockEditorView {
         self.list_of_words.len()
     }
 
+    pub fn set_placeholder_text(&self, placeholder: &str, ctx: &mut ViewContext<Self>) {
+        self.editor_view.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(placeholder, ctx);
+        });
+    }
+
     pub fn with_validator(
         &mut self,
         ctx: &mut ViewContext<Self>,

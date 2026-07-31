@@ -8,13 +8,13 @@ use async_recursion::async_recursion;
 use futures_lite::StreamExt;
 use pathfinder_color::ColorU;
 use warp_errors::report_error;
-use warpui::Element;
 use warpui::elements::{
     Align, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
     MouseStateHandle, ParentElement, Radius, Shrinkable,
 };
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
+use warpui::{AppContext, Element, SingletonEntity};
 
 use super::modal_body::{BASE_INDENT, IMPORT_FONT_SIZE, INDENT_MARGIN, ImportModalBodyAction};
 use crate::appearance::Appearance;
@@ -96,6 +96,32 @@ pub(super) enum ImportedNode {
     Folder(FolderId),
 }
 
+pub(super) struct ImportRenderContext<'a> {
+    app: &'a AppContext,
+    sync_queue_dequeueing: bool,
+    allow_click_to_open_target: bool,
+    folder_id_to_node: &'a HashMap<FolderId, FolderNode>,
+    file_id_to_node: &'a HashMap<FileId, FileNode>,
+}
+
+impl<'a> ImportRenderContext<'a> {
+    pub(super) fn new(
+        app: &'a AppContext,
+        sync_queue_dequeueing: bool,
+        allow_click_to_open_target: bool,
+        folder_id_to_node: &'a HashMap<FolderId, FolderNode>,
+        file_id_to_node: &'a HashMap<FileId, FileNode>,
+    ) -> Self {
+        Self {
+            app,
+            sync_queue_dequeueing,
+            allow_click_to_open_target,
+            folder_id_to_node,
+            file_id_to_node,
+        }
+    }
+}
+
 impl ImportedNode {
     /// Initiate the import file tree from a path.
     #[async_recursion]
@@ -160,34 +186,20 @@ impl ImportedNode {
 
     pub(super) fn render(
         &self,
-        appearance: &Appearance,
         indent_level: usize,
-        allow_click_to_open_target: bool,
-        sync_queue_dequeueing: bool,
-        folder_id_to_node: &HashMap<FolderId, FolderNode>,
-        file_id_to_node: &HashMap<FileId, FileNode>,
+        context: &ImportRenderContext<'_>,
     ) -> Box<dyn Element> {
         match &self {
             ImportedNode::File(file_id) => {
-                let file_node = file_id_to_node.get(file_id).expect("Should exist");
-                file_node.render(
-                    indent_level,
-                    sync_queue_dequeueing,
-                    allow_click_to_open_target,
-                    *file_id,
-                    appearance,
-                )
+                let file_node = context.file_id_to_node.get(file_id).expect("Should exist");
+                file_node.render(indent_level, *file_id, context)
             }
             ImportedNode::Folder(folder_id) => {
-                let folder_node = folder_id_to_node.get(folder_id).expect("Should exist");
-                folder_node.render(
-                    sync_queue_dequeueing,
-                    appearance,
-                    indent_level,
-                    allow_click_to_open_target,
-                    folder_id_to_node,
-                    file_id_to_node,
-                )
+                let folder_node = context
+                    .folder_id_to_node
+                    .get(folder_id)
+                    .expect("Should exist");
+                folder_node.render(indent_level, context)
             }
         }
     }
@@ -309,19 +321,12 @@ impl FolderNode {
         &self.children
     }
 
-    fn render(
-        &self,
-        sync_queue_dequeueing: bool,
-        appearance: &Appearance,
-        indent_level: usize,
-        allow_click_to_open_target: bool,
-        folder_id_to_node: &HashMap<FolderId, FolderNode>,
-        file_id_to_node: &HashMap<FileId, FileNode>,
-    ) -> Box<dyn Element> {
+    fn render(&self, indent_level: usize, context: &ImportRenderContext<'_>) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(context.app);
         let override_color = self.status.override_text_color(appearance);
         let status_icon = self
             .status
-            .render_status_icon(sync_queue_dequeueing, appearance);
+            .render_status_icon(context.sync_queue_dequeueing, appearance);
 
         let icon_color =
             override_color.unwrap_or(warp_drive_icon_color(appearance, DriveObjectType::Folder));
@@ -355,7 +360,7 @@ impl FolderNode {
 
         let total_indent = BASE_INDENT + INDENT_MARGIN * indent_level as f32;
         let folder_row = match &self.status {
-            UploadStatus::Loaded(server_id) if allow_click_to_open_target => {
+            UploadStatus::Loaded(server_id) if context.allow_click_to_open_target => {
                 render_highlighted_pill(
                     row,
                     total_indent,
@@ -374,14 +379,7 @@ impl FolderNode {
         column.add_child(folder_row);
 
         for item in &self.children {
-            column.add_child(item.render(
-                appearance,
-                indent_level + 1,
-                allow_click_to_open_target,
-                sync_queue_dequeueing,
-                folder_id_to_node,
-                file_id_to_node,
-            ));
+            column.add_child(item.render(indent_level + 1, context));
         }
 
         column.finish()
@@ -424,7 +422,32 @@ pub(super) enum UploadStatus {
     Loading,
     SavedLocally,
     Loaded(String),
-    Error(String),
+    Error(ImportError),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum ImportError {
+    FileParse(String),
+    FileUpload,
+    FolderUpload,
+}
+
+impl ImportError {
+    fn localized_message(&self, app: &AppContext) -> String {
+        match self {
+            Self::FileParse(error) => crate::localization::text_for_app_with_args(
+                app,
+                "drive.import.error.failed_parse_file",
+                &[("error", error)],
+            ),
+            Self::FileUpload => {
+                crate::localization::text_for_app(app, "drive.import.error.failed_upload_file")
+            }
+            Self::FolderUpload => {
+                crate::localization::text_for_app(app, "drive.import.error.failed_upload_folder")
+            }
+        }
+    }
 }
 
 impl UploadStatus {
@@ -536,14 +559,13 @@ impl FileNode {
     fn render(
         &self,
         indent_level: usize,
-        sync_queue_dequeueing: bool,
-        allow_click_to_open_target: bool,
         file_id: FileId,
-        appearance: &Appearance,
+        context: &ImportRenderContext<'_>,
     ) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(context.app);
         let status_icon = self
             .status
-            .render_status_icon(sync_queue_dequeueing, appearance);
+            .render_status_icon(context.sync_queue_dequeueing, appearance);
 
         let override_color = self.status.override_text_color(appearance);
 
@@ -588,7 +610,7 @@ impl FileNode {
 
         let total_indent = BASE_INDENT + INDENT_MARGIN * indent_level as f32;
         match &self.status {
-            UploadStatus::Error(e) => {
+            UploadStatus::Error(error) => {
                 item_row.add_child(
                     Shrinkable::new(
                         1.,
@@ -617,7 +639,7 @@ impl FileNode {
 
                 let error_row = appearance
                     .ui_builder()
-                    .span(e.to_string())
+                    .span(error.localized_message(context.app))
                     .with_style(UiComponentStyles {
                         font_color: Some(appearance.theme().ui_error_color()),
                         ..Default::default()
@@ -641,7 +663,7 @@ impl FileNode {
                 .with_padding_bottom(10.)
                 .finish()
             }
-            UploadStatus::Loaded(server_id) if allow_click_to_open_target => {
+            UploadStatus::Loaded(server_id) if context.allow_click_to_open_target => {
                 render_highlighted_pill(
                     item_row.finish(),
                     total_indent,
@@ -741,8 +763,8 @@ impl FileUploadState {
             let should_update_upstream_folders = match result {
                 // If uploading the folder is not successful, its children will not upload.
                 // Mark the folder as errored and update upstream folders.
-                UploadResult::Error(e) => {
-                    folder.status = UploadStatus::Error(e);
+                UploadResult::Error(error) => {
+                    folder.status = UploadStatus::Error(error);
                     true
                 }
                 // If the folder has no children, mark the folder as completed and update
@@ -882,7 +904,7 @@ impl FileUploadState {
 
         file_node_to_update.status = match result {
             UploadResult::Success(id) => UploadStatus::Loaded(id),
-            UploadResult::Error(e) => UploadStatus::Error(format!("Failed to parse file: {e}")),
+            UploadResult::Error(error) => UploadStatus::Error(error),
         };
 
         let parent_id = file_node_to_update.parent_id;
@@ -916,7 +938,7 @@ pub(super) async fn parse_file(path: PathBuf, file_type: FileType) -> Result<Fil
 
 pub(super) enum UploadResult {
     Success(String),
-    Error(String),
+    Error(ImportError),
 }
 
 fn render_highlighted_pill(

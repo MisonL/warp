@@ -132,6 +132,7 @@ pub struct WarpDriveRow<'a> {
     is_focused: bool,
     overflow_on_left: bool,
     appearance: &'a Appearance,
+    display_name: String,
 }
 
 impl<'a> WarpDriveRow<'a> {
@@ -151,8 +152,13 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        untitled_label: String,
+        app: &AppContext,
     ) -> Option<Self> {
         let warp_drive_item_id = item.warp_drive_id();
+        let display_name = item
+            .display_name_for_app(app)
+            .unwrap_or_else(|| untitled_label.clone());
         let overflow_button = match has_menu_items {
             true => {
                 if is_focused || item_states.draggable_state.is_dragging() {
@@ -228,6 +234,7 @@ impl<'a> WarpDriveRow<'a> {
             is_focused,
             overflow_on_left: matches!(menu_direction, MenuDirection::Left),
             appearance,
+            display_name,
         })
     }
 
@@ -247,6 +254,8 @@ impl<'a> WarpDriveRow<'a> {
         sync_queue_is_dequeueing: bool,
         menu_direction: MenuDirection,
         appearance: &'a Appearance,
+        untitled_label: String,
+        app: &AppContext,
     ) -> Option<Self> {
         let item = object.to_warp_drive_item(appearance)?;
         Self::new(
@@ -264,6 +273,8 @@ impl<'a> WarpDriveRow<'a> {
             sync_queue_is_dequeueing,
             menu_direction,
             appearance,
+            untitled_label,
+            app,
         )
     }
 
@@ -288,7 +299,7 @@ impl<'a> WarpDriveRow<'a> {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        self.item.preview(appearance).map(|content_preview| {
+        self.item.preview(appearance, app).map(|content_preview| {
             let mut stacked_preview_panels: Vec<Box<dyn Element>> = vec![
                 Container::new(content_preview)
                     .with_uniform_padding(16.)
@@ -429,20 +440,28 @@ impl<'a> WarpDriveRow<'a> {
             .permissions()
             .owner;
 
-        let mut owner_label = "From ".to_string();
-        match owner {
+        let owner_name = match owner {
             Owner::User { user_uid } => {
                 match UserProfiles::as_ref(app).displayable_identifier_for_uid(user_uid) {
-                    Some(user) => owner_label.push_str(&user),
-                    None => owner_label.push_str("unknown user"),
+                    Some(user) => user,
+                    None => crate::localization::text_for_app(
+                        app,
+                        "drive.shared_object_owner.unknown_user",
+                    ),
                 }
             }
-            Owner::Team { team_uid, .. } => owner_label.push_str(
-                UserWorkspaces::as_ref(app)
-                    .team_from_uid(team_uid)
-                    .map_or("unknown team", |team| &team.name),
-            ),
-        }
+            Owner::Team { team_uid, .. } => UserWorkspaces::as_ref(app)
+                .team_from_uid(team_uid)
+                .map(|team| team.name.clone())
+                .unwrap_or_else(|| {
+                    crate::localization::text_for_app(app, "drive.shared_object_owner.unknown_team")
+                }),
+        };
+        let owner_label = crate::localization::text_for_app_with_args(
+            app,
+            "drive.shared_object_owner.from",
+            &[("owner", &owner_name)],
+        );
 
         let background = appearance.theme().surface_1();
         let text_color = appearance.theme().sub_text_color(background);
@@ -642,14 +661,7 @@ impl<'a> WarpDriveRow<'a> {
     }
 
     fn render_item_name(&self, style: UiComponentStyles) -> Box<dyn Element> {
-        Span::new(
-            self.item
-                .display_name()
-                .unwrap_or_else(|| "Untitled".to_string()),
-            style,
-        )
-        .build()
-        .finish()
+        Span::new(self.display_name.clone(), style).build().finish()
     }
 
     pub fn render_item(&self, style: UiComponentStyles) -> Box<dyn Element> {

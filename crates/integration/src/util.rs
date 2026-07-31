@@ -1,7 +1,10 @@
 use std::fs::{OpenOptions, create_dir_all, write};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::OnceLock;
 
+use command::blocking::Command;
 use itertools::Itertools as _;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -15,6 +18,8 @@ use warp::terminal::shell::ShellType;
 use warpui_core::{App, WindowId};
 
 use crate::builder::cargo_target_tmpdir;
+
+static CAN_RUN_GCLOUD_SSH_TESTS: OnceLock<bool> = OnceLock::new();
 
 pub fn get_input_buffer(
     app: &App,
@@ -221,6 +226,42 @@ pub fn per_shell_output(
 pub fn skip_if_powershell_core_2303() -> bool {
     let (starter, _) = current_shell_starter_and_version();
     !matches!(starter.shell_type(), ShellType::PowerShell)
+}
+
+pub fn can_run_gcloud_ssh_tests() -> bool {
+    *CAN_RUN_GCLOUD_SSH_TESTS.get_or_init(|| {
+        has_gcloud_cli()
+            && has_active_gcloud_account()
+            && !matches!(
+                current_shell_starter_and_version().0.shell_type(),
+                ShellType::PowerShell
+            )
+    })
+}
+
+fn has_gcloud_cli() -> bool {
+    Command::new("gcloud")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+fn has_active_gcloud_account() -> bool {
+    let Ok(output) = Command::new("gcloud")
+        .args([
+            "auth",
+            "list",
+            "--filter=status:ACTIVE",
+            "--format=value(account)",
+        ])
+        .output()
+    else {
+        return false;
+    };
+
+    output.status.success() && !String::from_utf8_lossy(&output.stdout).trim().is_empty()
 }
 
 /// Gets the name of the system user for which the test binary is running.

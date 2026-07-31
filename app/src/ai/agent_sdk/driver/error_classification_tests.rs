@@ -1,8 +1,27 @@
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
+use warp_localization::LocaleId;
 
-use super::classify_driver_error;
 use crate::ai::agent_sdk::driver::AgentDriverError;
 use crate::ai::agent_sdk::driver::terminal::{BootstrapError, ShareSessionError};
+
+fn classify_driver_error(
+    error: &AgentDriverError,
+) -> (
+    AgentTaskState,
+    crate::server::server_api::ai::TaskStatusUpdate,
+) {
+    super::classify_driver_error(error)
+}
+
+fn classify_driver_error_with_locale(
+    error: &AgentDriverError,
+    locale: LocaleId,
+) -> (
+    AgentTaskState,
+    crate::server::server_api::ai::TaskStatusUpdate,
+) {
+    super::classify_driver_error_for_locale(error, locale)
+}
 
 fn assert_state_and_code(
     error: AgentDriverError,
@@ -70,6 +89,65 @@ fn bootstrap_internal_error_is_error_with_internal() {
     });
     assert_eq!(state, AgentTaskState::Error);
     assert_eq!(update.error_code, Some(PlatformErrorCode::InternalError));
+}
+
+#[test]
+fn classification_message_uses_requested_locale() {
+    let (state, update) = classify_driver_error_with_locale(
+        &AgentDriverError::BootstrapFailed {
+            error: BootstrapError::TimedOut,
+        },
+        LocaleId::ZhCn,
+    );
+    assert_eq!(state, AgentTaskState::Error);
+    assert_eq!(update.error_code, Some(PlatformErrorCode::InternalError));
+    assert!(update.message.contains("终端会话启动失败"));
+    assert!(update.message.contains("未在预期时间内启动"));
+    assert!(!update.message.contains("Terminal session failed"));
+}
+
+#[test]
+fn persisted_classification_uses_canonical_english() {
+    let error = AgentDriverError::BootstrapFailed {
+        error: BootstrapError::TimedOut,
+    };
+
+    let (_, update) = super::classify_driver_error(&error);
+    let localized = super::localized_driver_error_message(&error, LocaleId::ZhCn);
+
+    assert!(update.message.contains("Terminal session failed"));
+    assert!(!update.message.contains("终端会话启动失败"));
+    assert!(localized.contains("终端会话启动失败"));
+}
+
+#[test]
+fn bootstrap_pty_spawn_reason_uses_requested_locale() {
+    let (_, update) = classify_driver_error_with_locale(
+        &AgentDriverError::BootstrapFailed {
+            error: BootstrapError::PtySpawnFailed {
+                reason: Some("Argument list too long".to_string()),
+            },
+        },
+        LocaleId::ZhCn,
+    );
+
+    assert!(update.message.contains("shell 启动失败"));
+    assert!(update.message.contains("Argument list too long"));
+    assert!(!update.message.contains("pty_spawn_failed_with_reason"));
+}
+
+#[test]
+fn localized_driver_error_message_uses_requested_locale_for_fatal_output() {
+    let message = super::localized_driver_error_message(
+        &AgentDriverError::ManagedMcpResolutionFailed {
+            uid: uuid::Uuid::nil(),
+            message: "server unavailable".into(),
+        },
+        LocaleId::ZhCn,
+    );
+    assert!(message.contains("无法解析托管 MCP 服务器"));
+    assert!(message.contains("server unavailable"));
+    assert!(!message.contains("Managed MCP server"));
 }
 
 #[test]

@@ -9,32 +9,14 @@ use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 use crate::search::ai_context_menu::styles;
 use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::terminal::model::block::BlockId;
+use crate::util::time_format::localized_approx_duration_from_now_sentence_case;
 use crate::util::truncation::truncate_from_end;
-
-/// Calculate how long ago a timestamp was
-fn time_ago_string(timestamp: Option<&DateTime<Local>>) -> String {
-    let Some(timestamp) = timestamp else {
-        return "Just now".to_string();
-    };
-
-    let now = Local::now();
-    let duration = now.signed_duration_since(*timestamp);
-
-    if duration.num_seconds() < 60 {
-        "Just now".to_string()
-    } else if duration.num_minutes() < 60 {
-        format!("{} minutes ago", duration.num_minutes())
-    } else if duration.num_hours() < 24 {
-        format!("{} hours ago", duration.num_hours())
-    } else {
-        format!("{} days ago", duration.num_days())
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct BlockSearchItem {
@@ -135,7 +117,7 @@ impl SearchItem for BlockSearchItem {
 
         // Create sub text: last 3 lines of output
         let sub_text = if self.output_lines.is_empty() {
-            "No output".to_string()
+            localization::text_for_app(ctx, "search.ai_context_menu.blocks.no_output")
         } else {
             let joined = self.output_lines.join("\n").trim().to_string();
             // Additional safety truncation for the hover card
@@ -143,7 +125,10 @@ impl SearchItem for BlockSearchItem {
         };
 
         // Create time ago text
-        let time_ago_text = time_ago_string(self.completed_ts.as_ref());
+        let time_ago_text = self.completed_ts.as_ref().map_or_else(
+            || localization::text_for_app(ctx, "time.approx.just_now_sentence"),
+            |completed_ts| localized_approx_duration_from_now_sentence_case(ctx, *completed_ts),
+        );
 
         // Create main text element - use monospace font for command
         let main_text_element = Text::new(
@@ -207,5 +192,13 @@ impl SearchItem for BlockSearchItem {
 
     fn accessibility_label(&self) -> String {
         format!("Block: {}", self.command)
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.block",
+            &[("command", &self.command)],
+        )
     }
 }

@@ -1,7 +1,12 @@
 use serde_json::{Map, Value, json};
 use warp_cli::mcp::MCPSpec;
+use warp_localization::LocaleId;
 
-use super::build_mcp_servers_from_specs;
+use super::build_mcp_servers_from_specs as build_mcp_servers_from_specs_for_locale;
+
+fn build_mcp_servers_from_specs(specs: &[MCPSpec]) -> anyhow::Result<Option<Map<String, Value>>> {
+    build_mcp_servers_from_specs_for_locale(specs, LocaleId::EnUs)
+}
 
 fn build(specs: Vec<MCPSpec>) -> Map<String, Value> {
     build_mcp_servers_from_specs(&specs)
@@ -257,6 +262,21 @@ fn validation_rejects_invalid_entries() {
     let spec = json!({ "mcpServers": { "bad": 1 } }).to_string();
     let err = build_mcp_servers_from_specs(&[MCPSpec::Json(spec)]).unwrap_err();
     assert!(err.to_string().contains("config must be a JSON object"));
+}
+
+#[test]
+fn validation_errors_use_requested_locale() {
+    let spec = json!({
+        "mcpServers": {
+            "bad": { "command": "npx", "url": "https://example.com" }
+        }
+    })
+    .to_string();
+
+    let err = build_mcp_servers_from_specs_for_locale(&[MCPSpec::Json(spec)], LocaleId::ZhCn)
+        .unwrap_err();
+
+    assert!(err.to_string().contains("必须且只能包含"));
 }
 
 #[test]

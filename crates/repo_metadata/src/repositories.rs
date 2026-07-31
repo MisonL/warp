@@ -155,25 +155,27 @@ impl DetectedRepositories {
                             // Only treat as external if it's outside the working tree.
                             .filter(|p| !p.starts_with(&repo_root_path));
 
-                            if let Some(repository) =
-                                DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
-                                    watcher
-                                        .add_directory_with_git_dir(
-                                            repo_root_path,
-                                            external_git_dir,
-                                            ctx,
-                                        )
-                                        .ok()
-                                })
-                            {
-                                let repo_path = repository.as_ref(ctx).root_dir().to_local_path();
-                                ctx.emit(DetectedRepositoriesEvent::DetectedGitRepo {
-                                    repository,
-                                    source,
-                                });
-                                let _ = tx.send(repo_path);
-                            } else {
-                                let _ = tx.send(None);
+                            match DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
+                                watcher
+                                    .add_directory_with_git_dir(
+                                        repo_root_path,
+                                        external_git_dir,
+                                        ctx,
+                                    )
+                                    .ok()
+                            }) {
+                                Some(repository) => {
+                                    let repo_path =
+                                        repository.as_ref(ctx).root_dir().to_local_path();
+                                    ctx.emit(DetectedRepositoriesEvent::DetectedGitRepo {
+                                        repository,
+                                        source,
+                                    });
+                                    let _ = tx.send(repo_path);
+                                }
+                                _ => {
+                                    let _ = tx.send(None);
+                                }
                             }
                         } else {
                             // No working tree path; do not treat git_dir_path as a repository path.

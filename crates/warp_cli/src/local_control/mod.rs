@@ -18,6 +18,7 @@ use completions::generate_completions_to_stdout;
 use output::write_control_error;
 
 use crate::agent::OutputFormat;
+use crate::localization::{localized_clap_command, text_with_args};
 
 /// Hidden flag used by the channel-specific Warp app binary to enter `warpctrl` mode.
 pub const CONTROL_MODE_FLAG: &str = "--warpctrl";
@@ -112,24 +113,13 @@ impl ControlArgs {
 
     fn clap_command_for_bin_name(bin_name: impl Into<String>) -> clap::Command {
         let bin_name = bin_name.into();
-        <Self as CommandFactory>::command()
+        let command = <Self as CommandFactory>::command()
             .version(crate::version_string())
-            .bin_name(bin_name.clone())
-            .after_help(color_print::cformat!(
-                r#"<bold><underline>Examples:</underline></bold>
-
-  <dim>$</dim> <bold>{bin_name} instance list</bold>
-
-  <dim>$</dim> <bold>{bin_name} tab create</bold>
-  <dim>$</dim> <bold>{bin_name} action list</bold>
-
-  <dim>$</dim> <bold>{bin_name} action inspect surface.settings.open</bold>
-
-<bold><underline>Learn more:</underline></bold>
-* Use <bold>{bin_name} help</bold> to learn more about each command
-* Use <bold>{bin_name} action list</bold> to inspect allowlisted actions
-"#
-            ))
+            .bin_name(bin_name.clone());
+        localized_clap_command(command).after_help(text_with_args(
+            "cli.help.command.warpctrl.after_help",
+            &[("bin_name", &bin_name)],
+        ))
     }
 }
 
@@ -906,8 +896,11 @@ fn run_exit_code(args: ControlArgs) -> u8 {
         Err(error) => {
             if let Err(write_error) = write_control_error(&error, output_format) {
                 eprintln!(
-                    "error: failed to render local-control error: {}",
-                    write_error.message
+                    "{}",
+                    text_with_args(
+                        "warpctrl.error.render_failed",
+                        &[("message", &write_error.message)],
+                    )
                 );
             }
             1
@@ -943,6 +936,8 @@ pub(crate) use commands::render_human_readable_for_test;
 pub(crate) use completions::generate_completion_string;
 #[cfg(test)]
 pub(crate) use output::ErrorSummary;
+#[cfg(test)]
+pub(crate) use output::control_error_lines_for_test;
 
 #[cfg(test)]
 #[path = "../local_control_tests.rs"]

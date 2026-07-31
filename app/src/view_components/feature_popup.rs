@@ -9,8 +9,6 @@ use crate::appearance::Appearance;
 use crate::ui_components::icons::Icon;
 
 pub enum NewFeaturePopupLabel {
-    /// A static label.
-    FromString(String),
     /// A label that is computed on demand.
     FromCallable(Box<dyn Fn(&AppContext) -> String>),
 }
@@ -51,12 +49,12 @@ impl FeaturePopup {
         }
     }
 
-    fn render_badge(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_badge(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let background = appearance.theme().background();
         match self.badge {
             FeaturePopupBadge::New => Container::new(
                 Text::new(
-                    "NEW",
+                    crate::localization::text_for_app(app, "feature_popup.badge.new"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -97,12 +95,10 @@ impl View for FeaturePopup {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let background = appearance.theme().background();
-        let new_badge = self.render_badge(appearance);
+        let new_badge = self.render_badge(appearance, app);
 
-        let label = match &self.label {
-            NewFeaturePopupLabel::FromString(label) => label.clone(),
-            NewFeaturePopupLabel::FromCallable(callable) => callable(app),
-        };
+        let NewFeaturePopupLabel::FromCallable(callable) = &self.label;
+        let label = callable(app);
         ConstrainedBox::new(
             Container::new(
                 Flex::row()

@@ -29,7 +29,7 @@ use crate::ai::document::ai_document_model::{
 };
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::ui_components::blended_colors;
-use crate::{AIAgentTodoList, BlocklistAIHistoryModel};
+use crate::{AIAgentTodoList, BlocklistAIHistoryModel, localization};
 
 const TODO_BUTTON_SAVE_POSITION_ID: &str = "plan_and_todo_list::todo_button";
 
@@ -255,9 +255,12 @@ impl PlanAndTodoListView {
                 chip_content.finish(),
                 self.plan_button_mouse_state.clone(),
                 if is_agent_unaware_of_plan_edits {
-                    "Agent is unaware of recent plan edits".to_string()
+                    localization::text_for_app(
+                        app,
+                        "agent.plan_and_todo.tooltip.unaware_of_plan_edits",
+                    )
                 } else {
-                    "View plan".to_string()
+                    localization::text_for_app(app, "agent.plan_and_todo.tooltip.view_plan")
                 },
                 corner_radius,
                 appearance,
@@ -412,7 +415,7 @@ impl PlanAndTodoListView {
             .render_chip_button(
                 content,
                 self.todo_button_mouse_state.clone(),
-                "View todo list".to_string(),
+                localization::text_for_app(app, "agent.plan_and_todo.tooltip.view_todo_list"),
                 corner_radius,
                 appearance,
             )

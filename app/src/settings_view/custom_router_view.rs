@@ -11,6 +11,8 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, View, ViewContext, Vi
 use crate::ai::custom_model_routers::{CustomModelRouter, CustomModelRouting};
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::appearance::Appearance;
+#[cfg(feature = "local_fs")]
+use crate::localization::{self, LocalizationUpdater};
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::ActionButton;
@@ -47,40 +49,49 @@ impl CustomRouterView {
     #[cfg(feature = "local_fs")]
     pub fn new(router: CustomModelRouter, ctx: &mut ViewContext<Self>) -> Self {
         let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-        let open_file_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Open file", SecondaryTheme)
-                .with_icon(Icon::File)
-                .with_size(ButtonSize::Small)
-                .with_height(HEADER_BUTTON_HEIGHT)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CustomRouterViewAction::OpenFile);
-                })
+        let open_file_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.footer.open_file"),
+                SecondaryTheme,
+            )
+            .with_icon(Icon::File)
+            .with_size(ButtonSize::Small)
+            .with_height(HEADER_BUTTON_HEIGHT)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CustomRouterViewAction::OpenFile);
+            })
         });
         open_file_button.update(ctx, |button, ctx| {
             button.set_disabled(router.source_path.is_none(), ctx);
         });
 
-        let edit_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Edit", SecondaryTheme)
-                .with_icon(Icon::Pencil)
-                .with_size(ButtonSize::Small)
-                .with_height(HEADER_BUTTON_HEIGHT)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CustomRouterViewAction::Edit);
-                })
+        let edit_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.edit"),
+                SecondaryTheme,
+            )
+            .with_icon(Icon::Pencil)
+            .with_size(ButtonSize::Small)
+            .with_height(HEADER_BUTTON_HEIGHT)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CustomRouterViewAction::Edit);
+            })
         });
         edit_button.update(ctx, |button, ctx| {
             button.set_disabled(!is_any_ai_enabled, ctx);
         });
 
-        let delete_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Delete", DangerSecondaryTheme)
-                .with_icon(Icon::Trash)
-                .with_size(ButtonSize::Small)
-                .with_height(HEADER_BUTTON_HEIGHT)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CustomRouterViewAction::Delete);
-                })
+        let delete_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.delete"),
+                DangerSecondaryTheme,
+            )
+            .with_icon(Icon::Trash)
+            .with_size(ButtonSize::Small)
+            .with_height(HEADER_BUTTON_HEIGHT)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CustomRouterViewAction::Delete);
+            })
         });
         delete_button.update(ctx, |button, ctx| {
             button.set_disabled(!is_any_ai_enabled, ctx);
@@ -96,6 +107,9 @@ impl CustomRouterView {
             });
             ctx.notify();
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |view, _, _, ctx| {
+            view.refresh_localized_text(ctx);
+        });
 
         Self {
             router,
@@ -103,6 +117,20 @@ impl CustomRouterView {
             edit_button,
             delete_button,
         }
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        for (button, key) in [
+            (&self.open_file_button, "settings.footer.open_file"),
+            (&self.edit_button, "settings.action.edit"),
+            (&self.delete_button, "settings.action.delete"),
+        ] {
+            button.update(ctx, |button, ctx| {
+                button.set_label(localization::text_for_app(ctx, key), ctx);
+            });
+        }
+        ctx.notify();
     }
 
     #[allow(dead_code)]
@@ -257,7 +285,7 @@ fn render_targets_row(
     match routing {
         CustomModelRouting::Complexity(c) => {
             flex.add_child(render_model_line(
-                "Default:",
+                model_level_label(app, "custom_router_editor.complexity.default"),
                 model_display_name(&c.default, app),
                 appearance,
                 sub_color,
@@ -265,7 +293,7 @@ fn render_targets_row(
             if let Some(easy) = &c.easy {
                 flex.add_child(
                     Container::new(render_model_line(
-                        "Easy:",
+                        model_level_label(app, "custom_router_editor.complexity.easy"),
                         model_display_name(easy, app),
                         appearance,
                         sub_color,
@@ -277,7 +305,7 @@ fn render_targets_row(
             if let Some(medium) = &c.medium {
                 flex.add_child(
                     Container::new(render_model_line(
-                        "Medium:",
+                        model_level_label(app, "custom_router_editor.complexity.medium"),
                         model_display_name(medium, app),
                         appearance,
                         sub_color,
@@ -289,7 +317,7 @@ fn render_targets_row(
             if let Some(hard) = &c.hard {
                 flex.add_child(
                     Container::new(render_model_line(
-                        "Hard:",
+                        model_level_label(app, "custom_router_editor.complexity.hard"),
                         model_display_name(hard, app),
                         appearance,
                         sub_color,
@@ -301,7 +329,7 @@ fn render_targets_row(
         }
         CustomModelRouting::Prompt(p) => {
             flex.add_child(render_model_line(
-                "Default:",
+                model_level_label(app, "custom_router_editor.complexity.default"),
                 model_display_name(&p.default_model, app),
                 appearance,
                 sub_color,
@@ -309,9 +337,13 @@ fn render_targets_row(
             let rule_count = p.rules.len();
             if rule_count > 0 {
                 let label = if rule_count == 1 {
-                    "1 rule".to_string()
+                    localization::text_for_app(app, "custom_router_editor.rules.count.singular")
                 } else {
-                    format!("{rule_count} rules")
+                    localization::text_for_app_with_args(
+                        app,
+                        "custom_router_editor.rules.count.plural",
+                        &[("count", &rule_count.to_string())],
+                    )
                 };
                 flex.add_child(
                     Container::new(
@@ -326,6 +358,15 @@ fn render_targets_row(
         }
     }
     flex.finish()
+}
+
+fn model_level_label(app: &AppContext, level_key: &str) -> String {
+    let level = localization::text_for_app(app, level_key);
+    localization::text_for_app_with_args(
+        app,
+        "custom_router_editor.summary.model_level",
+        &[("level", &level)],
+    )
 }
 
 /// Resolves a concrete model id (e.g. `claude-4-5-haiku`) to its display

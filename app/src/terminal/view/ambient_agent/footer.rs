@@ -1,12 +1,13 @@
 use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
-use warpui::Element;
 use warpui::elements::{
     Border, ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize,
     ParentElement, Text,
 };
 use warpui::fonts::{Properties, Weight};
+use warpui::{AppContext, Element};
 
+use crate::localization;
 use crate::ui_components::blended_colors;
 
 const CONTENT_SPACING: f32 = 4.;
@@ -72,7 +73,7 @@ fn build_centered_footer(
 
 /// Render a loading footer that replaces the terminal input while waiting to connect to an
 // ambient agent session.
-pub fn render_loading_footer(appearance: &Appearance) -> Box<dyn Element> {
+pub fn render_loading_footer(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
     let theme = appearance.theme();
 
     let header_color = blended_colors::text_main(theme, theme.background());
@@ -81,8 +82,8 @@ pub fn render_loading_footer(appearance: &Appearance) -> Box<dyn Element> {
     let border_color = blended_colors::neutral_4(theme);
 
     build_centered_footer(
-        "Cloud agent starting up…".to_string(),
-        "You'll be able to interact with Oz soon".to_string(),
+        localization::text_for_app(app, "terminal.ambient_agent.footer.loading.title"),
+        localization::text_for_app(app, "terminal.ambient_agent.footer.loading.body"),
         header_color,
         body_color,
         background,
@@ -92,7 +93,11 @@ pub fn render_loading_footer(appearance: &Appearance) -> Box<dyn Element> {
 }
 
 /// Render an error footer that shows when the ambient agent failed to spawn.
-pub fn render_error_footer(error_message: &str, appearance: &Appearance) -> Box<dyn Element> {
+pub fn render_error_footer(
+    error_message: &str,
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
 
     let header_color = theme.ui_error_color();
@@ -104,7 +109,7 @@ pub fn render_error_footer(error_message: &str, appearance: &Appearance) -> Box<
     let border_color = theme.ui_error_color();
 
     build_centered_footer(
-        "Agent failed".to_string(),
+        localization::text_for_app(app, "terminal.ambient_agent.footer.error.title"),
         error_message.to_string(),
         header_color,
         body_color,

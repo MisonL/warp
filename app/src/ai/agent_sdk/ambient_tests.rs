@@ -185,7 +185,7 @@ fn task_id_from_run_id_ignores_non_task_ids() {
 fn task_id_for_message_send_prefers_sender_run_id() {
     // TODO: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var(warp_cli::OZ_RUN_ID_ENV, OTHER_TASK_ID) };
-    let task_id = task_id_for_message_send(TASK_ID)
+    let task_id = task_id_for_message_send(TASK_ID, LocaleId::EnUs)
         .expect("valid task id")
         .expect("task id");
     // TODO: Audit that the environment access only happens in single-threaded code.
@@ -199,7 +199,7 @@ fn task_id_for_message_send_prefers_sender_run_id() {
 fn task_id_for_message_send_falls_back_to_oz_run_id() {
     // TODO: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var(warp_cli::OZ_RUN_ID_ENV, TASK_ID) };
-    let task_id = task_id_for_message_send("local-child-run")
+    let task_id = task_id_for_message_send("local-child-run", LocaleId::EnUs)
         .expect("valid env task id")
         .expect("task id");
     // TODO: Audit that the environment access only happens in single-threaded code.
@@ -213,7 +213,7 @@ fn task_id_for_message_send_falls_back_to_oz_run_id() {
 fn task_id_from_oz_run_id_env_rejects_invalid_value() {
     // TODO: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::set_var(warp_cli::OZ_RUN_ID_ENV, "not-a-task-id") };
-    let err = task_id_from_oz_run_id_env().expect_err("invalid task id");
+    let err = task_id_from_oz_run_id_env(LocaleId::EnUs).expect_err("invalid task id");
     // TODO: Audit that the environment access only happens in single-threaded code.
     unsafe { std::env::remove_var(warp_cli::OZ_RUN_ID_ENV) };
 

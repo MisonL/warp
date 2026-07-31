@@ -19,6 +19,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 
 // Modal dimensions based on Figma design.
@@ -123,11 +124,11 @@ impl AgentTypeSelector {
         }
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = Text::new(
-            "Choose your agent".to_string(),
+            localization::text_for_app(app, "agent_management.agent_type_selector.title"),
             appearance.ui_font_family(),
             TITLE_FONT_SIZE,
         )
@@ -186,13 +187,14 @@ impl AgentTypeSelector {
         &self,
         index: usize,
         icon: Icon,
-        title: &'static str,
-        description: &'static str,
+        title_key: &'static str,
+        description_key: &'static str,
         is_suggested: bool,
         mouse_state: MouseStateHandle,
         action: AgentTypeSelectorAction,
-        appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
 
         let font_family = appearance.ui_font_family();
@@ -216,6 +218,10 @@ impl AgentTypeSelector {
 
         let is_selected = self.selected_option_index == index;
         let action = action.clone();
+        let title = localization::text_for_app(app, title_key);
+        let description = localization::text_for_app(app, description_key);
+        let suggested_label =
+            localization::text_for_app(app, "agent_management.agent_type_selector.suggested");
         Hoverable::new(mouse_state, move |state| {
             let is_hovered = state.is_hovered() || state.is_clicked();
             let (background, border_color) = if is_hovered || is_selected {
@@ -247,7 +253,7 @@ impl AgentTypeSelector {
                 .with_border(Border::all(1.).with_border_color(avatar_border))
                 .finish();
 
-            let title_text = Text::new(title.to_string(), font_family, OPTION_TITLE_FONT_SIZE)
+            let title_text = Text::new(title.clone(), font_family, OPTION_TITLE_FONT_SIZE)
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(active_text.into())
                 .finish();
@@ -259,7 +265,7 @@ impl AgentTypeSelector {
 
             if is_suggested {
                 let suggested_text =
-                    Text::new("Suggested".to_string(), font_family, OPTION_DESC_FONT_SIZE)
+                    Text::new(suggested_label.clone(), font_family, OPTION_DESC_FONT_SIZE)
                         .with_style(Properties::default().weight(Weight::Medium))
                         .with_color(badge_text_color)
                         .finish();
@@ -276,7 +282,7 @@ impl AgentTypeSelector {
             }
 
             let description_text =
-                Text::new(description.to_string(), font_family, OPTION_DESC_FONT_SIZE)
+                Text::new(description.clone(), font_family, OPTION_DESC_FONT_SIZE)
                     .with_style(Properties::default().weight(Weight::Normal))
                     .with_color(nonactive_text.into())
                     .soft_wrap(true)
@@ -324,7 +330,7 @@ impl AgentTypeSelector {
     fn render_modal(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
-        let header = Container::new(self.render_header(appearance))
+        let header = Container::new(self.render_header(appearance, app))
             .with_padding_top(HEADER_PADDING_TOP)
             .with_padding_bottom(HEADER_PADDING_BOTTOM)
             .with_padding_left(HEADER_PADDING_HORIZONTAL)
@@ -334,23 +340,23 @@ impl AgentTypeSelector {
         let cloud_agent_option = self.render_option(
             0,
             Icon::OzCloud,
-            "Cloud agent",
-            "Runs autonomously in a cloud environment you choose. Best for parallel or long-running work.",
+            "agent_management.agent_type_selector.cloud.title",
+            "agent_management.agent_type_selector.cloud.description",
             true,
             self.cloud_agent_mouse_state.clone(),
             AgentTypeSelectorAction::SelectCloudAgent,
-            appearance,
+            app,
         );
 
         let local_agent_option = self.render_option(
             1,
             Icon::Oz,
-            "Local agent",
-            "Runs on your machine and requires supervision. Best for quick, interactive tasks.",
+            "agent_management.agent_type_selector.local.title",
+            "agent_management.agent_type_selector.local.description",
             false,
             self.local_agent_mouse_state.clone(),
             AgentTypeSelectorAction::SelectLocalAgent,
-            appearance,
+            app,
         );
 
         let options = Flex::column()

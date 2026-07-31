@@ -14,6 +14,7 @@ use warpui::{
 
 use super::styles::{ESTIMATED_RESULT_HEIGHT, MAX_DISPLAYED_RESULT_COUNT};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::QueryFilter;
 use crate::search::mixer::SearchMixer;
 use crate::search::search_bar::{
@@ -191,7 +192,7 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "No results found",
+                localization::text_for_app(app, "search.no_results"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -288,7 +289,7 @@ impl<T: Action + Clone> SearchResultsMenuView<T> {
 
         let mut column = Flex::column();
 
-        if let Some(title) = active_filter.and_then(renderable_title_name) {
+        if let Some(title) = active_filter.and_then(|filter| renderable_title_name(filter, app)) {
             column.add_child(
                 Container::new(
                     appearance
@@ -339,9 +340,12 @@ impl<T: Action + Clone> View for SearchResultsMenuView<T> {
     }
 }
 
-fn renderable_title_name(query_filter: QueryFilter) -> Option<&'static str> {
+fn renderable_title_name(query_filter: QueryFilter, app: &AppContext) -> Option<String> {
     if matches!(query_filter, QueryFilter::AgentModeWorkflows) {
-        return Some("Prompts");
+        return Some(crate::localization::text_for_app(
+            app,
+            "terminal.cloud_mode_v2.section.prompts",
+        ));
     }
 
     None

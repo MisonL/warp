@@ -7,13 +7,14 @@ use warp::tui_export::{
     BlocklistAIActionEvent, SuggestNewConversationResult, TaskId, queue_tui_permission_action,
 };
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
+use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;
 use warpui::{AddWindowOptions, App};
 use warpui_core::elements::tui::{Color, TuiBufferExt, TuiRect};
 use warpui_core::presenter::tui::TuiPresenter;
 use warpui_core::{TuiView as _, WindowInvalidation};
 
-use super::TuiGenericToolCallView;
+use super::{TuiGenericToolCallView, details_for_action, permission_question_for_action};
 use crate::test_fixtures::{TestHostView, add_test_action_model};
 use crate::tui_builder::TuiUiBuilder;
 
@@ -133,6 +134,42 @@ fn mcp_permission_details_are_structured_and_human_readable() {
                 .any(|line| line.contains("Esc to cancel  Enter to run"))
         );
     });
+}
+
+#[test]
+fn generic_permission_copy_is_localized_for_simplified_chinese() {
+    let mcp_action = AIAgentActionType::CallMCPTool {
+        server_id: None,
+        name: "create_issue".to_owned(),
+        input: json!({}),
+    };
+    assert_eq!(
+        permission_question_for_action(&mcp_action, LocaleId::ZhCn),
+        "我可以调用这个 MCP 工具吗？"
+    );
+
+    let grep_action = AIAgentActionType::Grep {
+        queries: vec!["needle".to_owned()],
+        path: "src".to_owned(),
+    };
+    assert_eq!(
+        details_for_action(&grep_action, LocaleId::ZhCn),
+        "needle\n  路径：src"
+    );
+
+    assert_eq!(
+        permission_question_for_action(&AIAgentActionType::InitProject, LocaleId::ZhCn),
+        "我可以执行此操作吗？"
+    );
+    assert_eq!(
+        details_for_action(
+            &AIAgentActionType::SuggestNewConversation {
+                message_id: "next-step".to_owned(),
+            },
+            LocaleId::ZhCn,
+        ),
+        "在新对话中继续 Agent 的下一步。"
+    );
 }
 
 #[test]

@@ -8,11 +8,16 @@ use warp::tui_export::{
 };
 use warp_core::features::FeatureFlag;
 use warp_editor::model::CoreEditorModel;
+use warp_localization::LocaleId;
 use warpui_core::r#async::SpawnedFutureHandle;
 use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
 
-use super::image_processing::{parse_image_paths, process_paths, read_and_process_clipboard_image};
+use super::image_processing::{
+    default_clipboard_image_file_name, parse_image_paths, process_paths,
+    read_and_process_clipboard_image,
+};
 use crate::input_mode_policy::AI_LOCKED_CONFIG;
+use crate::localization;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TuiAttachmentSnapshot {
@@ -44,6 +49,14 @@ enum AttachmentModeTransition {
     None,
     LockAgent,
     RestoreAgent { request_detection: bool },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ImageAttachmentValidationError {
+    Unavailable,
+    ProcessingInProgress,
+    LimitPerQuery,
+    ModelUnsupported,
 }
 
 pub(crate) struct TuiAttachmentModel {
@@ -199,7 +212,7 @@ impl TuiAttachmentModel {
             .last()
             .and_then(|path| path.file_name())
             .map(|file_name| file_name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "image".to_owned());
+            .unwrap_or_else(default_image_name);
         self.start_processing(processing_file_name, paths.len(), ctx);
         let original_text = text;
         self.in_flight = Some(ctx.spawn_abortable(
@@ -232,7 +245,7 @@ impl TuiAttachmentModel {
             ctx.emit(TuiAttachmentModelEvent::ShowHint(error));
             return false;
         }
-        self.start_processing("clipboard-image.png".to_owned(), 1, ctx);
+        self.start_processing(default_clipboard_image_file_name(), 1, ctx);
         self.in_flight = Some(ctx.spawn_abortable(
             read_and_process_clipboard_image(),
             |model, result, ctx| {
@@ -270,19 +283,25 @@ impl TuiAttachmentModel {
 
     fn validate_new_images(&self, count: usize, ctx: &AppContext) -> Result<(), String> {
         if !FeatureFlag::ImageAsContext.is_enabled() {
-            return Err("Image attachments are unavailable.".to_owned());
+            return Err(image_attachment_validation_error(
+                ImageAttachmentValidationError::Unavailable,
+            ));
         }
         if self.is_processing() {
-            return Err("Wait for the current image attachment to finish.".to_owned());
+            return Err(image_attachment_validation_error(
+                ImageAttachmentValidationError::ProcessingInProgress,
+            ));
         }
         let attached_images = self.context_model.as_ref(ctx).pending_images().len();
         if attached_images + count > MAX_IMAGE_COUNT_FOR_QUERY {
-            return Err(format!(
-                "Image attachment limit is {MAX_IMAGE_COUNT_FOR_QUERY} per query."
+            return Err(image_attachment_validation_error(
+                ImageAttachmentValidationError::LimitPerQuery,
             ));
         }
         if !LLMPreferences::as_ref(ctx).vision_supported(ctx, Some(self.terminal_surface_id)) {
-            return Err("The selected model does not support image attachments.".to_owned());
+            return Err(image_attachment_validation_error(
+                ImageAttachmentValidationError::ModelUnsupported,
+            ));
         }
         Ok(())
     }
@@ -357,6 +376,43 @@ impl TuiAttachmentModel {
 
 impl Entity for TuiAttachmentModel {
     type Event = TuiAttachmentModelEvent;
+}
+
+fn image_attachment_validation_error(error: ImageAttachmentValidationError) -> String {
+    image_attachment_validation_error_for_locale(localization::current_locale(), error)
+}
+
+fn default_image_name() -> String {
+    default_image_name_for_locale(localization::current_locale())
+}
+
+fn default_image_name_for_locale(locale: LocaleId) -> String {
+    localization::text_for_locale(locale, "tui.attachments.default_image_name")
+}
+
+fn image_attachment_validation_error_for_locale(
+    locale: LocaleId,
+    error: ImageAttachmentValidationError,
+) -> String {
+    match error {
+        ImageAttachmentValidationError::Unavailable => {
+            localization::text_for_locale(locale, "tui.attachments.error.unavailable")
+        }
+        ImageAttachmentValidationError::ProcessingInProgress => {
+            localization::text_for_locale(locale, "tui.attachments.error.processing_in_progress")
+        }
+        ImageAttachmentValidationError::LimitPerQuery => {
+            let maximum = MAX_IMAGE_COUNT_FOR_QUERY.to_string();
+            localization::text_with_args_for_locale(
+                locale,
+                "tui.attachments.error.limit_per_query",
+                &[("maximum", &maximum)],
+            )
+        }
+        ImageAttachmentValidationError::ModelUnsupported => {
+            localization::text_for_locale(locale, "tui.attachments.error.model_unsupported")
+        }
+    }
 }
 
 fn reconciled_selected_index(

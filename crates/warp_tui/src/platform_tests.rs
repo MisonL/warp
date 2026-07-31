@@ -1,4 +1,3 @@
-#[cfg(target_os = "windows")]
 use std::ffi::OsString;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
@@ -8,6 +7,35 @@ use super::*;
 fn env_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
+}
+
+struct SshEnvironmentRestore {
+    connection: Option<OsString>,
+    tty: Option<OsString>,
+}
+
+impl SshEnvironmentRestore {
+    fn capture() -> Self {
+        Self {
+            connection: std::env::var_os("SSH_CONNECTION"),
+            tty: std::env::var_os("SSH_TTY"),
+        }
+    }
+}
+
+impl Drop for SshEnvironmentRestore {
+    fn drop(&mut self) {
+        unsafe {
+            match &self.connection {
+                Some(value) => std::env::set_var("SSH_CONNECTION", value),
+                None => std::env::remove_var("SSH_CONNECTION"),
+            }
+            match &self.tty {
+                Some(value) => std::env::set_var("SSH_TTY", value),
+                None => std::env::remove_var("SSH_TTY"),
+            }
+        }
+    }
 }
 
 #[test]
@@ -62,9 +90,10 @@ fn build_reveal_command_uses_platform_file_manager() {
 
 #[test]
 fn should_attempt_reveal_skips_ssh_sessions() {
-    let _guard = env_lock().lock().unwrap();
-    let connection = std::env::var_os("SSH_CONNECTION");
-    let tty = std::env::var_os("SSH_TTY");
+    let _guard = env_lock()
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let _restore = SshEnvironmentRestore::capture();
 
     unsafe {
         std::env::remove_var("SSH_CONNECTION");
@@ -90,13 +119,4 @@ fn should_attempt_reveal_skips_ssh_sessions() {
         std::env::remove_var("SSH_TTY");
     }
     assert!(should_attempt_reveal());
-
-    match connection {
-        Some(value) => unsafe { std::env::set_var("SSH_CONNECTION", value) },
-        None => unsafe { std::env::remove_var("SSH_CONNECTION") },
-    }
-    match tty {
-        Some(value) => unsafe { std::env::set_var("SSH_TTY", value) },
-        None => unsafe { std::env::remove_var("SSH_TTY") },
-    }
 }

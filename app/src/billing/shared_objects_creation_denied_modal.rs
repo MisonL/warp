@@ -10,18 +10,17 @@ use warpui::{
 };
 
 use super::shared_objects_creation_denied_body::{
-    SharedObjectsCreationDeniedBody, SharedObjectsCreationDeniedBodyEvent,
+    SharedObjectsCreationDeniedBody, SharedObjectsCreationDeniedBodyEvent, shared_object_type_label,
 };
 use crate::drive::DriveObjectType;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
+use crate::localization;
 use crate::modal::{Modal, ModalEvent};
 use crate::server::ids::ServerId;
 use crate::themes::theme::Fill;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::CustomerType;
-
-const DEFAULT_LIMIT_REACHED_MODAL_HEADER: &str = "Shared object limit reached";
 
 pub struct SharedObjectsCreationDeniedModal {
     shared_objects_creation_denied_modal: ViewHandle<Modal<SharedObjectsCreationDeniedBody>>,
@@ -65,7 +64,10 @@ impl SharedObjectsCreationDeniedModal {
 
         let shared_objects_creation_denied_modal = ctx.add_typed_action_view(|ctx| {
             Modal::new(
-                Some(DEFAULT_LIMIT_REACHED_MODAL_HEADER.into()),
+                Some(localization::text_for_app(
+                    ctx,
+                    "drive.shared_objects_limit.title.default",
+                )),
                 shared_objects_creation_denied_body,
                 ctx,
             )
@@ -124,11 +126,17 @@ impl SharedObjectsCreationDeniedModal {
     ) {
         let appearance = Appearance::as_ref(ctx);
         self.team_uid = Some(team_uid);
-        let title: Option<String> = if is_delinquent_due_to_payment_issue {
-            Some(format!("Shared {object_type}s restricted"))
+        let title_key = if is_delinquent_due_to_payment_issue {
+            "drive.shared_objects_limit.title.restricted"
         } else {
-            Some(format!("Shared {object_type}s limit reached"))
+            "drive.shared_objects_limit.title.limit_reached"
         };
+        let object_type_name = shared_object_type_label(object_type, ctx);
+        let title = Some(localization::text_for_app_with_args(
+            ctx,
+            title_key,
+            &[("object_type", &object_type_name)],
+        ));
         let (icon, icon_color) = match object_type {
             DriveObjectType::Notebook { is_ai_document } => (
                 Some(Icon::Notebook),

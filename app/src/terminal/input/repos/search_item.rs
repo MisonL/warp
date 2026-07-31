@@ -12,6 +12,7 @@ use warpui::text_layout::ClipConfig;
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::terminal::input::inline_menu::styles as inline_styles;
@@ -188,6 +189,14 @@ impl SearchItem for RepoSearchItem {
 
     fn execute_result(&self) -> AcceptRepo {
         self.accept_result()
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.repos.a11y.indexed_repository",
+            &[("name", &self.display_name)],
+        )
     }
 
     fn accessibility_label(&self) -> String {

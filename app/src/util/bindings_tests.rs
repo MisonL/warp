@@ -3,6 +3,7 @@ use warpui::keymap::{EditableBinding, Keystroke, Trigger};
 use warpui::platform::OperatingSystem;
 
 use crate::terminal;
+use crate::test_util::settings::initialize_localization_for_tests;
 use crate::util::bindings::{keybinding_name_to_display_string, trigger_to_keystroke};
 use crate::workspace::WorkspaceAction;
 
@@ -76,6 +77,7 @@ fn test_keybinding_name_to_display_string() {
 #[test]
 fn test_orchestration_cycle_bindings_are_editable() {
     App::test((), |mut app| async move {
+        initialize_localization_for_tests(&mut app);
         app.update(terminal::init);
 
         app.update(|ctx| {
@@ -143,6 +145,7 @@ fn test_toggle_maximize_pane_binding_is_editable() {
 #[test]
 fn test_terminal_page_scroll_bindings_are_editable() {
     App::test((), |mut app| async move {
+        initialize_localization_for_tests(&mut app);
         app.update(terminal::init);
 
         app.update(|ctx| {

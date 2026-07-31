@@ -1,5 +1,73 @@
+use warp_localization::LocaleId;
+
 use super::full_text_searcher::byte_indices_to_char_indices;
 use super::{SearchableSessionStringRanges, SessionHighlightIndices};
+use crate::search::command_palette::navigation::render::CommandRenderInfo;
+use crate::session_management::CommandContext;
+
+#[test]
+fn command_render_info_localizes_status_text() {
+    let cases = [
+        (
+            CommandContext::RunningCommand {
+                running_command: "ls".to_owned(),
+            },
+            "Running...",
+            "正在运行...",
+        ),
+        (
+            CommandContext::LastRunCommand {
+                last_run_command: "ls".to_owned(),
+                mins_since_completion: Some(1),
+            },
+            "Completed 1 minute ago",
+            "1 分钟前完成",
+        ),
+        (
+            CommandContext::LastRunCommand {
+                last_run_command: "ls".to_owned(),
+                mins_since_completion: Some(2),
+            },
+            "Completed 2 minutes ago",
+            "2 分钟前完成",
+        ),
+        (
+            CommandContext::LastRunCommand {
+                last_run_command: "ls".to_owned(),
+                mins_since_completion: Some(60),
+            },
+            "Completed over 1 hour ago",
+            "1 小时前已完成",
+        ),
+        (
+            CommandContext::LastRunCommand {
+                last_run_command: "ls".to_owned(),
+                mins_since_completion: None,
+            },
+            "No timestamp found",
+            "未找到时间戳",
+        ),
+        (
+            CommandContext::LastRunAIBlock {
+                prompt: "Explain".to_owned(),
+            },
+            "Completed",
+            "已完成",
+        ),
+        (CommandContext::None, "Empty Session", "空会话"),
+    ];
+
+    for (context, english, chinese) in cases {
+        assert_eq!(
+            CommandRenderInfo::from_context(context.clone(), LocaleId::EnUs).hint_text,
+            english
+        );
+        assert_eq!(
+            CommandRenderInfo::from_context(context, LocaleId::ZhCn).hint_text,
+            chinese
+        );
+    }
+}
 
 // ── byte_indices_to_char_indices ─────────────────────────────────────
 

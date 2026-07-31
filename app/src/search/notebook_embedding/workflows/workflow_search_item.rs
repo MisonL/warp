@@ -102,7 +102,10 @@ impl SearchItem for WorkflowSearchItem {
             let warning_font_size = appearance.ui_font_size() - 4.;
             let warning_text = appearance
                 .ui_builder()
-                .span("Not visible to other users")
+                .span(crate::localization::text_for_app(
+                    app,
+                    "search.notebook_embedding.not_visible",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(warning_font_size),
                     margin: Some(Coords::uniform(0.).left(4.)),
@@ -180,6 +183,14 @@ impl SearchItem for WorkflowSearchItem {
         let workflow = &self.cloud_workflow.model().data;
 
         format!("Workflow: {}", workflow.name())
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.workflow",
+            &[("name", self.cloud_workflow.model().data.name())],
+        )
     }
 }
 

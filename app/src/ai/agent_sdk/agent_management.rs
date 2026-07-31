@@ -12,14 +12,25 @@ use warp_cli::agent::{
     OutputFormat,
 };
 use warp_cli::json_filter::JsonOutput;
+use warp_localization::{LocaleId, replace_placeholders};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::TableFormat;
+use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::{
     AgentResponse, CreateAgentRequest, SecretRef, UpdateAgentRequest,
 };
+
+fn text_for_locale(locale: LocaleId, key: &str) -> String {
+    localization::text_for_locale(locale, key)
+}
+
+fn text_for_locale_with_args(locale: LocaleId, key: &str, args: &[(&str, &str)]) -> String {
+    replace_placeholders(&text_for_locale(locale, key), args)
+        .expect("localized text template arguments must match the catalog")
+}
 
 /// Singleton model that runs async work for named-agent CLI commands.
 struct AgentManagementRunner;
@@ -91,16 +102,17 @@ impl AgentManagementRunner {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<()> {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
         let future = async move {
             ensure_json_sort_is_not_requested(output_format, &args.json_output, &args)?;
 
             if matches!(output_format, OutputFormat::Json) || args.json_output.force_json_output() {
                 let response = ai_client.list_agents_raw().await?;
-                super::output::print_raw_json(response, &args.json_output)?;
+                super::output::print_raw_json_for_locale(response, &args.json_output, locale)?;
             } else {
                 let mut agents = ai_client.list_agents().await?;
                 sort_agents(&mut agents, args.sort_by, args.sort_order);
-                print_agents(&agents, output_format)?;
+                print_agents(&agents, output_format, locale)?;
             }
             Ok(())
         };
@@ -115,13 +127,14 @@ impl AgentManagementRunner {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<()> {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
         let future = async move {
             if matches!(output_format, OutputFormat::Json) || args.json_output.force_json_output() {
                 let response = ai_client.get_agent_raw(&args.uid).await?;
-                super::output::print_raw_json(response, &args.json_output)?;
+                super::output::print_raw_json_for_locale(response, &args.json_output, locale)?;
             } else {
                 let agent = ai_client.get_agent(&args.uid).await?;
-                print_single_agent(&agent, output_format)?;
+                print_single_agent(&agent, output_format, locale)?;
             }
             Ok(())
         };
@@ -136,6 +149,7 @@ impl AgentManagementRunner {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<()> {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
         let future = async move {
             let json_output = args.json_output.clone();
             let request = CreateAgentRequest {
@@ -148,10 +162,10 @@ impl AgentManagementRunner {
             };
             if matches!(output_format, OutputFormat::Json) || json_output.force_json_output() {
                 let response = ai_client.create_agent_raw(request).await?;
-                super::output::print_raw_json(response, &json_output)?;
+                super::output::print_raw_json_for_locale(response, &json_output, locale)?;
             } else {
                 let agent = ai_client.create_agent(request).await?;
-                print_single_agent(&agent, output_format)?;
+                print_single_agent(&agent, output_format, locale)?;
             }
             Ok(())
         };
@@ -166,6 +180,7 @@ impl AgentManagementRunner {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<()> {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
         let future = async move {
             let uid = args.uid.clone();
             let json_output = args.json_output.clone();
@@ -225,15 +240,18 @@ impl AgentManagementRunner {
                 },
             };
             if request_is_empty(&request) {
-                return Err(anyhow!("No updates requested"));
+                return Err(anyhow!(text_for_locale(
+                    locale,
+                    "agent_sdk.agent_management.error.no_updates_requested"
+                )));
             }
 
             if matches!(output_format, OutputFormat::Json) || json_output.force_json_output() {
                 let response = ai_client.update_agent_raw(&uid, request).await?;
-                super::output::print_raw_json(response, &json_output)?;
+                super::output::print_raw_json_for_locale(response, &json_output, locale)?;
             } else {
                 let agent = ai_client.update_agent(&uid, request).await?;
-                print_single_agent(&agent, output_format)?;
+                print_single_agent(&agent, output_format, locale)?;
             }
             Ok(())
         };
@@ -248,9 +266,10 @@ impl AgentManagementRunner {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<()> {
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
+        let locale = localization::current_locale(ctx);
         let future = async move {
             ai_client.delete_agent(&args.uid).await?;
-            print_delete_result(&args.uid, output_format)?;
+            print_delete_result(&args.uid, output_format, locale)?;
             Ok(())
         };
         self.spawn_command(future, ctx);
@@ -361,16 +380,11 @@ fn sort_agents(
 
 impl TableFormat for AgentResponse {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("UID"),
-            Cell::new("Name"),
-            Cell::new("Created"),
-            Cell::new("Description"),
-            Cell::new("Secrets"),
-            Cell::new("Skills"),
-            Cell::new("Base model"),
-            Cell::new("Environment"),
-        ]
+        agent_response_header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        agent_response_header_for_locale(locale)
     }
 
     fn row(&self) -> Vec<Cell> {
@@ -389,31 +403,88 @@ impl TableFormat for AgentResponse {
     }
 }
 
-fn print_agents(agents: &[AgentResponse], output_format: OutputFormat) -> anyhow::Result<()> {
+fn agent_response_header_for_locale(locale: LocaleId) -> Vec<Cell> {
+    vec![
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.uid",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.name",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.created",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.description",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.secrets",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.skills",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.base_model",
+        )),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.agent_management.table.environment",
+        )),
+    ]
+}
+
+fn print_agents(
+    agents: &[AgentResponse],
+    output_format: OutputFormat,
+    locale: LocaleId,
+) -> anyhow::Result<()> {
     match output_format {
         OutputFormat::Pretty | OutputFormat::Text => {
             let (visible_agents, hidden_count) = visible_agents_and_hidden_count(agents);
             match output_format {
                 OutputFormat::Pretty if visible_agents.is_empty() => {
-                    println!("No agents found.");
-                    print_skills_hint();
+                    println!(
+                        "{}",
+                        text_for_locale(
+                            locale,
+                            "agent_sdk.agent_management.output.no_agents_found"
+                        )
+                    );
+                    print_skills_hint(locale);
                 }
                 OutputFormat::Pretty => {
-                    super::output::write_list(visible_agents, output_format, std::io::stdout())?;
-                    print_skills_hint();
+                    super::output::write_list_for_locale(
+                        visible_agents,
+                        output_format,
+                        std::io::stdout(),
+                        locale,
+                    )?;
+                    print_skills_hint(locale);
                 }
                 OutputFormat::Text => {
-                    super::output::write_list(visible_agents, output_format, std::io::stdout())?;
+                    super::output::write_list_for_locale(
+                        visible_agents,
+                        output_format,
+                        std::io::stdout(),
+                        locale,
+                    )?;
                 }
                 OutputFormat::Json | OutputFormat::Ndjson => {
                     unreachable!("handled by outer match")
                 }
             }
-            print_disabled_agents_hidden_notice(hidden_count);
+            print_disabled_agents_hidden_notice(hidden_count, locale);
         }
         OutputFormat::Ndjson => {
             for agent in agents {
-                super::output::write_json_line(agent, std::io::stdout())?;
+                super::output::write_json_line_for_locale(agent, std::io::stdout(), locale)?;
             }
         }
         OutputFormat::Json => unreachable!("JSON output is handled by the raw API path"),
@@ -431,27 +502,51 @@ fn visible_agents_and_hidden_count(agents: &[AgentResponse]) -> (Vec<AgentRespon
     (visible_agents, hidden_count)
 }
 
-fn print_disabled_agents_hidden_notice(hidden_count: usize) {
+fn print_disabled_agents_hidden_notice(hidden_count: usize, locale: LocaleId) {
     if hidden_count > 0 {
-        eprintln!("{hidden_count} disabled agents hidden");
+        eprintln!(
+            "{}",
+            text_for_locale_with_args(
+                locale,
+                "agent_sdk.agent_management.output.disabled_agents_hidden",
+                &[("count", &hidden_count.to_string())],
+            )
+        );
     }
 }
-fn print_single_agent(agent: &AgentResponse, output_format: OutputFormat) -> anyhow::Result<()> {
+
+fn print_single_agent(
+    agent: &AgentResponse,
+    output_format: OutputFormat,
+    locale: LocaleId,
+) -> anyhow::Result<()> {
     match output_format {
         OutputFormat::Pretty | OutputFormat::Text => {
-            super::output::write_list([agent.clone()], output_format, std::io::stdout())?;
+            super::output::write_list_for_locale(
+                [agent.clone()],
+                output_format,
+                std::io::stdout(),
+                locale,
+            )?;
         }
         OutputFormat::Ndjson => {
-            super::output::write_json_line(agent, std::io::stdout())?;
+            super::output::write_json_line_for_locale(agent, std::io::stdout(), locale)?;
         }
         OutputFormat::Json => unreachable!("JSON output is handled by the raw API path"),
     }
     Ok(())
 }
 
-fn print_skills_hint() {
+fn print_skills_hint(locale: LocaleId) {
     let binary_name = warp_cli::binary_name().unwrap_or_else(|| "warp".to_string());
-    println!("\n\nLooking for your agent skills? Use `{binary_name} agent skills` instead.");
+    println!(
+        "\n\n{}",
+        text_for_locale_with_args(
+            locale,
+            "agent_sdk.agent_management.output.skills_hint",
+            &[("binary_name", &binary_name)],
+        )
+    );
 }
 
 #[derive(Serialize)]
@@ -460,25 +555,38 @@ struct DeleteAgentResult<'a> {
     deleted: bool,
 }
 
-fn print_delete_result(uid: &str, output_format: OutputFormat) -> anyhow::Result<()> {
+fn print_delete_result(
+    uid: &str,
+    output_format: OutputFormat,
+    locale: LocaleId,
+) -> anyhow::Result<()> {
     match output_format {
         OutputFormat::Pretty => {
-            println!("Deleted agent {uid}.");
+            println!(
+                "{}",
+                text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.agent_management.output.deleted",
+                    &[("uid", uid)],
+                )
+            );
         }
         OutputFormat::Text => {
             let mut stdout = std::io::stdout();
             writeln!(stdout, "{uid}")?;
         }
         OutputFormat::Ndjson => {
-            super::output::write_json_line(
+            super::output::write_json_line_for_locale(
                 &DeleteAgentResult { uid, deleted: true },
                 std::io::stdout(),
+                locale,
             )?;
         }
         OutputFormat::Json => {
-            super::output::write_json(
+            super::output::write_json_for_locale(
                 &DeleteAgentResult { uid, deleted: true },
                 std::io::stdout(),
+                locale,
             )?;
         }
     }

@@ -11,6 +11,9 @@ use warpui_extras::user_preferences::file_backed::FileBackedUserPreferences;
 
 use crate::util::{ShellRcType, set_zsh_histfile_location, write_rc_files_for_test};
 
+const APP_LANGUAGE_USER_PREF: &str = "AppLanguage";
+const ENGLISH_LANGUAGE_USER_PREF_VALUE: &str = "\"english\"";
+
 // We have logic in our build script to pass the path of the cargo target
 // tmp directory to our app. This needs to be done as a build script because
 // the relevant env var is only available at build time to ensure things like
@@ -51,7 +54,10 @@ impl Builder {
         Self {
             inner: builder,
             setup: None,
-            user_prefs: Default::default(),
+            user_prefs: HashMap::from([(
+                APP_LANGUAGE_USER_PREF.to_owned(),
+                ENGLISH_LANGUAGE_USER_PREF_VALUE.to_owned(),
+            )]),
         }
     }
 

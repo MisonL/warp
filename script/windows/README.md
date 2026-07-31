@@ -27,7 +27,7 @@ However, it requires the Inno Setup compiler to be turned into a `.exe` file.
 ## How to compile this installer
 
 First, ensure you've set up your environment.
-* Download and install the [Inno Setup Compiler](https://jrsoftware.org/isdl.php).
+* Download and install [Inno Setup Compiler 6.5.0 or newer](https://jrsoftware.org/isdl.php).
 * Run `cargo build` to ensure the installer uses the latest version of Warp.
 
 ### Option 1: Use the CLI
@@ -57,6 +57,16 @@ The following constants can be overwritten:
 1. Open the Inno Setup application and select this script.
 2. Click the "compile" button. This will generate an installer executable in a directory called `Output` at the same level as this script.
 2. To run the installer, click the "run" button in Inno Setup.
+
+## Installer languages
+
+The Simplified Chinese message catalog is bundled at
+`languages/ChineseSimplified.isl` because it is not included in a standard
+Inno Setup installation. It is sourced from the
+[`is-6_7_1` Inno Setup source tag](https://github.com/jrsoftware/issrc/blob/is-6_7_1/Files/Languages/Unofficial/ChineseSimplified.isl).
+The repository copy only normalizes CRLF line endings to LF and removes one
+trailing space from a comment; its translation content is unchanged. Its
+license is stored beside it in `languages/LICENSE-Inno-Setup.txt`.
 
 
 ## Using icons

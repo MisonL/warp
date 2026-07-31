@@ -12,6 +12,7 @@ use warpui::{
     ViewHandle,
 };
 
+use crate::localization;
 use crate::modal::{Modal, ModalEvent};
 use crate::pane_group::TerminalPaneId;
 use crate::terminal::TerminalModel;
@@ -26,9 +27,6 @@ use denied_body::{DeniedBody, DeniedBodyEvent};
 
 use self::body::BodyEvent;
 use super::{SharedSessionActionSource, SharedSessionScrollbackType};
-
-const MODAL_HEADER: &str = "Share session";
-const SESSION_LIMIT_REACHED_HEADER: &str = "Shared session limit reached";
 
 pub struct ShareSessionModal {
     modal: ViewHandle<Modal<Body>>,
@@ -72,17 +70,24 @@ impl ShareSessionModal {
         });
 
         let modal = ctx.add_typed_action_view(|ctx| {
-            Modal::new(Some(MODAL_HEADER.to_string()), body, ctx)
-                .with_modal_style(UiComponentStyles {
-                    width: Some(MODAL_WIDTH),
-                    height: Some(MODAL_HEIGHT),
-                    ..Default::default()
-                })
-                .with_header_style(style::modal_header_styles())
-                .with_body_style(style::modal_body_styles())
-                .with_background_opacity(100)
-                .with_dismiss_on_click()
-                .close_modal_button_disabled()
+            Modal::new(
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.shared_session.share_modal.title",
+                )),
+                body,
+                ctx,
+            )
+            .with_modal_style(UiComponentStyles {
+                width: Some(MODAL_WIDTH),
+                height: Some(MODAL_HEIGHT),
+                ..Default::default()
+            })
+            .with_header_style(style::modal_header_styles())
+            .with_body_style(style::modal_body_styles())
+            .with_background_opacity(100)
+            .with_dismiss_on_click()
+            .close_modal_button_disabled()
         });
 
         let denied_body = ctx.add_typed_action_view(DeniedBody::new);
@@ -91,7 +96,10 @@ impl ShareSessionModal {
         });
         let denied_modal = ctx.add_typed_action_view(|ctx| {
             let mut denied_modal = Modal::new(
-                Some(SESSION_LIMIT_REACHED_HEADER.to_string()),
+                Some(localization::text_for_app(
+                    ctx,
+                    "terminal.shared_session.share_modal.limit_reached_title",
+                )),
                 denied_body,
                 ctx,
             )

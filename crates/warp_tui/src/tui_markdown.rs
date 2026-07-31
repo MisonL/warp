@@ -18,6 +18,7 @@ use warpui_core::elements::tui::{
 };
 use warpui_core::elements::{CrossAxisAlignment, ListNumbering};
 
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 mod table;
 
@@ -133,9 +134,11 @@ pub(crate) fn render_formatted_text(
             }
             FormattedTextLine::Table(table) => render_formatted_table(table, palette),
             FormattedTextLine::Image(image) => image_fallback(image, palette),
-            FormattedTextLine::Embedded(_) => TuiText::new("[Unsupported embedded content]")
-                .with_style(palette.fallback)
-                .finish(),
+            FormattedTextLine::Embedded(_) => TuiText::new(localization::text(
+                "tui.markdown.unsupported_embedded_content",
+            ))
+            .with_style(palette.fallback)
+            .finish(),
             FormattedTextLine::LineBreak => blank_row(),
             FormattedTextLine::HorizontalRule => TuiMarkdownRule::new(palette.rule).finish(),
         };
@@ -299,11 +302,20 @@ fn image_fallback(image: &FormattedImage, palette: TuiMarkdownPalette) -> Box<dy
         image.title.as_deref()
     };
     let mut spans = if let Some(description) = description {
-        vec![(format!("Image: {description}"), palette.fallback)]
+        vec![(
+            localization::text_with_args("tui.markdown.image", &[("description", description)]),
+            palette.fallback,
+        )]
     } else if !image.source.is_empty() {
-        vec![(format!("Image: {}", image.source), palette.link)]
+        vec![(
+            localization::text_with_args("tui.markdown.image", &[("description", &image.source)]),
+            palette.link,
+        )]
     } else {
-        vec![("[Image without description]".to_owned(), palette.fallback)]
+        vec![(
+            localization::text("tui.markdown.image_without_description"),
+            palette.fallback,
+        )]
     };
     if description.is_some() && !image.source.is_empty() {
         spans.push((format!(" ({})", image.source), palette.link));

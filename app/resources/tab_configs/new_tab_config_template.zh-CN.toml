@@ -1,0 +1,16 @@
+# Warp 标签页配置
+# 存储在 ~/.warp/tab_configs/，你可以随时重命名并编辑此文件。
+#
+# 提示：可以通过 /skills -> /update-tab-config 让 Oz 帮你更新此标签页配置。
+#   例如："/update-tab-config turn this into a 2x2 tab config with one pane running my dev server"
+#
+# 文档：https://docs.warp.dev/terminal/windows/tab-configs
+
+name = "My Tab Config"
+name_zh_CN = "我的标签页配置"
+
+[[panes]]
+id = "main"
+type = "terminal"
+# directory = "~/code/my-project"
+commands = []

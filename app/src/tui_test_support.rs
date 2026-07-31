@@ -2,6 +2,7 @@
 
 use ai::api_keys::ApiKeyManager;
 use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
+use settings::Setting;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 use warpui::{ModelContext, SingletonEntity as _};
 
@@ -30,7 +31,9 @@ use crate::network::NetworkStatus;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::sync_queue::SyncQueue;
 use crate::settings::manager::SettingsManager;
-use crate::settings::{AISettings, PrivacySettings, init_and_register_user_preferences};
+use crate::settings::{
+    AISettings, AppLanguage, LanguageSettings, PrivacySettings, init_and_register_user_preferences,
+};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::user_config::WarpConfig;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -53,6 +56,15 @@ pub fn register_tui_session_view_test_singletons(app: &mut warpui::App) {
     app.update(init_and_register_user_preferences);
     app.add_singleton_model(|_| SettingsManager::default());
     app.add_singleton_model(WarpConfig::mock);
+    LanguageSettings::register(app);
+    app.update(|ctx| {
+        LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+            settings
+                .app_language
+                .load_value(AppLanguage::English, true, ctx)
+                .expect("test language setting should update");
+        });
+    });
     app.update(|ctx| {
         warpui_extras::secure_storage::register_noop("test", ctx);
     });

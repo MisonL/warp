@@ -7,11 +7,12 @@ use warp::editor::{CodeEditorModel, CodeEditorModelEvent};
 use warp::tui_export::FileDiff;
 use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::model::CoreEditorModel;
+use warp_localization::LocaleId;
 use warpui::App;
 
 use super::{
-    SectionKey, SectionStates, ToolCallDisplayState, deltas_for, file_edit_header_label,
-    verb_and_name,
+    FileEditVerb, SectionKey, SectionStates, ToolCallDisplayState, deltas_for,
+    file_edit_header_label_for_locale, summary_header_label_for_locale, verb_and_name,
 };
 
 fn delta(range: std::ops::Range<usize>, insertion: &str) -> DiffDelta {
@@ -37,21 +38,53 @@ fn all_file_edit_sections_start_collapsed_and_toggle_independently() {
 #[test]
 fn blocked_file_edit_headers_use_in_progress_wording() {
     assert_eq!(
-        file_edit_header_label(ToolCallDisplayState::Blocked, "Edited", "2 files"),
-        "Editing 2 files"
+        file_edit_header_label_for_locale(
+            LocaleId::EnUs,
+            ToolCallDisplayState::Blocked,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "Editing lib.rs"
     );
     assert_eq!(
-        file_edit_header_label(ToolCallDisplayState::Blocked, "Updated", "lib.rs"),
-        "Editing lib.rs"
+        file_edit_header_label_for_locale(
+            LocaleId::ZhCn,
+            ToolCallDisplayState::Blocked,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "正在编辑 lib.rs"
     );
 
     assert_eq!(
-        file_edit_header_label(ToolCallDisplayState::Succeeded, "Edited", "2 files"),
-        "Edited 2 files"
+        file_edit_header_label_for_locale(
+            LocaleId::EnUs,
+            ToolCallDisplayState::Succeeded,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "Updated lib.rs"
     );
     assert_eq!(
-        file_edit_header_label(ToolCallDisplayState::Succeeded, "Updated", "lib.rs"),
-        "Updated lib.rs"
+        file_edit_header_label_for_locale(
+            LocaleId::ZhCn,
+            ToolCallDisplayState::Succeeded,
+            FileEditVerb::Updated,
+            "lib.rs",
+        ),
+        "已更新 lib.rs"
+    );
+    assert_eq!(
+        summary_header_label_for_locale(LocaleId::EnUs, ToolCallDisplayState::Blocked, 2),
+        "Editing 2 files"
+    );
+    assert_eq!(
+        summary_header_label_for_locale(LocaleId::ZhCn, ToolCallDisplayState::Blocked, 2),
+        "正在编辑 2 个文件"
+    );
+    assert_eq!(
+        summary_header_label_for_locale(LocaleId::ZhCn, ToolCallDisplayState::Succeeded, 2),
+        "已编辑 2 个文件"
     );
 }
 
@@ -73,11 +106,14 @@ fn verbs_follow_the_diff_op() {
         "/tmp/a/new.rs".to_owned(),
         DiffType::creation("fn main() {}\n".to_owned()),
     );
-    assert_eq!(verb_and_name(&create), ("Created", "new.rs".to_owned()));
+    assert_eq!(
+        verb_and_name(&create),
+        (FileEditVerb::Created, "new.rs".to_owned())
+    );
 
     assert_eq!(
         verb_and_name(&update_diff("/tmp/a/lib.rs", None)),
-        ("Updated", "lib.rs".to_owned())
+        (FileEditVerb::Updated, "lib.rs".to_owned())
     );
 
     let delete = FileDiff::new(
@@ -87,19 +123,22 @@ fn verbs_follow_the_diff_op() {
             delta: delta(1..2, ""),
         },
     );
-    assert_eq!(verb_and_name(&delete), ("Deleted", "old.rs".to_owned()));
+    assert_eq!(
+        verb_and_name(&delete),
+        (FileEditVerb::Deleted, "old.rs".to_owned())
+    );
 }
 
 #[test]
 fn renames_display_old_and_new_names() {
     assert_eq!(
         verb_and_name(&update_diff("/tmp/a/old.rs", Some("/tmp/a/new.rs"))),
-        ("Updated", "old.rs → new.rs".to_owned())
+        (FileEditVerb::Updated, "old.rs → new.rs".to_owned())
     );
     // A rename to the same file name (e.g. a directory move) shows one name.
     assert_eq!(
         verb_and_name(&update_diff("/tmp/a/lib.rs", Some("/tmp/b/lib.rs"))),
-        ("Updated", "lib.rs".to_owned())
+        (FileEditVerb::Updated, "lib.rs".to_owned())
     );
 }
 

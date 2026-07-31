@@ -50,3 +50,20 @@ fn codex_remains_product_disabled() {
         }
     );
 }
+
+#[test]
+fn user_facing_setup_messages_have_localization_keys() {
+    assert_eq!(
+        local_harness_setup_message_key(LOCAL_HARNESS_INSTALLATION_REQUIRED_TOOLTIP),
+        Some("agent.orchestration.controls.local_claude_install_required")
+    );
+    assert_eq!(
+        local_harness_setup_message_key(LOCAL_CODEX_HARNESS_INSTALLATION_REQUIRED_TOOLTIP),
+        Some("agent.orchestration.controls.local_codex_install_required")
+    );
+    assert_eq!(
+        local_harness_setup_message_key(LOCAL_CODEX_HARNESS_DISABLED_MESSAGE),
+        Some("agent.orchestration.controls.local_codex_disabled")
+    );
+    assert_eq!(local_harness_setup_message_key("internal error"), None);
+}

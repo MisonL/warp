@@ -1,6 +1,7 @@
 ---
 name: warpctrl
 description: Control and inspect the currently running local Warp application with the warpctrl CLI. Use this skill whenever the user asks the agent to manipulate Warp's own windows, tabs, panes, sessions, input buffer, themes, or UI surfaces; open a file in Warp; inspect local Warp state; or explain how to invoke Warp Control manually.
+description_zh_CN: 使用 warpctrl CLI 控制和检查当前正在运行的本地 Warp 应用。用户要操作 Warp 自身的窗口、标签页、窗格、会话、输入框、主题或 UI 表面；在 Warp 中打开文件；检查本地 Warp 状态；或说明如何手动调用 Warp Control 时使用此 skill。
 ---
 
 # Warp Control

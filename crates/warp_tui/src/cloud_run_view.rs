@@ -19,10 +19,11 @@ use crate::cloud_run::{TuiCloudRunStartup, TuiCloudRunState};
 use crate::exit_confirmation::{CTRL_C_EXIT_WINDOW, ExitConfirmation};
 use crate::keybindings::TUI_BINDING_GROUP;
 use crate::link::TuiLink;
+use crate::localization;
 use crate::orchestration_model::{TuiOrchestrationModel, TuiOrchestrationSnapshot};
 use crate::orchestration_tab_bar::{
-    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, TuiOrchestrationTabNavigationAction,
-    orchestration_tab_bar_config, register_orchestration_surface_bindings,
+    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, TuiOrchestrationTabNavigationAction, binding_description,
+    focus_sub_agents_hint, orchestration_tab_bar_config, register_orchestration_surface_bindings,
     render_cloud_orchestration_tab_footer,
 };
 use crate::session_registry::TuiSessions;
@@ -43,7 +44,7 @@ struct CloudRunDisplayState {
     status: ConversationStatus,
     status_label: String,
     detail: Option<String>,
-    link_instruction: Option<&'static str>,
+    link_instruction: Option<String>,
     link_url: Option<String>,
 }
 
@@ -68,7 +69,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "tui:cloud_session:open_url",
-            "Open the cloud run link",
+            binding_description(
+                "Open the cloud run link",
+                "tui.orchestration.binding.open_cloud_run",
+            ),
             TuiCloudRunAction::OpenPrimaryUrl,
         )
         .with_context_predicate(view_context.clone())
@@ -76,7 +80,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("enter"),
         EditableBinding::new(
             "tui:cloud_session:focus_orchestration_tabs",
-            "Focus the orchestration tab bar",
+            binding_description(
+                "Focus the orchestration tab bar",
+                "tui.orchestration.binding.focus_tab_bar",
+            ),
             TuiCloudRunAction::FocusOrchestrationTabs,
         )
         .with_context_predicate(view_context)
@@ -216,7 +223,7 @@ impl TuiCloudRunView {
         match state.startup() {
             TuiCloudRunStartup::Dispatching => CloudRunDisplayState {
                 status: ConversationStatus::InProgress,
-                status_label: "Starting cloud run…".to_string(),
+                status_label: localization::text("tui.orchestration.cloud_run.status.dispatching"),
                 detail: None,
                 link_instruction: None,
                 link_url: None,
@@ -225,17 +232,23 @@ impl TuiCloudRunView {
                 status: ConversationStatus::Blocked {
                     blocked_action: blocker.message().to_owned(),
                 },
-                status_label: "GitHub authentication required".to_string(),
-                detail: Some(format!(
-                    "{} Authenticate, then run the orchestration request again.",
-                    blocker.message()
+                status_label: localization::text(
+                    "tui.orchestration.cloud_run.status.github_auth_required",
+                ),
+                detail: Some(localization::text_with_args(
+                    "tui.orchestration.cloud_run.detail.github_auth_required",
+                    &[("message", blocker.message())],
                 )),
-                link_instruction: Some("to authenticate or click the link below"),
+                link_instruction: Some(localization::text(
+                    "tui.orchestration.cloud_run.instruction.authenticate",
+                )),
                 link_url: Some(blocker.primary_url().to_string()),
             },
             TuiCloudRunStartup::Failed(failure) => CloudRunDisplayState {
                 status: ConversationStatus::Error,
-                status_label: "Cloud run failed to start".to_string(),
+                status_label: localization::text(
+                    "tui.orchestration.cloud_run.status.failed_to_start",
+                ),
                 detail: Some(failure.message().to_string()),
                 link_instruction: None,
                 link_url: None,
@@ -252,17 +265,23 @@ impl TuiCloudRunView {
                 let status_label = match status {
                     ConversationStatus::InProgress
                     | ConversationStatus::TransientError
-                    | ConversationStatus::WaitingForEvents => "Cloud run in progress",
-                    ConversationStatus::Blocked { .. } => "Cloud run blocked",
-                    ConversationStatus::Success => "Cloud run succeeded",
-                    ConversationStatus::Error => "Cloud run failed",
-                    ConversationStatus::Cancelled => "Cloud run cancelled",
+                    | ConversationStatus::WaitingForEvents => {
+                        "tui.orchestration.cloud_run.status.in_progress"
+                    }
+                    ConversationStatus::Blocked { .. } => {
+                        "tui.orchestration.cloud_run.status.blocked"
+                    }
+                    ConversationStatus::Success => "tui.orchestration.cloud_run.status.succeeded",
+                    ConversationStatus::Error => "tui.orchestration.cloud_run.status.failed",
+                    ConversationStatus::Cancelled => "tui.orchestration.cloud_run.status.cancelled",
                 };
                 CloudRunDisplayState {
                     status: status.clone(),
-                    status_label: status_label.to_string(),
+                    status_label: localization::text(status_label),
                     detail: None,
-                    link_instruction: Some("to view or click the link below"),
+                    link_instruction: Some(localization::text(
+                        "tui.orchestration.cloud_run.instruction.view",
+                    )),
                     link_url: state.run_url().map(str::to_string),
                 }
             }
@@ -413,9 +432,15 @@ impl TuiView for TuiCloudRunView {
             content = content
                 .child(
                     TuiText::from_spans([
-                        ("Press ".to_string(), builder.muted_text_style()),
                         (
-                            "enter".to_string(),
+                            format!(
+                                "{} ",
+                                localization::text("tui.orchestration.cloud_run.press")
+                            ),
+                            builder.muted_text_style(),
+                        ),
+                        (
+                            localization::text("tui.orchestration.cloud_run.key.enter"),
                             builder.primary_text_style().add_modifier(Modifier::BOLD),
                         ),
                         (format!(" {instruction}"), builder.muted_text_style()),
@@ -446,7 +471,7 @@ impl TuiView for TuiCloudRunView {
             let footer = if self.orchestration_tabs_focused {
                 render_cloud_orchestration_tab_footer(&builder)
             } else {
-                TuiText::new("Shift + ↑ sub-agents")
+                TuiText::new(focus_sub_agents_hint())
                     .with_style(builder.muted_text_style())
                     .truncate()
                     .finish()

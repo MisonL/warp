@@ -19,6 +19,7 @@ use warpui::{
 use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
 
@@ -106,9 +107,13 @@ impl View for RewindConfirmationDialog {
         let rewind_button_label = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
-                Text::new_inline("Rewind", appearance.ui_font_family(), 14.)
-                    .with_color(text_color)
-                    .finish(),
+                Text::new_inline(
+                    localization::text_for_app(app, "workspace.rewind.confirm"),
+                    appearance.ui_font_family(),
+                    14.,
+                )
+                .with_color(text_color)
+                .finish(),
             )
             .with_child(
                 Container::new(
@@ -160,9 +165,13 @@ impl View for RewindConfirmationDialog {
                 } else {
                     cancel_text_color
                 };
-                Text::new_inline("Cancel", appearance.ui_font_family(), 14.)
-                    .with_color(color.into_solid())
-                    .finish()
+                Text::new_inline(
+                    localization::text_for_app(app, "workspace.rewind.cancel"),
+                    appearance.ui_font_family(),
+                    14.,
+                )
+                .with_color(color.into_solid())
+                .finish()
             })
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| ctx.dispatch_typed_action(RewindConfirmationAction::Cancel))
@@ -187,7 +196,7 @@ impl View for RewindConfirmationDialog {
             )
             .with_child(
                 Text::new_inline(
-                    "Rewinding does not affect files edited manually or via shell commands.",
+                    localization::text_for_app(app, "workspace.rewind.manual_files_note"),
                     appearance.ui_font_family(),
                     12.,
                 )

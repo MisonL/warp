@@ -19,6 +19,7 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
 use crate::auth::AuthStateProvider;
+use crate::localization;
 use crate::settings_view::SettingsSection;
 use crate::ui_components::blended_colors;
 use crate::workspace::WorkspaceAction;
@@ -28,17 +29,6 @@ const MODAL_WIDTH: f32 = 480.;
 const CORNER_RADIUS: f32 = 12.;
 const PANEL_PADDING: f32 = 24.;
 const CLOSE_BUTTON_DIAMETER: f32 = 20.;
-
-const NOTICE_TITLE_TEXT: &str = "Warp is no longer providing inference on the free plan.";
-const NOTICE_BODY_TEXT: &str = "To keep using Warp's AI features, please upgrade to a paid plan, \
-     bring your own API key or endpoint, or log in with your Grok subscription.";
-const NOTICE_BONUS_CREDITS_TEXT: &str = "If you have any unused bonus credits, AI will keep \
-     working until these run out.";
-
-const PROMPT_SUGGESTIONS_TITLE_TEXT: &str = "How to use AI features in Warp";
-const PROMPT_SUGGESTIONS_BODY_TEXT: &str = "To use AI features in Warp, subscribe to a paid plan, \
-     add an API key (OpenAI, Anthropic, or Google), add a custom inference endpoint (OpenRouter, \
-     LiteLLM), or log in using your SuperGrok subscription.";
 
 /// Which surface opened the modal. Selects the copy and disambiguates telemetry;
 /// the layout and CTAs are identical across variants.
@@ -51,26 +41,26 @@ pub enum FreeAiRemovalModalVariant {
 }
 
 impl FreeAiRemovalModalVariant {
-    fn title(self) -> &'static str {
+    fn title_key(self) -> &'static str {
         match self {
-            Self::Notice => NOTICE_TITLE_TEXT,
-            Self::PromptSuggestions => PROMPT_SUGGESTIONS_TITLE_TEXT,
+            Self::Notice => "workspace.free_ai_removal.notice.title",
+            Self::PromptSuggestions => "workspace.free_ai_removal.prompt_suggestions.title",
         }
     }
 
-    fn body(self) -> &'static str {
+    fn body_key(self) -> &'static str {
         match self {
-            Self::Notice => NOTICE_BODY_TEXT,
-            Self::PromptSuggestions => PROMPT_SUGGESTIONS_BODY_TEXT,
+            Self::Notice => "workspace.free_ai_removal.notice.body",
+            Self::PromptSuggestions => "workspace.free_ai_removal.prompt_suggestions.body",
         }
     }
 
     /// Secondary note rendered under the body. The on-demand Prompt Suggestions
     /// variant only fires once the user is already out of credits, so the
     /// bonus-credits note doesn't apply there.
-    fn secondary(self) -> Option<&'static str> {
+    fn secondary_key(self) -> Option<&'static str> {
         match self {
-            Self::Notice => Some(NOTICE_BONUS_CREDITS_TEXT),
+            Self::Notice => Some("workspace.free_ai_removal.notice.bonus_credits"),
             Self::PromptSuggestions => None,
         }
     }
@@ -140,7 +130,7 @@ impl FreeAiRemovalModal {
         }
     }
 
-    fn render_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let byok_button = appearance
             .ui_builder()
             .button(
@@ -152,7 +142,10 @@ impl FreeAiRemovalModal {
                 height: Some(32.),
                 ..Default::default()
             })
-            .with_centered_text_label("Bring your own AI".to_string())
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "workspace.free_ai_removal.action.bring_your_own_ai",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(|ctx, _, _| {
@@ -171,7 +164,10 @@ impl FreeAiRemovalModal {
                 height: Some(32.),
                 ..Default::default()
             })
-            .with_centered_text_label("View pricing".to_string())
+            .with_centered_text_label(localization::text_for_app(
+                app,
+                "workspace.free_ai_removal.action.view_pricing",
+            ))
             .build()
             .with_cursor(Cursor::PointingHand)
             .on_click(|ctx, _, _| {
@@ -217,15 +213,23 @@ impl View for FreeAiRemovalModal {
         let bg = blended_colors::neutral_1(theme);
         let font_family = appearance.ui_font_family();
 
-        let title = FormattedTextElement::from_str(self.variant.title(), font_family, 18.)
-            .with_color(blended_colors::text_main(theme, bg))
-            .with_weight(Weight::Bold)
-            .finish();
+        let title = FormattedTextElement::from_str(
+            localization::text_for_app(app, self.variant.title_key()),
+            font_family,
+            18.,
+        )
+        .with_color(blended_colors::text_main(theme, bg))
+        .with_weight(Weight::Bold)
+        .finish();
 
         let body_color = blended_colors::text_sub(theme, bg);
-        let body = FormattedTextElement::from_str(self.variant.body(), font_family, 14.)
-            .with_color(body_color)
-            .finish();
+        let body = FormattedTextElement::from_str(
+            localization::text_for_app(app, self.variant.body_key()),
+            font_family,
+            14.,
+        )
+        .with_color(body_color)
+        .finish();
 
         let mut content = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
@@ -233,7 +237,7 @@ impl View for FreeAiRemovalModal {
 
         // Tighten the gap below the body when a secondary note follows; otherwise
         // keep the full gap above the buttons.
-        let body_margin_bottom = if self.variant.secondary().is_some() {
+        let body_margin_bottom = if self.variant.secondary_key().is_some() {
             8.
         } else {
             20.
@@ -244,14 +248,20 @@ impl View for FreeAiRemovalModal {
                 .finish(),
         );
 
-        if let Some(secondary_text) = self.variant.secondary() {
-            let secondary = FormattedTextElement::from_str(secondary_text, font_family, 14.)
-                .with_color(body_color)
-                .finish();
+        if let Some(secondary_key) = self.variant.secondary_key() {
+            let secondary = FormattedTextElement::from_str(
+                localization::text_for_app(app, secondary_key),
+                font_family,
+                14.,
+            )
+            .with_color(body_color)
+            .finish();
             content.add_child(Container::new(secondary).with_margin_bottom(20.).finish());
         }
 
-        let content = content.with_child(self.render_buttons(appearance)).finish();
+        let content = content
+            .with_child(self.render_buttons(appearance, app))
+            .finish();
 
         let mut modal = Stack::new();
         modal.add_child(

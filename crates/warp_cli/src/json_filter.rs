@@ -8,6 +8,8 @@ use clap::Args;
 use jaq_all::data::{self, DataKind};
 use jaq_all::load::FileReportsDisp;
 
+use crate::localization::text_with_args;
+
 /// A jq filter, compiled and ready to execute against a [`jaq_json::Val`].
 ///
 /// This wraps the compiled [`jaq_all::data::Filter`] with `Clone` and `Debug`
@@ -71,7 +73,10 @@ pub fn parse_jq_filter(src: &str) -> Result<JqFilter, String> {
                 .iter()
                 .map(|report| FileReportsDisp::new(report).to_string())
                 .collect::<String>();
-            format!("invalid jq filter `{src}`:\n{detail}")
+            text_with_args(
+                "cli.error.invalid_jq_filter",
+                &[("source", src), ("detail", &detail)],
+            )
         })?;
     Ok(JqFilter(Arc::new(compiled)))
 }

@@ -21,6 +21,7 @@ use crate::ai::mcp::templatable_installation::{VariableType, VariableValue};
 use crate::ai::mcp::{TemplatableMCPServer, TemplatableMCPServerManager, TemplateVariable};
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
+use crate::localization;
 use crate::settings_view::mcp_servers::style::{
     INSTALLATION_MODAL_BUTTON_GAP, INSTALLATION_MODAL_BUTTON_PADDING,
     INSTALLATION_MODAL_INPUT_VERTICAL_SPACING, INSTALLATION_MODAL_LABEL_VERTICAL_SPACING,
@@ -74,19 +75,26 @@ pub struct InstallationModalBody {
 
 impl InstallationModalBody {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let cancel_button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new("Cancel", NakedTheme).on_click(|ctx| {
+        let cancel_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.action.cancel"),
+                NakedTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(InstallationModalBodyAction::Cancel);
             })
         });
 
         let enter_keystroke = Keystroke::parse("enter").expect("valid keystroke");
         let install_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Install", PrimaryTheme)
-                .with_keybinding(KeystrokeSource::Fixed(enter_keystroke), ctx)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(InstallationModalBodyAction::Install);
-                })
+            ActionButton::new(
+                localization::text_for_app(ctx, "settings.mcp.install.install"),
+                PrimaryTheme,
+            )
+            .with_keybinding(KeystrokeSource::Fixed(enter_keystroke), ctx)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(InstallationModalBodyAction::Install);
+            })
         });
 
         Self {
@@ -225,6 +233,7 @@ impl InstallationModalBody {
     fn render_title(
         name: String,
         appearance: &Appearance,
+        app: &AppContext,
         close_button_mouse_state: MouseStateHandle,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
@@ -257,7 +266,11 @@ impl InstallationModalBody {
 
         // Renders MCP title text
         let title = Text::new(
-            format!("Install {name}"),
+            localization::text_for_app_with_args(
+                app,
+                "settings.mcp.install.title",
+                &[("name", &name)],
+            ),
             appearance.ui_font_family(),
             appearance.header_font_size(),
         )
@@ -412,7 +425,11 @@ impl InstallationModalBody {
         form_column
     }
 
-    fn render_source_indicator(is_shared: bool, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_source_indicator(
+        is_shared: bool,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let info_icon = ConstrainedBox::new(
             Icon::Info
                 .to_warpui_icon(appearance.theme().disabled_ui_text_color())
@@ -423,13 +440,13 @@ impl InstallationModalBody {
         .finish();
 
         let source_text = if is_shared {
-            "Shared from team"
+            localization::text_for_app(app, "settings.mcp.install.source.shared_from_team")
         } else {
-            "From another device"
+            localization::text_for_app(app, "settings.mcp.install.source.from_another_device")
         };
 
         let label_text = Text::new_inline(
-            source_text.to_string(),
+            source_text,
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
@@ -456,8 +473,8 @@ impl InstallationModalBody {
             .finish()
     }
 
-    fn render_buttons_row(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let source_indicator = Self::render_source_indicator(self.is_shared, appearance);
+    fn render_buttons_row(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let source_indicator = Self::render_source_indicator(self.is_shared, appearance, app);
         let action_buttons = self.render_action_buttons();
 
         let spacer = Shrinkable::new(1., Container::new(Empty::new().finish()).finish()).finish();
@@ -518,6 +535,7 @@ impl View for InstallationModalBody {
             form_column.add_child(Self::render_title(
                 templatable_mcp_server.name.clone(),
                 appearance,
+                ctx,
                 self.close_button_mouse_state.clone(),
             ));
 
@@ -544,11 +562,11 @@ impl View for InstallationModalBody {
                         .with_uniform_padding(INSTALLATION_MODAL_PADDING)
                         .finish(),
                 )
-                .with_child(self.render_buttons_row(appearance))
+                .with_child(self.render_buttons_row(appearance, ctx))
                 .finish()
         } else {
             Text::new(
-                "No MCP server selected",
+                localization::text_for_app(ctx, "settings.mcp.install.no_server_selected"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )

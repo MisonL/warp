@@ -1,6 +1,7 @@
 ---
 name: agent-add-mcp
 description: Use this skill when helping users add MCP servers to their Warp configuration.
+description_zh_CN: 帮助用户向 Warp 配置添加 MCP 服务器时使用此技能。
 ---
 
 # Adding MCP Servers to Warp

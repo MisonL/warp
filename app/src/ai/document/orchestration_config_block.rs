@@ -45,9 +45,12 @@ use crate::ai::harness_availability::{
     AuthSecretFetchState, HarnessAvailabilityEvent, HarnessAvailabilityModel,
 };
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
+use crate::ai::orchestration::RunnerFetchState;
 use crate::appearance::Appearance;
+use crate::localization::{self, LocalizationUpdater};
 use crate::server::server_api::ServerApiProvider;
 use crate::ui_components::blended_colors;
+use crate::view_components::FilterableDropdownEvent;
 use crate::workspace::WorkspaceAction;
 
 /// True when the mode is remote and `environment_id` is non-empty.
@@ -65,11 +68,6 @@ fn host_presence(execution_mode: &RunAgentsExecutionMode) -> bool {
         RunAgentsExecutionMode::Remote { worker_host, .. } if !worker_host.is_empty()
     )
 }
-
-const CONFIG_BLOCK_HEADER: &str = "Use orchestration";
-const CONFIG_BLOCK_DESCRIPTION: &str =
-    "Break this work into coordinated streams with multiple agents.";
-const BASE_MODEL_HELPER: &str = "The primary model all agents will use.";
 
 // ── Action type ─────────────────────────────────────────────────────
 
@@ -159,8 +157,8 @@ pub struct OrchestrationConfigBlockView {
     user_has_interacted: bool,
     /// Runners fetched via `getRunners` for the Runner picker: (uid, name).
     runners: Vec<(String, String)>,
-    /// True while the `getRunners` fetch is in flight.
-    runners_loading: bool,
+    /// The state of the lazily fetched runner catalog.
+    runner_fetch_state: RunnerFetchState,
 }
 
 impl OrchestrationConfigBlockView {
@@ -307,6 +305,9 @@ impl OrchestrationConfigBlockView {
                 }
             },
         );
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |_, _, _, ctx| {
+            ctx.notify();
+        });
         let mut view = Self {
             conversation_id,
             plan_id,
@@ -322,7 +323,7 @@ impl OrchestrationConfigBlockView {
             has_auto_opened_create_modal: false,
             user_has_interacted: false,
             runners: Vec::new(),
-            runners_loading: false,
+            runner_fetch_state: RunnerFetchState::NotFetched,
         };
         if view.is_approved {
             view.ensure_pickers(ctx);
@@ -686,11 +687,16 @@ impl OrchestrationConfigBlockView {
         let runner_handle = oc::create_runner_picker(
             &initial_runner,
             &self.runners,
-            self.runners_loading,
+            self.runner_fetch_state,
             &styles,
             ctx,
         );
         runner_handle.update(ctx, |d, c| d.set_use_overlay_layer(true, c));
+        ctx.subscribe_to_view(&runner_handle, |_, _, event, ctx| {
+            if let FilterableDropdownEvent::ToggleExpanded = event {
+                ctx.spawn(async {}, |me, _, ctx| me.fetch_runners(ctx));
+            }
+        });
         self.pickers.runner_picker = Some(runner_handle);
         self.fetch_runners(ctx);
     }
@@ -698,23 +704,28 @@ impl OrchestrationConfigBlockView {
     /// Fetches available runners via `getRunners` (name-sorted server-side)
     /// and repopulates the Runner picker once they resolve.
     fn fetch_runners(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.runners_loading || !self.runners.is_empty() {
+        if matches!(
+            self.runner_fetch_state,
+            RunnerFetchState::Loading | RunnerFetchState::Loaded
+        ) {
             return;
         }
-        self.runners_loading = true;
+        self.runner_fetch_state = RunnerFetchState::Loading;
+        self.resync_runner_selection(ctx);
         let client = ServerApiProvider::as_ref(ctx).get_factory_client();
         ctx.spawn(
             async move { client.get_runners(Some(RunnerSortBy::Name)).await },
             |me, result, ctx| {
-                me.runners_loading = false;
                 match result {
                     Ok(runners) => {
                         me.runners = runners
                             .into_iter()
                             .map(|r| (r.uid.inner().to_string(), r.config.name))
                             .collect();
+                        me.runner_fetch_state = RunnerFetchState::Loaded;
                     }
                     Err(err) => {
+                        me.runner_fetch_state = RunnerFetchState::Failed;
                         log::warn!("Failed to fetch runners for plan-card runner picker: {err}");
                     }
                 }
@@ -727,7 +738,13 @@ impl OrchestrationConfigBlockView {
                     RunAgentsExecutionMode::Local => String::new(),
                 };
                 if let Some(handle) = me.pickers.runner_picker.clone() {
-                    oc::populate_runner_picker(&handle, &me.runners, &current, false, ctx);
+                    oc::populate_runner_picker(
+                        &handle,
+                        &me.runners,
+                        &current,
+                        me.runner_fetch_state,
+                        ctx,
+                    );
                 }
                 ctx.notify();
             },
@@ -748,7 +765,13 @@ impl OrchestrationConfigBlockView {
             RunAgentsExecutionMode::Local => String::new(),
         };
         if let Some(handle) = self.pickers.runner_picker.clone() {
-            oc::populate_runner_picker(&handle, &self.runners, &current, self.runners_loading, ctx);
+            oc::populate_runner_picker(
+                &handle,
+                &self.runners,
+                &current,
+                self.runner_fetch_state,
+                ctx,
+            );
         }
     }
 }
@@ -770,7 +793,7 @@ impl View for OrchestrationConfigBlockView {
 
         // Header row: "Use orchestration" + pill toggle switch
         let header_label = Text::new(
-            CONFIG_BLOCK_HEADER.to_string(),
+            localization::text_for_app(app, "agent.orchestration.config.header"),
             appearance.ui_font_family(),
             16.,
         )
@@ -799,7 +822,7 @@ impl View for OrchestrationConfigBlockView {
 
         // Description
         let description = Text::new(
-            CONFIG_BLOCK_DESCRIPTION.to_string(),
+            localization::text_for_app(app, "agent.orchestration.config.description"),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -827,7 +850,7 @@ impl View for OrchestrationConfigBlockView {
             };
             let disabled_text_color = blended_colors::text_disabled(theme, theme.background());
             let details_text = Text::new(
-                "View details".to_string(),
+                localization::text_for_app(app, "agent.orchestration.config.view_details"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() + 1.,
             )
@@ -875,6 +898,7 @@ impl View for OrchestrationConfigBlockView {
                         appearance,
                         Some(active_seg_bg),
                         true,
+                        app,
                     ))
                     .with_margin_top(12.)
                     .finish(),
@@ -886,11 +910,12 @@ impl View for OrchestrationConfigBlockView {
                     &self.pickers,
                     appearance,
                     true,
+                    app,
                 ));
 
                 // Helper text
                 let helper = Text::new(
-                    BASE_MODEL_HELPER.to_string(),
+                    localization::text_for_app(app, "agent.orchestration.config.base_model_helper"),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size() - 1.,
                 )

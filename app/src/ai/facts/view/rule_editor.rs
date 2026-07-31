@@ -22,14 +22,15 @@ use crate::editor::{
     EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent,
     PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
+use crate::localization;
 use crate::network::NetworkStatus;
 use crate::server::ids::SyncId;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, DangerSecondaryTheme, PrimaryTheme};
 
-const RULE_NAME_PLACEHOLDER_TEXT: &str = "e.g. Rust rules";
-const RULE_DESCRIPTION_PLACEHOLDER_TEXT: &str = "e.g. Never use unwrap in Rust";
+const RULE_NAME_PLACEHOLDER_TEXT: &str = "ai.facts.rule_editor.name_placeholder";
+const RULE_DESCRIPTION_PLACEHOLDER_TEXT: &str = "ai.facts.rule_editor.description_placeholder";
 
 #[derive(Debug, Clone, Copy)]
 enum EditorType {
@@ -99,7 +100,10 @@ impl RuleEditorView {
                 },
                 ctx,
             );
-            editor.set_placeholder_text(RULE_NAME_PLACEHOLDER_TEXT, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, RULE_NAME_PLACEHOLDER_TEXT),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&name_editor, |me, _editor, event, ctx| {
@@ -126,7 +130,10 @@ impl RuleEditorView {
                 },
                 ctx,
             );
-            editor.set_placeholder_text(RULE_DESCRIPTION_PLACEHOLDER_TEXT, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, RULE_DESCRIPTION_PLACEHOLDER_TEXT),
+                ctx,
+            );
             editor
         });
         ctx.subscribe_to_view(&content_editor, |me, _editor, event, ctx| {
@@ -134,22 +141,28 @@ impl RuleEditorView {
         });
 
         let save_button = ctx.add_typed_action_view(|ctx| {
-            let mut button = ActionButton::new("Save", PrimaryTheme)
-                .with_icon(Icon::Check)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(RuleEditorViewAction::Save);
-                });
+            let mut button = ActionButton::new(
+                localization::text_for_app(ctx, "ai.facts.rule_editor.action.save"),
+                PrimaryTheme,
+            )
+            .with_icon(Icon::Check)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(RuleEditorViewAction::Save);
+            });
             // Disable the button until the user has entered a description
             button.set_disabled(true, ctx);
             button
         });
 
-        let delete_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Delete rule", DangerSecondaryTheme)
-                .with_icon(Icon::Trash)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(RuleEditorViewAction::Delete);
-                })
+        let delete_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "ai.facts.rule_editor.action.delete"),
+                DangerSecondaryTheme,
+            )
+            .with_icon(Icon::Trash)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(RuleEditorViewAction::Delete);
+            })
         });
 
         Self {
@@ -256,12 +269,15 @@ impl RuleEditorView {
             .finish()
     }
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let title = if self.ai_fact.is_none() {
-            "Add Rule"
-        } else {
-            "Edit Rule"
-        };
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
+        let title = localization::text_for_app(
+            app,
+            if self.ai_fact.is_none() {
+                "ai.facts.rule_editor.title.add"
+            } else {
+                "ai.facts.rule_editor.title.edit"
+            },
+        );
         Container::new(
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
@@ -330,18 +346,36 @@ impl RuleEditorView {
         .finish()
     }
 
-    fn render_form(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_form(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Flex::column()
             .with_child(
-                Container::new(appearance.ui_builder().span("Name").build().finish())
-                    .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
-                    .finish(),
+                Container::new(
+                    appearance
+                        .ui_builder()
+                        .span(localization::text_for_app(
+                            app,
+                            "ai.facts.rule_editor.field.name",
+                        ))
+                        .build()
+                        .finish(),
+                )
+                .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
+                .finish(),
             )
             .with_child(self.render_name_editor(appearance))
             .with_child(
-                Container::new(appearance.ui_builder().span("Rule").build().finish())
-                    .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
-                    .finish(),
+                Container::new(
+                    appearance
+                        .ui_builder()
+                        .span(localization::text_for_app(
+                            app,
+                            "ai.facts.rule_editor.field.rule",
+                        ))
+                        .build()
+                        .finish(),
+                )
+                .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
+                .finish(),
             )
             .with_child(self.render_content_editor(appearance))
             .finish()
@@ -369,8 +403,8 @@ impl View for RuleEditorView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut col = Flex::column()
-            .with_child(self.render_header(appearance))
-            .with_child(self.render_form(appearance));
+            .with_child(self.render_header(appearance, app))
+            .with_child(self.render_form(appearance, app));
 
         if let Some(ai_fact) = &self.ai_fact
             && is_delete_allowed(ai_fact.clone(), app)

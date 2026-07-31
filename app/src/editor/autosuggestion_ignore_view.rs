@@ -91,6 +91,7 @@ impl View for AutosuggestionIgnore {
                 .max(AUTOSUGGESTION_IGNORE_MINIMUM_HEIGHT);
         let disabled_color = blended_colors::semantic_text_disabled(appearance.theme());
         let border_width = 1.;
+        let tooltip_text = crate::localization::text_for_app(ctx, "editor.autosuggestion.ignore");
 
         // The stack contains the ignore button and tooltip that shows upon mouse hover.
         let mut stack = Stack::new();
@@ -138,7 +139,7 @@ impl View for AutosuggestionIgnore {
             if state.is_hovered() {
                 let tool_tip = appearance
                     .ui_builder()
-                    .autosuggestion_tool_tip("Ignore this suggestion".into())
+                    .autosuggestion_tool_tip(tooltip_text.clone())
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(

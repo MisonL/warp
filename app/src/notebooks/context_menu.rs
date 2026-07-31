@@ -12,6 +12,7 @@ use super::editor::keys::custom_action_to_display;
 use super::editor::view::RichTextEditorView;
 use super::telemetry::ActionEntrypoint;
 use crate::editor::EditorView;
+use crate::localization;
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::{PaneEvent, SplitPaneState};
@@ -128,19 +129,19 @@ where
         };
 
         if has_selection && can_edit {
-            let item = MenuItemFields::new("Cut")
+            let item = MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.cut"))
                 .with_on_select_action(V::Action::from(ContextMenuAction::CutSelectedText))
                 .with_key_shortcut_label(custom_action_to_display(CustomAction::Cut));
             items.push(item.into_item());
         }
         if has_selection {
-            let item = MenuItemFields::new("Copy")
+            let item = MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy"))
                 .with_on_select_action(V::Action::from(ContextMenuAction::CopySelectedText))
                 .with_key_shortcut_label(custom_action_to_display(CustomAction::Copy));
             items.push(item.into_item());
         }
         if can_edit {
-            let item = MenuItemFields::new("Paste")
+            let item = MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.paste"))
                 .with_on_select_action(V::Action::from(ContextMenuAction::Paste))
                 .with_key_shortcut_label(custom_action_to_display(CustomAction::Paste));
             items.push(item.into_item());
@@ -152,9 +153,12 @@ where
                 items.push(MenuItem::Separator);
             }
             items.push(
-                MenuItemFields::new("Copy file path")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::CopyFilePath))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "notebook.file.menu.copy_file_path",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::CopyFilePath))
+                .into_item(),
             );
         }
 
@@ -179,42 +183,54 @@ where
         let mut items = vec![];
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend([
-                MenuItemFields::new("Split pane right")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitRight(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_right",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane left")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitLeft(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_left",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane down")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitDown(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_down",
-                        ctx,
-                    ))
-                    .into_item(),
-                MenuItemFields::new("Split pane up")
-                    .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
-                        PaneEvent::SplitUp(None),
-                    )))
-                    .with_key_shortcut_label(keybinding_name_to_display_string(
-                        "pane_group:add_up",
-                        ctx,
-                    ))
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_right",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitRight(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_right",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_left",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitLeft(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_left",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_down",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitDown(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_down",
+                    ctx,
+                ))
+                .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    ctx,
+                    "terminal.menu.split_pane_up",
+                ))
+                .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
+                    PaneEvent::SplitUp(None),
+                )))
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "pane_group:add_up",
+                    ctx,
+                ))
+                .into_item(),
             ]);
         }
 
@@ -225,7 +241,7 @@ where
         if split_pane_state.is_in_split_pane() {
             let is_maximized = split_pane_state.is_maximized();
             items.push(
-                MenuItemFields::toggle_pane_action(is_maximized)
+                MenuItemFields::toggle_pane_action(is_maximized, ctx)
                     .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
                         PaneEvent::ToggleMaximized,
                     )))
@@ -237,7 +253,7 @@ where
             );
 
             items.push(
-                MenuItemFields::new("Close pane")
+                MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.close_pane"))
                     .with_on_select_action(V::Action::from(ContextMenuAction::EmitPaneEvent(
                         PaneEvent::Close,
                     )))

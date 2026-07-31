@@ -34,6 +34,7 @@ use crate::ai::llms::{
 };
 use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
+use crate::localization;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::result_renderer::ItemHighlightState;
@@ -47,9 +48,6 @@ use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-
-const AUTO_BEDROCK_TOOLTIP: &str = "Warp uses Bedrock when the model Auto selects supports it; otherwise it may use Warp-hosted inference.";
-const AUTO_GEMINI_ENTERPRISE_AGENT_PLATFORM_TOOLTIP: &str = "Warp uses Gemini Enterprise Agent Platform when the model Auto selects supports it; otherwise it may use Warp-hosted inference.";
 
 #[derive(Clone, Debug)]
 pub struct AcceptModel {
@@ -344,6 +342,7 @@ struct ModelSearchItem {
     /// Source/routing description for custom model routers (from `LLMInfo.description`).
     description: Option<String>,
     disable_reason: Option<DisableReason>,
+    disabled_tooltip: Option<String>,
     is_auto: bool,
     is_using_bedrock: bool,
     is_using_gemini_enterprise_agent_platform: bool,
@@ -353,6 +352,9 @@ struct ModelSearchItem {
     cost_row_tooltip_mouse_state: MouseStateHandle,
     reasoning_level: Option<String>,
     discount_percentage: Option<f32>,
+    accessibility_prefix: String,
+    accessibility_selected: String,
+    accessibility_disabled: String,
 }
 
 impl ModelSearchItem {
@@ -376,6 +378,10 @@ impl ModelSearchItem {
         let is_using_cloud_host = is_using_bedrock || is_using_gemini_enterprise_agent_platform;
         let credential_icon =
             (!is_using_cloud_host && byo_key_source.is_some()).then_some(Icon::Key);
+        let disabled_tooltip = choice
+            .disable_reason
+            .as_ref()
+            .map(|reason| localization::text_for_app(app, reason.localization_key()));
         Self {
             id: llm.id.clone(),
             provider: llm.provider.clone(),
@@ -386,8 +392,9 @@ impl ModelSearchItem {
             display_text: llm.display_name.clone(),
             is_selected: &llm.id == active_llm_id,
             is_custom_router,
-            description: llm.description.clone(),
+            description: LLMPreferences::as_ref(app).model_description_for_app(llm, app),
             disable_reason: choice.disable_reason,
+            disabled_tooltip,
             is_auto,
             is_using_bedrock,
             is_using_gemini_enterprise_agent_platform,
@@ -397,6 +404,18 @@ impl ModelSearchItem {
             cost_row_tooltip_mouse_state: Default::default(),
             reasoning_level: llm.reasoning_level(),
             discount_percentage: llm.discount_percentage,
+            accessibility_prefix: localization::text_for_app(
+                app,
+                "settings.ai.model_selector.a11y.prefix",
+            ),
+            accessibility_selected: localization::text_for_app(
+                app,
+                "settings.ai.model_selector.a11y.selected",
+            ),
+            accessibility_disabled: localization::text_for_app(
+                app,
+                "settings.ai.model_selector.a11y.disabled",
+            ),
         }
     }
 }
@@ -481,9 +500,10 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_selected {
-            let selected_label = "(selected)";
+            let selected_label =
+                localization::text_for_app(app, "settings.ai.model_selector.selected");
             let selected_text = Text::new_inline(
-                selected_label.to_string(),
+                selected_label.clone(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -500,9 +520,10 @@ impl SearchItem for ModelSearchItem {
         }
 
         if self.is_disabled() {
-            let disabled_label = "(disabled)";
+            let disabled_label =
+                localization::text_for_app(app, "settings.ai.model_selector.disabled");
             let disabled_text = Text::new_inline(
-                disabled_label.to_string(),
+                disabled_label.clone(),
                 appearance.ui_font_family(),
                 font_size,
             )
@@ -610,7 +631,7 @@ impl SearchItem for ModelSearchItem {
                     ButtonVariant::Outlined,
                     self.manage_api_key_mouse_state.clone(),
                 )
-                .with_text_label("Manage".to_string())
+                .with_text_label(localization::text_for_app(app, "common.manage"))
                 .with_style(UiComponentStyles {
                     height: Some(24.),
                     padding: Some(Coords {
@@ -632,26 +653,41 @@ impl SearchItem for ModelSearchItem {
                 .finish();
             CostRow::BilledToProvider {
                 label: if self.is_using_bedrock && self.is_auto {
-                    "Inference may use Bedrock"
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.cost.may_use_bedrock",
+                    )
                 } else if self.is_using_bedrock {
-                    "Inference via Bedrock"
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_bedrock")
                 } else if self.is_using_gemini_enterprise_agent_platform && self.is_auto {
-                    "Inference may use Gemini Enterprise Agent Platform"
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.cost.may_use_gemini_enterprise_agent_platform",
+                    )
                 } else if self.is_using_gemini_enterprise_agent_platform {
-                    "Inference via Gemini Enterprise Agent Platform"
+                    localization::text_for_app(
+                        app,
+                        "settings.ai.model_selector.cost.via_gemini_enterprise_agent_platform",
+                    )
                 } else if let Some(source) = self.byo_key_source {
-                    source.inference_label()
+                    source.inference_label(app)
                 } else {
-                    "Inference via API key"
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_api_key")
                 },
                 tooltip: if self.is_using_bedrock && self.is_auto {
                     Some(CostRowTooltip {
-                        text: AUTO_BEDROCK_TOOLTIP,
+                        text: localization::text_for_app(
+                            app,
+                            "settings.ai.model_selector.cost.auto_bedrock_tooltip",
+                        ),
                         mouse_state: self.cost_row_tooltip_mouse_state.clone(),
                     })
                 } else if self.is_using_gemini_enterprise_agent_platform && self.is_auto {
                     Some(CostRowTooltip {
-                        text: AUTO_GEMINI_ENTERPRISE_AGENT_PLATFORM_TOOLTIP,
+                        text: localization::text_for_app(
+                            app,
+                            "settings.ai.model_selector.cost.auto_gemini_enterprise_agent_platform_tooltip",
+                        ),
                         mouse_state: self.cost_row_tooltip_mouse_state.clone(),
                     })
                 } else {
@@ -703,16 +739,23 @@ impl SearchItem for ModelSearchItem {
                 );
 
             let mut text_fragments = vec![
-                FormattedTextFragment::plain_text(format!(
-                    "{display_name} is not available for free users. "
+                FormattedTextFragment::plain_text(localization::text_for_app_with_args(
+                    app,
+                    "settings.ai.model_selector.upgrade_required.prefix",
+                    &[("name", &display_name)],
                 )),
-                FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
+                FormattedTextFragment::hyperlink(
+                    localization::text_for_app(app, "onboarding.common.upgrade"),
+                    upgrade_url,
+                ),
             ];
 
             if byok_available {
-                text_fragments.push(FormattedTextFragment::plain_text(" or ".to_string()));
+                text_fragments.push(FormattedTextFragment::plain_text(
+                    localization::text_for_app(app, "settings.billing.upgrade.or"),
+                ));
                 text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    "bring your own key",
+                    localization::text_for_app(app, "settings.billing.upgrade.bring_own_key"),
                     WorkspaceAction::ShowSettingsPageWithSearch {
                         search_query: "api".to_string(),
                         section: Some(SettingsSection::WarpAgent),
@@ -777,18 +820,18 @@ impl SearchItem for ModelSearchItem {
     }
 
     fn tooltip(&self) -> Option<String> {
-        self.disable_reason
-            .as_ref()
-            .map(|reason| reason.tooltip_text().to_string())
+        self.disabled_tooltip.clone()
     }
 
     fn accessibility_label(&self) -> String {
-        let mut label = format!("Model: {}", self.display_text);
+        let mut label = format!("{}: {}", self.accessibility_prefix, self.display_text);
         if self.is_selected {
-            label.push_str(" (selected)");
+            label.push(' ');
+            label.push_str(&self.accessibility_selected);
         }
         if self.is_disabled() {
-            label.push_str(" (disabled)");
+            label.push(' ');
+            label.push_str(&self.accessibility_disabled);
         }
         label
     }

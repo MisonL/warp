@@ -24,6 +24,7 @@ use crate::editor::{
     EditorOptions, EditorView, Event, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::server::ids::{ClientId, SyncId};
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
@@ -48,17 +49,6 @@ const EDITOR_FONT_SIZE: f32 = 14.;
 const SECTION_FONT_SIZE: f32 = 16.;
 const SPAN_FONT_SIZE: f32 = 16.;
 const VARIANT_FONT_SIZE: f32 = 13.;
-
-const CANCEL_BUTTON_LABEL: &str = "Close";
-const NEW_ENUM_SPAN: &str = "New enum";
-const EXISTING_ENUM_SPAN: &str = "Edit enum";
-const NAME_PLACEHOLDER_TEXT: &str = "Name";
-const CREATE_BUTTON_LABEL: &str = "Create";
-const SAVE_BUTTON_LABEL: &str = "Save";
-const VARIANT_PLACEHOLDER_TEXT: &str = "Variant";
-const STATIC_LABEL_TEXT: &str = "Variants";
-const DYNAMIC_PLACEHOLDER_TEXT: &str =
-    "# Enter a shell command that generates variants, delimited by newlines.\n\ngit branch -a";
 
 #[derive(Debug, Clone)]
 pub enum EnumCreationDialogAction {
@@ -162,7 +152,10 @@ impl EnumCreationDialog {
                 };
 
                 let mut editor = EditorView::single_line(options, ctx);
-                editor.set_placeholder_text(NAME_PLACEHOLDER_TEXT, ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, "workflow.enum.placeholder.name"),
+                    ctx,
+                );
                 editor
             })
         };
@@ -195,7 +188,10 @@ impl EnumCreationDialog {
                 };
 
                 let mut editor = EditorView::new(options, ctx);
-                editor.set_placeholder_text(DYNAMIC_PLACEHOLDER_TEXT, ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, "workflow.enum.placeholder.dynamic_command"),
+                    ctx,
+                );
                 editor.set_autogrow(true);
                 editor
             })
@@ -548,7 +544,10 @@ impl EnumCreationDialog {
                 },
                 ctx,
             );
-            editor.set_placeholder_text(VARIANT_PLACEHOLDER_TEXT, ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "workflow.enum.placeholder.variant"),
+                ctx,
+            );
             editor
         });
 
@@ -579,7 +578,7 @@ impl EnumCreationDialog {
         appearance: &Appearance,
         button_mouse_state: MouseStateHandle,
         action: EnumCreationDialogAction,
-        label_text: &str,
+        label_text: String,
         is_save: bool,
         is_disabled: bool,
     ) -> Box<dyn Element> {
@@ -593,7 +592,7 @@ impl EnumCreationDialog {
                 },
                 button_mouse_state,
             )
-            .with_centered_text_label(label_text.to_owned())
+            .with_centered_text_label(label_text)
             .with_style(UiComponentStyles {
                 font_size: Some(BUTTON_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Normal),
@@ -625,10 +624,10 @@ impl EnumCreationDialog {
         .finish()
     }
 
-    fn render_dialog_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_dialog_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let text = match self.sync_id {
-            Some(_) => EXISTING_ENUM_SPAN,
-            None => NEW_ENUM_SPAN,
+            Some(_) => localization::text_for_app(app, "workflow.enum.title.edit"),
+            None => localization::text_for_app(app, "workflow.enum.title.new"),
         };
 
         appearance
@@ -642,7 +641,7 @@ impl EnumCreationDialog {
             .finish()
     }
 
-    fn render_toggle_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_toggle_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         if FeatureFlag::DynamicWorkflowEnums.is_enabled() {
             Container::new(
                 appearance
@@ -652,7 +651,15 @@ impl EnumCreationDialog {
                         self.enum_type_options
                             .iter()
                             .map(|arg_type| {
-                                let label: &'static str = arg_type.into();
+                                let label = match arg_type {
+                                    EnumType::Static => {
+                                        localization::text_for_app(app, "workflow.enum.type.static")
+                                    }
+                                    EnumType::Dynamic => localization::text_for_app(
+                                        app,
+                                        "workflow.enum.type.dynamic",
+                                    ),
+                                };
                                 ToggleMenuItem::new(label)
                             })
                             .collect(),
@@ -675,25 +682,29 @@ impl EnumCreationDialog {
         }
     }
 
-    fn render_variants_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_variants_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         match self.get_selected_type() {
-            EnumType::Static => self.render_static_section(appearance),
+            EnumType::Static => self.render_static_section(appearance, app),
             EnumType::Dynamic => {
                 if FeatureFlag::DynamicWorkflowEnums.is_enabled() {
                     self.render_dynamic_section(appearance)
                 } else {
-                    self.render_static_section(appearance)
+                    self.render_static_section(appearance, app)
                 }
             }
         }
     }
 
-    fn render_static_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_static_section(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         Flex::column()
             .with_child(
-                Container::new(self.render_static_section_header(appearance))
+                Container::new(self.render_static_section_header(appearance, app))
                     .with_horizontal_margin(CONTAINER_PADDING)
                     .with_margin_bottom(ROW_MARGIN)
                     .finish(),
@@ -809,7 +820,11 @@ impl EnumCreationDialog {
         variants
     }
 
-    fn render_static_section_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_static_section_header(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let mut variants_header = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
@@ -820,7 +835,10 @@ impl EnumCreationDialog {
                 1.,
                 appearance
                     .ui_builder()
-                    .span(STATIC_LABEL_TEXT.to_string())
+                    .span(localization::text_for_app(
+                        app,
+                        "workflow.enum.variants.title",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(SECTION_FONT_SIZE),
                         ..Default::default()
@@ -861,8 +879,8 @@ impl EnumCreationDialog {
     fn render_footer_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let disable_save = self.should_disable_save(app);
         let save_button_label = match self.sync_id {
-            None => CREATE_BUTTON_LABEL,
-            Some(_) => SAVE_BUTTON_LABEL,
+            None => localization::text_for_app(app, "workflow.enum.action.create"),
+            Some(_) => localization::text_for_app(app, "workflow.enum.action.save"),
         };
 
         Flex::row()
@@ -876,7 +894,7 @@ impl EnumCreationDialog {
                                 .cancel_button_mouse_state_handle
                                 .clone(),
                             EnumCreationDialogAction::Close,
-                            CANCEL_BUTTON_LABEL,
+                            localization::text_for_app(app, "workflow.enum.action.close"),
                             false,
                             false,
                         ),
@@ -931,14 +949,16 @@ impl View for EnumCreationDialog {
                 Container::new(
                     Flex::column()
                         .with_child(
-                            Container::new(self.render_dialog_header(appearance))
+                            Container::new(self.render_dialog_header(appearance, app))
                                 .with_horizontal_margin(CONTAINER_PADDING)
                                 .with_vertical_margin(SECTION_SPACING)
                                 .finish(),
                         )
                         .with_child(self.render_name_editor(appearance))
-                        .with_child(Container::new(self.render_toggle_buttons(appearance)).finish())
-                        .with_child(self.render_variants_section(appearance))
+                        .with_child(
+                            Container::new(self.render_toggle_buttons(appearance, app)).finish(),
+                        )
+                        .with_child(self.render_variants_section(appearance, app))
                         .with_child(
                             Container::new(self.render_footer_buttons(appearance, app))
                                 .with_horizontal_margin(CONTAINER_PADDING)

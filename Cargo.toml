@@ -89,6 +89,7 @@ warp_graphql = { path = "crates/graphql" }
 warp_graphql_schema = { path = "crates/warp_graphql_schema" }
 warp_isolation_platform = { path = "crates/isolation_platform" }
 warp_js = { path = "crates/warp_js" }
+warp_localization = { path = "crates/localization" }
 warp_logging = { path = "crates/warp_logging" }
 warp_managed_secrets = { path = "crates/managed_secrets" }
 warp_multi_agent_client = { path = "crates/warp_multi_agent_client" }
@@ -138,6 +139,7 @@ cfg_aliases = "0.2.1"
 cfg-if = "1.0.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
+color-print = "0.3.7"
 cocoa = "=0.26.0"
 ctrlc = "3.4.7"
 crc = "3.4.0"
@@ -395,6 +397,7 @@ sysinfo = { version = "0.37.0", default-features = false, features = [
   "system",
   "multithread",
 ] }
+sys-locale = "0.3.2"
 windows = { version = "0.62.2", features = [
   "Win32",
   "Win32_System",

@@ -3,10 +3,9 @@
 //! In list mode it shows a dropdown styled to match the other orchestration
 //! pickers; in custom mode it swaps the top bar for an inline editor that
 //! accepts a self-hosted worker slug. The layout mirrors the Oz webapp's
-//! host selector: workspace default first (badged "Default"), then warp,
-//! then connected worker hosts, then the user's most recent custom slug
-//! marked as disconnected if it is not currently connected, then a
-//! "Custom host…" entry.
+//! host selector: workspace default first, then warp, then connected worker
+//! hosts, then the user's most recent custom slug marked as disconnected if it
+//! is not currently connected, then the custom-host entry.
 
 use warp_core::ui::theme::Fill;
 use warpui::elements::{
@@ -29,6 +28,7 @@ use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -50,12 +50,6 @@ pub enum HostPickerEvent {
     /// parent can refocus its own input.
     Closed,
 }
-
-const CUSTOM_HOST_LABEL: &str = "Custom host…";
-const DEFAULT_BADGE: &str = "Default";
-const CONNECTED_BADGE: &str = "Connected";
-const DISCONNECTED_BADGE: &str = "Disconnected";
-const EDITOR_PLACEHOLDER: &str = "my-worker-host";
 
 // ── Internal action plumbing ────────────────────────────────────────
 
@@ -140,7 +134,13 @@ impl HostPicker {
                 },
                 ctx_editor,
             );
-            editor.set_placeholder_text(EDITOR_PLACEHOLDER, ctx_editor);
+            editor.set_placeholder_text(
+                localization::text_for_app(
+                    ctx_editor,
+                    "agent.orchestration.host_picker.placeholder",
+                ),
+                ctx_editor,
+            );
             editor
         });
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| {
@@ -241,10 +241,11 @@ impl HostPicker {
     }
 
     fn repopulate_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        let items = build_menu_items(
+        let items = build_menu_items_for_locale(
             self.default_host.as_deref(),
             self.recent_host.as_deref(),
             &self.connected_hosts,
+            ctx,
         );
         self.dropdown.update(ctx, |dropdown, ctx_dropdown| {
             dropdown.set_rich_items(items, ctx_dropdown);
@@ -419,14 +420,39 @@ fn normalize_slug(slug: &str) -> String {
     }
 }
 
-/// Builds the menu items shown in list mode, in the order: workspace default
-/// (badged "Default" if set), warp, connected worker hosts (badged
-/// "Connected"), recent custom slug (badged "Disconnected" when it is not
-/// currently connected), then a "Custom host…" entry.
-pub(crate) fn build_menu_items(
+fn build_menu_items_for_locale(
     default_host: Option<&str>,
     recent_host: Option<&str>,
     connected_hosts: &[String],
+    app: &AppContext,
+) -> Vec<MenuItem<DropdownAction>> {
+    let default_badge =
+        localization::text_for_app(app, "agent.orchestration.host_picker.default_badge");
+    let connected_badge =
+        localization::text_for_app(app, "agent.orchestration.host_picker.connected_badge");
+    let disconnected_badge =
+        localization::text_for_app(app, "agent.orchestration.host_picker.disconnected_badge");
+    let custom_host_label =
+        localization::text_for_app(app, "agent.orchestration.host_picker.custom_host");
+    build_menu_items_with_labels(
+        default_host,
+        recent_host,
+        connected_hosts,
+        &default_badge,
+        &connected_badge,
+        &disconnected_badge,
+        &custom_host_label,
+    )
+}
+
+fn build_menu_items_with_labels(
+    default_host: Option<&str>,
+    recent_host: Option<&str>,
+    connected_hosts: &[String],
+    default_badge: &str,
+    connected_badge: &str,
+    disconnected_badge: &str,
+    custom_host_label: &str,
 ) -> Vec<MenuItem<DropdownAction>> {
     let mut items: Vec<MenuItem<DropdownAction>> = Vec::new();
     let mut known_slugs: Vec<String> = Vec::new();
@@ -434,7 +460,7 @@ pub(crate) fn build_menu_items(
     if let Some(slug) = default_host {
         items.push(menu_item_for_known(
             slug,
-            Some(DEFAULT_BADGE),
+            Some(default_badge),
             InternalAction::SelectKnown(slug.to_string()),
         ));
         known_slugs.push(slug.to_string());
@@ -456,7 +482,7 @@ pub(crate) fn build_menu_items(
         }
         items.push(menu_item_for_known(
             slug,
-            Some(CONNECTED_BADGE),
+            Some(connected_badge),
             InternalAction::SelectKnown(slug.to_string()),
         ));
         known_slugs.push(slug.to_string());
@@ -472,28 +498,17 @@ pub(crate) fn build_menu_items(
         // state explicit.
         items.push(menu_item_for_known(
             slug,
-            Some(DISCONNECTED_BADGE),
+            Some(disconnected_badge),
             InternalAction::SelectKnown(slug.to_string()),
         ));
     }
     items.push(MenuItem::Item(
-        MenuItemFields::new(CUSTOM_HOST_LABEL).with_on_select_action(
+        MenuItemFields::new(custom_host_label).with_on_select_action(
             DropdownAction::select_action_and_close(InternalAction::EnterCustomMode),
         ),
     ));
 
     items
-}
-
-/// Returns the menu label corresponding to `slug`, including the "Default"
-/// badge when it matches the workspace default.
-#[cfg(test)]
-pub(crate) fn menu_label_for(slug: &str, default_host: Option<&str>) -> String {
-    if default_host == Some(slug) {
-        format_known_label(slug, Some(DEFAULT_BADGE))
-    } else {
-        format_known_label(slug, None)
-    }
 }
 
 #[cfg(test)]

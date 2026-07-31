@@ -55,7 +55,6 @@ use super::model::{NotebooksEditorModel, RichTextEditorModelEvent};
 use super::omnibar::{Omnibar, OmnibarEvent};
 use super::{BlockType, NotebookWorkflow, rich_text_styles};
 use crate::appearance::Appearance;
-use crate::cmd_or_ctrl_shift;
 use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
 use crate::notebooks::editor::find_bar::FindBarAction;
@@ -76,6 +75,7 @@ use crate::util::tooltips::{
 };
 use crate::view_components::DismissibleToast;
 use crate::workspace::WorkspaceAction;
+use crate::{cmd_or_ctrl_shift, localization};
 
 #[cfg(test)]
 #[path = "view_tests.rs"]
@@ -2394,13 +2394,17 @@ impl RichTextEditorView {
 
         // Common secondary link actions:
         let ui_builder = appearance.ui_builder().clone();
+        let copy_link_tooltip = crate::localization::text_for_app(ctx, "notebook.menu.copy_link");
         tool_tip.add_child(
             Container::new(
                 appearance
                     .ui_builder()
                     .copy_button(12., self.mouse_states.copy_link_mouse_handle.clone())
                     .with_tooltip(move || {
-                        ui_builder.tool_tip("Copy link".to_owned()).build().finish()
+                        ui_builder
+                            .tool_tip(copy_link_tooltip.clone())
+                            .build()
+                            .finish()
                     })
                     .build()
                     .on_click(|ctx, _, _| ctx.dispatch_typed_action(EditorViewAction::CopyLink))
@@ -2412,7 +2416,7 @@ impl RichTextEditorView {
         // Link-specific secondary action:
         if let LinkState::Resolved(target) = &link_url.state {
             let target = target.clone();
-            if let Some(secondary_action) = target.secondary_action() {
+            if let Some(secondary_action) = target.secondary_action(ctx) {
                 let mut button = appearance
                     .ui_builder()
                     .button(
@@ -2452,7 +2456,10 @@ impl RichTextEditorView {
                             ButtonVariant::Text,
                             self.mouse_states.edit_link_mouse_handle.clone(),
                         )
-                        .with_text_label("Edit".to_string())
+                        .with_text_label(crate::localization::text_for_app(
+                            ctx,
+                            "notebook.code_block.action.edit",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| ctx.dispatch_typed_action(EditorViewAction::EditLink))
                         .finish(),
@@ -2851,7 +2858,10 @@ impl TypedActionView for RichTextEditorView {
                 }
                 let window_id = ctx.window_id();
                 crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::default(String::from("Link copied"));
+                    let toast = DismissibleToast::default(localization::text_for_app(
+                        ctx,
+                        "notebook.toast.link_copied",
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 ctx.notify();
@@ -3141,8 +3151,13 @@ impl TypedActionView for RichTextEditorView {
                 ))
             }
             EditorViewAction::Paste | EditorViewAction::MiddleClickPaste => {
+                let clipboard_text = ctx.clipboard().read().plain_text;
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    format!("Pasting: {}", ctx.clipboard().read().plain_text),
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "editor.a11y.pasting",
+                        &[("content", &clipboard_text)],
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }
@@ -3155,27 +3170,43 @@ impl TypedActionView for RichTextEditorView {
             | EditorViewAction::Indent
             | EditorViewAction::Unindent
             | EditorViewAction::Tab => ActionAccessibilityContent::from_debug(),
-            EditorViewAction::ShiftTab => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Shift-tab", WarpA11yRole::UserAction),
-            ),
-            EditorViewAction::EditLink | EditorViewAction::CreateOrEditLink => {
+            EditorViewAction::ShiftTab => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Edit Link",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.shift_tab"),
                     WarpA11yRole::UserAction,
                 ))
             }
-            EditorViewAction::CopyLink => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Copy Link", WarpA11yRole::UserAction),
-            ),
+            EditorViewAction::EditLink | EditorViewAction::CreateOrEditLink => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.edit_link"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
+            EditorViewAction::CopyLink => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.copy_link"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
             EditorViewAction::OpenTooltipLink(link) => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    format!("Open link: {}", **link),
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "notebook.editor.a11y.open_link",
+                        &[("link", &(**link).to_string())],
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }
             EditorViewAction::SecondaryLinkAction(link) => {
-                let content = link.secondary_action().map_or_else(
-                    || format!("Secondary click on {}", **link),
+                let content = link.secondary_action(ctx).map_or_else(
+                    || {
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "notebook.editor.a11y.secondary_click",
+                            &[("link", &(**link).to_string())],
+                        )
+                    },
                     |action| action.accessibility_content.into_owned(),
                 );
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
@@ -3185,66 +3216,92 @@ impl TypedActionView for RichTextEditorView {
             }
             EditorViewAction::DeleteLineLeft => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Delete line left",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.delete_line_left"),
                     WarpA11yRole::UserAction,
                 ))
             }
             EditorViewAction::DeleteLineRight => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Delete line right",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.delete_line_right"),
                     WarpA11yRole::UserAction,
                 ))
             }
             EditorViewAction::DeleteWordLeft => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Delete word left",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.delete_word_left"),
                     WarpA11yRole::UserAction,
                 ))
             }
             EditorViewAction::DeleteWordRight => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Delete word right",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.delete_word_right"),
                     WarpA11yRole::UserAction,
                 ))
             }
 
-            EditorViewAction::CutLineLeft => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Cut line left", WarpA11yRole::UserAction),
-            ),
-            EditorViewAction::CutLineRight => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Cut line right", WarpA11yRole::UserAction),
-            ),
-            EditorViewAction::CutWordLeft => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Cut word left", WarpA11yRole::UserAction),
-            ),
-            EditorViewAction::CutWordRight => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Cut word right", WarpA11yRole::UserAction),
-            ),
+            EditorViewAction::CutLineLeft => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.cut_line_left"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
+            EditorViewAction::CutLineRight => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.cut_line_right"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
+            EditorViewAction::CutWordLeft => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.cut_word_left"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
+            EditorViewAction::CutWordRight => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.cut_word_right"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
 
             EditorViewAction::ShowCharacterPalette => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Show character palette",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.show_character_palette"),
                     WarpA11yRole::UserAction,
                 ))
             }
-            EditorViewAction::ShowFindBar => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Show find bar", WarpA11yRole::UserAction),
-            ),
+            EditorViewAction::ShowFindBar => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.show_find_bar"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
             EditorViewAction::OpenBlockInsertionMenu => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Open block-insertion menu",
+                    localization::text_for_app(
+                        ctx,
+                        "notebook.editor.a11y.open_block_insertion_menu",
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }
             EditorViewAction::OpenEmbeddedObjectSearch => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Open embedded object search menu",
+                    localization::text_for_app(
+                        ctx,
+                        "notebook.editor.a11y.open_embedded_object_search",
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }
             EditorViewAction::InsertBlock(block_type) => {
+                let block = BlockType::from(block_type).localized_label(ctx);
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    format!("Insert {} block", BlockType::from(block_type).label()),
+                    localization::text_for_app_with_args(
+                        ctx,
+                        "notebook.editor.a11y.insert_block",
+                        &[("block", &block)],
+                    ),
                     WarpA11yRole::UserAction,
                 ))
             }
@@ -3270,24 +3327,31 @@ impl TypedActionView for RichTextEditorView {
                 .style_toggle_a11y(BufferTextStyle::StrikeThrough),
             EditorViewAction::ExitCommandSelection => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new(
-                    "De-select command",
-                    "Switch from selecting commands to selecting text",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.deselect_command"),
+                    localization::text_for_app(ctx, "notebook.editor.a11y.deselect_command_help"),
                     WarpA11yRole::UserAction,
                 ))
             }
             EditorViewAction::CodeBlockTypeSelectedAtOffset {
                 code_block_type, ..
             } => ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                format!("Change code block language to {code_block_type}"),
+                localization::text_for_app_with_args(
+                    ctx,
+                    "notebook.editor.a11y.change_code_block_language",
+                    &[("language", &code_block_type.to_string())],
+                ),
                 WarpA11yRole::UserAction,
             )),
-            EditorViewAction::CopyTextToClipboard { .. } => ActionAccessibilityContent::Custom(
-                AccessibilityContent::new_without_help("Copy code block", WarpA11yRole::UserAction),
-            ),
+            EditorViewAction::CopyTextToClipboard { .. } => {
+                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
+                    localization::text_for_app(ctx, "notebook.editor.a11y.copy_code_block"),
+                    WarpA11yRole::UserAction,
+                ))
+            }
             EditorViewAction::ToggleTaskList(_) => {
                 // TODO(ben): Is it useful to include the text and/or on/off state here?
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Toggle task list",
+                    localization::text_for_app(ctx, "notebook.editor.a11y.toggle_task_list"),
                     WarpA11yRole::UserAction,
                 ))
             }

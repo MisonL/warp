@@ -3,12 +3,14 @@ use std::path::{Path, PathBuf};
 
 use ai::skills::{ParsedSkill, SkillPathOrigin, SkillReference, parse_bundled_skill};
 use futures::TryStreamExt;
+use serde_yaml::Value;
 use warp_core::channel::ChannelState;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::features::FeatureFlag;
 use warp_core::safe_warn;
 use warp_core::ui::icons::Icon;
 use warp_errors::report_error;
+use warp_localization::LocaleId;
 use warp_util::host_id::HostId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warp_util::remote_path::RemotePath;
@@ -182,12 +184,13 @@ pub struct BundledSkill {
 }
 
 impl BundledSkill {
-    /// Detect all skill definitions bundled with Warp for the local host.
-    pub async fn detect() -> Self {
+    /// Detect all skill definitions bundled with Warp for the local host and
+    /// apply locale-specific bundled content where available.
+    pub async fn detect_for_locale(locale: LocaleId) -> Self {
         let Some(resources_dir) = warp_core::paths::bundled_resources_dir() else {
             return Self::default();
         };
-        Self::detect_in_resources_dir(resources_dir).await
+        Self::detect_in_resources_dir_for_locale(resources_dir, locale).await
     }
 
     /// Detect all skill definitions under the given resources root on the
@@ -197,9 +200,29 @@ impl BundledSkill {
     /// the global install location rather than inside an app bundle (which
     /// is what [`warp_core::paths::bundled_resources_dir`] resolves).
     pub(crate) async fn detect_in_resources_dir(resources_dir: PathBuf) -> Self {
+        Self::detect_in_resources_dir_for_locale(resources_dir, LocaleId::EnUs).await
+    }
+
+    pub(crate) async fn detect_in_resources_dir_for_locale(
+        resources_dir: PathBuf,
+        locale: LocaleId,
+    ) -> Self {
+        if let Some(english_schema_path) =
+            english_settings_schema_fallback_path(&resources_dir, locale)
+        {
+            let localized_schema_path =
+                resources_dir.join(format!("settings_schema.{}.json", locale.code()));
+            log::warn!(
+                "Localized settings schema for {} is missing at {}; bundled modify-settings skill will use the English schema at {}",
+                locale.code(),
+                localized_schema_path.display(),
+                english_schema_path.display(),
+            );
+        }
+
         let (mut definitions, figma_definitions) = futures::join!(
-            load_bundled_skill_definitions(&resources_dir),
-            load_figma_skill_definitions(&resources_dir)
+            load_bundled_skill_definitions(&resources_dir, locale),
+            load_figma_skill_definitions(&resources_dir, locale)
         );
         definitions.extend(figma_definitions);
         Self { definitions }
@@ -345,14 +368,15 @@ impl BundledSkill {
 /// Load skill definitions bundled with Warp.
 async fn load_bundled_skill_definitions(
     resources_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, BundledSkillDefinition> {
     let skills_dir = resources_dir.join("bundled").join("skills");
-    read_bundled_skills(&skills_dir, resources_dir)
+    read_bundled_skills_for_locale(&skills_dir, resources_dir, locale)
         .await
         .into_iter()
         .map(|(id, skill)| {
             let icon = icon_for_bundled_skill(&id);
-            let activation = activation_for_bundled_skill(&id, resources_dir);
+            let activation = activation_for_bundled_skill(&id, resources_dir, locale);
             let bundled = BundledSkillDefinition {
                 skill,
                 activation,
@@ -366,12 +390,13 @@ async fn load_bundled_skill_definitions(
 /// Load Figma-specific bundled skills from the `figma/` subdirectory.
 async fn load_figma_skill_definitions(
     resources_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, BundledSkillDefinition> {
     let figma_skills_dir = resources_dir
         .join("bundled")
         .join("mcp_skills")
         .join("figma");
-    read_bundled_skills(&figma_skills_dir, resources_dir)
+    read_bundled_skills_for_locale(&figma_skills_dir, resources_dir, locale)
         .await
         .into_iter()
         .map(|(id, skill)| {
@@ -394,9 +419,18 @@ async fn load_figma_skill_definitions(
 /// install location before pushing the rendered content over the wire.
 /// Clients never call this for files on another host, so local `Path`
 /// semantics (this OS's encoding) are correct here.
+#[cfg(test)]
 pub(crate) async fn read_bundled_skills(
     skills_dir: &Path,
     resources_dir: &Path,
+) -> HashMap<String, ParsedSkill> {
+    read_bundled_skills_for_locale(skills_dir, resources_dir, LocaleId::EnUs).await
+}
+
+pub(crate) async fn read_bundled_skills_for_locale(
+    skills_dir: &Path,
+    resources_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, ParsedSkill> {
     let mut skills = HashMap::new();
 
@@ -421,7 +455,9 @@ pub(crate) async fn read_bundled_skills(
                 continue;
             }
         };
-
+        if let Some(description) = localized_bundled_skill_description(&skill.content, locale) {
+            skill.description = description;
+        }
         // We use the directory name as the skill ID (guaranteed unique within bundled skills).
         let Some(skill_id) = entry_path.file_name().and_then(|s| s.to_str()) else {
             safe_warn!(
@@ -430,7 +466,7 @@ pub(crate) async fn read_bundled_skills(
             );
             continue;
         };
-        let context = build_bundled_skill_context(resources_dir, &entry_path);
+        let context = build_bundled_skill_context(resources_dir, &entry_path, locale);
 
         // Apply variable substitution to the skill content.
         skill.content = handlebars::render_template(&skill.content, &context);
@@ -440,6 +476,34 @@ pub(crate) async fn read_bundled_skills(
     log::info!("Read {} bundled skills", skills.len());
 
     skills
+}
+
+pub(crate) fn localized_bundled_skill_description(
+    content: &str,
+    locale: LocaleId,
+) -> Option<String> {
+    match locale {
+        LocaleId::EnUs => None,
+        LocaleId::ZhCn => extract_front_matter_string(content, "description_zh_CN"),
+    }
+}
+
+fn extract_front_matter_string(content: &str, key: &str) -> Option<String> {
+    let normalized = content.replace("\r\n", "\n");
+    let yaml = normalized.strip_prefix("---\n")?;
+    let yaml = yaml.split_once("\n---\n")?.0;
+    let Value::Mapping(front_matter) = serde_yaml::from_str::<Value>(yaml).ok()? else {
+        return None;
+    };
+
+    let value = front_matter.get(&Value::String(key.to_owned()))?;
+    match value {
+        Value::String(text) => {
+            let text = text.trim();
+            (!text.is_empty()).then(|| text.to_owned())
+        }
+        _ => None,
+    }
 }
 
 fn display_optional_path(path: Option<PathBuf>) -> String {
@@ -454,7 +518,7 @@ fn display_optional_path(path: Option<PathBuf>) -> String {
 /// - `{{warpctrl_binary_name}}` - The channel-specific Warp Control command name
 /// - `{{warpctrl_wrapper_path}}` - Path to the bundled Warp Control wrapper
 /// - `{{warp_url_scheme}}` - The URL scheme (e.g., `warp`, `warpdev`, `warppreview`)
-/// - `{{settings_schema_path}}` - Path to the bundled JSON settings schema
+/// - `{{settings_schema_path}}` - Path to the bundled JSON settings schema for the current locale
 /// - `{{skill_dir}}` - Path to the bundled skill's directory
 /// - `{{settings_file_path}}` - Path to the user's settings TOML file
 /// - `{{keybindings_file_path}}` - Path to the user's keybindings YAML file
@@ -465,6 +529,7 @@ fn display_optional_path(path: Option<PathBuf>) -> String {
 pub(crate) fn build_bundled_skill_context(
     resources_dir: &Path,
     skill_dir: &Path,
+    locale: LocaleId,
 ) -> HashMap<String, String> {
     [
         (
@@ -525,8 +590,7 @@ pub(crate) fn build_bundled_skill_context(
         ),
         (
             "settings_schema_path".to_owned(),
-            resources_dir
-                .join("settings_schema.json")
+            settings_schema_path(resources_dir, locale)
                 .display()
                 .to_string(),
         ),
@@ -534,6 +598,32 @@ pub(crate) fn build_bundled_skill_context(
     ]
     .into_iter()
     .collect()
+}
+
+/// Resolves the schema that matches the local client's locale. Bundles created
+/// before localized schemas are available continue to use the English schema.
+fn settings_schema_path(resources_dir: &Path, locale: LocaleId) -> PathBuf {
+    let localized_path = resources_dir.join(format!("settings_schema.{}.json", locale.code()));
+    if locale != LocaleId::EnUs && localized_path.is_file() {
+        localized_path
+    } else {
+        resources_dir.join("settings_schema.json")
+    }
+}
+
+/// Returns the English schema only when an older bundle lacks the requested
+/// localized schema but can still serve a compatible English schema.
+fn english_settings_schema_fallback_path(
+    resources_dir: &Path,
+    locale: LocaleId,
+) -> Option<PathBuf> {
+    if locale == LocaleId::EnUs {
+        return None;
+    }
+
+    let localized_path = resources_dir.join(format!("settings_schema.{}.json", locale.code()));
+    let english_path = resources_dir.join("settings_schema.json");
+    (!localized_path.is_file() && english_path.is_file()).then_some(english_path)
 }
 
 /// Returns the icon for a bundled skill, given its directory-based ID.
@@ -553,10 +643,11 @@ pub(crate) fn icon_for_bundled_skill(skill_id: &str) -> Icon {
 pub(crate) fn activation_for_bundled_skill(
     skill_id: &str,
     resources_dir: &Path,
+    locale: LocaleId,
 ) -> BundledSkillActivation {
     match skill_id {
         "modify-settings" => {
-            BundledSkillActivation::RequiresFile(resources_dir.join("settings_schema.json"))
+            BundledSkillActivation::RequiresFile(settings_schema_path(resources_dir, locale))
         }
         "tui-migrate-setup" => BundledSkillActivation::TuiOnly,
         "warpctrl" => BundledSkillActivation::RequiresFeature(FeatureFlag::WarpControlCli),

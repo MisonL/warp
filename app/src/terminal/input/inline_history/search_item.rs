@@ -14,11 +14,12 @@ use warpui::{AppContext, Element, SingletonEntity};
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::conversation_status_ui::{STATUS_ELEMENT_PADDING, render_status_element};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::history::LinkedWorkflowData;
 use crate::terminal::input::inline_history::data_source::AcceptHistoryItem;
 use crate::terminal::input::inline_menu::styles as inline_styles;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 #[derive(Debug, Clone)]
 pub struct InlineHistoryItem {
@@ -217,7 +218,7 @@ impl SearchItem for InlineHistoryItem {
             .with_child(Shrinkable::new(1., text.finish()).finish());
 
         let timestamp = Text::new_inline(
-            format_approx_duration_from_now_utc(self.timestamp.to_utc()),
+            localized_approx_duration_from_now_utc(app, self.timestamp.to_utc()),
             appearance.ui_font_family(),
             font_size,
         )
@@ -274,6 +275,26 @@ impl SearchItem for InlineHistoryItem {
 
     fn execute_result(&self) -> Self::Action {
         self.accept_result()
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        match &self.item_type {
+            HistoryItemType::Conversation { title, .. } => localization::text_for_app_with_args(
+                app,
+                "terminal.inline_history.a11y.conversation",
+                &[("title", title)],
+            ),
+            HistoryItemType::Command { command, .. } => localization::text_for_app_with_args(
+                app,
+                "terminal.inline_history.a11y.command",
+                &[("command", command)],
+            ),
+            HistoryItemType::AIPrompt { query_text } => localization::text_for_app_with_args(
+                app,
+                "terminal.inline_history.a11y.ai_prompt",
+                &[("query", query_text)],
+            ),
+        }
     }
 
     fn accessibility_label(&self) -> String {

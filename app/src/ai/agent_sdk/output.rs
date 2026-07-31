@@ -13,6 +13,9 @@ use serde::Serialize;
 use tabwriter::TabWriter;
 use warp_cli::agent::OutputFormat;
 use warp_cli::json_filter::{JqFilter, JsonOutput};
+use warp_localization::LocaleId;
+
+use crate::localization;
 
 pub fn standard_table() -> Table {
     let mut table = Table::new();
@@ -27,39 +30,70 @@ pub fn standard_table() -> Table {
 pub trait TableFormat {
     fn header() -> Vec<Cell>;
 
+    fn header_for_locale(_locale: LocaleId) -> Vec<Cell> {
+        Self::header()
+    }
+
     fn row(&self) -> Vec<Cell>;
+
+    fn row_for_locale(&self, _locale: LocaleId) -> Vec<Cell> {
+        self.row()
+    }
 }
 
-/// Print a list of items to stdout, respecting the `output_format`.
-pub fn print_list<I, T>(items: I, output_format: OutputFormat)
+pub fn print_list_for_locale<I, T>(items: I, output_format: OutputFormat, locale: LocaleId)
 where
     I: IntoIterator<Item = T>,
     T: TableFormat + Serialize,
 {
-    if let Err(err) = write_list(items, output_format, &mut std::io::stdout()) {
+    if let Err(err) = write_list_for_locale(items, output_format, &mut std::io::stdout(), locale) {
         // If we can't write to stdout, try reporting to the log file.
         log::warn!("Unable to write to stdout: {err}");
     }
 }
 
 /// Write a serializable value to `output` as pretty JSON.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn write_json<T, W>(value: &T, mut output: W) -> anyhow::Result<()>
 where
     T: Serialize,
     W: std::io::Write,
 {
-    serde_json::to_writer_pretty(&mut output, value).context("unable to write JSON output")?;
+    write_json_for_locale(value, &mut output, LocaleId::EnUs)
+}
+
+pub fn write_json_for_locale<T, W>(value: &T, mut output: W, locale: LocaleId) -> anyhow::Result<()>
+where
+    T: Serialize,
+    W: std::io::Write,
+{
+    serde_json::to_writer_pretty(&mut output, value)
+        .context(text_for_locale(locale, "agent_sdk.output.error.write_json"))?;
     writeln!(&mut output)?;
     Ok(())
 }
 
 /// Write a serializable value to `output` as a single-line JSON record.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn write_json_line<T, W>(value: &T, mut output: W) -> anyhow::Result<()>
 where
     T: Serialize,
     W: std::io::Write,
 {
-    serde_json::to_writer(&mut output, value).context("unable to write JSON output")?;
+    write_json_line_for_locale(value, &mut output, LocaleId::EnUs)
+}
+
+pub fn write_json_line_for_locale<T, W>(
+    value: &T,
+    mut output: W,
+    locale: LocaleId,
+) -> anyhow::Result<()>
+where
+    T: Serialize,
+    W: std::io::Write,
+{
+    serde_json::to_writer(&mut output, value)
+        .context(text_for_locale(locale, "agent_sdk.output.error.write_json"))?;
     writeln!(&mut output)?;
     Ok(())
 }
@@ -154,15 +188,11 @@ impl Drop for StdoutBlockingGuard {
     }
 }
 
-/// Write a raw `serde_json::Value` to stdout as pretty-printed JSON.
-///
-/// Useful for CLI commands that want to pass through server responses verbatim
-/// when `--output-format json` is set, rather than re-serializing through a
-/// typed model.
-///
-/// When `json_output.filter` is `Some`, the JSON value is instead passed
-/// through the given filter, each output of which is printed to stdout.
-pub fn print_raw_json(value: serde_json::Value, json_output: &JsonOutput) -> anyhow::Result<()> {
+pub fn print_raw_json_for_locale(
+    value: serde_json::Value,
+    json_output: &JsonOutput,
+    locale: LocaleId,
+) -> anyhow::Result<()> {
     // Ensure that writes to stdout are blocking, to enforce backpressure as we
     // potentially write a large amount of data. Otherwise, writes may fail with
     // `EAGAIN`, which we can't easily handle while serializing JSON. The guard
@@ -176,10 +206,10 @@ pub fn print_raw_json(value: serde_json::Value, json_output: &JsonOutput) -> any
     match json_output.filter.as_ref() {
         None => {
             serde_json::to_writer_pretty(&mut out, &value)
-                .context("unable to write JSON output")?;
+                .context(text_for_locale(locale, "agent_sdk.output.error.write_json"))?;
             writeln!(&mut out)?;
         }
-        Some(filter) => run_jq_filter(value, filter, &mut out)?,
+        Some(filter) => run_jq_filter(value, filter, &mut out, locale)?,
     }
     out.flush()?;
     Ok(())
@@ -194,6 +224,7 @@ fn run_jq_filter<W: std::io::Write>(
     value: serde_json::Value,
     jq_filter: &JqFilter,
     out: &mut W,
+    locale: LocaleId,
 ) -> anyhow::Result<()> {
     let input_result = serde_json::from_value::<Val>(value);
 
@@ -213,11 +244,21 @@ fn run_jq_filter<W: std::io::Write>(
         Default::default(),
         [input_result].into_iter(),
         // Callback to format invalid input errors.
-        |err| anyhow::anyhow!("Invalid data: {err}"),
+        |err| {
+            anyhow::anyhow!(text_for_locale_with_args(
+                locale,
+                "agent_sdk.output.error.invalid_data",
+                &[("error", &err.to_string())],
+            ))
+        },
         // Callback to handle filter outputs.
         |result| match result {
-            Ok(val) => write_filter_output(&val, out),
-            Err(err) => anyhow::bail!("jq filter error: {err}"),
+            Ok(val) => write_filter_output_for_locale(&val, out, locale),
+            Err(err) => anyhow::bail!(text_for_locale_with_args(
+                locale,
+                "agent_sdk.output.error.jq_filter",
+                &[("error", &err.to_string())],
+            )),
         },
     )?;
 
@@ -245,7 +286,16 @@ fn pretty_pp() -> jaq_write::Pp {
 ///   formatting conventions as the non-filtered `--output-format json` path.
 ///
 /// Every output is followed by a newline.
+#[cfg_attr(not(test), allow(dead_code))]
 fn write_filter_output<W: std::io::Write>(val: &Val, out: &mut W) -> anyhow::Result<()> {
+    write_filter_output_for_locale(val, out, LocaleId::EnUs)
+}
+
+fn write_filter_output_for_locale<W: std::io::Write>(
+    val: &Val,
+    out: &mut W,
+    locale: LocaleId,
+) -> anyhow::Result<()> {
     match val {
         Val::Null => writeln!(out, "null")?,
         Val::Bool(b) => writeln!(out, "{b}")?,
@@ -255,8 +305,10 @@ fn write_filter_output<W: std::io::Write>(val: &Val, out: &mut W) -> anyhow::Res
             writeln!(out)?;
         }
         Val::Arr(_) | Val::Obj(_) => {
-            jaq_write::write(&mut *out, &pretty_pp(), 0, val)
-                .context("unable to write jq output as JSON")?;
+            jaq_write::write(&mut *out, &pretty_pp(), 0, val).context(text_for_locale(
+                locale,
+                "agent_sdk.output.error.write_jq_json",
+            ))?;
             writeln!(out)?;
         }
     }
@@ -264,6 +316,7 @@ fn write_filter_output<W: std::io::Write>(val: &Val, out: &mut W) -> anyhow::Res
 }
 
 /// Write a list of items to `output`, respecting the `output_format`.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn write_list<I, T, W>(
     items: I,
     output_format: OutputFormat,
@@ -274,32 +327,72 @@ where
     T: TableFormat + Serialize,
     W: std::io::Write,
 {
+    write_list_for_locale(items, output_format, &mut output, LocaleId::EnUs)
+}
+
+pub fn write_list_for_locale<I, T, W>(
+    items: I,
+    output_format: OutputFormat,
+    mut output: W,
+    locale: LocaleId,
+) -> anyhow::Result<()>
+where
+    I: IntoIterator<Item = T>,
+    T: TableFormat + Serialize,
+    W: std::io::Write,
+{
+    write_list_with_rendering(
+        items,
+        output_format,
+        locale,
+        &mut output,
+        || T::header_for_locale(locale),
+        |item| item.row_for_locale(locale),
+    )
+}
+
+fn write_list_with_rendering<I, T, W, F, G>(
+    items: I,
+    output_format: OutputFormat,
+    locale: LocaleId,
+    output: &mut W,
+    header: F,
+    row: G,
+) -> anyhow::Result<()>
+where
+    I: IntoIterator<Item = T>,
+    T: TableFormat + Serialize,
+    W: std::io::Write,
+    F: FnOnce() -> Vec<Cell>,
+    G: Fn(&T) -> Vec<Cell>,
+{
     match output_format {
         OutputFormat::Json => {
             let items = items.into_iter().collect::<Vec<_>>();
-            serde_json::to_writer(&mut output, &items).context("unable to write JSON output")
+            serde_json::to_writer(output, &items)
+                .context(text_for_locale(locale, "agent_sdk.output.error.write_json"))
         }
         OutputFormat::Ndjson => {
             for item in items {
-                write_json_line(&item, &mut output)?;
+                write_json_line_for_locale(&item, &mut *output, locale)?;
             }
             Ok(())
         }
         OutputFormat::Pretty => {
             // Use comfy-table to print a table with terminal formatting.
             let mut table = standard_table();
-            table.set_header(T::header());
+            table.set_header(header());
             for item in items {
-                table.add_row(T::row(&item));
+                table.add_row(row(&item));
             }
-            writeln!(&mut output, "{table}")?;
+            writeln!(output, "{table}")?;
             Ok(())
         }
         OutputFormat::Text => {
             // Print a plain-text table.
             let mut tw = TabWriter::new(output);
 
-            for (idx, column) in T::header().iter().enumerate() {
+            for (idx, column) in header().iter().enumerate() {
                 if idx > 0 {
                     write!(&mut tw, "\t")?;
                 }
@@ -308,7 +401,7 @@ where
             writeln!(&mut tw)?;
 
             for item in items {
-                for (idx, column) in T::row(&item).iter().enumerate() {
+                for (idx, column) in row(&item).iter().enumerate() {
                     if idx > 0 {
                         write!(&mut tw, "\t")?;
                     }
@@ -320,6 +413,14 @@ where
             Ok(())
         }
     }
+}
+
+fn text_for_locale(locale: LocaleId, key: &str) -> String {
+    localization::text_for_locale(locale, key)
+}
+
+fn text_for_locale_with_args(locale: LocaleId, key: &str, args: &[(&str, &str)]) -> String {
+    localization::text_for_locale_with_args(locale, key, args)
 }
 
 #[cfg(test)]

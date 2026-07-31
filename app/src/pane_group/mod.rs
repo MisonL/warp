@@ -43,6 +43,14 @@ use warpui::{
     ViewHandle, WeakViewHandle, WindowId,
 };
 
+fn binding_description(
+    fallback: &'static str,
+    key: &'static str,
+) -> warpui::keymap::BindingDescription {
+    warpui::keymap::BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
+
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::{AIAgentHarness, AIConversation, AIConversationId};
 use crate::ai::agent_conversations_model::{
@@ -384,7 +392,7 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
         EditableBinding::new(
             "pane_group:navigate_left",
-            "Switch panes left",
+            binding_description("Switch panes left", "pane_group.binding.navigate_left"),
             PaneGroupAction::NavigateLeft,
         )
         .with_context_predicate(
@@ -393,7 +401,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-alt-left"),
         EditableBinding::new(
             "pane_group:navigate_right",
-            "Switch panes right",
+            binding_description("Switch panes right", "pane_group.binding.navigate_right"),
             PaneGroupAction::NavigateRight,
         )
         .with_context_predicate(
@@ -402,7 +410,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-alt-right"),
         EditableBinding::new(
             "pane_group:navigate_up",
-            "Switch panes up",
+            binding_description("Switch panes up", "pane_group.binding.navigate_up"),
             PaneGroupAction::NavigateUp,
         )
         .with_context_predicate(
@@ -411,7 +419,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-alt-up"),
         EditableBinding::new(
             "pane_group:navigate_down",
-            "Switch panes down",
+            binding_description("Switch panes down", "pane_group.binding.navigate_down"),
             PaneGroupAction::NavigateDown,
         )
         .with_context_predicate(
@@ -426,7 +434,10 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "pane_group:resize_left",
-            "Resize pane > Move divider left",
+            binding_description(
+                "Resize pane > Move divider left",
+                "pane_group.binding.resize_left",
+            ),
             PaneGroupAction::ResizeLeft,
         )
         .with_context_predicate(
@@ -435,7 +446,10 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-ctrl-left"),
         EditableBinding::new(
             "pane_group:resize_right",
-            "Resize pane > Move divider right",
+            binding_description(
+                "Resize pane > Move divider right",
+                "pane_group.binding.resize_right",
+            ),
             PaneGroupAction::ResizeRight,
         )
         .with_context_predicate(
@@ -444,7 +458,10 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-ctrl-right"),
         EditableBinding::new(
             "pane_group:resize_up",
-            "Resize pane > Move divider up",
+            binding_description(
+                "Resize pane > Move divider up",
+                "pane_group.binding.resize_up",
+            ),
             PaneGroupAction::ResizeUp,
         )
         .with_context_predicate(
@@ -453,7 +470,10 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-ctrl-up"),
         EditableBinding::new(
             "pane_group:resize_down",
-            "Resize pane > Move divider down",
+            binding_description(
+                "Resize pane > Move divider down",
+                "pane_group.binding.resize_down",
+            ),
             PaneGroupAction::ResizeDown,
         )
         .with_context_predicate(
@@ -3058,13 +3078,17 @@ impl PaneGroup {
             ctx.notify();
         });
 
-        let user_default_shell_changed_banner = ctx.add_typed_action_view(|_| {
+        let unsupported_shell_text =
+            crate::localization::text_for_app(ctx, "pane_group.banner.unsupported_shell.fallback");
+        let learn_more_text = crate::localization::text_for_app(ctx, "common.learn_more");
+        let user_default_shell_changed_banner = ctx.add_typed_action_view(move |_| {
             Banner::<PaneGroupAction>::new_permanently_dismissible(
                 BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::plain_text(
-                        "Warp doesn't currently support your default shell, falling back to zsh.  ",
+                    FormattedTextFragment::plain_text(unsupported_shell_text.clone()),
+                    FormattedTextFragment::hyperlink(
+                        learn_more_text.clone(),
+                        WARP_SHELL_COMPATIBILITY_DOCS,
                     ),
-                    FormattedTextFragment::hyperlink("Learn more", WARP_SHELL_COMPATIBILITY_DOCS),
                 ]),
             )
         });

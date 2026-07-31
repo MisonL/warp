@@ -4,10 +4,13 @@ use warp::tui_export::{
     AIActionStatus, AIAgentAction, AIAgentActionType, AIConversationId, BlocklistAIActionModel,
     CancellationReason, NewConversationDecision,
 };
+use warp_localization::LocaleId;
 use warpui_core::elements::tui::{TuiElement, TuiText};
 use warpui_core::{AppContext, Entity, EntityId, ModelHandle, TuiView, ViewContext, ViewHandle};
 
 use crate::agent_block_sections::render_fallback_tool_call_section;
+use crate::localization;
+use crate::tool_call_labels::blocked_tool_call_label;
 use crate::tui_builder::TuiUiBuilder;
 use crate::tui_permission_prompt::{
     TuiPermissionPrompt, TuiPermissionPromptEvent, render_permission_card,
@@ -30,6 +33,140 @@ pub(super) struct TuiGenericToolCallView {
     action_model: ModelHandle<BlocklistAIActionModel>,
     conversation_id: AIConversationId,
     permission_prompt: Option<ViewHandle<TuiPermissionPrompt>>,
+}
+
+fn permission_question_for_action(action: &AIAgentActionType, locale: LocaleId) -> String {
+    let key = match action {
+        AIAgentActionType::ReadFiles(_) => "tui.generic_tool.permission.read_files",
+        AIAgentActionType::UploadArtifact(_) => "tui.generic_tool.permission.upload_artifact",
+        AIAgentActionType::SearchCodebase(_) => "tui.generic_tool.permission.search_codebase",
+        AIAgentActionType::Grep { .. } => "tui.generic_tool.permission.grep",
+        AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => {
+            "tui.generic_tool.permission.file_glob"
+        }
+        AIAgentActionType::CallMCPTool { .. } => "tui.generic_tool.permission.call_mcp_tool",
+        AIAgentActionType::ReadMCPResource { .. } => {
+            "tui.generic_tool.permission.read_mcp_resource"
+        }
+        AIAgentActionType::RequestComputerUse(_) => "tui.generic_tool.permission.computer_use",
+        AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
+            "tui.generic_tool.permission.write_running_command"
+        }
+        AIAgentActionType::SuggestNewConversation { .. } => {
+            "tui.generic_tool.permission.new_conversation"
+        }
+        AIAgentActionType::TransferShellCommandControlToUser { .. } => {
+            "tui.generic_tool.permission.transfer_command_control"
+        }
+        AIAgentActionType::RequestCommandOutput { .. }
+        | AIAgentActionType::RequestFileEdits { .. }
+        | AIAgentActionType::SuggestPrompt(_)
+        | AIAgentActionType::InitProject
+        | AIAgentActionType::OpenCodeReview
+        | AIAgentActionType::ReadDocuments(_)
+        | AIAgentActionType::EditDocuments(_)
+        | AIAgentActionType::CreateDocuments(_)
+        | AIAgentActionType::ReadShellCommandOutput { .. }
+        | AIAgentActionType::UseComputer(_)
+        | AIAgentActionType::InsertCodeReviewComments { .. }
+        | AIAgentActionType::StartRecording { .. }
+        | AIAgentActionType::StopRecording { .. }
+        | AIAgentActionType::ReadSkill(_)
+        | AIAgentActionType::FetchConversation { .. }
+        | AIAgentActionType::StartAgent { .. }
+        | AIAgentActionType::SendMessageToAgent { .. }
+        | AIAgentActionType::AskUserQuestion { .. }
+        | AIAgentActionType::RunAgents(_)
+        | AIAgentActionType::WaitForEvents { .. } => "tui.generic_tool.permission.generic",
+    };
+    localization::text_for_locale(locale, key)
+}
+
+fn in_path_detail(locale: LocaleId, path: &str) -> String {
+    localization::text_with_args_for_locale(
+        locale,
+        "tui.generic_tool.details.in_path",
+        &[("path", path)],
+    )
+}
+
+fn details_for_action(action: &AIAgentActionType, locale: LocaleId) -> String {
+    match action {
+        AIAgentActionType::ReadFiles(request) => request
+            .locations
+            .iter()
+            .map(|location| format!("  - {}", location.name))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        AIAgentActionType::UploadArtifact(request) => match &request.description {
+            Some(description) => format!("{}\n{}", request.file_path, description),
+            None => request.file_path.clone(),
+        },
+        AIAgentActionType::SearchCodebase(request) => match &request.codebase_path {
+            Some(path) => format!("{}\n{}", request.query, in_path_detail(locale, path)),
+            None => request.query.clone(),
+        },
+        AIAgentActionType::Grep { queries, path } => {
+            format!("{}\n{}", queries.join("\n"), in_path_detail(locale, path))
+        }
+        AIAgentActionType::FileGlob { patterns, path } => {
+            let path = path.as_deref().unwrap_or(".");
+            format!("{}\n{}", patterns.join("\n"), in_path_detail(locale, path))
+        }
+        AIAgentActionType::FileGlobV2 {
+            patterns,
+            search_dir,
+        } => {
+            let path = search_dir.as_deref().unwrap_or(".");
+            format!("{}\n{}", patterns.join("\n"), in_path_detail(locale, path))
+        }
+        AIAgentActionType::CallMCPTool { name, input, .. } => {
+            let input = serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
+            if input == "{}" || input == "null" {
+                name.clone()
+            } else {
+                format!("{name}\n{input}")
+            }
+        }
+        AIAgentActionType::ReadMCPResource { name, uri, .. } => {
+            uri.clone().unwrap_or_else(|| name.clone())
+        }
+        AIAgentActionType::RequestComputerUse(request) => request.task_summary.clone(),
+        AIAgentActionType::WriteToLongRunningShellCommand { input, .. } => {
+            String::from_utf8_lossy(input).into_owned()
+        }
+        AIAgentActionType::SuggestNewConversation { .. } => {
+            localization::text_for_locale(locale, "tui.generic_tool.details.new_conversation")
+        }
+        AIAgentActionType::TransferShellCommandControlToUser { reason } => reason.clone(),
+        AIAgentActionType::RequestCommandOutput { .. }
+        | AIAgentActionType::RequestFileEdits { .. }
+        | AIAgentActionType::SuggestPrompt(_)
+        | AIAgentActionType::InitProject
+        | AIAgentActionType::OpenCodeReview
+        | AIAgentActionType::ReadDocuments(_)
+        | AIAgentActionType::EditDocuments(_)
+        | AIAgentActionType::CreateDocuments(_)
+        | AIAgentActionType::ReadShellCommandOutput { .. }
+        | AIAgentActionType::UseComputer(_)
+        | AIAgentActionType::InsertCodeReviewComments { .. }
+        | AIAgentActionType::StartRecording { .. }
+        | AIAgentActionType::StopRecording { .. }
+        | AIAgentActionType::ReadSkill(_)
+        | AIAgentActionType::FetchConversation { .. }
+        | AIAgentActionType::StartAgent { .. }
+        | AIAgentActionType::SendMessageToAgent { .. }
+        | AIAgentActionType::AskUserQuestion { .. }
+        | AIAgentActionType::RunAgents(_)
+        | AIAgentActionType::WaitForEvents { .. } => {
+            let label = blocked_tool_call_label(action);
+            if label.is_empty() {
+                localization::text_for_locale(locale, "tui.generic_tool.details.action")
+            } else {
+                label
+            }
+        }
+    }
 }
 
 impl TuiGenericToolCallView {
@@ -181,91 +318,12 @@ impl TuiGenericToolCallView {
 
     /// Builds the user-facing question shown above the action details.
     fn permission_question(&self) -> String {
-        match &self.action.action {
-            AIAgentActionType::ReadFiles(_) => "Is it OK if I read these files?".to_owned(),
-            AIAgentActionType::UploadArtifact(_) => {
-                "Is it OK if I upload this artifact?".to_owned()
-            }
-            AIAgentActionType::SearchCodebase(_) => {
-                "Is it OK if I search this codebase?".to_owned()
-            }
-            AIAgentActionType::Grep { .. } => "Is it OK if I search these files?".to_owned(),
-            AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => {
-                "Is it OK if I find files matching these patterns?".to_owned()
-            }
-            AIAgentActionType::CallMCPTool { .. } => "Is it OK if I call this MCP tool?".to_owned(),
-            AIAgentActionType::ReadMCPResource { .. } => {
-                "Is it OK if I read this MCP resource?".to_owned()
-            }
-            AIAgentActionType::RequestComputerUse(_) => {
-                "Is it OK if I use the computer?".to_owned()
-            }
-            AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
-                "Is it OK if I write this input to the running command?".to_owned()
-            }
-            AIAgentActionType::SuggestNewConversation { .. } => {
-                "Should I start a new conversation?".to_owned()
-            }
-            AIAgentActionType::TransferShellCommandControlToUser { .. } => {
-                "Is it OK if I hand control of the running command to you?".to_owned()
-            }
-            action => format!("Is it OK if I {}?", action.user_friendly_name()),
-        }
+        permission_question_for_action(&self.action.action, localization::current_locale())
     }
 
     /// Formats the action arguments needed to make an approval decision.
     fn details(&self) -> String {
-        match &self.action.action {
-            AIAgentActionType::ReadFiles(request) => request
-                .locations
-                .iter()
-                .map(|location| format!("  - {}", location.name))
-                .collect::<Vec<_>>()
-                .join("\n"),
-            AIAgentActionType::UploadArtifact(request) => match &request.description {
-                Some(description) => format!("{}\n{}", request.file_path, description),
-                None => request.file_path.clone(),
-            },
-            AIAgentActionType::SearchCodebase(request) => match &request.codebase_path {
-                Some(path) => format!("{}\n  in {path}", request.query),
-                None => request.query.clone(),
-            },
-            AIAgentActionType::Grep { queries, path } => {
-                format!("{}\n  in {path}", queries.join("\n"))
-            }
-            AIAgentActionType::FileGlob { patterns, path } => {
-                let path = path.as_deref().unwrap_or(".");
-                format!("{}\n  in {path}", patterns.join("\n"))
-            }
-            AIAgentActionType::FileGlobV2 {
-                patterns,
-                search_dir,
-            } => {
-                let path = search_dir.as_deref().unwrap_or(".");
-                format!("{}\n  in {path}", patterns.join("\n"))
-            }
-            AIAgentActionType::CallMCPTool { name, input, .. } => {
-                let input =
-                    serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
-                if input == "{}" || input == "null" {
-                    name.clone()
-                } else {
-                    format!("{name}\n{input}")
-                }
-            }
-            AIAgentActionType::ReadMCPResource { name, uri, .. } => {
-                uri.clone().unwrap_or_else(|| name.clone())
-            }
-            AIAgentActionType::RequestComputerUse(request) => request.task_summary.clone(),
-            AIAgentActionType::WriteToLongRunningShellCommand { input, .. } => {
-                String::from_utf8_lossy(input).into_owned()
-            }
-            AIAgentActionType::SuggestNewConversation { .. } => {
-                "Continue the agent's next step in a fresh conversation.".to_owned()
-            }
-            AIAgentActionType::TransferShellCommandControlToUser { reason } => reason.clone(),
-            action => action.user_friendly_name(),
-        }
+        details_for_action(&self.action.action, localization::current_locale())
     }
 
     /// Renders the complete blocked-action card.

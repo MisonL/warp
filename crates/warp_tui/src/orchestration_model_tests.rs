@@ -1,16 +1,17 @@
 use warp::tui_export::{
     AIConversationId, BlocklistAIHistoryModel, CloudAgentStartupBlocker, CloudAgentStartupIssue,
-    ConversationStatus, Harness, OrchestrationEventStreamerEvent, StartAgentExecutionMode,
-    StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
-    register_tui_session_view_test_singletons,
+    ConversationStatus, Harness, OrchestrationEventStreamerEvent, PrepareRemoteChildLaunchError,
+    StartAgentExecutionMode, StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome,
+    StartAgentRequest, register_tui_session_view_test_singletons,
 };
+use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;
 use warpui::{AddWindowOptions, ModelHandle, ReadModel, SingletonEntity as _, UpdateModel};
 use warpui_core::elements::tui::{TuiBufferExt, TuiRect, text_width};
 use warpui_core::presenter::tui::TuiPresenter;
 use warpui_core::{App, TuiView as _, TypedActionView as _, WindowId};
 
-use super::TuiOrchestrationModel;
+use super::{TuiOrchestrationModel, remote_child_launch_error_message_for_locale};
 use crate::cloud_run::TuiCloudRunStartup;
 use crate::cloud_run_view::{TuiCloudRunAction, TuiCloudRunView};
 use crate::root_view::RootTuiView;
@@ -20,6 +21,26 @@ use crate::test_fixtures::{add_test_semantic_selection, add_test_terminal_sessio
 struct OrchestrationFixture {
     sessions: ModelHandle<TuiSessions>,
     window_id: WindowId,
+}
+
+#[test]
+fn remote_child_preparation_errors_are_localized() {
+    assert_eq!(
+        remote_child_launch_error_message_for_locale(
+            PrepareRemoteChildLaunchError::MissingParentRunId,
+            LocaleId::ZhCn,
+        ),
+        "远端子 Agent 需要可用的父运行 ID。",
+    );
+    assert_eq!(
+        remote_child_launch_error_message_for_locale(
+            PrepareRemoteChildLaunchError::UnresolvedSkills {
+                references: vec!["frontend".to_string(), "backend".to_string()],
+            },
+            LocaleId::ZhCn,
+        ),
+        "无法解析子 Agent 技能：frontend, backend",
+    );
 }
 
 fn remote_request(parent_conversation_id: AIConversationId) -> StartAgentRequest {

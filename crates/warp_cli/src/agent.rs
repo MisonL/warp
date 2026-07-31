@@ -9,6 +9,7 @@ use crate::SortOrderArg;
 use crate::config_file::ConfigFileArgs;
 use crate::environment::EnvironmentCreateArgs;
 use crate::json_filter::JsonOutput;
+use crate::localization::text;
 use crate::mcp::MCPSpec;
 use crate::model::ModelArgs;
 use crate::scope::ObjectScope;
@@ -637,10 +638,12 @@ impl RunCloudArgs {
     /// invocation fails fast with a clear message.
     pub fn validate_auth_secrets(&self) -> Result<(), String> {
         if self.claude_auth_secret.is_some() && self.harness != Harness::Claude {
-            return Err("--claude-auth-secret is only valid with --harness claude.".to_string());
+            return Err(text(
+                "agent_sdk.cli.error.claude_auth_secret_requires_claude",
+            ));
         }
         if self.codex_auth_secret.is_some() && self.harness != Harness::Codex {
-            return Err("--codex-auth-secret is only valid with --harness codex.".to_string());
+            return Err(text("agent_sdk.cli.error.codex_auth_secret_requires_codex"));
         }
         Ok(())
     }

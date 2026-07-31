@@ -24,6 +24,7 @@ use crate::ai::blocklist::agent_view::agent_input_footer::AgentInputButtonTheme;
 use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display::{brand_color, icon_for};
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
@@ -52,12 +53,6 @@ const MENU_WIDTH: f32 = 208.;
 /// Leading-icon size for harness item rows in logical pixels. Slightly larger
 /// than the default `ui_font_size()` to give the logos more visual presence.
 const ITEM_ICON_SIZE: f32 = 16.;
-
-/// Tooltip string for the closed-state button.
-const BUTTON_TOOLTIP: &str = "Agent harness";
-
-/// Label rendered at the top of the dropdown.
-const MENU_HEADER_LABEL: &str = "Agent harness";
 
 /// Actions dispatched by the [`HarnessSelector`].
 #[derive(Clone, Debug, PartialEq)]
@@ -90,12 +85,15 @@ impl HarnessSelector {
         ambient_agent_model: ModelHandle<AmbientAgentViewModel>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let button = ctx.add_typed_action_view(|_ctx| {
+        let button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", AgentInputButtonTheme)
                 .with_size(ButtonSize::AgentInputButton)
                 .with_menu(true)
                 .with_disabled_theme(AgentInputButtonTheme)
-                .with_tooltip(BUTTON_TOOLTIP)
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "terminal.ambient_agent.harness_selector.tooltip.agent_harness",
+                ))
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(HarnessSelectorAction::ToggleMenu);
                 })
@@ -221,14 +219,12 @@ impl HarnessSelector {
             button.set_icon(Some(icon), ctx);
             button.set_has_menu(!is_locked_to_oz, ctx);
             button.set_disabled(is_locked_to_oz, ctx);
-            button.set_tooltip(
-                Some(if is_locked_to_oz {
-                    "This conversation is with the Warp Agent, so the cloud handoff will also use Warp"
-                } else {
-                    BUTTON_TOOLTIP
-                }),
-                ctx,
-            );
+            let tooltip_key = if is_locked_to_oz {
+                "terminal.ambient_agent.harness_selector.tooltip.locked_to_warp"
+            } else {
+                "terminal.ambient_agent.harness_selector.tooltip.agent_harness"
+            };
+            button.set_tooltip(Some(localization::text_for_app(ctx, tooltip_key)), ctx);
         });
         if is_locked_to_oz {
             self.set_menu_visibility(false, ctx);
@@ -244,6 +240,7 @@ impl HarnessSelector {
         let border = Border::all(1.).with_border_fill(theme.outline());
         let availability_model = HarnessAvailabilityModel::as_ref(ctx);
         let items = build_menu_items(
+            ctx,
             availability_model,
             hover_background,
             header_text_color,
@@ -275,17 +272,21 @@ impl HarnessSelector {
 
 /// Builds the menu items from harness availability data.
 fn build_menu_items(
+    app: &AppContext,
     availability: &HarnessAvailabilityModel,
     hover_background: Fill,
     header_text_color: pathfinder_color::ColorU,
     disabled_text_color: pathfinder_color::ColorU,
 ) -> Vec<MenuItem<HarnessSelectorAction>> {
     let header = MenuItem::Header {
-        fields: MenuItemFields::new(MENU_HEADER_LABEL)
-            .with_font_size_override(HEADER_FONT_SIZE)
-            .with_override_text_color(header_text_color)
-            .with_padding_override(HEADER_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
-            .with_no_interaction_on_hover(),
+        fields: MenuItemFields::new(localization::text_for_app(
+            app,
+            "terminal.ambient_agent.harness_selector.tooltip.agent_harness",
+        ))
+        .with_font_size_override(HEADER_FONT_SIZE)
+        .with_override_text_color(header_text_color)
+        .with_padding_override(HEADER_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
+        .with_no_interaction_on_hover(),
         clickable: false,
         right_side_fields: None,
     };
@@ -310,7 +311,10 @@ fn build_menu_items(
             fields = fields
                 .with_disabled(true)
                 .with_override_text_color(disabled_text_color)
-                .with_tooltip("Disabled by your administrator");
+                .with_tooltip(localization::text_for_app(
+                    app,
+                    "terminal.ambient_agent.harness_selector.tooltip.disabled_by_admin",
+                ));
         }
         items.push(MenuItem::Item(fields));
     }

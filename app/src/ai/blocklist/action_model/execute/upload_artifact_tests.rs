@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use async_channel::unbounded;
+use warp_localization::LocaleId;
 use warpui::{App, EntityId, ModelHandle};
 
 use super::*;
@@ -134,8 +135,8 @@ fn format_upload_artifact_error_preserves_full_error_chain() {
     .context("Failed to create file artifact upload target");
 
     assert_eq!(
-        format_upload_artifact_error(&err),
-        "Artifact upload failed: Failed to create file artifact upload target: Artifact upload limit reached: this conversation already has the maximum allowed number of file artifacts (10). Remove an existing artifact or upload fewer files."
+        format_upload_artifact_error(&err, LocaleId::EnUs),
+        "Uploading artifact failed: Failed to create file artifact upload target: Artifact upload limit reached: this conversation already has the maximum allowed number of file artifacts (10). Remove an existing artifact or upload fewer files."
     );
 }
 
@@ -144,7 +145,7 @@ fn format_upload_artifact_error_keeps_single_layer_errors() {
     let err = anyhow::anyhow!("Failed to open artifact file '/tmp/missing.txt'");
 
     assert_eq!(
-        format_upload_artifact_error(&err),
+        format_upload_artifact_error(&err, LocaleId::EnUs),
         "Failed to open artifact file '/tmp/missing.txt'"
     );
 }

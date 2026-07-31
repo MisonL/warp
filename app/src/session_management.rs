@@ -78,14 +78,62 @@ impl CommandContext {
             Self::None => None,
             Self::LastRunCommand {
                 last_run_command, ..
-            } => Some(format!("Last run command {}", last_run_command.clone())),
-            Self::LastRunAIBlock { prompt } => Some(format!("Last AI interaction: {prompt}")),
+            } => Some(crate::localization::text_for_locale_with_args(
+                warp_localization::LocaleId::EnUs,
+                "search.navigation.a11y.last_run_command",
+                &[("command", last_run_command)],
+            )),
+            Self::LastRunAIBlock { prompt } => {
+                Some(crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.navigation.a11y.last_ai_interaction",
+                    &[("prompt", prompt)],
+                ))
+            }
             Self::RunningCommand { running_command } => {
-                Some(format!("Currently running {running_command}"))
+                Some(crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.navigation.a11y.running_command",
+                    &[("command", running_command)],
+                ))
             }
             Self::RunningAIBlock { prompt } => {
-                Some(format!("Currently running AI interaction: {prompt}"))
+                Some(crate::localization::text_for_locale_with_args(
+                    warp_localization::LocaleId::EnUs,
+                    "search.navigation.a11y.running_ai_interaction",
+                    &[("prompt", prompt)],
+                ))
             }
+        }
+    }
+
+    pub fn a11y_description_for_app(&self, app: &AppContext) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::LastRunCommand {
+                last_run_command, ..
+            } => Some(crate::localization::text_for_app_with_args(
+                app,
+                "search.navigation.a11y.last_run_command",
+                &[("command", last_run_command)],
+            )),
+            Self::LastRunAIBlock { prompt } => Some(crate::localization::text_for_app_with_args(
+                app,
+                "search.navigation.a11y.last_ai_interaction",
+                &[("prompt", prompt)],
+            )),
+            Self::RunningCommand { running_command } => {
+                Some(crate::localization::text_for_app_with_args(
+                    app,
+                    "search.navigation.a11y.running_command",
+                    &[("command", running_command)],
+                ))
+            }
+            Self::RunningAIBlock { prompt } => Some(crate::localization::text_for_app_with_args(
+                app,
+                "search.navigation.a11y.running_ai_interaction",
+                &[("prompt", prompt)],
+            )),
         }
     }
 }

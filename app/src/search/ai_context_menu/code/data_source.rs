@@ -27,6 +27,7 @@ use warpui::SingletonEntity;
 use super::search_item::CodeSearchItem;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::outline::{OutlineStatus, RepoOutlines, RepoOutlinesEvent};
+use crate::localization;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::mixer::AIContextMenuSearchableAction;
 #[cfg(not(target_family = "wasm"))]
@@ -236,6 +237,10 @@ struct CodeSearchError;
 impl DataSourceRunError for CodeSearchError {
     fn user_facing_error(&self) -> String {
         "Code search failed".to_string()
+    }
+
+    fn user_facing_error_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app(app, "search.ai_context_menu.code.error.generic")
     }
 
     fn telemetry_payload(&self) -> serde_json::Value {

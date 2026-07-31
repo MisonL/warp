@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use ai::skills::{ParsedSkill, SkillProvider, SkillReference, SkillScope, get_provider_for_path};
 use repo_metadata::repositories::DetectedRepositories;
@@ -17,7 +19,7 @@ use warpui::App;
 use watcher::HomeDirectoryWatcher;
 
 use super::*;
-use crate::settings::AISettings;
+use crate::settings::{AISettings, LanguageSettings};
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 
 // ============================================================================
@@ -572,6 +574,54 @@ Use `{{warpctrl_binary_name}}` from {{warpctrl_wrapper_path}}.
 }
 
 #[test]
+fn test_read_bundled_skills_localizes_description_without_replacing_instructions() {
+    let temp_dir = TempDir::new().unwrap();
+    let resources_dir = temp_dir.path();
+    let skills_dir = resources_dir.join("bundled/skills");
+    let skill_dir = skills_dir.join("test-skill");
+    fs::create_dir_all(&skill_dir).unwrap();
+
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        r#"---
+name: test-skill
+description: English description
+description_zh_CN: 简体中文描述
+---
+
+Canonical instruction that must remain available.
+"#,
+    )
+    .unwrap();
+    fs::write(
+        skill_dir.join("SKILL.zh-CN.md"),
+        r#"---
+name: test-skill
+description: 本地化描述
+---
+
+Incomplete localized instruction.
+"#,
+    )
+    .unwrap();
+
+    let skills = futures::executor::block_on(read_bundled_skills_for_locale(
+        &skills_dir,
+        resources_dir,
+        LocaleId::ZhCn,
+    ));
+    let skill = skills.get("test-skill").unwrap();
+
+    assert_eq!(skill.description, "简体中文描述");
+    assert!(
+        skill
+            .content
+            .contains("Canonical instruction that must remain available.")
+    );
+    assert!(!skill.content.contains("Incomplete localized instruction."));
+}
+
+#[test]
 fn test_read_bundled_skills_renders_host_paths() {
     let temp_dir = TempDir::new().unwrap();
     let resources_dir = temp_dir.path();
@@ -678,7 +728,7 @@ fn test_build_bundled_skill_context() {
     let temp_dir = TempDir::new().unwrap();
     let resources_dir = temp_dir.path();
     let skill_dir = resources_dir.join("bundled/skills/test-skill");
-    let context = build_bundled_skill_context(resources_dir, &skill_dir);
+    let context = build_bundled_skill_context(resources_dir, &skill_dir, LocaleId::EnUs);
 
     assert_eq!(context.len(), 13);
     assert!(context.contains_key("warp_server_url"));
@@ -764,6 +814,65 @@ fn test_build_bundled_skill_context() {
             .display()
             .to_string()
     );
+}
+
+#[test]
+fn local_bundled_skill_reload_discards_stale_results_without_localization_updater() {
+    let _bundled_skills = FeatureFlag::BundledSkills.override_enabled(false);
+    App::test((), |mut app| async move {
+        app.add_singleton_model(LanguageSettings::new_with_defaults);
+        app.add_singleton_model(DirectoryWatcher::new);
+        app.add_singleton_model(AISettings::new_with_defaults);
+        app.add_singleton_model(|_| DetectedRepositories::default());
+        app.add_singleton_model(RepoMetadataModel::new);
+        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
+        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
+
+        let manager = app.add_singleton_model(SkillManager::new);
+        let local_catalog_updates = Arc::new(AtomicUsize::new(0));
+        app.update(|ctx| {
+            let local_catalog_updates = local_catalog_updates.clone();
+            ctx.subscribe_to_model(&manager, move |_, event, _| {
+                if matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                    local_catalog_updates.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+        });
+
+        manager.update(&mut app, |manager, ctx| {
+            let stale_epoch = manager.next_local_bundled_skills_reload_epoch();
+            let current_epoch = manager.next_local_bundled_skills_reload_epoch();
+            let current_catalog = BundledSkill::from_definitions([(
+                "reload-test".to_string(),
+                bundled_test_skill("reload-test", "Current catalog"),
+                BundledSkillActivation::Always,
+            )]);
+            let stale_catalog = BundledSkill::from_definitions([(
+                "reload-test".to_string(),
+                bundled_test_skill("reload-test", "Stale catalog"),
+                BundledSkillActivation::Always,
+            )]);
+
+            assert!(manager.replace_local_bundled_skills_if_current(
+                current_epoch,
+                current_catalog,
+                ctx,
+            ));
+            assert!(!manager.replace_local_bundled_skills_if_current(
+                stale_epoch,
+                stale_catalog,
+                ctx,
+            ));
+            assert_eq!(
+                manager
+                    .bundled_skills
+                    .local_skill("reload-test")
+                    .map(|skill| skill.description.as_str()),
+                Some("Current catalog")
+            );
+        });
+        assert_eq!(local_catalog_updates.load(Ordering::SeqCst), 1);
+    });
 }
 
 fn bundled_test_skill(id: &str, description: &str) -> ParsedSkill {
@@ -1142,7 +1251,7 @@ fn tui_only_bundled_skill_is_listed_and_resolved_only_in_tui() {
 #[test]
 fn tui_migration_skill_has_tui_only_activation() {
     assert!(matches!(
-        activation_for_bundled_skill("tui-migrate-setup", Path::new("/resources")),
+        activation_for_bundled_skill("tui-migrate-setup", Path::new("/resources"), LocaleId::EnUs,),
         BundledSkillActivation::TuiOnly
     ));
 }
@@ -1151,8 +1260,9 @@ fn warp_control_bundled_skill_activations_track_warp_control_feature() {
     App::test((), |app| async move {
         let settings = app.add_singleton_model(AISettings::new_with_defaults);
         let warp_control_cli = FeatureFlag::WarpControlCli.override_enabled(false);
-        let activations = ["warpctrl"]
-            .map(|skill_id| activation_for_bundled_skill(skill_id, Path::new("/resources")));
+        let activations = ["warpctrl"].map(|skill_id| {
+            activation_for_bundled_skill(skill_id, Path::new("/resources"), LocaleId::EnUs)
+        });
         for activation in &activations {
             assert!(!settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
         }

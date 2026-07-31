@@ -200,6 +200,32 @@ impl VoiceInputToggleKey {
         }
     }
 
+    pub fn localized_display_name(&self, app: &AppContext) -> String {
+        let (super_key_name, alt_key_name): (&'static str, &'static str) =
+            match OperatingSystem::get() {
+                OperatingSystem::Mac => ("Command", "Option"),
+                OperatingSystem::Windows => ("Windows", "Alt"),
+                OperatingSystem::Linux | OperatingSystem::Other(_) => ("Super", "Alt"),
+            };
+
+        match self {
+            VoiceInputToggleKey::None => {
+                crate::localization::text_for_app(app, "settings.ai.voice_input_toggle_key.none")
+            }
+            VoiceInputToggleKey::Fn => "Fn".to_string(),
+            VoiceInputToggleKey::AltLeft => localized_key_with_side(app, alt_key_name, "left"),
+            VoiceInputToggleKey::AltRight => localized_key_with_side(app, alt_key_name, "right"),
+            VoiceInputToggleKey::ControlLeft => localized_key_with_side(app, "Control", "left"),
+            VoiceInputToggleKey::ControlRight => localized_key_with_side(app, "Control", "right"),
+            VoiceInputToggleKey::SuperLeft => localized_key_with_side(app, super_key_name, "left"),
+            VoiceInputToggleKey::SuperRight => {
+                localized_key_with_side(app, super_key_name, "right")
+            }
+            VoiceInputToggleKey::ShiftLeft => localized_key_with_side(app, "Shift", "left"),
+            VoiceInputToggleKey::ShiftRight => localized_key_with_side(app, "Shift", "right"),
+        }
+    }
+
     pub fn to_key_code(&self) -> Option<KeyCode> {
         match self {
             VoiceInputToggleKey::None => None,
@@ -272,9 +298,54 @@ impl VoiceInputToggleKey {
         }
     }
 
+    pub fn localized_tooltip_message(&self, app: &AppContext) -> String {
+        match self.keystroke() {
+            Some(keystroke) => {
+                let symbol = keystroke.displayed();
+                let side = match self {
+                    VoiceInputToggleKey::AltLeft
+                    | VoiceInputToggleKey::ControlLeft
+                    | VoiceInputToggleKey::SuperLeft
+                    | VoiceInputToggleKey::ShiftLeft => Some("left"),
+                    VoiceInputToggleKey::AltRight
+                    | VoiceInputToggleKey::ControlRight
+                    | VoiceInputToggleKey::SuperRight
+                    | VoiceInputToggleKey::ShiftRight => Some("right"),
+                    VoiceInputToggleKey::None | VoiceInputToggleKey::Fn => None,
+                };
+                let key_name = match side {
+                    Some(side) => localized_key_with_side(app, &symbol, side),
+                    None => symbol,
+                };
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "settings.ai.voice_input.tooltip_with_key",
+                    &[("key", &key_name)],
+                )
+            }
+            None => crate::localization::text_for_app(app, "settings.ai.voice_input.label"),
+        }
+    }
+
     pub fn is_none(&self) -> bool {
         matches!(self, VoiceInputToggleKey::None)
     }
+}
+
+fn localized_key_with_side(app: &AppContext, key: &str, side: &str) -> String {
+    let side_key = match side {
+        "left" => "settings.ai.voice_input_toggle_key.side.left",
+        "right" => "settings.ai.voice_input_toggle_key.side.right",
+        _ => unreachable!("voice input toggle key side must be left or right"),
+    };
+    crate::localization::text_for_app_with_args(
+        app,
+        "settings.ai.voice_input_toggle_key.with_side",
+        &[
+            ("key", key),
+            ("side", &crate::localization::text_for_app(app, side_key)),
+        ],
+    )
 }
 
 /// The default mode for new terminal sessions.
@@ -332,6 +403,24 @@ impl DefaultSessionMode {
             DefaultSessionMode::DockerSandbox => "Local Docker Sandbox",
         }
     }
+
+    pub fn display_name_key(&self) -> &'static str {
+        match self {
+            DefaultSessionMode::Terminal => {
+                "settings.features.default_session_mode.option.terminal"
+            }
+            DefaultSessionMode::Agent => "settings.features.default_session_mode.option.agent",
+            DefaultSessionMode::CloudAgent => {
+                "settings.features.default_session_mode.option.cloud_agent"
+            }
+            DefaultSessionMode::TabConfig => {
+                "settings.features.default_session_mode.option.tab_config"
+            }
+            DefaultSessionMode::DockerSandbox => {
+                "settings.features.default_session_mode.option.docker_sandbox"
+            }
+        }
+    }
 }
 
 /// Controls how agent thinking/reasoning traces are displayed after streaming.
@@ -382,11 +471,31 @@ impl ThinkingDisplayMode {
         }
     }
 
+    pub fn display_name_key(&self) -> &'static str {
+        match self {
+            ThinkingDisplayMode::ShowAndCollapse => {
+                "settings.ai.other.thinking.option.show_and_collapse"
+            }
+            ThinkingDisplayMode::AlwaysShow => "settings.ai.other.thinking.option.always_show",
+            ThinkingDisplayMode::NeverShow => "settings.ai.other.thinking.option.never_show",
+        }
+    }
+
     pub fn command_palette_description(&self) -> &'static str {
         match self {
             ThinkingDisplayMode::ShowAndCollapse => "Set agent thinking display: show & collapse",
             ThinkingDisplayMode::AlwaysShow => "Set agent thinking display: always show",
             ThinkingDisplayMode::NeverShow => "Set agent thinking display: never show",
+        }
+    }
+
+    pub fn command_palette_description_key(&self) -> &'static str {
+        match self {
+            ThinkingDisplayMode::ShowAndCollapse => {
+                "settings.command_palette.ai.thinking.show_and_collapse"
+            }
+            ThinkingDisplayMode::AlwaysShow => "settings.command_palette.ai.thinking.always_show",
+            ThinkingDisplayMode::NeverShow => "settings.command_palette.ai.thinking.never_show",
         }
     }
 
@@ -493,6 +602,34 @@ impl OrchestrationMessageDisplayMode {
         }
     }
 
+    pub fn display_name_key(&self) -> &'static str {
+        match self {
+            OrchestrationMessageDisplayMode::ShowAndCollapse => {
+                "settings.ai.other.orchestration_message_display.option.show_and_collapse"
+            }
+            OrchestrationMessageDisplayMode::AlwaysShow => {
+                "settings.ai.other.orchestration_message_display.option.always_show"
+            }
+            OrchestrationMessageDisplayMode::AlwaysCollapse => {
+                "settings.ai.other.orchestration_message_display.option.always_collapse"
+            }
+        }
+    }
+
+    pub fn command_palette_description_key(&self) -> &'static str {
+        match self {
+            OrchestrationMessageDisplayMode::ShowAndCollapse => {
+                "settings.command_palette.ai.orchestration_message_display.show_and_collapse"
+            }
+            OrchestrationMessageDisplayMode::AlwaysShow => {
+                "settings.command_palette.ai.orchestration_message_display.always_show"
+            }
+            OrchestrationMessageDisplayMode::AlwaysCollapse => {
+                "settings.command_palette.ai.orchestration_message_display.always_collapse"
+            }
+        }
+    }
+
     pub fn command_palette_description(&self) -> &'static str {
         match self {
             OrchestrationMessageDisplayMode::ShowAndCollapse => {
@@ -574,6 +711,26 @@ impl PromptSubmissionMode {
         }
     }
 
+    pub fn display_name_key(&self) -> &'static str {
+        match self {
+            PromptSubmissionMode::Interrupt => {
+                "settings.ai.input.prompt_submission_mode.option.interrupt"
+            }
+            PromptSubmissionMode::Queue => "settings.ai.input.prompt_submission_mode.option.queue",
+        }
+    }
+
+    pub fn command_palette_description_key(&self) -> &'static str {
+        match self {
+            PromptSubmissionMode::Interrupt => {
+                "settings.command_palette.ai.prompt_submission_mode.interrupt"
+            }
+            PromptSubmissionMode::Queue => {
+                "settings.command_palette.ai.prompt_submission_mode.queue"
+            }
+        }
+    }
+
     pub fn command_palette_description(&self) -> &'static str {
         match self {
             PromptSubmissionMode::Interrupt => "Set default prompt submission: interrupt response",
@@ -638,6 +795,17 @@ impl LongRunningCommandSubmissionMode {
         }
     }
 
+    pub fn display_name_key(&self) -> &'static str {
+        match self {
+            LongRunningCommandSubmissionMode::SendImmediately => {
+                "settings.ai.other.long_running_command_submission.option.send_immediately"
+            }
+            LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                "settings.ai.other.long_running_command_submission.option.queue_until_command_finishes"
+            }
+        }
+    }
+
     pub fn command_palette_description(&self) -> &'static str {
         match self {
             LongRunningCommandSubmissionMode::SendImmediately => {
@@ -645,6 +813,17 @@ impl LongRunningCommandSubmissionMode {
             }
             LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
                 "Set long-running command submission: queue until command finishes"
+            }
+        }
+    }
+
+    pub fn command_palette_description_key(&self) -> &'static str {
+        match self {
+            LongRunningCommandSubmissionMode::SendImmediately => {
+                "settings.command_palette.ai.long_running_command_submission.send_immediately"
+            }
+            LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                "settings.command_palette.ai.long_running_command_submission.queue_until_command_finishes"
             }
         }
     }

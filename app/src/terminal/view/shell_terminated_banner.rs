@@ -10,13 +10,10 @@ use warpui::elements::*;
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::UiComponent as _;
-use warpui::{Entity, SingletonEntity as _, TypedActionView, View, ViewContext};
+use warpui::{AppContext, Entity, SingletonEntity as _, TypedActionView, View, ViewContext};
 
 use crate::terminal::model::terminal_model::ExitReason;
-use crate::ui_components;
-
-const FILE_ISSUE_TEXT: &str = "File issue";
-const MORE_INFO_TEXT: &str = "More info";
+use crate::{localization, ui_components};
 
 /// A banner to display when the shell process terminates.
 ///
@@ -32,7 +29,7 @@ impl ShellTerminatedBanner {
         let appearance = Appearance::as_ref(ctx);
 
         let mut handles = vec![];
-        let _ = termination_type.buttons(appearance, &mut handles);
+        let _ = termination_type.buttons(appearance, ctx, &mut handles);
 
         Self {
             termination_type,
@@ -61,9 +58,9 @@ impl View for ShellTerminatedBanner {
 
         let mut text_column = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::Start)
-            .with_child(self.termination_type.text(appearance));
+            .with_child(self.termination_type.text(appearance, app));
 
-        if let Some(subtext) = self.termination_type.subtext(appearance) {
+        if let Some(subtext) = self.termination_type.subtext(appearance, app) {
             text_column.add_child(subtext);
         }
 
@@ -78,7 +75,7 @@ impl View for ShellTerminatedBanner {
         let mut handles = self.handles.borrow_mut();
         let buttons = self
             .termination_type
-            .buttons(appearance, &mut handles)
+            .buttons(appearance, app, &mut handles)
             .into_iter()
             .map(|button| Container::new(button).with_margin_left(8.).finish());
 
@@ -163,11 +160,17 @@ impl TerminationType {
         .finish()
     }
 
-    fn text(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn text(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let text = match self {
-            TerminationType::Normal => "Shell process exited",
-            TerminationType::PtySpawnFailure { .. } => "Shell process could not start!",
-            TerminationType::Premature { .. } => "Shell process exited prematurely!",
+            TerminationType::Normal => {
+                localization::text_for_app(app, "terminal.shell_terminated.normal.title")
+            }
+            TerminationType::PtySpawnFailure { .. } => {
+                localization::text_for_app(app, "terminal.shell_terminated.pty_spawn.title")
+            }
+            TerminationType::Premature { .. } => {
+                localization::text_for_app(app, "terminal.shell_terminated.premature.title")
+            }
         };
 
         Text::new(text, appearance.ui_font_family(), 14.)
@@ -176,18 +179,20 @@ impl TerminationType {
             .finish()
     }
 
-    fn subtext(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn subtext(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>> {
         let text: Cow<str> = match self {
             TerminationType::Normal => return None,
             TerminationType::PtySpawnFailure { pty_spawn_error } => {
                 format!("{pty_spawn_error:#}").into()
             }
-            TerminationType::Premature { shell_detail, .. } => format!(
-                "Something went wrong while starting {shell_detail} and Warpifying it, causing the \
-                process to terminate. Warpify script output is displayed here, which may point at \
-                a cause."
-            )
-            .into(),
+            TerminationType::Premature { shell_detail, .. } => {
+                localization::text_for_app_with_args(
+                    app,
+                    "terminal.shell_terminated.premature.description",
+                    &[("shell_detail", shell_detail)],
+                )
+                .into()
+            }
         };
 
         let text = Text::new(text, appearance.ui_font_family(), 12.)
@@ -201,6 +206,7 @@ impl TerminationType {
     fn buttons(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
         handles: &mut Vec<MouseStateHandle>,
     ) -> Vec<Box<dyn Element>> {
         match self {
@@ -212,7 +218,10 @@ impl TerminationType {
                 vec![
                     ui_builder
                         .button(ButtonVariant::Text, handles[0].clone())
-                        .with_text_label(FILE_ISSUE_TEXT.to_string())
+                        .with_text_label(localization::text_for_app(
+                            app,
+                            "terminal.shell_terminated.action.file_issue",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| {
                             ctx.dispatch_typed_action(Action::OpenUrl(
@@ -222,7 +231,10 @@ impl TerminationType {
                         .finish(),
                     ui_builder
                         .button(ButtonVariant::Outlined, handles[1].clone())
-                        .with_text_label(MORE_INFO_TEXT.to_string())
+                        .with_text_label(localization::text_for_app(
+                            app,
+                            "terminal.shell_terminated.action.more_info",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| {
                             ctx.dispatch_typed_action(Action::OpenUrl(
@@ -240,7 +252,10 @@ impl TerminationType {
                 vec![
                     ui_builder
                         .button(ButtonVariant::Text, handles[0].clone())
-                        .with_text_label("Copy error".to_string())
+                        .with_text_label(localization::text_for_app(
+                            app,
+                            "terminal.shell_terminated.action.copy_error",
+                        ))
                         .build()
                         .on_click(move |evt_ctx, _ctx, _position| {
                             evt_ctx.dispatch_typed_action(Action::CopyPtySpawnError(
@@ -250,7 +265,10 @@ impl TerminationType {
                         .finish(),
                     ui_builder
                         .button(ButtonVariant::Text, handles[1].clone())
-                        .with_text_label(FILE_ISSUE_TEXT.to_string())
+                        .with_text_label(localization::text_for_app(
+                            app,
+                            "terminal.shell_terminated.action.file_issue",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| {
                             ctx.dispatch_typed_action(Action::OpenUrl(
@@ -260,7 +278,10 @@ impl TerminationType {
                         .finish(),
                     ui_builder
                         .button(ButtonVariant::Outlined, handles[2].clone())
-                        .with_text_label(MORE_INFO_TEXT.to_string())
+                        .with_text_label(localization::text_for_app(
+                            app,
+                            "terminal.shell_terminated.action.more_info",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| {
                             ctx.dispatch_typed_action(Action::OpenUrl(

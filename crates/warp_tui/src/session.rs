@@ -5,8 +5,8 @@
 //! defers creating the first terminal session until login.
 
 use anyhow::{Context, Result};
-use clap::Parser;
 use clap::error::ErrorKind;
+use clap::{CommandFactory, FromArgMatches, Parser};
 use warp::tui_export::{Appearance, ServerConversationToken};
 use warp::{TuiLoginEvent, TuiLoginModel, TuiLoginPhase};
 use warp_core::telemetry::TelemetryEvent as _;
@@ -16,6 +16,7 @@ use warpui_core::platform::{TerminationMode, WindowStyle};
 use warpui_core::runtime::spawn_tui_driver;
 use warpui_core::{AddWindowOptions, AppContext, ModelHandle, ViewHandle};
 
+use crate::localization;
 use crate::orchestration_model::TuiOrchestrationModel;
 use crate::resume::TuiExitSummaryHandle;
 use crate::root_view::RootTuiView;
@@ -38,9 +39,41 @@ struct TuiArgs {
 
 /// Validates and wraps a server conversation token from the command line.
 fn parse_resume_token(token: String) -> Result<ServerConversationToken> {
-    uuid::Uuid::parse_str(&token)
-        .with_context(|| format!("invalid server conversation token: {token}"))?;
+    uuid::Uuid::parse_str(&token).with_context(|| {
+        localization::text_with_args("tui.error.invalid_resume_token", &[("token", &token)])
+    })?;
     Ok(ServerConversationToken::new(token))
+}
+
+fn tui_command() -> clap::Command {
+    tui_command_for(localization::current_locale())
+}
+
+fn tui_command_for(locale: warp_localization::LocaleId) -> clap::Command {
+    <TuiArgs as CommandFactory>::command()
+        .about(localization::text_for_locale(locale, "tui.help.about"))
+        .help_template(localization::text_for_locale(locale, "cli.help.template"))
+        .mut_args(|arg| {
+            arg.help_heading(localization::text_for_locale(
+                locale,
+                "cli.help.heading.options",
+            ))
+        })
+        .mut_arg("resume", |arg| {
+            arg.help(localization::text_for_locale(locale, "tui.help.arg.resume"))
+        })
+        .mut_arg("api_key", |arg| {
+            arg.help(localization::text_for_locale(
+                locale,
+                "tui.help.arg.api_key",
+            ))
+        })
+}
+
+fn parse_args() -> Result<TuiArgs, clap::Error> {
+    tui_command()
+        .try_get_matches()
+        .and_then(|matches| TuiArgs::from_arg_matches(&matches))
 }
 
 /// Boots the headless Warp app and mounts the transcript-capable TUI session.
@@ -51,7 +84,8 @@ pub fn run() -> Result<()> {
     if let Some(result) = warp::run_tui_worker_if_requested() {
         return result;
     }
-    let args = match TuiArgs::try_parse() {
+    localization::sync_from_environment();
+    let args = match parse_args() {
         Ok(args) => args,
         Err(error)
             if matches!(
@@ -75,8 +109,10 @@ pub fn run() -> Result<()> {
         && let Some(token) = exit_summary.token()
     {
         let token = token.as_str();
-        println!("To continue this conversation, run:");
-        println!("warp --resume {token}");
+        println!(
+            "{}",
+            localization::text_with_args("tui.session.resume_command", &[("token", token)],)
+        );
     }
     result
 }
@@ -87,6 +123,7 @@ fn init(
     exit_summary: TuiExitSummaryHandle,
     ctx: &mut AppContext,
 ) {
+    crate::localization::sync_from_app(ctx);
     warp_core::send_telemetry_from_app_ctx!(TuiStartupTelemetryEvent, ctx);
     // Register the TUI views' keybindings (and, in debug builds, the
     // cross-surface binding validators) before any input can be dispatched.

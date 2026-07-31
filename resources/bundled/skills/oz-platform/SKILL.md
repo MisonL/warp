@@ -1,6 +1,7 @@
 ---
 name: oz-platform
 description: Use Warp's REST API and command line to run, configure, and inspect Oz cloud agents
+description_zh_CN: 使用 Warp 的 REST API 和命令行运行、配置并检查 Oz 云端 Agent。
 ---
 
 # oz-platform

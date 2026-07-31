@@ -32,13 +32,13 @@ pub enum CostRow {
         value: Option<f32>,
     },
     BilledToProvider {
-        label: &'static str,
+        label: String,
         tooltip: Option<CostRowTooltip>,
         manage_button: Box<dyn Element>,
     },
 }
 pub struct CostRowTooltip {
-    pub text: &'static str,
+    pub text: String,
     pub mouse_state: MouseStateHandle,
 }
 
@@ -111,7 +111,7 @@ enum ScoreRowKind {
         value: Option<f32>,
     },
     BilledToProvider {
-        label: &'static str,
+        label: String,
         manage_button: Box<dyn Element>,
     },
 }
@@ -212,7 +212,7 @@ fn render_score_row(
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(render_provider_label(label, appearance))
+                .with_child(render_provider_label(&label, appearance))
                 .with_child(Container::new(manage_button).with_margin_left(8.).finish())
                 .finish(),
         )
@@ -262,7 +262,7 @@ fn render_row_label(
         .finish()
 }
 
-fn render_provider_label(label: &'static str, appearance: &Appearance) -> Box<dyn Element> {
+fn render_provider_label(label: &str, appearance: &Appearance) -> Box<dyn Element> {
     Container::new(
         Text::new(label.to_string(), appearance.ui_font_family(), 14.)
             .with_color(appearance.theme().disabled_ui_text_color().into())

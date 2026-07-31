@@ -5,7 +5,6 @@ use warp_errors::report_error;
 use warpui::keymap::Keystroke;
 use warpui::{EntityId, SingletonEntity, ViewContext};
 
-use crate::TelemetryEvent;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::agent_view::{
@@ -28,6 +27,7 @@ use crate::terminal::view::{
 };
 use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
+use crate::{TelemetryEvent, localization};
 
 pub const ENTER_AGAIN_TO_SEND_MESSAGE_ID: &str = "enter_again_to_send";
 
@@ -64,10 +64,10 @@ impl TerminalView {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error(
-                        "Cannot start a new conversation while agent is monitoring a command."
-                            .to_string(),
-                    ),
+                    DismissibleToast::error(localization::text_for_app(
+                        ctx,
+                        "terminal.input.toast.cannot_start_conversation_agent_monitoring",
+                    )),
                     window_id,
                     ctx,
                 );
@@ -80,7 +80,7 @@ impl TerminalView {
                 anyhow::Error::new(e).context("Failed to enter agent view for new conversation"),
                 extra: { "origin" => ?origin }
             );
-            self.show_error_toast(e.to_string(), ctx);
+            self.show_error_toast(e.localized_message(ctx), ctx);
         }
         self.redetermine_global_focus(ctx);
     }
@@ -112,7 +112,7 @@ impl TerminalView {
                     anyhow::Error::new(e).context("Failed to enter agent view for restored CLI agent"),
                     extra: { "origin" => ?origin }
                 );
-                self.show_error_toast(e.to_string(), ctx);
+                self.show_error_toast(e.localized_message(ctx), ctx);
                 self.redetermine_global_focus(ctx);
                 None
             }
@@ -148,7 +148,7 @@ impl TerminalView {
                     anyhow::Error::new(e).context("Failed to enter agent view for existing conversation"),
                     extra: { "conversation_id" => ?conversation_id, "origin" => ?origin }
                 );
-                self.show_error_toast(e.to_string(), ctx);
+                self.show_error_toast(e.localized_message(ctx), ctx);
             }
         } else if let Some(conversation) = in_memory_conversation {
             self.restore_conversation_after_view_creation(
@@ -168,7 +168,7 @@ impl TerminalView {
                         .context("Failed to enter agent view for restored in-memory conversation"),
                     extra: { "conversation_id" => ?conversation_id, "origin" => ?origin }
                 );
-                self.show_error_toast(e.to_string(), ctx);
+                self.show_error_toast(e.localized_message(ctx), ctx);
             }
         } else {
             let conversation_id_copy = conversation_id;
@@ -178,7 +178,11 @@ impl TerminalView {
             ctx.spawn(future, move |me, conversation, ctx| {
                 let Some(conversation) = conversation else {
                     me.show_error_toast(
-                        format!("Failed to load conversation with id: {conversation_id}"),
+                        localization::text_for_app_with_args(
+                            ctx,
+                            "terminal.agent_view.error.load_conversation",
+                            &[("conversation_id", &conversation_id.to_string())],
+                        ),
                         ctx,
                     );
                     return;
@@ -316,7 +320,10 @@ impl TerminalView {
                         key: "enter".to_owned(),
                         ..Default::default()
                     }),
-                    MessageItem::text("again to send to agent"),
+                    MessageItem::text(localization::text_for_app(
+                        ctx,
+                        "terminal.agent_view.confirmation.send_to_agent",
+                    )),
                 ])
                 .with_text_color(appearance.theme().ansi_fg_magenta());
                 self.ephemeral_message_model.update(ctx, |model, ctx| {

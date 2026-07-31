@@ -105,13 +105,34 @@ impl SearchItemTrait for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Selected tab: {}.", self.tab.title)
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.command_palette.a11y.selected_tab",
+            &[("title", &self.tab.title)],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.command_palette.a11y.selected_tab",
+            &[("title", &self.tab.title)],
+        )
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
-        Some(format!(
-            "Press enter to navigate to tab: {}.",
-            self.tab.title
+        Some(crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.command_palette.a11y.help.navigate_tab",
+            &[("title", &self.tab.title)],
+        ))
+    }
+
+    fn accessibility_help_message_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(crate::localization::text_for_app_with_args(
+            app,
+            "search.command_palette.a11y.help.navigate_tab",
+            &[("title", &self.tab.title)],
         ))
     }
 }

@@ -221,6 +221,7 @@ impl CloudPreferencesSyncer {
     }
 
     /// Returns whether initial cloud/local preference reconciliation has completed.
+    #[cfg(not(feature = "agent_mode_evals"))]
     pub(crate) fn has_completed_initial_load(&self) -> bool {
         self.has_completed_initial_load
     }

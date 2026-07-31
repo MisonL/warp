@@ -259,6 +259,7 @@ impl View for AgentToolbarInlineEditor {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }
@@ -430,6 +431,7 @@ impl View for AgentToolbarEditorModal {
                 mouse_handles: &self.mouse_handles,
             },
             appearance,
+            app,
         )
     }
 }

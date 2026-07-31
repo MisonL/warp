@@ -35,6 +35,7 @@ mod render;
 
 use configuration::{
     ConfigPage, ModelOrchestrationBlockController, OrchestrationBlockController, build_request,
+    localize_snapshot,
 };
 
 use crate::keybindings::TUI_BINDING_GROUP;
@@ -43,8 +44,6 @@ use crate::option_selector::{
 };
 use crate::orchestrated_agent_identity_styling::AgentIdentity;
 use crate::tui_builder::TuiUiBuilder;
-
-const ORCHESTRATION_BLOCK_TITLE: &str = "Can I start additional agents for this task?";
 
 /// Keymap-context flag set while the acceptance card is active.
 const ACCEPTANCE_CONTEXT_FLAG: &str = "TuiOrchestrationBlockAcceptance";
@@ -449,11 +448,12 @@ impl TuiOrchestrationBlock {
 
     /// Builds the option snapshot for `page` from the shared builders.
     fn snapshot_for_page(&self, page: ConfigPage, ctx: &AppContext) -> OptionSnapshot {
-        self.controller.snapshot_for_page(
+        let snapshot = self.controller.snapshot_for_page(
             page,
             &self.orchestration_edit_state.orchestration_config_state,
             ctx,
-        )
+        );
+        localize_snapshot(page, snapshot)
     }
 
     /// Opens `page`: swaps the selector to its page fields, and
@@ -470,7 +470,7 @@ impl TuiOrchestrationBlock {
         let position = sequence.iter().position(|p| *p == page).unwrap_or(0) + 1;
         let selector_page = OptionSelectorPage {
             header: Some(OptionSelectorHeader {
-                field_label: "Edit agent configuration".to_string(),
+                field_label: ConfigPage::header_label(),
                 position: (position, sequence.len()),
                 prompt: page.question(self.request_fields.agent_run_configs.len()),
             }),

@@ -10,9 +10,10 @@ use warp_cli::agent::Harness;
 use warpui::{AppContext, SingletonEntity};
 
 use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
+pub use super::providers::ORCHESTRATION_ENV_NONE_LABEL;
 use super::providers::{
-    ORCHESTRATION_ENV_NONE_LABEL, ORCHESTRATION_RUNNER_NONE_LABEL, ORCHESTRATION_WARP_WORKER_HOST,
-    get_base_model_choices, resolve_default_host_slug, resolve_recent_host_slug,
+    ORCHESTRATION_RUNNER_NONE_LABEL, ORCHESTRATION_WARP_WORKER_HOST, get_base_model_choices,
+    resolve_default_host_slug, resolve_recent_host_slug,
 };
 use crate::LLMPreferences;
 use crate::ai::auth_secret_types::auth_secret_types_for_harness;
@@ -30,7 +31,8 @@ const DEFAULT_MODEL_LABEL: &str = "Default model";
 /// (the child agent will inherit credentials from its environment).
 pub(crate) const AUTH_SECRET_INHERIT_LABEL: &str = "Skip (advanced)";
 const CUSTOM_HOST_LABEL: &str = "Custom host…";
-const AUTH_SECRETS_LOAD_FAILED_MESSAGE: &str = "Unable to load secrets";
+pub(crate) const AUTH_SECRETS_LOAD_FAILED_MESSAGE: &str = "Unable to load secrets";
+pub(crate) const RUNNERS_LOAD_FAILED_MESSAGE: &str = "Unable to load runners";
 
 /// Row id for the Cloud location option.
 #[cfg_attr(not(feature = "tui"), allow(dead_code))]
@@ -79,6 +81,17 @@ pub enum OptionSourceStatus {
     Loading,
     Failed { message: String },
     Empty { message: String },
+}
+
+/// Fetch state for the runner catalog owned by a GUI orchestration view.
+/// Runners are fetched lazily instead of being kept in a global catalog.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RunnerFetchState {
+    #[default]
+    NotFetched,
+    Loading,
+    Loaded,
+    Failed,
 }
 
 /// Trailing affordance below the option list.
@@ -305,10 +318,9 @@ pub fn model_snapshot(state: &OrchestrationConfigState, ctx: &AppContext) -> Opt
                 .map(|llm| ModelChoiceInput {
                     id: llm.id.to_string(),
                     label: llm.menu_display_name(),
-                    disabled_reason: llm
-                        .disable_reason
-                        .as_ref()
-                        .map(|reason| reason.tooltip_text().to_string()),
+                    disabled_reason: llm.disable_reason.as_ref().map(|reason| {
+                        crate::localization::text_for_app(ctx, reason.localization_key())
+                    }),
                 })
                 .collect();
             build_oz_model_snapshot(choices, &state.model_id)
@@ -577,12 +589,11 @@ fn build_environment_snapshot(envs: Vec<(String, String)>, current: &str) -> Opt
 /// the supplied runners (already sorted by name). Runners are not cached
 /// client-side like environments, so the caller fetches them via
 /// `FactoryClient::get_runners` and passes them in along with the current
-/// load state; while `loading` is true the snapshot reports
-/// [`OptionSourceStatus::Loading`] so the picker can show a spinner.
+/// fetch state so the picker can surface loading and failure states.
 pub fn build_runner_snapshot(
     runners: Vec<(String, String)>,
     current: &str,
-    loading: bool,
+    fetch_state: RunnerFetchState,
 ) -> OptionSnapshot {
     let mut rows = vec![OptionRow::new(
         String::new(),
@@ -598,10 +609,12 @@ pub fn build_runner_snapshot(
     OptionSnapshot {
         rows,
         selected_id,
-        status: if loading {
-            OptionSourceStatus::Loading
-        } else {
-            OptionSourceStatus::Ready
+        status: match fetch_state {
+            RunnerFetchState::Loading => OptionSourceStatus::Loading,
+            RunnerFetchState::Failed => OptionSourceStatus::Failed {
+                message: RUNNERS_LOAD_FAILED_MESSAGE.to_string(),
+            },
+            RunnerFetchState::NotFetched | RunnerFetchState::Loaded => OptionSourceStatus::Ready,
         },
         footer: None,
     }

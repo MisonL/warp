@@ -25,7 +25,6 @@ use warp_errors::report_error;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewHandle, WindowId};
 
 use super::terminal_manager::{TerminalManager, TerminalSurfaceInit, TerminalSurfaceResult};
-use crate::NetworkStatus;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::AIConversation;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewControllerEvent};
@@ -59,8 +58,8 @@ use crate::terminal::shared_session::shared_handlers::{
     build_selected_conversation_update,
 };
 use crate::terminal::shared_session::sharer::network::{
-    Network, NetworkEvent, failed_to_add_guests_user_error,
-    failed_to_initialize_session_user_error, session_terminated_reason_string,
+    Network, NetworkEvent, failed_to_add_guests_error_key, failed_to_initialize_session_error_key,
+    session_terminated_reason_key,
 };
 use crate::terminal::shared_session::{
     SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
@@ -70,8 +69,7 @@ use crate::terminal::view::{ConversationRestorationInNewPaneType, Event as Termi
 use crate::terminal::writeable_pty::terminal_manager_util::wire_up_remote_server_controller_with_view;
 use crate::terminal::{TerminalManager as TerminalManagerTrait, TerminalModel, TerminalView};
 use crate::view_components::ToastFlavor;
-
-const ACL_UPDATE_FAILURE_RESPONSE: &str = "Something went wrong. Please try again.";
+use crate::{NetworkStatus, localization};
 
 /// Whether the given CRDT operation should be dropped when broadcasting
 /// sharer input to viewers. In ambient agent sessions the sharer is a
@@ -963,7 +961,8 @@ impl TerminalManager<TerminalView> {
                 });
 
                 terminal_view.update(ctx, |view, ctx| {
-                    let reason_string = failed_to_initialize_session_user_error(reason);
+                    let reason_string =
+                        localization::text_for_app(ctx, failed_to_initialize_session_error_key(reason));
 
                     if matches!(
                         reason,
@@ -993,9 +992,9 @@ impl TerminalManager<TerminalView> {
                     ctx,
                 );
 
-                let max_session_size = network.as_ref(ctx).max_session_size();
                 terminal_view.update(ctx, |view, ctx| {
-                    let reason_string = session_terminated_reason_string(reason, max_session_size);
+                    let reason_string =
+                        localization::text_for_app(ctx, session_terminated_reason_key(reason));
                     view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                 });
             }
@@ -1026,7 +1025,10 @@ impl TerminalManager<TerminalView> {
 
                 terminal_view.update(ctx, |view, ctx| {
                     view.show_persistent_toast(
-                        "Something went wrong. Please try sharing again.".to_string(),
+                        localization::text_for_app(
+                            ctx,
+                            "terminal.shared_session.toast.share_again_failed",
+                        ),
                         ToastFlavor::Error,
                         ctx,
                     );
@@ -1406,8 +1408,10 @@ impl TerminalManager<TerminalView> {
                         );
                     }
                     LinkAccessLevelUpdateResponse::Error => {
-                        let reason_string =
-                            "Failed to update permissions for shared session".to_owned();
+                        let reason_string = localization::text_for_app(
+                            ctx,
+                            "terminal.shared_session.toast.permission_update_failed",
+                        );
                         view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                     }
                 });
@@ -1431,7 +1435,10 @@ impl TerminalManager<TerminalView> {
                     }
                     TeamAccessLevelUpdateResponse::Error(_) => {
                         view.show_persistent_toast(
-                            ACL_UPDATE_FAILURE_RESPONSE.to_owned(),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             crate::view_components::ToastFlavor::Error,
                             ctx,
                         );
@@ -1441,7 +1448,8 @@ impl TerminalManager<TerminalView> {
             NetworkEvent::AddGuestsResponse { response } => {
                 if let AddGuestsResponse::Error(reason) = response {
                     terminal_view.update(ctx, |view, ctx| {
-                        let reason_string = failed_to_add_guests_user_error(reason);
+                        let reason_string =
+                            localization::text_for_app(ctx, failed_to_add_guests_error_key(reason));
                         view.show_persistent_toast(reason_string, ToastFlavor::Error, ctx);
                     });
                 }
@@ -1450,7 +1458,10 @@ impl TerminalManager<TerminalView> {
                 if let RemoveGuestResponse::Error(_) = response {
                     terminal_view.update(ctx, |view, ctx| {
                         view.show_persistent_toast(
-                            ACL_UPDATE_FAILURE_RESPONSE.to_owned(),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             crate::view_components::ToastFlavor::Error,
                             ctx,
                         );
@@ -1461,7 +1472,10 @@ impl TerminalManager<TerminalView> {
                 if let UpdatePendingUserRoleResponse::Error(_) = response {
                     terminal_view.update(ctx, |view, ctx| {
                         view.show_persistent_toast(
-                            ACL_UPDATE_FAILURE_RESPONSE.to_owned(),
+                            localization::text_for_app(
+                                ctx,
+                                "terminal.shared_session.toast.permission_update_failed",
+                            ),
                             crate::view_components::ToastFlavor::Error,
                             ctx,
                         );

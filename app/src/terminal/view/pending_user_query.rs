@@ -37,9 +37,9 @@ impl TerminalView {
         self.remove_pending_user_query_block(ctx);
         self.pending_user_query_kind = Some(kind);
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
-        let user_display_name = auth_state
-            .username_for_display()
-            .unwrap_or_else(|| "User".to_owned());
+        let user_display_name = auth_state.username_for_display().unwrap_or_else(|| {
+            crate::localization::text_for_app(ctx, "agent.block.default_user_display_name")
+        });
         let profile_image_path = auth_state.user_photo_url();
 
         let prompt_for_send_now = prompt.clone();

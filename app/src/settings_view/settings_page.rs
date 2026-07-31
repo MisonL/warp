@@ -45,6 +45,7 @@ use super::teams_page::TeamsPageView;
 use super::warp_drive_page::WarpDriveSettingsPageView;
 use super::warpify_page::WarpifyPageView;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::settings::CloudPreferencesSettings;
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
@@ -168,6 +169,7 @@ impl SettingsPage {
     pub fn render_page_button(
         &self,
         appearance: &Appearance,
+        app: &AppContext,
         match_data: MatchData,
         clicked: bool,
     ) -> Hoverable {
@@ -181,7 +183,7 @@ impl SettingsPage {
                 },
                 self.button_state_handle.clone(),
             )
-            .with_text_label(self.section.to_string() + &match_data.to_string())
+            .with_text_label(self.section.nav_label(app) + &match_data.to_string())
             .with_style(
                 UiComponentStyles::default()
                     .set_border_width(0.)
@@ -464,9 +466,9 @@ pub fn render_full_pane_width_ai_button(
     button.finish()
 }
 
-#[derive(Default)]
 pub struct AdditionalInfo<T> {
     pub mouse_state: MouseStateHandle,
+    pub locale: warp_localization::LocaleId,
     pub on_click_action: Option<T>,
     pub secondary_text: Option<String>,
     pub tooltip_override_text: Option<String>,
@@ -532,7 +534,10 @@ impl LocalOnlyIconState {
                     .clone();
                 Self::Visible {
                     mouse_state,
-                    custom_tooltip: None,
+                    custom_tooltip: Some(localization::text_for_app(
+                        app,
+                        "settings.local_only.tooltip",
+                    )),
                 }
             }
             _ => Self::Hidden,
@@ -544,9 +549,9 @@ pub fn render_info_icon<T: Clone + Action>(
     appearance: &Appearance,
     additional_info: AdditionalInfo<T>,
 ) -> Box<dyn Element> {
-    let tooltip_text = additional_info
-        .tooltip_override_text
-        .unwrap_or("Click to learn more in docs".to_owned());
+    let tooltip_text = additional_info.tooltip_override_text.unwrap_or_else(|| {
+        localization::text_for_locale(additional_info.locale, "settings.info.learn_more_tooltip")
+    });
     let icon = Container::new(
         ConstrainedBox::new(
             Icon::Info
@@ -600,13 +605,10 @@ pub fn render_local_only_icon(
     mouse_state: MouseStateHandle,
     custom_tooltip: Option<String>,
 ) -> Box<dyn Element> {
+    let tooltip = custom_tooltip.expect("visible local-only icon must provide localized tooltip");
     let info_button = appearance
         .ui_builder()
-        .local_only_icon_with_tooltip(
-            13.,
-            custom_tooltip.unwrap_or("This setting is not synced to your other devices".to_owned()),
-            mouse_state.clone(),
-        )
+        .local_only_icon_with_tooltip(13., tooltip, mouse_state.clone())
         .finish();
 
     Container::new(info_button).with_margin_left(4.).finish()
@@ -1021,9 +1023,6 @@ pub(crate) fn render_settings_info_banner(
     .finish()
 }
 
-const WORKSPACE_OVERRIDE_TOOLTIP_TEXT: &str =
-    "This option is enforced by your organization's settings and cannot be customized.";
-
 pub struct InputListItem<SettingsPageAction: Action + Clone> {
     pub item: String,
     pub mouse_state_handle: MouseStateHandle,
@@ -1041,6 +1040,7 @@ pub fn render_input_list<SettingsPageAction: Action + Clone>(
     items: impl IntoIterator<Item = InputListItem<SettingsPageAction>>,
     handle: Option<&ViewHandle<SubmittableTextInput>>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let mut column = Flex::column();
 
@@ -1075,7 +1075,7 @@ pub fn render_input_list<SettingsPageAction: Action + Clone>(
             appearance,
         );
         let row_element = if let Some(tooltip_mouse_state) = item.tooltip_mouse_state {
-            render_workspace_override_row_tooltip(row_element, tooltip_mouse_state, appearance)
+            render_workspace_override_row_tooltip(row_element, tooltip_mouse_state, appearance, app)
         } else {
             row_element
         };
@@ -1125,13 +1125,17 @@ fn render_workspace_override_row_tooltip(
     child: Box<dyn Element>,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     Hoverable::new(mouse_state, |state| {
         let mut stack = Stack::new().with_child(child);
         if state.is_hovered() {
             let tooltip = appearance
                 .ui_builder()
-                .tool_tip(WORKSPACE_OVERRIDE_TOOLTIP_TEXT.to_string())
+                .tool_tip(localization::text_for_app(
+                    app,
+                    "settings.tooltip.organization_enforced",
+                ))
                 .build()
                 .finish();
             stack.add_positioned_child(
@@ -1558,8 +1562,8 @@ impl<V: warpui::View> PageType<V> {
                     .map(|(i, indices)| {
                         let category = &categories[i];
                         FilteredCategory {
-                            title: category.title,
-                            subtitle: category.subtitle,
+                            title: category.title.clone(),
+                            subtitle: category.subtitle.clone(),
                             widgets: indices
                                 .iter()
                                 .map(|i| category.widgets[*i].as_ref())
@@ -1628,8 +1632,9 @@ impl<V: warpui::View> PageType<V> {
                     && widget.should_render(app)
                 {
                     if let Some(title) = title {
+                        let title = localization::text_for_app_or(app, title, title);
                         let col = Flex::column()
-                            .with_child(render_page_title(title, HEADER_FONT_SIZE, appearance))
+                            .with_child(render_page_title(&title, HEADER_FONT_SIZE, appearance))
                             .with_child(widget.render_widget(view, false, appearance, app));
                         page = col.finish();
                     } else {
@@ -1646,7 +1651,8 @@ impl<V: warpui::View> PageType<V> {
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    let title = localization::text_for_app_or(app, title, title);
+                    page.add_child(render_page_title(&title, HEADER_FONT_SIZE, appearance));
                 }
                 for widget in widgets {
                     let highlighted =
@@ -1665,22 +1671,27 @@ impl<V: warpui::View> PageType<V> {
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    let title = localization::text_for_app_or(app, title, title);
+                    page.add_child(render_page_title(&title, HEADER_FONT_SIZE, appearance));
                 }
                 let num_categories = categories.len();
                 for (i, category) in categories.into_iter().enumerate() {
-                    if !category.title.is_empty() {
-                        if let Some(subtitle) = category.subtitle {
+                    let FilteredCategory {
+                        mut title,
+                        subtitle,
+                        widgets,
+                    } = category;
+                    title = localization::text_for_app_or(app, &title, &title);
+                    if !title.is_empty() {
+                        if let Some(subtitle) = subtitle {
                             page.add_child(render_sub_header_with_description(
-                                appearance,
-                                category.title,
-                                subtitle,
+                                appearance, title, subtitle,
                             ));
                         } else {
-                            page.add_child(render_sub_header(appearance, category.title, None));
+                            page.add_child(render_sub_header(appearance, title, None));
                         }
                     }
-                    for widget in &category.widgets {
+                    for widget in &widgets {
                         let highlighted =
                             highlighted_widget_id.is_some_and(|id| id == widget.widget_id());
                         if widget.should_render(app) {
@@ -1816,33 +1827,33 @@ pub(super) enum FilteredPageType<'a, V: warpui::View> {
 
 /// A grouping of related [`SettingsWidget`]s that fall under the same sub-header.
 pub(super) struct Category<V: warpui::View> {
-    title: &'static str,
-    subtitle: Option<&'static str>,
+    title: String,
+    subtitle: Option<String>,
     widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
 }
 
 impl<V: warpui::View> Category<V> {
     pub(super) fn new(
-        title: &'static str,
+        title: impl Into<String>,
         widgets: Vec<Box<dyn SettingsWidget<View = V>>>,
     ) -> Self {
         Self {
-            title,
+            title: title.into(),
             subtitle: None,
             widgets,
         }
     }
 
-    pub(super) fn with_subtitle(mut self, subtitle: &'static str) -> Self {
-        self.subtitle = Some(subtitle);
+    pub(super) fn with_subtitle(mut self, subtitle: impl Into<String>) -> Self {
+        self.subtitle = Some(subtitle.into());
         self
     }
 }
 
 /// A [`Category`] with only the results which match a search query.
 pub(super) struct FilteredCategory<'a, V: warpui::View> {
-    pub(super) title: &'static str,
-    pub(super) subtitle: Option<&'static str>,
+    pub(super) title: String,
+    pub(super) subtitle: Option<String>,
     pub(super) widgets: Vec<&'a dyn SettingsWidget<View = V>>,
 }
 
@@ -1901,6 +1912,7 @@ pub(super) trait SettingsWidget {
 /// the setting.
 pub(super) fn build_reset_button(
     appearance: &Appearance,
+    app: &AppContext,
     mouse_state: MouseStateHandle,
     changed_from_default: bool,
 ) -> Button {
@@ -1918,5 +1930,8 @@ pub(super) fn build_reset_button(
             font_size: Some(appearance.ui_font_size() * 0.8),
             ..Default::default()
         })
-        .with_text_label("Reset to default".to_owned())
+        .with_text_label(crate::localization::text_for_app(
+            app,
+            "settings.action.reset_to_default",
+        ))
 }

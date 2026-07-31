@@ -19,6 +19,7 @@ use warpui::{AppContext, ModelHandle, SingletonEntity};
 
 use crate::ai::agent_tips::{AITip, AITipModel};
 use crate::ai::loading::shimmering_warp_loading_text;
+use crate::localization;
 use crate::terminal::view::ambient_agent::CloudModeTip;
 use crate::ui_components::blended_colors;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -49,7 +50,10 @@ pub fn render_cloud_mode_loading_screen(
         // Add link at the end if it exists
         if let Some(link_target) = tip.link() {
             fragments.push(FormattedTextFragment::plain_text(" "));
-            fragments.push(FormattedTextFragment::hyperlink("Learn more", link_target));
+            fragments.push(FormattedTextFragment::hyperlink(
+                crate::localization::text_for_app(app, "terminal.ambient_agent.learn_more"),
+                link_target,
+            ));
         }
 
         let formatted_text = FormattedText::new(vec![FormattedTextLine::Line(fragments)]);
@@ -153,19 +157,25 @@ fn render_tier_limits_footer(
         return None;
     }
 
-    let mut fragments = vec![FormattedTextFragment::plain_text(format!(
-        "Your agent is currently running on a {} machine. ",
-        specs
-    ))];
+    let mut fragments = vec![FormattedTextFragment::plain_text(
+        localization::text_for_app_with_args(
+            app,
+            "terminal.ambient_agent.tier.current_machine",
+            &[("specs", &specs)],
+        ),
+    )];
 
     // Get the upgrade URL for the current team
     let upgrade_url = UserWorkspaces::as_ref(app)
         .current_team()
         .map(|team| UserWorkspaces::upgrade_link_for_team(team.uid))?;
 
-    fragments.push(FormattedTextFragment::hyperlink("Upgrade", upgrade_url));
+    fragments.push(FormattedTextFragment::hyperlink(
+        localization::text_for_app(app, "onboarding.common.upgrade"),
+        upgrade_url,
+    ));
     fragments.push(FormattedTextFragment::plain_text(
-        " for more powerful cloud agents.",
+        localization::text_for_app(app, "terminal.ambient_agent.tier.upgrade_suffix"),
     ));
 
     let formatted_text = FormattedText::new(vec![FormattedTextLine::Line(fragments)]);
@@ -216,7 +226,7 @@ pub fn render_cloud_mode_error_screen(
     appearance: &Appearance,
     selection_handle: &SelectionHandle,
     selected_text: &std::rc::Rc<parking_lot::RwLock<Option<String>>>,
-    _app: &AppContext,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let error_color = AnsiColorIdentifier::Red.to_ansi_color(&theme.terminal_colors().normal);
@@ -233,7 +243,7 @@ pub fn render_cloud_mode_error_screen(
 
     // Error title text
     let title_text = Text::new(
-        "Failed to start environment",
+        localization::text_for_app(app, "terminal.ambient_agent.error.title"),
         appearance.ui_font_family(),
         appearance.monospace_font_size() + 2.,
     )
@@ -302,7 +312,7 @@ pub fn render_cloud_mode_github_auth_required_screen(
     auth_url: &str,
     appearance: &Appearance,
     auth_button_mouse_state: &MouseStateHandle,
-    _app: &AppContext,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
 
@@ -323,7 +333,7 @@ pub fn render_cloud_mode_github_auth_required_screen(
 
     // Title text - "GitHub Authentication Required"
     let title_text = Text::new(
-        "GitHub Authentication Required",
+        localization::text_for_app(app, "terminal.ambient_agent.github_auth.title"),
         appearance.ui_font_family(),
         appearance.monospace_font_size() + 2.,
     )
@@ -333,7 +343,7 @@ pub fn render_cloud_mode_github_auth_required_screen(
 
     // Message text - "Please authenticate with GitHub to continue"
     let message_text = Text::new(
-        "Please authenticate with GitHub to continue",
+        localization::text_for_app(app, "terminal.ambient_agent.github_auth.message"),
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     )
@@ -345,7 +355,10 @@ pub fn render_cloud_mode_github_auth_required_screen(
     let auth_button = appearance
         .ui_builder()
         .button(ButtonVariant::Accent, auth_button_mouse_state.clone())
-        .with_centered_text_label("Authenticate with GitHub".to_string())
+        .with_centered_text_label(localization::text_for_app(
+            app,
+            "terminal.ambient_agent.github_auth.action",
+        ))
         .build()
         .on_click(move |_, app, _| {
             app.open_url(&auth_url_clone);
@@ -388,7 +401,10 @@ pub fn render_cloud_mode_github_auth_required_screen(
 }
 
 /// Renders the cloud mode cancelled screen.
-pub fn render_cloud_mode_cancelled_screen(appearance: &Appearance) -> Box<dyn Element> {
+pub fn render_cloud_mode_cancelled_screen(
+    appearance: &Appearance,
+    app: &AppContext,
+) -> Box<dyn Element> {
     let theme = appearance.theme();
 
     // Use main text color for the icon and title
@@ -410,7 +426,7 @@ pub fn render_cloud_mode_cancelled_screen(appearance: &Appearance) -> Box<dyn El
 
     // Title text - "Cloud Agent Run Cancelled"
     let title_text = Text::new(
-        "Cloud Agent Run Cancelled",
+        localization::text_for_app(app, "terminal.ambient_agent.cancelled.title"),
         appearance.ui_font_family(),
         appearance.monospace_font_size() + 2.,
     )
@@ -420,7 +436,7 @@ pub fn render_cloud_mode_cancelled_screen(appearance: &Appearance) -> Box<dyn El
 
     // Subtitle text - "No cloud environment was started"
     let subtitle_text = Text::new(
-        "No cloud environment was started",
+        localization::text_for_app(app, "terminal.ambient_agent.cancelled.subtitle"),
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     )

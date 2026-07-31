@@ -4,6 +4,7 @@ description: >
   Invoke this automatically after completing any user-facing client change, ONLY in non-sandboxed environments and local environments.
   Verifies changes by spawning a cloud agent with computer use to test Warp.
   Triggers a cloud agent that runs the test-warp-ui skill.
+description_zh_CN: 完成任何用户可见客户端变更后，仅在非沙盒的本地环境中自动调用此技能。它会启动带 computer use 的云端 Agent 来测试 Warp，并运行 `test-warp-ui` 技能。
 user-invocable: true
 ---
 

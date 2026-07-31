@@ -1,5 +1,9 @@
 //! Public app APIs used by the `warp_tui` frontend.
 
+pub fn current_locale(app: &warpui::AppContext) -> warp_localization::LocaleId {
+    crate::localization::current_locale(app)
+}
+
 pub use ::ai::agent::action::{AskUserQuestionItem, AskUserQuestionOption, AskUserQuestionType};
 pub use ::ai::agent::action_result::AskUserQuestionAnswerItem;
 pub use ::ai::agent::{
@@ -135,7 +139,9 @@ pub use crate::persistence::PersistenceWriter;
 pub use crate::search::slash_command_menu::static_commands::commands::{
     self as slash_commands, COMMAND_REGISTRY,
 };
-pub use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
+pub use crate::search::slash_command_menu::{
+    SlashCommandArgumentHint, SlashCommandId, StaticCommand,
+};
 pub use crate::server::server_api::ServerApiProvider;
 pub use crate::server::server_api::ai::{
     AIClient, AgentConfigSnapshot, SpawnAgentRequest, SpawnAgentResponse,

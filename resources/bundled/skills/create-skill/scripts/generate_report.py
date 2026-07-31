@@ -12,12 +12,50 @@ import json
 import sys
 from pathlib import Path
 
+try:
+    from scripts.i18n import configure_argparse, text as localized_text
+except ModuleNotFoundError:
+    from i18n import configure_argparse, text as localized_text
+
 
 def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") -> str:
     """Generate HTML report from loop output data. If auto_refresh is True, adds a meta refresh tag."""
     history = data.get("history", [])
     holdout = data.get("holdout", 0)
-    title_prefix = html.escape(skill_name + " \u2014 ") if skill_name else ""
+    title_prefix = html.escape(skill_name + " - ") if skill_name else ""
+    page_title = localized_text("Skill Description Optimization", "Skill 描述优化")
+    explainer_title = localized_text(
+        "Optimizing your skill's description.",
+        "正在优化 skill 描述。",
+    )
+    explainer_body = localized_text(
+        "This page updates automatically as the agent tests different versions of your skill's description. "
+        "Each row is an iteration - a new description attempt. The columns show test queries: green PASS labels "
+        "mean the skill triggered correctly or correctly did not trigger, and red FAIL labels mean it got the "
+        "decision wrong. The Train score shows performance on queries used to improve the description; the Test "
+        "score shows performance on held-out queries the optimizer has not seen. When it is done, the agent will "
+        "apply the best-performing description to your skill.",
+        "当 agent 测试不同版本的 skill 描述时，此页面会自动更新。每一行代表一次迭代，也就是一次新的描述尝试。"
+        "列中展示测试查询：绿色“通过”表示 skill 正确触发或正确未触发，红色“失败”表示判断错误。训练分数展示用于改进描述的查询表现；"
+        "测试分数展示优化器未见过的保留查询表现。完成后，agent 会将表现最好的描述应用到你的 skill。",
+    )
+    labels = {
+        "original": localized_text("Original", "原始描述"),
+        "best": localized_text("Best", "最佳描述"),
+        "best_score": localized_text("Best Score", "最佳分数"),
+        "iterations": localized_text("Iterations", "迭代次数"),
+        "train": localized_text("Train", "训练"),
+        "test": localized_text("Test", "测试"),
+        "query_columns": localized_text("Query columns", "查询列"),
+        "should_trigger": localized_text("Should trigger", "应触发"),
+        "should_not_trigger": localized_text("Should NOT trigger", "不应触发"),
+        "iter": localized_text("Iter", "轮次"),
+        "description": localized_text("Description", "描述"),
+        "pass": localized_text("PASS", "通过"),
+        "fail": localized_text("FAIL", "失败"),
+        "test_context": localized_text("(test)", "（测试）"),
+        "train_context": localized_text("(train)", "（训练）"),
+    }
 
     # Get all unique queries from train and test sets, with should_trigger info
     train_queries: list[dict] = []
@@ -35,7 +73,7 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
 <html>
 <head>
     <meta charset="utf-8">
-""" + refresh_tag + """    <title>""" + title_prefix + """Skill Description Optimization</title>
+""" + refresh_tag + """    <title>""" + title_prefix + html.escape(page_title) + """</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
@@ -146,9 +184,9 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
     </style>
 </head>
 <body>
-    <h1>""" + title_prefix + """Skill Description Optimization</h1>
+    <h1>""" + title_prefix + html.escape(page_title) + """</h1>
     <div class="explainer">
-        <strong>Optimizing your skill's description.</strong> This page updates automatically as the agent tests different versions of your skill's description. Each row is an iteration — a new description attempt. The columns show test queries: green checkmarks mean the skill triggered correctly (or correctly didn't trigger), red crosses mean it got it wrong. The "Train" score shows performance on queries used to improve the description; the "Test" score shows performance on held-out queries the optimizer hasn't seen. When it's done, the agent will apply the best-performing description to your skill.
+        <strong>""" + html.escape(explainer_title) + """</strong> """ + html.escape(explainer_body) + """
     </div>
 """]
 
@@ -157,21 +195,21 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
     best_train_score = data.get('best_train_score')
     html_parts.append(f"""
     <div class="summary">
-        <p><strong>Original:</strong> {html.escape(data.get('original_description', 'N/A'))}</p>
-        <p class="best"><strong>Best:</strong> {html.escape(data.get('best_description', 'N/A'))}</p>
-        <p><strong>Best Score:</strong> {data.get('best_score', 'N/A')} {'(test)' if best_test_score else '(train)'}</p>
-        <p><strong>Iterations:</strong> {data.get('iterations_run', 0)} | <strong>Train:</strong> {data.get('train_size', '?')} | <strong>Test:</strong> {data.get('test_size', '?')}</p>
+        <p><strong>{labels['original']}:</strong> {html.escape(data.get('original_description', 'N/A'))}</p>
+        <p class="best"><strong>{labels['best']}:</strong> {html.escape(data.get('best_description', 'N/A'))}</p>
+        <p><strong>{labels['best_score']}:</strong> {data.get('best_score', 'N/A')} {labels['test_context'] if best_test_score else labels['train_context']}</p>
+        <p><strong>{labels['iterations']}:</strong> {data.get('iterations_run', 0)} | <strong>{labels['train']}:</strong> {data.get('train_size', '?')} | <strong>{labels['test']}:</strong> {data.get('test_size', '?')}</p>
     </div>
 """)
 
     # Legend
     html_parts.append("""
     <div class="legend">
-        <span style="font-weight:600">Query columns:</span>
-        <span class="legend-item"><span class="legend-swatch swatch-positive"></span> Should trigger</span>
-        <span class="legend-item"><span class="legend-swatch swatch-negative"></span> Should NOT trigger</span>
-        <span class="legend-item"><span class="legend-swatch swatch-train"></span> Train</span>
-        <span class="legend-item"><span class="legend-swatch swatch-test"></span> Test</span>
+        <span style="font-weight:600">""" + labels["query_columns"] + """:</span>
+        <span class="legend-item"><span class="legend-swatch swatch-positive"></span> """ + labels["should_trigger"] + """</span>
+        <span class="legend-item"><span class="legend-swatch swatch-negative"></span> """ + labels["should_not_trigger"] + """</span>
+        <span class="legend-item"><span class="legend-swatch swatch-train"></span> """ + labels["train"] + """</span>
+        <span class="legend-item"><span class="legend-swatch swatch-test"></span> """ + labels["test"] + """</span>
     </div>
 """)
 
@@ -181,10 +219,10 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
     <table>
         <thead>
             <tr>
-                <th>Iter</th>
-                <th>Train</th>
-                <th>Test</th>
-                <th class="query-col">Description</th>
+                <th>""" + labels["iter"] + """</th>
+                <th>""" + labels["train"] + """</th>
+                <th>""" + labels["test"] + """</th>
+                <th class="query-col">""" + labels["description"] + """</th>
 """)
 
     # Add column headers for train queries
@@ -269,10 +307,10 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
             triggers = r.get("triggers", 0)
             runs = r.get("runs", 0)
 
-            icon = "✓" if did_pass else "✗"
+            status_label = labels["pass"] if did_pass else labels["fail"]
             css_class = "pass" if did_pass else "fail"
 
-            html_parts.append(f'                <td class="result {css_class}">{icon}<span class="rate">{triggers}/{runs}</span></td>\n')
+            html_parts.append(f'                <td class="result {css_class}">{status_label}<span class="rate">{triggers}/{runs}</span></td>\n')
 
         # Add result for each test query (with different background)
         for qinfo in test_queries:
@@ -281,10 +319,10 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
             triggers = r.get("triggers", 0)
             runs = r.get("runs", 0)
 
-            icon = "✓" if did_pass else "✗"
+            status_label = labels["pass"] if did_pass else labels["fail"]
             css_class = "pass" if did_pass else "fail"
 
-            html_parts.append(f'                <td class="result test-result {css_class}">{icon}<span class="rate">{triggers}/{runs}</span></td>\n')
+            html_parts.append(f'                <td class="result test-result {css_class}">{status_label}<span class="rate">{triggers}/{runs}</span></td>\n')
 
         html_parts.append("            </tr>\n")
 
@@ -302,10 +340,13 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate HTML report from run_loop output")
-    parser.add_argument("input", help="Path to JSON output from run_loop.py (or - for stdin)")
-    parser.add_argument("-o", "--output", default=None, help="Output HTML file (default: stdout)")
-    parser.add_argument("--skill-name", default="", help="Skill name to include in the report title")
+    configure_argparse(argparse)
+    parser = argparse.ArgumentParser(
+        description=localized_text("Generate HTML report from run_loop output", "根据 run_loop 输出生成 HTML 报告")
+    )
+    parser.add_argument("input", help=localized_text("Path to JSON output from run_loop.py (or - for stdin)", "run_loop.py JSON 输出路径（或使用 - 从 stdin 读取）"))
+    parser.add_argument("-o", "--output", default=None, help=localized_text("Output HTML file (default: stdout)", "输出 HTML 文件（默认：stdout）"))
+    parser.add_argument("--skill-name", default="", help=localized_text("Skill name to include in the report title", "要包含在报告标题中的 skill 名称"))
     args = parser.parse_args()
 
     if args.input == "-":
@@ -317,7 +358,7 @@ def main():
 
     if args.output:
         Path(args.output).write_text(html_output)
-        print(f"Report written to {args.output}", file=sys.stderr)
+        print(localized_text(f"Report written to {args.output}", f"报告已写入 {args.output}"), file=sys.stderr)
     else:
         print(html_output)
 

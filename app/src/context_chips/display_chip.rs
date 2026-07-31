@@ -37,7 +37,6 @@ use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIInputModel};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::appearance::Appearance;
 use crate::code::editor::{add_color, remove_color};
-use crate::code_review::code_review_view::CODE_REVIEW_TOOLTIP_TEXT;
 use crate::code_review::diff_state::DiffStats;
 use crate::completer::SessionContext;
 use crate::context_chips::git_branch_on_click::{
@@ -581,26 +580,49 @@ impl GitBranchTrackingStatus {
         saw_status_token.then_some((ahead, behind, rebased))
     }
 
-    fn tooltip_text(&self) -> String {
+    fn tooltip_text(&self, app: &AppContext) -> String {
+        self.tooltip_text_for_locale(crate::localization::current_locale(app))
+    }
+
+    fn tooltip_text_for_locale(&self, locale: warp_localization::LocaleId) -> String {
         match &self.upstream {
-            Some(upstream) if self.is_rebased() => {
-                format!("Tracking {upstream} • branch was rebased")
-            }
-            Some(upstream) if self.counts_available => format!(
-                "Tracking {upstream} • ahead {}, behind {}",
-                self.ahead, self.behind
+            Some(upstream) if self.is_rebased() => crate::localization::text_for_locale_with_args(
+                locale,
+                "context_chips.git_branch.tooltip.tracking_rebased",
+                &[("upstream", upstream)],
             ),
-            Some(upstream) => {
-                format!("Tracking {upstream}; ahead/behind counts are unavailable")
+            Some(upstream) if self.counts_available => {
+                crate::localization::text_for_locale_with_args(
+                    locale,
+                    "context_chips.git_branch.tooltip.tracking_counts",
+                    &[
+                        ("upstream", upstream),
+                        ("ahead", &self.ahead.to_string()),
+                        ("behind", &self.behind.to_string()),
+                    ],
+                )
             }
-            None if self.is_rebased() => {
-                "Branch was rebased; upstream name is unavailable".to_string()
-            }
-            None if self.counts_available => format!(
-                "Ahead {}, behind {}; upstream name is unavailable",
-                self.ahead, self.behind
+            Some(upstream) => crate::localization::text_for_locale_with_args(
+                locale,
+                "context_chips.git_branch.tooltip.tracking_counts_unavailable",
+                &[("upstream", upstream)],
             ),
-            None => "No upstream configured".to_string(),
+            None if self.is_rebased() => crate::localization::text_for_locale(
+                locale,
+                "context_chips.git_branch.tooltip.rebased_upstream_unavailable",
+            ),
+            None if self.counts_available => crate::localization::text_for_locale_with_args(
+                locale,
+                "context_chips.git_branch.tooltip.counts_upstream_unavailable",
+                &[
+                    ("ahead", &self.ahead.to_string()),
+                    ("behind", &self.behind.to_string()),
+                ],
+            ),
+            None => crate::localization::text_for_locale(
+                locale,
+                "context_chips.git_branch.tooltip.no_upstream",
+            ),
         }
     }
 }
@@ -783,6 +805,14 @@ impl GenericMenuItem for CreateGitBranch {
         format!("Create new branch \"{}\"", self.0)
     }
 
+    fn display_name(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "context_chips.git_branch.create_new_branch",
+            &[("branch", &self.0)],
+        )
+    }
+
     fn icon(&self, _app: &AppContext) -> Option<Icon> {
         Some(Icon::Plus)
     }
@@ -945,7 +975,10 @@ impl DisplayChip {
                     DisplayChipMenu::new(
                         Vec::<DirectoryItem>::new(),
                         Some(FixedFooter::new(Arc::new(DirectoryItem {
-                            name: ".. (Parent Directory)".to_string(),
+                            name: crate::localization::text_for_app(
+                                ctx,
+                                "context_chips.directory.parent",
+                            ),
                             directory_type: DirectoryType::NavigateToParent,
                         }))), // Show parent directory option
                         ChipMenuType::Directories,
@@ -1098,9 +1131,9 @@ impl DisplayChip {
         };
 
         let quota_reset_popup = ctx.add_typed_action_view(|_| {
-            FeaturePopup::alert_icon(NewFeaturePopupLabel::FromString(
-                "Monthly AI credits reset!".to_string(),
-            ))
+            FeaturePopup::alert_icon(NewFeaturePopupLabel::FromCallable(Box::new(|app| {
+                crate::localization::text_for_app(app, "context_chips.quota.monthly_reset")
+            })))
         });
 
         ctx.subscribe_to_view(&quota_reset_popup, |_, _, event, ctx| match event {
@@ -1390,7 +1423,10 @@ impl DisplayChip {
             if state.is_hovered() && is_interactive && !menu_open {
                 let tool_tip = appearance
                     .ui_builder()
-                    .tool_tip("Change git branch".to_string())
+                    .tool_tip(crate::localization::text_for_app(
+                        app,
+                        "context_chips.tooltip.change_git_branch",
+                    ))
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(tool_tip, udi_tooltip_positioning());
@@ -1457,7 +1493,10 @@ impl DisplayChip {
             if state.is_hovered() {
                 let tool_tip = appearance
                     .ui_builder()
-                    .tool_tip("View pull request".to_string())
+                    .tool_tip(crate::localization::text_for_app(
+                        app,
+                        "context_chips.tooltip.view_pull_request",
+                    ))
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(tool_tip, udi_tooltip_positioning());
@@ -1493,7 +1532,7 @@ impl DisplayChip {
             .or_else(|| GitBranchTrackingStatus::from_display_text(&self.text));
         let tooltip_text = tracking_status
             .as_ref()
-            .map(GitBranchTrackingStatus::tooltip_text);
+            .map(|status| status.tooltip_text(app));
 
         Hoverable::new(self.mouse_state.clone(), move |state| {
             let branch = tracking_status
@@ -1670,7 +1709,10 @@ impl DisplayChip {
                     let tool_tip = appearance
                         .ui_builder()
                         .tool_tip_with_sublabel(
-                            CODE_REVIEW_TOOLTIP_TEXT.to_string(),
+                            crate::localization::text_for_app(
+                                app,
+                                "code_review.tooltip.view_changes",
+                            ),
                             code_review_keybinding.clone(),
                         )
                         .build()
@@ -1758,7 +1800,10 @@ impl DisplayChip {
                 if state.is_hovered() {
                     let tool_tip = appearance
                         .ui_builder()
-                        .tool_tip("Change working directory".to_string())
+                        .tool_tip(crate::localization::text_for_app(
+                            app,
+                            "context_chips.tooltip.change_working_directory",
+                        ))
                         .build()
                         .finish();
 
@@ -1805,7 +1850,10 @@ impl DisplayChip {
                 if state.is_hovered() && !is_cli_agent_active {
                     let tool_tip = appearance
                         .ui_builder()
-                        .tool_tip("Working directory".to_string())
+                        .tool_tip(crate::localization::text_for_app(
+                            app,
+                            "context_chips.tooltip.working_directory",
+                        ))
                         .build()
                         .finish();
 

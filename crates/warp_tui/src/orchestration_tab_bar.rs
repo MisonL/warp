@@ -6,13 +6,15 @@
 use std::collections::HashMap;
 
 use warp::tui_export::{AIConversationId, ConversationStatus};
+use warp_localization::LocaleId;
 use warpui_core::elements::tui::{TuiElement, TuiStyle, TuiText};
 use warpui_core::keymap::macros::*;
-use warpui_core::keymap::{ContextPredicate, EditableBinding, FixedBinding};
+use warpui_core::keymap::{BindingDescription, ContextPredicate, EditableBinding, FixedBinding};
 use warpui_core::{Action, AppContext};
 
 use crate::agent_message::{conversation_status_glyph, conversation_status_glyph_style};
 use crate::keybindings::TUI_BINDING_GROUP;
+use crate::localization;
 use crate::orchestrated_agent_identity_styling::{AgentIdentity, assign_agent_identity_indices};
 use crate::orchestration_model::TuiOrchestrationSnapshot;
 use crate::tab_bar::{
@@ -22,6 +24,28 @@ use crate::tui_builder::TuiUiBuilder;
 
 pub(crate) const ORCHESTRATION_TAB_BAR_FOCUSED_FLAG: &str = "TuiOrchestrationTabBarFocused";
 const ORCHESTRATION_TAB_LABEL_MAX_COLUMNS: u16 = 20;
+
+pub(crate) fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| {
+        Some(binding_description_for_locale(
+            localization::current_locale(),
+            key,
+        ))
+    })
+}
+
+pub(crate) fn binding_description_for_locale(locale: LocaleId, key: &str) -> String {
+    localization::text_for_locale(locale, key)
+}
+
+pub(crate) fn focus_sub_agents_hint() -> String {
+    focus_sub_agents_hint_for_locale(localization::current_locale())
+}
+
+pub(crate) fn focus_sub_agents_hint_for_locale(locale: LocaleId) -> String {
+    localization::text_for_locale(locale, "tui.orchestration.focus_sub_agents")
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum TuiOrchestrationTabNavigationAction {
     Previous,
@@ -60,7 +84,10 @@ pub(crate) fn register_orchestration_surface_bindings<A>(
     app.register_editable_bindings([
         EditableBinding::new(
             "tui:orchestration_tabs:previous",
-            "Select the previous orchestration tab",
+            binding_description(
+                "Select the previous orchestration tab",
+                "tui.orchestration.binding.previous_tab",
+            ),
             navigation_action(TuiOrchestrationTabNavigationAction::Previous),
         )
         .with_context_predicate(tab_context.clone())
@@ -68,7 +95,10 @@ pub(crate) fn register_orchestration_surface_bindings<A>(
         .with_key_binding("left"),
         EditableBinding::new(
             "tui:orchestration_tabs:previous",
-            "Select the previous orchestration tab",
+            binding_description(
+                "Select the previous orchestration tab",
+                "tui.orchestration.binding.previous_tab",
+            ),
             navigation_action(TuiOrchestrationTabNavigationAction::Previous),
         )
         .with_context_predicate(tab_context.clone())
@@ -76,7 +106,10 @@ pub(crate) fn register_orchestration_surface_bindings<A>(
         .with_key_binding("shift-tab"),
         EditableBinding::new(
             "tui:orchestration_tabs:next",
-            "Select the next orchestration tab",
+            binding_description(
+                "Select the next orchestration tab",
+                "tui.orchestration.binding.next_tab",
+            ),
             navigation_action(TuiOrchestrationTabNavigationAction::Next),
         )
         .with_context_predicate(tab_context.clone())
@@ -84,7 +117,10 @@ pub(crate) fn register_orchestration_surface_bindings<A>(
         .with_key_binding("right"),
         EditableBinding::new(
             "tui:orchestration_tabs:next",
-            "Select the next orchestration tab",
+            binding_description(
+                "Select the next orchestration tab",
+                "tui.orchestration.binding.next_tab",
+            ),
             navigation_action(TuiOrchestrationTabNavigationAction::Next),
         )
         .with_context_predicate(tab_context.clone())
@@ -92,7 +128,10 @@ pub(crate) fn register_orchestration_surface_bindings<A>(
         .with_key_binding("tab"),
         EditableBinding::new(
             "tui:orchestration_tabs:first_child",
-            "Select the first child agent",
+            binding_description(
+                "Select the first child agent",
+                "tui.orchestration.binding.first_child",
+            ),
             navigation_action(TuiOrchestrationTabNavigationAction::FirstChild),
         )
         .with_context_predicate(tab_context.clone())
@@ -100,7 +139,10 @@ pub(crate) fn register_orchestration_surface_bindings<A>(
         .with_key_binding("shift-left"),
         EditableBinding::new(
             "tui:orchestration_tabs:last_child",
-            "Select the last child agent",
+            binding_description(
+                "Select the last child agent",
+                "tui.orchestration.binding.last_child",
+            ),
             navigation_action(TuiOrchestrationTabNavigationAction::LastChild),
         )
         .with_context_predicate(tab_context)
@@ -149,10 +191,13 @@ pub(crate) fn orchestration_tab_bar_config(
         })
         .collect();
     let mut config = TuiTabBarConfig::new(tabs);
-    config.leading = Some("   Agents:   ".to_owned());
+    config.leading = Some(format!(
+        "   {}   ",
+        localization::text("tui.orchestration.tab_bar.agents")
+    ));
     config.main_tab = Some(TuiTab::new(
         snapshot.root_conversation_id.to_string(),
-        "orchestrator",
+        localization::text("tui.orchestration.tab_bar.orchestrator"),
     ));
     config.selected_key = Some(snapshot.selected_conversation_id.to_string());
     config.focused = focused;
@@ -168,12 +213,24 @@ pub(crate) fn render_orchestration_tab_footer(builder: &TuiUiBuilder) -> Box<dyn
     let primary = builder.primary_text_style();
     let muted = builder.muted_text_style();
     TuiText::from_spans([
-        ("Tab or ← →".to_string(), primary),
-        (" to navigate  ".to_string(), muted),
+        (
+            localization::text("tui.orchestration.key.navigate"),
+            primary,
+        ),
+        (
+            localization::text("tui.orchestration.tab_bar.footer.navigate"),
+            muted,
+        ),
         ("Shift + ← →".to_string(), primary),
-        (" to go to start/end  ".to_string(), muted),
+        (
+            localization::text("tui.orchestration.tab_bar.footer.go_to_start_end"),
+            muted,
+        ),
         ("Shift + ↓".to_string(), primary),
-        (" to send a message".to_string(), muted),
+        (
+            localization::text("tui.orchestration.tab_bar.footer.send_message"),
+            muted,
+        ),
     ])
     .truncate()
     .finish()
@@ -183,14 +240,29 @@ pub(crate) fn render_cloud_orchestration_tab_footer(builder: &TuiUiBuilder) -> B
     let primary = builder.primary_text_style();
     let muted = builder.muted_text_style();
     TuiText::from_spans([
-        ("Tab or ← →".to_string(), primary),
-        (" to navigate | ".to_string(), muted),
+        (
+            localization::text("tui.orchestration.key.navigate"),
+            primary,
+        ),
+        (
+            localization::text("tui.orchestration.cloud_run.footer.navigate"),
+            muted,
+        ),
         ("Shift + ← →".to_string(), primary),
-        (" to go to start/end | ".to_string(), muted),
+        (
+            localization::text("tui.orchestration.cloud_run.footer.go_to_start_end"),
+            muted,
+        ),
         ("↓".to_string(), primary),
-        (" to send a message  ".to_string(), muted),
+        (
+            localization::text("tui.orchestration.cloud_run.footer.send_message"),
+            muted,
+        ),
         ("Ctrl+C ".to_string(), primary),
-        ("to kill sub-agent".to_string(), muted),
+        (
+            localization::text("tui.orchestration.cloud_run.footer.kill_sub_agent"),
+            muted,
+        ),
     ])
     .truncate()
     .finish()

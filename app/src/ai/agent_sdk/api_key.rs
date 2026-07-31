@@ -17,13 +17,23 @@ use warp_graphql::mutations::expire_api_key::ExpireApiKeyResult;
 use warp_graphql::mutations::generate_api_key::GenerateApiKeyResult;
 use warp_graphql::queries::api_keys::ApiKeyProperties;
 use warp_graphql::scalars::Time;
+use warp_localization::{LocaleId, replace_placeholders};
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::{self, TableFormat};
-use crate::ServerApiProvider;
 use crate::server::ids::ApiKeyUid;
 use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::{ServerApiProvider, localization};
+
+fn text_for_locale(locale: LocaleId, key: &str) -> String {
+    localization::text_for_locale(locale, key)
+}
+
+fn text_for_locale_with_args(locale: LocaleId, key: &str, args: &[(&str, &str)]) -> String {
+    replace_placeholders(&text_for_locale(locale, key), args)
+        .expect("localized text template arguments must match the catalog")
+}
 
 /// Run API key-related commands.
 pub fn run(
@@ -64,6 +74,7 @@ impl ApiKeyCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -75,9 +86,13 @@ impl ApiKeyCommandRunner {
                     .collect();
                 sort_api_keys(&mut keys, args.sort_by, args.sort_order);
                 if args.json_output.force_json_output() {
-                    output::print_raw_json(serde_json::to_value(&keys)?, &args.json_output)?;
+                    output::print_raw_json_for_locale(
+                        serde_json::to_value(&keys)?,
+                        &args.json_output,
+                        locale,
+                    )?;
                 } else {
-                    output::print_list(keys, output_format);
+                    output::write_list_for_locale(keys, output_format, std::io::stdout(), locale)?;
                 }
                 Ok(())
             },
@@ -92,11 +107,12 @@ impl ApiKeyCommandRunner {
         ctx: &mut ModelContext<Self>,
     ) {
         let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
                 let json_output = args.json_output;
-                let expires_at = expires_at_from_args(args.expiration)?;
+                let expires_at = expires_at_from_args(args.expiration, locale)?;
                 let agent_uid = args.agent_uid.map(cynic::Id::new);
                 let result = auth_client
                     .create_api_key(args.name, None, agent_uid, expires_at)
@@ -112,10 +128,13 @@ impl ApiKeyCommandRunner {
                         ));
                     }
                     GenerateApiKeyResult::Unknown => {
-                        return Err(anyhow!("failed to create API key"));
+                        return Err(anyhow!(text_for_locale(
+                            locale,
+                            "agent_sdk.api_key.error.create_failed"
+                        )));
                     }
                 };
-                print_created_api_key(result, output_format, json_output)?;
+                print_created_api_key(result, output_format, json_output, locale)?;
                 Ok(())
             },
             |_, result: Result<()>, ctx| finish_command(result, ctx),
@@ -132,6 +151,7 @@ impl ApiKeyCommandRunner {
         let force = args.force;
         let json_output = args.json_output;
         let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move {
@@ -152,37 +172,47 @@ impl ApiKeyCommandRunner {
                     }
                 };
 
-                let key = match resolve_api_key_identifier(&keys, &key_identifier) {
-                    Ok(Some(key)) => key,
-                    Ok(None) => {
-                        ctx.terminate_app(TerminationMode::ForceTerminate, None);
-                        return;
-                    }
-                    Err(err) => {
-                        super::report_fatal_error(err, ctx);
-                        return;
-                    }
-                };
+                let key =
+                    match resolve_api_key_identifier_for_locale(&keys, &key_identifier, locale) {
+                        Ok(Some(key)) => key,
+                        Ok(None) => {
+                            ctx.terminate_app(TerminationMode::ForceTerminate, None);
+                            return;
+                        }
+                        Err(err) => {
+                            super::report_fatal_error(err, ctx);
+                            return;
+                        }
+                    };
 
                 if !force {
                     if !io::stdin().is_terminal() {
                         super::report_fatal_error(
-                            anyhow!(
-                                "Refusing to expire API key without confirmation in non-interactive mode (use --force to bypass)"
-                            ),
+                            anyhow!(text_for_locale(
+                                locale,
+                                "agent_sdk.api_key.error.expire_non_interactive_requires_force"
+                            )),
                             ctx,
                         );
                         return;
                     }
 
-                    let prompt = format!("Expire API key '{key}'?");
+                    let key_summary = key.display_for_locale(locale);
+                    let prompt = text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.api_key.confirm.expire",
+                        &[("key", &key_summary)],
+                    );
+                    let help = text_for_locale(locale, "agent_sdk.api_key.confirm.expire_help");
                     let should_expire = match Confirm::new(&prompt)
                         .with_default(false)
-                        .with_help_message("This action takes effect immediately")
+                        .with_help_message(&help)
                         .prompt()
                     {
                         Ok(should_expire) => should_expire,
-                        Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                        Err(
+                            InquireError::OperationCanceled | InquireError::OperationInterrupted,
+                        ) => {
                             ctx.terminate_app(TerminationMode::ForceTerminate, None);
                             return;
                         }
@@ -193,7 +223,10 @@ impl ApiKeyCommandRunner {
                     };
 
                     if !should_expire {
-                        println!("Expiration cancelled");
+                        println!(
+                            "{}",
+                            text_for_locale(locale, "agent_sdk.api_key.confirm.expire_cancelled")
+                        );
                         ctx.terminate_app(TerminationMode::ForceTerminate, None);
                         return;
                     }
@@ -212,7 +245,10 @@ impl ApiKeyCommandRunner {
                                 ));
                             }
                             ExpireApiKeyResult::Unknown => {
-                                return Err(anyhow!("failed to expire API key"))
+                                return Err(anyhow!(text_for_locale(
+                                    locale,
+                                    "agent_sdk.api_key.error.expire_failed"
+                                )));
                             }
                         };
                         print_expire_api_key_result(
@@ -220,6 +256,7 @@ impl ApiKeyCommandRunner {
                             expired,
                             output_format,
                             json_output,
+                            locale,
                         )?;
                         Ok(())
                     },
@@ -263,27 +300,52 @@ impl From<ApiKeyProperties> for ApiKeyInfo {
 
 impl fmt::Display for ApiKeyInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = &self.name;
-        let uid = &self.uid;
-        let created_at = self.created_at.format("%Y-%m-%d %H:%M:%S UTC");
-        write!(f, "{name} ({uid}, created {created_at})")
+        f.write_str(&self.display_for_locale(LocaleId::EnUs))
+    }
+}
+
+impl ApiKeyInfo {
+    fn display_for_locale(&self, locale: LocaleId) -> String {
+        let created_at = self.created_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
+        text_for_locale_with_args(
+            locale,
+            "agent_sdk.api_key.output.key_summary",
+            &[
+                ("name", &self.name),
+                ("uid", &self.uid),
+                ("created_at", &created_at),
+            ],
+        )
+    }
+}
+
+#[derive(Clone)]
+struct ApiKeySelectOption {
+    key: ApiKeyInfo,
+    label: String,
+}
+
+impl fmt::Display for ApiKeySelectOption {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.label)
     }
 }
 
 impl TableFormat for ApiKeyInfo {
     fn header() -> Vec<Cell> {
-        vec![
-            Cell::new("UID"),
-            Cell::new("Name"),
-            Cell::new("Key"),
-            Cell::new("Scope"),
-            Cell::new("Created"),
-            Cell::new("Last Used"),
-            Cell::new("Expires At"),
-        ]
+        api_key_info_header_for_locale(LocaleId::EnUs)
+    }
+
+    fn header_for_locale(locale: LocaleId) -> Vec<Cell> {
+        api_key_info_header_for_locale(locale)
     }
 
     fn row(&self) -> Vec<Cell> {
+        self.row_for_locale(LocaleId::EnUs)
+    }
+
+    fn row_for_locale(&self, locale: LocaleId) -> Vec<Cell> {
+        let never = || text_for_locale(locale, "agent_sdk.api_key.table.never");
         vec![
             Cell::new(&self.uid),
             Cell::new(&self.name),
@@ -293,20 +355,44 @@ impl TableFormat for ApiKeyInfo {
             Cell::new(
                 self.last_used_at
                     .map(format_approx_duration_from_now_utc)
-                    .unwrap_or_else(|| "Never".to_string()),
+                    .unwrap_or_else(never),
             ),
             Cell::new(
                 self.expires_at
                     .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-                    .unwrap_or_else(|| "Never".to_string()),
+                    .unwrap_or_else(never),
             ),
         ]
     }
 }
 
+fn api_key_info_header_for_locale(locale: LocaleId) -> Vec<Cell> {
+    vec![
+        Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.uid")),
+        Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.name")),
+        Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.key")),
+        Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.scope")),
+        Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.created")),
+        Cell::new(text_for_locale(locale, "agent_sdk.api_key.table.last_used")),
+        Cell::new(text_for_locale(
+            locale,
+            "agent_sdk.api_key.table.expires_at",
+        )),
+    ]
+}
+
+#[cfg(test)]
 fn resolve_api_key_identifier(
     keys: &[ApiKeyInfo],
     key_identifier: &str,
+) -> Result<Option<ApiKeyInfo>> {
+    resolve_api_key_identifier_for_locale(keys, key_identifier, LocaleId::EnUs)
+}
+
+fn resolve_api_key_identifier_for_locale(
+    keys: &[ApiKeyInfo],
+    key_identifier: &str,
+    locale: LocaleId,
 ) -> Result<Option<ApiKeyInfo>> {
     if let Some(key) = keys.iter().find(|key| key.uid == key_identifier) {
         return Ok(Some(key.clone()));
@@ -320,31 +406,51 @@ fn resolve_api_key_identifier(
     matches.sort_by_key(|key| Reverse(key.created_at));
 
     if matches.is_empty() {
-        return Err(anyhow!("API key '{key_identifier}' not found"));
+        return Err(anyhow!(text_for_locale_with_args(
+            locale,
+            "agent_sdk.api_key.error.not_found",
+            &[("key_identifier", key_identifier)]
+        )));
     } else if matches.len() == 1 {
         return Ok(Some(matches[0].clone()));
     }
 
     if io::stdin().is_terminal() {
-        return match Select::new(
-            &format!("Multiple API keys match '{key_identifier}'. Select a key to expire:"),
-            matches,
-        )
-        .prompt()
-        {
-            Ok(key) => Ok(Some(key)),
+        let prompt = text_for_locale_with_args(
+            locale,
+            "agent_sdk.api_key.prompt.select_key_to_expire",
+            &[("key_identifier", key_identifier)],
+        );
+        let options = matches
+            .into_iter()
+            .map(|key| ApiKeySelectOption {
+                label: key.display_for_locale(locale),
+                key,
+            })
+            .collect();
+        return match Select::new(&prompt, options).prompt() {
+            Ok(option) => Ok(Some(option.key)),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => Ok(None),
             Err(err) => Err(err.into()),
         };
     }
-    println!("Multiple API keys match '{key_identifier}':");
+    println!(
+        "{}",
+        text_for_locale_with_args(
+            locale,
+            "agent_sdk.api_key.output.multiple_matches",
+            &[("key_identifier", key_identifier)]
+        )
+    );
     for key in matches {
-        println!("  {key}");
+        println!("  {}", key.display_for_locale(locale));
     }
 
-    Err(anyhow!(
-        "Multiple API keys match '{key_identifier}'; specify the key by UID"
-    ))
+    Err(anyhow!(text_for_locale_with_args(
+        locale,
+        "agent_sdk.api_key.error.multiple_matches_specify_uid",
+        &[("key_identifier", key_identifier)]
+    )))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -407,7 +513,7 @@ fn sort_api_keys(
     }
 }
 
-fn expires_at_from_args(args: ApiKeyExpirationArgs) -> Result<Option<Time>> {
+fn expires_at_from_args(args: ApiKeyExpirationArgs, locale: LocaleId) -> Result<Option<Time>> {
     if args.no_expiration {
         return Ok(None);
     }
@@ -417,31 +523,65 @@ fn expires_at_from_args(args: ApiKeyExpirationArgs) -> Result<Option<Time>> {
     }
 
     if let Some(expires_in) = args.expires_in {
-        let duration = chrono::Duration::from_std(expires_in.into())
-            .map_err(|_| anyhow!("expiration duration is too large"))?;
+        let duration = chrono::Duration::from_std(expires_in.into()).map_err(|_| {
+            anyhow!(text_for_locale(
+                locale,
+                "agent_sdk.api_key.error.expiration_too_large"
+            ))
+        })?;
         return Ok(Some(Time::from(Utc::now() + duration)));
     }
 
-    Err(anyhow!("expiration behavior is required"))
+    Err(anyhow!(text_for_locale(
+        locale,
+        "agent_sdk.api_key.error.expiration_behavior_required"
+    )))
 }
 
 fn print_created_api_key(
     result: CreatedApiKeyInfo,
     output_format: OutputFormat,
     json_output: warp_cli::json_filter::JsonOutput,
+    locale: LocaleId,
 ) -> Result<()> {
     if json_output.force_json_output() {
-        output::print_raw_json(serde_json::to_value(&result)?, &json_output)?;
+        output::print_raw_json_for_locale(serde_json::to_value(&result)?, &json_output, locale)?;
         return Ok(());
     }
     match output_format {
-        OutputFormat::Json => output::write_json(&result, std::io::stdout())?,
-        OutputFormat::Ndjson => output::write_json_line(&result, std::io::stdout())?,
+        OutputFormat::Json => output::write_json_for_locale(&result, std::io::stdout(), locale)?,
+        OutputFormat::Ndjson => {
+            output::write_json_line_for_locale(&result, std::io::stdout(), locale)?
+        }
         OutputFormat::Pretty | OutputFormat::Text => {
-            println!("API key '{}' created.", result.api_key.name);
-            println!("UID: {}", result.api_key.uid);
-            println!("Raw API key: {}", result.raw_api_key);
-            println!("This secret key is shown only once. Store it securely.");
+            println!(
+                "{}",
+                text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.api_key.output.created",
+                    &[("name", &result.api_key.name)]
+                )
+            );
+            println!(
+                "{}",
+                text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.api_key.output.uid",
+                    &[("uid", &result.api_key.uid)]
+                )
+            );
+            println!(
+                "{}",
+                text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.api_key.output.raw_api_key",
+                    &[("raw_api_key", &result.raw_api_key)]
+                )
+            );
+            println!(
+                "{}",
+                text_for_locale(locale, "agent_sdk.api_key.output.secret_shown_once")
+            );
         }
     }
     Ok(())
@@ -452,21 +592,38 @@ fn print_expire_api_key_result(
     expired: bool,
     output_format: OutputFormat,
     json_output: warp_cli::json_filter::JsonOutput,
+    locale: LocaleId,
 ) -> Result<()> {
     let result = ExpiredApiKeyInfo { key_uid, expired };
     if json_output.force_json_output() {
-        output::print_raw_json(serde_json::to_value(&result)?, &json_output)?;
+        output::print_raw_json_for_locale(serde_json::to_value(&result)?, &json_output, locale)?;
         return Ok(());
     }
 
     match output_format {
-        OutputFormat::Json => output::write_json(&result, std::io::stdout())?,
-        OutputFormat::Ndjson => output::write_json_line(&result, std::io::stdout())?,
+        OutputFormat::Json => output::write_json_for_locale(&result, std::io::stdout(), locale)?,
+        OutputFormat::Ndjson => {
+            output::write_json_line_for_locale(&result, std::io::stdout(), locale)?
+        }
         OutputFormat::Pretty | OutputFormat::Text => {
             if expired {
-                println!("API key '{}' expired.", result.key_uid);
+                println!(
+                    "{}",
+                    text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.api_key.output.expired",
+                        &[("key_uid", &result.key_uid)]
+                    )
+                );
             } else {
-                println!("API key '{}' was not expired.", result.key_uid);
+                println!(
+                    "{}",
+                    text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.api_key.output.not_expired",
+                        &[("key_uid", &result.key_uid)]
+                    )
+                );
             }
         }
     }

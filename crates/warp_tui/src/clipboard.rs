@@ -8,8 +8,9 @@
 //!   is used only as a last-resort fallback when the native backend errors
 //!   (e.g. a displayless Linux box).
 //!
-//! [`copy_to_clipboard`] returns an error only when the copy genuinely fails —
-//! the native backend is unavailable *and* the OSC 52 stdout write errored.
+//! [`copy_to_clipboard`] distinguishes a confirmed native clipboard write from
+//! an OSC 52 sequence sent to the host terminal. The latter cannot confirm that
+//! the terminal accepted the request.
 
 use std::io::{self, Write};
 
@@ -19,32 +20,50 @@ use base64::engine::general_purpose::STANDARD;
 const ESC: char = '\x1b';
 const BEL: char = '\x07';
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ClipboardCopy {
+    Copied,
+    SentToTerminal,
+}
+
 /// Copies `text` to the clipboard, selecting the transport from the environment.
 ///
 /// Local sessions write to the OS clipboard via `arboard`, falling back to OSC 52
 /// when the native backend is unavailable; remote/SSH sessions use OSC 52
-/// directly. Returns an error only when the copy genuinely fails.
-pub(crate) fn copy_to_clipboard(text: &str) -> anyhow::Result<()> {
+/// directly. Returns whether a native write was confirmed or an OSC 52 request
+/// was sent to the host terminal.
+pub(crate) fn copy_to_clipboard(text: &str) -> anyhow::Result<ClipboardCopy> {
     let is_remote =
         std::env::var_os("SSH_CONNECTION").is_some() || std::env::var_os("SSH_TTY").is_some();
     let in_tmux = std::env::var_os("TMUX").is_some();
 
+    copy_to_clipboard_with(text, is_remote, set_native_text, |text| {
+        let mut stdout = io::stdout().lock();
+        write_osc52_sequences(text, in_tmux, &mut stdout).map_err(Into::into)
+    })
+}
+
+fn copy_to_clipboard_with(
+    text: &str,
+    is_remote: bool,
+    native_copy: impl FnOnce(&str) -> anyhow::Result<()>,
+    osc52_copy: impl FnOnce(&str) -> anyhow::Result<()>,
+) -> anyhow::Result<ClipboardCopy> {
     if is_remote {
         // Remote/SSH: the local OS clipboard isn't reachable, so OSC 52 is the
         // only option.
-        let mut stdout = io::stdout().lock();
-        write_osc52_sequences(text, in_tmux, &mut stdout)?;
-        return Ok(());
+        osc52_copy(text)?;
+        return Ok(ClipboardCopy::SentToTerminal);
     }
 
     // Local: prefer a native write; fall back to OSC 52 only when the native
     // backend is unavailable (e.g. headless Linux with no display).
-    if let Err(error) = set_native_text(text) {
+    if let Err(error) = native_copy(text) {
         log::warn!("Native clipboard write failed, falling back to OSC 52: {error}");
-        let mut stdout = io::stdout().lock();
-        write_osc52_sequences(text, in_tmux, &mut stdout)?;
+        osc52_copy(text)?;
+        return Ok(ClipboardCopy::SentToTerminal);
     }
-    Ok(())
+    Ok(ClipboardCopy::Copied)
 }
 
 /// Writes `text` to the OS clipboard via a process-lifetime `arboard` handle

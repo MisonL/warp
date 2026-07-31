@@ -1,6 +1,7 @@
 ---
 name: tui-migrate-setup
 description: Migrates the supported subset of an existing Warp GUI setup into Warp TUI without exposing credentials or application state. Use in Warp TUI when a user wants to copy or move compatible settings or global file-based MCP servers from the desktop app, set up TUI from an existing GUI installation, or understand which Warp data is already shared.
+description_zh_CN: 在不暴露凭据或应用状态的前提下，将现有 Warp GUI 设置中受支持的部分迁移到 Warp TUI。适用于用户想从桌面应用复制或移动兼容设置或全局文件型 MCP 服务器、根据现有 GUI 安装设置 TUI，或了解哪些 Warp 数据已共享的情形；仅在 Warp TUI 中使用。
 compatibility: Requires Python 3.11 or newer for local JSON and TOML inspection. This skill is available only in Warp TUI.
 ---
 

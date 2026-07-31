@@ -1,9 +1,10 @@
 use std::ops::Deref;
 
 use serde::{Serialize, Serializer};
-use warpui::ViewContext;
 use warpui::platform::Cursor;
+use warpui::{AppContext, ViewContext};
 
+use crate::localization;
 use crate::terminal::TerminalModel;
 use crate::terminal::model::RespectObfuscatedSecrets;
 use crate::terminal::model::grid::grid_handler::Link;
@@ -136,7 +137,7 @@ impl GridHighlightedLink {
         }
     }
 
-    pub fn tooltip_text(&self) -> &'static str {
+    pub fn tooltip_text(&self, app: &AppContext) -> String {
         match &self {
             #[cfg(feature = "local_fs")]
             GridHighlightedLink::File(file_link)
@@ -146,12 +147,15 @@ impl GridHighlightedLink {
                     .map(|path| path.is_dir())
                     .unwrap_or(false) =>
             {
-                "Open folder"
+                localization::text_for_app(app, "terminal.link.open_folder")
             }
             #[cfg(feature = "local_fs")]
-            GridHighlightedLink::File(_) => "Open file",
-            GridHighlightedLink::Url(_) => "Open link",
-            GridHighlightedLink::Hyperlink { .. } => "Open link",
+            GridHighlightedLink::File(_) => {
+                localization::text_for_app(app, "terminal.link.open_file")
+            }
+            GridHighlightedLink::Url(_) | GridHighlightedLink::Hyperlink { .. } => {
+                localization::text_for_app(app, "terminal.link.open_link")
+            }
         }
     }
 }
@@ -241,15 +245,17 @@ pub enum RichContentLink {
 }
 
 impl RichContentLink {
-    pub fn tooltip_text(&self) -> &'static str {
+    pub fn tooltip_text(&self, app: &AppContext) -> String {
         match &self {
             #[cfg(feature = "local_fs")]
             RichContentLink::FilePath { absolute_path, .. } if absolute_path.is_dir() => {
-                "Open folder"
+                localization::text_for_app(app, "terminal.link.open_folder")
             }
             #[cfg(feature = "local_fs")]
-            RichContentLink::FilePath { .. } => "Open file",
-            RichContentLink::Url(_) => "Open link",
+            RichContentLink::FilePath { .. } => {
+                localization::text_for_app(app, "terminal.link.open_file")
+            }
+            RichContentLink::Url(_) => localization::text_for_app(app, "terminal.link.open_link"),
         }
     }
 }

@@ -78,10 +78,28 @@ impl SearchItem for FileSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        if self.is_directory {
-            format!("Directory: {}", self.path.display())
+        let key = if self.is_directory {
+            "search.files.a11y.directory"
         } else {
-            format!("File: {}", self.path.display())
-        }
+            "search.files.a11y.file"
+        };
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            key,
+            &[("path", &self.path.display().to_string())],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        let key = if self.is_directory {
+            "search.files.a11y.directory"
+        } else {
+            "search.files.a11y.file"
+        };
+        crate::localization::text_for_app_with_args(
+            app,
+            key,
+            &[("path", &self.path.display().to_string())],
+        )
     }
 }

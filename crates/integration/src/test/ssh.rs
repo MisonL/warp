@@ -6,9 +6,7 @@ use warp::integration_testing::step::new_step_with_default_assertions;
 use warp::integration_testing::subshell::{
     enter_ssh_command, enter_ssh_password, setup_gcloud_sdk, wait_for_password_prompt,
 };
-use warp::integration_testing::terminal::util::{
-    ExactLine, ExpectedExitStatus, current_shell_starter_and_version, nonce,
-};
+use warp::integration_testing::terminal::util::{ExactLine, ExpectedExitStatus, nonce};
 use warp::integration_testing::terminal::{
     assert_active_block_output_for_single_terminal_in_tab,
     assert_long_running_block_executing_for_single_terminal_in_tab,
@@ -18,12 +16,12 @@ use warp::integration_testing::terminal::{
 use warp::integration_testing::view_getters::{single_terminal_view, single_terminal_view_for_tab};
 use warp::terminal::model::bootstrap::BootstrapStage;
 use warp::terminal::session_settings::{StartupShell, StartupShellOverride};
-use warp::terminal::shell::ShellType;
 use warpui_core::integration::{AssertionCallback, AssertionOutcome, TestStep};
 use warpui_core::{async_assert, async_assert_eq};
 
 use super::new_builder;
 use crate::Builder;
+use crate::util::can_run_gcloud_ssh_tests;
 
 /// Verifies that the active block is part of a remote session.
 fn assert_active_block_is_remote(user: &'static str, host: &'static str) -> AssertionCallback {
@@ -154,10 +152,7 @@ macro_rules! generate_can_bootstrap_ssh_wrapper_test_for_shell {
         pub fn $fn_name() -> Builder {
             new_builder()
                 // TODO(CORE-2333) PowerShell has no SSH wrapper.
-                .set_should_run_test(|| {
-                    let (starter, _) = current_shell_starter_and_version();
-                    starter.shell_type() != ShellType::PowerShell
-                })
+                .set_should_run_test(can_run_gcloud_ssh_tests)
                 .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
                 .with_step(setup_gcloud_sdk())
                 .with_step(enter_ssh_command($shell))
@@ -189,10 +184,7 @@ macro_rules! generate_long_running_block_ssh_test_for_shell {
         pub fn $fn_name() -> Builder {
             new_builder()
                 // TODO(CORE-2333) PowerShell has no SSH wrapper.
-                .set_should_run_test(|| {
-                    let (starter, _) = current_shell_starter_and_version();
-                    starter.shell_type() != ShellType::PowerShell
-                })
+                .set_should_run_test(can_run_gcloud_ssh_tests)
                 .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
                 .with_step(setup_gcloud_sdk())
                 .with_step(enter_ssh_command($shell))
@@ -233,10 +225,7 @@ generate_long_running_block_ssh_test_for_shell!(test_ssh_into_ash, "ash", prompt
 pub fn test_ssh_with_shell_override() -> Builder {
     new_builder()
         // TODO(CORE-2333) PowerShell has no SSH wrapper.
-        .set_should_run_test(|| {
-            let (starter, _) = current_shell_starter_and_version();
-            starter.shell_type() != ShellType::PowerShell
-        })
+        .set_should_run_test(can_run_gcloud_ssh_tests)
         .with_user_defaults(HashMap::from([(
             StartupShellOverride::storage_key().to_owned(),
             serde_json::to_string(&StartupShell::Zsh).expect("Can serialize setting as JSON"),

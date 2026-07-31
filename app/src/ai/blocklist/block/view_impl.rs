@@ -655,12 +655,14 @@ pub fn render_citation(
                 .to_warp_drive_item(appearance)?;
             (
                 item.icon(appearance, Some(theme.active_ui_text_color())),
-                item.display_name().unwrap_or(String::from("Untitled")),
+                item.display_name().unwrap_or_else(|| {
+                    crate::localization::text_for_app(app, "agent.citation.untitled")
+                }),
             )
         }
         AIAgentCitation::WarpDocumentation { .. } => {
             let icon = Icon::Warp.to_warpui_icon(theme.foreground()).finish();
-            let name = String::from("Warp Docs");
+            let name = crate::localization::text_for_app(app, "agent.citation.warp_docs");
             (Some(icon), name)
         }
         AIAgentCitation::WebPage { url } => {
@@ -673,7 +675,7 @@ pub fn render_citation(
         AIAgentCitation::AgentMemory { content, .. } => {
             let icon = Icon::Cognition.to_warpui_icon(theme.foreground()).finish();
             let name = if content.is_empty() {
-                String::from("Memory")
+                crate::localization::text_for_app(app, "agent.citation.memory")
             } else {
                 content.clone()
             };
@@ -727,7 +729,7 @@ pub fn render_citation(
 /// "Manage AI Autonomy permissions" link. Matches the visual rhythm of
 /// [`render_autonomy_checkbox_setting_speedbump_footer`].
 pub fn render_autonomy_dropdown_setting_speedbump_footer<A>(
-    description: &'static str,
+    description: impl Into<std::borrow::Cow<'static, str>>,
     dropdown: &warpui::ViewHandle<crate::view_components::dropdown::Dropdown<A>>,
     settings_link_handle: MouseStateHandle,
     app: &AppContext,
@@ -744,7 +746,7 @@ where
             .with_child(
                 Container::new(
                     Text::new(
-                        description,
+                        description.into(),
                         appearance.ui_font_family(),
                         appearance.monospace_font_size() - 1.,
                     )
@@ -767,7 +769,10 @@ where
                         appearance
                             .ui_builder()
                             .link(
-                                "Manage AI Autonomy permissions".into(),
+                                crate::localization::text_for_app(
+                                    app,
+                                    "agent.output.permissions.manage_autonomy",
+                                ),
                                 None,
                                 Some(Box::new(move |ctx| {
                                     ctx.dispatch_typed_action(
@@ -796,7 +801,7 @@ where
 /// This function is needed both above (i.e. `block.rs`) and below (i.e. `output.rs`), and as such
 /// cannot reside in `output.rs` because we don't want to make `mod output` public.
 pub fn render_autonomy_checkbox_setting_speedbump_footer(
-    description: &'static str,
+    description: impl Into<String>,
     checked: bool,
     on_toggled_action: AIBlockAction,
     checkbox_handle: MouseStateHandle,
@@ -805,6 +810,7 @@ pub fn render_autonomy_checkbox_setting_speedbump_footer(
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
+    let description = description.into();
     Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_main_axis_size(MainAxisSize::Max)
@@ -842,7 +848,10 @@ pub fn render_autonomy_checkbox_setting_speedbump_footer(
                     appearance
                         .ui_builder()
                         .link(
-                            "Manage AI Autonomy permissions".into(),
+                            crate::localization::text_for_app(
+                                app,
+                                "agent.output.permissions.manage_autonomy",
+                            ),
                             None,
                             Some(Box::new(move |ctx| {
                                 ctx.dispatch_typed_action(

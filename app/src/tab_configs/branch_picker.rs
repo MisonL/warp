@@ -4,6 +4,7 @@ use warpui::elements::ChildView;
 use warpui::ui_components::components::UiComponentStyles;
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
+use crate::localization;
 use crate::tab_configs::PickerStyle;
 use crate::util::git::{
     BranchEntry, detect_current_branch, get_all_branches, get_all_branches_with_known_main,
@@ -12,8 +13,6 @@ use crate::util::git::{
 use crate::view_components::{DropdownItem, FilterableDropdown};
 
 const DEFAULT_DROPDOWN_WIDTH: f32 = 380.;
-/// Placeholder text shown in the dropdown top bar while branches are loading.
-const LOADING_PLACEHOLDER: &str = "Fetching branches\u{2026}";
 
 /// A filterable dropdown that lists local git branches for the given repo path.
 ///
@@ -123,9 +122,11 @@ impl BranchPicker {
             dropdown.set_disabled(ctx);
             // Show loading text in the dropdown top bar so the modal
             // doesn't shift layout while the fetch is in-flight.
-            let placeholder = DropdownItem::new(LOADING_PLACEHOLDER.to_string(), String::new());
+            let loading_placeholder =
+                localization::text_for_app(ctx, "tab_config.branch_picker.fetching_branches");
+            let placeholder = DropdownItem::new(loading_placeholder.clone(), String::new());
             dropdown.set_items(vec![placeholder], ctx);
-            dropdown.set_selected_by_name(LOADING_PLACEHOLDER, ctx);
+            dropdown.set_selected_by_name(&loading_placeholder, ctx);
         });
 
         self.fetch_epoch += 1;

@@ -47,7 +47,7 @@ use crate::terminal::keys_settings::KeysSettings;
 use crate::themes::theme::WarpTheme;
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ForkedConversationDestination, WorkspaceAction, active_terminal_in_window};
-use crate::{ToastStack, send_telemetry_from_ctx};
+use crate::{ToastStack, localization, send_telemetry_from_ctx};
 
 lazy_static! {
     /// Set of hardcoded action names that we want to show in the command palette zero state.
@@ -124,8 +124,6 @@ pub struct View {
     /// Model to lists the current active session.
     session_source: ModelHandle<SessionSource>,
     zero_state_handle: ViewHandle<ZeroState>,
-    /// Placeholder element to render when no results are found.
-    placeholder_query_renderer: QueryResultRenderer<CommandPaletteItemAction>,
     /// List of [`BindingId`]s that should be shown in the zero state as "suggested" items.
     suggested_binding_ids: Vec<BindingId>,
     /// Store of all the data sources that should be used for the [`SearchMixer`].
@@ -276,10 +274,10 @@ impl View {
         let ui_font_family = Appearance::as_ref(ctx).ui_font_family();
 
         let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
+            SearchBar::new_with_localized_placeholder(
                 mixer.clone(),
                 search_bar_state.clone(),
-                "Search for a command",
+                "search.command_palette.placeholder",
                 Self::create_query_result_renderer,
                 ctx,
             )
@@ -289,13 +287,6 @@ impl View {
         ctx.subscribe_to_view(&search_bar, |me, _, event, ctx| {
             me.handle_search_bar_event(event, ctx);
         });
-
-        let placeholder_element = QueryResultRenderer::new(
-            MatchedBinding::placeholder("No results found".into()).into(),
-            "command_palette:no_results".into(),
-            |_, _, _| {},
-            *styles::QUERY_RESULT_RENDERER_STYLES,
-        );
 
         Self {
             navigation_mode,
@@ -308,11 +299,23 @@ impl View {
             session_source,
             data_source_store,
             zero_state_handle: zero_state,
-            placeholder_query_renderer: placeholder_element,
             suggested_binding_ids,
             zero_state_items,
             is_shared_session_viewer: false,
         }
+    }
+
+    fn placeholder_query_renderer(
+        &self,
+        app: &AppContext,
+    ) -> QueryResultRenderer<CommandPaletteItemAction> {
+        QueryResultRenderer::new(
+            MatchedBinding::placeholder(localization::text_for_app(app, "search.no_results"))
+                .into(),
+            "command_palette:no_results".into(),
+            |_, _, _| {},
+            *styles::QUERY_RESULT_RENDERER_STYLES,
+        )
     }
 
     #[cfg(feature = "integration_tests")]
@@ -678,7 +681,7 @@ impl View {
         match self.search_bar_state.as_ref(app).query_result_renderers() {
             None => Empty::new().finish(),
             Some(renderers) if renderers.is_empty() => {
-                self.placeholder_query_renderer
+                self.placeholder_query_renderer(app)
                     .render(0, true /* is_selected */, app)
             }
             Some(renderers) => {
@@ -835,10 +838,10 @@ impl View {
                     if let Some(window_id) = window_id {
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "Cannot switch conversations while agent is monitoring a command."
-                                        .to_string(),
-                                ),
+                                DismissibleToast::error(localization::text_for_app(
+                                    ctx,
+                                    "search.command_palette.error.agent_monitoring_switch",
+                                )),
                                 window_id,
                                 ctx,
                             );
@@ -977,9 +980,10 @@ impl View {
                 if can_start_new_conversation {
                     ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                         toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(
-                                "Cannot start a new conversation while agent is monitoring a command.".to_string(),
-                            ),
+                            DismissibleToast::error(localization::text_for_app(
+                                ctx,
+                                "search.command_palette.error.agent_monitoring_new_conversation",
+                            )),
                             window_id,
                             ctx,
                         );

@@ -26,7 +26,14 @@ impl WarpDriveAIFactCollection {
 
 impl WarpDriveItem for WarpDriveAIFactCollection {
     fn display_name(&self) -> Option<String> {
-        Some("Rules".to_string())
+        None
+    }
+
+    fn display_name_for_app(&self, app: &AppContext) -> Option<String> {
+        Some(crate::localization::text_for_app(
+            app,
+            "drive.collection.rules",
+        ))
     }
 
     fn metadata(&self) -> Option<&CloudObjectMetadata> {
@@ -45,7 +52,7 @@ impl WarpDriveItem for WarpDriveAIFactCollection {
         Some(DriveIndexAction::OpenAIFactCollection)
     }
 
-    fn preview(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(&self, _appearance: &Appearance, _app: &AppContext) -> Option<Box<dyn Element>> {
         None
     }
 

@@ -37,6 +37,7 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::{Preference, init_and_register_user_preferences};
 use crate::system::SystemStats;
+use crate::test_util::settings::initialize_localization_for_tests;
 use crate::workflows::CloudWorkflowModel;
 use crate::workspaces::team::Team;
 use crate::workspaces::team_tester::TeamTesterStatus;
@@ -77,6 +78,7 @@ fn initialize_app(
     cached_objects: Vec<Box<dyn CloudObject>>,
     cloud_object_server_api_mock: Arc<impl ObjectClient>,
 ) {
+    initialize_localization_for_tests(app);
     let team_client_mock = Arc::new(MockTeamClient::new());
     let workspace_client_mock = Arc::new(MockWorkspaceClient::new());
 
@@ -1238,7 +1240,18 @@ fn test_breadcrumbs() {
     .collect::<Vec<_>>();
 
     App::test((), |mut app| async move {
-        let cloud_object_server_api_mock = base_mock_cloud_object_server_api();
+        let mut cloud_object_server_api_mock = base_mock_cloud_object_server_api();
+        cloud_object_server_api_mock
+            .expect_fetch_changed_objects()
+            .times(1)
+            .withf(|objects_to_update, force_refresh| {
+                objects_to_update.notebooks.is_empty()
+                    && objects_to_update.workflows.is_empty()
+                    && objects_to_update.folders.is_empty()
+                    && objects_to_update.generic_string_objects.is_empty()
+                    && *force_refresh
+            })
+            .return_once(move |_, _| Ok(InitialLoadResponse::default()));
         initialize_app(
             &mut app,
             folders.clone(),

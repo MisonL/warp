@@ -1,5 +1,5 @@
-use warpui::Element;
 use warpui::elements::MouseStateHandle;
+use warpui::{AppContext, Element};
 
 use super::{WarpDriveItem, WarpDriveItemId};
 use crate::appearance::Appearance;
@@ -41,7 +41,7 @@ impl WarpDriveItem for WarpDriveSpace {
         None
     }
 
-    fn preview(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn preview(&self, _appearance: &Appearance, _app: &AppContext) -> Option<Box<dyn Element>> {
         None
     }
 

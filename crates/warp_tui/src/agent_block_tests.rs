@@ -200,9 +200,9 @@ fn out_of_credits_failure_matches_figma_rows_styles_and_links() {
 
         app.read(|ctx| {
             let presentation = FailedOutputPresentation::OutOfCredits {
-                title: "I’m sorry, I couldn’t complete that request.",
-                detail:
-                    "In order to use Warp’s AI features, subscribe to a Warp plan, or bring your own inference.",
+                title: "I’m sorry, I couldn’t complete that request.".to_owned(),
+                detail: "In order to use Warp’s AI features, subscribe to a Warp plan, or bring your own inference."
+                    .to_owned(),
                 can_use_own_api_keys: true,
             };
             let compare_plans_hover_state = MouseStateHandle::default();
@@ -286,9 +286,9 @@ fn out_of_credits_failure_matches_figma_rows_styles_and_links() {
             );
 
             let without_byok = FailedOutputPresentation::OutOfCredits {
-                title: "I’m sorry, I couldn’t complete that request.",
-                detail:
-                    "In order to use Warp’s AI features, subscribe to a Warp plan, or bring your own inference.",
+                title: "I’m sorry, I couldn’t complete that request.".to_owned(),
+                detail: "In order to use Warp’s AI features, subscribe to a Warp plan, or bring your own inference."
+                    .to_owned(),
                 can_use_own_api_keys: false,
             };
             let mut presenter = TuiPresenter::new();
@@ -1455,6 +1455,25 @@ fn finished_reasoning_renders_collapsed_thought_for_header() {
             assert_eq!(rendered[0], "Thought for 15 seconds ▸");
             // Collapsed by default once finished: the reasoning body is not rendered.
             assert!(rendered.iter().all(|line| !line.contains("hidden body")));
+        });
+    });
+}
+
+#[test]
+fn finished_reasoning_renders_one_second_without_panicking() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        let block = test_agent_block(
+            &mut app,
+            FakeAgentBlockModel {
+                inputs: Vec::new(),
+                status: reasoning_status(Some(Duration::from_secs(1)), "hidden body"),
+            },
+        );
+        app.read(|app_ctx| {
+            let block = block.as_ref(app_ctx);
+            let rendered = render_block_lines(block, 40, app_ctx);
+            assert_eq!(rendered[0], "Thought for 1 second ▸");
         });
     });
 }

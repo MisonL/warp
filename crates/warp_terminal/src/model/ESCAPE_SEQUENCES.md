@@ -1,14 +1,14 @@
 # Escape sequences
 
-Escape sequence is a group (sequence) of characters that have a special meaning, usually different than the literal meaning of the characters used. 
+Escape sequence is a group (sequence) of characters that have a special meaning, usually different than the literal meaning of the characters used.
 In Warp we operate on ANSI escape codes, so they always have a form of:
 `<ESC> <separating char> <some combination>`
 
-The `<ESC>` is decimal 27 (0x1b) character. 
+The `<ESC>` is decimal 27 (0x1b) character.
 `<separating char>` is usually `[`, but can be something else too. The combination `<ESC><separating char>` is referred to as `C1 (8-Bit) Control Characters`.
 The rest depends on the actual operation performed. May contain other characters and separators, and is defined on case-by-case basis. Some example operations include mouse tracking, moving the cursor in the apps or handling the special key combinations.
 
-Note that this doc describes just the combinations **we (on behalf of user) write to pty** and doesn't include description of other sequences written by the applications or read from the shell. 
+Note that this doc describes just the combinations **we (on behalf of user) write to pty** and doesn't include description of other sequences written by the applications or read from the shell.
 
 
 ### Helpful reading
@@ -53,7 +53,7 @@ In short: `SS3` can only be used iff `TermMode::APP_CURSOR` is set && no modifie
 ## Use cases already covered in Warp
 
 ### Mouse tracking
-Programs such as `vim` or `tmux` allow users to use the mouse within the app. There's couple modes of operations for mouse tracking (more [here](https://www.xfree86.org/current/ctlseqs.html#Mouse%20Tracking)), but the one we care about in Warp is `SGR`. 
+Programs such as `vim` or `tmux` allow users to use the mouse within the app. There's couple modes of operations for mouse tracking (more [here](https://www.xfree86.org/current/ctlseqs.html#Mouse%20Tracking)), but the one we care about in Warp is `SGR`.
 
 Basically, some sort of low-res mouse tracking has been implemented before - it only allowed for tracking the mouse movement up to 223 columns, meaning, it wouldn't work in the bigger terminal window. As of 2012 xterm spec introduced `SGR`, which is supposed to support 'higher resolution' mouse tracking. Each of those modes expect different escape sequences to specify the mouse position, however, it is safe to assume that in modern world applications will favor SGR if supported by the terminal emulator, so we don't worry about the other sequences.
 
@@ -101,4 +101,4 @@ For example, sequence for arrows with modifiers has the following pattern:
 
 (TODO: where exactly does `1 ;` come from?)
 
-Other key combinations can have different values or completely different format. Best to follow the reading materials linked above to determine the right sequence. 
+Other key combinations can have different values or completely different format. Best to follow the reading materials linked above to determine the right sequence.

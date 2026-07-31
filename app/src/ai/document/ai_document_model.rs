@@ -22,6 +22,7 @@ use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonE
 
 use crate::ai::agent::AIAgentActionId;
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE_KEY;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::appearance::Appearance;
@@ -31,6 +32,7 @@ use crate::cloud_object::{CloudObject, CloudObjectEventEntrypoint, Owner};
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::folders::CloudFolder;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
+use crate::localization;
 use crate::notebooks::editor::model::{
     FileLinkResolutionContext, NotebooksEditorModel, RichTextEditorModelEvent,
 };
@@ -942,10 +944,12 @@ impl AIDocumentModel {
             log::info!(
                 "Creating document {id} from persisted SQLite content (conversation not restored)"
             );
-            let title = persisted_title.unwrap_or(DEFAULT_PLANNING_DOCUMENT_TITLE);
+            let title = persisted_title.map(ToOwned::to_owned).unwrap_or_else(|| {
+                localization::text_for_app(ctx, DEFAULT_PLANNING_DOCUMENT_TITLE_KEY)
+            });
             self.create_document_internal(
                 id,
-                title,
+                &title,
                 persisted_content,
                 AIDocumentUpdateSource::Restoration,
                 // We don't have the conversation ID this is for - this is free floating and not connected to any conversation

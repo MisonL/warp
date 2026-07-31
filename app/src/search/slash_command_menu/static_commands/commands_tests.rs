@@ -11,17 +11,19 @@ fn command_names_are_unique() {
     }
 }
 #[test]
-fn view_logs_command_is_registered_only_for_tui_mode() {
-    assert!(
-        all_commands(settings::SettingsMode::Tui)
-            .iter()
-            .any(|command| command == &VIEW_LOGS)
-    );
-    assert!(
-        !all_commands(settings::SettingsMode::Gui)
-            .iter()
-            .any(|command| command == &VIEW_LOGS)
-    );
+fn tui_only_commands_are_registered_only_for_tui_mode() {
+    for command in [VIEW_LOGS, EXIT] {
+        assert!(
+            all_commands(settings::SettingsMode::Tui)
+                .iter()
+                .any(|candidate| candidate == &command)
+        );
+        assert!(
+            !all_commands(settings::SettingsMode::Gui)
+                .iter()
+                .any(|candidate| candidate == &command)
+        );
+    }
 }
 
 #[test]
@@ -37,6 +39,10 @@ fn rename_tab_command_requires_argument() {
     assert!(!argument.is_optional);
     assert!(!argument.should_execute_on_selection);
     assert_eq!(argument.hint_text, Some("<tab name>"));
+    assert_eq!(
+        argument.hint_text_key,
+        Some("terminal.slash.command.rename_tab.hint")
+    );
 }
 
 #[test]
@@ -89,6 +95,10 @@ fn continue_locally_command_is_registered() {
         argument.hint_text,
         Some("<optional prompt to send in local conversation>")
     );
+    assert_eq!(
+        argument.hint_text_key,
+        Some("terminal.slash.command.continue_locally.hint")
+    );
 }
 
 #[test]
@@ -107,6 +117,7 @@ fn set_tab_color_command_requires_argument() {
     let hint = argument
         .hint_text
         .expect("/set-tab-color hint text is set dynamically");
+    assert_eq!(argument.hint_text_key, None);
     for color in color_dot::TAB_COLOR_OPTIONS {
         let lower = color.to_string().to_ascii_lowercase();
         assert!(hint.contains(&lower), "hint should mention `{lower}`");

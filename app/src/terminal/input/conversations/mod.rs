@@ -11,6 +11,7 @@ use warpui::SingletonEntity;
 use warpui::keymap::Keystroke;
 
 use crate::ai::agent_conversations_model::AgentConversationEntryId;
+use crate::localization;
 use crate::terminal::input::inline_menu::{
     InlineMenuAction, InlineMenuMessageArgs, InlineMenuRowAction, InlineMenuType,
     default_navigation_message_items,
@@ -46,9 +47,9 @@ impl InlineMenuAction for AcceptConversation {
 
         if let Some(item) = inline_menu_model.selected_item() {
             let text = if item.is_open_elsewhere {
-                " go to conversation"
+                localization::text_for_app(app, "terminal.inline_menu.action.go_to_conversation")
             } else {
-                " continue in this pane"
+                localization::text_for_app(app, "terminal.inline_menu.action.continue_in_this_pane")
             };
 
             let item_id = item.item_id;
@@ -85,7 +86,11 @@ impl InlineMenuAction for AcceptConversation {
                     background_color: Some(ColorU::transparent_black()),
                 },
                 MessageItem::Text {
-                    content: " continue in this pane".into(),
+                    content: localization::text_for_app(
+                        app,
+                        "terminal.inline_menu.action.continue_in_this_pane",
+                    )
+                    .into(),
                     color: Some(disabled_color),
                 },
             ]);

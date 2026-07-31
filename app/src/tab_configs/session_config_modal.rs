@@ -18,6 +18,7 @@ use warpui::{
 use super::session_config::{SessionConfigSelection, SessionType, is_git_repo};
 use super::session_config_rendering;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{
     ActionButton, ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
@@ -86,13 +87,16 @@ impl SessionConfigModal {
         });
 
         let submit_button = ctx.add_view(|ctx| {
-            ActionButton::new("Get Warping", PrimaryTheme)
-                .with_full_width(true)
-                .with_keybinding(
-                    KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
-                    ctx,
-                )
-                .on_click(|ctx| ctx.dispatch_typed_action(SessionConfigModalAction::Submit))
+            ActionButton::new(
+                localization::text_for_app(ctx, "tab_config.action.get_warping"),
+                PrimaryTheme,
+            )
+            .with_full_width(true)
+            .with_keybinding(
+                KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
+                ctx,
+            )
+            .on_click(|ctx| ctx.dispatch_typed_action(SessionConfigModalAction::Submit))
         });
 
         let pill_mouse_states = session_types
@@ -160,11 +164,11 @@ impl SessionConfigModal {
 
     // ── Rendering ──
 
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let title = FormattedTextElement::from_str(
-            "Create your first tab config",
+            crate::localization::text_for_app(app, "tab_config.guided.title"),
             appearance.ui_font_family(),
             24.,
         )
@@ -172,19 +176,18 @@ impl SessionConfigModal {
         .with_weight(Weight::Semibold)
         .finish();
 
-        let subtitle_text = if self.show_session_type_row {
-            "Set up a reusable starting point for your tabs. \
-             Pick a repo, choose a session type, and optionally attach a worktree. \
-             Use it whenever you want to open a new tab with this setup."
+        let subtitle_key = if self.show_session_type_row {
+            "tab_config.guided.subtitle_with_session_type"
         } else {
-            "Set up a reusable starting point for your tabs. \
-             Pick a repo, optionally attach a worktree, and \
-             use it whenever you want to open a new tab with this setup."
+            "tab_config.guided.subtitle_without_session_type"
         };
-        let subtitle =
-            FormattedTextElement::from_str(subtitle_text, appearance.ui_font_family(), 14.)
-                .with_color(blended_colors::text_sub(theme, theme.background()))
-                .finish();
+        let subtitle = FormattedTextElement::from_str(
+            crate::localization::text_for_app(app, subtitle_key),
+            appearance.ui_font_family(),
+            14.,
+        )
+        .with_color(blended_colors::text_sub(theme, theme.background()))
+        .finish();
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
@@ -193,7 +196,8 @@ impl SessionConfigModal {
             .finish()
     }
 
-    fn render_session_type_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_session_type_section(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         session_config_rendering::render_session_type_pills(
             &self.session_types,
             self.selected_session_type_index,
@@ -201,22 +205,28 @@ impl SessionConfigModal {
             |i, ctx, _| {
                 ctx.dispatch_typed_action(SessionConfigModalAction::SelectSessionType(i));
             },
+            app,
             appearance,
         )
     }
 
-    fn render_directory_section(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_directory_section(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
         session_config_rendering::render_directory_picker(
             &self.selected_directory,
             self.directory_button_mouse_state.clone(),
             |ctx, _| {
                 ctx.dispatch_typed_action(SessionConfigModalAction::OpenDirectoryPicker);
             },
+            app,
             appearance,
         )
     }
 
-    fn render_checkboxes(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_checkboxes(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         session_config_rendering::render_worktree_checkbox(
             self.enable_worktree,
             self.is_git_repo,
@@ -225,12 +235,14 @@ impl SessionConfigModal {
             |ctx, _| {
                 ctx.dispatch_typed_action(SessionConfigModalAction::ToggleWorktree);
             },
+            app,
             appearance,
         )
     }
 
     fn render_autogenerate_worktree_branch_name_checkbox(
         &self,
+        app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         session_config_rendering::render_autogenerate_worktree_branch_name_checkbox(
@@ -244,6 +256,7 @@ impl SessionConfigModal {
                     SessionConfigModalAction::ToggleAutogenerateWorktreeBranchName,
                 );
             },
+            app,
             appearance,
         )
     }
@@ -267,29 +280,29 @@ impl View for SessionConfigModal {
 
         let mut form = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(self.render_header(appearance));
+            .with_child(self.render_header(appearance, app));
 
         if self.show_session_type_row {
             form.add_child(
-                Container::new(self.render_session_type_section(appearance))
+                Container::new(self.render_session_type_section(app))
                     .with_margin_top(SECTION_GAP)
                     .finish(),
             );
         }
 
         form.add_child(
-            Container::new(self.render_directory_section(appearance))
+            Container::new(self.render_directory_section(app, appearance))
                 .with_margin_top(SECTION_GAP)
                 .finish(),
         );
 
         form.add_child(
-            Container::new(self.render_checkboxes(appearance))
+            Container::new(self.render_checkboxes(app, appearance))
                 .with_margin_top(SECTION_GAP)
                 .finish(),
         );
         form.add_child(
-            Container::new(self.render_autogenerate_worktree_branch_name_checkbox(appearance))
+            Container::new(self.render_autogenerate_worktree_branch_name_checkbox(app, appearance))
                 .with_margin_top(8.)
                 .finish(),
         );

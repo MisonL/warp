@@ -28,7 +28,6 @@ use warpui::{
     View, ViewContext, ViewHandle,
 };
 
-use crate::Appearance;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::icons::yellow_stop_icon;
 use crate::ai::agent::task::TaskId;
@@ -53,6 +52,7 @@ use crate::ai::blocklist::inline_action::inline_action_icons::{self, icon_size};
 use crate::ai::blocklist::inline_action::requested_action::CTRL_C_KEYSTROKE;
 use crate::ai::execution_profiles::AskUserQuestionPermission;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
+use crate::localization::LocalizationUpdater;
 use crate::terminal::input::message_bar::common::{
     render_standard_message, standard_message_bar_height, styles,
 };
@@ -64,6 +64,7 @@ use crate::view_components::action_button::{
 };
 use crate::view_components::compactible_action_button::CompactibleActionButton;
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
+use crate::{Appearance, localization};
 
 const ASK_USER_QUESTION_ACTIVE: &str = "AskUserQuestionActive";
 
@@ -88,6 +89,21 @@ fn ask_user_question_header_height(appearance: &Appearance, app: &AppContext) ->
         + (2. * INLINE_ACTION_HEADER_VERTICAL_PADDING)
 }
 
+fn ask_user_question_permission_label(
+    permission: AskUserQuestionPermission,
+    app: &AppContext,
+) -> String {
+    let key = match permission {
+        AskUserQuestionPermission::Never => "settings.execution_profile.permission.never_ask",
+        AskUserQuestionPermission::AskExceptInAutoApprove => {
+            "settings.execution_profile.permission.ask_unless_auto_approve"
+        }
+        AskUserQuestionPermission::AlwaysAsk | AskUserQuestionPermission::Unknown => {
+            "settings.execution_profile.permission.always_ask"
+        }
+    };
+    localization::text_for_app(app, key)
+}
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
@@ -198,6 +214,7 @@ pub(crate) struct AskUserQuestionView {
     /// Lazily created dropdown for the speedbump footer; owned here so the
     /// view handle (and its event subscription) survives re-renders.
     speedbump_dropdown: Option<ViewHandle<Dropdown<AskUserQuestionViewAction>>>,
+    speedbump_permission: AskUserQuestionPermission,
 }
 
 impl AskUserQuestionView {
@@ -221,7 +238,7 @@ impl AskUserQuestionView {
             ctx,
         );
         let skip_button = CompactibleActionButton::new(
-            "Skip all".to_string(),
+            localization::text_for_app(ctx, "agent.ask_user_question.action.skip_all"),
             Some(KeystrokeSource::Fixed(CTRL_C_KEYSTROKE.clone())),
             ButtonSize::InlineActionHeader,
             AskUserQuestionViewAction::SkipAll,
@@ -230,7 +247,7 @@ impl AskUserQuestionView {
             ctx,
         );
         let next_button = CompactibleActionButton::new(
-            "Next".to_string(),
+            localization::text_for_app(ctx, "agent.ask_user_question.action.next"),
             Some(KeystrokeSource::Fixed(
                 Keystroke::parse("enter").expect("keystroke should parse"),
             )),
@@ -259,6 +276,7 @@ impl AskUserQuestionView {
             next_button,
             speedbump_settings_link_handle: None,
             speedbump_dropdown: None,
+            speedbump_permission: AskUserQuestionPermission::default(),
         };
 
         ctx.subscribe_to_model(&action_model, |me, _, event, ctx| {
@@ -272,6 +290,11 @@ impl AskUserQuestionView {
             }
 
             ctx.emit(AskUserQuestionViewEvent::Updated);
+            ctx.notify();
+        });
+
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_speedbump_dropdown_items(ctx);
             ctx.notify();
         });
 
@@ -318,23 +341,39 @@ impl AskUserQuestionView {
             dropdown.set_vertical_margin(0., ctx);
             dropdown.set_top_bar_height(24., ctx);
             dropdown.set_main_axis_size(MainAxisSize::Min, ctx);
-            let permissions = [
-                AskUserQuestionPermission::Never,
-                AskUserQuestionPermission::AskExceptInAutoApprove,
-                AskUserQuestionPermission::AlwaysAsk,
-            ];
-            dropdown.set_items(
-                permissions
-                    .into_iter()
-                    .map(|p| {
-                        DropdownItem::new(p.label(), AskUserQuestionViewAction::SetPermission(p))
-                    })
-                    .collect(),
-                ctx,
-            );
             dropdown
         });
         self.speedbump_dropdown = Some(view);
+        self.refresh_speedbump_dropdown_items(ctx);
+    }
+
+    fn refresh_speedbump_dropdown_items(&self, ctx: &mut ViewContext<Self>) {
+        let Some(dropdown) = self.speedbump_dropdown.clone() else {
+            return;
+        };
+        let selected_permission = self.speedbump_permission;
+        dropdown.update(ctx, |dropdown, ctx| {
+            dropdown.set_items(
+                [
+                    AskUserQuestionPermission::Never,
+                    AskUserQuestionPermission::AskExceptInAutoApprove,
+                    AskUserQuestionPermission::AlwaysAsk,
+                ]
+                .into_iter()
+                .map(|permission| {
+                    DropdownItem::new(
+                        ask_user_question_permission_label(permission, ctx),
+                        AskUserQuestionViewAction::SetPermission(permission),
+                    )
+                })
+                .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_action(
+                AskUserQuestionViewAction::SetPermission(selected_permission),
+                ctx,
+            );
+        });
     }
 
     /// Updates the dropdown's selected item to match the active execution profile.
@@ -350,8 +389,14 @@ impl AskUserQuestionView {
             .active_profile(Some(terminal_view_id), ctx)
             .data()
             .ask_user_question;
+        let permission = match permission {
+            AskUserQuestionPermission::Unknown => AskUserQuestionPermission::AlwaysAsk,
+            permission => permission,
+        };
+        self.speedbump_permission = permission;
         dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_selected_by_name(permission.label(), ctx);
+            dropdown
+                .set_selected_by_action(AskUserQuestionViewAction::SetPermission(permission), ctx);
         });
     }
 
@@ -419,7 +464,7 @@ impl AskUserQuestionView {
         } else {
             None
         };
-        let buttons = Self::build_question_buttons(current, text_input.as_ref());
+        let buttons = Self::build_question_buttons(current, text_input.as_ref(), ctx);
         AskUserQuestionInteractiveViews {
             buttons: ctx.add_typed_action_view(|ctx| {
                 NumberShortcutButtons::new_with_config(
@@ -439,6 +484,7 @@ impl AskUserQuestionView {
     fn build_question_buttons(
         current: Option<AskUserQuestionCurrent<'_>>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        app: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let Some(current) = current else {
             return Vec::new();
@@ -454,6 +500,7 @@ impl AskUserQuestionView {
                 *supports_other,
                 current.draft,
                 other_text_input,
+                app,
             ),
         }
     }
@@ -463,6 +510,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        app: &AppContext,
     ) -> Vec<NumberShortcutButtonBuilder> {
         let mut buttons = options
             .iter()
@@ -489,6 +537,7 @@ impl AskUserQuestionView {
             supports_other,
             draft,
             other_text_input,
+            app,
         ) {
             buttons.push(other_button);
         }
@@ -501,6 +550,7 @@ impl AskUserQuestionView {
         supports_other: bool,
         draft: Option<&QuestionDraft>,
         other_text_input: Option<&ViewHandle<compact_agent_input::CompactAgentInput>>,
+        app: &AppContext,
     ) -> Option<NumberShortcutButtonBuilder> {
         if !supports_other {
             return None;
@@ -523,9 +573,9 @@ impl AskUserQuestionView {
 
         Some(number_shortcut_buttons::numbered_shortcut_button(
             number,
-            accepted_text
-                .clone()
-                .unwrap_or_else(|| "Other...".to_string()),
+            accepted_text.clone().unwrap_or_else(|| {
+                localization::text_for_app(app, "agent.ask_user_question.other")
+            }),
             accepted_text.is_some(),
             false,
             true,
@@ -541,7 +591,10 @@ impl AskUserQuestionView {
         let initial_text = initial_text.map(String::from);
         let input = ctx.add_view(move |ctx| {
             let input = compact_agent_input::CompactAgentInput::new(ctx);
-            input.set_placeholder_text("Type your answer and press Enter", ctx);
+            input.set_placeholder_text(
+                localization::text_for_app(ctx, "agent.ask_user_question.placeholder"),
+                ctx,
+            );
             if let Some(initial_text) = initial_text.as_deref() {
                 input.set_text(initial_text, ctx);
             }
@@ -720,7 +773,7 @@ impl AskUserQuestionView {
     fn render_active(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>> {
         let theme = appearance.theme();
         let current = self.session.current()?;
-        let question_text = Self::question_display_text(current.question);
+        let question_text = Self::question_display_text(current.question, app);
         let is_single_question = !self.session.has_multiple_questions();
         let has_nav_footer = !is_single_question;
 
@@ -747,10 +800,13 @@ impl AskUserQuestionView {
                 .finish(),
         );
         content.add_child(
-            HeaderConfig::new("Agent questions", app)
-                .with_icon(yellow_stop_icon(appearance))
-                .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
-                .render_header(app, Some(header_right.finish())),
+            HeaderConfig::new(
+                localization::text_for_app(app, "agent.ask_user_question.title"),
+                app,
+            )
+            .with_icon(yellow_stop_icon(appearance))
+            .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
+            .render_header(app, Some(header_right.finish())),
         );
 
         // The body sizes to its content, capped at `body_max_height` (scrolling beyond that). For
@@ -801,9 +857,12 @@ impl AskUserQuestionView {
 
     fn render_unavailable(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         wrap_with_agent_output_item_spacing(
-            HeaderConfig::new("Questions unavailable".to_string(), app)
-                .with_icon(inline_action_icons::reverted_icon(appearance))
-                .render(app),
+            HeaderConfig::new(
+                localization::text_for_app(app, "agent.ask_user_question.unavailable"),
+                app,
+            )
+            .with_icon(inline_action_icons::reverted_icon(appearance))
+            .render(app),
             app,
         )
         .finish()
@@ -816,7 +875,7 @@ impl AskUserQuestionView {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let AskUserQuestionCompletionState { label, status_icon } =
-            ask_user_question_completion_state(answers, appearance);
+            ask_user_question_completion_state(answers, appearance, app);
         self.render_completed(
             self.session.questions(),
             Some(answers),
@@ -836,17 +895,20 @@ impl AskUserQuestionView {
         let (answers, label, status_icon) = match ask_result {
             AskUserQuestionResult::Success { answers } => {
                 let AskUserQuestionCompletionState { label, status_icon } =
-                    ask_user_question_completion_state(answers, appearance);
+                    ask_user_question_completion_state(answers, appearance, app);
                 (Some(answers.as_slice()), label, status_icon)
             }
             AskUserQuestionResult::Error(_) | AskUserQuestionResult::Cancelled => (
                 None,
-                "Questions skipped".to_string(),
+                localization::text_for_app(app, "agent.ask_user_question.status.skipped"),
                 inline_action_icons::reverted_icon(appearance),
             ),
             AskUserQuestionResult::SkippedByAutoApprove { .. } => (
                 None,
-                "Questions skipped due to auto-approve".to_string(),
+                localization::text_for_app(
+                    app,
+                    "agent.ask_user_question.status.skipped_auto_approve",
+                ),
                 inline_action_icons::reverted_icon(appearance),
             ),
         };
@@ -911,6 +973,7 @@ impl AskUserQuestionView {
             questions,
             answers,
             appearance,
+            app,
             has_speedbump_footer,
         ));
         if let Some(footer) = speedbump_footer {
@@ -931,7 +994,7 @@ impl AskUserQuestionView {
         let theme = appearance.theme();
         let dropdown = self.speedbump_dropdown.as_ref()?;
         let row = render_autonomy_dropdown_setting_speedbump_footer(
-            "Allow the agent to ask questions:",
+            localization::text_for_app(app, "agent.ask_user_question.speedbump.allow_questions"),
             dropdown,
             settings_link_handle,
             app,
@@ -948,10 +1011,13 @@ impl AskUserQuestionView {
 
     /// The question prompt as shown to the user, with the multiselect hint appended. Shared by the
     /// live body and its measurement copies so both wrap at the same height.
-    fn question_display_text(question: &AskUserQuestionItem) -> String {
+    fn question_display_text(question: &AskUserQuestionItem, app: &AppContext) -> String {
         let mut text = question.question.clone();
         if question.is_multiselect() {
-            text.push_str(" (select all that apply)");
+            text.push_str(&localization::text_for_app(
+                app,
+                "agent.ask_user_question.select_all_suffix",
+            ));
         }
         text
     }
@@ -1049,7 +1115,11 @@ impl AskUserQuestionView {
     ) -> Box<dyn Element> {
         let current = AskUserQuestionCurrent { question, draft };
         let body = Self::wrap_scrollable_body(
-            Self::render_question_text(&Self::question_display_text(question), appearance, theme),
+            Self::render_question_text(
+                &Self::question_display_text(question, app),
+                appearance,
+                theme,
+            ),
             Self::render_static_options(current, app),
             ClippedScrollStateHandle::new(),
             theme,
@@ -1063,7 +1133,7 @@ impl AskUserQuestionView {
         current: AskUserQuestionCurrent<'_>,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let builders = Self::build_question_buttons(Some(current), None);
+        let builders = Self::build_question_buttons(Some(current), None, app);
         let button_count = builders.len();
         let mut options = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
         for (index, builder) in builders.iter().enumerate() {
@@ -1103,7 +1173,13 @@ impl AskUserQuestionView {
 
         let nav_message = Message::new(vec![
             MessageItem::clickable(
-                vec![MessageItem::keystroke(left_key), MessageItem::text("prev")],
+                vec![
+                    MessageItem::keystroke(left_key),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        "agent.ask_user_question.nav.prev",
+                    )),
+                ],
                 |ctx| {
                     ctx.dispatch_typed_action(AskUserQuestionViewAction::NavigatePrev);
                 },
@@ -1111,7 +1187,13 @@ impl AskUserQuestionView {
             ),
             MessageItem::text(" / "),
             MessageItem::clickable(
-                vec![MessageItem::keystroke(right_key), MessageItem::text("next")],
+                vec![
+                    MessageItem::keystroke(right_key),
+                    MessageItem::text(localization::text_for_app(
+                        app,
+                        "agent.ask_user_question.nav.next",
+                    )),
+                ],
                 |ctx| {
                     ctx.dispatch_typed_action(AskUserQuestionViewAction::NavigateNext);
                 },
@@ -1291,26 +1373,44 @@ impl TypedActionView for AskUserQuestionView {
 fn ask_user_question_completion_state(
     answers: &[AskUserQuestionAnswerItem],
     appearance: &Appearance,
+    app: &AppContext,
 ) -> AskUserQuestionCompletionState {
     let answered_count = answers.iter().filter(|answer| !answer.is_skipped()).count();
     let total = answers.len();
 
     if answered_count == 0 {
         AskUserQuestionCompletionState {
-            label: "Questions skipped".to_string(),
+            label: localization::text_for_app(app, "agent.ask_user_question.status.skipped"),
             status_icon: inline_action_icons::reverted_icon(appearance),
         }
     } else {
         let label = if answered_count == total {
             if total == 1 {
-                "Answered question".to_string()
+                localization::text_for_app(app, "agent.ask_user_question.status.answered_one")
             } else {
-                format!("Answered all {total} questions")
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.ask_user_question.status.answered_all",
+                    &[("total", &total.to_string())],
+                )
             }
+        } else if total == 1 {
+            localization::text_for_app_with_args(
+                app,
+                "agent.ask_user_question.status.answered_count_singular",
+                &[
+                    ("answered_count", &answered_count.to_string()),
+                    ("total", &total.to_string()),
+                ],
+            )
         } else {
-            format!(
-                "Answered {answered_count} of {total} question{}",
-                if total == 1 { "" } else { "s" }
+            localization::text_for_app_with_args(
+                app,
+                "agent.ask_user_question.status.answered_count_plural",
+                &[
+                    ("answered_count", &answered_count.to_string()),
+                    ("total", &total.to_string()),
+                ],
             )
         };
         AskUserQuestionCompletionState {
@@ -1324,6 +1424,7 @@ fn render_answers(
     questions: &[AskUserQuestionItem],
     answers: Option<&[AskUserQuestionAnswerItem]>,
     appearance: &Appearance,
+    app: &AppContext,
     flatten_bottom: bool,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -1334,14 +1435,21 @@ fn render_answers(
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     for (index, question) in questions.iter().enumerate() {
         let answer = answers.and_then(|answers| answers.get(index));
-        let question_text = format!("Q: {}", question.question);
+        let question_prefix =
+            localization::text_for_app(app, "agent.ask_user_question.summary.question_prefix");
+        let question_text = format!("{question_prefix} {}", question.question);
         let question_label =
             render_text_with_markdown_support(&question_text, font_size, text_color, appearance);
+        let answer_prefix =
+            localization::text_for_app(app, "agent.ask_user_question.summary.answer_prefix");
+        let other_label = localization::text_for_app(app, "agent.ask_user_question.summary.other");
+        let skipped_label =
+            localization::text_for_app(app, "agent.ask_user_question.summary.skipped");
         let answer_text = format!(
-            "A: {}",
+            "{answer_prefix} {}",
             answer
-                .map(AskUserQuestionAnswerItem::display_text)
-                .unwrap_or_else(|| "Skipped".to_string())
+                .map(|answer| answer.display_text_with_labels(&other_label, &skipped_label))
+                .unwrap_or(skipped_label)
         );
         let answer_label =
             render_text_with_markdown_support(&answer_text, font_size, muted_color, appearance);

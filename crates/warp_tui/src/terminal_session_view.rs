@@ -41,6 +41,7 @@ use warp_core::features::FeatureFlag;
 use warp_core::settings::Setting;
 use warp_editor::model::CoreEditorModel;
 use warp_errors::report_error;
+use warp_localization::LocaleId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::SingletonEntity;
 use warpui_core::r#async::{SpawnedFutureHandle, Timer};
@@ -48,7 +49,7 @@ use warpui_core::elements::tui::{
     TuiChildView, TuiConstrainedBox, TuiContainer, TuiElement, TuiFlex, TuiSize, TuiStyle, TuiText,
 };
 use warpui_core::keymap::macros::*;
-use warpui_core::keymap::{self, EditableBinding, FixedBinding};
+use warpui_core::keymap::{self, BindingDescription, EditableBinding, FixedBinding};
 use warpui_core::platform::TerminationMode;
 use warpui_core::{
     AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext, ViewHandle,
@@ -61,7 +62,7 @@ use crate::attachment_bar::{
     TuiAttachmentPasteDisposition,
 };
 use crate::autoupdate::{TuiAutoupdater, TuiAutoupdaterEvent};
-use crate::clipboard::copy_to_clipboard;
+use crate::clipboard::{ClipboardCopy, copy_to_clipboard};
 use crate::conversation_menu::{TuiConversationMenuEvent, TuiConversationMenuModel};
 use crate::conversation_selection::TuiConversationSelection;
 use crate::editor_interaction::TuiEditorCommand;
@@ -76,11 +77,12 @@ use crate::keybindings::{
     KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG, PLAN_TOGGLE_AVAILABLE_FLAG, PLAN_TOGGLE_BINDING_NAME,
     TUI_BINDING_GROUP,
 };
+use crate::localization;
 use crate::mcp_menu::{TuiMcpMenuEvent, TuiMcpMenuModel};
 use crate::model_menu::{TuiModelMenuEvent, TuiModelMenuModel};
 use crate::orchestration_model::{TuiOrchestrationModel, TuiOrchestrationSnapshot};
 use crate::orchestration_tab_bar::{
-    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, TuiOrchestrationTabNavigationAction,
+    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, TuiOrchestrationTabNavigationAction, focus_sub_agents_hint,
     orchestration_tab_bar_config, register_orchestration_surface_bindings,
     render_orchestration_tab_footer,
 };
@@ -112,9 +114,21 @@ const INITIAL_INPUT_WIDTH: u16 = 80;
 const INLINE_MENU_TOP_PADDING_ROWS: u16 = 1;
 const MAX_INPUT_TEXT_ROWS: u16 = 6;
 
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| {
+        Some(binding_description_for_locale(
+            localization::current_locale(),
+            key,
+        ))
+    })
+}
+
+fn binding_description_for_locale(locale: LocaleId, key: &str) -> String {
+    localization::text_for_locale(locale, key)
+}
+
 /// The footer hint shown while the ctrl-c exit confirmation is armed.
 const CTRL_C_EXIT_HINT: &str = "ctrl-c again to exit";
-const STARTING_SHELL_HINT: &str = "Starting shell...";
 const SESSION_CAN_CANCEL_RESTORE_FLAG: &str = "TuiSessionCanCancelRestore";
 const SESSION_CAN_HAND_BACK_CONTROL_FLAG: &str = "TuiSessionCanHandBackControl";
 pub(crate) const SESSION_COMPOSER_OWNS_INPUT_FLAG: &str = "TuiSessionComposerOwnsInput";
@@ -171,12 +185,64 @@ const MODEL_PERSISTENCE_FAILED_HINT: &str = "Could not save the selected model."
 
 /// Footer hint shown while the input is in `!` shell mode.
 const SHELL_MODE_HINT: &str = "shell mode · esc to exit";
-const COPY_SELECTION_HINT: &str = "copied to clipboard";
-const COPY_FAILED_HINT: &str = "failed to copy to clipboard";
-const LOG_BUNDLE_FAILED_HINT: &str = "Failed to create log bundle (check logs)";
 
 fn log_bundle_success_message(path: &Path) -> String {
-    format!("Log bundle saved to {}", path.display())
+    log_bundle_success_message_for_locale(path, localization::current_locale())
+}
+
+fn starting_shell_hint() -> String {
+    starting_shell_hint_for_locale(localization::current_locale())
+}
+
+fn starting_shell_hint_for_locale(locale: LocaleId) -> String {
+    localization::text_for_locale(locale, "terminal.status.starting_shell")
+}
+
+fn log_bundle_success_message_for_locale(path: &Path, locale: LocaleId) -> String {
+    let path = path.display().to_string();
+    localization::text_with_args_for_locale(
+        locale,
+        "tui.session.log_bundle.saved",
+        &[("path", &path)],
+    )
+}
+
+fn copy_selection_hint(copy: ClipboardCopy) -> String {
+    copy_selection_hint_for_locale(copy, localization::current_locale())
+}
+
+fn copy_selection_hint_for_locale(copy: ClipboardCopy, locale: LocaleId) -> String {
+    match copy {
+        ClipboardCopy::Copied => {
+            localization::text_for_locale(locale, "tui.clipboard.copy.success")
+        }
+        ClipboardCopy::SentToTerminal => {
+            localization::text_for_locale(locale, "tui.clipboard.copy.sent_to_terminal")
+        }
+    }
+}
+
+fn export_to_clipboard_hint(copy: ClipboardCopy) -> String {
+    export_to_clipboard_hint_for_locale(copy, localization::current_locale())
+}
+
+fn export_to_clipboard_hint_for_locale(copy: ClipboardCopy, locale: LocaleId) -> String {
+    match copy {
+        ClipboardCopy::Copied => {
+            localization::text_for_locale(locale, "tui.session.export.copied_to_clipboard")
+        }
+        ClipboardCopy::SentToTerminal => {
+            localization::text_for_locale(locale, "tui.session.export.copied_to_terminal")
+        }
+    }
+}
+
+fn copy_failed_hint() -> String {
+    localization::text("tui.clipboard.copy.failed")
+}
+
+fn log_bundle_failed_hint() -> String {
+    localization::text("tui.session.log_bundle.failed")
 }
 
 fn raw_prompt_if_not_blank(input: &str) -> Option<&str> {
@@ -368,7 +434,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             PLAN_TOGGLE_BINDING_NAME,
-            "Toggle the latest plan",
+            binding_description(
+                "Toggle the latest plan",
+                "tui.orchestration.binding.toggle_plan",
+            ),
             TuiTerminalSessionAction::TogglePlan,
         )
         .with_context_predicate(view_context)
@@ -376,7 +445,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-shift-P"),
         EditableBinding::new(
             CONTEXTUAL_PLAN_TOGGLE_BINDING_NAME,
-            "Toggle the latest visible plan",
+            binding_description(
+                "Toggle the latest visible plan",
+                "tui.orchestration.binding.toggle_visible_plan",
+            ),
             TuiTerminalSessionAction::TogglePlan,
         )
         .with_context_predicate(
@@ -388,7 +460,7 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-p"),
         EditableBinding::new(
             FOCUS_ATTACHMENTS_BINDING_NAME,
-            "Focus image attachments",
+            binding_description("Focus image attachments", "tui.attachments.binding.focus"),
             TuiTerminalSessionAction::FocusAttachments,
         )
         .with_context_predicate(
@@ -399,7 +471,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("tab"),
         EditableBinding::new(
             PASTE_IMAGE_BINDING_NAME,
-            "Paste an image from the clipboard",
+            binding_description(
+                "Paste an image from the clipboard",
+                "tui.attachments.binding.paste_image",
+            ),
             TuiTerminalSessionAction::PasteImageFromClipboard,
         )
         .with_context_predicate(
@@ -411,7 +486,10 @@ pub(crate) fn init(app: &mut AppContext) {
         #[cfg(windows)]
         EditableBinding::new(
             PASTE_IMAGE_BINDING_NAME,
-            "Paste an image from the clipboard",
+            binding_description(
+                "Paste an image from the clipboard",
+                "tui.attachments.binding.paste_image",
+            ),
             TuiTerminalSessionAction::PasteImageFromClipboard,
         )
         .with_context_predicate(
@@ -426,7 +504,10 @@ pub(crate) fn init(app: &mut AppContext) {
         id!(TuiTerminalSessionView::ui_name()) & id!(ORCHESTRATION_TAB_BAR_FOCUSED_FLAG);
     app.register_editable_bindings([EditableBinding::new(
         "tui:orchestration_tabs:focus_input",
-        "Return focus to the session input",
+        binding_description(
+            "Return focus to the session input",
+            "tui.orchestration.binding.focus_input",
+        ),
         TuiTerminalSessionAction::FocusDefaultInteractionTarget,
     )
     .with_context_predicate(tab_context)
@@ -471,16 +552,19 @@ impl TuiTerminalSessionView {
                 self.orchestration_tabs_focused = false;
                 ctx.focus_self();
             }
-            TuiInputTarget::AgentEditor => {
-                if let Some(blocker) = self.active_blocking_child(ctx) {
+            TuiInputTarget::AgentEditor => match self.active_blocking_child(ctx) {
+                Some(blocker) => {
                     self.orchestration_tabs_focused = false;
                     Self::focus_blocking_child(blocker, ctx);
-                } else if self.orchestration_tabs_focused {
-                    ctx.focus_self();
-                } else {
-                    ctx.focus(&self.input_view);
                 }
-            }
+                _ => {
+                    if self.orchestration_tabs_focused {
+                        ctx.focus_self();
+                    } else {
+                        ctx.focus(&self.input_view);
+                    }
+                }
+            },
         }
     }
 
@@ -859,8 +943,7 @@ impl TuiTerminalSessionView {
             TuiConversationMenuEvent::Updated => ctx.notify(),
             TuiConversationMenuEvent::CloudMetadataUnavailable => {
                 view.show_transient_hint(
-                    "Could not load cloud conversations. Showing local conversations only."
-                        .to_owned(),
+                    localization::text("tui.conversation_menu.cloud_metadata_unavailable"),
                     ctx,
                 );
             }
@@ -983,10 +1066,10 @@ impl TuiTerminalSessionView {
                     .update(ctx, |input, ctx| input.clear_selection(ctx));
             }
             TuiTranscriptViewEvent::SelectionEnded(text) => match copy_to_clipboard(text) {
-                Ok(()) => view.show_copy_hint(ctx),
+                Ok(copy) => view.show_copy_hint(copy, ctx),
                 Err(error) => {
                     log::warn!("Failed to copy TUI selection: {error}");
-                    view.show_transient_hint(COPY_FAILED_HINT.to_owned(), ctx);
+                    view.show_transient_hint(copy_failed_hint(), ctx);
                 }
             },
             TuiTranscriptViewEvent::BlockingStateChanged => {
@@ -1877,8 +1960,8 @@ impl TuiTerminalSessionView {
     }
 
     /// Displays success-colored feedback in the transient footer slot.
-    fn show_copy_hint(&mut self, ctx: &mut ViewContext<Self>) {
-        self.show_success_hint(COPY_SELECTION_HINT.to_owned(), ctx);
+    fn show_copy_hint(&mut self, copy: ClipboardCopy, ctx: &mut ViewContext<Self>) {
+        self.show_success_hint(copy_selection_hint(copy), ctx);
     }
 
     /// Handles a ctrl-c press: a second press within [`CTRL_C_EXIT_WINDOW`]
@@ -1977,6 +2060,7 @@ impl TuiTerminalSessionView {
         let builder = TuiUiBuilder::from_app(ctx);
         let muted = builder.muted_text_style();
         let mut left = TuiFlex::row();
+        let orchestration_hint;
         // Left slot, highest priority first: while armed, the ctrl-c hint
         // replaces the other hints in place.
         let hint = if self.exit_confirmation.is_armed() {
@@ -1998,7 +2082,8 @@ impl TuiTerminalSessionView {
         } else if self.is_shell_mode(ctx) {
             Some((SHELL_MODE_HINT, builder.shell_mode_accent_style()))
         } else if orchestration_tabs_available {
-            Some(("Shift + ↑ sub-agents", muted))
+            orchestration_hint = focus_sub_agents_hint();
+            Some((orchestration_hint.as_str(), muted))
         } else {
             None
         };
@@ -2552,13 +2637,13 @@ impl TuiTerminalSessionView {
                         }
                         Ok(Err(error)) => {
                             report_error!(error.context("Failed to create TUI log bundle"));
-                            me.show_transient_hint(LOG_BUNDLE_FAILED_HINT.to_owned(), ctx);
+                            me.show_transient_hint(log_bundle_failed_hint(), ctx);
                         }
                         Err(error) => {
                             report_error!(
                                 anyhow::Error::new(error).context("TUI log bundle task failed")
                             );
-                            me.show_transient_hint(LOG_BUNDLE_FAILED_HINT.to_owned(), ctx);
+                            me.show_transient_hint(log_bundle_failed_hint(), ctx);
                         }
                     },
                 );
@@ -2570,8 +2655,7 @@ impl TuiTerminalSessionView {
                     .filter(|argument| !argument.is_empty())
                 else {
                     self.show_transient_hint(
-                        "Please describe the project you want to create after /create-new-project"
-                            .to_owned(),
+                        localization::text("terminal.slash.create_project.description_required"),
                         ctx,
                     );
                     return;
@@ -2591,19 +2675,19 @@ impl TuiTerminalSessionView {
                     let markdown =
                         conversation.export_to_markdown(Some(self.ai_action_model.as_ref(ctx)));
                     match copy_to_clipboard(&markdown) {
-                        Ok(()) => {
-                            self.show_success_hint(
-                                "Conversation copied to clipboard".to_owned(),
-                                ctx,
-                            );
+                        Ok(copy) => {
+                            self.show_success_hint(export_to_clipboard_hint(copy), ctx);
                         }
                         Err(error) => {
                             log::warn!("Failed to export TUI conversation: {error}");
-                            self.show_transient_hint(COPY_FAILED_HINT.to_owned(), ctx);
+                            self.show_transient_hint(copy_failed_hint(), ctx);
                         }
                     }
                 } else {
-                    self.show_transient_hint("No active conversation to export".to_owned(), ctx);
+                    self.show_transient_hint(
+                        localization::text("terminal.slash.export.no_active"),
+                        ctx,
+                    );
                 }
                 self.input_view.update(ctx, |input, ctx| input.clear(ctx));
                 record_static_slash_command_accepted(command.name, true, ctx);
@@ -2614,7 +2698,10 @@ impl TuiTerminalSessionView {
                     .as_ref(ctx)
                     .selected_conversation(ctx)
                 else {
-                    self.show_transient_hint("No active conversation to export".to_owned(), ctx);
+                    self.show_transient_hint(
+                        localization::text("terminal.slash.export.no_active"),
+                        ctx,
+                    );
                     return;
                 };
                 let title = conversation.title();
@@ -2850,7 +2937,7 @@ impl TuiView for TuiTerminalSessionView {
         if !blocker_active && matches!(input_target, TuiInputTarget::Disabled) {
             content = content.child(
                 TuiContainer::new(
-                    TuiText::new(STARTING_SHELL_HINT)
+                    TuiText::new(starting_shell_hint())
                         .with_style(builder.muted_text_style())
                         .truncate()
                         .finish(),

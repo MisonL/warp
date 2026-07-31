@@ -24,6 +24,7 @@ use ui_components::{Component as _, Options as _, button};
 use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
+use warp_localization::LocaleId;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
@@ -71,10 +72,7 @@ use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::action_model::AIActionStatus;
 use crate::ai::blocklist::block::model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus};
-use crate::ai::blocklist::block::view_impl::common::{
-    BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB, BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-    BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE, MaybeShimmeringText,
-};
+use crate::ai::blocklist::block::view_impl::common::MaybeShimmeringText;
 use crate::ai::blocklist::block::{
     AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons, AutonomySettingSpeedbump,
     CollapsibleElementState, CollapsibleExpansionState, EmbeddedCodeEditorView, FinishReason,
@@ -129,9 +127,7 @@ use crate::view_components::compactible_action_button::{
     CompactibleActionButton, RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
 };
 use crate::workspace::WorkspaceAction;
-use crate::{AIAgentTodoList, FeatureFlag};
-
-const BLOCKED_ACTION_MESSAGE_FOR_UPLOADING_ARTIFACT: &str = "Grant access to upload this artifact?";
+use crate::{AIAgentTodoList, FeatureFlag, localization};
 
 /// Data required to render the AI block output component.
 #[derive(Copy, Clone)]
@@ -390,9 +386,13 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             && props.thinking_display_mode.should_render() =>
                         {
                             let header_text = if let Some(dur) = finished_duration {
-                                format!("Thought for {}", format_elapsed_seconds(*dur))
+                                crate::localization::text_for_app_with_args(
+                                    app,
+                                    "agent.output.thought_for",
+                                    &[("duration", &format_elapsed_seconds(*dur))],
+                                )
                             } else {
-                                "Thinking".to_string()
+                                crate::localization::text_for_app(app, "agent.output.thinking")
                             };
                             if let Some(element) = render_collapsible_block(
                                 output_message,
@@ -491,7 +491,11 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                             // action so the user sees the error instead
                                             // of an empty box.
                                             let formatted_text = render_requested_action_body_text(
-                                                "Failed to read files".into(),
+                                                crate::localization::text_for_app(
+                                                    app,
+                                                    "agent.output.read_files.failed",
+                                                )
+                                                .into(),
                                                 appearance.ui_font_family(),
                                                 app,
                                             );
@@ -916,7 +920,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             SummarizationType::ConversationSummary
                         ) && !are_all_text_sections_empty(&text.sections) =>
                         {
-                            let header_text = "Conversation summarized".to_string();
+                            let header_text = crate::localization::text_for_app(
+                                app,
+                                "agent.output.conversation_summarized",
+                            );
                             if let Some(element) = render_collapsible_block(
                                 output_message,
                                 header_text,
@@ -1044,7 +1051,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                         .and_then(|c| c.title())
                                         .map(|q| truncate_from_end(&q, 40));
                                     Some((
-                                        "conversation",
+                                        crate::localization::text_for_app(
+                                            app,
+                                            "agent.output.conversation_search.conversation_prefix",
+                                        ),
                                         title.unwrap_or_else(|| target_id.clone()),
                                     ))
                                 })
@@ -1059,21 +1069,34 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                         })
                                         .map(|task| truncate_from_end(&task.title, 40));
                                     Some((
-                                        "agent run",
+                                        crate::localization::text_for_app(
+                                            app,
+                                            "agent.output.conversation_search.agent_run_prefix",
+                                        ),
                                         title.unwrap_or_else(|| truncate_from_end(target_id, 40)),
                                     ))
                                 });
 
                             let done = is_finished || is_cancelled;
-                            let verb = if done { "Searched" } else { "Searching" };
+                            let verb = if done {
+                                crate::localization::text_for_app(
+                                    app,
+                                    "agent.output.conversation_search.searched_prefix",
+                                )
+                            } else {
+                                crate::localization::text_for_app(
+                                    app,
+                                    "agent.output.conversation_search.searching_prefix",
+                                )
+                            };
 
                             let mut fragments: Vec<FormattedTextFragment> =
-                                vec![FormattedTextFragment::plain_text(format!("{verb} "))];
+                                vec![FormattedTextFragment::plain_text(verb)];
                             match &target_label {
                                 Some((target_kind, name)) => {
-                                    fragments.push(FormattedTextFragment::plain_text(format!(
-                                        "{target_kind} "
-                                    )));
+                                    fragments.push(FormattedTextFragment::plain_text(
+                                        target_kind.clone(),
+                                    ));
                                     fragments.push(FormattedTextFragment::weighted(
                                         name.as_str(),
                                         Some(markdown_parser::weight::CustomWeight::Bold),
@@ -1081,7 +1104,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 }
                                 None => {
                                     fragments.push(FormattedTextFragment::plain_text(
-                                        "this conversation",
+                                        crate::localization::text_for_app(
+                                            app,
+                                            "agent.output.conversation_search.this_conversation",
+                                        ),
                                     ));
                                 }
                             };
@@ -1122,7 +1148,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                     })
                                     .map(conversation_search_phase)
                                     .unwrap_or(ConversationSearchPhase::ListingMessages);
-                                let phase_text = format_conversation_search_phase(&phase);
+                                let phase_text = format_conversation_search_phase(&phase, app);
                                 let theme = appearance.theme();
                                 let icon_offset = icon_size(app)
                                     + crate::ai::blocklist::inline_action::inline_action_header::ICON_MARGIN;
@@ -1199,8 +1225,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             output_items.add_child(
                                 render_informational_footer(
                                     app,
-                                    "Sorry you had a bad experience with this interaction. We've refunded you 1 credit. We appreciate your feedback!"
-                                        .to_string(),
+                                    crate::localization::text_for_app(
+                                        app,
+                                        "agent.output.feedback.refunded_one_credit",
+                                    ),
                                 )
                                 .with_agent_output_item_spacing(app)
                                 .finish(),
@@ -1210,8 +1238,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             output_items.add_child(
                                 render_informational_footer(
                                     app,
-                                    format!(
-                                        "Sorry you had a bad experience with this interaction. We've refunded you {request_refunded_count} credits. We appreciate your feedback!"
+                                    crate::localization::text_for_app_with_args(
+                                        app,
+                                        "agent.output.feedback.refunded_credits",
+                                        &[("count", &request_refunded_count.to_string())],
                                     ),
                                 )
                                 .with_agent_output_item_spacing(app)
@@ -1261,7 +1291,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                 output_items.add_child(
                     render_informational_footer(
                         app,
-                        "This response won't count towards your usage.".to_string(),
+                        crate::localization::text_for_app(
+                            app,
+                            "agent.output.usage.response_not_counted",
+                        ),
                     )
                     .with_agent_output_item_spacing(app)
                     .finish(),
@@ -1422,10 +1455,14 @@ fn render_search_codebase(
                                     .codebase_search_speedbump_option_handles
                                     .clone(),
                                 vec![
-                                    RadioButtonItem::text(
-                                        "Always allow file access for coding tasks",
-                                    ),
-                                    RadioButtonItem::text("Always allow file access for this repo"),
+                                    RadioButtonItem::text(crate::localization::text_for_app(
+                                        app,
+                                        "agent.output.permissions.always_allow_coding_tasks",
+                                    )),
+                                    RadioButtonItem::text(crate::localization::text_for_app(
+                                        app,
+                                        "agent.output.permissions.always_allow_repo",
+                                    )),
                                 ],
                                 props
                                     .state_handles
@@ -1467,7 +1504,10 @@ fn render_search_codebase(
                                 appearance
                                     .ui_builder()
                                     .link(
-                                        "Manage AI Autonomy permissions".into(),
+                                        crate::localization::text_for_app(
+                                            app,
+                                            "agent.output.permissions.manage_autonomy",
+                                        ),
                                         None,
                                         Some(Box::new(move |ctx| {
                                             ctx.dispatch_typed_action(
@@ -1512,17 +1552,14 @@ fn render_search_codebase(
                     }
                     _ => {
                         let root_repo_path = root_repo_path?;
-                        renderable_action(
-                            props,
-                            id,
-                            format!("Search in {}", root_repo_path.to_string_lossy()).as_str(),
+                        let label = crate::localization::text_for_app_with_args(
                             app,
-                            footer,
-                            appearance,
-                            Some(status),
-                        )
-                        .render(app)
-                        .finish()
+                            "agent.output.search_codebase.search_in",
+                            &[("path", root_repo_path.to_string_lossy().as_ref())],
+                        );
+                        renderable_action(props, id, &label, app, footer, appearance, Some(status))
+                            .render(app)
+                            .finish()
                     }
                 }
             }
@@ -1545,7 +1582,10 @@ fn render_search_codebase(
                 )
                 .with_header(blocked_action_header(
                     id.clone(),
-                    BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE,
+                    &crate::localization::text_for_app(
+                        app,
+                        "agent.output.permissions.search_codebase",
+                    ),
                     buttons.run_button.clone(),
                     buttons.cancel_button.clone(),
                     props.action_model,
@@ -1562,17 +1602,14 @@ fn render_search_codebase(
                 }
                 _ => {
                     let root_repo_path = root_repo_path?;
-                    renderable_action(
-                        props,
-                        id,
-                        format!("Searching in {}", root_repo_path.to_string_lossy()).as_str(),
+                    let label = crate::localization::text_for_app_with_args(
                         app,
-                        footer,
-                        appearance,
-                        Some(status),
-                    )
-                    .render(app)
-                    .finish()
+                        "agent.output.search_codebase.searching_in",
+                        &[("path", root_repo_path.to_string_lossy().as_ref())],
+                    );
+                    renderable_action(props, id, &label, app, footer, appearance, Some(status))
+                        .render(app)
+                        .finish()
                 }
             },
             AIActionStatus::Finished(result) => match props.search_codebase_view.get(id) {
@@ -1591,7 +1628,10 @@ fn render_search_codebase(
                                 renderable_action(
                                     props,
                                     id,
-                                    "No relevant files found.",
+                                    &crate::localization::text_for_app(
+                                        app,
+                                        "agent.output.search_codebase.no_relevant_files",
+                                    ),
                                     app,
                                     footer,
                                     appearance,
@@ -1627,13 +1667,18 @@ fn render_search_codebase(
                         SearchCodebaseResult::Failed { reason, .. } => {
                             let root_repo_path = root_repo_path?;
                             let message = match reason {
-                                SearchCodebaseFailureReason::CodebaseNotIndexed => format!(
-                                    "Search in {} failed because the codebase isn't indexed",
-                                    root_repo_path.to_string_lossy(),
-                                ),
-                                _ => {
-                                    format!("Search in {} failed", root_repo_path.to_string_lossy())
+                                SearchCodebaseFailureReason::CodebaseNotIndexed => {
+                                    crate::localization::text_for_app_with_args(
+                                        app,
+                                        "agent.output.search_codebase.failed_not_indexed",
+                                        &[("path", root_repo_path.to_string_lossy().as_ref())],
+                                    )
                                 }
+                                _ => crate::localization::text_for_app_with_args(
+                                    app,
+                                    "agent.output.search_codebase.failed",
+                                    &[("path", root_repo_path.to_string_lossy().as_ref())],
+                                ),
                             };
                             renderable_action(
                                 props,
@@ -1652,8 +1697,11 @@ fn render_search_codebase(
                             renderable_action(
                                 props,
                                 id,
-                                format!("Search in {} cancelled", root_repo_path.to_string_lossy())
-                                    .as_str(),
+                                &crate::localization::text_for_app_with_args(
+                                    app,
+                                    "agent.output.search_codebase.cancelled",
+                                    &[("path", root_repo_path.to_string_lossy().as_ref())],
+                                ),
                                 app,
                                 footer,
                                 appearance,
@@ -1668,17 +1716,14 @@ fn render_search_codebase(
         },
         None => {
             let root_repo_path = root_repo_path?;
-            renderable_action(
-                props,
-                id,
-                format!("Search in {}", root_repo_path.to_string_lossy()).as_str(),
+            let label = crate::localization::text_for_app_with_args(
                 app,
-                footer,
-                appearance,
-                None,
-            )
-            .render(app)
-            .finish()
+                "agent.output.search_codebase.search_in",
+                &[("path", root_repo_path.to_string_lossy().as_ref())],
+            );
+            renderable_action(props, id, &label, app, footer, appearance, None)
+                .render(app)
+                .finish()
         }
     };
     Some(requested_action)
@@ -1873,7 +1918,7 @@ fn render_read_skill(
 
         let skill_icon_override = icon_override_for_skill_name(&skill.name);
         let open_button = render_skill_button(
-            "Open skill",
+            &crate::localization::text_for_app(app, "agent.output.skill.open"),
             button_handle,
             appearance,
             skill.provider,
@@ -1896,7 +1941,7 @@ fn render_read_skill(
 fn render_inline_action_secondary_button(
     appearance: &Appearance,
     button: &ui_components::button::Button,
-    label: &'static str,
+    label: String,
     on_click: ui_components::MouseEventHandler,
 ) -> Box<dyn Element> {
     button.render(
@@ -2037,11 +2082,13 @@ fn render_read_files(
             .action_buttons
             .get(id)
             .expect("Button states must exist for each requested action.");
+        let blocked_action_text =
+            crate::localization::text_for_app(app, "agent.cli.blocked_action.reading_files");
 
         renderable_action = renderable_action
             .with_header(blocked_action_header(
                 id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
+                &blocked_action_text,
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -2073,7 +2120,10 @@ fn render_read_files(
             *shown.lock() = true;
             renderable_action =
                 renderable_action.with_footer(render_autonomy_checkbox_setting_speedbump_footer(
-                    "Always allow file access for coding tasks",
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.output.permissions.always_allow_coding_tasks",
+                    ),
                     *checked,
                     AIBlockAction::ToggleAutoreadFilesSpeedbumpCheckbox,
                     props
@@ -2186,19 +2236,26 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
                         .map(|index| (item, index))
                 })
             {
-                return Some(format!(
-                    "Stopped task {}/{}: \"{}\"",
-                    item_index + 1,
-                    todo_list.len(),
-                    item.title
+                return Some(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.stopped_task_indexed",
+                    &[
+                        ("index", &(item_index + 1).to_string()),
+                        ("total", &todo_list.len().to_string()),
+                        ("title", &item.title),
+                    ],
                 ));
             }
 
-            conversation
-                .initial_query()
-                .map(|task_name| format!("Stopped task: \"{task_name}\""))
+            conversation.initial_query().map(|task_name| {
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.stopped_task_named",
+                    &[("name", task_name.as_str())],
+                )
+            })
         })
-        .unwrap_or_else(|| "Stopped task".to_string());
+        .unwrap_or_else(|| crate::localization::text_for_app(app, "agent.output.stopped_task"));
 
     let stop_icon = Container::new(
         ConstrainedBox::new(gray_stop_icon(appearance).finish())
@@ -2283,6 +2340,8 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
                 .set_background(internal_colors::fg_overlay_3(theme).into()),
         );
 
+        let resume_tooltip =
+            crate::localization::text_for_app(app, "agent.output.conversation.resume");
         let resume_button = warpui::ui_components::button::Button::new(
             props.state_handles.resume_conversation_handle.clone(),
             button_styles,
@@ -2291,12 +2350,7 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
             None,
         )
         .with_custom_label(button_content)
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Resume conversation".to_string())
-                .build()
-                .finish()
-        })
+        .with_tooltip(move || ui_builder.tool_tip(resume_tooltip.clone()).build().finish())
         .with_cursor(Some(Cursor::PointingHand))
         .build()
         .on_click(move |ctx, _, _| {
@@ -2346,8 +2400,11 @@ fn render_requested_edits_output_message(
             .view
             .as_ref(app)
             .title()
-            .unwrap_or("Could not apply changes to file.");
-        RenderableAction::new(title, app)
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                crate::localization::text_for_app(app, "agent.output.code_diff.apply_failed")
+            });
+        RenderableAction::new(&title, app)
             .with_icon(inline_action_icons::cancelled_icon(appearance).finish())
             .render(app)
             .finish()
@@ -2355,7 +2412,10 @@ fn render_requested_edits_output_message(
         match requested_edit.view.as_ref(app).display_mode() {
             DisplayMode::FullPane => Align::new(
                 Text::new_inline(
-                    "This suggestion is being edited in another tab.",
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.output.code_diff.editing_in_another_tab",
+                    ),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size(),
                 )
@@ -2465,11 +2525,14 @@ fn render_suggest_new_conversation(
         };
         let (label, status_icon) = match result {
             SuggestNewConversationResult::Accepted { .. } => (
-                "New conversation started",
+                crate::localization::text_for_app(app, "agent.output.new_conversation.started"),
                 inline_action_icons::green_check_icon(appearance).finish(),
             ),
             SuggestNewConversationResult::Rejected => (
-                "Continuing current conversation",
+                crate::localization::text_for_app(
+                    app,
+                    "agent.output.new_conversation.continuing_current",
+                ),
                 warpui::elements::Icon::new(
                     Icon::FlipForward.into(),
                     internal_colors::neutral_6(theme),
@@ -2477,7 +2540,7 @@ fn render_suggest_new_conversation(
                 .finish(),
             ),
             SuggestNewConversationResult::Cancelled => (
-                "New conversation suggestion cancelled",
+                crate::localization::text_for_app(app, "agent.output.new_conversation.cancelled"),
                 inline_action_icons::cancelled_icon(appearance).finish(),
             ),
         };
@@ -2499,9 +2562,12 @@ fn render_suggest_new_conversation(
     }
 
     if props.shared_session_status.is_viewer() {
-        let header_element = HeaderConfig::new("Start a new conversation", app)
-            .with_icon(gray_stop_icon(appearance))
-            .render(app);
+        let header_element = HeaderConfig::new(
+            crate::localization::text_for_app(app, "agent.output.new_conversation.start"),
+            app,
+        )
+        .with_icon(gray_stop_icon(appearance))
+        .render(app);
 
         return Some(
             header_element
@@ -2515,7 +2581,7 @@ fn render_suggest_new_conversation(
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
     let new_conversation_header_text =
-        "It seems like the topic changed. Would you like to make a new conversation?";
+        crate::localization::text_for_app(app, "agent.output.new_conversation.prompt");
     let new_conversation_header_element = HeaderConfig::new(new_conversation_header_text, app)
         .with_icon(yellow_stop_icon(appearance))
         .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
@@ -2562,7 +2628,7 @@ fn create_formatted_text_for_grep(
         .is_some_and(|status| status.is_queued());
 
     let display_path = if path == "." {
-        "the current directory".to_string()
+        crate::localization::text_for_app(app, "agent.output.current_directory")
     } else {
         shell_native_absolute_path(
             path,
@@ -2577,19 +2643,37 @@ fn create_formatted_text_for_grep(
             .expect("Queries slice should have an element");
         let mut fragments = if is_cancelled || is_queued {
             vec![
-                FormattedTextFragment::plain_text("Grep for "),
+                FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                    app,
+                    if is_cancelled {
+                        "agent.output.grep.cancelled_prefix"
+                    } else {
+                        "agent.output.grep.queued_prefix"
+                    },
+                )),
                 FormattedTextFragment::inline_code(query),
             ]
         } else {
             vec![
-                FormattedTextFragment::plain_text("Grepping for "),
+                FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                    app,
+                    "agent.output.grep.running_prefix",
+                )),
                 FormattedTextFragment::inline_code(query),
             ]
         };
         fragments.push(if is_cancelled {
-            FormattedTextFragment::plain_text(format!(" in {display_path} cancelled"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.grep.cancelled_suffix",
+                &[("path", &display_path)],
+            ))
         } else {
-            FormattedTextFragment::plain_text(format!(" in {display_path}"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.grep.path_suffix",
+                &[("path", &display_path)],
+            ))
         });
         FormattedText::new([FormattedTextLine::Line(fragments)])
     } else {
@@ -2597,18 +2681,24 @@ fn create_formatted_text_for_grep(
 
         if is_cancelled {
             lines.push(FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(format!(
-                    "Cancelled grep for the following patterns in {display_path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.grep.cancelled_patterns",
+                    &[("path", &display_path)],
                 )),
             ]));
         } else {
             lines.push(FormattedTextLine::Line(vec![if is_queued {
-                FormattedTextFragment::plain_text(format!(
-                    "Grep for the following patterns in {display_path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.grep.queued_patterns",
+                    &[("path", &display_path)],
                 ))
             } else {
-                FormattedTextFragment::plain_text(format!(
-                    "Grepping for the following patterns in {display_path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.grep.running_patterns",
+                    &[("path", &display_path)],
                 ))
             }]));
         }
@@ -2673,7 +2763,9 @@ fn create_formatted_text_for_file_glob(
                 props.current_working_directory,
             )
         })
-        .unwrap_or_else(|| "the current directory".to_string());
+        .unwrap_or_else(|| {
+            crate::localization::text_for_app(app, "agent.output.current_directory")
+        });
 
     let formatted_text = if patterns.len() == 1 {
         let pattern = patterns
@@ -2682,19 +2774,37 @@ fn create_formatted_text_for_file_glob(
 
         let mut fragments = if is_cancelled || is_queued {
             vec![
-                FormattedTextFragment::plain_text("Search for files that match "),
+                FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                    app,
+                    if is_cancelled {
+                        "agent.output.file_glob.cancelled_prefix"
+                    } else {
+                        "agent.output.file_glob.queued_prefix"
+                    },
+                )),
                 FormattedTextFragment::inline_code(pattern),
             ]
         } else {
             vec![
-                FormattedTextFragment::plain_text("Finding files that match "),
+                FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                    app,
+                    "agent.output.file_glob.running_prefix",
+                )),
                 FormattedTextFragment::inline_code(pattern),
             ]
         };
         fragments.push(if is_cancelled {
-            FormattedTextFragment::plain_text(format!(" in {path} cancelled"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.file_glob.cancelled_suffix",
+                &[("path", &path)],
+            ))
         } else {
-            FormattedTextFragment::plain_text(format!(" in {path}"))
+            FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.file_glob.path_suffix",
+                &[("path", &path)],
+            ))
         });
         FormattedText::new([FormattedTextLine::Line(fragments)])
     } else {
@@ -2702,18 +2812,24 @@ fn create_formatted_text_for_file_glob(
 
         if is_cancelled {
             lines.push(FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text(format!(
-                    "Cancelled search for files that match the following patterns in {path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.file_glob.cancelled_patterns",
+                    &[("path", &path)],
                 )),
             ]));
         } else {
             lines.push(FormattedTextLine::Line(vec![if is_queued {
-                FormattedTextFragment::plain_text(format!(
-                    "Find files that match the following patterns in {path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.file_glob.queued_patterns",
+                    &[("path", &path)],
                 ))
             } else {
-                FormattedTextFragment::plain_text(format!(
-                    "Finding files that match the following patterns in {path}"
+                FormattedTextFragment::plain_text(crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.file_glob.running_patterns",
+                    &[("path", &path)],
                 ))
             }]));
         }
@@ -2767,11 +2883,13 @@ fn render_file_retrieval_tool(
             .action_buttons
             .get(action_id)
             .expect("Button states must exist for each requested action.");
+        let blocked_action_text =
+            crate::localization::text_for_app(app, "agent.cli.blocked_action.grep_or_file_glob");
 
         config = config
             .with_header(blocked_action_header(
                 action_id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
+                &blocked_action_text,
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -2802,7 +2920,10 @@ fn render_file_retrieval_tool(
         } if show_for_action_id == action_id => {
             *shown.lock() = true;
             config = config.with_footer(render_autonomy_checkbox_setting_speedbump_footer(
-                "Always allow file access for coding tasks",
+                crate::localization::text_for_app(
+                    app,
+                    "agent.output.permissions.always_allow_coding_tasks",
+                ),
                 *checked,
                 AIBlockAction::ToggleAutoreadFilesSpeedbumpCheckbox,
                 props
@@ -2827,8 +2948,12 @@ fn render_comment_addressed_header(comment: &ReviewComment, app: &AppContext) ->
 
     let content = comment.content.lines().join(" ");
 
+    let fallback_title =
+        crate::localization::text_for_app(app, "code_review.comment.review_comment");
+    let invalid_file_name =
+        crate::localization::text_for_app(app, "code_review.comment.invalid_file_name");
     let comment_title = Text::new_inline(
-        comment.title(),
+        comment.title_with_fallbacks(&fallback_title, &invalid_file_name),
         appearance.ui_font_family(),
         appearance.monospace_font_size() - 2.,
     )
@@ -2842,7 +2967,11 @@ fn render_comment_addressed_header(comment: &ReviewComment, app: &AppContext) ->
         Shrinkable::new(
             1.,
             Text::new_inline(
-                format!("Comment addressed: \"{content}\""),
+                crate::localization::text_for_app_with_args(
+                    app,
+                    "agent.output.comment.addressed",
+                    &[("content", &content)],
+                ),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -2888,7 +3017,10 @@ fn render_read_mcp_resource(
         renderable_action = renderable_action
             .with_header(blocked_action_header(
                 action_id.clone(),
-                "OK if I read this MCP resource?",
+                &crate::localization::text_for_app(
+                    app,
+                    "agent.output.permissions.read_mcp_resource",
+                ),
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -2917,11 +3049,20 @@ fn render_read_mcp_resource(
 fn format_upload_artifact_text(
     request: &UploadArtifactRequest,
     result: Option<&UploadArtifactResult>,
+    locale: LocaleId,
 ) -> String {
-    let mut lines = vec![format!("Upload artifact: {}", request.file_path)];
+    let mut lines = vec![crate::localization::text_for_locale_with_args(
+        locale,
+        "agent.output.upload_artifact.path",
+        &[("path", &request.file_path)],
+    )];
 
     if let Some(description) = request.description.as_deref() {
-        lines.push(format!("Description: {description}"));
+        lines.push(crate::localization::text_for_locale_with_args(
+            locale,
+            "agent.output.upload_artifact.description",
+            &[("description", description)],
+        ));
     }
 
     match result {
@@ -2930,13 +3071,25 @@ fn format_upload_artifact_text(
             filepath,
             ..
         }) => {
-            lines.push(format!("Status: uploaded artifact {artifact_uid}"));
+            lines.push(crate::localization::text_for_locale_with_args(
+                locale,
+                "agent.output.upload_artifact.status_uploaded",
+                &[("artifact_uid", artifact_uid)],
+            ));
             if let Some(filepath) = filepath.as_deref() {
-                lines.push(format!("Uploaded file: {filepath}"));
+                lines.push(crate::localization::text_for_locale_with_args(
+                    locale,
+                    "agent.output.upload_artifact.uploaded_file",
+                    &[("filepath", filepath)],
+                ));
             }
         }
         Some(UploadArtifactResult::Error(error)) => {
-            lines.push(format!("Status: upload failed: {error}"));
+            lines.push(crate::localization::text_for_locale_with_args(
+                locale,
+                "agent.output.upload_artifact.status_failed",
+                &[("error", error)],
+            ));
         }
         Some(UploadArtifactResult::Cancelled) => {}
         None => {}
@@ -2962,7 +3115,8 @@ fn render_upload_artifact(
             _ => None,
         });
 
-    let text = format_upload_artifact_text(request, result);
+    let text =
+        format_upload_artifact_text(request, result, crate::localization::current_locale(app));
     let mut renderable_action = RenderableAction::new(&text, app);
 
     if status.as_ref().is_some_and(|status| status.is_blocked()) {
@@ -2974,7 +3128,7 @@ fn render_upload_artifact(
         renderable_action = renderable_action
             .with_header(blocked_action_header(
                 action_id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_UPLOADING_ARTIFACT,
+                &crate::localization::text_for_app(app, "agent.output.permissions.upload_artifact"),
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -3010,7 +3164,7 @@ fn recording_summary(props: Props, agent_summary: Option<&str>, app: &AppContext
         .filter(|s| !s.is_empty())
         .or_else(|| title.as_deref().map(str::trim).filter(|s| !s.is_empty()))
         .map(ToString::to_string)
-        .unwrap_or_else(|| "Recording computer-use session".to_string())
+        .unwrap_or_else(|| localization::text_for_app(app, "agent.output.recording.summary"))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -3022,28 +3176,32 @@ struct RecordingCardText {
 fn start_recording_card_text(
     description: &str,
     result: Option<&StartRecordingResult>,
+    locale: LocaleId,
 ) -> RecordingCardText {
     match result {
         Some(StartRecordingResult::Success(_)) => RecordingCardText {
-            primary: "Recording started".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.started"),
             subtext: Some(description.to_string()),
         },
         Some(StartRecordingResult::Error(error)) => RecordingCardText {
-            primary: "Recording failed to start".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.start_failed"),
             subtext: Some(error.clone()),
         },
         Some(StartRecordingResult::Cancelled) => RecordingCardText {
-            primary: "Recording cancelled".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.cancelled"),
             subtext: None,
         },
         None => RecordingCardText {
-            primary: "Starting recording".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.starting"),
             subtext: Some(description.to_string()),
         },
     }
 }
 
-fn stop_recording_card_text(result: Option<&StopRecordingResult>) -> RecordingCardText {
+fn stop_recording_card_text(
+    result: Option<&StopRecordingResult>,
+    locale: LocaleId,
+) -> RecordingCardText {
     match result {
         Some(StopRecordingResult::Success(stopped)) => {
             let duration = format_video_duration(stopped.duration);
@@ -3054,21 +3212,28 @@ fn stop_recording_card_text(result: Option<&StopRecordingResult>) -> RecordingCa
                 duration
             } else {
                 // TODO(vkodithala): Switch to typed, user-facing termination copy once finalization emits structured reasons.
-                format!("Partial recording • {duration}")
+                localization::text_for_locale_with_args(
+                    locale,
+                    "agent.output.recording.partial",
+                    &[("duration", duration.as_str())],
+                )
             };
             RecordingCardText {
-                primary: "Recording saved".to_string(),
+                primary: localization::text_for_locale(locale, "agent.output.recording.saved"),
                 subtext: Some(subtext),
             }
         }
         Some(StopRecordingResult::Error(_)) | Some(StopRecordingResult::Cancelled) => {
             RecordingCardText {
-                primary: "Recording could not be saved".to_string(),
+                primary: localization::text_for_locale(
+                    locale,
+                    "agent.output.recording.save_failed",
+                ),
                 subtext: None,
             }
         }
         None => RecordingCardText {
-            primary: "Saving recording".to_string(),
+            primary: localization::text_for_locale(locale, "agent.output.recording.saving"),
             subtext: None,
         },
     }
@@ -3138,7 +3303,11 @@ fn render_start_recording(
             AIAgentActionResultType::StartRecording(result) => Some(result),
             _ => None,
         });
-    let text = start_recording_card_text(&recording_summary(props, agent_summary, app), result);
+    let text = start_recording_card_text(
+        &recording_summary(props, agent_summary, app),
+        result,
+        localization::current_locale(app),
+    );
     recording_card(text, None, app)
 }
 
@@ -3148,17 +3317,17 @@ fn render_recording_footer(status: RecordingSpanStatus, app: &AppContext) -> Box
     let icon_offset =
         icon_size(app) + crate::ai::blocklist::inline_action::inline_action_header::ICON_MARGIN;
     let text = match status {
-        RecordingSpanStatus::Active => "Recording active",
-        RecordingSpanStatus::Captured => "Captured in recording",
+        RecordingSpanStatus::Active => {
+            localization::text_for_app(app, "agent.output.recording.active")
+        }
+        RecordingSpanStatus::Captured => {
+            localization::text_for_app(app, "agent.output.recording.captured")
+        }
     };
     Container::new(
-        Text::new(
-            text.to_string(),
-            appearance.ui_font_family(),
-            appearance.ui_font_size(),
-        )
-        .with_color(theme.sub_text_color(theme.surface_1()).into())
-        .finish(),
+        Text::new(text, appearance.ui_font_family(), appearance.ui_font_size())
+            .with_color(theme.sub_text_color(theme.surface_1()).into())
+            .finish(),
     )
     .with_margin_left(icon_offset)
     .finish()
@@ -3187,7 +3356,7 @@ fn render_stop_recording(
             render_inline_action_secondary_button(
                 appearance,
                 btn,
-                "Open recording",
+                localization::text_for_app(app, "agent.output.recording.open"),
                 Box::new(move |ctx, _, _| {
                     ctx.dispatch_typed_action(AIBlockAction::OpenRecordingArtifact {
                         artifact_uid: artifact_uid.clone(),
@@ -3197,7 +3366,11 @@ fn render_stop_recording(
         });
     }
 
-    recording_card(stop_recording_card_text(result), action_button, app)
+    recording_card(
+        stop_recording_card_text(result, localization::current_locale(app)),
+        action_button,
+        app,
+    )
 }
 
 fn render_use_computer(
@@ -3239,7 +3412,7 @@ fn render_use_computer(
             render_inline_action_secondary_button(
                 appearance,
                 btn,
-                "View screenshot",
+                localization::text_for_app(app, "agent.output.screenshot.view"),
                 Box::new(move |ctx, _, _| {
                     ctx.dispatch_typed_action(AIBlockAction::ViewScreenshot {
                         action_id: action_id_clone.clone(),
@@ -3276,7 +3449,7 @@ fn render_request_computer_use(
         renderable_action = renderable_action
             .with_header(blocked_action_header(
                 action_id.clone(),
-                "OK if I use computer control for this task?",
+                &crate::localization::text_for_app(app, "agent.output.permissions.use_computer"),
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -3322,7 +3495,7 @@ fn render_references_footer(
     )?;
 
     let title = Text::new_inline(
-        "References",
+        crate::localization::text_for_app(app, "agent.output.references"),
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     )
@@ -3407,7 +3580,7 @@ fn render_suggested_rules_and_prompts_footer(
     let theme = appearance.theme();
     let title_row_color = theme.sub_text_color(theme.background());
     let title_text = Text::new_inline(
-        "Suggestions:",
+        crate::localization::text_for_app(app, "agent.output.suggestions"),
         appearance.ui_font_family(),
         appearance.monospace_font_size(),
     )
@@ -3501,6 +3674,8 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
     // Thumbs up/down buttons.
     // (we hide these when you're in view-only mode).
     if !is_passive_code_diff && !props.is_conversation_transcript_viewer {
+        let thumbs_up_tooltip =
+            crate::localization::text_for_app(app, "agent.output.feedback.good_response");
         let thumbs_up_button = icon_button(
             appearance,
             Icon::ThumbsUp,
@@ -3512,7 +3687,7 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         )
         .with_tooltip(move || {
             ui_builder
-                .tool_tip("Good response".to_string())
+                .tool_tip(thumbs_up_tooltip.clone())
                 .build()
                 .finish()
         })
@@ -3521,6 +3696,8 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         .with_active_styles(style_override_with_background);
 
         let ui_builder = appearance.ui_builder().clone();
+        let thumbs_down_tooltip =
+            crate::localization::text_for_app(app, "agent.output.feedback.bad_response");
         let thumbs_down_button = icon_button(
             appearance,
             Icon::ThumbsDown,
@@ -3533,7 +3710,7 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         .with_tooltip(move || {
             ui_builder
                 .clone()
-                .tool_tip("Bad response".to_string())
+                .tool_tip(thumbs_down_tooltip.clone())
                 .build()
                 .finish()
         })
@@ -3597,6 +3774,8 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
 
     if !props.shared_session_status.is_finished_viewer() && !FeatureFlag::AgentView.is_enabled() {
         let ui_builder = appearance.ui_builder().clone();
+        let continue_tooltip =
+            crate::localization::text_for_app(app, "agent.output.conversation.continue");
         let continue_button = icon_button(
             appearance,
             Icon::CornerRight,
@@ -3605,7 +3784,7 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         )
         .with_tooltip(move || {
             ui_builder
-                .tool_tip("Continue conversation".to_string())
+                .tool_tip(continue_tooltip.clone())
                 .build()
                 .finish()
         })
@@ -3813,7 +3992,10 @@ fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
                 // Show tooltip on hover or while clicked
                 let mut stack = Stack::new().with_child(content.finish());
                 let tooltip = ui_builder
-                    .tool_tip("Show credit usage details".to_string())
+                    .tool_tip(crate::localization::text_for_app(
+                        app,
+                        "agent.output.usage.show_details",
+                    ))
                     .build()
                     .finish();
                 stack.add_positioned_overlay_child(
@@ -4147,7 +4329,7 @@ fn render_collapsible_debug_output(
         // "Debug output" label
         row.add_child(
             Text::new(
-                "Debug output".to_string(),
+                crate::localization::text_for_app(app, "agent.output.debug_output"),
                 appearance.ai_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -4288,18 +4470,32 @@ fn conversation_search_phase(task: &crate::ai::agent::task::Task) -> Conversatio
     current_phase
 }
 
-fn format_conversation_search_phase(phase: &ConversationSearchPhase) -> String {
+fn format_conversation_search_phase(phase: &ConversationSearchPhase, app: &AppContext) -> String {
     match phase {
-        ConversationSearchPhase::ListingMessages => "Listing messages".to_string(),
+        ConversationSearchPhase::ListingMessages => crate::localization::text_for_app(
+            app,
+            "agent.output.conversation_search.listing_messages",
+        ),
         ConversationSearchPhase::Grepping { patterns } => {
             if patterns.is_empty() {
-                return "Grepping for patterns".to_string();
+                return crate::localization::text_for_app(
+                    app,
+                    "agent.output.conversation_search.grepping",
+                );
             }
             let joined = truncate_from_end(&patterns.join(", "), 60);
-            format!("Grepping for patterns: {joined}")
+            crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.conversation_search.grepping_with_patterns",
+                &[("patterns", &joined)],
+            )
         }
         ConversationSearchPhase::ReadingMessages { count } => {
-            format!("Reading {count} messages")
+            crate::localization::text_for_app_with_args(
+                app,
+                "agent.output.conversation_search.reading_messages",
+                &[("count", &count.to_string())],
+            )
         }
     }
 }

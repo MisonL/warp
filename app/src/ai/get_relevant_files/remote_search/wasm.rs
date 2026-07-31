@@ -28,6 +28,9 @@ pub(super) fn send_request(
 ) -> RemoteSearchRequest {
     RemoteSearchRequest::Ready(SearchCodebaseResult::Failed {
         reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-        message: "Remote codebase search is not available in this environment.".to_string(),
+        message: crate::localization::text_for_app(
+            _ctx,
+            "agent.search_codebase.error.remote_not_available_environment",
+        ),
     })
 }

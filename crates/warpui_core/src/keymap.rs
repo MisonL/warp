@@ -158,6 +158,10 @@ impl BindingDescription {
         self.dynamic_override.is_some()
     }
 
+    pub fn default_description(&self) -> &str {
+        &self.description
+    }
+
     /// Returns the description for the given context, applying the dynamic
     /// override if one is attached and returns `Some`. Prefer this over
     /// [`Self::in_context`] anywhere `&AppContext` is in scope.
@@ -337,8 +341,8 @@ impl schemars::JsonSchema for Keystroke {
         std::borrow::Cow::Borrowed("Keystroke")
     }
 
-    fn json_schema(sgen: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        sgen.subschema_for::<String>()
+    fn json_schema(r#gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        r#gen.subschema_for::<String>()
     }
 }
 

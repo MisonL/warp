@@ -20,6 +20,25 @@ use crate::server::ids::SyncId;
 const CONTENT_WEIGHT: f64 = 0.4;
 const NAME_WEIGHT: f64 = 0.6;
 
+fn notebook_title_fallback(title: &str) -> String {
+    if title.is_empty() {
+        crate::localization::text_for_locale(
+            warp_localization::LocaleId::EnUs,
+            "notebook.placeholder.untitled",
+        )
+    } else {
+        title.to_owned()
+    }
+}
+
+fn notebook_title_for_app(title: &str, app: &AppContext) -> String {
+    if title.is_empty() {
+        crate::localization::text_for_app(app, "notebook.placeholder.untitled")
+    } else {
+        title.to_owned()
+    }
+}
+
 /// Struct designed to be the implementation of CommandSearchItem for Notebooks.
 #[derive(Clone, Debug)]
 pub struct NotebookSearchItem {
@@ -137,6 +156,18 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Notebook: {}", self.model.title)
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_fallback(&self.model.title))],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.notebook.a11y.label",
+            &[("title", &notebook_title_for_app(&self.model.title, app))],
+        )
     }
 }

@@ -1,3 +1,5 @@
+use chrono::TimeZone;
+
 use super::*;
 
 #[test]
@@ -112,5 +114,35 @@ fn test_human_readable_approx_duration() {
     assert_eq!(
         human_readable_approx_duration(Duration::weeks(520), false),
         "9 years ago".to_owned()
+    );
+}
+
+#[test]
+fn localized_absolute_datetime_formats_match_locale() {
+    let datetime = Local.with_ymd_and_hms(2026, 5, 7, 21, 8, 9).unwrap();
+
+    assert_eq!(
+        localized_month_day_time_for_locale(LocaleId::EnUs, datetime),
+        "May 07 at 9:08 PM"
+    );
+    assert_eq!(
+        localized_month_day_time_for_locale(LocaleId::ZhCn, datetime),
+        "05月07日 21:08"
+    );
+    assert_eq!(
+        localized_numeric_date_time_for_locale(LocaleId::EnUs, datetime),
+        "5/7/26 9:08 PM"
+    );
+    assert_eq!(
+        localized_numeric_date_time_for_locale(LocaleId::ZhCn, datetime),
+        "2026-05-07 21:08"
+    );
+    assert_eq!(
+        localized_weekday_month_day_time_with_seconds_for_locale(LocaleId::ZhCn, datetime),
+        "2026-05-07 21:08:09"
+    );
+    assert_eq!(
+        localized_time_of_day_for_locale(LocaleId::ZhCn, datetime),
+        "21:08"
     );
 }

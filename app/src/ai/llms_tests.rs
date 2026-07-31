@@ -19,7 +19,31 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
-// -- DisableReason::should_clear_preference tests --
+// -- DisableReason tests --
+
+#[test]
+fn disable_reason_localization_keys_cover_every_variant() {
+    assert_eq!(
+        DisableReason::AdminDisabled.localization_key(),
+        "settings.execution_profile.model.disable_reason.admin_disabled"
+    );
+    assert_eq!(
+        DisableReason::OutOfRequests.localization_key(),
+        "settings.execution_profile.model.disable_reason.out_of_requests"
+    );
+    assert_eq!(
+        DisableReason::ProviderOutage.localization_key(),
+        "settings.execution_profile.model.disable_reason.provider_outage"
+    );
+    assert_eq!(
+        DisableReason::RequiresUpgrade.localization_key(),
+        "settings.execution_profile.model.disable_reason.requires_upgrade"
+    );
+    assert_eq!(
+        DisableReason::Unavailable.localization_key(),
+        "settings.execution_profile.model.disable_reason.unavailable"
+    );
+}
 
 #[test]
 fn should_clear_preference_admin_disabled() {
@@ -229,10 +253,7 @@ fn custom_llm_infos_built_from_endpoints() {
     assert_eq!(infos.len(), 2);
     assert_eq!(infos[0].display_name, "fast");
     assert_eq!(infos[0].id.as_str(), "uuid-1");
-    assert_eq!(
-        infos[0].description.as_deref(),
-        Some("Custom · My Endpoint")
-    );
+    assert_eq!(infos[0].description.as_deref(), Some("My Endpoint"));
     assert_eq!(infos[1].display_name, "llama");
     assert_eq!(infos[1].id.as_str(), "uuid-2");
 }
@@ -304,7 +325,7 @@ fn custom_endpoint_usage_display_label_resolves_alias_name_and_generic_fallback(
     );
     assert_eq!(
         preferences.custom_endpoint_usage_display_label("unknown"),
-        CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL
+        "Custom endpoint"
     );
 }
 

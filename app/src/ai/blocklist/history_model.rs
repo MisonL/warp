@@ -3300,13 +3300,14 @@ pub enum AIQueryHistoryOutputStatus {
 
 impl AIQueryHistoryOutputStatus {
     /// Returns a string representation of the output status.
-    pub(crate) fn display_text(&self) -> &'static str {
-        match self {
-            AIQueryHistoryOutputStatus::Completed => "Completed successfully",
-            AIQueryHistoryOutputStatus::Pending => "Pending",
-            AIQueryHistoryOutputStatus::Cancelled => "Cancelled by user",
-            AIQueryHistoryOutputStatus::Failed => "Failed",
-        }
+    pub(crate) fn display_text(&self, app: &warpui::AppContext) -> String {
+        let key = match self {
+            AIQueryHistoryOutputStatus::Completed => "agent.history.output_status.completed",
+            AIQueryHistoryOutputStatus::Pending => "agent.history.output_status.pending",
+            AIQueryHistoryOutputStatus::Cancelled => "agent.history.output_status.cancelled",
+            AIQueryHistoryOutputStatus::Failed => "agent.history.output_status.failed",
+        };
+        crate::localization::text_for_app(app, key)
     }
 
     pub(crate) fn icon(&self) -> Icon {

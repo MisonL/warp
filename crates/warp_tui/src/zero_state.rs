@@ -21,6 +21,7 @@ use warpui_core::AppContext;
 use warpui_core::elements::tui::{Modifier, TuiConstrainedBox, TuiElement, TuiFlex, TuiText};
 
 use crate::autoupdate::{TuiAutoupdateStatus, TuiAutoupdater};
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 use crate::ui::abbreviate_home_prefix;
 
@@ -47,7 +48,7 @@ fn render_left_column(cwd: Option<&str>, builder: &TuiUiBuilder, app: &AppContex
 
     let mut column = TuiFlex::column()
         .child(
-            TuiText::new("Warp Agent")
+            TuiText::new(localization::text("settings.ai.header.warp_agent"))
                 .with_style(title_style)
                 .truncate()
                 .finish(),
@@ -57,7 +58,7 @@ fn render_left_column(cwd: Option<&str>, builder: &TuiUiBuilder, app: &AppContex
     let bullets = changelog_bullets(app);
     if !bullets.is_empty() {
         column = column.child(blank_row()).child(
-            TuiText::new("What's new")
+            TuiText::new(localization::text("workspace.menu.whats_new"))
                 .with_style(header_style)
                 .truncate()
                 .finish(),
@@ -112,10 +113,15 @@ fn render_mcp_section(mut column: TuiFlex, builder: &TuiUiBuilder, app: &AppCont
 
 fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, bool) {
     match &snapshot.config_state {
-        TuiMcpConfigState::Invalid { .. } => ("Config error · run /mcp".to_string(), true),
-        TuiMcpConfigState::Missing => ("Not configured · /mcp".to_string(), false),
+        TuiMcpConfigState::Invalid { .. } => {
+            (localization::text("tui.zero_state.mcp.config_error"), true)
+        }
+        TuiMcpConfigState::Missing => (
+            localization::text("tui.zero_state.mcp.not_configured"),
+            false,
+        ),
         TuiMcpConfigState::Ready if snapshot.servers.is_empty() => {
-            ("No servers configured · run /mcp".to_string(), false)
+            (localization::text("tui.zero_state.mcp.no_servers"), false)
         }
         TuiMcpConfigState::Ready => {
             let mut running = 0;
@@ -131,29 +137,56 @@ fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, boo
                     TuiMcpServerStatus::Authenticating => authenticating += 1,
                     TuiMcpServerStatus::Running => running += 1,
                     TuiMcpServerStatus::Stopping => stopping += 1,
-                    TuiMcpServerStatus::Failed { .. } => failed += 1,
+                    TuiMcpServerStatus::FailedToStart | TuiMcpServerStatus::Failed { .. } => {
+                        failed += 1
+                    }
                 }
             }
             let mut parts = Vec::new();
             if running > 0 {
-                parts.push(format!("{running} connected"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.connected",
+                    &[("count", &running.to_string())],
+                ));
             }
             if starting > 0 {
-                parts.push(format!("{starting} starting"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.starting",
+                    &[("count", &starting.to_string())],
+                ));
             }
             if authenticating > 0 {
-                parts.push(format!("{authenticating} needs auth"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.needs_auth",
+                    &[("count", &authenticating.to_string())],
+                ));
             }
             if stopping > 0 {
-                parts.push(format!("{stopping} stopping"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.stopping",
+                    &[("count", &stopping.to_string())],
+                ));
             }
             if failed > 0 {
-                parts.push(format!("{failed} failed"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.failed",
+                    &[("count", &failed.to_string())],
+                ));
             }
             if offline > 0 {
-                parts.push(format!("{offline} offline"));
+                parts.push(localization::text_with_args(
+                    "tui.zero_state.mcp.offline",
+                    &[("count", &offline.to_string())],
+                ));
             }
-            (format!("{} · /mcp", parts.join(" · ")), false)
+            let statuses = parts.join(" · ");
+            (
+                localization::text_with_args(
+                    "tui.zero_state.mcp.summary",
+                    &[("statuses", &statuses)],
+                ),
+                false,
+            )
         }
     }
 }
@@ -166,20 +199,27 @@ fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, boo
 fn render_version_line(builder: &TuiUiBuilder, app: &AppContext) -> Box<dyn TuiElement> {
     let muted = builder.muted_text_style();
     let Some(version) = ChannelState::app_version() else {
-        return TuiText::new("dev build")
+        return TuiText::new(localization::text("tui.zero_state.dev_build"))
             .with_style(muted)
             .truncate()
             .finish();
     };
     let suffix = match TuiAutoupdater::as_ref(app).status() {
         TuiAutoupdateStatus::Idle => None,
-        TuiAutoupdateStatus::Checking => Some(("checking for updates…", muted)),
-        TuiAutoupdateStatus::Updating => Some(("updating…", muted)),
-        TuiAutoupdateStatus::UpToDate => Some(("up to date", muted)),
+        TuiAutoupdateStatus::Checking => {
+            Some((localization::text("tui.zero_state.update.checking"), muted))
+        }
+        TuiAutoupdateStatus::Updating => {
+            Some((localization::text("tui.zero_state.update.updating"), muted))
+        }
+        TuiAutoupdateStatus::UpToDate => Some((
+            localization::text("tui.zero_state.update.up_to_date"),
+            muted,
+        )),
         // The one state worth drawing attention to: an update is staged and
         // a restart picks it up.
         TuiAutoupdateStatus::PendingRestart => Some((
-            "update installed, restart to apply",
+            localization::text("tui.zero_state.update.pending_restart"),
             builder.success_glyph_style(),
         )),
     };
@@ -254,7 +294,7 @@ fn render_project_section(
         // nothing may be known yet; this also covers projects with no
         // context at all.
         return column.child(
-            TuiText::new("Discovering project context…")
+            TuiText::new(localization::text("tui.zero_state.project.discovering"))
                 .with_style(builder.dim_text_style())
                 .truncate()
                 .finish(),
@@ -270,13 +310,20 @@ fn render_project_section(
         )
     };
     for file in rule_files {
-        column = status_row(column, format!("{file} loaded"));
-    }
-    if project_skill_count > 0 {
-        let plural = if project_skill_count == 1 { "" } else { "s" };
         column = status_row(
             column,
-            format!("{project_skill_count} skill{plural} discovered"),
+            localization::text_with_args("tui.zero_state.project.rule_loaded", &[("file", &file)]),
+        );
+    }
+    if project_skill_count > 0 {
+        let key = if project_skill_count == 1 {
+            "tui.zero_state.project.skill_discovered.one"
+        } else {
+            "tui.zero_state.project.skill_discovered.many"
+        };
+        column = status_row(
+            column,
+            localization::text_with_args(key, &[("count", &project_skill_count.to_string())]),
         );
     }
     column

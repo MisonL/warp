@@ -19,7 +19,7 @@ use warpui_core::r#async::Timer;
 use warpui_core::elements::MouseStateHandle;
 use warpui_core::elements::tui::{Modifier, TuiChildView, TuiElement, TuiFlex, tui_collapsible};
 use warpui_core::keymap::macros::*;
-use warpui_core::keymap::{EditableBinding, FixedBinding};
+use warpui_core::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui_core::{
     AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext, ViewHandle,
 };
@@ -27,6 +27,7 @@ use warpui_core::{
 use crate::agent_block_sections::render_fallback_tool_call_section;
 use crate::editor_view::{TuiEditorView, TuiEditorViewEvent};
 use crate::keybindings::{TUI_BINDING_GROUP, is_tui_owned_binding};
+use crate::localization;
 use crate::terminal_block::TerminalBlockElement;
 use crate::terminal_use::user_controls_running_command;
 use crate::tool_call_labels::{
@@ -39,6 +40,10 @@ use crate::tui_permission_prompt::{
 };
 const COMMAND_AUTO_EXPAND_DELAY: Duration = Duration::from_secs(3);
 const SHELL_COMMAND_EDITING: &str = "TuiShellCommandEditing";
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| Some(localization::text(key)))
+}
 
 pub(crate) fn init(app: &mut AppContext) {
     let predicate = id!(TuiShellCommandView::ui_name()) & id!(SHELL_COMMAND_EDITING);
@@ -59,7 +64,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings(["enter", "numpadenter", "down"].map(|key| {
         EditableBinding::new(
             "tui:shell-permission:save",
-            "Save the edited shell command",
+            binding_description(
+                "Save the edited shell command",
+                "tui.shell_command.binding.save",
+            ),
             TuiShellCommandViewAction::SaveCommandEdit,
         )
         .with_context_predicate(predicate.clone())
@@ -243,7 +251,12 @@ impl TuiShellCommandView {
         let command = self.command_editor.as_ref(ctx).text(ctx);
         if command.trim().is_empty() {
             self.permission_prompt.update(ctx, |prompt, ctx| {
-                prompt.set_body_error(Some("Enter a command to continue.".to_owned()), ctx);
+                prompt.set_body_error(
+                    Some(localization::text(
+                        "tui.shell_command.permission.empty_command_error",
+                    )),
+                    ctx,
+                );
             });
             self.invalidate_layout(ctx);
             return;
@@ -274,7 +287,7 @@ impl TuiShellCommandView {
     fn render_blocked(&self, app: &AppContext) -> Box<dyn TuiElement> {
         render_permission_card(
             &self.permission_prompt,
-            "Is it OK if I run this command and read the output?",
+            localization::text("tui.shell_command.permission.title"),
             None,
             app,
         )

@@ -49,6 +49,7 @@ bitflags! {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Argument {
     pub hint_text: Option<&'static str>,
+    pub hint_text_key: Option<&'static str>,
     pub is_optional: bool,
     /// If `true`, selecting the slash command from the menu (or via keybinding) will execute the
     /// slash command with no arguments.
@@ -81,6 +82,11 @@ impl Argument {
         self
     }
 
+    pub(super) fn with_hint_text_key(mut self, key: &'static str) -> Self {
+        self.hint_text_key = Some(key);
+        self
+    }
+
     pub(super) fn with_execute_on_selection(mut self) -> Self {
         self.should_execute_on_selection = true;
         self
@@ -103,9 +109,19 @@ pub struct StaticCommand {
 pub struct SlashCommandArgumentHint {
     pub input_prefix: String,
     pub text: &'static str,
+    pub localization_key: Option<&'static str>,
 }
 
 impl StaticCommand {
+    pub fn description_key(&self) -> String {
+        let name = self.name.trim_start_matches('/').replace('-', "_");
+        format!("terminal.slash.command.{name}.description")
+    }
+
+    pub fn localized_description(&self, app: &warpui::AppContext) -> String {
+        crate::localization::text_for_app_or(app, &self.description_key(), self.description)
+    }
+
     pub fn matches_filter(&self, filter_text: &str) -> bool {
         if filter_text.is_empty() {
             return true;
@@ -124,10 +140,12 @@ impl StaticCommand {
     }
 
     pub fn argument_hint(&self) -> Option<SlashCommandArgumentHint> {
-        let text = self.argument.as_ref()?.hint_text?;
+        let argument = self.argument.as_ref()?;
+        let text = argument.hint_text?;
         Some(SlashCommandArgumentHint {
             input_prefix: format!("{} ", self.name),
             text,
+            localization_key: argument.hint_text_key,
         })
     }
 }

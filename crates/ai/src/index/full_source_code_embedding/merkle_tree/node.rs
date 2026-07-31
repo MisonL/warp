@@ -635,7 +635,7 @@ impl<'a> NodeLens<'a> {
         Self { node }
     }
 
-    pub fn children(&self) -> impl Iterator<Item = NodeLens<'a>> {
+    pub fn children(&self) -> impl Iterator<Item = NodeLens<'a>> + use<'a> {
         self.node.children().map(|node| NodeLens { node })
     }
 

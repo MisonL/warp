@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
+#[cfg(not(feature = "agent_mode_evals"))]
 use indexmap::IndexMap;
 use settings::Setting as _;
 use uuid::Uuid;
@@ -18,6 +19,7 @@ use super::{
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
+#[cfg(not(feature = "agent_mode_evals"))]
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModelEvent, UpdateSource};
@@ -25,12 +27,13 @@ use crate::cloud_object::{CloudObject as _, GenericStringObjectFormat, JsonObjec
 use crate::drive::CloudObjectTypeAndId;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ClientId, SyncId};
+#[cfg(not(feature = "agent_mode_evals"))]
 use crate::settings::cloud_preferences_syncer::{
     CloudPreferencesSyncer, CloudPreferencesSyncerEvent,
 };
-use crate::settings::{
-    AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate, ExecutionProfiles,
-};
+use crate::settings::{AISettings, AgentModeCommandExecutionPredicate};
+#[cfg(not(feature = "agent_mode_evals"))]
+use crate::settings::{AISettingsChangedEvent, ExecutionProfiles};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{CloudModel, LaunchMode, TelemetryEvent, send_telemetry_from_ctx};
 
@@ -88,6 +91,12 @@ enum ProfileSource {
 impl ProfileSource {
     /// Resolves the persistence backend for this launch.
     fn for_launch_mode(launch_mode: &LaunchMode) -> Self {
+        // Evaluation runs require their fixed, permissive profile and must not
+        // read or materialize the user-editable settings collection.
+        if cfg!(feature = "agent_mode_evals") {
+            return Self::LegacyCloudObjects;
+        }
+
         if !file_backed_execution_profiles_enabled(launch_mode) {
             return Self::LegacyCloudObjects;
         }
@@ -188,7 +197,11 @@ impl AIExecutionProfilesModel {
 
         // A TUI with no explicit collection seeds its default from the existing
         // local scalar settings, then uses only the collection.
+        #[cfg(not(feature = "agent_mode_evals"))]
         let mut last_settings_profiles = AISettings::as_ref(ctx).execution_profiles.value().clone();
+        #[cfg(feature = "agent_mode_evals")]
+        let last_settings_profiles = ExecutionProfilesConfig::default();
+        #[cfg(not(feature = "agent_mode_evals"))]
         if matches!(launch_mode, LaunchMode::Tui { .. })
             && !AISettings::as_ref(ctx)
                 .execution_profiles
@@ -310,6 +323,7 @@ impl AIExecutionProfilesModel {
             });
         }
 
+        #[cfg(not(feature = "agent_mode_evals"))]
         if uses_file_backed_profiles {
             ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
                 if matches!(event, AISettingsChangedEvent::ExecutionProfiles { .. }) {
@@ -399,7 +413,10 @@ impl AIExecutionProfilesModel {
 
         if !uses_file_backed_profiles {
             model.maybe_inherit_from_legacy_settings(ctx);
-        } else if should_migrate_legacy_cloud_profiles
+        }
+        #[cfg(not(feature = "agent_mode_evals"))]
+        if uses_file_backed_profiles
+            && should_migrate_legacy_cloud_profiles
             && ctx.has_singleton_model::<CloudPreferencesSyncer>()
             && CloudPreferencesSyncer::as_ref(ctx).has_completed_initial_load()
         {
@@ -422,6 +439,7 @@ impl AIExecutionProfilesModel {
     }
 
     /// Classifies a collection update into profile events and removes stale selections.
+    #[cfg(not(feature = "agent_mode_evals"))]
     fn handle_settings_profiles_changed(&mut self, ctx: &mut ModelContext<Self>) {
         let current = AISettings::as_ref(ctx).execution_profiles.value().clone();
         let previous_ids = self
@@ -451,6 +469,7 @@ impl AIExecutionProfilesModel {
     }
 
     /// Materializes the account's execution profiles into the file-backed collection.
+    #[cfg(not(feature = "agent_mode_evals"))]
     pub(crate) fn migrate_settings_profiles(&mut self, ctx: &mut ModelContext<Self>) {
         if !self.source.migrates_legacy_cloud_profiles() {
             return;
@@ -539,6 +558,7 @@ impl AIExecutionProfilesModel {
         }
     }
     /// Uploads an explicit local collection after the deferred migration check.
+    #[cfg(not(feature = "agent_mode_evals"))]
     fn sync_explicit_settings_collection(ctx: &mut ModelContext<Self>) {
         if !ctx.has_singleton_model::<CloudPreferencesSyncer>() {
             return;

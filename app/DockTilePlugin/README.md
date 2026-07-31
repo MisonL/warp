@@ -12,7 +12,7 @@ The plugin is a simple Objective-C program that listens for notifications from t
 See Mac documentation for more details:
 https://developer.apple.com/documentation/appkit/nsdocktileplugin?language=objc
 
-Note, that during development, MacOS is not great about reloading the plugin when changes are made. 
+Note, that during development, MacOS is not great about reloading the plugin when changes are made.
 
 The suggested workflow after rebuilding is to
 1. Remove the icon from the dock.

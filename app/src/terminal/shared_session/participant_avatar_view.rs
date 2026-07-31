@@ -19,6 +19,7 @@ use warpui::{
 
 use super::render_util::non_hoverable_participant_avatar;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::{PaneHeaderAction, PaneHeaderCustomAction};
 use crate::terminal::view::TerminalAction;
@@ -156,7 +157,7 @@ impl ParticipantAvatarView {
         self.is_menu_open
     }
 
-    fn context_menu_items(&self) -> Vec<MenuItem<ParticipantAvatarAction>> {
+    fn context_menu_items(&self, app: &AppContext) -> Vec<MenuItem<ParticipantAvatarAction>> {
         let participant_id = self.participant_id.clone();
         let mut items = vec![
             MenuItemFields::new(self.display_name.clone())
@@ -165,18 +166,23 @@ impl ParticipantAvatarView {
         ];
 
         match self.role {
-            Some(Role::Reader) => items.extend([MenuItemFields::new("Make editor")
-                .with_on_select_action(ParticipantAvatarAction::UpdateRole {
-                    participant_id,
-                    role: Role::Executor,
-                })
-                .into_item()]),
-            Some(Role::Executor) => items.extend([MenuItemFields::new("Make viewer")
-                .with_on_select_action(ParticipantAvatarAction::UpdateRole {
-                    participant_id,
-                    role: Role::Reader,
-                })
-                .into_item()]),
+            Some(Role::Reader) => items.extend([MenuItemFields::new(localization::text_for_app(
+                app,
+                "terminal.shared_session.menu.make_editor",
+            ))
+            .with_on_select_action(ParticipantAvatarAction::UpdateRole {
+                participant_id,
+                role: Role::Executor,
+            })
+            .into_item()]),
+            Some(Role::Executor) => items.extend([MenuItemFields::new(
+                localization::text_for_app(app, "terminal.shared_session.menu.make_viewer"),
+            )
+            .with_on_select_action(ParticipantAvatarAction::UpdateRole {
+                participant_id,
+                role: Role::Reader,
+            })
+            .into_item()]),
             // Sharer does not have context menu
             _ => {}
         }
@@ -193,7 +199,7 @@ impl ParticipantAvatarView {
     pub fn open_context_menu(&mut self, ctx: &mut ViewContext<Self>) {
         self.is_menu_open = true;
         self.menu.update(ctx, |menu, ctx| {
-            let items = self.context_menu_items();
+            let items = self.context_menu_items(ctx);
             menu.set_items(items, ctx);
         });
         ctx.notify();
@@ -488,6 +494,7 @@ pub fn render_tooltip(label: String, appearance: &Appearance) -> Box<dyn Element
 pub fn render_revoke_all_button(
     mouse_state_handle: MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let edit = Icon::Edit
         .to_warpui_icon(appearance.theme().foreground())
@@ -543,7 +550,13 @@ pub fn render_revoke_all_button(
                 );
 
             stack.add_positioned_child(
-                render_tooltip("Revoke all edit permissions".to_string(), appearance),
+                render_tooltip(
+                    localization::text_for_app(
+                        app,
+                        "shared_session.participant.revoke_all_edit_permissions",
+                    ),
+                    appearance,
+                ),
                 OffsetPositioning::offset_from_parent(
                     vec2f(0., 3.),
                     ParentOffsetBounds::Unbounded,
@@ -574,6 +587,7 @@ pub fn render_viewer_role_button(
     menu_handle: Option<ViewHandle<Menu<PaneHeaderAction<TerminalAction, TerminalAction>>>>,
     is_menu_open: bool,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let icon = match role {
         Some(role) if role.can_execute() => Icon::Edit,
@@ -581,14 +595,10 @@ pub fn render_viewer_role_button(
     };
 
     let ui_builder = appearance.ui_builder().clone();
+    let tooltip = localization::text_for_app(app, "terminal.shared_session.tooltip.change_role");
     let mut stack = Stack::new();
     let button = icon_button(appearance, icon, false, mouse_state_handle.clone())
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Change role".to_string())
-                .build()
-                .finish()
-        })
+        .with_tooltip(move || ui_builder.tool_tip(tooltip.clone()).build().finish())
         .build()
         .on_click(|ctx, _, _| {
             // We have to dispatch a pane header action because the button is rendered in the pane header.
@@ -647,6 +657,7 @@ pub fn render_participants_and_role_elements(
         row.add_child(render_revoke_all_button(
             mouse_state_handle.clone(),
             appearance,
+            app,
         ));
     }
 
@@ -667,6 +678,7 @@ pub fn render_participants_and_role_elements(
             menu_handle.clone(),
             is_menu_open,
             appearance,
+            app,
         ));
         Container::new(row.finish()).finish()
     } else {

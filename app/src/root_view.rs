@@ -8,7 +8,8 @@ use cfg_if::cfg_if;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use onboarding::{
-    AgentOnboardingEvent, AgentOnboardingView, OnboardingIntention, SelectedSettings,
+    AGENT_ONBOARDING_COPY_KEYS, AI_FEATURE_COPY_KEYS, AgentOnboardingEvent, AgentOnboardingView,
+    OnboardingCopy, OnboardingIntention, SelectedSettings,
 };
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;
@@ -911,7 +912,11 @@ fn create_environment(arg: &CreateEnvironmentArg, ctx: &mut AppContext) {
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+                        let title = crate::localization::text_for_app(
+                            ctx,
+                            "agent_management.cloud_setup.workflow.create_environment",
+                        );
+                        pane_group.set_title(&title, ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -944,7 +949,11 @@ fn create_environment_and_run(arg: &CreateEnvironmentArg, ctx: &mut AppContext) 
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+                        let title = crate::localization::text_for_app(
+                            ctx,
+                            "agent_management.cloud_setup.workflow.create_environment",
+                        );
+                        pane_group.set_title(&title, ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -1097,7 +1106,10 @@ fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
 
 fn display_object_missing_error_in_window(window_id: WindowId, ctx: &mut AppContext) {
     crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-        let toast = DismissibleToast::error(String::from("Resource not found or access denied"));
+        let toast = DismissibleToast::error(crate::localization::text_for_app(
+            ctx,
+            "workspace.toast.resource_not_found_or_access_denied",
+        ));
         toast_stack.add_ephemeral_toast(toast, window_id, ctx);
     });
 }
@@ -1963,6 +1975,7 @@ impl RootView {
                 .has_any_overrides();
 
             let auth_state = current_onboarding_auth_state(ctx);
+            let copy = build_agent_onboarding_copy(ctx);
 
             AgentOnboardingView::new(
                 themes.clone(),
@@ -1972,6 +1985,7 @@ impl RootView {
                 workspace_enforces_autonomy,
                 FeatureFlag::AgentView.is_enabled(),
                 auth_state,
+                copy,
                 ctx,
             )
         });
@@ -2688,7 +2702,11 @@ impl RootView {
                 workspace
                     .active_tab_pane_group()
                     .update(ctx, |pane_group, ctx| {
-                        pane_group.set_title("Create Environment", ctx);
+                        let title = crate::localization::text_for_app(
+                            ctx,
+                            "agent_management.cloud_setup.workflow.create_environment",
+                        );
+                        pane_group.set_title(&title, ctx);
 
                         if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                             terminal_view.update(ctx, |_, ctx| {
@@ -2733,7 +2751,11 @@ impl RootView {
             workspace
                 .active_tab_pane_group()
                 .update(ctx, |pane_group, ctx| {
-                    pane_group.set_title("Create Environment", ctx);
+                    let title = crate::localization::text_for_app(
+                        ctx,
+                        "agent_management.cloud_setup.workflow.create_environment",
+                    );
+                    pane_group.set_title(&title, ctx);
 
                     if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                         terminal_view.update(ctx, |_, ctx| {
@@ -3291,6 +3313,13 @@ impl RootView {
 
         traffic_light_data(ctx, self.window_id)
     }
+}
+
+fn build_agent_onboarding_copy(ctx: &AppContext) -> OnboardingCopy {
+    let keys = AGENT_ONBOARDING_COPY_KEYS
+        .iter()
+        .chain(AI_FEATURE_COPY_KEYS.iter());
+    OnboardingCopy::new(keys.map(|key| (*key, crate::localization::text_for_app(ctx, key))))
 }
 
 #[derive(Clone, Debug)]

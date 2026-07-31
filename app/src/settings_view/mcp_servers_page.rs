@@ -16,6 +16,7 @@ use crate::ai::mcp::{
 };
 use crate::appearance::Appearance;
 use crate::cloud_object::Space;
+use crate::localization;
 use crate::modal::{Modal, ModalViewState};
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::settings_view::SettingsSection;
@@ -51,7 +52,6 @@ pub enum InstallOrigin {
     Deeplink,
 }
 
-const PAGE_TITLE_TEXT: &str = "MCP Servers";
 #[derive(Debug, Default, Copy, Clone)]
 pub enum MCPServersSettingsPage {
     #[default]
@@ -103,7 +103,7 @@ impl MCPServersSettingsPageView {
         Self {
             page: PageType::new_monolith(
                 MCPServersSettingsWidget::default(),
-                Some(PAGE_TITLE_TEXT),
+                Some("settings.mcp.page.title"),
                 true,
             ),
             current_page: MCPServersSettingsPage::default(),
@@ -149,8 +149,12 @@ impl MCPServersSettingsPageView {
         ctx: &mut ViewContext<Self>,
     ) {
         let message = match server_name {
-            Some(name) => format!("Successfully logged out of {name} MCP server"),
-            None => "Successfully logged out of MCP server".to_string(),
+            Some(name) => localization::text_for_app_with_args(
+                ctx,
+                "settings.mcp.page.logged_out_named",
+                &[("name", name.as_str())],
+            ),
+            None => localization::text_for_app(ctx, "settings.mcp.page.logged_out"),
         };
         match item_id {
             ServerCardItemId::TemplatableMCP(_) => {
@@ -316,7 +320,7 @@ impl MCPServersSettingsPageView {
                 "Ignoring MCP deeplink autoinstall for '{autoinstall_param}': installation modal already open"
             );
             self.add_error_toast(
-                "Finish the current MCP install before opening another install link.".to_string(),
+                localization::text_for_app(ctx, "settings.mcp.page.error.finish_current_install"),
                 ctx,
             );
             return;
@@ -331,7 +335,14 @@ impl MCPServersSettingsPageView {
             log::warn!(
                 "Unrecognized autoinstall value '{autoinstall_param}': no matching gallery item found"
             );
-            self.add_error_toast(format!("Unknown MCP server '{autoinstall_param}'"), ctx);
+            self.add_error_toast(
+                localization::text_for_app_with_args(
+                    ctx,
+                    "settings.mcp.page.error.unknown_server",
+                    &[("name", autoinstall_param)],
+                ),
+                ctx,
+            );
             return;
         };
 
@@ -359,7 +370,11 @@ impl MCPServersSettingsPageView {
             // gallery entry cannot be turned into a valid template. Surface the
             // failure to the user rather than silently returning.
             self.add_error_toast(
-                format!("MCP server '{gallery_title}' cannot be installed from this link."),
+                localization::text_for_app_with_args(
+                    ctx,
+                    "settings.mcp.page.error.cannot_install_from_link",
+                    &[("name", &gallery_title)],
+                ),
                 ctx,
             );
             return;

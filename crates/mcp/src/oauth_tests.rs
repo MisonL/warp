@@ -203,6 +203,7 @@ async fn loopback_oauth_completes_dcr_and_code_exchange() {
         persisted_credentials: None,
         is_headless: false,
         is_file_based: true,
+        headless_authentication_required_message: "MCP server requires OAuth authentication. Please authenticate this server in the Warp desktop app first, then try again.".to_string(),
         persist_credentials: Box::new(move |_, credentials| {
             let persisted_tx = persisted_tx.clone();
             Box::pin(async move {

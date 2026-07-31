@@ -22,12 +22,13 @@
 #   SKIP_SETTINGS_SCHEMA: Set to "1" to skip generating the JSON settings
 #                         schema. By default the schema is always generated
 #                         so that production bundles never accidentally omit it.
-#   SETTINGS_SCHEMA_CACHE: Path to a cache file for the generated schema.
-#                          When set, the first invocation generates the schema
-#                          and saves a copy to this path; subsequent invocations
-#                          copy from the cache instead of regenerating. This
-#                          avoids redundant compilations when bundling multiple
-#                          package formats for the same channel.
+#   SETTINGS_SCHEMA_CACHE: Base path for generated-schema cache files.
+#                          When set, each effective channel and locale is cached
+#                          independently at
+#                          "$SETTINGS_SCHEMA_CACHE.<channel>.<locale>.json".
+#                          This avoids redundant compilations when bundling
+#                          multiple package formats without mixing channels or
+#                          locales. An omitted channel uses "dev".
 
 set -e
 
@@ -129,31 +130,44 @@ fi
 
 # Generate settings JSON schema unless explicitly skipped.
 if [ "${SKIP_SETTINGS_SCHEMA:-}" != "1" ]; then
-  SCHEMA_OUTPUT="$DEST_DIR/settings_schema.json"
-
-  if [ -n "${SETTINGS_SCHEMA_CACHE:-}" ] && [ -f "$SETTINGS_SCHEMA_CACHE" ]; then
-    echo "Copying cached settings schema to $SCHEMA_OUTPUT"
-    cp "$SETTINGS_SCHEMA_CACHE" "$SCHEMA_OUTPUT"
-  else
-    echo "Generating settings schema at $SCHEMA_OUTPUT"
-
-    SCHEMA_CMD=(cargo run)
-    if [ -n "$CARGO_PROFILE" ]; then
-      SCHEMA_CMD+=(--profile "$CARGO_PROFILE")
-    fi
-    SCHEMA_CMD+=(--manifest-path "$REPO_ROOT/Cargo.toml" --bin generate_settings_schema --)
-    if [ -n "$CHANNEL" ]; then
-      SCHEMA_CMD+=(--channel "$CHANNEL")
-    fi
-    SCHEMA_CMD+=("$SCHEMA_OUTPUT")
-
-    "${SCHEMA_CMD[@]}"
+  generate_settings_schema() {
+    local locale="$1"
+    local schema_name="$2"
+    local schema_output="$DEST_DIR/$schema_name"
+    local schema_cache=""
+    local schema_channel="${CHANNEL:-dev}"
 
     if [ -n "${SETTINGS_SCHEMA_CACHE:-}" ]; then
-      echo "Caching settings schema at $SETTINGS_SCHEMA_CACHE"
-      cp "$SCHEMA_OUTPUT" "$SETTINGS_SCHEMA_CACHE"
+      schema_cache="${SETTINGS_SCHEMA_CACHE}.${schema_channel}.${locale}.json"
     fi
-  fi
+
+    if [ -n "$schema_cache" ] && [ -f "$schema_cache" ]; then
+      echo "Copying cached $locale settings schema to $schema_output"
+      cp "$schema_cache" "$schema_output"
+      return
+    fi
+
+    echo "Generating $locale settings schema at $schema_output"
+    local schema_cmd=(cargo run)
+    if [ -n "$CARGO_PROFILE" ]; then
+      schema_cmd+=(--profile "$CARGO_PROFILE")
+    fi
+    schema_cmd+=(--manifest-path "$REPO_ROOT/Cargo.toml" --bin generate_settings_schema --)
+    if [ -n "$CHANNEL" ]; then
+      schema_cmd+=(--channel "$CHANNEL")
+    fi
+    schema_cmd+=(--locale "$locale" "$schema_output")
+    "${schema_cmd[@]}"
+
+    if [ -n "$schema_cache" ]; then
+      mkdir -p "$(dirname "$schema_cache")"
+      echo "Caching $locale settings schema at $schema_cache"
+      cp "$schema_output" "$schema_cache"
+    fi
+  }
+
+  generate_settings_schema "en-US" "settings_schema.json"
+  generate_settings_schema "zh-CN" "settings_schema.zh-CN.json"
 fi
 
 echo "Successfully prepared bundled resources in $DEST_DIR"

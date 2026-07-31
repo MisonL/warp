@@ -21,7 +21,7 @@ use warpui::elements::{
     SavePosition, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{Properties, Style, Weight};
-use warpui::keymap::EditableBinding;
+use warpui::keymap::{BindingDescription, EditableBinding};
 use warpui::text::point::Point;
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::button::ButtonVariant;
@@ -73,7 +73,7 @@ use crate::util::path::{display_name_with_host, display_path_with_host};
 use crate::view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView};
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::{ActiveSession, TabBarDropTargetData, ToastStack, WorkspaceAction};
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
+use crate::{TelemetryEvent, localization, send_telemetry_from_ctx};
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut CodeView, &mut ViewContext<CodeView>) + Send + Sync + 'static>;
@@ -88,6 +88,15 @@ const TAB_PADDING: f32 = 2.;
 pub const SAVE_FILE_BINDING_NAME: &str = "code_view:save";
 pub const SAVE_FILE_BINDING_DESCRIPTION: &str = "Save file";
 
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(localization::text_for_app(app, key)))
+}
+
+pub fn save_file_binding_description() -> BindingDescription {
+    binding_description(SAVE_FILE_BINDING_DESCRIPTION, "code.binding.save_file")
+}
+
 pub fn init(app: &mut AppContext) {
     super::editor::view::init(app);
     super::local_code_editor::init(app);
@@ -96,28 +105,28 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             SAVE_FILE_BINDING_NAME,
-            SAVE_FILE_BINDING_DESCRIPTION,
+            save_file_binding_description(),
             CodeViewAction::SaveFile,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("cmdorctrl-s"),
         EditableBinding::new(
             "code_view:save_as",
-            "Save file as",
+            binding_description("Save file as", "code.binding.save_file_as"),
             CodeViewAction::SaveFileAs,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("cmdorctrl-shift-S"),
         EditableBinding::new(
             "code_view:close_all_tabs",
-            "Close all tabs",
+            binding_description("Close all tabs", "code.binding.close_all_tabs"),
             CodeViewAction::CloseAll,
         )
         .with_context_predicate(id!("CodeEditorView"))
         .with_key_binding("cmdorctrl-r w"),
         EditableBinding::new(
             "code_view:close_saved_tabs",
-            "Close saved tabs",
+            binding_description("Close saved tabs", "code.binding.close_saved_tabs"),
             CodeViewAction::CloseSaved,
         )
         .with_context_predicate(id!("CodeEditorView"))
@@ -827,7 +836,7 @@ impl CodeView {
 
         let title = match &file_location {
             Some(location) => display_path_with_host(location, false, ctx),
-            None => "Untitled".to_string(),
+            None => crate::localization::text_for_app(ctx, "code.tab.untitled"),
         };
 
         self.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -835,7 +844,10 @@ impl CodeView {
             if self.tab_group.len() > 1 {
                 secondary.push_str(&format!(" (+{})", self.tab_group.len() - 1));
             } else if is_new {
-                secondary.push_str(" (new)");
+                secondary.push_str(&crate::localization::text_for_app(
+                    ctx,
+                    "code.tab.new_suffix",
+                ));
             }
 
             pane_config.set_title(title, ctx);
@@ -926,33 +938,40 @@ impl CodeView {
 
     fn display_load_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(String::from("Failed to load file."))
-                .with_object_id("failed_to_load_file".to_string());
+            let toast =
+                DismissibleToast::error(localization::text_for_app(ctx, "code.toast.load_failed"))
+                    .with_object_id("failed_to_load_file".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
 
     fn display_save_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(String::from("Failed to save file."))
-                .with_object_id("failed_to_save_file".to_string());
+            let toast =
+                DismissibleToast::error(localization::text_for_app(ctx, "code.toast.save_failed"))
+                    .with_object_id("failed_to_save_file".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
 
     fn display_remote_disconnected_save_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast =
-                DismissibleToast::error(String::from("Cannot save — remote session disconnected."))
-                    .with_object_id("failed_to_save_file_remote_disconnected".to_string());
+            let toast = DismissibleToast::error(localization::text_for_app(
+                ctx,
+                "code.toast.save_failed_remote_disconnected",
+            ))
+            .with_object_id("failed_to_save_file_remote_disconnected".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
 
     fn display_save_success(window_id: WindowId, ctx: &mut ViewContext<Self>) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::success(String::from("File saved."))
-                .with_object_id("file_saved".to_string());
+            let toast = DismissibleToast::success(localization::text_for_app(
+                ctx,
+                "code.toast.save_succeeded",
+            ))
+            .with_object_id("file_saved".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -1125,7 +1144,10 @@ impl CodeView {
                                     ButtonVariant::Outlined,
                                     tab.mouse_state_handles.reject_mouse_state.clone(),
                                 )
-                                .with_text_label("Reject".to_string())
+                                .with_text_label(crate::localization::text_for_app(
+                                    app,
+                                    "code.action.reject",
+                                ))
                                 .build()
                                 .on_click(|ctx, _, _| {
                                     ctx.dispatch_typed_action(CodeViewAction::RejectPendingDiffs)
@@ -1143,7 +1165,10 @@ impl CodeView {
                                     ButtonVariant::Outlined,
                                     tab.mouse_state_handles.accept_mouse_state.clone(),
                                 )
-                                .with_text_label("Accept and save".to_string())
+                                .with_text_label(crate::localization::text_for_app(
+                                    app,
+                                    "code.action.accept_and_save",
+                                ))
                                 .build()
                                 .on_click(|ctx, _, _| {
                                     ctx.dispatch_typed_action(
@@ -1596,7 +1621,7 @@ impl CodeView {
             .as_ref()
             .map(|loc| display_name_with_host(loc, app))
             .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| "Untitled".to_string());
+            .unwrap_or_else(|| crate::localization::text_for_app(app, "code.tab.untitled"));
         let language_icon =
             icon_from_file_path(&file_name, appearance, ItemHighlightState::Default);
         row.add_child(
@@ -1975,7 +2000,7 @@ impl CodeView {
                     .map(|loc| display_name_with_host(loc, app))
                     .filter(|n| !n.is_empty())
             })
-            .unwrap_or_else(|| "Untitled".to_string());
+            .unwrap_or_else(|| crate::localization::text_for_app(app, "code.tab.untitled"));
 
         let appearance = Appearance::as_ref(app);
         let is_pane_dragging = header_ctx.draggable_state.is_dragging();
@@ -2113,10 +2138,13 @@ impl CodeView {
         };
 
         let mut items = vec![
-            MenuItemFields::new_with_label("Close saved", &format!("{modifier_keys} U"))
-                .with_on_select_action(CodeViewAction::CloseSaved)
-                .into_item(),
-            MenuItemFields::toggle_pane_action(is_maximized)
+            MenuItemFields::new_with_label(
+                localization::text_for_app(ctx, "code.menu.close_saved"),
+                format!("{modifier_keys} U"),
+            )
+            .with_on_select_action(CodeViewAction::CloseSaved)
+            .into_item(),
+            MenuItemFields::toggle_pane_action(is_maximized, ctx)
                 .with_on_select_action(CodeViewAction::ToggleMaximized)
                 .into_item(),
         ];
@@ -2131,9 +2159,12 @@ impl CodeView {
             if active_location.is_some() {
                 items.push(MenuItem::Separator);
                 items.push(
-                    MenuItemFields::new("Copy file path")
-                        .with_on_select_action(CodeViewAction::CopyFilePath)
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "code.menu.copy_file_path",
+                    ))
+                    .with_on_select_action(CodeViewAction::CopyFilePath)
+                    .into_item(),
                 );
             }
 
@@ -2166,9 +2197,12 @@ impl CodeView {
                 });
             if renders_in_notebook_viewer {
                 items.push(
-                    MenuItemFields::new("View Markdown preview")
-                        .with_on_select_action(CodeViewAction::RenderMarkdown)
-                        .into_item(),
+                    MenuItemFields::new(localization::text_for_app(
+                        ctx,
+                        "code.menu.view_markdown_preview",
+                    ))
+                    .with_on_select_action(CodeViewAction::RenderMarkdown)
+                    .into_item(),
                 );
             }
         }

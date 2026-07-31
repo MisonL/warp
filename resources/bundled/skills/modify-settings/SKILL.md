@@ -1,6 +1,7 @@
 ---
 name: modify-settings
 description: View or modify Warp application settings using the bundled JSON schema for guidance
+description_zh_CN: 借助内置 JSON schema 查看或修改 Warp 应用设置。
 ---
 
 # modify-settings

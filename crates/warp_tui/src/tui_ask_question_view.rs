@@ -16,17 +16,22 @@ use warpui_core::elements::tui::{
     Modifier, TuiChildView, TuiContainer, TuiElement, TuiFlex, TuiParentElement, TuiText,
 };
 use warpui_core::keymap::macros::*;
-use warpui_core::keymap::{EditableBinding, FixedBinding};
+use warpui_core::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui_core::{
     AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext, ViewHandle,
 };
 
 use crate::keybindings::{TUI_BINDING_GROUP, is_tui_owned_binding};
+use crate::localization;
 use crate::option_selector::{OptionSelectorPage, TuiOptionSelector, TuiOptionSelectorEvent};
 use crate::tui_builder::TuiUiBuilder;
 
 const ASK_QUESTION_ACTIVE: &str = "TuiAskQuestionActive";
 const AUTO_ADVANCE_DELAY: Duration = Duration::from_millis(300);
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| Some(localization::text(key)))
+}
 
 /// Registers controls that must win over the surrounding terminal session
 /// while an ask-question card is the active blocker.
@@ -41,7 +46,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "tui:ask-question:confirm",
-            "Select or confirm the highlighted answer",
+            binding_description(
+                "Select or confirm the highlighted answer",
+                "tui.ask_question.binding.confirm",
+            ),
             TuiAskQuestionViewAction::Enter,
         )
         .with_context_predicate(predicate.clone())
@@ -49,7 +57,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("enter"),
         EditableBinding::new(
             "tui:ask-question:previous",
-            "Show the previous question",
+            binding_description(
+                "Show the previous question",
+                "tui.ask_question.binding.previous",
+            ),
             TuiAskQuestionViewAction::Previous,
         )
         .with_context_predicate(predicate.clone())
@@ -57,7 +68,7 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("left"),
         EditableBinding::new(
             "tui:ask-question:next",
-            "Show the next question",
+            binding_description("Show the next question", "tui.ask_question.binding.next"),
             TuiAskQuestionViewAction::Next,
         )
         .with_context_predicate(predicate.clone())
@@ -65,7 +76,7 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("right"),
         EditableBinding::new(
             "tui:ask-question:next",
-            "Show the next question",
+            binding_description("Show the next question", "tui.ask_question.binding.next"),
             TuiAskQuestionViewAction::Next,
         )
         .with_context_predicate(predicate)
@@ -194,7 +205,7 @@ impl TuiAskQuestionView {
             .question
             .supports_other()
             .then(|| OptionFooter::CustomText {
-                label: "Other…".to_owned(),
+                label: localization::text("tui.ask_question.other"),
             });
         let selected_id = current.draft.and_then(|draft| {
             draft.other_text.clone().or_else(|| {
@@ -382,7 +393,13 @@ impl TuiAskQuestionView {
         let position = TuiText::from_spans([
             ("← ".to_owned(), builder.muted_text_style()),
             (format!("{index} "), builder.primary_text_style()),
-            (format!("of {total} "), builder.muted_text_style()),
+            (
+                localization::text_with_args(
+                    "tui.option_selector.position_suffix",
+                    &[("total", &total.to_string())],
+                ),
+                builder.muted_text_style(),
+            ),
             ("→".to_owned(), builder.muted_text_style()),
         ])
         .finish();
@@ -391,7 +408,7 @@ impl TuiAskQuestionView {
                 TuiText::from_spans([
                     ("■ ".to_owned(), builder.attention_glyph_style()),
                     (
-                        "Agent questions".to_owned(),
+                        localization::text("tui.ask_question.title"),
                         builder.primary_text_style().add_modifier(Modifier::BOLD),
                     ),
                 ])
@@ -400,10 +417,14 @@ impl TuiAskQuestionView {
             .flex_child(TuiFlex::row().finish())
             .child(position)
             .finish();
-        let mut question = current.question.question.clone();
-        if current.question.is_multiselect() {
-            question.push_str(" (select all that apply)");
-        }
+        let question = if current.question.is_multiselect() {
+            localization::text_with_args(
+                "tui.ask_question.multiselect_question",
+                &[("question", &current.question.question)],
+            )
+        } else {
+            current.question.question.clone()
+        };
         let body = TuiFlex::column()
             .child(header)
             .child(TuiText::new(" ").finish())
@@ -416,12 +437,30 @@ impl TuiAskQuestionView {
             .child(TuiText::new(" ").finish())
             .child(
                 TuiText::from_spans([
-                    ("Enter or number ".to_owned(), builder.primary_text_style()),
-                    ("to select  ".to_owned(), builder.muted_text_style()),
-                    ("Tab or ← → ".to_owned(), builder.primary_text_style()),
-                    ("to navigate  ".to_owned(), builder.muted_text_style()),
-                    ("Ctrl + C ".to_owned(), builder.primary_text_style()),
-                    ("to skip all".to_owned(), builder.muted_text_style()),
+                    (
+                        localization::text("tui.ask_question.key.select"),
+                        builder.primary_text_style(),
+                    ),
+                    (
+                        localization::text("tui.ask_question.footer.select"),
+                        builder.muted_text_style(),
+                    ),
+                    (
+                        localization::text("tui.ask_question.key.navigate"),
+                        builder.primary_text_style(),
+                    ),
+                    (
+                        localization::text("tui.ask_question.footer.navigate"),
+                        builder.muted_text_style(),
+                    ),
+                    (
+                        localization::text("tui.ask_question.key.skip_all"),
+                        builder.primary_text_style(),
+                    ),
+                    (
+                        localization::text("tui.ask_question.footer.skip_all"),
+                        builder.muted_text_style(),
+                    ),
                 ])
                 .truncate()
                 .finish(),
@@ -439,7 +478,7 @@ impl TuiAskQuestionView {
         TuiText::from_spans([
             ("■ ".to_owned(), builder.muted_text_style()),
             (
-                "Questions unavailable".to_owned(),
+                localization::text("tui.ask_question.unavailable"),
                 builder.muted_text_style(),
             ),
         ])
@@ -453,11 +492,13 @@ impl TuiAskQuestionView {
     ) -> Box<dyn TuiElement> {
         match result {
             AskUserQuestionResult::Success { answers } => self.render_answers(answers, app),
-            AskUserQuestionResult::SkippedByAutoApprove { .. } => {
-                self.render_summary("Questions skipped due to auto-approve", false, app)
-            }
+            AskUserQuestionResult::SkippedByAutoApprove { .. } => self.render_summary(
+                &localization::text("tui.ask_question.auto_approved"),
+                false,
+                app,
+            ),
             AskUserQuestionResult::Error(_) | AskUserQuestionResult::Cancelled => {
-                self.render_summary("Questions skipped", false, app)
+                self.render_summary(&localization::text("tui.tool.question.skipped"), false, app)
             }
         }
     }
@@ -470,13 +511,22 @@ impl TuiAskQuestionView {
         let answered = answers.iter().filter(|answer| !answer.is_skipped()).count();
         let total = answers.len();
         let label = if answered == 0 {
-            "Questions skipped".to_owned()
+            localization::text("tui.tool.question.skipped")
         } else if answered == total && total == 1 {
-            "Answered question".to_owned()
+            localization::text("tui.tool.question.answered_one")
         } else if answered == total {
-            format!("Answered all {total} questions")
+            localization::text_with_args(
+                "tui.tool.question.answered_all",
+                &[("count", &total.to_string())],
+            )
         } else {
-            format!("Answered {answered} of {total} questions")
+            localization::text_with_args(
+                "tui.tool.question.answered_some",
+                &[
+                    ("answered", &answered.to_string()),
+                    ("total", &total.to_string()),
+                ],
+            )
         };
         let builder = TuiUiBuilder::from_app(app);
         let mut content = TuiFlex::column();
@@ -491,19 +541,25 @@ impl TuiAskQuestionView {
                     }
                 })
                 .map(AskUserQuestionAnswerItem::display_text)
-                .unwrap_or_else(|| "Skipped".to_owned());
+                .unwrap_or_else(|| localization::text("tui.ask_question.answer_skipped"));
             content.add_child(
                 TuiContainer::new(
                     TuiFlex::column()
                         .child(
-                            TuiText::new(format!("Q: {}", question.question))
-                                .with_style(builder.primary_text_style())
-                                .finish(),
+                            TuiText::new(localization::text_with_args(
+                                "tui.ask_question.question_prefix",
+                                &[("question", &question.question)],
+                            ))
+                            .with_style(builder.primary_text_style())
+                            .finish(),
                         )
                         .child(
-                            TuiText::new(format!("A: {answer}"))
-                                .with_style(builder.muted_text_style())
-                                .finish(),
+                            TuiText::new(localization::text_with_args(
+                                "tui.ask_question.answer_prefix",
+                                &[("answer", &answer)],
+                            ))
+                            .with_style(builder.muted_text_style())
+                            .finish(),
                         )
                         .finish(),
                 )
@@ -574,7 +630,8 @@ impl TuiView for TuiAskQuestionView {
             return self.render_unavailable(app);
         }
         if status.is_none() && self.should_restore_as_skipped(app) {
-            return self.render_summary("Questions skipped", false, app);
+            let skipped = localization::text("tui.tool.question.skipped");
+            return self.render_summary(&skipped, false, app);
         }
         match self.session.phase() {
             AskUserQuestionPhase::Completed { answers } => self.render_answers(answers, app),
@@ -585,7 +642,10 @@ impl TuiView for TuiAskQuestionView {
                 let builder = TuiUiBuilder::from_app(app);
                 TuiText::from_spans([
                     ("○ ".to_owned(), builder.muted_text_style()),
-                    ("Agent questions".to_owned(), builder.muted_text_style()),
+                    (
+                        localization::text("tui.ask_question.title"),
+                        builder.muted_text_style(),
+                    ),
                 ])
                 .finish()
             }

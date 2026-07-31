@@ -31,13 +31,14 @@ use super::transcript::{Transcript, TranscriptEvent};
 use super::utils::{TranscriptPart, render_prepared_response_button, render_request_limit_info};
 use super::{
     AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AI_ASSISTANT_SVG_PATH,
-    ASK_AI_ASSISTANT_TEXT, AskAIType, PROMPT_CHARACTER_LIMIT,
+    ASK_WARP_AI_MENU_KEY, AskAIType, PROMPT_CHARACTER_LIMIT,
 };
 use crate::appearance::Appearance;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
 };
 use crate::input_suggestions::{Event as InputSuggestionsEvent, InputSuggestions};
+use crate::localization::LocalizationUpdater;
 use crate::send_telemetry_from_ctx;
 use crate::server::server_api::ServerApi;
 use crate::server::server_api::ai::AIClient;
@@ -69,15 +70,10 @@ const BODY_FONT_SIZE: f32 = 13.;
 const TITLE_FONT_SIZE: f32 = 16.;
 const ZERO_STATE_HELP_TEXT_FONT_SIZE: f32 = 12.;
 
-const ZERO_STATE_HELP_TEXT: &str = "Shift + ctrl + space a block or text selection to ask Warp AI.";
-const SCRIPT_ZERO_STATE_PROMPT: &str = "Write a script to connect to an AWS EC2 instance.";
-const GIT_ZERO_STATE_PROMPT: &str = "How do I undo the most recent commits in git?";
-const FILES_ZERO_STATE_PROMPT: &str = "How do I find all files containing specific text?";
-
-// The placeholder texts are prepended with a space to give them cushion from the cursor.
-const INIT_PLACEHOLDER_TEXT: &str = " Ask a question...";
-const FOLLOWUP_PLACEHOLDER_TEXT: &str = " Type a response or click one above...";
-const RESTART_BUTTON_TEXT: &str = "Restart";
+const ZERO_STATE_HELP_TEXT_KEY: &str = "ai_assistant.zero_state.help_text";
+const SCRIPT_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.script";
+const GIT_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.git";
+const FILES_ZERO_STATE_PROMPT_KEY: &str = "ai_assistant.zero_state.prompt.files";
 
 const ASK_AI_BLOCK_INPUT_LIMIT: usize = 100;
 
@@ -122,6 +118,7 @@ pub struct AIAssistantPanelView {
     input_suggestions_mode: InputSuggestionsMode,
     requests_model: ModelHandle<Requests>,
     focus_state: PanelFocusState,
+    use_followup_placeholder: bool,
 
     resizable_state_handle: ResizableStateHandle,
     mouse_state_handles: MouseStateHandles,
@@ -132,7 +129,10 @@ pub enum AIAssistantAction {
     ClosePanel,
     ResetContext,
     CopyTranscript,
-    PreparedPrompt(&'static str),
+    PreparedPrompt {
+        prompt: String,
+        telemetry_prompt: &'static str,
+    },
     ClickedUrl(HyperlinkUrl),
     CopyAnswerToClipboard(Arc<String>),
     FocusTerminalInput,
@@ -174,6 +174,72 @@ pub fn init(app: &mut AppContext) {
     ]);
 }
 
+fn format_as_code_block(content: &str) -> String {
+    format!("```warp\n{}\n```", content.trim())
+}
+
+pub(crate) fn build_from_block_prompt(
+    input: &str,
+    output: &str,
+    block_successful: bool,
+    app: &AppContext,
+) -> String {
+    let question_key = if block_successful {
+        "ai_assistant.followup_prompt.what_next"
+    } else {
+        "ai_assistant.followup_prompt.how_fix"
+    };
+    let question = crate::localization::text_for_app(app, question_key);
+    let empty_output = format_as_code_block("");
+    let fixed_content = crate::localization::text_for_app_with_args(
+        app,
+        "ai_assistant.followup_prompt.from_block",
+        &[
+            ("command", ""),
+            ("output", &empty_output),
+            ("question", &question),
+        ],
+    );
+    let fixed_len = fixed_content.chars().count();
+    let input_len = input.chars().count();
+    let output_len = output.chars().count();
+
+    let truncated_input = if input_len + output_len + fixed_len > PROMPT_CHARACTER_LIMIT
+        && input_len > ASK_AI_BLOCK_INPUT_LIMIT
+    {
+        let truncated: String = input.chars().take(ASK_AI_BLOCK_INPUT_LIMIT).collect();
+        format!("{truncated}...")
+    } else {
+        input.to_string()
+    };
+    let truncated_input_len = truncated_input.chars().count();
+
+    let truncated_output = if truncated_input_len + output_len + fixed_len > PROMPT_CHARACTER_LIMIT
+    {
+        let keep = PROMPT_CHARACTER_LIMIT
+            .saturating_sub(truncated_input_len + fixed_len)
+            .saturating_sub(3);
+        let truncated: String = output
+            .chars()
+            .skip(output_len.saturating_sub(keep))
+            .collect();
+        format!("...{truncated}")
+    } else {
+        output.to_string()
+    };
+    let formatted_output = format_as_code_block(&truncated_output);
+
+    crate::localization::text_for_app_with_args(
+        app,
+        "ai_assistant.followup_prompt.from_block",
+        &[
+            ("command", &truncated_input),
+            ("output", &formatted_output),
+            ("question", &question),
+        ],
+    )
+}
+
 impl AIAssistantPanelView {
     pub fn new(
         server_api: Arc<ServerApi>,
@@ -197,7 +263,13 @@ impl AIAssistantPanelView {
             })
         };
         editor.update(ctx, |editor, ctx| {
-            editor.set_placeholder_text(INIT_PLACEHOLDER_TEXT, ctx)
+            editor.set_placeholder_text(
+                format!(
+                    " {}",
+                    crate::localization::text_for_app(ctx, "ai_assistant.placeholder.initial")
+                ),
+                ctx,
+            )
         });
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| {
             me.handle_editor_event(event, ctx);
@@ -212,6 +284,9 @@ impl AIAssistantPanelView {
             me.handle_requests_model_event(event, ctx);
         });
         ctx.observe(&requests_model, |_, _, ctx| ctx.notify());
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |view, _, _, ctx| {
+            view.refresh_localized_text(ctx);
+        });
 
         let transcript_view =
             ctx.add_typed_action_view(|ctx| Transcript::new(&requests_model, ctx));
@@ -243,6 +318,7 @@ impl AIAssistantPanelView {
             input_suggestions_mode: InputSuggestionsMode::Closed,
             requests_model,
             focus_state: PanelFocusState::Editor,
+            use_followup_placeholder: false,
 
             resizable_state_handle,
             mouse_state_handles: Default::default(),
@@ -286,7 +362,26 @@ impl AIAssistantPanelView {
     fn format_as_code_block(&self, content: &str) -> String {
         // Intentionally choose a language that won't be interpreted as a shell language
         // i.e. (*sh)
-        format!("```warp\n{}\n```", content.trim())
+        format_as_code_block(content)
+    }
+
+    fn set_localized_editor_placeholder(&mut self, ctx: &mut ViewContext<Self>) {
+        let key = if self.use_followup_placeholder {
+            "ai_assistant.placeholder.followup"
+        } else {
+            "ai_assistant.placeholder.initial"
+        };
+        self.editor.update(ctx, |editor, ctx| {
+            editor.set_placeholder_text(
+                format!(" {}", crate::localization::text_for_app(ctx, key)),
+                ctx,
+            );
+        });
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.set_localized_editor_placeholder(ctx);
+        ctx.notify();
     }
 
     // TODO: reconsider if we should be doing all the formatting in here as opposed
@@ -298,36 +393,36 @@ impl AIAssistantPanelView {
                 populate_input_box,
             } => {
                 if *populate_input_box {
-                    let prefix = "Explain the following:\n";
-                    let code_block_formatting_len = self.format_as_code_block("").len();
-                    let truncated =
-                        if text.chars().count() + prefix.len() + code_block_formatting_len
-                            > PROMPT_CHARACTER_LIMIT
-                        {
-                            // Take the first k characters of the text selection, where k is the
-                            // remaining length after we limit the prompt and add formatting to it.
-                            let truncated: String = text
-                                .chars()
-                                // Take 3 for the ellipsis
-                                .take(
-                                    PROMPT_CHARACTER_LIMIT
-                                        - prefix.len()
-                                        - code_block_formatting_len
-                                        - 3,
-                                )
-                                .collect();
-                            format!("{truncated}...")
-                        } else {
-                            text.to_string()
-                        };
+                    let prefix = crate::localization::text_for_app(
+                        ctx,
+                        "ai_assistant.followup_prompt.explain_selection",
+                    );
+                    let code_block_formatting_len = self.format_as_code_block("").chars().count();
+                    let truncated = if text.chars().count()
+                        + prefix.chars().count()
+                        + code_block_formatting_len
+                        > PROMPT_CHARACTER_LIMIT
+                    {
+                        // Take the first k characters of the text selection, where k is the
+                        // remaining length after we limit the prompt and add formatting to it.
+                        let truncated: String = text
+                            .chars()
+                            // Take 3 for the ellipsis
+                            .take(
+                                PROMPT_CHARACTER_LIMIT
+                                    - prefix.chars().count()
+                                    - code_block_formatting_len
+                                    - 3,
+                            )
+                            .collect();
+                        format!("{truncated}...")
+                    } else {
+                        text.to_string()
+                    };
 
                     self.editor.update(ctx, |editor, ctx| {
                         editor.set_buffer_text(
-                            &format!(
-                                "{}{}",
-                                prefix,
-                                self.format_as_code_block(truncated.as_str())
-                            ),
+                            &format!("{prefix}{}", self.format_as_code_block(&truncated)),
                             ctx,
                         );
                     });
@@ -340,61 +435,9 @@ impl AIAssistantPanelView {
                 exit_code,
                 ..
             } => {
-                let block_successful = exit_code.was_successful();
-
-                // Formatting strings.
-                let question = if block_successful {
-                    "\nWhat should I do next?"
-                } else {
-                    "\nHow do I fix this?"
-                };
-                let prefix = "I ran the command: `";
-                let suffix = "` and got the following output:\n";
-                let code_block_formatting_len = self.format_as_code_block("").len();
-                let non_input_output_len =
-                    prefix.len() + suffix.len() + question.len() + code_block_formatting_len;
-
-                let input_len = input.chars().count();
-                let output_len = output.chars().count();
-
-                // If the input and output are longer than can be and the input is particularly large, try to
-                // shave the input down to a fixed number of chars.
-                let truncated_input = if input_len + output_len + non_input_output_len
-                    > PROMPT_CHARACTER_LIMIT
-                    && input_len > ASK_AI_BLOCK_INPUT_LIMIT
-                {
-                    let truncated: String = input.chars().take(ASK_AI_BLOCK_INPUT_LIMIT).collect();
-                    format!("{truncated}...")
-                } else {
-                    input.to_string()
-                };
-                let truncated_input_len = truncated_input.chars().count();
-
-                // If the truncated input and raw output are still longer than
-                // the allowed size, trim down the output.
-                let truncated_output = if truncated_input_len + output_len + non_input_output_len
-                    > PROMPT_CHARACTER_LIMIT
-                {
-                    // Take the last k characters of the block's output, where k is the
-                    // remaining length after we limit the prompt and add formatting to it.
-                    // + 3 for the ellipsis.
-                    let output_starting_index =
-                        output_len + truncated_input_len + non_input_output_len + 3
-                            - PROMPT_CHARACTER_LIMIT;
-                    let truncated: String = output.chars().skip(output_starting_index).collect();
-                    format!("...{truncated}")
-                } else {
-                    output.to_string()
-                };
-
-                // Insert the truncated strings (with the formatting around them) into the editor.
                 self.editor.update(ctx, |editor, ctx| {
                     editor.set_buffer_text(
-                        &format!(
-                            "{prefix}{}{suffix}{}{question}",
-                            truncated_input,
-                            self.format_as_code_block(truncated_output.as_str())
-                        ),
+                        &build_from_block_prompt(input, output, exit_code.was_successful(), ctx),
                         ctx,
                     );
                 });
@@ -561,9 +604,19 @@ impl AIAssistantPanelView {
     fn handle_requests_model_event(&mut self, event: &RequestsEvent, ctx: &mut ViewContext<Self>) {
         match event {
             RequestsEvent::RequestFinished { .. } => {
+                self.use_followup_placeholder = true;
                 self.editor.update(ctx, |editor, ctx| {
                     editor.clear_buffer_and_reset_undo_stack(ctx);
-                    editor.set_placeholder_text(FOLLOWUP_PLACEHOLDER_TEXT, ctx);
+                    editor.set_placeholder_text(
+                        format!(
+                            " {}",
+                            crate::localization::text_for_app(
+                                ctx,
+                                "ai_assistant.placeholder.followup",
+                            )
+                        ),
+                        ctx,
+                    );
                 });
                 self.transcript_view.update(ctx, |transcript_view, ctx| {
                     transcript_view.scroll_to_bottom_of_transcript(ctx);
@@ -630,9 +683,8 @@ impl AIAssistantPanelView {
             });
         }
 
-        self.editor.update(ctx, |editor, ctx| {
-            editor.set_placeholder_text(INIT_PLACEHOLDER_TEXT, ctx);
-        });
+        self.use_followup_placeholder = false;
+        self.set_localized_editor_placeholder(ctx);
 
         self.requests_model.update(ctx, |requests_model, ctx| {
             requests_model.reset(ctx);
@@ -652,17 +704,35 @@ impl AIAssistantPanelView {
         let transcript = self.transcript(ctx);
         let mut result = String::new();
         let time_now = Local::now();
+        let timestamp = time_now.format("%x %l:%M %p").to_string();
 
         result.push_str(&format!(
-            "## Warp AI Transcript ({})\n\n",
-            time_now.format("%x %l:%M %p")
+            "{}\n\n",
+            crate::localization::text_for_app_with_args(
+                ctx,
+                "ai_assistant.transcript.export_title",
+                &[("timestamp", &timestamp)],
+            )
         ));
 
         for part in transcript {
-            result.push_str(&format!("Prompt: {}\n\n", part.raw_user_prompt().trim()));
+            let prompt = part.raw_user_prompt().trim().to_string();
+            let answer = part.raw_assistant_answer().trim().to_string();
             result.push_str(&format!(
-                "Warp AI: {}\n\n",
-                part.raw_assistant_answer().trim()
+                "{}\n\n",
+                crate::localization::text_for_app_with_args(
+                    ctx,
+                    "ai_assistant.transcript.export_prompt",
+                    &[("prompt", &prompt)],
+                )
+            ));
+            result.push_str(&format!(
+                "{}\n\n",
+                crate::localization::text_for_app_with_args(
+                    ctx,
+                    "ai_assistant.transcript.export_answer",
+                    &[("answer", &answer)],
+                )
             ));
         }
 
@@ -734,13 +804,13 @@ impl AIAssistantPanelView {
             || matches!(self.request_status(app), RequestStatus::InFlight { .. })
         {
             header.add_child(
-                Container::new(Align::new(self.render_restart_button(appearance)).finish())
+                Container::new(Align::new(self.render_restart_button(appearance, app)).finish())
                     .with_margin_right(4.)
                     .finish(),
             );
 
             header.add_child(
-                Container::new(self.render_copy_transcript_button(appearance))
+                Container::new(self.render_copy_transcript_button(appearance, app))
                     .with_margin_right(4.)
                     .finish(),
             );
@@ -766,9 +836,14 @@ impl AIAssistantPanelView {
         header.finish()
     }
 
-    fn render_copy_transcript_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_copy_transcript_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let tooltip_background = appearance.theme().surface_1().into_solid();
         let ui_builder = appearance.ui_builder().clone();
+        let tooltip_text = crate::localization::text_for_app(app, "ai_assistant.copy_transcript");
         icon_button(
             appearance,
             crate::ui_components::icons::Icon::Copy,
@@ -781,7 +856,7 @@ impl AIAssistantPanelView {
                 ..Default::default()
             };
             ui_builder
-                .tool_tip("Copy transcript to clipboard".to_owned())
+                .tool_tip(tooltip_text.clone())
                 .with_style(tool_tip_style)
                 .build()
                 .finish()
@@ -792,7 +867,7 @@ impl AIAssistantPanelView {
         .finish()
     }
 
-    fn render_restart_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_restart_button(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let default_styles = UiComponentStyles {
             border_width: None,
             font_color: Some(appearance.theme().active_ui_text_color().into()),
@@ -823,7 +898,10 @@ impl AIAssistantPanelView {
                 Some(hover_style),
                 Some(hover_style),
             )
-            .with_text_label(RESTART_BUTTON_TEXT.to_owned())
+            .with_text_label(crate::localization::text_for_app(
+                app,
+                "ai_assistant.restart",
+            ))
             .build()
             .on_click(move |ctx, _, _| ctx.dispatch_typed_action(AIAssistantAction::ResetContext))
             .with_cursor(Cursor::PointingHand)
@@ -834,12 +912,16 @@ impl AIAssistantPanelView {
         &self,
         appearance: &Appearance,
         buffer_len: usize,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Flex::row()
             .with_children([
                 Container::new(
                     Text::new_inline(
-                        "Character limit exceeded.",
+                        crate::localization::text_for_app(
+                            app,
+                            "ai_assistant.character_limit_exceeded",
+                        ),
                         appearance.ui_font_family(),
                         BODY_FONT_SIZE,
                     )
@@ -903,22 +985,32 @@ impl AIAssistantPanelView {
             )
             .with_child(
                 Container::new(
-                    Text::new_inline(ASK_AI_ASSISTANT_TEXT, appearance.ui_font_family(), 14.)
-                        .with_color(sub_text_color)
-                        .finish(),
+                    Text::new_inline(
+                        crate::localization::text_for_app(app, ASK_WARP_AI_MENU_KEY),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(sub_text_color)
+                    .finish(),
                 )
                 .with_margin_top(8.)
                 .finish(),
             );
 
         if self.num_remaining_reqs(app) > 0 {
+            let git_prompt = crate::localization::text_for_app(app, GIT_ZERO_STATE_PROMPT_KEY);
+            let files_prompt = crate::localization::text_for_app(app, FILES_ZERO_STATE_PROMPT_KEY);
+            let script_prompt =
+                crate::localization::text_for_app(app, SCRIPT_ZERO_STATE_PROMPT_KEY);
             column.add_children([
                 Container::new(render_prepared_response_button(
                     appearance,
                     self.mouse_state_handles.git_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    GIT_ZERO_STATE_PROMPT,
+                    git_prompt.clone(),
+                    git_prompt,
+                    GIT_ZERO_STATE_PROMPT_KEY,
                 ))
                 .with_margin_top(20.)
                 .with_margin_bottom(10.)
@@ -928,7 +1020,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.files_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    FILES_ZERO_STATE_PROMPT,
+                    files_prompt.clone(),
+                    files_prompt,
+                    FILES_ZERO_STATE_PROMPT_KEY,
                 ))
                 .with_margin_bottom(10.)
                 .finish(),
@@ -937,7 +1031,9 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.script_zero_state_prompt.clone(),
                     Some(300.),
                     None,
-                    SCRIPT_ZERO_STATE_PROMPT,
+                    script_prompt.clone(),
+                    script_prompt,
+                    SCRIPT_ZERO_STATE_PROMPT_KEY,
                 ))
                 .finish(),
             ]);
@@ -966,7 +1062,13 @@ impl AIAssistantPanelView {
                             1.,
                             appearance
                                 .ui_builder()
-                                .wrappable_text(ZERO_STATE_HELP_TEXT.to_string(), true)
+                                .wrappable_text(
+                                    crate::localization::text_for_app(
+                                        app,
+                                        ZERO_STATE_HELP_TEXT_KEY,
+                                    ),
+                                    true,
+                                )
                                 .with_style(UiComponentStyles {
                                     font_family_id: Some(appearance.ui_font_family()),
                                     font_size: Some(ZERO_STATE_HELP_TEXT_FONT_SIZE),
@@ -1040,9 +1142,17 @@ impl TypedActionView for AIAssistantPanelView {
             ClosePanel => {
                 ctx.emit(AIAssistantPanelEvent::ClosePanel);
             }
-            PreparedPrompt(prompt) => {
-                self.issue_request(prompt.to_string(), ctx);
-                send_telemetry_from_ctx!(TelemetryEvent::UsedWarpAIPreparedPrompt { prompt }, ctx);
+            PreparedPrompt {
+                prompt,
+                telemetry_prompt,
+            } => {
+                self.issue_request(prompt.clone(), ctx);
+                send_telemetry_from_ctx!(
+                    TelemetryEvent::UsedWarpAIPreparedPrompt {
+                        prompt: telemetry_prompt
+                    },
+                    ctx
+                );
             }
             ClickedUrl(url) => {
                 ctx.open_url(&url.url);
@@ -1104,9 +1214,11 @@ impl View for AIAssistantPanelView {
             let buffer_text = self.editor.as_ref(app).buffer_text(app);
             if self.is_prompt_too_long(buffer_text.as_str()) {
                 panel.add_child(
-                    Container::new(
-                        self.render_editor_size_warning(appearance, buffer_text.chars().count()),
-                    )
+                    Container::new(self.render_editor_size_warning(
+                        appearance,
+                        buffer_text.chars().count(),
+                        app,
+                    ))
                     .with_padding_left(PANEL_HORIZONTAL_PADDING)
                     .with_padding_bottom(5.)
                     .with_padding_top(10.)
@@ -1182,3 +1294,7 @@ impl View for AIAssistantPanelView {
         .finish()
     }
 }
+
+#[cfg(test)]
+#[path = "panel_tests.rs"]
+mod tests;

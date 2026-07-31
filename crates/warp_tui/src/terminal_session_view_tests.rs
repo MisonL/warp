@@ -4,6 +4,7 @@ use warp::tui_export::{
     export_conversation_markdown, register_tui_session_view_test_singletons,
 };
 use warp_editor::model::CoreEditorModel;
+use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;
 use warpui::{
     AddWindowOptions, EntityIdMap, ModelHandle, ReadModel, SingletonEntity, UpdateModel, ViewHandle,
@@ -18,10 +19,13 @@ use warpui_core::presenter::tui::TuiPresenter;
 use warpui_core::{App, AppContext, TuiView, WindowInvalidation};
 
 use super::{
-    INLINE_MENU_TOP_PADDING_ROWS, TuiTerminalSessionEvent, export_file_success_message,
-    log_bundle_success_message, raw_prompt_if_not_blank, render_left_footer_hint,
+    INLINE_MENU_TOP_PADDING_ROWS, TuiTerminalSessionEvent, binding_description_for_locale,
+    copy_selection_hint_for_locale, export_file_success_message,
+    export_to_clipboard_hint_for_locale, log_bundle_success_message_for_locale,
+    raw_prompt_if_not_blank, render_left_footer_hint, starting_shell_hint_for_locale,
 };
 use crate::autoupdate::TuiAutoupdater;
+use crate::clipboard::ClipboardCopy;
 use crate::inline_menu::MAX_INLINE_MENU_ROWS;
 use crate::keybindings::{
     CONTEXTUAL_PLAN_TOGGLE_BINDING_NAME, KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG,
@@ -29,7 +33,9 @@ use crate::keybindings::{
 };
 use crate::orchestrated_agent_identity_styling::AgentIdentity;
 use crate::orchestration_model::TuiOrchestrationModel;
-use crate::orchestration_tab_bar::{ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, orchestration_tab_icon};
+use crate::orchestration_tab_bar::{
+    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, focus_sub_agents_hint_for_locale, orchestration_tab_icon,
+};
 use crate::root_view::RootTuiView;
 use crate::session_registry::{TuiSessionId, TuiSessions};
 use crate::terminal_block::{block_content_rows, should_render_terminal_block};
@@ -44,13 +50,74 @@ struct FocusTestFixture {
 }
 
 #[test]
-fn log_bundle_success_message_includes_the_absolute_path() {
+fn log_bundle_success_message_is_localized_with_the_absolute_path() {
     let path = std::path::Path::new("/tmp/warp-20260718-132640.zip");
     assert_eq!(
-        log_bundle_success_message(path),
+        log_bundle_success_message_for_locale(path, LocaleId::EnUs),
         "Log bundle saved to /tmp/warp-20260718-132640.zip"
     );
+    assert_eq!(
+        log_bundle_success_message_for_locale(path, LocaleId::ZhCn),
+        "日志包已保存到 /tmp/warp-20260718-132640.zip"
+    );
 }
+
+#[test]
+fn clipboard_feedback_distinguishes_native_copy_from_terminal_transfer() {
+    assert_eq!(
+        copy_selection_hint_for_locale(ClipboardCopy::Copied, LocaleId::EnUs),
+        "copied to clipboard"
+    );
+    assert_eq!(
+        copy_selection_hint_for_locale(ClipboardCopy::SentToTerminal, LocaleId::EnUs),
+        "sent to terminal clipboard"
+    );
+    assert_eq!(
+        export_to_clipboard_hint_for_locale(ClipboardCopy::Copied, LocaleId::ZhCn),
+        "对话已复制到剪贴板"
+    );
+    assert_eq!(
+        export_to_clipboard_hint_for_locale(ClipboardCopy::SentToTerminal, LocaleId::ZhCn),
+        "对话已发送到终端剪贴板"
+    );
+}
+
+#[test]
+fn starting_shell_hint_is_localized() {
+    assert_eq!(
+        starting_shell_hint_for_locale(LocaleId::EnUs),
+        "Starting shell..."
+    );
+    assert_eq!(
+        starting_shell_hint_for_locale(LocaleId::ZhCn),
+        "正在启动 shell..."
+    );
+}
+
+#[test]
+fn attachment_session_binding_descriptions_are_localized() {
+    assert_eq!(
+        binding_description_for_locale(LocaleId::ZhCn, "tui.attachments.binding.focus"),
+        "聚焦图像附件"
+    );
+    assert_eq!(
+        binding_description_for_locale(LocaleId::ZhCn, "tui.attachments.binding.paste_image"),
+        "粘贴剪贴板中的图像"
+    );
+}
+
+#[test]
+fn orchestration_focus_hint_is_localized() {
+    assert_eq!(
+        focus_sub_agents_hint_for_locale(LocaleId::EnUs),
+        "Shift + ↑ sub-agents"
+    );
+    assert_eq!(
+        focus_sub_agents_hint_for_locale(LocaleId::ZhCn),
+        "Shift + 上箭头：聚焦子 Agent"
+    );
+}
+
 #[test]
 fn inline_menu_padding_preserves_result_capacity() {
     App::test((), |app| async move {
@@ -189,9 +256,10 @@ fn bootstrap_renders_starting_shell_above_input() {
         });
 
         let lines = render_session(&mut app, &view, 80, 40);
+        let starting_shell_hint = starting_shell_hint_for_locale(LocaleId::EnUs);
         let status_index = lines
             .iter()
-            .position(|line| line.trim() == "Starting shell...")
+            .position(|line| line.trim() == starting_shell_hint)
             .unwrap_or_else(|| panic!("bootstrap status should render:\n{}", lines.join("\n")));
         let input_index = lines
             .iter()
@@ -242,10 +310,11 @@ fn long_running_command_keeps_input_hidden() {
         });
 
         let lines = render_session(&mut app, &view, 80, 40);
+        let starting_shell_hint = starting_shell_hint_for_locale(LocaleId::EnUs);
         assert!(
             !lines
                 .iter()
-                .any(|line| line.trim_end() == "Starting shell..."),
+                .any(|line| line.trim_end() == starting_shell_hint),
             "LRC must not render bootstrap status:\n{}",
             lines.join("\n")
         );

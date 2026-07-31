@@ -2,6 +2,32 @@
 use warpui::App;
 
 #[cfg(test)]
+fn set_test_language_to_english(app: &mut App) {
+    use settings::Setting;
+    use warpui::SingletonEntity;
+
+    use crate::settings::{AppLanguage, LanguageSettings};
+
+    app.update(|ctx| {
+        LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+            settings
+                .app_language
+                .load_value(AppLanguage::English, true, ctx)
+                .expect("test language setting should update");
+        });
+    });
+}
+
+#[cfg(test)]
+pub fn initialize_localization_for_tests(app: &mut App) {
+    use crate::settings::LanguageSettings;
+
+    app.add_singleton_model(LanguageSettings::new_with_defaults);
+    set_test_language_to_english(app);
+    app.update(crate::localization::register_localization_updater);
+}
+
+#[cfg(test)]
 pub fn initialize_settings_for_tests(app: &mut App) {
     use warp_core::execution_mode::ExecutionMode;
     initialize_settings_for_tests_with_mode(app, ExecutionMode::App, false);
@@ -35,8 +61,8 @@ pub fn initialize_settings_for_tests_with_mode(
         AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
         BlockVisibilitySettings, ChangelogSettings, CloudPreferencesSettings, CodeSettings,
         DebugSettings, EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings,
-        InputSettings, LocalControlSettings, NativePreferenceSettings, PaneSettings,
-        SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
+        InputSettings, LanguageSettings, LocalControlSettings, NativePreferenceSettings,
+        PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
         SharedObjectLimitBannerSettings, SshSettings, ThemeSettings, VimBannerSettings,
         init_and_register_user_preferences,
     };
@@ -88,6 +114,8 @@ pub fn initialize_settings_for_tests_with_mode(
     InputModeSettings::register(app);
     InputSettings::register(app);
     KeysSettings::register(app);
+    LanguageSettings::register(app);
+    set_test_language_to_english(app);
     LigatureSettings::register(app);
     if warp_core::features::FeatureFlag::WarpControlCli.is_enabled() {
         LocalControlSettings::register(app);
@@ -123,6 +151,8 @@ pub fn initialize_settings_for_tests_with_mode(
     SemanticSelection::register(app);
 
     app.update(|ctx| {
+        crate::localization::register_localization_updater(ctx);
+
         // Add settings models that are backed by secure storage, not user preferences.
         ctx.add_singleton_model(ai::api_keys::ApiKeyManager::new);
     });

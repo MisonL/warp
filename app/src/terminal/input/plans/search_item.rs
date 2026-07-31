@@ -13,10 +13,11 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::ai::document::ai_document_model::{AIDocument, AIDocumentVersion};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::inline_menu::styles as inline_styles;
 use crate::terminal::input::plans::AcceptPlan;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const ICON_SIZE: f32 = 14.;
 
@@ -116,7 +117,7 @@ impl SearchItem for PlanSearchItem {
 
         let timestamp_font_size = font_size * 12. / 14.;
         let timestamp = Text::new_inline(
-            format_approx_duration_from_now_utc(self.created_at.to_utc()),
+            localized_approx_duration_from_now_utc(app, self.created_at.to_utc()),
             appearance.ui_font_family(),
             timestamp_font_size,
         )
@@ -157,6 +158,14 @@ impl SearchItem for PlanSearchItem {
 
     fn execute_result(&self) -> Self::Action {
         self.accept_result()
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.plans.a11y.label",
+            &[("title", &self.title)],
+        )
     }
 
     fn accessibility_label(&self) -> String {

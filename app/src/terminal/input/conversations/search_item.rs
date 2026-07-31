@@ -12,10 +12,11 @@ use warpui::{AppContext, Element, SingletonEntity};
 use crate::ai::agent_conversations_model::AgentConversationEntry;
 use crate::ai::conversation_status_ui::render_status_element;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::conversations::AcceptConversation;
 use crate::terminal::input::inline_menu::styles as inline_styles;
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 /// Search item for rendering a conversation in the inline conversation menu.
 #[derive(Debug, Clone)]
@@ -120,7 +121,7 @@ impl SearchItem for ConversationSearchItem {
         // We want the timestamp 'column' to have fixed width so clipping is consistent,
         // limit the timestamp width to about 10 chars.
         let timestamp = Text::new_inline(
-            format_approx_duration_from_now_utc(self.entry.display.last_updated),
+            localized_approx_duration_from_now_utc(app, self.entry.display.last_updated),
             appearance.ui_font_family(),
             font_size,
         )
@@ -161,6 +162,14 @@ impl SearchItem for ConversationSearchItem {
 
     fn execute_result(&self) -> Self::Action {
         self.accept_result()
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.conversations.a11y.label",
+            &[("title", &self.entry.display.title)],
+        )
     }
 
     fn accessibility_label(&self) -> String {

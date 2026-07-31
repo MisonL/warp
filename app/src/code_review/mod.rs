@@ -25,7 +25,7 @@ pub(crate) mod diff_selector;
 pub(crate) mod file_invalidation_queue;
 
 use code_review_view::CodeReviewAction;
-use warpui::keymap::{EditableBinding, FixedBinding};
+use warpui::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui::{
     AppContext, Entity, EntityId, ModelContext, SingletonEntity, WeakViewHandle, WindowId, id,
 };
@@ -35,6 +35,11 @@ use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::terminal::CLIAgent;
 use crate::terminal::view::TerminalView;
 use crate::util::bindings::CustomAction;
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback)
+        .with_dynamic_override(move |app| Some(crate::localization::text_for_app(app, key)))
+}
 
 /// Arguments needed to open or toggle the code review panel.
 /// Bundled into a struct so that events can atomically open the
@@ -65,14 +70,20 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "code_review:save_all_unsaved_files",
-            "Save all unsaved files in code review",
+            binding_description(
+                "Save all unsaved files in code review",
+                "code_review.binding.save_all_unsaved_files",
+            ),
             CodeReviewAction::SaveAllUnsavedFiles,
         )
         .with_context_predicate(id!("CodeReviewView"))
         .with_key_binding("cmdorctrl-s"),
         EditableBinding::new(
             "code_review:show_find_bar",
-            "Show find bar in code review",
+            binding_description(
+                "Show find bar in code review",
+                "code_review.binding.show_find_bar",
+            ),
             CodeReviewAction::ShowFindBar,
         )
         .with_context_predicate(id!("CodeReviewView"))
@@ -80,7 +91,10 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| crate::features::FeatureFlag::CodeReviewFind.is_enabled()),
         EditableBinding::new(
             "code_review:toggle_file_navigation",
-            "Toggle file navigation in code review",
+            binding_description(
+                "Toggle file navigation in code review",
+                "code_review.binding.toggle_file_navigation",
+            ),
             CodeReviewAction::ToggleFileSidebar,
         )
         .with_context_predicate(id!("CodeReviewView_NotEditing"))

@@ -16,6 +16,7 @@ use crate::editor::{
     EditorOptions, EditorView, Event, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
+use crate::localization;
 
 const COMMAND_EDITOR_MIN_LINES: f32 = 6.;
 const SPAN_FONT_SIZE: f32 = 16.;
@@ -26,12 +27,6 @@ const EDITOR_FONT_SIZE: f32 = 14.;
 const CONTAINER_PADDING: f32 = 25.;
 const ELEMENT_SPACING: f32 = 10.;
 const EDITOR_DIVIDE: f32 = 6.;
-
-const SECRET_SPAN: &str = "Secret command";
-const SAVE_BUTTON_LABEL: &str = "Save";
-const CANCEL_BUTTON_LABEL: &str = "Cancel";
-const NAME_PLACEHOLDER_TEXT: &str = "Name";
-const COMMAND_PLACEHOLDER_TEXT: &str = "Command";
 
 #[derive(Debug, Clone)]
 pub enum EnvVarCommandDialogAction {
@@ -70,7 +65,10 @@ impl EnvVarCommandDialog {
                 };
 
                 let mut editor = EditorView::single_line(options, ctx);
-                editor.set_placeholder_text(NAME_PLACEHOLDER_TEXT, ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, "env_vars.command_dialog.name"),
+                    ctx,
+                );
                 editor
             })
         };
@@ -98,7 +96,10 @@ impl EnvVarCommandDialog {
                 };
 
                 let mut editor = EditorView::new(options, ctx);
-                editor.set_placeholder_text(COMMAND_PLACEHOLDER_TEXT, ctx);
+                editor.set_placeholder_text(
+                    localization::text_for_app(ctx, "env_vars.command_dialog.command"),
+                    ctx,
+                );
                 editor
             })
         };
@@ -181,7 +182,7 @@ impl EnvVarCommandDialog {
         appearance: &Appearance,
         button_mouse_state: MouseStateHandle,
         action: EnvVarCommandDialogAction,
-        label_text: &str,
+        label_text: String,
         is_save: bool,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -195,7 +196,7 @@ impl EnvVarCommandDialog {
                 },
                 button_mouse_state,
             )
-            .with_centered_text_label(label_text.to_owned())
+            .with_centered_text_label(label_text)
             .with_style(UiComponentStyles {
                 font_size: Some(BUTTON_FONT_SIZE),
                 font_weight: Some(warpui::fonts::Weight::Normal),
@@ -250,11 +251,14 @@ impl EnvVarCommandDialog {
         .finish()
     }
 
-    fn render_dialog_span(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_dialog_span(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Container::new(
             appearance
                 .ui_builder()
-                .span(SECRET_SPAN)
+                .span(localization::text_for_app(
+                    app,
+                    "env_vars.command_dialog.title",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(SPAN_FONT_SIZE),
                     ..Default::default()
@@ -291,7 +295,7 @@ impl View for EnvVarCommandDialog {
                 1.,
                 Container::new(
                     Flex::column()
-                        .with_child(self.render_dialog_span(appearance))
+                        .with_child(self.render_dialog_span(appearance, app))
                         .with_child(self.render_name_editor(appearance))
                         .with_child(self.render_command_editor(appearance, app))
                         .with_child(
@@ -306,7 +310,10 @@ impl View for EnvVarCommandDialog {
                                                     .cancel_button_mouse_state_handle
                                                     .clone(),
                                                 EnvVarCommandDialogAction::Close,
-                                                CANCEL_BUTTON_LABEL,
+                                                localization::text_for_app(
+                                                    app,
+                                                    "settings.action.cancel",
+                                                ),
                                                 false,
                                                 app,
                                             ),
@@ -325,7 +332,7 @@ impl View for EnvVarCommandDialog {
                                                 .save_button_mouse_state_handle
                                                 .clone(),
                                             EnvVarCommandDialogAction::SaveCommand,
-                                            SAVE_BUTTON_LABEL,
+                                            localization::text_for_app(app, "settings.action.save"),
                                             true,
                                             app,
                                         ),

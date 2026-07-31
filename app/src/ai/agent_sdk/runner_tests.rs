@@ -1,3 +1,5 @@
+use warp_localization::LocaleId;
+
 use super::{
     RunnerArch, RunnerArchArg, RunnerOsArg, confirm_delete, merge_instance_shape, resolve_arch,
     resolve_updated_name,
@@ -7,7 +9,8 @@ use super::{
 fn confirm_delete_refuses_non_interactive_without_force() {
     // In non-interactive mode, refusal must surface as an error so the caller
     // exits non-zero instead of treating a skipped delete as a success.
-    let err = confirm_delete("runner-123", false).expect_err("non-interactive refusal is an error");
+    let err = confirm_delete("runner-123", false, LocaleId::EnUs)
+        .expect_err("non-interactive refusal is an error");
     let msg = err.to_string();
     assert!(msg.contains("non-interactive"), "got: {msg}");
     assert!(msg.contains("runner-123"), "got: {msg}");
@@ -41,32 +44,35 @@ fn resolve_arch_explicit_is_preserved_regardless_of_os() {
 fn merge_instance_shape_updates_dimensions_independently() {
     // Neither specified: preserve the existing shape.
     assert_eq!(
-        merge_instance_shape(None, None, Some((2, 4))).unwrap(),
+        merge_instance_shape(None, None, Some((2, 4)), LocaleId::EnUs).unwrap(),
         Some((2, 4))
     );
     // Only vCPUs: keep existing memory.
     assert_eq!(
-        merge_instance_shape(Some(8), None, Some((2, 4))).unwrap(),
+        merge_instance_shape(Some(8), None, Some((2, 4)), LocaleId::EnUs).unwrap(),
         Some((8, 4))
     );
     // Only memory: keep existing vCPUs.
     assert_eq!(
-        merge_instance_shape(None, Some(16), Some((2, 4))).unwrap(),
+        merge_instance_shape(None, Some(16), Some((2, 4)), LocaleId::EnUs).unwrap(),
         Some((2, 16))
     );
     // Both specified: use both.
     assert_eq!(
-        merge_instance_shape(Some(8), Some(16), Some((2, 4))).unwrap(),
+        merge_instance_shape(Some(8), Some(16), Some((2, 4)), LocaleId::EnUs).unwrap(),
         Some((8, 16))
     );
     // No existing shape and nothing set: no shape.
-    assert_eq!(merge_instance_shape(None, None, None).unwrap(), None);
+    assert_eq!(
+        merge_instance_shape(None, None, None, LocaleId::EnUs).unwrap(),
+        None
+    );
 }
 
 #[test]
 fn merge_instance_shape_errors_on_partial_shape_without_existing() {
-    assert!(merge_instance_shape(Some(8), None, None).is_err());
-    assert!(merge_instance_shape(None, Some(16), None).is_err());
+    assert!(merge_instance_shape(Some(8), None, None, LocaleId::EnUs).is_err());
+    assert!(merge_instance_shape(None, Some(16), None, LocaleId::EnUs).is_err());
 }
 
 #[test]

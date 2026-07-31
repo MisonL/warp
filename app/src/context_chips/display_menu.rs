@@ -38,6 +38,7 @@ use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
 };
+use crate::localization;
 use crate::server::ids::{ClientId, HashableId, ServerId, SyncId};
 use crate::ui_components::icons::Icon;
 use crate::view_components::copyable_text_field::{
@@ -52,6 +53,11 @@ pub trait GenericMenuItem: Debug + 'static {
 
     /// Display name for the menu item
     fn name(&self) -> String;
+
+    /// Localized display name for rendering. Filtering and action matching still use `name`.
+    fn display_name(&self, _app: &AppContext) -> String {
+        self.name()
+    }
 
     /// Icon to display for the menu item (None for no icon)
     fn icon(&self, _app: &AppContext) -> Option<Icon>;
@@ -316,14 +322,21 @@ impl DisplayChipMenu {
                     };
                     let mut editor = EditorView::new(options, ctx);
                     let placeholder_text = match chip_menu_type {
-                        ChipMenuType::Directories => "Search directories...",
-                        ChipMenuType::Branches => "Search branches...",
-                        ChipMenuType::Environments => "Search environments...",
+                        ChipMenuType::Directories => {
+                            localization::text_for_app(ctx, "context_chips.menu.search_directories")
+                        }
+                        ChipMenuType::Branches => {
+                            localization::text_for_app(ctx, "context_chips.menu.search_branches")
+                        }
+                        ChipMenuType::Environments => localization::text_for_app(
+                            ctx,
+                            "context_chips.menu.search_environments",
+                        ),
                         ChipMenuType::CodeReview => {
                             unreachable!("search input should not be constructed")
                         }
                     };
-                    editor.set_placeholder_text(placeholder_text, ctx);
+                    editor.set_placeholder_text(&placeholder_text, ctx);
                     editor
                 }))
             }
@@ -654,7 +667,7 @@ impl DisplayChipMenu {
             .map(|repo| repo.repo.clone())
             .collect::<Vec<_>>();
         let repos_text = if repo_names.is_empty() {
-            "(none)".to_string()
+            crate::localization::text_for_app(app, "context_chips.environment.repos.none")
         } else {
             repo_names.join(", ")
         };
@@ -783,14 +796,10 @@ impl DisplayChipMenu {
                 .finish()
         };
 
-        let label_text = |text: &str| {
-            Text::new_inline(
-                text.to_string(),
-                appearance.ui_font_family(),
-                label_font_size,
-            )
-            .with_color(label_text_color)
-            .finish()
+        let label_text = |text: String| {
+            Text::new_inline(text, appearance.ui_font_family(), label_font_size)
+                .with_color(label_text_color)
+                .finish()
         };
 
         let value_text = |text: String| {
@@ -844,7 +853,7 @@ impl DisplayChipMenu {
             )
         };
 
-        let row = |row_icon: Icon, label: &str, value: Box<dyn Element>, is_last: bool| {
+        let row = |row_icon: Icon, label: String, value: Box<dyn Element>, is_last: bool| {
             let label_cluster = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
@@ -879,15 +888,25 @@ impl DisplayChipMenu {
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(row(
                 Icon::Globe4,
-                "Name:",
+                localization::text_for_app(app, "context_chips.environment.name"),
                 value_text(data.name.clone()),
                 false,
             ))
-            .with_child(row(Icon::Hash, "ID:", id_value, false))
-            .with_child(row(Icon::Docker, "Image:", image_value, false))
+            .with_child(row(
+                Icon::Hash,
+                localization::text_for_app(app, "context_chips.environment.id"),
+                id_value,
+                false,
+            ))
+            .with_child(row(
+                Icon::Docker,
+                localization::text_for_app(app, "context_chips.environment.image"),
+                image_value,
+                false,
+            ))
             .with_child(row(
                 Icon::Github,
-                "Repos:",
+                localization::text_for_app(app, "context_chips.environment.repos"),
                 value_text(data.repos_text.clone()),
                 true,
             ))
@@ -953,6 +972,7 @@ impl DisplayChipMenu {
 
         let item_horizontal_padding = self.menu_item_horizontal_padding();
         let item_vertical_padding = self.menu_item_vertical_padding();
+        let footer_display_name = footer_option.action_item.display_name(app);
 
         let is_footer_selected = self.is_footer_selected();
         ConstrainedBox::new(
@@ -1015,7 +1035,7 @@ impl DisplayChipMenu {
                 // Add the text element
                 updated_text.add_child(
                     Text::new_inline(
-                        footer_option.action_item.name(),
+                        footer_display_name.clone(),
                         appearance.ui_font_family(),
                         font_size,
                     )
@@ -1073,7 +1093,7 @@ impl DisplayChipMenu {
                 let (label, font_size, horizontal_padding, vertical_padding, text_color) =
                     match self.chip_menu_type {
                         ChipMenuType::Environments => (
-                            "No results",
+                            localization::text_for_app(ctx, "context_chips.menu.no_results"),
                             ENV_MENU_ITEM_FONT_SIZE,
                             ENV_MENU_ITEM_HORIZONTAL_PADDING,
                             ENV_MENU_ITEM_VERTICAL_PADDING,
@@ -1082,7 +1102,7 @@ impl DisplayChipMenu {
                         ChipMenuType::Directories
                         | ChipMenuType::Branches
                         | ChipMenuType::CodeReview => (
-                            "No results found",
+                            localization::text_for_app(ctx, "context_chips.menu.no_results_found"),
                             appearance.ui_font_size(),
                             LABEL_HORIZONTAL_PADDING,
                             LABEL_VERTICAL_PADDING * 2.0,
@@ -1104,6 +1124,10 @@ impl DisplayChipMenu {
         let selected_index = self.selected_index;
         let filtered_items_length = self.filtered_items.len();
         let filtered_items = self.filtered_items.clone();
+        let display_names = filtered_items
+            .iter()
+            .map(|filtered_item| filtered_item.item.display_name(ctx))
+            .collect::<Vec<_>>();
         let is_footer_hovered = self.is_footer_selected();
         let menu_width = self.menu_width();
         let item_horizontal_padding = self.menu_item_horizontal_padding();
@@ -1121,7 +1145,7 @@ impl DisplayChipMenu {
                     .map(|index| {
                         let filtered_item = &filtered_items[index];
                         let item = &filtered_item.item;
-                        let display_text_str = item.name();
+                        let display_text_str = display_names[index].clone();
 
                         let is_selected = index == selected_index && !is_footer_hovered;
 

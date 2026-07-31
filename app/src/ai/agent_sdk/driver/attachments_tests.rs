@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use mockito::{Matcher, Server};
 use tempfile::{Builder as TempDirBuilder, NamedTempFile, TempDir};
+use warp_localization::LocaleId;
 
 use super::*;
 use crate::ai::agent_sdk::test_support::build_test_http_client;
@@ -15,7 +16,7 @@ fn process_attachment_text_file() {
     let mut f = NamedTempFile::with_suffix(".txt").unwrap();
     write!(f, "hello world").unwrap();
 
-    let result = process_attachment(&f.path().to_path_buf(), 0).unwrap();
+    let result = process_attachment(&f.path().to_path_buf(), 0, LocaleId::EnUs).unwrap();
     assert_eq!(
         result.file_name,
         f.path().file_name().unwrap().to_str().unwrap()
@@ -33,14 +34,25 @@ fn process_attachment_too_large() {
     let data = vec![0u8; MAX_ATTACHMENT_SIZE_BYTES + 1];
     f.write_all(&data).unwrap();
 
-    let err = process_attachment(&f.path().to_path_buf(), 0).unwrap_err();
+    let err = process_attachment(&f.path().to_path_buf(), 0, LocaleId::EnUs).unwrap_err();
     assert!(err.to_string().contains("too large"));
+}
+
+#[test]
+fn process_attachment_too_large_uses_requested_locale() {
+    let mut f = NamedTempFile::with_suffix(".bin").unwrap();
+    let data = vec![0u8; MAX_ATTACHMENT_SIZE_BYTES + 1];
+    f.write_all(&data).unwrap();
+
+    let err = process_attachment(&f.path().to_path_buf(), 0, LocaleId::ZhCn).unwrap_err();
+    assert!(err.to_string().contains("文件过大"));
+    assert!(!err.to_string().contains("File is too large"));
 }
 
 #[test]
 fn process_attachment_nonexistent_file() {
     let path = std::path::PathBuf::from("/tmp/nonexistent_attachment_test_file.xyz");
-    let err = process_attachment(&path, 0).unwrap_err();
+    let err = process_attachment(&path, 0, LocaleId::EnUs).unwrap_err();
     assert!(err.to_string().contains("Failed to read"));
 }
 
@@ -122,6 +134,7 @@ async fn e2e_happy_path_downloads_all_and_writes_to_disk() {
         &http,
         fake_task_id(),
         attachments_dir.clone(),
+        LocaleId::EnUs,
     )
     .await
     .expect("should not be fatal");
@@ -170,6 +183,7 @@ async fn e2e_transient_5xx_retried_then_succeeds() {
         &http,
         fake_task_id(),
         attachments_dir.clone(),
+        LocaleId::EnUs,
     )
     .await
     .unwrap();
@@ -206,6 +220,7 @@ async fn e2e_permanent_4xx_fails_fast_without_retries() {
         &http,
         fake_task_id(),
         attachments_dir.clone(),
+        LocaleId::EnUs,
     )
     .await
     .unwrap();
@@ -244,6 +259,7 @@ async fn e2e_retry_exhaustion_marks_failed() {
         &http,
         fake_task_id(),
         attachments_dir.clone(),
+        LocaleId::EnUs,
     )
     .await
     .unwrap();
@@ -287,6 +303,7 @@ async fn e2e_partial_success_returns_dir_with_downloaded_subset() {
         &http,
         fake_task_id(),
         attachments_dir.clone(),
+        LocaleId::EnUs,
     )
     .await
     .unwrap();
@@ -315,6 +332,7 @@ async fn e2e_empty_attachment_list_returns_none_without_creating_dir() {
         &http,
         fake_task_id(),
         attachments_dir.clone(),
+        LocaleId::EnUs,
     )
     .await
     .expect("empty list should not be a fatal error");
@@ -344,15 +362,14 @@ async fn e2e_get_handoff_snapshot_attachments_failure_is_fatal() {
         &http,
         fake_task_id(),
         tempdir.path().to_path_buf(),
+        LocaleId::ZhCn,
     )
     .await
     .expect_err("listing failure must be fatal");
 
     let chain: Vec<String> = err.chain().map(|c| c.to_string()).collect();
     assert!(
-        chain
-            .iter()
-            .any(|s| s.contains("Failed to fetch handoff snapshot attachments")),
+        chain.iter().any(|s| s.contains("获取交接快照附件失败")),
         "expected context-wrapped error in chain: {chain:?}"
     );
     assert!(
@@ -380,6 +397,7 @@ async fn e2e_returns_none_when_oz_handoff_flag_is_disabled() {
         &http,
         fake_task_id(),
         attachments_dir.clone(),
+        LocaleId::EnUs,
     )
     .await
     .expect("flag-disabled path should not be fatal");

@@ -1,6 +1,6 @@
 //! Click-handler regression tests for [`ConversationUsageView`].
 //!
-//! The original bug was that clicks on the "View details" / "Show N more"
+//! The original bug was that clicks on the details / show-more controls
 //! affordances did nothing because the view was created via `add_view`
 //! instead of `add_typed_action_view`, so the framework had no handler
 //! registered for `ConversationUsageViewAction::*` and silently logged
@@ -30,6 +30,7 @@ use warpui::platform::WindowStyle;
 
 use super::*;
 use crate::persistence::model::{ModelTokenUsage, PRIMARY_AGENT_CATEGORY};
+use crate::test_util::settings::initialize_localization_for_tests;
 
 fn placeholder_usage_info() -> ConversationUsageInfo {
     ConversationUsageInfo {
@@ -51,6 +52,7 @@ fn placeholder_usage_info() -> ConversationUsageInfo {
 /// when `ctx.notify()` runs (theme lookups, etc.). Keep this minimal: the
 /// goal is to satisfy the runtime, not to mirror the full production app.
 fn initialize_test_app(app: &mut App) {
+    initialize_localization_for_tests(app);
     app.add_singleton_model(|_| Appearance::mock());
 }
 
@@ -99,10 +101,10 @@ fn toggle_details_expanded_flips_state_and_resets_show_all_on_collapse() {
             view.handle_action(&ConversationUsageViewAction::ShowAllAgentRows, ctx);
         });
         view.read(&app, |view, _| {
-            assert!(view.details_expanded, "still expanded after Show N more");
+            assert!(view.details_expanded, "still expanded after show-more");
             assert!(
                 view.show_all_clicked,
-                "Show N more should set show_all_clicked"
+                "show-more should set show_all_clicked"
             );
         });
 

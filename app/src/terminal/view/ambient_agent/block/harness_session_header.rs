@@ -32,7 +32,7 @@ impl HarnessSessionHeader {
     pub fn new(block_id: BlockId, cli_agent: Option<CLIAgent>) -> Self {
         let cli_name = cli_agent
             .map(|agent| agent.display_name().to_owned())
-            .unwrap_or_else(|| "Agent".to_owned());
+            .unwrap_or_default();
 
         Self {
             block_id,
@@ -63,7 +63,16 @@ impl View for HarnessSessionHeader {
             Icon::ChevronRight
         };
 
-        let label = format!("Running {}...", self.cli_name);
+        let agent = if self.cli_name.is_empty() {
+            crate::localization::text_for_app(app, "agent.orchestration.agent")
+        } else {
+            self.cli_name.clone()
+        };
+        let label = crate::localization::text_for_app_with_args(
+            app,
+            "terminal.ambient_agent.header.running",
+            &[("agent", &agent)],
+        );
 
         let row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)

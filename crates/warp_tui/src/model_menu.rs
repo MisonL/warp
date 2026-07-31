@@ -10,6 +10,7 @@ use crate::inline_menu::{
     TuiInlineMenuRowStyle, TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
+use crate::localization;
 
 const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, true, false);
 
@@ -170,7 +171,7 @@ impl TuiModelMenuModel {
         };
         Some(TuiInlineMenuSnapshot {
             header: Some(TuiInlineMenuHeader {
-                title: Some("Models".to_owned()),
+                title: Some(localization::text("tui.model_menu.title")),
                 tabs: Vec::new(),
             }),
             rows: list
@@ -178,7 +179,8 @@ impl TuiModelMenuModel {
                 .iter()
                 .map(|row| TuiInlineMenuRow {
                     title: row.title.clone(),
-                    description: (!row.is_selectable).then(|| "disabled".to_owned()),
+                    description: (!row.is_selectable)
+                        .then(|| localization::text("tui.model_menu.disabled")),
                     is_selectable: row.is_selectable,
                     style: TuiInlineMenuRowStyle::Default,
                 })
@@ -189,7 +191,7 @@ impl TuiModelMenuModel {
             status: list
                 .rows()
                 .is_empty()
-                .then(|| TuiInlineMenuStatus::Empty("No models found".to_owned())),
+                .then(|| TuiInlineMenuStatus::Empty(localization::text("tui.model_menu.empty"))),
         })
     }
 

@@ -1,6 +1,7 @@
 use ai::agent::action_result::StopRecordingResult;
 use computer_use::RecordingHandle;
 use instant::Instant;
+use warp_localization::LocaleId;
 use warpui::{App, SingletonEntity};
 
 use super::super::recording_controller::ActiveRecording;
@@ -31,8 +32,15 @@ fn cancellation_finalization_skips_upload() {
             actions: Vec::new(),
         };
 
-        let result =
-            finalize_recording(recording, FinalizeReason::Cancelled, false, uploader, None).await;
+        let result = finalize_recording(
+            recording,
+            FinalizeReason::Cancelled,
+            false,
+            uploader,
+            None,
+            LocaleId::EnUs,
+        )
+        .await;
 
         assert_eq!(result, StopRecordingResult::Cancelled);
     });

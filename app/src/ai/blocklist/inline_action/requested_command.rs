@@ -57,7 +57,8 @@ use crate::ai::blocklist::{
 use crate::cmd_or_ctrl_shift;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
 use crate::editor::InteractionState;
-use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields, MenuVariant};
+use crate::localization::{self, LocalizationUpdater};
+use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
 use crate::settings::InputModeSettings;
 use crate::terminal::TerminalModel;
 use crate::terminal::block_list_viewport::InputMode;
@@ -78,23 +79,6 @@ use crate::view_components::compactible_split_action_button::CompactibleSplitAct
 /// The vertical padding applied to the requested command row's content body.
 /// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.
 pub const REQUESTED_COMMAND_BODY_VERTICAL_PADDING: f32 = 16.;
-
-const REQUESTED_COMMAND_REJECT_LABEL: &str = "Reject";
-const REQUESTED_COMMAND_ACCEPT_LABEL: &str = "Run";
-const REQUESTED_COMMAND_EDIT_LABEL: &str = "Edit";
-const REQUESTED_COMMAND_MINIMIZE_LABEL: &str = "Done";
-
-const LOADING_MESSAGE: &str = "Generating command...";
-const COMMAND_WAITING_FOR_USER_MESSAGE: &str = "OK if I run this command and read the output?";
-const MCP_TOOL_WAITING_FOR_USER_MESSAGE: &str = "OK if I call this MCP tool?";
-const MONITORING_COMMAND_MESSAGE: &str = "Agent is monitoring command...";
-const AGENT_NEEDS_INPUT_MESSAGE: &str = "Agent needs your input to continue";
-const USER_TOOK_CONTROL_COMMAND_MESSAGE: &str = "User is in control.";
-const USER_STOPPED_CLI_SUBAGENT_COMMAND_MESSAGE: &str = "Paused agent. User is in control.";
-const AGENT_REQUESTED_USER_TAKE_CONTROL_COMMAND_MESSAGE: &str = "User in control";
-const AGENT_ERRORED_COMMAND_MESSAGE: &str = "Agent ran into an issue. Take over control.";
-pub const VIEWING_COMMAND_DETAIL_MESSAGE: &str = "Viewing command detail";
-const VIEWING_MCP_TOOL_DETAIL_MESSAGE: &str = "Viewing MCP tool call detail";
 
 const EDIT_COMMAND_ACTION_NAME: &str = "requested_command:edit";
 
@@ -171,7 +155,10 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         EDIT_COMMAND_ACTION_NAME,
-        "Edit requested command",
+        localization::text_for_app(
+            app,
+            "agent.requested_command.binding.edit_requested_command",
+        ),
         RequestedCommandViewAction::OpenEditMode,
     )
     .with_key_binding(cmd_or_ctrl_shift("e"))
@@ -183,9 +170,8 @@ pub fn init(app: &mut AppContext) {
 }
 
 /// Structured representation of an MCP tool call request for JSON tree rendering.
-///
-/// The tool name is derivable from `command_text` and is not duplicated here.
 pub struct McpRequest {
+    pub name: String,
     pub args: serde_json::Value,
 }
 
@@ -361,6 +347,7 @@ pub struct RequestedCommandView {
     // Right-click context menu for MCP JSON tree rows (Copy / Copy JSON items).
     mcp_context_menu: ViewHandle<Menu<RequestedCommandViewAction>>,
     mcp_context_menu_open: bool,
+    mcp_context_menu_json_text: Option<String>,
     // The SavePosition anchor ID of the row that was last right-clicked, used
     // to position the context menu below the correct row.
     mcp_context_menu_anchor_id: Option<String>,
@@ -381,7 +368,7 @@ impl RequestedCommandView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let cancel_button = CompactibleActionButton::new(
-            REQUESTED_COMMAND_REJECT_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.requested_command.action.reject"),
             Some(KeystrokeSource::Fixed(
                 CANCEL_REQUESTED_COMMAND_KEYSTROKE.clone(),
             )),
@@ -394,7 +381,7 @@ impl RequestedCommandView {
 
         let position_id_prefix = format!("{action_id:?}");
         let accept_and_autoexecute_split_button = CompactibleSplitActionButton::new(
-            REQUESTED_COMMAND_ACCEPT_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.requested_command.action.run"),
             Some(KeystrokeSource::Fixed(
                 ENTER_ACCEPT_REQUESTED_COMMAND_KEYSTROKE.clone(),
             )),
@@ -410,7 +397,7 @@ impl RequestedCommandView {
         );
 
         let edit_button = CompactibleActionButton::new(
-            REQUESTED_COMMAND_EDIT_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.requested_command.action.edit"),
             Some(KeystrokeSource::Binding(EDIT_COMMAND_ACTION_NAME)),
             ButtonSize::InlineActionHeader,
             RequestedCommandViewAction::OpenEditMode,
@@ -420,7 +407,7 @@ impl RequestedCommandView {
         );
 
         let minimize_button = CompactibleActionButton::new(
-            REQUESTED_COMMAND_MINIMIZE_LABEL.to_string(),
+            localization::text_for_app(ctx, "agent.requested_command.action.done"),
             Some(KeystrokeSource::Fixed(
                 MINIMIZE_REQUESTED_COMMAND_KEYSTROKE.clone(),
             )),
@@ -578,9 +565,13 @@ impl RequestedCommandView {
         ctx.subscribe_to_view(&mcp_context_menu, |me, _menu, event, ctx| match event {
             MenuEvent::Close { .. } => {
                 me.mcp_context_menu_open = false;
+                me.mcp_context_menu_json_text = None;
                 ctx.notify();
             }
             MenuEvent::ItemSelected | MenuEvent::ItemHovered => {}
+        });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
         });
 
         Self {
@@ -617,6 +608,7 @@ impl RequestedCommandView {
             mcp_scroll_state: Default::default(),
             mcp_context_menu,
             mcp_context_menu_open: false,
+            mcp_context_menu_json_text: None,
             mcp_context_menu_anchor_id: None,
         }
     }
@@ -721,36 +713,91 @@ impl RequestedCommandView {
     fn toggle_accept_split_button_menu(&mut self, ctx: &mut ViewContext<Self>) {
         self.is_accept_split_button_menu_open = !self.is_accept_split_button_menu_open;
         if self.is_accept_split_button_menu_open {
-            // Accept shows Enter or Cmd/Ctrl+Enter depending on edit state
-            let accept_keystroke = if self.is_editing {
-                CMD_ENTER_ACCEPT_REQUESTED_COMMAND_KEYSTROKE.displayed()
-            } else {
-                ENTER_ACCEPT_REQUESTED_COMMAND_KEYSTROKE.displayed()
-            };
-            let auto_keystroke = keybinding_name_to_keystroke(
-                crate::terminal::TOGGLE_AUTOEXECUTE_MODE_KEYBINDING,
-                ctx,
-            )
-            .map(|k| k.displayed())
-            .unwrap_or_default();
-
-            let accept_item = MenuItemFields::new_with_label(
-                REQUESTED_COMMAND_ACCEPT_LABEL,
-                accept_keystroke.as_str(),
-            )
-            .with_on_select_action(RequestedCommandViewAction::Accept)
-            .into_item();
-
-            let auto_item = MenuItemFields::new_with_label("Auto-approve", auto_keystroke.as_str())
-                .with_on_select_action(RequestedCommandViewAction::AcceptAndAutoExecute)
-                .into_item();
-
-            self.accept_split_button_menu.update(ctx, |menu, ctx| {
-                menu.set_items(vec![accept_item, auto_item], ctx);
-            });
-            self.accept_split_button_menu
-                .update(ctx, |menu, ctx| menu.set_selected_by_index(0, ctx));
+            self.refresh_accept_split_button_menu(ctx);
             ctx.focus(&self.accept_split_button_menu);
+        }
+        ctx.notify();
+    }
+
+    fn refresh_accept_split_button_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        let accept_keystroke = if self.is_editing {
+            CMD_ENTER_ACCEPT_REQUESTED_COMMAND_KEYSTROKE.displayed()
+        } else {
+            ENTER_ACCEPT_REQUESTED_COMMAND_KEYSTROKE.displayed()
+        };
+        let auto_keystroke =
+            keybinding_name_to_keystroke(crate::terminal::TOGGLE_AUTOEXECUTE_MODE_KEYBINDING, ctx)
+                .map(|k| k.displayed())
+                .unwrap_or_default();
+
+        let accept_item = MenuItemFields::new_with_label(
+            localization::text_for_app(ctx, "agent.requested_command.action.run"),
+            accept_keystroke,
+        )
+        .with_on_select_action(RequestedCommandViewAction::Accept)
+        .into_item();
+        let auto_item = MenuItemFields::new_with_label(
+            localization::text_for_app(ctx, "agent.requested_command.action.auto_approve"),
+            auto_keystroke,
+        )
+        .with_on_select_action(RequestedCommandViewAction::AcceptAndAutoExecute)
+        .into_item();
+
+        self.accept_split_button_menu.update(ctx, |menu, ctx| {
+            menu.set_items(vec![accept_item, auto_item], ctx);
+            menu.set_selected_by_index(0, ctx);
+        });
+    }
+
+    fn refresh_mcp_context_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(json_text) = self.mcp_context_menu_json_text.clone() else {
+            return;
+        };
+        #[allow(clippy::unwrap_used)]
+        let has_selection = self
+            .mcp_content_selected_text
+            .read()
+            .unwrap()
+            .as_deref()
+            .is_some_and(|text| !text.is_empty());
+        let copy_item =
+            MenuItemFields::new(localization::text_for_app(ctx, "settings.action.copy"))
+                .with_on_select_action(RequestedCommandViewAction::CopyMcpSelection)
+                .with_disabled(!has_selection)
+                .into_item();
+        let copy_json_item = MenuItemFields::new(localization::text_for_app(
+            ctx,
+            "agent.requested_command.mcp_tool.copy_json",
+        ))
+        .with_on_select_action(RequestedCommandViewAction::CopyJsonToClipboard { text: json_text })
+        .into_item();
+        self.mcp_context_menu.update(ctx, move |menu, ctx| {
+            menu.set_items(vec![copy_item, copy_json_item], ctx);
+        });
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.cancel_button.set_label(
+            localization::text_for_app(ctx, "agent.requested_command.action.reject"),
+            ctx,
+        );
+        self.accept_and_autoexecute_split_button.set_label(
+            localization::text_for_app(ctx, "agent.requested_command.action.run"),
+            ctx,
+        );
+        self.edit_button.set_label(
+            localization::text_for_app(ctx, "agent.requested_command.action.edit"),
+            ctx,
+        );
+        self.minimize_button.set_label(
+            localization::text_for_app(ctx, "agent.requested_command.action.done"),
+            ctx,
+        );
+        if self.is_accept_split_button_menu_open {
+            self.refresh_accept_split_button_menu(ctx);
+        }
+        if self.mcp_context_menu_open {
+            self.refresh_mcp_context_menu(ctx);
         }
         ctx.notify();
     }
@@ -793,7 +840,12 @@ impl RequestedCommandView {
                 citations_padding,
                 app,
             )
-            .map(|citation| ("Copied from", citation))
+            .map(|citation| {
+                (
+                    localization::text_for_app(app, "agent.requested_command.citation.copied_from"),
+                    citation,
+                )
+            })
         } else {
             // Otherwise, we render all the citations (if any) and mention that the command was derived from them.
             render_citation_chips(
@@ -803,7 +855,15 @@ impl RequestedCommandView {
                 citations_padding,
                 app,
             )
-            .map(|citations| ("Derived from", citations))
+            .map(|citations| {
+                (
+                    localization::text_for_app(
+                        app,
+                        "agent.requested_command.citation.derived_from",
+                    ),
+                    citations,
+                )
+            })
         };
 
         let citations_footer = citations_footer_props.map(|(prefix, suffix)| {
@@ -844,7 +904,10 @@ impl RequestedCommandView {
             ) if show_for_action_id == &self.action_id => {
                 *shown.lock() = true;
                 Some(render_autonomy_checkbox_setting_speedbump_footer(
-                    "Always allow Oz to execute read-only commands (relies on model)",
+                    crate::localization::text_for_app(
+                        app,
+                        "agent.requested_command.speedbump.always_allow_oz_readonly",
+                    ),
                     *checked,
                     AIBlockAction::ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox,
                     self.autoexecute_readonly_commands_speedbump_checkbox_handle
@@ -901,7 +964,10 @@ impl RequestedCommandView {
                 )
                 .with_child(
                     Text::new(
-                        "Your profile is set to always ask for permission to execute commands.",
+                        localization::text_for_app(
+                            app,
+                            "agent.requested_command.warning.always_ask_permission",
+                        ),
                         appearance.ui_font_family(),
                         font_size,
                     )
@@ -916,7 +982,10 @@ impl RequestedCommandView {
                             appearance
                                 .ui_builder()
                                 .link(
-                                    "Manage command execution setting".into(),
+                                    crate::localization::text_for_app(
+                                        app,
+                                        "agent.requested_command.manage_execution_setting",
+                                    ),
                                     None,
                                     Some(Box::new(move |ctx| {
                                         ctx.dispatch_typed_action(
@@ -1120,8 +1189,29 @@ impl RequestedCommandView {
     }
 
     /// Stores the structured MCP tool request data for JSON tree rendering.
-    pub(crate) fn update_mcp_request(&mut self, args: serde_json::Value) {
-        self.mcp_request = Some(McpRequest { args });
+    pub(crate) fn update_mcp_request(&mut self, name: String, args: serde_json::Value) {
+        self.mcp_request = Some(McpRequest { name, args });
+    }
+
+    fn display_text(&self, app: &AppContext) -> String {
+        if let Some(request) = &self.mcp_request {
+            if request.args.is_null() {
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.requested_command.mcp_tool.label",
+                    &[("name", &request.name)],
+                )
+            } else {
+                let input = request.args.to_string();
+                localization::text_for_app_with_args(
+                    app,
+                    "agent.requested_command.mcp_tool.label_with_input",
+                    &[("name", &request.name), ("input", &input)],
+                )
+            }
+        } else {
+            self.command_text.clone()
+        }
     }
 
     /// Extracts the tool name from MCP tool command text, removing parameters.
@@ -1159,7 +1249,7 @@ impl RequestedCommandView {
 
         match action_status {
             Some(AIActionStatus::Preprocessing) => {
-                title = self.get_header_title_text().into();
+                title = self.get_header_title_text(app).into();
                 font_override = Some(appearance.monospace_font_family());
                 if !self
                     .block_model
@@ -1172,7 +1262,7 @@ impl RequestedCommandView {
                 }
             }
             Some(AIActionStatus::Queued) => {
-                title = self.get_header_title_text().into();
+                title = self.get_header_title_text(app).into();
                 font_override = Some(appearance.monospace_font_family());
                 font_color_override = Some(blended_colors::text_disabled(
                     appearance.theme(),
@@ -1181,8 +1271,16 @@ impl RequestedCommandView {
             }
             Some(AIActionStatus::Blocked) => {
                 title = match &self.action_type {
-                    RequestedActionViewType::Command => COMMAND_WAITING_FOR_USER_MESSAGE.into(),
-                    RequestedActionViewType::McpTool => MCP_TOOL_WAITING_FOR_USER_MESSAGE.into(),
+                    RequestedActionViewType::Command => localization::text_for_app(
+                        app,
+                        "agent.requested_command.status.waiting_command",
+                    )
+                    .into(),
+                    RequestedActionViewType::McpTool => localization::text_for_app(
+                        app,
+                        "agent.requested_command.status.waiting_mcp_tool",
+                    )
+                    .into(),
                 };
             }
             Some(AIActionStatus::RunningAsync) | Some(AIActionStatus::Finished(..))
@@ -1202,27 +1300,51 @@ impl RequestedCommandView {
                                         );
 
                                     if is_errored {
-                                        AGENT_ERRORED_COMMAND_MESSAGE.into()
+                                        localization::text_for_app(
+                                            app,
+                                            "agent.requested_command.status.agent_errored",
+                                        )
+                                        .into()
                                     } else if *is_blocked {
-                                        AGENT_NEEDS_INPUT_MESSAGE.into()
+                                        localization::text_for_app(
+                                            app,
+                                            "agent.requested_command.status.agent_needs_input",
+                                        )
+                                        .into()
                                     } else {
-                                        MONITORING_COMMAND_MESSAGE.into()
+                                        localization::text_for_app(
+                                            app,
+                                            "agent.requested_command.status.monitoring_command",
+                                        )
+                                        .into()
                                     }
                                 }
                                 LongRunningCommandControlState::User { reason } => {
-                                    header_message_for_user_take_over_reason(reason).into()
+                                    header_message_for_user_take_over_reason(reason, app).into()
                                 }
                             }
                         } else {
-                            VIEWING_COMMAND_DETAIL_MESSAGE.into()
+                            localization::text_for_app(
+                                app,
+                                "agent.requested_command.status.viewing_command_detail",
+                            )
+                            .into()
                         }
                     }
-                    RequestedActionViewType::McpTool => VIEWING_MCP_TOOL_DETAIL_MESSAGE.into(),
+                    RequestedActionViewType::McpTool => localization::text_for_app(
+                        app,
+                        "agent.requested_command.status.viewing_mcp_tool_detail",
+                    )
+                    .into(),
                 };
             }
             None => {
                 if self.block_model.status(app).is_streaming() {
-                    title = LOADING_MESSAGE.into();
+                    title = localization::text_for_app(
+                        app,
+                        "agent.requested_command.status.generating_command",
+                    )
+                    .into();
 
                     if !self
                         .block_model
@@ -1236,14 +1358,18 @@ impl RequestedCommandView {
                 } else if requested_command_block.is_some_and(|block| block.finished()) {
                     // If a finished command block exists but there's no action status,
                     // treat the same as a finished command (normal text styling).
-                    title = self.get_header_title_text().into();
+                    title = self.get_header_title_text(app).into();
                     font_override = Some(appearance.monospace_font_family());
                 } else {
                     // If there is no action status and response is not streaming, it was cancelled
                     // mid-flight.
-                    let title_str = self.get_header_title_text();
+                    let title_str = self.get_header_title_text(app);
                     title = if title_str.trim().is_empty() {
-                        LOADING_MESSAGE.into()
+                        localization::text_for_app(
+                            app,
+                            "agent.requested_command.status.generating_command",
+                        )
+                        .into()
                     } else {
                         title_str.into()
                     };
@@ -1257,12 +1383,16 @@ impl RequestedCommandView {
                 }
             }
             _ => {
-                title = self.get_header_title_text().into();
+                title = self.get_header_title_text(app).into();
 
                 // Show cancelled command loading message when the command was cancelled during generation,
                 // and then restored with an empty title as a result.
                 if title.is_empty() {
-                    title = LOADING_MESSAGE.into();
+                    title = localization::text_for_app(
+                        app,
+                        "agent.requested_command.status.generating_command",
+                    )
+                    .into();
                     font_color_override = Some(blended_colors::text_disabled(
                         appearance.theme(),
                         appearance.theme().surface_2(),
@@ -1398,7 +1528,7 @@ impl RequestedCommandView {
                     ));
                 } else {
                     // Commands cancelled before execution should be right clickable only.
-                    let command_text_for_callback = self.command_text().to_string();
+                    let command_text_for_callback = self.display_text(app);
                     config = config.with_interaction_mode(InteractionMode::RightClickable(
                         RightClickConfig::new(
                             Rc::new(move |ctx: &mut EventContext| {
@@ -1427,10 +1557,20 @@ impl RequestedCommandView {
         config.render(app)
     }
 
-    fn get_header_title_text(&self) -> String {
+    fn get_header_title_text(&self, app: &AppContext) -> String {
         match &self.action_type {
             RequestedActionViewType::Command => format_command_text(self.command_text()),
-            RequestedActionViewType::McpTool => self.extract_mcp_tool_name(self.command_text()),
+            RequestedActionViewType::McpTool => self
+                .mcp_request
+                .as_ref()
+                .map(|request| {
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.requested_command.mcp_tool.label",
+                        &[("name", &request.name)],
+                    )
+                })
+                .unwrap_or_else(|| self.extract_mcp_tool_name(self.command_text())),
         }
     }
 
@@ -1439,7 +1579,7 @@ impl RequestedCommandView {
         requested_command_block: Option<&Block>,
         app: &AppContext,
     ) -> ExpandedConfig {
-        let command_text_for_callback = self.command_text().to_string();
+        let command_text_for_callback = self.display_text(app);
         let mut expansion_config =
             ExpandedConfig::new(self.is_header_expanded, self.header_mouse_state.clone())
                 .with_right_click_callback(move |ctx| {
@@ -1474,12 +1614,17 @@ impl RequestedCommandView {
 
 pub(crate) fn header_message_for_user_take_over_reason(
     reason: &UserTakeOverReason,
-) -> &'static str {
+    app: &AppContext,
+) -> String {
     match reason {
-        UserTakeOverReason::Manual => USER_TOOK_CONTROL_COMMAND_MESSAGE,
-        UserTakeOverReason::Stop { .. } => USER_STOPPED_CLI_SUBAGENT_COMMAND_MESSAGE,
+        UserTakeOverReason::Manual => {
+            localization::text_for_app(app, "agent.requested_command.status.user_in_control")
+        }
+        UserTakeOverReason::Stop { .. } => {
+            localization::text_for_app(app, "agent.requested_command.status.paused_user_control")
+        }
         UserTakeOverReason::TransferFromAgent { .. } => {
-            AGENT_REQUESTED_USER_TAKE_CONTROL_COMMAND_MESSAGE
+            localization::text_for_app(app, "agent.requested_command.status.user_in_control_short")
         }
     }
 }
@@ -1552,7 +1697,7 @@ impl View for RequestedCommandView {
         // For MCP tools, when expanded, show either the tool call details or the JSON response.
         let should_render_mcp_content = self.is_header_expanded
             && self.action_type.is_mcp_tool()
-            && !self.command_text.is_empty();
+            && (self.mcp_request.is_some() || !self.command_text.is_empty());
 
         let has_citations_footer =
             !self.derived_from_citations.is_empty() && !self.block_model.status(app).is_streaming();
@@ -1593,6 +1738,12 @@ impl View for RequestedCommandView {
 
                 let mut tree_column =
                     Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+                let request_label =
+                    localization::text_for_app(app, "agent.requested_command.mcp_tool.request");
+                let response_label = localization::text_for_app(
+                    app,
+                    "agent.requested_command.mcp_tool.response_label",
+                );
 
                 // Request section: show the tree if args are known, or a placeholder.
                 let request_section: Box<dyn Element> = if let Some(mcp_request) = &self.mcp_request
@@ -1618,7 +1769,7 @@ impl View for RequestedCommandView {
                     });
                     render_json_tree(
                         &mcp_request.args,
-                        Some("Request"),
+                        Some(&request_label),
                         &self.mcp_request_tree_state,
                         &colors,
                         &format!("{}-req", self.position_id_prefix),
@@ -1631,16 +1782,23 @@ impl View for RequestedCommandView {
                     let mut col =
                         Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
                     col.add_child(
-                        Text::new_inline("Request".to_string(), font_family, TREE_FONT_SIZE)
+                        Text::new_inline(request_label.clone(), font_family, TREE_FONT_SIZE)
                             .with_color(colors.annotation)
                             .soft_wrap(false)
                             .finish(),
                     );
                     col.add_child(
-                        Text::new_inline("(no arguments)".to_string(), font_family, TREE_FONT_SIZE)
-                            .with_color(colors.annotation)
-                            .soft_wrap(false)
-                            .finish(),
+                        Text::new_inline(
+                            localization::text_for_app(
+                                app,
+                                "agent.requested_command.mcp_tool.no_arguments",
+                            ),
+                            font_family,
+                            TREE_FONT_SIZE,
+                        )
+                        .with_color(colors.annotation)
+                        .soft_wrap(false)
+                        .finish(),
                     );
                     col.finish()
                 };
@@ -1690,7 +1848,7 @@ impl View for RequestedCommandView {
                                 });
                             render_json_tree(
                                 &value,
-                                Some("Response"),
+                                Some(&response_label),
                                 &self.mcp_response_tree_state,
                                 &colors,
                                 &format!("{}-resp", self.position_id_prefix),
@@ -1705,7 +1863,7 @@ impl View for RequestedCommandView {
                                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch);
                             col.add_child(
                                 Text::new_inline(
-                                    "Response".to_string(),
+                                    response_label.clone(),
                                     font_family,
                                     TREE_FONT_SIZE,
                                 )
@@ -1714,10 +1872,18 @@ impl View for RequestedCommandView {
                                 .finish(),
                             );
                             col.add_child(
-                                Text::new(format!("Error: {e}"), font_family, TREE_FONT_SIZE)
-                                    .with_color(theme.ui_error_color())
-                                    .with_selectable(true)
-                                    .finish(),
+                                Text::new(
+                                    localization::text_for_app_with_args(
+                                        app,
+                                        "agent.requested_command.mcp_tool.result_error",
+                                        &[("error", &e)],
+                                    ),
+                                    font_family,
+                                    TREE_FONT_SIZE,
+                                )
+                                .with_color(theme.ui_error_color())
+                                .with_selectable(true)
+                                .finish(),
                             );
                             col.finish()
                         }
@@ -1726,7 +1892,7 @@ impl View for RequestedCommandView {
                                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch);
                             col.add_child(
                                 Text::new_inline(
-                                    "Response".to_string(),
+                                    response_label.clone(),
                                     font_family,
                                     TREE_FONT_SIZE,
                                 )
@@ -1736,7 +1902,10 @@ impl View for RequestedCommandView {
                             );
                             col.add_child(
                                 Text::new_inline(
-                                    "Cancelled".to_string(),
+                                    localization::text_for_app(
+                                        app,
+                                        "agent.requested_command.mcp_tool.cancelled_status",
+                                    ),
                                     font_family,
                                     TREE_FONT_SIZE,
                                 )
@@ -1796,7 +1965,7 @@ impl View for RequestedCommandView {
                 );
             } else {
                 // Fallback: flat pretty-printed JSON.
-                let command_text = self.command_text();
+                let command_text = self.display_text(app);
                 let content_text = if let Some(AIAgentActionResultType::CallMCPTool(result)) =
                     action_status
                         .as_ref()
@@ -1804,17 +1973,32 @@ impl View for RequestedCommandView {
                 {
                     let result_text = match result {
                         CallMCPToolResult::Success { result } => {
-                            serde_json::to_string_pretty(result)
-                                .unwrap_or_else(|_| "Error formatting JSON".to_string())
+                            serde_json::to_string_pretty(result).unwrap_or_else(|_| {
+                                localization::text_for_app(
+                                    app,
+                                    "agent.requested_command.mcp_tool.error_formatting_json",
+                                )
+                            })
                         }
-                        CallMCPToolResult::Error(error) => format!("Error: {error}"),
-                        CallMCPToolResult::Cancelled => "Tool call was cancelled".to_string(),
+                        CallMCPToolResult::Error(error) => localization::text_for_app_with_args(
+                            app,
+                            "agent.requested_command.mcp_tool.result_error",
+                            &[("error", error)],
+                        ),
+                        CallMCPToolResult::Cancelled => localization::text_for_app(
+                            app,
+                            "agent.requested_command.mcp_tool.cancelled",
+                        ),
                     };
-                    format!("{command_text}\n\nResponse: {result_text}")
+                    localization::text_for_app_with_args(
+                        app,
+                        "agent.requested_command.mcp_tool.response",
+                        &[("command", &command_text), ("response", &result_text)],
+                    )
                 } else if self.is_header_expanded {
-                    command_text.to_string()
+                    command_text
                 } else {
-                    self.extract_mcp_tool_name(command_text)
+                    self.extract_mcp_tool_name(&command_text)
                 };
                 let text_element = Text::new(
                     content_text,
@@ -2029,32 +2213,8 @@ impl TypedActionView for RequestedCommandView {
                 json_text,
                 anchor_id,
             } => {
-                // Determine whether the Copy item should be enabled based on whether
-                // there is currently a non-empty text selection in the MCP section.
-                #[allow(clippy::unwrap_used)]
-                let has_selection = self
-                    .mcp_content_selected_text
-                    .read()
-                    .unwrap()
-                    .as_deref()
-                    .is_some_and(|t| !t.is_empty());
-
-                let copy_item: MenuItem<RequestedCommandViewAction> = MenuItemFields::new("Copy")
-                    .with_on_select_action(RequestedCommandViewAction::CopyMcpSelection)
-                    .with_disabled(!has_selection)
-                    .into_item();
-
-                let json_for_menu = json_text.clone();
-                let copy_json_item: MenuItem<RequestedCommandViewAction> =
-                    MenuItemFields::new("Copy JSON")
-                        .with_on_select_action(RequestedCommandViewAction::CopyJsonToClipboard {
-                            text: json_for_menu,
-                        })
-                        .into_item();
-
-                self.mcp_context_menu.update(ctx, move |menu, ctx| {
-                    menu.set_items(vec![copy_item, copy_json_item], ctx);
-                });
+                self.mcp_context_menu_json_text = Some(json_text.clone());
+                self.refresh_mcp_context_menu(ctx);
                 self.mcp_context_menu_anchor_id = Some(anchor_id.clone());
                 self.mcp_context_menu_open = true;
                 ctx.notify();
@@ -2073,6 +2233,7 @@ impl TypedActionView for RequestedCommandView {
             }
             RequestedCommandViewAction::CloseMcpContextMenu => {
                 self.mcp_context_menu_open = false;
+                self.mcp_context_menu_json_text = None;
                 ctx.notify();
             }
         }

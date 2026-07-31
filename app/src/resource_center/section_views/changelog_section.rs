@@ -19,6 +19,7 @@ use crate::appearance::Appearance;
 use crate::changelog_model::{
     ChangelogHeader, ChangelogModel, ChangelogState, Event as ChangelogEvent,
 };
+use crate::localization::{self, LocalizationUpdater};
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
 use crate::themes::theme::Fill;
@@ -29,9 +30,6 @@ struct ChangelogMouseStateHandles {
     top_bar_mouse_state: MouseStateHandle,
     view_changelogs_mouse_state: MouseStateHandle,
 }
-
-const CHANGELOG_FETCH_ERROR_MSG: &str = "Unable to fetch the latest changelog.";
-const CHANGELOG_LOADING_MSG: &str = "Loading...";
 
 pub struct ChangelogSectionView {
     changelog_model_handle: ModelHandle<ChangelogModel>,
@@ -87,6 +85,9 @@ impl ChangelogSectionView {
         ctx.subscribe_to_model(&changelog_model_handle, |me, _, event, ctx| {
             me.handle_changelog_event(event, ctx);
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
         Self {
             changelog_model_handle,
@@ -97,10 +98,24 @@ impl ChangelogSectionView {
             improvements_highlighted_link: Default::default(),
             bug_fixes_highlighted_link: Default::default(),
             changelog_fetch_error: create_formatted_text_from_string(
-                CHANGELOG_FETCH_ERROR_MSG.to_string(),
+                crate::localization::text_for_app(ctx, "resource_center.changelog.fetch_error"),
             ),
-            changelog_loading: create_formatted_text_from_string(CHANGELOG_LOADING_MSG.to_string()),
+            changelog_loading: create_formatted_text_from_string(
+                crate::localization::text_for_app(ctx, "resource_center.changelog.loading"),
+            ),
         }
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        self.changelog_fetch_error = create_formatted_text_from_string(localization::text_for_app(
+            ctx,
+            "resource_center.changelog.fetch_error",
+        ));
+        self.changelog_loading = create_formatted_text_from_string(localization::text_for_app(
+            ctx,
+            "resource_center.changelog.loading",
+        ));
+        ctx.notify();
     }
 
     fn handle_changelog_event(&mut self, _: &ChangelogEvent, ctx: &mut ViewContext<Self>) {
@@ -117,10 +132,13 @@ impl ChangelogSectionView {
         content: &mut Flex,
         model: &ChangelogModel,
         appearance: &Appearance,
+        ctx: &AppContext,
     ) {
-        let title = ChangelogHeader::NewFeatures.to_string();
+        let title =
+            localization::text_for_app(ctx, "resource_center.changelog.header.new_features");
+        let markdown_key = ChangelogHeader::NewFeatures.to_string();
         let icon = icons::Icon::Gift;
-        let Some(markdown) = model.parsed_changelog.get(&title) else {
+        let Some(markdown) = model.parsed_changelog.get(&markdown_key) else {
             return;
         };
 
@@ -182,8 +200,9 @@ impl ChangelogSectionView {
         content: &mut Flex,
         model: &ChangelogModel,
         appearance: &Appearance,
+        ctx: &AppContext,
     ) {
-        self.generate_new_features_section(content, model, appearance);
+        self.generate_new_features_section(content, model, appearance, ctx);
 
         let additional_sections = [
             (
@@ -199,8 +218,19 @@ impl ChangelogSectionView {
         ];
 
         for (section, icon, link) in additional_sections {
-            let title = section.to_string();
-            let Some(markdown) = model.parsed_changelog.get(&title) else {
+            let title = match section {
+                ChangelogHeader::NewFeatures => {
+                    localization::text_for_app(ctx, "resource_center.changelog.header.new_features")
+                }
+                ChangelogHeader::Improvements => {
+                    localization::text_for_app(ctx, "resource_center.changelog.header.improvements")
+                }
+                ChangelogHeader::BugFixes => {
+                    localization::text_for_app(ctx, "resource_center.changelog.header.bug_fixes")
+                }
+            };
+            let markdown_key = section.to_string();
+            let Some(markdown) = model.parsed_changelog.get(&markdown_key) else {
                 continue;
             };
 
@@ -361,12 +391,12 @@ impl SectionView for ChangelogSectionView {
         None
     }
 
-    fn section_link(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+    fn section_link(&self, appearance: &Appearance, _ctx: &AppContext) -> Option<Box<dyn Element>> {
         Some(
             appearance
                 .ui_builder()
                 .link(
-                    "Read all changelogs".into(),
+                    localization::text_for_app(_ctx, "resource_center.changelog.read_all"),
                     Some("https://docs.warp.dev/changelog".into()),
                     None,
                     self.changelog_button_mouse_states
@@ -414,6 +444,7 @@ impl View for ChangelogSectionView {
                         &mut content_flex,
                         changelog_model,
                         appearance,
+                        app,
                     );
                 }
                 ChangelogState::Pending => {

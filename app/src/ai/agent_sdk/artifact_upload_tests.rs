@@ -83,7 +83,7 @@ fn file_size_and_prefix_for_path_returns_truncated_prefix() {
     fs::write(&path, b"0123456789").unwrap();
 
     assert_eq!(
-        file_size_and_prefix_for_path(&path, 4).unwrap(),
+        file_size_and_prefix_for_path(&path, 4, LocaleId::EnUs).unwrap(),
         (10, b"0123".to_vec())
     );
 }
@@ -95,7 +95,7 @@ fn file_size_and_prefix_for_path_returns_full_contents_when_prefix_exceeds_file(
     fs::write(&path, b"0123456789").unwrap();
 
     assert_eq!(
-        file_size_and_prefix_for_path(&path, 32).unwrap(),
+        file_size_and_prefix_for_path(&path, 32, LocaleId::EnUs).unwrap(),
         (10, b"0123456789".to_vec())
     );
 }
@@ -108,10 +108,13 @@ fn single_conversation_metadata_returns_the_only_metadata_record() {
             "conversation-123",
             Some("550e8400-e29b-41d4-a716-446655440000"),
         )],
+        LocaleId::EnUs,
     )
     .unwrap();
 
-    let task_id = ambient_task_id_from_conversation_metadata("conversation-123", metadata).unwrap();
+    let task_id =
+        ambient_task_id_from_conversation_metadata("conversation-123", metadata, LocaleId::EnUs)
+            .unwrap();
     assert_eq!(
         task_id,
         "550e8400-e29b-41d4-a716-446655440000".parse().unwrap()
@@ -120,7 +123,8 @@ fn single_conversation_metadata_returns_the_only_metadata_record() {
 
 #[test]
 fn single_conversation_metadata_errors_when_no_metadata_is_returned() {
-    let err = single_conversation_metadata("conversation-123", Vec::new()).unwrap_err();
+    let err =
+        single_conversation_metadata("conversation-123", Vec::new(), LocaleId::EnUs).unwrap_err();
 
     assert!(err.to_string().contains("Conversation not found"));
 }
@@ -130,6 +134,7 @@ fn ambient_task_id_from_conversation_metadata_requires_cloud_task_metadata() {
     let err = ambient_task_id_from_conversation_metadata(
         "conversation-123",
         create_conversation_metadata("conversation-123", None),
+        LocaleId::EnUs,
     )
     .unwrap_err();
 
@@ -146,6 +151,7 @@ fn explicit_run_id_wins_over_env_fallback() {
         None,
         None,
         Some("11111111-1111-1111-1111-111111111111".to_string()),
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -179,6 +185,7 @@ fn valid_conversation_resolution_ignores_env_fallback() {
         Some(ServerConversationToken::new("conversation-123".to_string())),
         Some(Ok("550e8400-e29b-41d4-a716-446655440000".parse().unwrap())),
         Some("11111111-1111-1111-1111-111111111111".to_string()),
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -201,6 +208,7 @@ fn failed_conversation_resolution_falls_back_to_env_run_id() {
             "Conversation 'conversation-123' is not backed by a cloud agent task"
         ))),
         Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -221,6 +229,7 @@ fn missing_args_fall_back_to_env_run_id_for_request_association() {
         None,
         None,
         Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
+        LocaleId::EnUs,
     )
     .unwrap();
 
@@ -236,7 +245,8 @@ fn missing_args_fall_back_to_env_run_id_for_request_association() {
 
 #[test]
 fn missing_args_and_missing_env_return_clear_error() {
-    let err = resolve_upload_association_from_sources(None, None, None, None).unwrap_err();
+    let err = resolve_upload_association_from_sources(None, None, None, None, LocaleId::EnUs)
+        .unwrap_err();
 
     assert!(
         err.to_string()
@@ -247,9 +257,14 @@ fn missing_args_and_missing_env_return_clear_error() {
 
 #[test]
 fn invalid_env_run_id_returns_clear_error() {
-    let err =
-        resolve_upload_association_from_sources(None, None, None, Some("not-a-run-id".to_string()))
-            .unwrap_err();
+    let err = resolve_upload_association_from_sources(
+        None,
+        None,
+        None,
+        Some("not-a-run-id".to_string()),
+        LocaleId::EnUs,
+    )
+    .unwrap_err();
 
     assert!(err.to_string().contains("Invalid OZ_RUN_ID 'not-a-run-id'"));
 }
@@ -260,7 +275,7 @@ fn load_env_run_id_reads_variable() {
     // TODO: Audit that the environment access only happens in single-threaded code.
     unsafe { env::set_var(OZ_RUN_ID_ENV_VAR, "550e8400-e29b-41d4-a716-446655440000") };
 
-    let loaded = load_env_run_id().unwrap();
+    let loaded = load_env_run_id(LocaleId::EnUs).unwrap();
 
     match previous {
         // TODO: Audit that the environment access only happens in single-threaded code.

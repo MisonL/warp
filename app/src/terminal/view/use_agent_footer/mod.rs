@@ -48,7 +48,6 @@ use warpui::{
 
 use super::{RichContentInsertionPosition, TerminalAction, TerminalView};
 use crate::ai::blocklist::block::cli_controller::CLISubagentEvent;
-use crate::cmd_or_ctrl_shift;
 use crate::code_review::diff_state::GitDeltaPreference;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::server::telemetry::{CLIAgentType, CLISubagentControlState, TelemetryEvent};
@@ -64,6 +63,7 @@ use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, KeystrokeSource, TooltipAlignment,
 };
+use crate::{cmd_or_ctrl_shift, localization};
 
 /// Small delay inserted between separate PTY writes to CLI agents.
 /// (Used both for the mode-switch prefix split and for the `DelayedEnter`
@@ -1098,13 +1098,16 @@ impl UseAgentToolbar {
 
         let button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                "Use agent",
+                localization::text_for_app(ctx, "terminal.use_agent_footer.action.use_agent"),
                 AgentFooterButtonTheme::new(Some(terminal_model.clone())),
             )
             .with_icon(Icon::Oz)
             .with_keybinding(KeystrokeSource::Fixed(USE_AGENT_KEYSTROKE.clone()), ctx)
             .with_size(button_size)
-            .with_tooltip("Ask the Warp agent to assist")
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "terminal.use_agent_footer.tooltip.ask_agent_assist",
+            ))
             .with_tooltip_alignment(TooltipAlignment::Left)
             .on_click(|ctx| {
                 ctx.dispatch_typed_action(TerminalAction::SetInputModeAgent);
@@ -1112,21 +1115,27 @@ impl UseAgentToolbar {
         });
         let give_control_back_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                "Give control back to agent",
+                localization::text_for_app(
+                    ctx,
+                    "terminal.use_agent_footer.action.give_control_back",
+                ),
                 AgentFooterButtonTheme::new(Some(terminal_model.clone())),
             )
             .with_icon(Icon::Oz)
             .with_keybinding(KeystrokeSource::Fixed(USE_AGENT_KEYSTROKE.clone()), ctx)
             .with_size(button_size)
-            .with_tooltip("Ask the Warp agent to resume")
+            .with_tooltip(localization::text_for_app(
+                ctx,
+                "terminal.use_agent_footer.tooltip.ask_agent_resume",
+            ))
             .with_tooltip_alignment(TooltipAlignment::Left)
             .on_click(|ctx| {
                 ctx.dispatch_typed_action(TerminalAction::SetInputModeAgent);
             })
         });
-        let dismiss_button = ctx.add_typed_action_view(|_| {
+        let dismiss_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                "Dismiss",
+                localization::text_for_app(ctx, "terminal.use_agent_footer.action.dismiss"),
                 AgentFooterButtonTheme::new(Some(terminal_model.clone())),
             )
             .on_click(|ctx| {
@@ -1134,9 +1143,9 @@ impl UseAgentToolbar {
             })
             .with_size(button_size)
         });
-        let dont_show_again_button = ctx.add_typed_action_view(|_| {
+        let dont_show_again_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new(
-                "Don't show again",
+                localization::text_for_app(ctx, "terminal.use_agent_footer.action.dont_show_again"),
                 AgentFooterButtonTheme::new(Some(terminal_model.clone())),
             )
             .on_click(|ctx| {

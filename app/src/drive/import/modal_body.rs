@@ -17,11 +17,13 @@ use warpui::{
 
 use super::modal::BODY_HEIGHT;
 use super::nodes::{
-    FileContent, FileId, FileUploadState, FolderId, UploadResult, expand_dirs, parse_file,
+    FileContent, FileId, FileUploadState, FolderId, ImportError, ImportRenderContext, UploadResult,
+    expand_dirs, parse_file,
 };
 use super::queue::{ImportQueue, ImportQueueArgs, ImportQueueEvent, ParentId, RequestContent};
 use crate::appearance::Appearance;
 use crate::cloud_object::Owner;
+use crate::localization;
 use crate::server::ids::{ClientId, SyncId};
 use crate::server::sync_queue::SyncQueue;
 use crate::ui_components::icons::Icon;
@@ -120,7 +122,7 @@ impl ImportModalBody {
                 ImportQueueEvent::FileCompleted { file_id, server_id } => {
                     let result = match server_id {
                         Some(id) => UploadResult::Success(id.clone()),
-                        None => UploadResult::Error("Failed to upload file to server".to_string()),
+                        None => UploadResult::Error(ImportError::FileUpload),
                     };
 
                     // Update the upstream folder status with the upload success state.
@@ -134,9 +136,7 @@ impl ImportModalBody {
                 } => {
                     let result = match server_id {
                         Some(id) => UploadResult::Success(id.clone()),
-                        None => {
-                            UploadResult::Error("Failed to upload folder to server".to_string())
-                        }
+                        None => UploadResult::Error(ImportError::FolderUpload),
                     };
 
                     state.mark_folder_synced(result, *folder_id);
@@ -265,7 +265,7 @@ impl ImportModalBody {
                         // upstream folders.
                         if let Err(e) = &response {
                             state.update_tree_with_file_upload_result(
-                                UploadResult::Error(e.to_string()),
+                                UploadResult::Error(ImportError::FileParse(e.to_string())),
                                 file_id,
                             );
                         }
@@ -359,7 +359,7 @@ impl ImportModalBody {
         ctx.notify();
     }
 
-    fn render_upload_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_upload_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let is_loading = matches!(self.state, ImportState::PathLoaded | ImportState::Loading);
         let base_button = appearance
             .ui_builder()
@@ -381,13 +381,13 @@ impl ImportModalBody {
 
         let file_picker_button = if is_loading {
             base_button
-                .with_centered_text_label("Preparing...".to_string())
+                .with_centered_text_label(localization::text_for_app(app, "drive.import.preparing"))
                 .disabled()
         } else {
             base_button.with_text_and_icon_label(
                 TextAndIcon::new(
                     TextAndIconAlignment::TextFirst,
-                    "Choose files...".to_string(),
+                    localization::text_for_app(app, "drive.import.choose_files"),
                     Icon::Import.to_warpui_icon(
                         appearance
                             .theme()
@@ -427,7 +427,7 @@ impl ImportModalBody {
         let link_to_document = appearance
             .ui_builder()
             .link(
-                "Learn about file support and formatting".to_string(),
+                localization::text_for_app(app, "drive.import.file_support_link"),
                 Some(FILE_TYPE_DOCS_URL.to_string()),
                 None,
                 self.link_mouse_state.clone(),
@@ -460,7 +460,7 @@ impl ImportModalBody {
         &self,
         file_upload_state: &FileUploadState,
         sync_queue_dequeueing: bool,
-        appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let mut column = Flex::column();
         let folder_id_to_node = &file_upload_state.folder_id_to_node;
@@ -469,16 +469,16 @@ impl ImportModalBody {
         let folder_node = folder_id_to_node
             .get(&FolderId::root_id())
             .expect("Root node should exist");
+        let render_context = ImportRenderContext::new(
+            app,
+            sync_queue_dequeueing,
+            file_upload_state.is_complete(),
+            folder_id_to_node,
+            file_id_to_node,
+        );
 
         for item in folder_node.children() {
-            column.add_child(item.render(
-                appearance,
-                0,
-                file_upload_state.is_complete(),
-                sync_queue_dequeueing,
-                folder_id_to_node,
-                file_id_to_node,
-            ));
+            column.add_child(item.render(0, &render_context));
         }
 
         Container::new(column.finish())
@@ -504,10 +504,10 @@ impl View for ImportModalBody {
 
         match &self.state {
             ImportState::Upload | ImportState::Loading | ImportState::PathLoaded => {
-                self.render_upload_state(appearance)
+                self.render_upload_state(appearance, app)
             }
             ImportState::PathExpanded(paths) => {
-                self.render_loaded_state(paths, sync_queue_dequeueing, appearance)
+                self.render_loaded_state(paths, sync_queue_dequeueing, app)
             }
         }
     }
@@ -530,9 +530,15 @@ impl TypedActionView for ImportModalBody {
             }
             ImportModalBodyAction::FilePickerError(err) => {
                 let window_id = ctx.window_id();
+                let error = err.to_string();
+                let message = crate::localization::text_for_app_with_args(
+                    ctx,
+                    "drive.import.error.file_picker",
+                    &[("error", &error)],
+                );
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!("{err}")),
+                        DismissibleToast::error(message),
                         window_id,
                         ctx,
                     );

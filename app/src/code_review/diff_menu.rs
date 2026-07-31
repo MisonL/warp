@@ -26,6 +26,7 @@ use crate::code_review::diff_state::DiffMode;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
 };
+use crate::localization;
 use crate::ui_components::icons::Icon;
 
 const MENU_WIDTH: f32 = 280.;
@@ -112,7 +113,10 @@ impl CodeReviewDiffMenu {
                 ..Default::default()
             };
             let mut editor = EditorView::new(options, ctx);
-            editor.set_placeholder_text("Search diff sets or branches to compare…", ctx);
+            editor.set_placeholder_text(
+                localization::text_for_app(ctx, "code_review.diff_menu.search_placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -275,11 +279,11 @@ impl CodeReviewDiffMenu {
             .finish()
     }
 
-    fn render_empty_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_empty_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "No matches",
+                crate::localization::text_for_app(app, "code_review.diff_menu.no_matches"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -294,7 +298,7 @@ impl CodeReviewDiffMenu {
     fn render_rows(&self, ctx: &AppContext) -> Box<dyn Element> {
         if self.filtered.is_empty() {
             if !self.search_query.is_empty() {
-                return self.render_empty_state(Appearance::as_ref(ctx));
+                return self.render_empty_state(Appearance::as_ref(ctx), ctx);
             }
             return Empty::new().finish();
         }

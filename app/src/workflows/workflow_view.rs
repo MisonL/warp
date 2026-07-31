@@ -1574,7 +1574,10 @@ impl WorkflowView {
     fn save_aliases(&mut self, ctx: &mut ViewContext<Self>) {
         if let Err(e) = self.alias_bar.update(ctx, |bar, ctx| bar.save(ctx)) {
             report_error!(e.context("Error saving aliases"));
-            self.display_error_toast("Error saving aliases".to_string(), ctx);
+            self.display_error_toast(
+                crate::localization::text_for_app(ctx, "workflow.toast.error_saving_aliases"),
+                ctx,
+            );
         }
     }
 
@@ -1584,7 +1587,7 @@ impl WorkflowView {
         // Block saving if secrets are detected in the workflow when secret redaction is enabled.
         if self.workflow_contains_secrets(ctx) {
             self.display_error_toast(
-                "This workflow cannot be saved because it contains secrets".to_string(),
+                crate::localization::text_for_app(ctx, "workflow.toast.contains_secrets"),
                 ctx,
             );
             return;
@@ -1618,7 +1621,10 @@ impl WorkflowView {
                     id
                 } else {
                     report_error!("No client_id obtained for creating workflow");
-                    self.display_error_toast(String::from("Could not create workflow"), ctx);
+                    self.display_error_toast(
+                        crate::localization::text_for_app(ctx, "workflow.toast.could_not_create"),
+                        ctx,
+                    );
                     return;
                 };
 
@@ -1729,9 +1735,9 @@ impl WorkflowView {
         crate::workspace::ToastStack::handle(ctx).update(ctx, |stack, ctx| {
             stack.add_ephemeral_toast(
                 DismissibleToast::success(if self.is_for_agent_mode {
-                    "Prompt copied.".to_string()
+                    crate::localization::text_for_app(ctx, "workflow.toast.prompt_copied")
                 } else {
-                    "Command copied.".to_string()
+                    crate::localization::text_for_app(ctx, "workflow.toast.command_copied")
                 }),
                 window_id,
                 ctx,
@@ -1910,6 +1916,7 @@ impl WorkflowView {
         &self,
         editability: ContentEditability,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let base_text_styles = UiComponentStyles {
             ..Default::default()
@@ -1919,7 +1926,10 @@ impl WorkflowView {
             WorkflowViewMode::Edit => {
                 let mode_text = appearance
                     .ui_builder()
-                    .span("Editing")
+                    .span(crate::localization::text_for_app(
+                        app,
+                        "workflow.mode.editing",
+                    ))
                     .with_style(base_text_styles)
                     .build();
                 let edit_button = accent_icon_button(
@@ -1934,7 +1944,10 @@ impl WorkflowView {
             WorkflowViewMode::View => {
                 let mode_text = appearance
                     .ui_builder()
-                    .span("Viewing")
+                    .span(crate::localization::text_for_app(
+                        app,
+                        "workflow.mode.viewing",
+                    ))
                     .with_style(base_text_styles)
                     .build();
                 let edit_button = icon_button(
@@ -1952,9 +1965,11 @@ impl WorkflowView {
         if let Some((mode_text, mut edit_button)) = text_and_button {
             if matches!(editability, ContentEditability::RequiresLogin) {
                 let ui_builder = appearance.ui_builder().clone();
+                let sign_in_to_edit =
+                    crate::localization::text_for_app(app, "workflow.tooltip.sign_in_to_edit");
                 edit_button = edit_button.with_tooltip(move || {
                     ui_builder
-                        .tool_tip("Sign in to edit".to_string())
+                        .tool_tip(sign_in_to_edit.clone())
                         .build()
                         .finish()
                 });
@@ -2169,11 +2184,7 @@ impl WorkflowView {
         .finish()
     }
 
-    fn render_section_header(
-        &self,
-        text: &'static str,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_section_header(&self, text: String, appearance: &Appearance) -> Box<dyn Element> {
         Container::new(
             appearance
                 .ui_builder()
@@ -2241,7 +2252,7 @@ impl WorkflowView {
             .with_children([
                 Flex::row()
                     .with_children([
-                        self.render_section_header("Aliases", appearance),
+                        self.render_section_header("Aliases".to_owned(), appearance),
                         Container::new(help_icon).with_margin_left(4.).finish(),
                     ])
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -2629,45 +2640,44 @@ impl WorkflowView {
                             environment_variables: None,
                         };
 
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::AutoGenerateMetadataSuccess,
-                            ctx
-                        );
+                        send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
 
                         pane.populate_missing_field_with_suggestion(workflow, ctx);
                         ctx.notify();
                     }
                     Err(err) => {
-                        let message = err.user_facing_message();
+                        let message = err.user_facing_message(ctx);
                         if let GeneratedCommandMetadataError::RateLimited = err {
                             let current_user_id = pane.auth_state.user_id().unwrap_or_default();
                             if let Some(team) = UserWorkspaces::as_ref(ctx).current_team() {
                                 let current_user_email =
                                     pane.auth_state.user_email().unwrap_or_default();
-                                let has_admin_permissions = team.has_admin_permissions(&current_user_email);
+                                let has_admin_permissions =
+                                    team.has_admin_permissions(&current_user_email);
                                 if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
                                     if has_admin_permissions {
-                                        pane.display_upgrade_error(Some(team.uid), current_user_id, ctx);
+                                        pane.display_upgrade_error(
+                                            Some(team.uid),
+                                            current_user_id,
+                                            ctx,
+                                        );
                                     } else {
                                         pane.display_error_toast(
-                                            "Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.".to_string(),
+                                            crate::localization::text_for_app(
+                                                ctx,
+                                                "workflow.toast.out_of_ai_credits_contact_admin",
+                                            ),
                                             ctx,
                                         );
                                     }
                                 } else {
-                                    pane.display_error_toast(
-                                        message.clone(),
-                                        ctx,
-                                    );
+                                    pane.display_error_toast(message.clone(), ctx);
                                 }
                             } else {
                                 pane.display_upgrade_error(None, current_user_id, ctx);
                             }
                         } else {
-                            pane.display_error_toast(
-                                message.clone(),
-                                ctx,
-                            );
+                            pane.display_error_toast(message.clone(), ctx);
                         }
 
                         send_telemetry_from_ctx!(
@@ -2685,7 +2695,7 @@ impl WorkflowView {
                 AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
                     request_usage_model.refresh_request_usage_async(ctx);
                 });
-            }
+            },
         );
 
         self.ai_metadata_assist_state = AiAssistState::RequestInFlight;
@@ -2705,16 +2715,26 @@ impl WorkflowView {
 
         let window_id = ctx.window_id();
         let toast_link = if self.auth_state.is_anonymous_or_logged_out() {
-            ToastLink::new("Upgrade for more credits.".into())
-                .with_onclick_action(WorkspaceAction::AttemptLoginGatedAIUpgrade)
+            ToastLink::new(crate::localization::text_for_app(
+                ctx,
+                "workflow.toast.upgrade_for_more_credits",
+            ))
+            .with_onclick_action(WorkspaceAction::AttemptLoginGatedAIUpgrade)
         } else {
-            ToastLink::new("Upgrade for more credits.".into()).with_href(upgrade_link)
+            ToastLink::new(crate::localization::text_for_app(
+                ctx,
+                "workflow.toast.upgrade_for_more_credits",
+            ))
+            .with_href(upgrade_link)
         };
 
         crate::workspace::ToastStack::handle(ctx).update(ctx, |stack, ctx| {
             stack.add_ephemeral_toast(
-                DismissibleToast::error("Looks like you're out of AI credits.".into())
-                    .with_link(toast_link),
+                DismissibleToast::error(crate::localization::text_for_app(
+                    ctx,
+                    "workflow.toast.out_of_ai_credits",
+                ))
+                .with_link(toast_link),
                 window_id,
                 ctx,
             );
@@ -2858,6 +2878,10 @@ impl WorkflowView {
                 .with_cross_axis_alignment(CrossAxisAlignment::Center);
 
             let ui_builder = appearance.ui_builder().clone();
+            let restore_tooltip =
+                crate::localization::text_for_app(app, "workflow.trash_banner.restore_tooltip");
+            let restore_label =
+                crate::localization::text_for_app(app, "workflow.trash_banner.restore");
             action_row.add_child(
                 Align::new(
                     appearance
@@ -2868,11 +2892,11 @@ impl WorkflowView {
                         )
                         .with_tooltip(move || {
                             ui_builder
-                                .tool_tip("Restore workflow from trash".to_string())
+                                .tool_tip(restore_tooltip.clone())
                                 .build()
                                 .finish()
                         })
-                        .with_text_label("Restore".to_string())
+                        .with_text_label(restore_label)
                         .build()
                         .on_click(|ctx, _, _| ctx.dispatch_typed_action(WorkflowAction::Untrash))
                         .finish(),
@@ -2978,7 +3002,7 @@ impl View for WorkflowView {
             row.add_child(
                 Shrinkable::new(
                     1.,
-                    Container::new(self.render_edit_toggle_button(editability, appearance))
+                    Container::new(self.render_edit_toggle_button(editability, appearance, app))
                         .with_margin_right(CORE_HORIZONATAL_MARGIN)
                         .finish(),
                 )
@@ -3182,10 +3206,13 @@ impl BackingView for WorkflowView {
         // Add "Copy Link" to menu
         if let Some(link) = self.workflow_link(ctx) {
             menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(WorkflowAction::CopyLink(link))
-                    .with_icon(Icon::Link)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "drive.menu.copy_link",
+                ))
+                .with_on_select_action(WorkflowAction::CopyLink(link))
+                .with_icon(Icon::Link)
+                .into_item(),
             );
         }
 
@@ -3194,10 +3221,13 @@ impl BackingView for WorkflowView {
             && let Ok(url) = Url::parse(&link)
         {
             menu_items.push(
-                MenuItemFields::new("Open on Desktop")
-                    .with_on_select_action(WorkflowAction::OpenLinkOnDesktop(url))
-                    .with_icon(Icon::Laptop)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "drive.menu.open_on_desktop",
+                ))
+                .with_on_select_action(WorkflowAction::OpenLinkOnDesktop(url))
+                .with_icon(Icon::Laptop)
+                .into_item(),
             );
         }
 
@@ -3206,10 +3236,13 @@ impl BackingView for WorkflowView {
         // Add "Duplicate" to menu
         if space != Some(Space::Shared) {
             menu_items.push(
-                MenuItemFields::new("Duplicate")
-                    .with_on_select_action(WorkflowAction::Duplicate)
-                    .with_icon(Icon::Duplicate)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "drive.menu.duplicate",
+                ))
+                .with_on_select_action(WorkflowAction::Duplicate)
+                .with_icon(Icon::Duplicate)
+                .into_item(),
             );
         }
 
@@ -3219,7 +3252,7 @@ impl BackingView for WorkflowView {
             && (!FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash())
         {
             menu_items.push(
-                MenuItemFields::new("Trash")
+                MenuItemFields::new(crate::localization::text_for_app(ctx, "drive.menu.trash"))
                     .with_on_select_action(WorkflowAction::Trash)
                     .with_icon(Icon::Trash)
                     .into_item(),

@@ -436,6 +436,11 @@ impl ActionButton {
         ctx.notify();
     }
 
+    #[cfg(test)]
+    pub(crate) fn tooltip_for_test(&self) -> Option<&str> {
+        self.tooltip.as_deref()
+    }
+
     pub fn clear_tooltip(&mut self, ctx: &mut ViewContext<Self>) {
         self.tooltip = None;
         ctx.notify();
@@ -532,7 +537,10 @@ impl ActionButton {
                 Some(
                     Container::new(
                         Text::new_inline(
-                            "Beta",
+                            crate::localization::text_for_app(
+                                app,
+                                "view_components.action_button.beta",
+                            ),
                             appearance.ui_font_family(),
                             overall_height - padding.top() - padding.bottom(),
                         )

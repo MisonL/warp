@@ -44,6 +44,7 @@ use crate::agent_block_sections::{
     render_summarization_section, render_thinking_section, render_todo_list_section,
 };
 use crate::agent_message::render_agent_message;
+use crate::localization;
 use crate::orchestration_block::{TuiOrchestrationBlock, TuiOrchestrationBlockEvent};
 use crate::transcript_view::BLOCK_TOP_PADDING_ROWS;
 use crate::tui_builder::TuiUiBuilder;
@@ -204,10 +205,7 @@ fn render_failure_section(
         .finish(),
         FailedOutputPresentation::InvalidApiKey { title, detail } => TuiText::from_spans([
             ("⚠ ".to_owned(), error_style),
-            (
-                (*title).to_owned(),
-                error_style.add_modifier(Modifier::BOLD),
-            ),
+            (title.clone(), error_style.add_modifier(Modifier::BOLD)),
             ("\n  ".to_owned(), body_style),
             (detail.clone(), body_style),
         ])
@@ -221,7 +219,7 @@ fn render_failure_section(
             let link_style = primary_style.add_modifier(Modifier::UNDERLINED);
             let compare_plans = TuiHoverable::new(
                 compare_plans_hover_state.clone(),
-                TuiText::new("Compare plans")
+                TuiText::new(localization::text("tui.failure.compare_plans"))
                     .with_style(link_style)
                     .finish(),
             )
@@ -233,14 +231,14 @@ fn render_failure_section(
             if *can_use_own_api_keys {
                 actions = actions
                     .child(
-                        TuiText::new("  or  ")
+                        TuiText::new(localization::text("tui.failure.or"))
                             .with_style(builder.muted_text_style())
                             .finish(),
                     )
                     .child(
                         TuiHoverable::new(
                             byok_hover_state.clone(),
-                            TuiText::new("Use your own API keys")
+                            TuiText::new(localization::text("tui.failure.use_own_api_keys"))
                                 .with_style(link_style)
                                 .finish(),
                         )
@@ -275,7 +273,7 @@ fn render_failure_section(
 }
 
 fn render_usage_notice(app: &AppContext) -> Box<dyn TuiElement> {
-    TuiText::new("This response won't count towards your usage.")
+    TuiText::new(localization::text("tui.failure.usage_notice"))
         .with_style(TuiUiBuilder::from_app(app).muted_text_style())
         .finish()
 }
@@ -293,9 +291,14 @@ fn failure_text(presentation: &FailedOutputPresentation) -> String {
             can_use_own_api_keys,
         } => {
             let actions = if *can_use_own_api_keys {
-                "Compare plans  or  Use your own API keys"
+                format!(
+                    "{}{}{}",
+                    localization::text("tui.failure.compare_plans"),
+                    localization::text("tui.failure.or"),
+                    localization::text("tui.failure.use_own_api_keys"),
+                )
             } else {
-                "Compare plans"
+                localization::text("tui.failure.compare_plans")
             };
             format!("{title}\n  {detail}\n\n  {actions}")
         }
@@ -1459,7 +1462,7 @@ impl TuiAIBlock {
                 .get(key)
                 .map(|view| TuiChildView::new(view).finish())
                 .unwrap_or_else(|| {
-                    TuiText::new("[Code block unavailable]")
+                    TuiText::new(localization::text("tui.rich_text.code_unavailable"))
                         .with_style(palette.fallback)
                         .finish()
                 }),
@@ -1475,9 +1478,12 @@ impl TuiAIBlock {
                 .finish(),
             TuiRichTextSection::Image { alt_text, source } => {
                 let label = if alt_text.is_empty() {
-                    "Image".to_owned()
+                    localization::text("tui.rich_text.image")
                 } else {
-                    format!("Image: {alt_text}")
+                    localization::text_with_args(
+                        "tui.rich_text.image_with_alt",
+                        &[("alt_text", alt_text)],
+                    )
                 };
                 TuiText::from_spans([
                     (label, palette.fallback),
@@ -1687,9 +1693,7 @@ fn section_logical_text(section: &TuiAIBlockSection) -> Option<String> {
         | TuiAIBlockSection::CompletedTodos { .. }
         | TuiAIBlockSection::AgentMessage(_) => None,
         TuiAIBlockSection::Failure(presentation) => Some(failure_text(presentation)),
-        TuiAIBlockSection::UsageNotice => {
-            Some("This response won't count towards your usage.".to_owned())
-        }
+        TuiAIBlockSection::UsageNotice => Some(localization::text("tui.failure.usage_notice")),
     }
 }
 

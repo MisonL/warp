@@ -292,9 +292,10 @@ impl platform::Delegate for AppDelegate {
         // See https://stackoverflow.com/questions/56393880/how-do-i-detect-dark-mode-using-javascript.
         if let Ok(Some(media_query_list)) =
             gloo::utils::window().match_media("(prefers-color-scheme: dark)")
-            && media_query_list.matches()
         {
-            return platform::SystemTheme::Dark;
+            if media_query_list.matches() {
+                return platform::SystemTheme::Dark;
+            }
         }
         platform::SystemTheme::Light
     }
@@ -310,8 +311,8 @@ impl platform::Delegate for AppDelegate {
                     .arg(path)
                     .spawn();
             } else if #[cfg(target_family = "wasm")] {
-                if let Some(window) = web_sys::window()
-                    && let Some(path) = path.to_str() {
+                if let Some(window) = web_sys::window() {
+                    if let Some(path) = path.to_str() {
                         // Try to open the path via a file:// URL.
                         let url = format!("file://{path}");
                         let _ = window.open_with_url_and_target_and_features(
@@ -320,6 +321,7 @@ impl platform::Delegate for AppDelegate {
                             "noopener,noreferrer",
                         );
                     }
+                }
             } else if #[cfg(windows)] {
                 if let Err(e) = open::that_detached(path) {
                     log::warn!("Unable to open path {e:?}");
@@ -364,14 +366,15 @@ impl platform::Delegate for AppDelegate {
                     // native-dialog doesn't support file-or-directory or multi-directory pickers,
                     // so if folders are allowed, it can only show a directory picker.
                     let result = if file_picker_config.allows_folder() {
-                        native_dialog::FileDialog::new()
-                            .set_title("Choose directory...")
+                        let file_dialog = native_dialog::FileDialog::new()
+                            .set_title(file_picker_config.title_or_default());
+                        file_dialog
                             .show_open_single_dir()
                             .map(|opt| opt.into_iter().collect())
                             .map_err(|e| FilePickerError::DialogFailed(e.to_string()))
                     } else {
-                        let mut file_dialog =
-                            native_dialog::FileDialog::new().set_title("Choose file...");
+                        let mut file_dialog = native_dialog::FileDialog::new()
+                            .set_title(file_picker_config.title_or_default());
                         if !allowed_extensions.is_empty() {
                             file_dialog = file_dialog.add_filter(
                                 file_type_names.as_str(),
@@ -436,7 +439,7 @@ impl platform::Delegate for AppDelegate {
                 .name("Save File Picker".to_string())
                 .spawn(move || {
                     let mut file_dialog =
-                        native_dialog::FileDialog::new().set_title("Save file as...");
+                        native_dialog::FileDialog::new().set_title(config.title_or_default());
 
                     if let Some(default_filename) = config.default_filename.as_ref() {
                         file_dialog = file_dialog.set_filename(default_filename);

@@ -285,6 +285,7 @@ pub(super) fn add_input_suggestions_overlays(
                     command.clone(),
                     dynamic_enum_status.clone(),
                     suggestions,
+                    app,
                 ),
                 OffsetPositioning::from_axes(
                     PositioningAxis::relative_to_stack_child(

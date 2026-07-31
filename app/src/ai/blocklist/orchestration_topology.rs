@@ -25,16 +25,6 @@ pub enum OrchestrationParticipantKind {
     Unknown,
 }
 
-impl OrchestrationParticipantKind {
-    pub(super) fn display_name(&self) -> &str {
-        match self {
-            Self::Orchestrator => "Orchestrator",
-            Self::Agent { name } => name,
-            Self::Unknown => "Unknown agent",
-        }
-    }
-}
-
 /// Frontend-independent identity for an orchestration participant.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedOrchestrationParticipant {

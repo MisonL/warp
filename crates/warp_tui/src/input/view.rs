@@ -51,6 +51,7 @@ use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestions
 use crate::keybindings::{
     KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG, PLAN_TOGGLE_AVAILABLE_FLAG, TUI_BINDING_GROUP,
 };
+use crate::localization;
 use crate::transcript_view::TuiTranscriptView;
 use crate::tui_builder::TuiUiBuilder;
 
@@ -82,7 +83,7 @@ pub fn init(app: &mut AppContext) {
         // Submit and contextual Escape are prompt policy, not editor policy.
         EditableBinding::new(
             "tui:input:submit",
-            "Submit the input",
+            localization::text("tui.input.binding.submit"),
             TuiInputAction::Submit,
         )
         .with_context_predicate(id!("TuiInputView"))
@@ -90,7 +91,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("enter"),
         EditableBinding::new(
             "tui:input:handle_escape",
-            "Handle contextual input escape",
+            localization::text("tui.input.binding.handle_escape"),
             TuiInputAction::HandleEscape,
         )
         .with_context_predicate(id!("TuiInputView") & id!(INPUT_HANDLES_ESCAPE_FLAG))
@@ -351,7 +352,7 @@ impl TuiInputView {
             .iter()
             .find_map(|inline_menu| inline_menu.input_argument_hint_text(ctx))
         {
-            element = element.with_trailing_ghost_text(hint_text, builder.dim_text_style());
+            element = element.with_trailing_ghost_text(&hint_text, builder.dim_text_style());
         }
         element
     }

@@ -19,6 +19,7 @@ use crate::inline_menu::{
     TuiInlineMenuRowStyle, TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
+use crate::localization;
 
 const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, true, false);
 
@@ -174,16 +175,16 @@ impl TuiConversationMenuModel {
         };
         let status = if list.rows().is_empty() {
             Some(if list.is_loading() {
-                TuiInlineMenuStatus::Loading("Loading conversations…".to_owned())
+                TuiInlineMenuStatus::Loading(localization::text("tui.conversation_menu.loading"))
             } else {
-                TuiInlineMenuStatus::Empty("No conversations found".to_owned())
+                TuiInlineMenuStatus::Empty(localization::text("tui.conversation_menu.empty"))
             })
         } else {
             None
         };
         Some(TuiInlineMenuSnapshot {
             header: Some(TuiInlineMenuHeader {
-                title: Some("Conversations".to_owned()),
+                title: Some(localization::text("tui.conversation_menu.title")),
                 tabs: Vec::new(),
             }),
             rows: list

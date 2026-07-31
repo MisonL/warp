@@ -1,5 +1,6 @@
 use warp::appearance::Appearance;
 use warp::tui_export::{AttachmentType, PendingAttachmentSummary};
+use warp_localization::LocaleId;
 use warpui::EntityIdMap;
 use warpui_core::elements::MouseStateHandle;
 use warpui_core::elements::tui::{
@@ -8,16 +9,22 @@ use warpui_core::elements::tui::{
 };
 use warpui_core::{App, AppContext};
 
-use super::render_attachment_snapshot;
+use super::{attachment_binding_description_for_locale, render_attachment_snapshot_for_locale};
 use crate::attachment_bar::model::TuiAttachmentSnapshot;
 
-fn render_lines(ctx: &AppContext, snapshot: TuiAttachmentSnapshot, width: u16) -> Vec<String> {
-    let mut element = render_attachment_snapshot(
+fn render_lines(
+    ctx: &AppContext,
+    snapshot: TuiAttachmentSnapshot,
+    width: u16,
+    locale: LocaleId,
+) -> Vec<String> {
+    let mut element = render_attachment_snapshot_for_locale(
         snapshot,
         false,
         MouseStateHandle::default(),
         MouseStateHandle::default(),
         MouseStateHandle::default(),
+        locale,
         ctx,
     );
     let mut rendered_views = EntityIdMap::default();
@@ -60,7 +67,8 @@ fn renders_single_attachment_without_carousel_arrows() {
     App::test((), |mut app| async move {
         app.update(|ctx| {
             ctx.add_singleton_model(|_| Appearance::mock());
-            let line = render_lines(ctx, snapshot("screenshot.png", 1, 1), 60).remove(0);
+            let line =
+                render_lines(ctx, snapshot("screenshot.png", 1, 1), 60, LocaleId::EnUs).remove(0);
             assert!(line.contains("[image]"));
             assert!(line.contains("screenshot.png"));
             assert!(line.contains("1/1"));
@@ -76,8 +84,13 @@ fn renders_carousel_position_and_truncates_at_narrow_width() {
     App::test((), |mut app| async move {
         app.update(|ctx| {
             ctx.add_singleton_model(|_| Appearance::mock());
-            let line =
-                render_lines(ctx, snapshot("a-very-long-screenshot-name.png", 2, 3), 28).remove(0);
+            let line = render_lines(
+                ctx,
+                snapshot("a-very-long-screenshot-name.png", 2, 3),
+                28,
+                LocaleId::EnUs,
+            )
+            .remove(0);
             assert!(line.contains("[image]"));
             assert!(line.contains("2/3"));
             assert!(line.contains('‹'));
@@ -107,6 +120,7 @@ fn renders_provisional_filename_while_image_is_loading() {
                     selected_is_processing: true,
                 },
                 40,
+                LocaleId::EnUs,
             );
             let line = &lines[0];
             assert!(line.contains("[image]"));
@@ -115,4 +129,25 @@ fn renders_provisional_filename_while_image_is_loading() {
             assert!(!line.contains('×'));
         });
     });
+}
+
+#[test]
+fn renders_simplified_chinese_attachment_labels() {
+    App::test((), |mut app| async move {
+        app.update(|ctx| {
+            ctx.add_singleton_model(|_| Appearance::mock());
+            let line =
+                render_lines(ctx, snapshot("screenshot.png", 1, 1), 80, LocaleId::ZhCn).remove(0);
+            assert!(line.contains("[图像]"));
+            assert!(line.contains("screenshot.png"));
+        });
+    });
+}
+
+#[test]
+fn attachment_binding_descriptions_are_localized() {
+    assert_eq!(
+        attachment_binding_description_for_locale(LocaleId::ZhCn, "tui.attachments.binding.next"),
+        "选择下一个附件"
+    );
 }

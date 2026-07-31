@@ -185,6 +185,22 @@ impl SearchItem for WorkflowSearchItem {
         }
     }
 
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        if let Some(description) = &self.workflow_description {
+            crate::localization::text_for_app_with_args(
+                app,
+                "search.a11y.type.workflow_with_description",
+                &[("name", &self.workflow_name), ("description", description)],
+            )
+        } else {
+            crate::localization::text_for_app_with_args(
+                app,
+                "search.a11y.type.workflow",
+                &[("name", &self.workflow_name)],
+            )
+        }
+    }
+
     fn render_details(&self, ctx: &AppContext) -> Option<Box<dyn Element>> {
         let appearance = Appearance::as_ref(ctx);
 

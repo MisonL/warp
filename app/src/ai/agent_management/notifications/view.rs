@@ -17,8 +17,9 @@ use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewCon
 
 use crate::ai::agent_management::notifications::item::NotificationFilter;
 use crate::ai::agent_management::notifications::item_rendering::{
-    NotificationRenderContext, create_notification_artifact_buttons_view,
-    handle_notification_artifact_buttons_event, render_notification_item_content,
+    NotificationItemContentArgs, NotificationRenderContext,
+    create_notification_artifact_buttons_view, handle_notification_artifact_buttons_event,
+    render_notification_item_content,
 };
 use crate::ai::agent_management::notifications::{
     NotificationId, NotificationItem, NotificationItems,
@@ -26,6 +27,7 @@ use crate::ai::agent_management::notifications::{
 use crate::ai::agent_management::{AgentManagementEvent, AgentNotificationsModel};
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 
@@ -117,23 +119,32 @@ impl NotificationMailboxView {
             AgentManagementEvent::ConversationNeedsAttention { .. } => {}
         });
 
-        let close_button = ctx.add_typed_action_view(|_| {
+        let close_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::X)
                 .with_size(ButtonSize::XSmall)
-                .with_tooltip("Close")
+                .with_tooltip(localization::text_for_app(
+                    ctx,
+                    "agent_management.notifications.action.close",
+                ))
                 .with_tooltip_sublabel("Esc")
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(NotificationMailboxViewAction::Dismiss);
                 })
         });
 
-        let mark_all_read_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Mark all as read", NakedTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(NotificationMailboxViewAction::MarkAllRead);
-                })
+        let mark_all_read_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(
+                    ctx,
+                    "agent_management.notifications.action.mark_all_read",
+                ),
+                NakedTheme,
+            )
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(NotificationMailboxViewAction::MarkAllRead);
+            })
         });
 
         Self {
@@ -250,6 +261,7 @@ impl NotificationMailboxView {
             artifact_buttons,
             is_selected,
             Appearance::as_ref(app),
+            app,
         )
     }
 
@@ -343,11 +355,11 @@ impl View for NotificationMailboxView {
         let mut column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_main_axis_size(MainAxisSize::Min)
-            .with_child(self.render_header(appearance))
+            .with_child(self.render_header(appearance, app))
             .with_child(self.render_filter_bar(notifications, app));
 
         if notifications.filtered_count(self.active_filter) == 0 {
-            column.add_child(self.render_empty_state(appearance));
+            column.add_child(self.render_empty_state(appearance, app));
         } else {
             let theme = appearance.theme();
 
@@ -408,12 +420,15 @@ impl View for NotificationMailboxView {
 }
 
 impl NotificationMailboxView {
-    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_header(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let label = appearance
             .ui_builder()
-            .wrappable_text("Notifications".to_string(), false)
+            .wrappable_text(
+                localization::text_for_app(app, "agent_management.notifications.title"),
+                false,
+            )
             .with_style(UiComponentStyles {
                 font_size: Some(14.),
                 font_color: Some(theme.main_text_color(theme.surface_2()).into()),
@@ -463,10 +478,11 @@ impl NotificationMailboxView {
 
             let is_active = self.active_filter == filter;
             let count = notifications.filtered_count(filter);
+            let filter_label = localization::text_for_app(app, filter.label_key());
             let label = if count == 0 {
-                filter.label().to_string()
+                filter_label
             } else {
-                format!("{} ({count})", filter.label())
+                format!("{filter_label} ({count})")
             };
             let text_color = if is_active {
                 theme.main_text_color(theme.surface_2())
@@ -544,13 +560,16 @@ impl NotificationMailboxView {
             .finish()
     }
 
-    fn render_empty_state(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_empty_state(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         Container::new(
             appearance
                 .ui_builder()
-                .wrappable_text("No notifications".to_string(), false)
+                .wrappable_text(
+                    localization::text_for_app(app, "agent_management.notifications.empty"),
+                    false,
+                )
                 .with_style(UiComponentStyles {
                     font_size: Some(14.),
                     font_color: Some(theme.sub_text_color(theme.surface_2()).into()),
@@ -582,19 +601,21 @@ impl NotificationMailboxView {
         artifact_buttons: Option<&ViewHandle<ArtifactButtonsRow>>,
         is_selected: bool,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let id = item.id;
         let has_branch = item.branch.is_some();
-        let row = render_notification_item_content(
+        let row = render_notification_item_content(NotificationItemContentArgs {
             item,
             artifact_buttons,
-            NotificationRenderContext::Mailbox,
-            false,
-            Box::new(|_| {}),
-            None,
+            context: NotificationRenderContext::Mailbox,
+            message_expanded: false,
+            on_expand_click: Box::new(|_| {}),
+            extra_content: None,
             appearance,
-        );
+            app,
+        });
 
         EventHandler::new(
             Hoverable::new(mouse_state, move |state| {

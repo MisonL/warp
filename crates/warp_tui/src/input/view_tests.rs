@@ -242,7 +242,7 @@ impl TuiInlineMenuHandle for TestConversationMenuHandle {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 

@@ -170,6 +170,20 @@ impl SshExtensionInstallMode {
             SshExtensionInstallMode::NeverInstall => "Never install",
         }
     }
+
+    pub fn translation_key(&self) -> &'static str {
+        match self {
+            SshExtensionInstallMode::AlwaysAsk => {
+                "settings.warpify.ssh_extension_install_mode.option.always_ask"
+            }
+            SshExtensionInstallMode::AlwaysInstall => {
+                "settings.warpify.ssh_extension_install_mode.option.always_install"
+            }
+            SshExtensionInstallMode::NeverInstall => {
+                "settings.warpify.ssh_extension_install_mode.option.never_install"
+            }
+        }
+    }
 }
 
 /// Normally we use the define_settings_group! macro for singleton models of settings like this.

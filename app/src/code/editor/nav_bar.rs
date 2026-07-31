@@ -19,6 +19,7 @@ use warpui::{
 
 use super::model::{CodeEditorModel, CodeEditorModelEvent};
 use crate::editor::InteractionState;
+use crate::localization;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 use crate::view_components::find::FIND_BAR_PADDING;
@@ -71,15 +72,18 @@ impl NavBar {
             }
         });
 
-        let up_label_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Previous", NakedTheme)
-                .with_size(ButtonSize::InlineActionHeader)
-                .with_icon(Icon::ArrowUp)
-                .on_click(|ctx| ctx.dispatch_typed_action(NavBarAction::NavigateUp))
+        let up_label_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "code.nav.previous"),
+                NakedTheme,
+            )
+            .with_size(ButtonSize::InlineActionHeader)
+            .with_icon(Icon::ArrowUp)
+            .on_click(|ctx| ctx.dispatch_typed_action(NavBarAction::NavigateUp))
         });
 
-        let down_label_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Next", NakedTheme)
+        let down_label_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(localization::text_for_app(ctx, "code.nav.next"), NakedTheme)
                 .with_size(ButtonSize::InlineActionHeader)
                 .with_icon(Icon::ArrowDown)
                 .on_click(|ctx| ctx.dispatch_typed_action(NavBarAction::NavigateDown))
@@ -148,7 +152,7 @@ impl NavBar {
     ) -> Box<dyn Element> {
         let diff_text = appearance
             .ui_builder()
-            .span("Hunk:")
+            .span(localization::text_for_app(app, "code.nav.hunk_label"))
             .with_style(UiComponentStyles {
                 font_color: Some(appearance.theme().sub_text_color(background).into()),
                 ..Default::default()
@@ -192,7 +196,8 @@ impl NavBar {
         .finish()
     }
 
-    fn render_revert_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_revert_button(&self, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
         Container::new(
             appearance
                 .ui_builder()
@@ -200,7 +205,7 @@ impl NavBar {
                     ButtonVariant::Outlined,
                     self.mouse_state_handles.revert_mouse_state.clone(),
                 )
-                .with_text_label("Reject".to_string())
+                .with_text_label(localization::text_for_app(app, "code.action.reject"))
                 .build()
                 .on_click(|ctx, _, _| ctx.dispatch_typed_action(NavBarAction::Revert))
                 .finish(),
@@ -293,7 +298,7 @@ impl View for NavBar {
         // Do not render the revert button if there is nothing to revert or the editor is
         // not in an editable interaction state.
         if editable && total > 0 {
-            row.add_child(self.render_revert_button(appearance));
+            row.add_child(self.render_revert_button(app));
         }
 
         if matches!(self.behavior, NavBarBehavior::Closable) {

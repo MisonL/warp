@@ -1,8 +1,10 @@
 // Hard coded constants to divide keybindings into their respective categories/sections.
 // This should always align with documentation: https://docs.warp.dev/getting-started/keyboard-shortcuts
 
+use warpui::AppContext;
 use warpui::keymap::Keystroke;
 
+use crate::localization;
 use crate::util::bindings::CommandBinding;
 
 pub const BLOCKS_KEYBINDINGS: &[&str] = &[
@@ -115,31 +117,31 @@ pub const FUNDAMENTALS_KEYBINDINGS: &[&str] = &[
 
 /// Returns hard-coded keybindings that are shown in the mac menus but not saved/accessible
 /// anywhere else in the code.
-pub fn get_additional_keybindings() -> Vec<CommandBinding> {
+pub fn get_additional_keybindings(ctx: &AppContext) -> Vec<CommandBinding> {
     vec![
         CommandBinding::new(
             "workspace:new_window".into(),
-            "Open New Window".into(),
+            localization::text_for_app(ctx, "resource_center.additional_keybinding.new_window"),
             Some(Keystroke::parse("cmd-n").expect("Valid keystroke")),
         ),
         CommandBinding::new(
             "workspace:hide_warp".into(),
-            "Hide Warp".into(),
+            localization::text_for_app(ctx, "resource_center.additional_keybinding.hide_warp"),
             Some(Keystroke::parse("cmd-h").expect("Valid keystroke")),
         ),
         CommandBinding::new(
             "workspace:hide_others".into(),
-            "Hide Others".into(),
+            localization::text_for_app(ctx, "resource_center.additional_keybinding.hide_others"),
             Some(Keystroke::parse("alt-cmd-h").expect("Valid keystroke")),
         ),
         CommandBinding::new(
             "workspace:quit_warp".into(),
-            "Quit Warp".into(),
+            localization::text_for_app(ctx, "resource_center.additional_keybinding.quit_warp"),
             Some(Keystroke::parse("cmd-q").expect("Valid keystroke")),
         ),
         CommandBinding::new(
             "workspace:minimize".into(),
-            "Minimize".into(),
+            localization::text_for_app(ctx, "resource_center.additional_keybinding.minimize"),
             Some(Keystroke::parse("cmd-m").expect("Valid keystroke")),
         ),
     ]

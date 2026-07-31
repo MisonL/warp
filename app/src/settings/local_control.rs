@@ -53,10 +53,10 @@ impl LocalControlMode {
         matches!(self, Self::Enabled)
     }
 
-    pub fn as_dropdown_label(self) -> &'static str {
+    pub fn dropdown_label_key(self) -> &'static str {
         match self {
-            Self::Disabled => "Disabled",
-            Self::Enabled => "Enabled",
+            Self::Disabled => "settings.scripting.local_control.mode.disabled",
+            Self::Enabled => "settings.scripting.local_control.mode.enabled",
         }
     }
 }

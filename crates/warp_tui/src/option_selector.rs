@@ -27,13 +27,11 @@ use warpui_core::{
 
 use crate::editor_view::{TuiEditorView, TuiEditorViewEvent};
 use crate::inline_menu::keep_selected_visible;
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 
 /// Maximum option rows visible at once; longer lists scroll.
 pub(crate) const MAX_VISIBLE_OPTION_ROWS: usize = 6;
-
-/// Validation copy shown when the custom-text editor is submitted empty.
-const CUSTOM_TEXT_EMPTY_ERROR: &str = "Enter a value to continue.";
 
 /// Optional header rendered above a selector page.
 #[derive(Clone, Debug, PartialEq)]
@@ -886,7 +884,13 @@ impl TuiOptionSelector {
         let position = TuiText::from_spans([
             ("←".to_string(), previous_style),
             (format!(" {current} "), builder.primary_text_style()),
-            (format!("of {total} "), builder.muted_text_style()),
+            (
+                localization::text_with_args(
+                    "tui.option_selector.position_suffix",
+                    &[("total", &total.to_string())],
+                ),
+                builder.muted_text_style(),
+            ),
             ("→".to_string(), next_style),
         ])
         .truncate()
@@ -958,9 +962,15 @@ impl TuiOptionSelector {
         }
         spans.push((row.label.clone(), label_style));
         let badge = match row.badge {
-            Some(OptionBadge::Default) => Some("default"),
-            Some(OptionBadge::Recent) => Some("recent"),
-            Some(OptionBadge::Connected) => Some("connected"),
+            Some(OptionBadge::Default) => {
+                Some(localization::text("tui.option_selector.badge.default"))
+            }
+            Some(OptionBadge::Recent) => {
+                Some(localization::text("tui.option_selector.badge.recent"))
+            }
+            Some(OptionBadge::Connected) => {
+                Some(localization::text("tui.option_selector.badge.connected"))
+            }
             None => None,
         };
         if let Some(badge) = badge {
@@ -1044,7 +1054,7 @@ impl TuiOptionSelector {
                 .any(|item| matches!(item, SelectorItem::Row(_)))
         {
             column.add_child(
-                TuiText::new("No matches")
+                TuiText::new(localization::text("tui.option_selector.no_matches"))
                     .with_style(builder.dim_text_style())
                     .truncate()
                     .finish(),
@@ -1076,7 +1086,7 @@ impl TuiOptionSelector {
                         self.render_row(row, shortcut, is_selected, builder)
                     }
                     SelectorItem::Retry => self.render_virtual_row(
-                        "↻ Retry".to_string(),
+                        localization::text("tui.option_selector.retry"),
                         digit,
                         is_selected,
                         builder.error_text_style(),
@@ -1094,7 +1104,12 @@ impl TuiOptionSelector {
                                     &self.custom_text.editor,
                                     self.custom_text
                                         .error_is_visible()
-                                        .then_some(CUSTOM_TEXT_EMPTY_ERROR),
+                                        .then(|| {
+                                            localization::text(
+                                                "tui.option_selector.custom_text.empty_error",
+                                            )
+                                        })
+                                        .as_deref(),
                                     builder,
                                 ),
                             (Some(OptionFooter::CustomText { label }), false) => self
@@ -1137,7 +1152,7 @@ impl TuiOptionSelector {
             OptionSourceStatus::Ready => {}
             OptionSourceStatus::Loading => {
                 column.add_child(
-                    TuiText::new("Loading…")
+                    TuiText::new(localization::text("tui.option_selector.loading"))
                         .with_style(builder.dim_text_style())
                         .truncate()
                         .finish(),
@@ -1197,7 +1212,7 @@ impl TuiView for TuiOptionSelector {
         {
             content.add_child(self.render_editor_field(
                 String::new(),
-                "Search",
+                &localization::text("tui.option_selector.search"),
                 search_field,
                 None,
                 &builder,

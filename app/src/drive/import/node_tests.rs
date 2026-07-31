@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use super::{FileId, FileNode, FileType, FileUploadState, FolderId, FolderNode, ImportedNode};
-use crate::drive::import::nodes::{UploadResult, UploadStatus};
+use crate::drive::import::nodes::{ImportError, UploadResult, UploadStatus};
 
 fn mock_tree() -> FileUploadState {
     let mut folder_id_to_node = HashMap::new();
@@ -182,7 +182,7 @@ fn test_empty_folders_update() {
     );
 
     // Errored uploads should also be considered as completed uploads.
-    state.mark_folder_synced(UploadResult::Error("Failure".to_string()), FolderId(2));
+    state.mark_folder_synced(UploadResult::Error(ImportError::FolderUpload), FolderId(2));
     assert_eq!(
         state
             .folder_id_to_node
@@ -190,5 +190,36 @@ fn test_empty_folders_update() {
             .expect("Should exist")
             .status,
         UploadStatus::Loaded(String::new())
+    );
+}
+
+#[test]
+fn file_upload_errors_retain_their_category() {
+    let mut state = mock_tree();
+
+    state.update_tree_with_file_upload_result(
+        UploadResult::Error(ImportError::FileUpload),
+        FileId(0),
+    );
+    assert_eq!(
+        state
+            .file_id_to_node
+            .get(&FileId(0))
+            .expect("Should exist")
+            .status,
+        UploadStatus::Error(ImportError::FileUpload)
+    );
+
+    state.update_tree_with_file_upload_result(
+        UploadResult::Error(ImportError::FileParse("invalid YAML".to_string())),
+        FileId(0),
+    );
+    assert_eq!(
+        state
+            .file_id_to_node
+            .get(&FileId(0))
+            .expect("Should exist")
+            .status,
+        UploadStatus::Error(ImportError::FileParse("invalid YAML".to_string()))
     );
 }

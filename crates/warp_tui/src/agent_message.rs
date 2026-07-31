@@ -12,6 +12,7 @@ use warpui_core::elements::tui::{
 };
 
 use crate::agent_block::{CollapsibleSectionStates, TuiAIBlockAction};
+use crate::localization;
 use crate::orchestrated_agent_identity_styling::{
     AgentIdentity, assign_agent_identity_indices, stable_hash,
 };
@@ -101,9 +102,10 @@ fn message_presentation(
         usize::try_from(stable_hash(sender_agent_id) % palette.len() as u64).unwrap_or_default()
     });
     let (name, identity) = match participant.kind {
-        OrchestrationParticipantKind::Orchestrator => {
-            ("Orchestrator".to_owned(), AgentIdentity::default())
-        }
+        OrchestrationParticipantKind::Orchestrator => (
+            localization::text("tui.agent_message.orchestrator"),
+            AgentIdentity::default(),
+        ),
         OrchestrationParticipantKind::Agent { name } => (
             name,
             participant
@@ -117,7 +119,7 @@ fn message_presentation(
                 .unwrap_or_default(),
         ),
         OrchestrationParticipantKind::Unknown => (
-            "Unknown agent".to_owned(),
+            localization::text("tui.agent_message.unknown_agent"),
             fallback_identity_index
                 .and_then(|index| palette.get(index))
                 .cloned()

@@ -5,6 +5,7 @@ use warp::tui_export::{
     AcceptSlashCommandOrSavedPrompt, DetectedCommand, DetectedSkillCommand,
     ParsedSlashCommandInput, SlashCommandId, SlashCommandMixer, slash_commands,
 };
+use warp_localization::LocaleId;
 use warp_search_core::inline_menu::InlineMenuSelection;
 use warpui_core::elements::tui::{
     TuiBuffer, TuiBufferExt, TuiConstraint, TuiElement, TuiLayoutContext, TuiPaintContext,
@@ -13,8 +14,8 @@ use warpui_core::elements::tui::{
 use warpui_core::{App, AppContext, EntityIdMap};
 
 use super::{
-    MAX_VISIBLE_ROWS, TuiSlashCommandModel, TuiSlashCommandRow,
-    argument_hint_text_for_parsed_input, highlighted_prefix_len_for_parsed_input,
+    MAX_VISIBLE_ROWS, TuiSlashCommandModel, TuiSlashCommandRow, argument_hint_for_parsed_input,
+    highlighted_prefix_len_for_parsed_input, localized_argument_hint_text_for_locale,
     menu_query_for_parsed_input,
 };
 use crate::inline_menu::{TuiInlineMenu, keep_selected_visible};
@@ -91,22 +92,28 @@ fn render_menu_lines(mut element: Box<dyn TuiElement>, ctx: &AppContext) -> Vec<
 }
 
 #[test]
-fn argument_hint_uses_shared_static_command_placeholder() {
+fn argument_hint_uses_the_current_locale_when_a_catalog_key_is_available() {
     let command = ParsedSlashCommandInput::SlashCommand(DetectedCommand {
         command: slash_commands::EXPORT_TO_FILE.clone(),
         argument: Some(String::new()),
     });
 
+    let hint = argument_hint_for_parsed_input(&command, "/export-to-file ")
+        .expect("export-to-file should expose an argument hint");
     assert_eq!(
-        argument_hint_text_for_parsed_input(&command, "/export-to-file "),
-        Some("<optional filename>")
+        localized_argument_hint_text_for_locale(&hint, LocaleId::EnUs),
+        "<optional filename>"
     );
     assert_eq!(
-        argument_hint_text_for_parsed_input(&command, "/export-to-file notes.md"),
+        localized_argument_hint_text_for_locale(&hint, LocaleId::ZhCn),
+        "<可选文件名>"
+    );
+    assert_eq!(
+        argument_hint_for_parsed_input(&command, "/export-to-file notes.md"),
         None
     );
     assert_eq!(
-        argument_hint_text_for_parsed_input(&parsed_skill(Some("")), "/write-product-spec "),
+        argument_hint_for_parsed_input(&parsed_skill(Some("")), "/write-product-spec "),
         None
     );
 }

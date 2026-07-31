@@ -21,13 +21,13 @@ use crate::ai::agent_conversations_model::{AgentConversationsModel, AgentConvers
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::telemetry::{CloudAgentTelemetryEvent, CloudModeEntryPoint};
 use crate::ai::blocklist::agent_view::{AgentViewEntryOrigin, render_block_container};
+use crate::localization;
 use crate::pane_group::pane::{PaneConfiguration, PaneConfigurationEvent, PaneStack};
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::terminal::{BlockListSettings, TerminalManager, TerminalView};
 use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
-const DEFAULT_CLOUD_AGENT_TITLE: &str = "New cloud agent";
 
 #[derive(Default)]
 struct StateHandles {
@@ -138,8 +138,12 @@ impl AmbientAgentEntryBlock {
 
     fn meaningful_title(title: &str) -> Option<String> {
         let title = title.trim();
-        (!title.is_empty() && !title.eq_ignore_ascii_case(DEFAULT_CLOUD_AGENT_TITLE))
-            .then(|| title.to_owned())
+        (!title.is_empty()
+            && !title.eq_ignore_ascii_case(&localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "terminal.agent_title.new_cloud_agent",
+            )))
+        .then(|| title.to_owned())
     }
 
     fn title_from_task_data(&self, app: &AppContext) -> Option<String> {
@@ -167,7 +171,9 @@ impl AmbientAgentEntryBlock {
             .and_then(|title| Self::meaningful_title(&title))
             .or_else(|| self.title_from_task_data(app))
             .or_else(|| self.title_from_spawn_request(app))
-            .unwrap_or_else(|| DEFAULT_CLOUD_AGENT_TITLE.to_owned())
+            .unwrap_or_else(|| {
+                localization::text_for_app(app, "terminal.agent_title.new_cloud_agent")
+            })
     }
 
     fn ambient_agent_view_model<'a>(
@@ -181,14 +187,29 @@ impl AmbientAgentEntryBlock {
     }
 
     /// Gets the detail text to display based on the ambient agent status.
-    fn detail_text(&self, app: &AppContext) -> Option<&'static str> {
+    fn detail_text(&self, app: &AppContext) -> Option<String> {
         match self.ambient_agent_view_model(app)?.status() {
             Status::Setup | Status::Composing => None,
-            Status::WaitingForSession { .. } => Some("Starting environment..."),
-            Status::AgentRunning => Some("Agent is working on task"),
-            Status::Failed { .. } => Some("Agent failed"),
-            Status::NeedsGithubAuth { .. } => Some("Authentication required"),
-            Status::Cancelled { .. } => Some("Cancelled"),
+            Status::WaitingForSession { .. } => Some(localization::text_for_app(
+                app,
+                "terminal.ambient_agent.detail.starting_environment",
+            )),
+            Status::AgentRunning => Some(localization::text_for_app(
+                app,
+                "terminal.ambient_agent.detail.working_on_task",
+            )),
+            Status::Failed { .. } => Some(localization::text_for_app(
+                app,
+                "terminal.ambient_agent.detail.failed",
+            )),
+            Status::NeedsGithubAuth { .. } => Some(localization::text_for_app(
+                app,
+                "terminal.ambient_agent.detail.authentication_required",
+            )),
+            Status::Cancelled { .. } => Some(localization::text_for_app(
+                app,
+                "terminal.ambient_agent.detail.cancelled",
+            )),
         }
     }
 

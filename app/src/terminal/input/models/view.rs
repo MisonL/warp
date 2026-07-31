@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::LazyLock;
 
 use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent};
 use pathfinder_color::ColorU;
@@ -17,6 +16,7 @@ use crate::ai::blocklist::block::cli_controller::{CLISubagentController, CLISuba
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::llms::{LLMId, LLMPreferences, LLMPreferencesEvent};
 use crate::features::FeatureFlag;
+use crate::localization::{self, LocalizationUpdater};
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{SearchMixer, SearchMixerEvent};
 use crate::settings_view::SettingsSection;
@@ -73,22 +73,24 @@ pub enum InlineModelSelectorEvent {
     Dismissed,
 }
 
-static TAB_CONFIGS: LazyLock<Vec<InlineMenuTabConfig<InlineModelSelectorTab>>> =
-    LazyLock::new(|| {
-        let mut configs = vec![InlineMenuTabConfig {
-            id: InlineModelSelectorTab::BaseAgent,
-            label: "Base".to_string(),
-            filters: HashSet::from([QueryFilter::BaseModels]),
-        }];
-        if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            configs.push(InlineMenuTabConfig {
-                id: InlineModelSelectorTab::FullTerminalUse,
-                label: "Full Terminal Use".to_string(),
-                filters: HashSet::from([QueryFilter::FullTerminalUseModels]),
-            });
-        }
-        configs
-    });
+fn build_tab_configs(ctx: &AppContext) -> Vec<InlineMenuTabConfig<InlineModelSelectorTab>> {
+    let mut configs = vec![InlineMenuTabConfig {
+        id: InlineModelSelectorTab::BaseAgent,
+        label: localization::text_for_app(ctx, "settings.ai.model_selector.tab.base"),
+        filters: HashSet::from([QueryFilter::BaseModels]),
+    }];
+    if FeatureFlag::InlineMenuHeaders.is_enabled() {
+        configs.push(InlineMenuTabConfig {
+            id: InlineModelSelectorTab::FullTerminalUse,
+            label: localization::text_for_app(
+                ctx,
+                "settings.ai.model_selector.tab.full_terminal_use",
+            ),
+            filters: HashSet::from([QueryFilter::FullTerminalUseModels]),
+        });
+    }
+    configs
+}
 
 struct TabSwitchSelection {
     model_id: Option<LLMId>,
@@ -115,6 +117,7 @@ pub struct InlineModelSelectorView {
     /// shared-session viewer path (see `set_ambient_agent_view_model`). It also lives inside the
     /// search mixer; this handle points at the same model.
     model_selector_data_source: ModelHandle<ModelSelectorDataSource>,
+    manage_defaults_button: Option<ViewHandle<ActionButton>>,
 }
 
 impl InlineModelSelectorView {
@@ -135,7 +138,7 @@ impl InlineModelSelectorView {
             ModelSelectorDataSource::new(terminal_view_id, None)
         });
 
-        let tab_configs = TAB_CONFIGS.clone();
+        let tab_configs = build_tab_configs(ctx);
         let initial_filters = tab_configs
             .first()
             .map(|config| config.filters.clone())
@@ -156,9 +159,11 @@ impl InlineModelSelectorView {
             mixer
         });
 
-        let menu_view = if FeatureFlag::InlineMenuHeaders.is_enabled() {
-            let manage_defaults_button = ctx.add_view(|_| {
-                ActionButton::new("Manage defaults", ManageDefaultsTheme)
+        let (menu_view, manage_defaults_button) = if FeatureFlag::InlineMenuHeaders.is_enabled() {
+            let manage_defaults_label =
+                localization::text_for_app(ctx, "settings.ai.model_selector.manage_defaults");
+            let manage_defaults_button = ctx.add_view(move |_| {
+                ActionButton::new(manage_defaults_label.clone(), ManageDefaultsTheme)
                     .with_icon(Icon::Settings)
                     .with_size(ButtonSize::Small)
                     .on_click(|ctx| {
@@ -168,14 +173,15 @@ impl InlineModelSelectorView {
                         });
                     })
             });
+            let manage_defaults_button_for_header = manage_defaults_button.clone();
             let header_config = InlineMenuHeaderConfig {
                 label: "/model".to_string(),
                 trailing_element: Some(Box::new(move |_app: &AppContext| {
-                    ChildView::new(&manage_defaults_button).finish()
+                    ChildView::new(&manage_defaults_button_for_header).finish()
                 })),
             };
 
-            ctx.add_typed_action_view(|ctx| {
+            let menu_view = ctx.add_typed_action_view(|ctx| {
                 let menu = InlineMenuView::new_with_tabs(
                     mixer.clone(),
                     positioner.clone(),
@@ -201,28 +207,33 @@ impl InlineModelSelectorView {
                         .is_some_and(|c| !c.is_empty() && c.status().is_in_progress());
                     let is_cli_agent_in_control_or_tagged_in =
                         cli_ctrl.as_ref(app).is_agent_in_control_or_tagged_in();
-                    let message = match active_tab {
-                        InlineModelSelectorTab::FullTerminalUse if main_agent_in_progress && !is_cli_agent_in_control_or_tagged_in => {
-                            Some("You're using the base agent. Full terminal use models only apply to the full terminal use agent.")
+                    let message_key = match active_tab {
+                        InlineModelSelectorTab::FullTerminalUse
+                            if main_agent_in_progress && !is_cli_agent_in_control_or_tagged_in =>
+                        {
+                            Some("settings.ai.model_selector.banner.base_agent_active")
                         }
-                        InlineModelSelectorTab::BaseAgent if is_cli_agent_in_control_or_tagged_in => {
-                            Some("You're using the full terminal use agent. Base models only apply to the base agent.")
+                        InlineModelSelectorTab::BaseAgent
+                            if is_cli_agent_in_control_or_tagged_in =>
+                        {
+                            Some("settings.ai.model_selector.banner.full_terminal_use_active")
                         }
                         _ => None,
                     };
 
-                    message.map(|msg| {
+                    message_key.map(|key| {
                         let appearance = Appearance::as_ref(app);
                         Alert::new().render(
-                            AlertConfig::warning(msg.to_string())
+                            AlertConfig::warning(localization::text_for_app(app, key))
                                 .with_main_axis_size(MainAxisSize::Max),
                             appearance,
                         )
                     })
                 })
-            })
+            });
+            (menu_view, Some(manage_defaults_button))
         } else {
-            ctx.add_typed_action_view(|ctx| {
+            let menu_view = ctx.add_typed_action_view(|ctx| {
                 InlineMenuView::new_with_tabs(
                     mixer.clone(),
                     positioner.clone(),
@@ -232,7 +243,8 @@ impl InlineModelSelectorView {
                     None,
                     ctx,
                 )
-            })
+            });
+            (menu_view, None)
         };
 
         ctx.subscribe_to_view(&menu_view, |me, _, event, ctx| match event {
@@ -332,6 +344,9 @@ impl InlineModelSelectorView {
                 });
             }
         });
+        ctx.subscribe_to_model(&LocalizationUpdater::handle(ctx), |me, _, _, ctx| {
+            me.refresh_localized_text(ctx);
+        });
 
         ctx.subscribe_to_model(&cli_subagent_controller, |me, _, event, ctx| match event {
             CLISubagentEvent::SpawnedSubagent { .. }
@@ -414,6 +429,7 @@ impl InlineModelSelectorView {
             filter_results_by_input: true,
             prompt_parked_for_search: false,
             model_selector_data_source: data_source,
+            manage_defaults_button,
         };
         // Route ambient wiring through the setter so construction and the lazy shared-session
         // viewer path share one implementation.
@@ -477,6 +493,33 @@ impl InlineModelSelectorView {
         self.mixer.update(ctx, |mixer, ctx| {
             mixer.run_query(Query { text, filters }, ctx);
         });
+    }
+
+    fn refresh_localized_text(&mut self, ctx: &mut ViewContext<Self>) {
+        if let Some(manage_defaults_button) = &self.manage_defaults_button {
+            manage_defaults_button.update(ctx, |button, ctx| {
+                button.set_label(
+                    localization::text_for_app(ctx, "settings.ai.model_selector.manage_defaults"),
+                    ctx,
+                );
+            });
+        }
+
+        let tab_configs = build_tab_configs(ctx);
+        self.menu_view.update(ctx, |menu, ctx| {
+            menu.model().update(ctx, |model, _| {
+                model.set_tab_configs(tab_configs);
+            });
+            ctx.notify();
+        });
+
+        if self
+            .suggestions_mode_model
+            .as_ref(ctx)
+            .is_inline_model_selector()
+        {
+            self.rerun_query(ctx);
+        }
     }
 
     pub fn filter_results_by_input(&self) -> bool {

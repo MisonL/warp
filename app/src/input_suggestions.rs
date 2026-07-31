@@ -32,12 +32,13 @@ use warpui::{
 
 use crate::ai::blocklist::{AIQueryHistory, AIQueryHistoryOutputStatus, render_ai_agent_mode_icon};
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::terminal::HistoryEntry;
 use crate::terminal::history::LinkedWorkflowData;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::rich_history::{render_ai_query_rich_history, render_rich_history};
 use crate::ui_components::icons::Icon as UIComponentsIcon;
-use crate::util::time_format::format_approx_duration_from_now;
+use crate::util::time_format::localized_approx_duration_from_now;
 
 /// This enum allows the parent view to indicate which type of details panel is shown.
 #[derive(Clone, Debug)]
@@ -533,18 +534,27 @@ impl InputSuggestions {
         self.get_selected_item().map(|item| item.text.as_str())
     }
 
-    fn get_selected_item_a11y_description(&self) -> Option<String> {
+    fn get_selected_item_a11y_description(&self, app: &AppContext) -> Option<String> {
         self.get_selected_item()
             .and_then(|item| item.details.as_ref())
             .and_then(|details| match details {
-                DetailContent::RichHistory(entry) => entry
-                    .start_ts
-                    .map(|ts| format!("Last ran {}", format_approx_duration_from_now(ts))),
+                DetailContent::RichHistory(entry) => entry.start_ts.map(|ts| {
+                    let time = localized_approx_duration_from_now(app, ts);
+                    localization::text_for_app_with_args(
+                        app,
+                        "input_suggestions.a11y.last_ran",
+                        &[("time", &time)],
+                    )
+                }),
                 DetailContent::Description(desc) => Some(desc.clone()),
-                DetailContent::AIQueryHistory(entry) => Some(format!(
-                    "Last ran {}",
-                    format_approx_duration_from_now(entry.start_time)
-                )),
+                DetailContent::AIQueryHistory(entry) => {
+                    let time = localized_approx_duration_from_now(app, entry.start_time);
+                    Some(localization::text_for_app_with_args(
+                        app,
+                        "input_suggestions.a11y.last_ran",
+                        &[("time", &time)],
+                    ))
+                }
             })
     }
 
@@ -584,18 +594,28 @@ impl InputSuggestions {
         }
         match (
             self.get_selected_item_text(),
-            self.get_selected_item_a11y_description(),
+            self.get_selected_item_a11y_description(ctx),
         ) {
             (Some(text), Some(desc)) => {
+                let suggestion = localization::text_for_app_with_args(
+                    ctx,
+                    "input_suggestions.a11y.suggestion",
+                    &[("text", text)],
+                );
                 ctx.emit_a11y_content(AccessibilityContent::new(
-                    format!("Suggestion: {text}.\n"),
+                    suggestion,
                     desc,
                     WarpA11yRole::MenuItemRole,
                 ));
             }
             (Some(text), None) => {
+                let suggestion = localization::text_for_app_with_args(
+                    ctx,
+                    "input_suggestions.a11y.suggestion",
+                    &[("text", text)],
+                );
                 ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                    format!("Suggestion: {text}.\n"),
+                    suggestion,
                     WarpA11yRole::MenuItemRole,
                 ));
             }
@@ -618,8 +638,13 @@ impl InputSuggestions {
         }
 
         if let Some(text) = self.get_selected_item_text() {
+            let selected = localization::text_for_app_with_args(
+                ctx,
+                "input_suggestions.a11y.selected",
+                &[("text", text)],
+            );
             ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-                format!("Selected: {text}"),
+                selected,
                 WarpA11yRole::MenuItemRole,
             ));
         }
@@ -644,7 +669,7 @@ impl InputSuggestions {
         ctx: &mut ViewContext<Self>,
     ) {
         ctx.emit_a11y_content(AccessibilityContent::new_without_help(
-            "Closed suggestions.",
+            localization::text_for_app(ctx, "input_suggestions.a11y.closed"),
             WarpA11yRole::UserAction,
         ));
         ctx.emit(Event::CloseSuggestion {
@@ -700,7 +725,7 @@ impl InputSuggestions {
                     Align::new(
                         Container::new(
                             Text::new_inline(
-                                String::from("No suggestions"),
+                                localization::text_for_app(ctx, "input_suggestions.no_suggestions"),
                                 appearance.monospace_font_family(),
                                 appearance.monospace_font_size(),
                             )
@@ -884,7 +909,10 @@ impl InputSuggestions {
 
                                             let tooltip_element = appearance
                                                 .ui_builder()
-                                                .tool_tip("Ignore this suggestion".to_string())
+                                                .tool_tip(localization::text_for_app(
+                                                    app,
+                                                    "editor.autosuggestion.ignore",
+                                                ))
                                                 .build()
                                                 .finish();
 
@@ -1081,12 +1109,11 @@ impl View for InputSuggestions {
             .finish()
     }
 
-    fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
+    fn accessibility_contents(&self, app: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            "Command suggestions.",
+            localization::text_for_app(app, "input_suggestions.a11y.command_suggestions"),
             // TODO use bindings from user settings
-            "Navigate with tab and shift-tab, and confirm with enter. Execute selected command \
-                with command + enter. Esc leaves the suggestions menu.",
+            localization::text_for_app(app, "input_suggestions.a11y.help"),
             WarpA11yRole::MenuRole,
         ))
     }

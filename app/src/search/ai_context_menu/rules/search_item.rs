@@ -228,4 +228,12 @@ impl SearchItem for RuleSearchItem {
     fn accessibility_label(&self) -> String {
         format!("Rule: {}", self.rule_content)
     }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.a11y.type.rule",
+            &[("content", &self.rule_content)],
+        )
+    }
 }

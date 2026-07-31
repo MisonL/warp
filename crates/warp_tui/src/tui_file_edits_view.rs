@@ -31,6 +31,7 @@ use warp::tui_export::{
     BlocklistAIActionModel, CancellationReason, DiffSessionType, FileDiff,
 };
 use warp_editor::content::buffer::InitialBufferState;
+use warp_localization::LocaleId;
 use warpui_core::elements::MouseStateHandle;
 use warpui_core::elements::tui::{
     Modifier, TuiContainer, TuiElement, TuiFlex, TuiParentElement, TuiStyle, TuiText,
@@ -41,6 +42,7 @@ use warpui_core::{
 };
 
 use crate::editor_element::{TuiEditorElement, TuiEditorStyles};
+use crate::localization;
 use crate::tool_call_labels::{ToolCallDisplayState, tool_call_display_state};
 use crate::tui_builder::TuiUiBuilder;
 use crate::tui_diff_storage::{TuiDiffStorage, TuiDiffStorageEvent, TuiDiffStorageHandle};
@@ -91,12 +93,19 @@ struct FileSection {
     /// in the render state's char-cell temporary blocks via `expand_diffs`.
     editor: ModelHandle<CodeEditorModel>,
     /// Header verb: `Updated`, `Created`, or `Deleted`.
-    verb: &'static str,
+    verb: FileEditVerb,
     /// Display name: the file name, or `old → new` for renames.
     name: String,
     /// Whether the diff has been computed and expanded (ghost rows pushed);
     /// the body and header counts render only once this is set.
     diff_ready: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FileEditVerb {
+    Created,
+    Deleted,
+    Updated,
 }
 
 impl FileSection {
@@ -327,14 +336,23 @@ impl TuiFileEditsView {
                     .chain(deleted_files.iter().map(String::as_str))
                     .unique()
                     .count();
-                let files_label = if files == 1 { "file" } else { "files" };
-                format!("Edited {files} {files_label} (+{lines_added} −{lines_removed})")
+                let files = localized_count_label(files);
+                localization::text_with_args(
+                    "tui.file_edits.summary",
+                    &[
+                        ("files", &files),
+                        ("lines_added", &lines_added.to_string()),
+                        ("lines_removed", &lines_removed.to_string()),
+                    ],
+                )
             }
-            Some(RequestFileEditsResult::Cancelled) => "File edits cancelled".to_string(),
+            Some(RequestFileEditsResult::Cancelled) => {
+                localization::text("tui.file_edits.cancelled")
+            }
             Some(RequestFileEditsResult::DiffApplicationFailed { .. }) => {
-                "File edits failed".to_string()
+                localization::text("tui.file_edits.failed")
             }
-            None => "Preparing edits…".to_string(),
+            None => localization::text("tui.file_edits.preparing"),
         }
     }
 
@@ -507,20 +525,51 @@ fn deltas_for(diff_type: &DiffType) -> Vec<DiffDelta> {
 
 fn file_edit_header_label(
     state: ToolCallDisplayState,
-    completed_verb: &str,
+    completed_verb: FileEditVerb,
+    subject: &str,
+) -> String {
+    file_edit_header_label_for_locale(
+        localization::current_locale(),
+        state,
+        completed_verb,
+        subject,
+    )
+}
+
+fn file_edit_header_label_for_locale(
+    locale: LocaleId,
+    state: ToolCallDisplayState,
+    completed_verb: FileEditVerb,
     subject: &str,
 ) -> String {
     let verb = if state == ToolCallDisplayState::Blocked {
-        "Editing"
+        localization::text_for_locale(locale, "tui.file_edits.verb.editing")
     } else {
-        completed_verb
+        localized_file_verb_for_locale(locale, completed_verb)
     };
     format!("{verb} {subject}")
 }
 
+fn summary_header_label(state: ToolCallDisplayState, count: usize) -> String {
+    summary_header_label_for_locale(localization::current_locale(), state, count)
+}
+
+fn summary_header_label_for_locale(
+    locale: LocaleId,
+    state: ToolCallDisplayState,
+    count: usize,
+) -> String {
+    let key = if state == ToolCallDisplayState::Blocked {
+        "tui.file_edits.summary_header.editing"
+    } else {
+        "tui.file_edits.summary_header"
+    };
+    localization::text_with_args_for_locale(locale, key, &[("count", &count.to_string())])
+}
+
 /// The header verb and display name for a diff: file names only (no
 /// directories), with renames shown as `old → new`.
-fn verb_and_name(diff: &FileDiff) -> (&'static str, String) {
+fn verb_and_name(diff: &FileDiff) -> (FileEditVerb, String) {
     let file_name = |path: &str| {
         Path::new(path)
             .file_name()
@@ -529,20 +578,40 @@ fn verb_and_name(diff: &FileDiff) -> (&'static str, String) {
     };
     let name = file_name(&diff.base.file_path);
     match &diff.diff_type {
-        DiffType::Create { .. } => ("Created", name),
-        DiffType::Delete { .. } => ("Deleted", name),
+        DiffType::Create { .. } => (FileEditVerb::Created, name),
+        DiffType::Delete { .. } => (FileEditVerb::Deleted, name),
         DiffType::Update {
             rename: Some(to), ..
         } => {
             let to_name = file_name(&to.to_string_lossy());
             if to_name == name {
-                ("Updated", name)
+                (FileEditVerb::Updated, name)
             } else {
-                ("Updated", format!("{name} → {to_name}"))
+                (FileEditVerb::Updated, format!("{name} → {to_name}"))
             }
         }
-        DiffType::Update { rename: None, .. } => ("Updated", name),
+        DiffType::Update { rename: None, .. } => (FileEditVerb::Updated, name),
     }
+}
+
+fn localized_file_verb_for_locale(locale: LocaleId, verb: FileEditVerb) -> String {
+    let key = match verb {
+        FileEditVerb::Created => "tui.file_edits.verb.created",
+        FileEditVerb::Deleted => "tui.file_edits.verb.deleted",
+        FileEditVerb::Updated => "tui.file_edits.verb.updated",
+    };
+    localization::text_for_locale(locale, key)
+}
+
+fn localized_count_label(count: usize) -> String {
+    localization::text_with_args(
+        if count == 1 {
+            "tui.count.file.one"
+        } else {
+            "tui.count.file.many"
+        },
+        &[("count", &count.to_string())],
+    )
 }
 
 impl Entity for TuiFileEditsView {
@@ -603,7 +672,7 @@ impl TuiView for TuiFileEditsView {
 
         render_permission_card(
             &self.permission_prompt,
-            "Is it OK if I make these file edits?",
+            localization::text("tui.file_edits.permission.title"),
             Some(content),
             app,
         )
@@ -630,11 +699,7 @@ impl TuiFileEditsView {
 
         self.render_section(
             SectionKey::Summary,
-            &file_edit_header_label(
-                self.display_state(app),
-                "Edited",
-                &format!("{} files", self.sections.len()),
-            ),
+            &summary_header_label(self.display_state(app), self.sections.len()),
             self.aggregate_stats(app),
             &builder,
             app,

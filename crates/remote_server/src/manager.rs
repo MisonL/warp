@@ -3686,22 +3686,27 @@ impl RemoteServerManager {
             host_response_rx,
             move |me, msg, _ctx| {
                 let request_id = crate::protocol::RequestId::from(msg.request_id.clone());
-                if let Some(pending) = me.pending_host_requests.remove(&request_id) {
-                    pending.cancel_timeout();
-                    // Check for server-reported ErrorResponse.
-                    if let Some(crate::proto::server_message::Message::Error(ref e)) = msg.message {
-                        let _ = pending.result_tx.send(Err(HostRequestError::ServerError {
-                            code: e.code(),
-                            message: e.message.clone(),
-                        }));
-                    } else {
-                        let _ = pending.result_tx.send(Ok(msg));
+                match me.pending_host_requests.remove(&request_id) {
+                    Some(pending) => {
+                        pending.cancel_timeout();
+                        // Check for server-reported ErrorResponse.
+                        if let Some(crate::proto::server_message::Message::Error(ref e)) =
+                            msg.message
+                        {
+                            let _ = pending.result_tx.send(Err(HostRequestError::ServerError {
+                                code: e.code(),
+                                message: e.message.clone(),
+                            }));
+                        } else {
+                            let _ = pending.result_tx.send(Ok(msg));
+                        }
                     }
-                } else {
-                    log::warn!(
-                        "Host-scoped response on session {session_id:?} with \
+                    _ => {
+                        log::warn!(
+                            "Host-scoped response on session {session_id:?} with \
                          unknown request_id={request_id} (no pending host request)"
-                    );
+                        );
+                    }
                 }
             },
             |_, _| {},

@@ -24,11 +24,15 @@ pub trait WarpDriveItem {
     /// The display name of the item. If the item is unnamed, this may return `None` - implementations
     /// should prefer this over `Some("")`, as it lets the index view use alternate styling.
     fn display_name(&self) -> Option<String>;
+    fn display_name_for_app(&self, app: &AppContext) -> Option<String> {
+        let _ = app;
+        self.display_name()
+    }
     fn metadata(&self) -> Option<&CloudObjectMetadata>;
     fn object_type(&self) -> Option<DriveObjectType>;
     fn secondary_icon(&self, color: Option<Fill>) -> Option<Box<dyn Element>>; // The optional icon to the right of the name
     fn click_action(&self) -> Option<DriveIndexAction>;
-    fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>>;
+    fn preview(&self, appearance: &Appearance, app: &AppContext) -> Option<Box<dyn Element>>;
     fn warp_drive_id(&self) -> WarpDriveItemId;
     fn sync_status_icon(
         &self,

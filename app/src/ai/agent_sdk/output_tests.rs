@@ -3,6 +3,7 @@ use serde::Serialize;
 use serde_json::json;
 use warp_cli::agent::OutputFormat;
 use warp_cli::json_filter::parse_jq_filter;
+use warp_localization::LocaleId;
 
 use super::{
     TableFormat, run_jq_filter, write_filter_output, write_json, write_json_line, write_list,
@@ -109,7 +110,7 @@ fn list_response_fixture() -> serde_json::Value {
 fn run(value: serde_json::Value, filter: &str) -> String {
     let filter = parse_jq_filter(filter).expect("filter compiles");
     let mut buf = Vec::new();
-    run_jq_filter(value, &filter, &mut buf).expect("filter runs without error");
+    run_jq_filter(value, &filter, &mut buf, LocaleId::EnUs).expect("filter runs without error");
     String::from_utf8(buf).expect("output is valid utf-8")
 }
 
@@ -205,7 +206,7 @@ fn runtime_error_is_surfaced_after_partial_output() {
     });
     let filter = parse_jq_filter(".runs[].title | .[0:1]").expect("filter compiles");
     let mut buf = Vec::new();
-    let result = run_jq_filter(fixture, &filter, &mut buf);
+    let result = run_jq_filter(fixture, &filter, &mut buf, LocaleId::EnUs);
 
     // The filter should fail at runtime on the integer title.
     assert!(result.is_err(), "expected runtime error");
@@ -215,6 +216,21 @@ fn runtime_error_is_surfaced_after_partial_output() {
         rendered.starts_with("h\n"),
         "expected partial output before the error, got: {rendered:?}"
     );
+}
+
+#[test]
+fn runtime_error_uses_requested_locale() {
+    let fixture = json!({
+        "runs": [
+            { "title": 42 },
+        ]
+    });
+    let filter = parse_jq_filter(".runs[].title | .[0:1]").expect("filter compiles");
+    let mut buf = Vec::new();
+    let result = run_jq_filter(fixture, &filter, &mut buf, LocaleId::ZhCn);
+
+    let err = result.expect_err("expected runtime error");
+    assert!(err.to_string().contains("jq filter 错误"));
 }
 
 #[test]

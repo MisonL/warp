@@ -17,6 +17,7 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ActionButtonTheme};
@@ -70,13 +71,16 @@ pub struct CodexModal {
 
 impl CodexModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let cta_button = ctx.add_view(|_| {
-            ActionButton::new("Use latest codex model", WhiteButtonTheme)
-                .with_icon(Icon::OpenAILogo)
-                .with_full_width(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CodexModalAction::UseCodex);
-                })
+        let cta_button = ctx.add_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(ctx, "workspace.codex_modal.cta"),
+                WhiteButtonTheme,
+            )
+            .with_icon(Icon::OpenAILogo)
+            .with_full_width(true)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(CodexModalAction::UseCodex);
+            })
         });
 
         CodexModal {
@@ -85,14 +89,18 @@ impl CodexModal {
         }
     }
 
-    fn render_new_badge(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_new_badge(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         // Magenta/pink color for the badge
         let magenta: ColorU = theme.terminal_colors().normal.magenta.into();
         Container::new(
-            Text::new("New", appearance.ui_font_family(), 12.)
-                .with_color(magenta)
-                .finish(),
+            Text::new(
+                localization::text_for_app(app, "workspace.codex_modal.new_badge"),
+                appearance.ui_font_family(),
+                12.,
+            )
+            .with_color(magenta)
+            .finish(),
         )
         .with_vertical_padding(4.)
         .with_horizontal_padding(10.)
@@ -106,11 +114,11 @@ impl CodexModal {
         let theme = appearance.theme();
 
         // "New" badge
-        let new_badge = self.render_new_badge(appearance);
+        let new_badge = self.render_new_badge(app, appearance);
 
         // Title
         let title = FormattedTextElement::from_str(
-            "Use Codex models in Warp",
+            localization::text_for_app(app, "workspace.codex_modal.title"),
             appearance.ui_font_family(),
             24.,
         )
@@ -123,7 +131,7 @@ impl CodexModal {
 
         // Description - first paragraph
         let description_1 = FormattedTextElement::from_str(
-            "Codex is OpenAI's most advanced agentic coding model for real-world engineering.",
+            localization::text_for_app(app, "workspace.codex_modal.description_1"),
             appearance.ui_font_family(),
             14.,
         )
@@ -135,8 +143,7 @@ impl CodexModal {
 
         // Description - second paragraph
         let description_2 = FormattedTextElement::from_str(
-            "Use Codex directly in Oz and leverage \
-            features like in-app code review, agent session sharing and file editing.",
+            localization::text_for_app(app, "workspace.codex_modal.description_2"),
             appearance.ui_font_family(),
             14.,
         )

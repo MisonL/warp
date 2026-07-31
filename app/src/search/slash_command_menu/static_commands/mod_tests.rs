@@ -8,6 +8,10 @@ fn argument_hint_uses_shared_command_prefix_and_text() {
 
     assert_eq!(hint.input_prefix, "/export-to-file ");
     assert_eq!(hint.text, "<optional filename>");
+    assert_eq!(
+        hint.localization_key,
+        Some("terminal.slash.command.export_to_file.hint")
+    );
     assert_eq!(commands::EXPORT_TO_CLIPBOARD.argument_hint(), None);
 }
 

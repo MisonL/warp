@@ -86,7 +86,7 @@ impl BlockInsertionMenuState {
 
         for block_type in BlockType::code_block_types() {
             menu.add_item(
-                MenuItemFields::new(block_type.label())
+                MenuItemFields::new(block_type.localized_label(ctx))
                     .with_icon(block_type.icon())
                     .with_on_select_action(EditorViewAction::InsertBlock(
                         warp_editor::content::text::BlockType::Text(block_type.into()),
@@ -97,15 +97,18 @@ impl BlockInsertionMenuState {
 
         if embedded_objects_enabled {
             menu.add_item(
-                MenuItemFields::new("Embed")
-                    .with_icon(Icon::EmbedBlock)
-                    .with_on_select_action(EditorViewAction::OpenEmbeddedObjectSearch)
-                    .into_item(),
+                MenuItemFields::new(crate::localization::text_for_app(
+                    ctx,
+                    "notebook.block.embed",
+                ))
+                .with_icon(Icon::EmbedBlock)
+                .with_on_select_action(EditorViewAction::OpenEmbeddedObjectSearch)
+                .into_item(),
             );
         }
 
         for block_type in BlockType::text_block_types() {
-            let mut item_fields = MenuItemFields::new(block_type.label())
+            let mut item_fields = MenuItemFields::new(block_type.localized_label(ctx))
                 .with_icon(block_type.icon())
                 .with_on_select_action(EditorViewAction::InsertBlock(
                     warp_editor::content::text::BlockType::Text(block_type.into()),
@@ -117,13 +120,16 @@ impl BlockInsertionMenuState {
         }
 
         menu.add_item(
-            MenuItemFields::new("Divider")
-                .with_icon(Icon::HorizontalRuleBlock)
-                .with_on_select_action(EditorViewAction::InsertBlock(
-                    warp_editor::content::text::BlockType::Item(BufferBlockItem::HorizontalRule),
-                ))
-                .with_override_icon_color(Fill::Solid(appearance.theme().ui_warning_color()))
-                .into_item(),
+            MenuItemFields::new(crate::localization::text_for_app(
+                ctx,
+                "notebook.block.divider",
+            ))
+            .with_icon(Icon::HorizontalRuleBlock)
+            .with_on_select_action(EditorViewAction::InsertBlock(
+                warp_editor::content::text::BlockType::Item(BufferBlockItem::HorizontalRule),
+            ))
+            .with_override_icon_color(Fill::Solid(appearance.theme().ui_warning_color()))
+            .into_item(),
         );
 
         menu
@@ -237,7 +243,9 @@ impl RichTextEditorView {
             let title = model
                 .get_notebook(id)
                 .map(|notebook| notebook.model().title.clone())
-                .unwrap_or_else(|| "Untitled".to_string());
+                .unwrap_or_else(|| {
+                    crate::localization::text_for_app(ctx, "notebook.placeholder.untitled")
+                });
             let link = model
                 .get_by_uid(&CloudObjectTypeAndId::Notebook(*id).uid())
                 .and_then(|object| object.object_link());
@@ -292,6 +300,7 @@ impl RichTextEditorView {
     fn render_button(&self, stack: &mut Stack, app: &AppContext) {
         let appearance = Appearance::as_ref(app);
         let ui_builder = appearance.ui_builder().clone();
+        let tooltip = crate::localization::text_for_app(app, "notebook.block.insert_tooltip");
         let button = icon_button(
             appearance,
             Icon::Plus,
@@ -304,12 +313,7 @@ impl RichTextEditorView {
             border_color: Some(appearance.theme().surface_3().into()),
             ..Default::default()
         })
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Insert block".to_string())
-                .build()
-                .finish()
-        })
+        .with_tooltip(move || ui_builder.tool_tip(tooltip.clone()).build().finish())
         // Position the tooltip above the insertion button to ensure they don't overlap if the
         // button is towards the bottom of the screen.
         .with_tooltip_position(ButtonTooltipPosition::Above)

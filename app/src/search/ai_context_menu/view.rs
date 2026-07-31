@@ -23,8 +23,9 @@ use warpui::{
 };
 
 use super::styles;
+#[cfg(not(target_family = "wasm"))]
+use crate::ai::skills::{SkillManager, SkillManagerEvent};
 use crate::appearance::Appearance;
-use crate::debounce;
 use crate::drive::settings::WarpDriveSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::blocks::data_source::BlockDataSource;
@@ -58,6 +59,7 @@ use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, Searc
 use crate::settings::InputSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::workspace::ActiveSession;
+use crate::{debounce, localization};
 
 const CORNER_RADIUS: f32 = 8.0;
 const DEFAULT_PALETTE_WIDTH: f32 = 320.0;
@@ -102,28 +104,30 @@ pub enum AIContextMenuCategory {
 }
 
 impl AIContextMenuCategory {
-    pub fn name(&self) -> &'static str {
+    pub fn name_key(&self) -> &'static str {
         match self {
-            AIContextMenuCategory::CurrentFolderFiles => "Files and folders",
-            AIContextMenuCategory::RepoFiles => "Files and folders",
-            AIContextMenuCategory::Commands => "Commands",
-            AIContextMenuCategory::Blocks => "Blocks",
-            AIContextMenuCategory::Workflows => "Workflows",
-            AIContextMenuCategory::Notebooks => "Notebooks",
-            AIContextMenuCategory::Plans => "Plans",
-            AIContextMenuCategory::Diffs => "Diffs",
-            AIContextMenuCategory::Docs => "Docs",
-            AIContextMenuCategory::Tasks => "Past tasks",
-            AIContextMenuCategory::Rules => "Rules",
-            AIContextMenuCategory::Servers => "Servers and integrations",
-            AIContextMenuCategory::Terminal => "Terminal",
-            AIContextMenuCategory::Web => "Web",
-            AIContextMenuCategory::RecentDiff => "Most recent diff",
-            AIContextMenuCategory::RecentBlock => "Most recent block",
-            AIContextMenuCategory::Code => "Code",
-            AIContextMenuCategory::DiffSet => "Diff sets",
-            AIContextMenuCategory::Conversations => "Conversations",
-            AIContextMenuCategory::Skills => "Skills",
+            AIContextMenuCategory::CurrentFolderFiles => {
+                "search.ai_context_menu.category.files_and_folders"
+            }
+            AIContextMenuCategory::RepoFiles => "search.ai_context_menu.category.files_and_folders",
+            AIContextMenuCategory::Commands => "search.ai_context_menu.category.commands",
+            AIContextMenuCategory::Blocks => "search.ai_context_menu.category.blocks",
+            AIContextMenuCategory::Workflows => "search.ai_context_menu.category.workflows",
+            AIContextMenuCategory::Notebooks => "search.ai_context_menu.category.notebooks",
+            AIContextMenuCategory::Plans => "search.ai_context_menu.category.plans",
+            AIContextMenuCategory::Diffs => "search.ai_context_menu.category.diffs",
+            AIContextMenuCategory::Docs => "search.ai_context_menu.category.docs",
+            AIContextMenuCategory::Tasks => "search.ai_context_menu.category.past_tasks",
+            AIContextMenuCategory::Rules => "search.ai_context_menu.category.rules",
+            AIContextMenuCategory::Servers => "search.ai_context_menu.category.servers",
+            AIContextMenuCategory::Terminal => "search.ai_context_menu.category.terminal",
+            AIContextMenuCategory::Web => "search.ai_context_menu.category.web",
+            AIContextMenuCategory::RecentDiff => "search.ai_context_menu.category.recent_diff",
+            AIContextMenuCategory::RecentBlock => "search.ai_context_menu.category.recent_block",
+            AIContextMenuCategory::Code => "search.ai_context_menu.category.code",
+            AIContextMenuCategory::DiffSet => "search.ai_context_menu.category.diff_sets",
+            AIContextMenuCategory::Conversations => "search.ai_context_menu.category.conversations",
+            AIContextMenuCategory::Skills => "search.ai_context_menu.category.skills",
         }
     }
 
@@ -629,6 +633,23 @@ impl AIContextMenu {
                 });
             }
         });
+        #[cfg(not(target_family = "wasm"))]
+        if ctx.has_singleton_model::<SkillManager>() {
+            ctx.subscribe_to_model(&SkillManager::handle(ctx), |me, _, event, ctx| {
+                let skills_active = matches!(
+                    me.state.navigation_state,
+                    NavigationState::Category(AIContextMenuCategory::Skills)
+                        | NavigationState::AllCategories
+                );
+                if skills_active && matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                    me.mixer.update(ctx, |mixer, ctx| {
+                        if let Some(query) = mixer.current_query().cloned() {
+                            mixer.run_query(query, ctx);
+                        }
+                    });
+                }
+            });
+        }
 
         let mut result = Self {
             mixer,
@@ -1222,7 +1243,8 @@ impl AIContextMenu {
             categories
                 .into_iter()
                 .filter(|category| {
-                    let category_name_lower = category.name().to_lowercase();
+                    let category_name_lower =
+                        localization::text_for_app(app, category.name_key()).to_lowercase();
                     category_name_lower.contains(&query_lower)
                 })
                 .collect()
@@ -1288,7 +1310,7 @@ impl AIContextMenu {
 
             let text = Container::new(
                 Text::new(
-                    category.name(),
+                    localization::text_for_app(app, category.name_key()),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size() - 1.0,
                 )
@@ -1372,7 +1394,7 @@ impl AIContextMenu {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "No results found",
+                localization::text_for_app(app, "search.no_results"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -1388,7 +1410,7 @@ impl AIContextMenu {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "Loading results...",
+                localization::text_for_app(app, "search.loading"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -1405,7 +1427,7 @@ impl AIContextMenu {
         let theme = appearance.theme();
         Container::new(
             Text::new(
-                "Code symbols indexing...",
+                localization::text_for_app(app, "search.ai_context_menu.code_symbols_indexing"),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -1556,7 +1578,7 @@ impl AIContextMenu {
 
         let title = Container::new(
             Text::new(
-                category.name(),
+                localization::text_for_app(app, category.name_key()),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size() - 2.0,
             )

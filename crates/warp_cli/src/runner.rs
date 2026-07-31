@@ -1,6 +1,7 @@
 use clap::{ArgAction, ArgGroup, Args, Subcommand, ValueEnum};
 
 use crate::json_filter::JsonOutput;
+use crate::localization::text_with_args;
 use crate::scope::ObjectScope;
 
 /// Maximum length for runner descriptions.
@@ -10,8 +11,12 @@ const MAX_DESCRIPTION_LENGTH: usize = 240;
 fn validate_description(s: &str) -> Result<String, String> {
     let len = s.chars().count();
     if len > MAX_DESCRIPTION_LENGTH {
-        Err(format!(
-            "Description must be at most {MAX_DESCRIPTION_LENGTH} characters (got {len})"
+        Err(text_with_args(
+            "cli.error.runner_description_too_long",
+            &[
+                ("maximum", &MAX_DESCRIPTION_LENGTH.to_string()),
+                ("actual", &len.to_string()),
+            ],
         ))
     } else {
         Ok(s.to_string())

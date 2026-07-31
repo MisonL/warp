@@ -5,7 +5,7 @@ use super::{Renderer, RendererStyles};
 use crate::context_chips::{ChipAvailability, ChipDisabledReason, ContextChipKind};
 
 #[test]
-fn test_constructor_availability_updates_disabled_state_and_tooltip_override() {
+fn test_constructor_availability_updates_disabled_state() {
     let kind = ContextChipKind::ShellGitBranch;
     let chip = kind.to_chip().expect("chip definition should exist");
     let renderer = Renderer::new(
@@ -27,10 +27,7 @@ fn test_constructor_availability_updates_disabled_state_and_tooltip_override() {
     );
 
     assert!(renderer.is_disabled);
-    assert_eq!(
-        renderer.tooltip_override_text.as_deref(),
-        Some("Requires the GitHub CLI")
-    );
+    assert_eq!(renderer.tooltip_override_text, None);
 }
 
 #[test]

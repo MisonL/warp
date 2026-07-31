@@ -12,6 +12,8 @@ use self::listener::CLIAgentSessionListener;
 use super::CLIAgent;
 use crate::ai::blocklist::InputConfig;
 
+pub const CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION: &str = "Waiting for your answer";
+
 /// Status of a tracked CLI agent session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CLIAgentSessionStatus {
@@ -230,13 +232,14 @@ impl CLIAgentSession {
                     message: event.payload.summary.clone(),
                 }
             }
-            CLIAgentEventType::QuestionAsked => CLIAgentSessionStatus::Blocked {
-                message: event
+            CLIAgentEventType::QuestionAsked => {
+                let message = event
                     .payload
                     .summary
                     .clone()
-                    .or_else(|| Some("Waiting for your answer".to_owned())),
-            },
+                    .or_else(|| Some(CLI_AGENT_WAITING_FOR_ANSWER_BLOCKED_ACTION.to_string()));
+                CLIAgentSessionStatus::Blocked { message }
+            }
             CLIAgentEventType::PermissionReplied => {
                 if !matches!(self.status, CLIAgentSessionStatus::Blocked { .. }) {
                     return None;

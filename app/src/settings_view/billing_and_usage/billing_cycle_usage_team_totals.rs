@@ -1,6 +1,5 @@
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
-use warpui::Element;
 use warpui::elements::{
     Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
     Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
@@ -8,7 +7,9 @@ use warpui::elements::{
     Text,
 };
 use warpui::fonts::{Properties, Weight};
+use warpui::{AppContext, Element};
 
+use crate::localization;
 use crate::settings_view::billing_and_usage::billing_cycle_usage_common::{
     BarSegment, BillingUsageMouseStates, ROW_BORDER_RADIUS, ROW_BORDER_WIDTH, TOOLTIP_GAP,
     aggregate_segments, cost_type_color, format_cost_cents, format_credits,
@@ -45,7 +46,7 @@ const CARD_BAR_RADIUS: f32 = CARD_BAR_HEIGHT / 2.;
 /// Summary backing a single team-totals card (Overall / Local / Cloud).
 #[derive(Debug)]
 pub struct TeamTotalCardSummary {
-    pub title: &'static str,
+    pub title_key: &'static str,
     pub card_key: &'static str,
     pub segments: Vec<BarSegment>,
     pub total_credits: i64,
@@ -59,7 +60,7 @@ pub fn build_team_total_card_summaries(
 ) -> Vec<TeamTotalCardSummary> {
     let (overall_segments, overall_credits, overall_cost) = aggregate_segments(entries.iter());
     let mut summaries = vec![TeamTotalCardSummary {
-        title: "Overall usage",
+        title_key: "settings.billing.team_totals.overall",
         card_key: "__card_overall__",
         segments: overall_segments,
         total_credits: overall_credits,
@@ -83,7 +84,7 @@ pub fn build_team_total_card_summaries(
                 .filter(|e| e.usage_source == AiCreditsUsageSource::Cloud),
         );
         summaries.push(TeamTotalCardSummary {
-            title: "Local agent usage",
+            title_key: "settings.billing.team_totals.local_agent",
             card_key: "__card_local__",
             segments: local_segments,
             total_credits: local_credits,
@@ -91,7 +92,7 @@ pub fn build_team_total_card_summaries(
             limit_cents: None,
         });
         summaries.push(TeamTotalCardSummary {
-            title: "Cloud agent usage",
+            title_key: "settings.billing.team_totals.cloud_agent",
             card_key: "__card_cloud__",
             segments: cloud_segments,
             total_credits: cloud_credits,
@@ -199,14 +200,16 @@ fn render_card_pill_bar(
 ///   [pill stacked bar]
 fn build_team_total_card(
     summary: &TeamTotalCardSummary,
+    title: String,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let card_bg = theme.background().into_solid();
     let main = blended_colors::text_main(theme, card_bg);
     let sub = blended_colors::text_sub(theme, card_bg);
 
-    let title_text = Text::new_inline(summary.title.to_string(), appearance.ui_font_family(), 13.)
+    let title_text = Text::new_inline(title, appearance.ui_font_family(), 13.)
         .with_color(sub)
         .with_style(Properties::default().weight(Weight::Medium))
         .finish();
@@ -236,8 +239,13 @@ fn build_team_total_card(
 
     let totals_row: Box<dyn Element> = match summary.limit_cents {
         Some(limit) => {
+            let limit_cost = format_cost_cents(limit);
             let limit_text = Text::new_inline(
-                format!("Limit: {}", format_cost_cents(limit)),
+                localization::text_for_app_with_args(
+                    app,
+                    "settings.billing.limit.cost",
+                    &[("cost", &limit_cost)],
+                ),
                 appearance.ui_font_family(),
                 12.,
             )
@@ -288,14 +296,21 @@ fn render_team_total_card(
     summary: &TeamTotalCardSummary,
     tooltip_mouse_state: MouseStateHandle,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
+    let title = localization::text_for_app(app, summary.title_key);
     if summary.segments.is_empty() {
-        return build_team_total_card(summary, appearance);
+        return build_team_total_card(summary, title, appearance, app);
     }
 
     Hoverable::new(tooltip_mouse_state, move |state| {
         let mut stack = Stack::new();
-        stack.add_child(build_team_total_card(summary, appearance));
+        stack.add_child(build_team_total_card(
+            summary,
+            title.clone(),
+            appearance,
+            app,
+        ));
 
         if state.is_hovered() {
             stack.add_positioned_overlay_child(
@@ -325,6 +340,7 @@ fn render_team_totals_section(
     visibility: &UsageVisibility,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let summaries = build_team_total_card_summaries(entries, visibility);
     let mut row = Flex::row()
@@ -336,7 +352,7 @@ fn render_team_totals_section(
         row.add_child(
             Expanded::new(
                 1.,
-                render_team_total_card(summary, tooltip_state, appearance),
+                render_team_total_card(summary, tooltip_state, appearance, app),
             )
             .finish(),
         );
@@ -350,18 +366,23 @@ pub fn render_team_totals_block(
     visibility: &UsageVisibility,
     mouse_states: &BillingUsageMouseStates,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let mut column = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
     column.add_child(
-        Container::new(render_section_subheader("Team", appearance))
-            .with_margin_bottom(8.)
-            .finish(),
+        Container::new(render_section_subheader(
+            &localization::text_for_app(app, "settings.billing.usage.team"),
+            appearance,
+        ))
+        .with_margin_bottom(8.)
+        .finish(),
     );
     column.add_child(render_team_totals_section(
         entries,
         visibility,
         mouse_states,
         appearance,
+        app,
     ));
     column.finish()
 }

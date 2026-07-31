@@ -48,11 +48,16 @@ pub enum ByoKeySource {
 }
 
 impl ByoKeySource {
-    pub fn inference_label(self) -> &'static str {
-        match self {
-            ByoKeySource::UserProvided => "Inference via User-provided API key",
-            ByoKeySource::TeamProvided => "Inference via Team-provided API key",
-        }
+    pub fn inference_label(self, app: &AppContext) -> String {
+        let key = match self {
+            ByoKeySource::UserProvided => {
+                "settings.ai.model_selector.cost.via_user_provided_api_key"
+            }
+            ByoKeySource::TeamProvided => {
+                "settings.ai.model_selector.cost.via_team_provided_api_key"
+            }
+        };
+        crate::localization::text_for_app(app, key)
     }
 }
 
@@ -170,7 +175,6 @@ pub fn should_show_gemini_enterprise_agent_platform_icon_for_model(
 /// Note: this key used to store a single [`AvailableLLMs`]
 /// but was migrated to store a full [`ModelsByFeature`].
 pub const MODELS_BY_FEATURE_CACHE_KEY: &str = "AvailableLLMs";
-const CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL: &str = "Custom endpoint";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LLMUsageMetadata {
@@ -188,16 +192,24 @@ pub enum DisableReason {
 }
 
 impl DisableReason {
-    /// Returns a user-facing tooltip explaining why the model is disabled.
-    pub fn tooltip_text(&self) -> &'static str {
+    /// Returns the catalog key for the user-facing disabled-model tooltip.
+    pub(crate) fn localization_key(&self) -> &'static str {
         match self {
-            DisableReason::AdminDisabled => "This model has been disabled by your team admin.",
-            DisableReason::OutOfRequests => "Please upgrade your plan to make more requests.",
-            DisableReason::ProviderOutage => {
-                "This model is temporarily unavailable due to a provider outage."
+            DisableReason::AdminDisabled => {
+                "settings.execution_profile.model.disable_reason.admin_disabled"
             }
-            DisableReason::RequiresUpgrade => "Please upgrade your plan to access this model.",
-            DisableReason::Unavailable => "This model is unavailable.",
+            DisableReason::OutOfRequests => {
+                "settings.execution_profile.model.disable_reason.out_of_requests"
+            }
+            DisableReason::ProviderOutage => {
+                "settings.execution_profile.model.disable_reason.provider_outage"
+            }
+            DisableReason::RequiresUpgrade => {
+                "settings.execution_profile.model.disable_reason.requires_upgrade"
+            }
+            DisableReason::Unavailable => {
+                "settings.execution_profile.model.disable_reason.unavailable"
+            }
         }
     }
 
@@ -420,7 +432,7 @@ impl LLMInfo {
     pub fn menu_display_name(&self) -> String {
         // Custom model routers carry a routing/source description that belongs in
         // the sidecar detail panel, not inline in the chip label. Appending it
-        // here would produce a redundant "(Routes by … · …)" suffix.
+        // here would produce a redundant "(Routes by ... - ...)" suffix.
         if custom_model_routers::is_custom_router_id(self.id.as_str()) {
             return self.display_name.clone();
         }
@@ -1119,7 +1131,33 @@ impl LLMPreferences {
         self.custom_llm_info_for_id(&config_key)
             .map(|info| info.display_name.as_str())
             .map(str::to_string)
-            .unwrap_or_else(|| CUSTOM_ENDPOINT_USAGE_FALLBACK_LABEL.to_string())
+            .unwrap_or_else(|| "Custom endpoint".to_owned())
+    }
+
+    pub fn custom_endpoint_usage_display_label_for_app(
+        &self,
+        config_key: &str,
+        app: &AppContext,
+    ) -> String {
+        let config_key = LLMId::from(config_key);
+        if self.custom_llm_info_for_id(&config_key).is_some() {
+            self.custom_endpoint_usage_display_label(config_key.as_str())
+        } else {
+            crate::localization::text_for_app(app, "settings.ai.custom_endpoint.usage_fallback")
+        }
+    }
+
+    pub fn model_description_for_app(&self, llm: &LLMInfo, app: &AppContext) -> Option<String> {
+        let description = llm.description.as_ref()?;
+        if self.custom_llm_info_for_id(&llm.id).is_some() {
+            Some(crate::localization::text_for_app_with_args(
+                app,
+                "settings.ai.custom_endpoint.model_description",
+                &[("endpoint", description)],
+            ))
+        } else {
+            Some(description.clone())
+        }
     }
 
     fn custom_llm_info_for_id_if_enabled(&self, id: &LLMId, app: &AppContext) -> Option<&LLMInfo> {
@@ -1961,7 +1999,7 @@ fn custom_llm_info_from(endpoint: &CustomEndpoint, model: &CustomEndpointModel) 
             request_multiplier: 1,
             credit_multiplier: None,
         },
-        description: Some(format!("Custom · {}", endpoint.name)),
+        description: Some(endpoint.name.clone()),
         disable_reason: None,
         vision_supported: true,
         spec: None,

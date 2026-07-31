@@ -61,8 +61,6 @@ const ENV_VAR_HORIZONTAL_MARGIN: f32 = 20.;
 const ENV_VAR_RIGHT_ELEMENT_VERTICAL_MARGIN: f32 = 5.;
 const ENV_VAR_SPAN_VERTICAL_MARGIN: f32 = 15.;
 const ENV_VAR_BUTTON_HEIGHT: f32 = 30.;
-const ENV_VAR_SPAN: &str = "Environment variables";
-const NEW_ENV_VAR_BUTTON_LABEL: &str = "New environment variables";
 
 /// Scale factor the title should be from the user's current font size.
 const TITLE_FONT_SIZE_SCALE_FACTOR: f32 = 1.12;
@@ -250,16 +248,17 @@ impl WorkflowsMoreInfoView {
         &self,
         cloud_workflow: &CloudWorkflow,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         let label = if cloud_workflow.model().data.is_agent_mode_workflow() {
-            "Edit prompt"
+            crate::localization::text_for_app(app, "workflow.info_box.edit_prompt")
         } else {
-            "Edit workflow"
+            crate::localization::text_for_app(app, "workflow.info_box.edit_workflow")
         };
         let workflow = cloud_workflow.clone();
         render_hoverable_card_button(
             icons::Icon::Rename,
-            Some(label.to_owned()),
+            Some(label),
             self.button_mouse_states.edit_cloud_workflow.clone(),
             move |ctx: &mut warpui::EventContext<'_>, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::OpenWorkflowModalWithCloudWorkflow(
@@ -415,7 +414,11 @@ impl WorkflowsMoreInfoView {
         flex_column.finish()
     }
 
-    fn render_command_edited_menu(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_command_edited_menu(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let contents = Flex::row()
             .with_child(
                 Container::new(
@@ -438,7 +441,7 @@ impl WorkflowsMoreInfoView {
             .with_child(
                 Container::new(
                     Text::new_inline(
-                        "Command edited.",
+                        crate::localization::text_for_app(app, "workflow.info_box.command_edited"),
                         appearance.ui_font_family(),
                         appearance.monospace_font_size(),
                     )
@@ -460,7 +463,10 @@ impl WorkflowsMoreInfoView {
                         ButtonVariant::Text,
                         self.button_mouse_states.reset_command.clone(),
                     )
-                    .with_centered_text_label(String::from("Reset"))
+                    .with_centered_text_label(crate::localization::text_for_app(
+                        app,
+                        "workflow.info_box.reset",
+                    ))
                     .with_style(UiComponentStyles {
                         font_family_id: Some(appearance.ui_font_family()),
                         font_size: Some(appearance.monospace_font_size()),
@@ -485,7 +491,11 @@ impl WorkflowsMoreInfoView {
             .finish()
     }
 
-    fn render_keyboard_shortcut_menu(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_keyboard_shortcut_menu(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let cycle_parameter_text = Flex::row()
             .with_child(
                 appearance
@@ -502,8 +512,11 @@ impl WorkflowsMoreInfoView {
                 Shrinkable::new(
                     1.,
                     Container::new(
-                        Text::new_inline(
-                            "to cycle parameters",
+                        Text::new(
+                            crate::localization::text_for_app(
+                                app,
+                                "workflow.info_box.cycle_parameters",
+                            ),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size(),
                         )
@@ -533,11 +546,18 @@ impl WorkflowsMoreInfoView {
             .finish()
     }
 
-    fn render_save_workflow_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_save_workflow_button(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let workflow = self.workflow.as_workflow().to_owned();
         render_hoverable_card_button(
             icons::Icon::Workflow,
-            Some("Save as workflow".to_string()),
+            Some(crate::localization::text_for_app(
+                app,
+                "workflow.info_box.save_as_workflow",
+            )),
             self.button_mouse_states.save_as_workflow.clone(),
             move |ctx, _, _| {
                 ctx.dispatch_typed_action(TerminalAction::OpenWorkflowModalForAIWorkflow(
@@ -569,7 +589,10 @@ impl WorkflowsMoreInfoView {
             Align::new(
                 appearance
                     .ui_builder()
-                    .span(ENV_VAR_SPAN.to_string())
+                    .span(crate::localization::text_for_app(
+                        app,
+                        "workflow.env_vars.title",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(ENV_VAR_SPAN_FONT_SIZE),
                         ..Default::default()
@@ -596,7 +619,10 @@ impl WorkflowsMoreInfoView {
                             ButtonVariant::Secondary,
                             self.button_mouse_states.add_env_var_collection.clone(),
                         )
-                        .with_centered_text_label(NEW_ENV_VAR_BUTTON_LABEL.to_owned())
+                        .with_centered_text_label(crate::localization::text_for_app(
+                            app,
+                            "workflow.env_vars.new",
+                        ))
                         .build()
                         .on_click(|ctx, _, _| {
                             // Create envvars in personal drive for max extensibility (can be moved
@@ -665,6 +691,7 @@ impl WorkflowsMoreInfoView {
                 self,
                 workflow_source.to_string(),
                 appearance,
+                app,
             ));
         }
 
@@ -710,11 +737,11 @@ impl WorkflowsMoreInfoView {
                     row_content.add_child(Shrinkable::new(1., metadata_history_element).finish());
                 }
 
-                let edit_button = self.render_edit_button(cloud_workflow, appearance);
+                let edit_button = self.render_edit_button(cloud_workflow, appearance, app);
                 row_content.add_children([edit_button, collapse_button, close_button]);
             }
             WorkflowType::AIGenerated { .. } => {
-                let save_as_workflow_button = self.render_save_workflow_button(appearance);
+                let save_as_workflow_button = self.render_save_workflow_button(appearance, app);
                 row_content.add_children([save_as_workflow_button, collapse_button, close_button]);
             }
             _ => row_content.add_children([collapse_button, close_button]),
@@ -780,9 +807,9 @@ impl WorkflowsMoreInfoView {
         }
 
         if !self.show_shift_tab_treatment {
-            children.push(self.render_command_edited_menu(appearance));
+            children.push(self.render_command_edited_menu(appearance, app));
         } else if !workflow.arguments().is_empty() {
-            children.push(self.render_keyboard_shortcut_menu(appearance));
+            children.push(self.render_keyboard_shortcut_menu(appearance, app));
         }
 
         match input_mode {
@@ -1002,12 +1029,13 @@ impl WorkflowsMoreInfoView {
         &self,
         workflow_source: String,
         appearance: &Appearance,
+        app: &AppContext,
     ) -> Box<dyn Element> {
         Container::new(
             appearance
                 .ui_builder()
                 .link(
-                    "View Context".into(),
+                    crate::localization::text_for_app(app, "workflow.info_box.view_context"),
                     Some(workflow_source),
                     None,
                     self.button_mouse_states.view_context.clone(),

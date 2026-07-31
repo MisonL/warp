@@ -1,4 +1,5 @@
 use pathfinder_geometry::vector::vec2f;
+use warp_localization::LocaleId;
 use warpui::elements::{
     Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Highlight,
     ParentElement, Radius, Shrinkable, Wrap,
@@ -81,6 +82,7 @@ fn render_session_label(
         highlight_indices.command_indices.clone(),
         highlight_indices.hint_text_indices.clone(),
         appearance,
+        app,
     );
 
     navigation_palette_item.add_child(
@@ -102,10 +104,14 @@ fn render_session_label(
 fn render_current_session_pill(
     command_context: CommandContext,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let current_session_pill = appearance
         .ui_builder()
-        .span("Current".to_string())
+        .span(crate::localization::text_for_app(
+            app,
+            "search.navigation.current_session",
+        ))
         .with_style(UiComponentStyles {
             font_family_id: Some(appearance.monospace_font_family()),
             // The font size is scaled down to make sure the pill fits in the row with its padding.
@@ -248,8 +254,12 @@ fn render_command_context(
     command_indices: Option<Vec<usize>>,
     hint_text_indices: Vec<usize>,
     appearance: &Appearance,
+    app: &AppContext,
 ) -> Box<dyn Element> {
-    let command_render_info = CommandRenderInfo::from_context(session.command_context());
+    let command_render_info = CommandRenderInfo::from_context(
+        session.command_context(),
+        crate::localization::current_locale(app),
+    );
 
     let mut command_row = Flex::row();
     let command_row_font_size = appearance.monospace_font_size() - 2.;
@@ -317,6 +327,7 @@ fn render_command_context(
         command_row.add_child(render_current_session_pill(
             session.command_context(),
             appearance,
+            app,
         ));
     }
 
@@ -333,11 +344,14 @@ pub(super) struct CommandRenderInfo {
 }
 
 impl CommandRenderInfo {
-    pub fn from_context(command_context: CommandContext) -> CommandRenderInfo {
+    pub fn from_context(command_context: CommandContext, locale: LocaleId) -> CommandRenderInfo {
         match command_context {
             CommandContext::RunningCommand { running_command } => CommandRenderInfo {
                 command_text: Some(running_command),
-                hint_text: "Running...".to_string(),
+                hint_text: crate::localization::text_for_locale(
+                    locale,
+                    "search.navigation.status.running",
+                ),
                 row_spacing: styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING,
                 hint_margin: styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN,
             },
@@ -355,27 +369,50 @@ impl CommandRenderInfo {
                 },
                 command_text: Some(last_run_command),
                 hint_text: match mins_since_completion {
-                    Some(mins) if mins >= 60 => "Completed over 1 hour ago".to_string(),
-                    Some(mins) if mins == 1 => format!("Completed {mins} minute ago"),
-                    Some(mins) => format!("Completed {mins} minutes ago"),
-                    None => "No timestamp found".to_string(),
+                    Some(mins) if mins >= 60 => crate::localization::text_for_locale(
+                        locale,
+                        "search.navigation.status.completed_over_hour",
+                    ),
+                    Some(mins) if mins == 1 => crate::localization::text_for_locale_with_args(
+                        locale,
+                        "search.navigation.status.completed_minute_singular",
+                        &[("mins", &mins.to_string())],
+                    ),
+                    Some(mins) => crate::localization::text_for_locale_with_args(
+                        locale,
+                        "search.navigation.status.completed_minute_plural",
+                        &[("mins", &mins.to_string())],
+                    ),
+                    None => crate::localization::text_for_locale(
+                        locale,
+                        "search.navigation.status.no_timestamp",
+                    ),
                 },
             },
             CommandContext::RunningAIBlock { prompt } => CommandRenderInfo {
                 command_text: Some(prompt),
-                hint_text: "Running...".to_string(),
+                hint_text: crate::localization::text_for_locale(
+                    locale,
+                    "search.navigation.status.running",
+                ),
                 row_spacing: styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING,
                 hint_margin: styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN,
             },
             CommandContext::LastRunAIBlock { prompt } => CommandRenderInfo {
                 command_text: Some(prompt),
-                hint_text: "Completed".to_string(),
+                hint_text: crate::localization::text_for_locale(
+                    locale,
+                    "search.navigation.status.completed",
+                ),
                 row_spacing: styles::NAVIGATION_PALETTE_COMMAND_ROW_SPACING,
                 hint_margin: styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN,
             },
             CommandContext::None => CommandRenderInfo {
                 command_text: Some(String::new()),
-                hint_text: "Empty Session".to_string(),
+                hint_text: crate::localization::text_for_locale(
+                    locale,
+                    "search.navigation.status.empty_session",
+                ),
                 row_spacing: 0.,
                 hint_margin: 0.,
             },

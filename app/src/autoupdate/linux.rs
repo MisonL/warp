@@ -200,24 +200,33 @@ mod package_manager {
                 FormattedTextLine::Heading(FormattedTextHeader {
                     // Make this an <h3>
                     heading_size: 3,
-                    text: vec![FormattedTextFragment::bold(format!(
-                        "Run {package_manager_name} to update"
-                    ))],
+                    text: vec![FormattedTextFragment::bold(
+                        crate::localization::text_for_app_with_args(
+                            app,
+                            "workspace.autoupdate.package_manager.title",
+                            &[("package_manager", package_manager_name.as_str())],
+                        ),
+                    )],
                 }),
                 FormattedTextLine::Line(vec![
-                    FormattedTextFragment::plain_text("If you installed Warp using "),
+                    FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                        app,
+                        "workspace.autoupdate.package_manager.description_prefix",
+                    )),
                     FormattedTextFragment::bold(package_manager_name),
-                    FormattedTextFragment::plain_text(
-                        " or a compatible tool, the pre-filled command will update Warp for you.",
-                    ),
+                    FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                        app,
+                        "workspace.autoupdate.package_manager.description_suffix",
+                    )),
                 ]),
             ];
 
             if self.package_manager.needs_repository_configuration() {
                 lines.push(FormattedTextLine::Line(vec![
-                    FormattedTextFragment::plain_text(
-                        "\nThe command below includes a one-time configuration of the Warp package repository and PGP signing key.",
-                    ),
+                    FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                        app,
+                        "workspace.autoupdate.package_manager.repository_configuration",
+                    )),
                 ]));
             }
 
@@ -226,22 +235,36 @@ mod package_manager {
                 .distribution_update_disabled_repository()
             {
                 lines.push(FormattedTextLine::Line(vec![
-                    FormattedTextFragment::plain_text(
-                        "\nThe ",
-                    ),
+                    FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                        app,
+                        "workspace.autoupdate.package_manager.dist_upgrade_prefix",
+                    )),
                     FormattedTextFragment::inline_code("warp_handle_dist_upgrade"),
-                    FormattedTextFragment::plain_text(
-                        " function ensures the Warp package repository is enabled, as we've detected you recently upgraded your distribution.",
-                    ),
+                    FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                        app,
+                        "workspace.autoupdate.package_manager.dist_upgrade_suffix",
+                    )),
                 ]));
             }
 
             lines.push(FormattedTextLine::Line(vec![
-                FormattedTextFragment::plain_text("\nReview the command below, then "),
-                FormattedTextFragment::bold("press enter"),
-                FormattedTextFragment::plain_text(" to install the update and re-launch Warp.  "),
+                FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                    app,
+                    "workspace.autoupdate.package_manager.footer_prefix",
+                )),
+                FormattedTextFragment::bold(crate::localization::text_for_app(
+                    app,
+                    "workspace.autoupdate.package_manager.press_enter",
+                )),
+                FormattedTextFragment::plain_text(crate::localization::text_for_app(
+                    app,
+                    "workspace.autoupdate.package_manager.footer_suffix",
+                )),
                 FormattedTextFragment::hyperlink(
-                    "Please report any issues",
+                    crate::localization::text_for_app(
+                        app,
+                        "workspace.autoupdate.package_manager.report_issues",
+                    ),
                     "https://github.com/warpdotdev/Warp/issues/new/choose",
                 ),
             ]));

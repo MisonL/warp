@@ -3,8 +3,7 @@
 use warp::tui_export::{
     AIActionStatus, AuthSecretSelection, Harness, HarnessAvailabilityModel,
     ORCHESTRATION_WARP_WORKER_HOST, OptionSnapshot, RunAgentsExecutionMode,
-    empty_env_recommendation_message, environment_snapshot, model_snapshot,
-    should_show_auth_secret_picker,
+    empty_env_recommendation_message, should_show_auth_secret_picker,
 };
 use warpui::SingletonEntity;
 use warpui_core::AppContext;
@@ -13,8 +12,10 @@ use warpui_core::elements::tui::{
     Modifier, TuiChildView, TuiContainer, TuiElement, TuiFlex, TuiParentElement, TuiText,
 };
 
-use super::{CardMode, ORCHESTRATION_BLOCK_TITLE, TuiOrchestrationBlock};
+use super::configuration::ConfigPage;
+use super::{CardMode, TuiOrchestrationBlock};
 use crate::agent_block_sections::render_fallback_tool_call_section;
+use crate::localization;
 use crate::orchestrated_agent_identity_styling::{AgentIdentity, assign_agent_identity_indices};
 use crate::tui_builder::TuiUiBuilder;
 
@@ -93,21 +94,33 @@ impl TuiOrchestrationBlock {
     ) -> Box<dyn TuiElement> {
         let state = &self.orchestration_edit_state.orchestration_config_state;
         let is_remote = state.execution_mode.is_remote();
-        let mut entries: Vec<(&str, String)> = vec![(
-            "Location",
-            if is_remote { "Cloud" } else { "Local" }.to_string(),
+        let mut entries = vec![(
+            localization::text("tui.orchestration.label.location"),
+            localization::text(if is_remote {
+                "agent.orchestration.controls.cloud"
+            } else {
+                "agent.orchestration.controls.local"
+            }),
         )];
-        entries.push(("Harness", self.harness_label(app)));
+        entries.push((
+            localization::text("tui.orchestration.label.harness"),
+            self.harness_label(app),
+        ));
         if is_remote {
             if should_show_auth_secret_picker(state) {
                 let api_key = match &state.auth_secret_selection {
                     AuthSecretSelection::Named(name) => name.clone(),
-                    AuthSecretSelection::Inherit => "Skip (advanced)".to_string(),
+                    AuthSecretSelection::Inherit => {
+                        localization::text("agent.orchestration.controls.auth_secret_inherit")
+                    }
                     AuthSecretSelection::Unset | AuthSecretSelection::CreatingNew => {
-                        "Select an API key".to_string()
+                        localization::text("tui.orchestration.select_api_key")
                     }
                 };
-                entries.push(("API key", api_key));
+                entries.push((
+                    localization::text("tui.orchestration.label.api_key"),
+                    api_key,
+                ));
             }
             let host = match &state.execution_mode {
                 RunAgentsExecutionMode::Remote { worker_host, .. }
@@ -119,26 +132,26 @@ impl TuiOrchestrationBlock {
                     ORCHESTRATION_WARP_WORKER_HOST.to_string()
                 }
             };
-            entries.push(("Host", host));
+            entries.push((localization::text("tui.orchestration.label.host"), host));
             let environment_id = match &state.execution_mode {
                 RunAgentsExecutionMode::Remote { environment_id, .. } => environment_id.clone(),
                 RunAgentsExecutionMode::Local => String::new(),
             };
             entries.push((
-                "Environment",
+                localization::text("tui.orchestration.label.environment"),
                 Self::label_for_id(
-                    &environment_snapshot(state, app),
+                    &self.snapshot_for_page(ConfigPage::Environment, app),
                     &environment_id,
-                    "Empty environment",
+                    &localization::text("tui.orchestration.empty_environment"),
                 ),
             ));
         }
         entries.push((
-            "Model",
+            localization::text("tui.orchestration.label.model"),
             Self::label_for_id(
-                &model_snapshot(state, app),
+                &self.snapshot_for_page(ConfigPage::Model, app),
                 &state.model_id,
-                "Default model",
+                &localization::text("agent.orchestration.controls.default_model"),
             ),
         ));
 
@@ -159,9 +172,12 @@ impl TuiOrchestrationBlock {
         let mut column = TuiFlex::column();
 
         column.add_child(
-            TuiText::new(format!(
-                "Agents ({}):",
-                self.request_fields.agent_run_configs.len()
+            TuiText::new(localization::text_with_args(
+                "tui.orchestration.agents",
+                &[(
+                    "count",
+                    &self.request_fields.agent_run_configs.len().to_string(),
+                )],
             ))
             .with_style(builder.primary_text_style())
             .truncate()
@@ -194,7 +210,7 @@ impl TuiOrchestrationBlock {
         TuiText::from_spans([
             ("■ ".to_string(), builder.attention_glyph_style()),
             (
-                ORCHESTRATION_BLOCK_TITLE.to_string(),
+                localization::text("tui.orchestration.title"),
                 builder.primary_text_style(),
             ),
         ])
@@ -210,20 +226,56 @@ impl TuiOrchestrationBlock {
     fn render_footer(&self, builder: &TuiUiBuilder) -> Box<dyn TuiElement> {
         let spans = match self.mode {
             CardMode::Acceptance => vec![
-                ("Enter ".to_string(), builder.primary_text_style()),
-                ("to accept  ".to_string(), builder.muted_text_style()),
-                ("Ctrl + E".to_string(), builder.primary_text_style()),
-                (" to edit ".to_string(), builder.muted_text_style()),
-                ("Ctrl + C".to_string(), builder.primary_text_style()),
-                (" to reject".to_string(), builder.muted_text_style()),
+                (
+                    localization::text("tui.orchestration.key.accept"),
+                    builder.primary_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.footer.accept"),
+                    builder.muted_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.key.edit"),
+                    builder.primary_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.footer.edit"),
+                    builder.muted_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.key.reject"),
+                    builder.primary_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.footer.reject"),
+                    builder.muted_text_style(),
+                ),
             ],
             CardMode::Configuring { .. } => vec![
-                ("Enter ".to_string(), builder.primary_text_style()),
-                ("to accept  ".to_string(), builder.muted_text_style()),
-                ("Tab or ← →".to_string(), builder.primary_text_style()),
-                (" to navigate  ".to_string(), builder.muted_text_style()),
-                ("Esc ".to_string(), builder.primary_text_style()),
-                ("to go back".to_string(), builder.muted_text_style()),
+                (
+                    localization::text("tui.orchestration.key.accept"),
+                    builder.primary_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.footer.accept"),
+                    builder.muted_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.key.navigate"),
+                    builder.primary_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.footer.navigate"),
+                    builder.muted_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.key.go_back"),
+                    builder.primary_text_style(),
+                ),
+                (
+                    localization::text("tui.orchestration.footer.go_back"),
+                    builder.muted_text_style(),
+                ),
             ],
         };
         TuiText::from_spans(spans).finish()

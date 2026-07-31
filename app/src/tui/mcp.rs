@@ -27,6 +27,7 @@ pub enum TuiMcpServerStatus {
     Authenticating,
     Running,
     Stopping,
+    FailedToStart,
     Failed { message: String },
 }
 
@@ -208,12 +209,12 @@ impl TuiMcpManager {
                     Some(MCPServerState::Authenticating) => TuiMcpServerStatus::Authenticating,
                     Some(MCPServerState::Running) => TuiMcpServerStatus::Running,
                     Some(MCPServerState::ShuttingDown) => TuiMcpServerStatus::Stopping,
-                    Some(MCPServerState::FailedToStart) => TuiMcpServerStatus::Failed {
-                        message: runtime_manager
-                            .get_server_error_message(uuid)
-                            .unwrap_or("Failed to start")
-                            .to_string(),
-                    },
+                    Some(MCPServerState::FailedToStart) => runtime_manager
+                        .get_server_error_message(uuid)
+                        .map(|message| TuiMcpServerStatus::Failed {
+                            message: message.to_string(),
+                        })
+                        .unwrap_or(TuiMcpServerStatus::FailedToStart),
                 };
                 Some(TuiMcpServerSnapshot {
                     id: TuiMcpServerId(hash),

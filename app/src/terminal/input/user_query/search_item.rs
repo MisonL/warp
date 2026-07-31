@@ -13,6 +13,7 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::ai::agent::AIAgentExchangeId;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::search::{ItemHighlightState, SearchItem};
 use crate::terminal::input::inline_menu::styles::{
     ICON_MARGIN, ITEM_CORNER_RADIUS, ITEM_HORIZONTAL_PADDING, font_size, icon_color,
@@ -129,6 +130,14 @@ impl SearchItem for UserQuerySearchItem {
 
     fn execute_result(&self) -> Self::Action {
         self.accept_result()
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        localization::text_for_app_with_args(
+            app,
+            "terminal.input.user_query.a11y.label",
+            &[("query", &self.query_text)],
+        )
     }
 
     fn accessibility_label(&self) -> String {

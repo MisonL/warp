@@ -19,6 +19,32 @@ use crate::ui_components::icons::Icon;
 
 pub const ENV_VAR_NAME_SEPARATOR: &str = ", ";
 
+fn env_var_collection_title_for_app(
+    env_var_collection: &CloudEnvVarCollection,
+    app: &AppContext,
+) -> String {
+    env_var_collection
+        .model()
+        .string_model
+        .title
+        .clone()
+        .unwrap_or_else(|| crate::localization::text_for_app(app, "env_vars.title.untitled"))
+}
+
+fn env_var_collection_title_fallback(env_var_collection: &CloudEnvVarCollection) -> String {
+    env_var_collection
+        .model()
+        .string_model
+        .title
+        .clone()
+        .unwrap_or_else(|| {
+            crate::localization::text_for_locale(
+                warp_localization::LocaleId::EnUs,
+                "env_vars.title.untitled",
+            )
+        })
+}
+
 /// Search item result for a cloud EnvVarCollection.
 #[derive(Debug)]
 pub struct EnvVarCollectionSearchItem {
@@ -58,13 +84,7 @@ impl SearchItem for EnvVarCollectionSearchItem {
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let mut title_text = Text::new_inline(
-            self.cloud_env_var_collection
-                .model()
-                .string_model
-                .title
-                .clone()
-                .unwrap_or("Untitled".to_owned())
-                .to_owned(),
+            env_var_collection_title_for_app(&self.cloud_env_var_collection, app),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -163,14 +183,24 @@ impl SearchItem for EnvVarCollectionSearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!(
-            "Environment Variables: {}",
-            self.cloud_env_var_collection
-                .model()
-                .string_model
-                .title
-                .clone()
-                .unwrap_or("Untitled".to_owned())
+        crate::localization::text_for_locale_with_args(
+            warp_localization::LocaleId::EnUs,
+            "search.env_var_collection.a11y.label",
+            &[(
+                "title",
+                &env_var_collection_title_fallback(&self.cloud_env_var_collection),
+            )],
+        )
+    }
+
+    fn accessibility_label_for_app(&self, app: &AppContext) -> String {
+        crate::localization::text_for_app_with_args(
+            app,
+            "search.env_var_collection.a11y.label",
+            &[(
+                "title",
+                &env_var_collection_title_for_app(&self.cloud_env_var_collection, app),
+            )],
         )
     }
 }

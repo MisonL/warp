@@ -2,9 +2,8 @@ use fuzzy_match::match_indices_case_insensitive;
 use ordered_float::OrderedFloat;
 use warpui::{AppContext, Entity, EntityId, SingletonEntity};
 
-use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::cloud_object::model::generic_string_model::StringModel;
+use crate::ai::execution_profiles::{AIExecutionProfileAppExt as _, ExecutionProfileId};
 use crate::search::SyncDataSource;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
@@ -66,7 +65,7 @@ impl SyncDataSource for ProfileSelectorDataSource {
             .into_iter()
             .filter_map(|profile_id| {
                 let profile_info = profiles_model.get_profile_by_id(&profile_id, app)?;
-                let profile_name = profile_info.data().display_name();
+                let profile_name = profile_info.data().localized_display_name(app);
                 Some((profile_id, profile_name))
             })
             .collect();
