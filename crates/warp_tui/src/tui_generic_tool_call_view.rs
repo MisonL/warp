@@ -329,10 +329,19 @@ impl TuiGenericToolCallView {
     /// Renders the complete blocked-action card.
     fn render_blocked(&self, app: &AppContext) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(app);
-        let prompt = self
-            .permission_prompt
-            .as_ref()
-            .expect("blocked generic actions should own a permission prompt");
+        let Some(prompt) = self.permission_prompt.as_ref() else {
+            log::error!(
+                "blocked generic action {} has no permission prompt",
+                self.action.id
+            );
+            return render_fallback_tool_call_section(
+                &self.action,
+                Some(&AIActionStatus::Blocked),
+                self.output_streaming,
+                None,
+                app,
+            );
+        };
         render_permission_card(
             prompt,
             self.permission_question(),

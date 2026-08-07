@@ -557,7 +557,7 @@ impl TuiTerminalSessionView {
                     self.orchestration_tabs_focused = false;
                     Self::focus_blocking_child(blocker, ctx);
                 }
-                _ => {
+                None => {
                     if self.orchestration_tabs_focused {
                         ctx.focus_self();
                     } else {
@@ -1079,14 +1079,25 @@ impl TuiTerminalSessionView {
                 conversation_id,
                 text,
             } => {
-                view.ai_controller.update(ctx, |controller, ctx| {
+                let dispatched = view.ai_controller.update(ctx, |controller, ctx| {
                     controller.send_user_query_in_conversation(
                         text.clone(),
                         *conversation_id,
                         None,
                         ctx,
-                    );
+                    )
                 });
+                if !dispatched {
+                    if view.input_view.as_ref(ctx).is_empty(ctx) {
+                        view.input_view.update(ctx, |input, ctx| {
+                            input.set_text(text, ctx);
+                        });
+                    }
+                    view.show_transient_hint(
+                        localization::text("tui.permission.guidance.send_failed"),
+                        ctx,
+                    );
+                }
             }
         });
 

@@ -173,6 +173,49 @@ fn generic_permission_copy_is_localized_for_simplified_chinese() {
 }
 
 #[test]
+fn blocked_generic_action_without_prompt_does_not_panic() {
+    App::test((), |mut app| async move {
+        let action_model = add_test_action_model(&mut app);
+        let action = AIAgentAction {
+            id: AIAgentActionId::from("missing-prompt-action".to_owned()),
+            task_id: TaskId::new("task".to_owned()),
+            action: AIAgentActionType::InitProject,
+            requires_result: true,
+        };
+        let action_for_queue = action.clone();
+        let conversation_id = AIConversationId::new();
+        let action_model_for_view = action_model.clone();
+        let view = app.update(|ctx| {
+            let (window_id, _) = ctx.add_tui_window(
+                AddWindowOptions {
+                    window_style: WindowStyle::NotStealFocus,
+                    ..Default::default()
+                },
+                |_| TestHostView,
+            );
+            ctx.add_tui_view(window_id, |ctx| {
+                TuiGenericToolCallView::new(
+                    action,
+                    false,
+                    action_model_for_view,
+                    conversation_id,
+                    ctx,
+                )
+            })
+        });
+
+        action_model.update(&mut app, |model, ctx| {
+            queue_tui_permission_action(model, action_for_queue, conversation_id, ctx);
+        });
+        view.update(&mut app, |view, _| view.permission_prompt = None);
+
+        app.read(|ctx| {
+            let _ = view.as_ref(ctx).render(ctx);
+        });
+    });
+}
+
+#[test]
 fn accepting_new_conversation_suggestion_completes_the_executor() {
     App::test((), |mut app| async move {
         app.add_singleton_model(|ctx| AppExecutionMode::new(ExecutionMode::App, false, ctx));

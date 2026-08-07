@@ -50,6 +50,12 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_fixed_bindings([
         FixedBinding::new(
             "escape",
+            TuiShellCommandViewAction::SaveCommandEdit,
+            predicate.clone(),
+        )
+        .with_group(TUI_BINDING_GROUP),
+        FixedBinding::new(
+            "ctrl-c",
             TuiShellCommandViewAction::CancelPermission,
             predicate.clone(),
         )
@@ -61,7 +67,7 @@ pub(crate) fn init(app: &mut AppContext) {
         )
         .with_group(TUI_BINDING_GROUP),
     ]);
-    app.register_editable_bindings(["enter", "numpadenter", "down"].map(|key| {
+    app.register_editable_bindings(["enter", "numpadenter"].map(|key| {
         EditableBinding::new(
             "tui:shell-permission:save",
             binding_description(
@@ -249,7 +255,8 @@ impl TuiShellCommandView {
 
     fn accept(&mut self, ctx: &mut ViewContext<Self>) {
         let command = self.command_editor.as_ref(ctx).text(ctx);
-        if command.trim().is_empty() {
+        let command = command.trim().to_owned();
+        if command.is_empty() {
             self.permission_prompt.update(ctx, |prompt, ctx| {
                 prompt.set_body_error(
                     Some(localization::text(

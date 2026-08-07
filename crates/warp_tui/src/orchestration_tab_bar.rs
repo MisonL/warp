@@ -253,16 +253,6 @@ pub(crate) fn render_cloud_orchestration_tab_footer(builder: &TuiUiBuilder) -> B
             localization::text("tui.orchestration.cloud_run.footer.go_to_start_end"),
             muted,
         ),
-        ("↓".to_string(), primary),
-        (
-            localization::text("tui.orchestration.cloud_run.footer.send_message"),
-            muted,
-        ),
-        ("Ctrl+C ".to_string(), primary),
-        (
-            localization::text("tui.orchestration.cloud_run.footer.kill_sub_agent"),
-            muted,
-        ),
     ])
     .truncate()
     .finish()

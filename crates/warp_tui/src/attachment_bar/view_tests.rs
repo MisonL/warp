@@ -13,10 +13,10 @@ use super::{attachment_binding_description_for_locale, render_attachment_snapsho
 use crate::attachment_bar::model::TuiAttachmentSnapshot;
 
 fn render_lines(
-    ctx: &AppContext,
     snapshot: TuiAttachmentSnapshot,
     width: u16,
     locale: LocaleId,
+    ctx: &AppContext,
 ) -> Vec<String> {
     let mut element = render_attachment_snapshot_for_locale(
         snapshot,
@@ -68,13 +68,13 @@ fn renders_single_attachment_without_carousel_arrows() {
         app.update(|ctx| {
             ctx.add_singleton_model(|_| Appearance::mock());
             let line =
-                render_lines(ctx, snapshot("screenshot.png", 1, 1), 60, LocaleId::EnUs).remove(0);
+                render_lines(snapshot("screenshot.png", 1, 1), 60, LocaleId::EnUs, ctx).remove(0);
             assert!(line.contains("[image]"));
             assert!(line.contains("screenshot.png"));
             assert!(line.contains("1/1"));
-            assert!(line.contains('×'));
-            assert!(!line.contains('‹'));
-            assert!(!line.contains('›'));
+            assert!(line.contains('x'));
+            assert!(!line.contains('<'));
+            assert!(!line.contains('>'));
         });
     });
 }
@@ -85,17 +85,17 @@ fn renders_carousel_position_and_truncates_at_narrow_width() {
         app.update(|ctx| {
             ctx.add_singleton_model(|_| Appearance::mock());
             let line = render_lines(
-                ctx,
                 snapshot("a-very-long-screenshot-name.png", 2, 3),
                 28,
                 LocaleId::EnUs,
+                ctx,
             )
             .remove(0);
             assert!(line.contains("[image]"));
             assert!(line.contains("2/3"));
-            assert!(line.contains('‹'));
-            assert!(line.contains('›'));
-            assert!(line.contains('×'));
+            assert!(line.contains('<'));
+            assert!(line.contains('>'));
+            assert!(line.contains('x'));
             assert!(line.chars().count() <= 28);
         });
     });
@@ -107,7 +107,6 @@ fn renders_provisional_filename_while_image_is_loading() {
         app.update(|ctx| {
             ctx.add_singleton_model(|_| Appearance::mock());
             let lines = render_lines(
-                ctx,
                 TuiAttachmentSnapshot {
                     selected: Some(PendingAttachmentSummary {
                         index: 0,
@@ -119,14 +118,36 @@ fn renders_provisional_filename_while_image_is_loading() {
                     is_processing: true,
                     selected_is_processing: true,
                 },
-                40,
+                60,
                 LocaleId::EnUs,
+                ctx,
             );
             let line = &lines[0];
             assert!(line.contains("[image]"));
             assert!(line.contains("clipboard-image.png"));
             assert!(line.contains("loading…"));
-            assert!(!line.contains('×'));
+            assert!(line.contains('x'));
+
+            let lines = render_lines(
+                TuiAttachmentSnapshot {
+                    selected: Some(PendingAttachmentSummary {
+                        index: 1,
+                        attachment_type: AttachmentType::Image,
+                        file_name: "clipboard-image.png".to_owned(),
+                    }),
+                    position: Some(2),
+                    count: 2,
+                    is_processing: true,
+                    selected_is_processing: true,
+                },
+                60,
+                LocaleId::EnUs,
+                ctx,
+            );
+            let line = &lines[0];
+            assert!(line.contains('<'));
+            assert!(line.contains('>'));
+            assert!(line.contains('x'));
         });
     });
 }
@@ -137,7 +158,7 @@ fn renders_simplified_chinese_attachment_labels() {
         app.update(|ctx| {
             ctx.add_singleton_model(|_| Appearance::mock());
             let line =
-                render_lines(ctx, snapshot("screenshot.png", 1, 1), 80, LocaleId::ZhCn).remove(0);
+                render_lines(snapshot("screenshot.png", 1, 1), 80, LocaleId::ZhCn, ctx).remove(0);
             assert!(line.contains("[图像]"));
             assert!(line.contains("screenshot.png"));
         });

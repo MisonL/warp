@@ -654,6 +654,20 @@ impl TuiOrchestrationModel {
         });
     }
 
+    /// Completes a child request when its parent session disappeared before
+    /// the TUI could materialize the child surface.
+    pub(crate) fn fail_child_request_with_missing_parent(
+        &mut self,
+        request: &StartAgentRequest,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.fail_child_request(
+            request,
+            localization::text("tui.orchestration.child.parent_session_missing"),
+            ctx,
+        );
+    }
+
     fn register_event_consumer(
         &mut self,
         session_id: TuiSessionId,

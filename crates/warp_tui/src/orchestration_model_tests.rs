@@ -133,6 +133,7 @@ fn add_remote_child_session(
     let child = app.update(|ctx| {
         TuiSessions::create_remote_child_session(&fixture.sessions, parent_session_id, ctx)
     });
+    let child = child.expect("fixture parent session must exist");
     let surface_id = child.session_id.surface_id();
     let cloud_run_state = child.cloud_run_state.clone();
     let conversation_id = app.update(|ctx| {
@@ -524,7 +525,7 @@ fn remote_child_session_is_navigable_and_projects_lifecycle() {
             assert!(
                 lines
                     .iter()
-                    .any(|line| line.contains("Shift + ↑ sub-agents"))
+                    .any(|line| line.contains("Shift + Up to focus sub-agents"))
             );
         });
         app.update(|ctx| {
@@ -545,10 +546,7 @@ fn remote_child_session_is_navigable_and_projects_lifecycle() {
             let lines = frame.buffer.to_lines();
             assert_eq!(
                 lines.last().map(|line| line.trim()),
-                Some(
-                    "Tab or ← → to navigate | Shift + ← → to go to start/end | ↓ to send a \
-                     message  Ctrl+C to kill sub-agent"
-                )
+                Some("Tab or Left/Right to navigate | Shift + ← → to go to start/end")
             );
         });
 

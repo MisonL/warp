@@ -182,13 +182,13 @@ fn launched_agents_label(agents: &[RunAgentsAgentOutcome]) -> String {
     let total = agents.len();
     let agents = localized_count_label(total, "tui.count.agent.one", "tui.count.agent.many");
 
-    if launched == total {
-        localization::text_with_args("tui.tool.orchestration.spawned", &[("agents", &agents)])
-    } else if launched == 0 {
+    if launched == 0 {
         localization::text_with_args(
             "tui.tool.orchestration.spawn_failed",
             &[("agents", &agents)],
         )
+    } else if launched == total {
+        localization::text_with_args("tui.tool.orchestration.spawned", &[("agents", &agents)])
     } else {
         localization::text_with_args(
             "tui.tool.orchestration.spawned_some",

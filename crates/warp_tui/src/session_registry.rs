@@ -216,11 +216,10 @@ impl TuiSessions {
         sessions: &ModelHandle<Self>,
         parent_session_id: TuiSessionId,
         ctx: &mut AppContext,
-    ) -> RemoteChildSession {
+    ) -> Option<RemoteChildSession> {
         let window_id = sessions
             .as_ref(ctx)
-            .session(parent_session_id)
-            .expect("the dispatching parent session must remain registered")
+            .session(parent_session_id)?
             .view()
             .window_id(ctx);
         let cloud_run_state = ctx.add_model(|_| TuiCloudRunState::new());
@@ -231,10 +230,10 @@ impl TuiSessions {
             false,
             ctx,
         );
-        RemoteChildSession {
+        Some(RemoteChildSession {
             session_id,
             cloud_run_state,
-        }
+        })
     }
 
     /// Wires a session view to orchestration before registering it.
@@ -358,12 +357,16 @@ impl TuiSessions {
                 task_id,
                 conversation_name,
             } => {
-                let window_id = sessions
+                let Some(window_id) = sessions
                     .as_ref(ctx)
                     .session(*parent_session_id)
-                    .expect("the dispatching parent session must remain registered")
-                    .view()
-                    .window_id(ctx);
+                    .map(|session| session.view().window_id(ctx))
+                else {
+                    orchestration_for_events.update(ctx, |orchestration, ctx| {
+                        orchestration.fail_child_request_with_missing_parent(request, ctx);
+                    });
+                    return;
+                };
                 let (session_id, session_view) = Self::create_local_terminal_session(
                     &sessions,
                     window_id,
@@ -391,7 +394,14 @@ impl TuiSessions {
                 request,
                 prepared,
             } => {
-                let child = Self::create_remote_child_session(&sessions, *parent_session_id, ctx);
+                let Some(child) =
+                    Self::create_remote_child_session(&sessions, *parent_session_id, ctx)
+                else {
+                    orchestration_for_events.update(ctx, |orchestration, ctx| {
+                        orchestration.fail_child_request_with_missing_parent(request, ctx);
+                    });
+                    return;
+                };
                 orchestration_for_events.update(ctx, |orchestration, ctx| {
                     orchestration.register_remote_child_session(
                         child,

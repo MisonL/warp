@@ -111,10 +111,11 @@ impl TuiAttachmentModel {
             .context_model
             .as_ref(ctx)
             .pending_attachment_summaries();
-        let selected_index = self
-            .selected_index
-            .filter(|index| *index < summaries.len())
-            .or_else(|| summaries.len().checked_sub(1));
+        let selected_index = reconciled_selected_index(
+            self.last_attachment_count,
+            summaries.len(),
+            self.selected_index,
+        );
         if let Some(file_name) = &self.processing_file_name {
             let count = summaries.len() + self.processing_count;
             TuiAttachmentSnapshot {
@@ -183,9 +184,13 @@ impl TuiAttachmentModel {
             ctx.emit(TuiAttachmentModelEvent::Updated);
             return;
         }
-        let Some(index) = self.selected_index else {
+        let count = self.context_model.as_ref(ctx).pending_attachments().len();
+        let Some(index) =
+            reconciled_selected_index(self.last_attachment_count, count, self.selected_index)
+        else {
             return;
         };
+        self.selected_index = Some(index);
         self.context_model.update(ctx, |context_model, ctx| {
             context_model.remove_pending_attachment(index, ctx);
         });

@@ -1,24 +1,28 @@
 //! Image path parsing and clipboard/file processing for TUI attachments.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 #[cfg(unix)]
 use async_fs::unix::OpenOptionsExt as _;
 use base64::Engine as _;
 use base64::engine::general_purpose;
+use futures_lite::future::FutureExt as _;
 use futures_lite::io::AsyncReadExt as _;
+use url::Url;
 use warp::tui_export::{
     ImageContext, MAX_IMAGE_SIZE_BYTES, MIME_SNIFF_BYTES, ProcessImageResult, infer_mime_type,
     is_supported_image_mime_type, process_image_for_agent,
 };
 use warp_localization::LocaleId;
+use warpui_core::r#async::Timer;
 use warpui_core::clipboard::{ClipboardContent, ImageData};
 use warpui_core::clipboard_utils::CLIPBOARD_IMAGE_MIME_TYPES;
 
 use crate::localization;
 
 pub(super) fn parse_image_paths(text: &str, cwd: &Path) -> Option<Vec<PathBuf>> {
-    let tokens = shell_words::split(text.trim()).ok()?;
+    let tokens = split_image_path_tokens(text)?;
     if tokens.is_empty() {
         return None;
     }
@@ -28,9 +32,63 @@ pub(super) fn parse_image_paths(text: &str, cwd: &Path) -> Option<Vec<PathBuf>> 
         .collect()
 }
 
+fn split_image_path_tokens(text: &str) -> Option<Vec<String>> {
+    #[cfg(windows)]
+    {
+        split_windows_image_path_tokens(text)
+    }
+    #[cfg(not(windows))]
+    {
+        shell_words::split(text.trim()).ok()
+    }
+}
+
+#[cfg(any(windows, test))]
+fn split_windows_image_path_tokens(text: &str) -> Option<Vec<String>> {
+    let mut tokens = Vec::new();
+    let mut token = String::new();
+    let mut quote = None;
+    let mut token_started = false;
+    let mut chars = text.trim().chars().peekable();
+
+    while let Some(character) = chars.next() {
+        match quote {
+            Some(quote_character) if character == quote_character => quote = None,
+            Some(_) => token.push(character),
+            None if character == '\'' || character == '"' => {
+                quote = Some(character);
+                token_started = true;
+            }
+            None if character.is_whitespace() => {
+                if token_started {
+                    tokens.push(std::mem::take(&mut token));
+                    token_started = false;
+                }
+            }
+            None if character == '\\' && chars.peek().is_some_and(|next| next.is_whitespace()) => {
+                token.push(chars.next().expect("peeked whitespace"));
+                token_started = true;
+            }
+            None => {
+                token.push(character);
+                token_started = true;
+            }
+        }
+    }
+
+    quote.is_none().then_some(if token_started {
+        tokens.push(token);
+        tokens
+    } else {
+        tokens
+    })
+}
+
 fn resolve_image_path(token: &str, cwd: &Path) -> Option<PathBuf> {
-    let token = token.strip_prefix("file://").unwrap_or(token);
-    let path = if token == "~" {
+    let path = if token.starts_with("file://") {
+        let url = Url::parse(token).ok()?;
+        file_url_path(&url)?
+    } else if token == "~" {
         dirs::home_dir()?
     } else if let Some(rest) = token.strip_prefix("~/") {
         dirs::home_dir()?.join(rest)
@@ -44,6 +102,55 @@ fn resolve_image_path(token: &str, cwd: &Path) -> Option<PathBuf> {
     };
     let extension = path.extension()?.to_str()?.to_ascii_lowercase();
     matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp").then_some(path)
+}
+
+fn file_url_path(url: &Url) -> Option<PathBuf> {
+    if url.host_str().is_some() {
+        return None;
+    }
+    validate_percent_encoding(url.path())?;
+    url.to_file_path()
+        .ok()
+        .or_else(|| percent_decode_path(url.path()).map(PathBuf::from))
+}
+
+fn validate_percent_encoding(value: &str) -> Option<()> {
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            hex_value(bytes.get(index + 1).copied()?)?;
+            hex_value(bytes.get(index + 2).copied()?)?;
+            index += 3;
+        } else {
+            index += 1;
+        }
+    }
+    Some(())
+}
+
+fn percent_decode_path(value: &str) -> Option<String> {
+    let mut decoded = Vec::with_capacity(value.len());
+    let mut bytes = value.bytes();
+    while let Some(byte) = bytes.next() {
+        if byte != b'%' {
+            decoded.push(byte);
+            continue;
+        }
+        let high = bytes.next().and_then(hex_value)?;
+        let low = bytes.next().and_then(hex_value)?;
+        decoded.push((high << 4) | low);
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 pub(super) async fn process_paths(paths: Vec<PathBuf>) -> Result<Vec<ImageContext>, String> {
@@ -123,18 +230,25 @@ async fn process_paths_for_locale(
 }
 
 pub(super) async fn read_and_process_clipboard_image() -> Result<ImageContext, String> {
+    const CLIPBOARD_READ_TIMEOUT: Duration = Duration::from_secs(5);
     let locale = localization::current_locale();
     let unavailable_error = attachment_error_for_locale(
         locale,
         "tui.attachments.error.system_clipboard_unavailable",
         &[],
     );
-    let content = blocking::unblock(move || -> Result<ClipboardContent, String> {
+    let timeout_error = unavailable_error.clone();
+    let read = blocking::unblock(move || -> Result<ClipboardContent, String> {
         let mut clipboard =
             warpui::platform::create_system_clipboard().map_err(|_| unavailable_error.clone())?;
         Ok(clipboard.read())
-    })
-    .await?;
+    });
+    let content = read
+        .or(async move {
+            Timer::after(CLIPBOARD_READ_TIMEOUT).await;
+            Err(timeout_error)
+        })
+        .await?;
     process_clipboard_content_for_locale(content, locale)
 }
 

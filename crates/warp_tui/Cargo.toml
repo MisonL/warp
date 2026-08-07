@@ -63,6 +63,7 @@ strum.workspace = true
 strum_macros.workspace = true
 sum_tree.workspace = true
 tokio.workspace = true
+url.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 vec1.workspace = true

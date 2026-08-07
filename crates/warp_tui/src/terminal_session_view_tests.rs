@@ -1,7 +1,7 @@
 use warp::appearance::Appearance;
 use warp::tui_export::{
-    BlockPadding, ConversationStatus, PtyIntent, PtyIntentEvent, SizeInfo, SizeUpdate,
-    export_conversation_markdown, register_tui_session_view_test_singletons,
+    AIConversationId, BlockPadding, ConversationStatus, PtyIntent, PtyIntentEvent, SizeInfo,
+    SizeUpdate, export_conversation_markdown, register_tui_session_view_test_singletons,
 };
 use warp_editor::model::CoreEditorModel;
 use warp_localization::LocaleId;
@@ -31,6 +31,7 @@ use crate::keybindings::{
     CONTEXTUAL_PLAN_TOGGLE_BINDING_NAME, KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG,
     PLAN_TOGGLE_AVAILABLE_FLAG, PLAN_TOGGLE_BINDING_NAME, TUI_BINDING_GROUP,
 };
+use crate::localization;
 use crate::orchestrated_agent_identity_styling::AgentIdentity;
 use crate::orchestration_model::TuiOrchestrationModel;
 use crate::orchestration_tab_bar::{
@@ -42,6 +43,7 @@ use crate::terminal_block::{block_content_rows, should_render_terminal_block};
 use crate::terminal_use::TuiInputTarget;
 use crate::test_fixtures::{add_test_semantic_selection, add_test_terminal_session};
 use crate::transcript_view::TRANSCRIPT_BLOCK_SPACING;
+use crate::transcript_view::TuiTranscriptViewEvent;
 use crate::tui_builder::TuiUiBuilder;
 
 struct FocusTestFixture {
@@ -110,7 +112,7 @@ fn attachment_session_binding_descriptions_are_localized() {
 fn orchestration_focus_hint_is_localized() {
     assert_eq!(
         focus_sub_agents_hint_for_locale(LocaleId::EnUs),
-        "Shift + ↑ sub-agents"
+        "Shift + Up to focus sub-agents"
     );
     assert_eq!(
         focus_sub_agents_hint_for_locale(LocaleId::ZhCn),
@@ -295,6 +297,68 @@ fn submit_is_blocked_during_bootstrap_and_allowed_at_prompt() {
             view.input_target().agent_editor_owns_input()
         }));
         assert!(TuiInputTarget::AgentEditor.agent_editor_owns_input());
+    });
+}
+
+#[test]
+fn failed_permission_guidance_submission_preserves_existing_draft() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+        let transcript = view.read(&app, |view, _| view.transcript.clone());
+
+        view.update(&mut app, |view, ctx| {
+            view.input_view.update(ctx, |input, ctx| {
+                input.set_text("existing draft", ctx);
+            });
+        });
+
+        transcript.update(&mut app, |_, ctx| {
+            ctx.emit(
+                TuiTranscriptViewEvent::PermissionReplacementGuidanceSubmitted {
+                    conversation_id: AIConversationId::new(),
+                    text: "replacement guidance".to_owned(),
+                },
+            );
+        });
+
+        assert_eq!(
+            app.read(|ctx| input_text(&view, ctx)),
+            "existing draft",
+            "a failed guidance submission must not overwrite an existing draft"
+        );
+        assert_eq!(
+            view.read(&app, |view, _| view
+                .transient_hint
+                .current()
+                .map(|(text, _)| text.to_owned())),
+            Some(localization::text("tui.permission.guidance.send_failed")),
+            "the failure hint proves the send-failed branch was exercised"
+        );
+    });
+}
+
+#[test]
+fn failed_permission_guidance_submission_restores_guidance_when_input_is_empty() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+        let transcript = view.read(&app, |view, _| view.transcript.clone());
+
+        transcript.update(&mut app, |_, ctx| {
+            ctx.emit(
+                TuiTranscriptViewEvent::PermissionReplacementGuidanceSubmitted {
+                    conversation_id: AIConversationId::new(),
+                    text: "replacement guidance".to_owned(),
+                },
+            );
+        });
+
+        assert_eq!(
+            app.read(|ctx| input_text(&view, ctx)),
+            "replacement guidance",
+            "a failed guidance submission should restore text when input is empty"
+        );
     });
 }
 

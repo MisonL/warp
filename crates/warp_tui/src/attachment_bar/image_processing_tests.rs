@@ -15,6 +15,7 @@ use super::{
     attachment_path_error_for_locale, default_clipboard_image_file_name_for_locale,
     open_image_file, parse_image_paths, process_clipboard_content_for_locale,
     process_paths_for_locale, read_image_file_at_most, read_image_file_with_limit,
+    split_windows_image_path_tokens,
 };
 
 const ONE_PIXEL_PNG: &str =
@@ -40,6 +41,29 @@ fn parses_multiple_image_paths_in_order() {
         parse_image_paths("one.png two.jpg", cwd).unwrap(),
         vec![cwd.join("one.png"), cwd.join("two.jpg")]
     );
+}
+
+#[test]
+fn preserves_windows_path_separators_when_tokenizing() {
+    assert_eq!(
+        split_windows_image_path_tokens(r#"C:\Users\Alice\Pictures\shot.png"#),
+        Some(vec![r#"C:\Users\Alice\Pictures\shot.png"#.to_owned()])
+    );
+    assert_eq!(
+        split_windows_image_path_tokens(r#""C:\Users\Alice\Pictures\shot one.png""#),
+        Some(vec![r#"C:\Users\Alice\Pictures\shot one.png"#.to_owned()])
+    );
+}
+
+#[test]
+fn decodes_percent_encoded_file_urls() {
+    let cwd = Path::new("/workspace");
+    assert_eq!(
+        parse_image_paths("file:///workspace/image%20one.png", cwd),
+        Some(vec![cwd.join("image one.png")])
+    );
+    assert!(parse_image_paths("file:///workspace/image%ZZ.png", cwd).is_none());
+    assert!(parse_image_paths("file://remote/workspace/image.png", cwd).is_none());
 }
 
 #[test]

@@ -98,6 +98,11 @@ fn all_failed_run_agents_uses_failure_glyph() {
     assert_eq!(state.glyph(), "×");
 }
 
+#[test]
+fn empty_run_agents_result_is_reported_as_a_failure() {
+    assert_eq!(launched_agents_label(&[]), "Failed to spawn 0 agents");
+}
+
 /// One end-to-end pass over a tool call's lifecycle: the label text must
 /// change as the action moves through constructing (args still streaming),
 /// pending, awaiting approval, running, and terminal states.

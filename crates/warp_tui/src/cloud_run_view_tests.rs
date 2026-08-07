@@ -141,11 +141,11 @@ fn spawned_cloud_view_matches_figma_in_progress_and_succeeded_states() {
             assert_eq!(
                 visible_lines,
                 vec![
-                    (7, "*****⟡○○*"),
-                    (8, "*******⚬⚬⚬⚬⚬*****"),
-                    (9, "****○○*⚬⚬⚬◌⟡◌⚬⚬⚬*○○****"),
-                    (10, "**◌◌*○○⚬⚬⚬○○⚬⚬⚬○○⟡◌◌**"),
-                    (11, "*○○⟡*******"),
+                    (7, "*****ooo*"),
+                    (8, "*******ooooo*****"),
+                    (9, "****oo*ooooooooo*oo****"),
+                    (10, "**oo*ooooooooooooooo**"),
+                    (11, "*ooo*******"),
                     (14, "● Cloud run in progress"),
                     (15, "Press enter to view or click the link below"),
                     (17, RUN_URL),
@@ -153,7 +153,7 @@ fn spawned_cloud_view_matches_figma_in_progress_and_succeeded_states() {
             );
 
             let builder = TuiUiBuilder::from_app(ctx);
-            let mark_start = lines[7].find("*****⟡○○*").expect("mark is visible");
+            let mark_start = lines[7].find("*****ooo*").expect("mark is visible");
             assert_eq!(
                 Some(frame.buffer[(mark_start as u16, 7)].fg),
                 builder.cloud_run_mark_styles().brightest.fg

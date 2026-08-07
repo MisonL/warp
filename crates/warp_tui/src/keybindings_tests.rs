@@ -1,4 +1,4 @@
-use warpui_core::keymap::Context;
+use warpui_core::keymap::{Context, Keystroke, Trigger};
 use warpui_core::{App, TuiView};
 
 use super::{ATTACHMENTS_AVAILABLE_FLAG, TUI_BINDING_GROUP, is_tui_owned};
@@ -96,5 +96,24 @@ fn attachment_bindings_are_scoped_to_available_and_focused_contexts() {
             assert!(!paste_image.in_context(&plain_input));
             assert!(!paste_image.in_context(&bar_context));
         });
+    });
+}
+
+#[test]
+fn permission_prompt_registers_both_enter_variants() {
+    App::test((), |mut app| async move {
+        app.update(crate::tui_permission_prompt::init);
+        let bindings = app.read(|ctx| {
+            ctx.editable_bindings()
+                .filter(|binding| binding.name.starts_with("tui:permission-prompt:confirm"))
+                .filter_map(|binding| match binding.trigger {
+                    Trigger::Keystrokes(keys) => keys.first().map(Keystroke::normalized),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        });
+        let mut bindings = bindings;
+        bindings.sort_unstable();
+        assert_eq!(bindings, vec!["enter", "numpadenter"]);
     });
 }

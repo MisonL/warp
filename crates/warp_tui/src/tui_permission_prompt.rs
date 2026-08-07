@@ -55,6 +55,17 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_group(TUI_BINDING_GROUP)
         .with_key_binding("enter"),
         EditableBinding::new(
+            "tui:permission-prompt:confirm-numpad",
+            binding_description(
+                "Confirm the selected permission response",
+                "tui.permission_prompt.binding.confirm",
+            ),
+            TuiPermissionPromptAction::Confirm,
+        )
+        .with_context_predicate(predicate.clone())
+        .with_group(TUI_BINDING_GROUP)
+        .with_key_binding("numpadenter"),
+        EditableBinding::new(
             "tui:permission-prompt:previous",
             binding_description(
                 "Select the previous permission response",
@@ -283,7 +294,10 @@ impl TuiPermissionPrompt {
     pub(crate) fn render_footer(&self, app: &AppContext) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(app);
         let mut spans = vec![
-            ("Esc".to_owned(), builder.primary_text_style()),
+            (
+                localization::text("tui.permission_prompt.footer.key.escape"),
+                builder.primary_text_style(),
+            ),
             (
                 localization::text("tui.permission_prompt.footer.cancel"),
                 builder.muted_text_style(),
@@ -291,7 +305,10 @@ impl TuiPermissionPrompt {
         ];
         if self.body_editor.is_some() {
             spans.extend([
-                ("Ctrl+E".to_owned(), builder.primary_text_style()),
+                (
+                    localization::text("tui.permission_prompt.footer.key.edit"),
+                    builder.primary_text_style(),
+                ),
                 (
                     localization::text("tui.permission_prompt.footer.edit_save"),
                     builder.muted_text_style(),
@@ -299,7 +316,10 @@ impl TuiPermissionPrompt {
             ]);
         }
         spans.extend([
-            ("Enter".to_owned(), builder.primary_text_style()),
+            (
+                localization::text("tui.permission_prompt.footer.key.confirm"),
+                builder.primary_text_style(),
+            ),
             (
                 localization::text("tui.permission_prompt.footer.run"),
                 builder.muted_text_style(),

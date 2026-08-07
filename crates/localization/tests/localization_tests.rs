@@ -3505,20 +3505,14 @@ fn settings_shared_tooltips_use_catalog_copy() {
     let features_path = workspace_root().join("app/src/settings_view/features_page.rs");
     let features = fs::read_to_string(&features_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", features_path.display()));
-    let call_marker = "tab_key_span.add_child(render_local_only_icon";
-    let call_start = features
-        .find(call_marker)
+    let tab_icon_call = features
+        .split_once("tab_key_span.add_child(render_local_only_icon(")
+        .and_then(|(_, suffix)| suffix.split_once("));"))
+        .map(|(call, _)| call)
         .expect("tab behavior local-only icon call should exist");
-    let open_paren = call_start + call_marker.len();
-    let close_paren = matching_paren_end(&features, open_paren)
-        .expect("tab behavior local-only icon call should have balanced parentheses");
-    let tab_icon_arguments = top_level_arguments(&features[open_paren + 1..close_paren]);
-    let tooltip_argument = tab_icon_arguments
-        .get(2)
-        .expect("tab behavior local-only icon call should include a tooltip argument");
     assert!(
-        tooltip_argument.contains("\"settings.local_only.tooltip\"")
-            && !tooltip_argument.contains("None"),
+        tab_icon_call.contains("\"settings.local_only.tooltip\"")
+            && !tab_icon_call.contains("None"),
         "direct local-only icon rendering must provide localized tooltip text"
     );
 }

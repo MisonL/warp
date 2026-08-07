@@ -645,6 +645,34 @@ fn custom_row_shortcut_renders_and_confirms_instead_of_its_digit() {
         );
     });
 }
+
+#[test]
+fn custom_shortcuts_confirm_rows_outside_the_current_viewport() {
+    App::test((), |mut app| async move {
+        let (selector, events) = add_selector(&mut app);
+        let ids: Vec<String> = (0..12).map(|i| format!("row-{i}")).collect();
+        let id_refs: Vec<&str> = ids.iter().map(String::as_str).collect();
+        selector.update(&mut app, |selector, ctx| {
+            let mut page = page(snapshot(&id_refs, Some("row-0")), false);
+            page.row_shortcuts.insert("row-10".to_owned(), 'x');
+            selector.set_page(page, ctx);
+        });
+
+        act(
+            &mut app,
+            &selector,
+            TuiOptionSelectorAction::SelectShortcut('x'),
+        );
+
+        assert_eq!(
+            primary_events(&events),
+            [TuiOptionSelectorEvent::Confirmed {
+                id: "row-10".to_owned()
+            }],
+        );
+    });
+}
+
 #[test]
 fn digits_are_viewport_relative_in_scrolled_lists() {
     App::test((), |mut app| async move {

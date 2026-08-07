@@ -5,7 +5,7 @@ use warpui::SingletonEntity as _;
 use warpui_core::r#async::Timer;
 use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::elements::tui::{
-    Modifier, TuiChildView, TuiContainer, TuiElement, TuiEventHandler, TuiFlex, TuiText,
+    Modifier, TuiChildView, TuiContainer, TuiElement, TuiFlex, TuiText,
 };
 use warpui_core::keymap::macros::*;
 use warpui_core::keymap::{self, EditableBinding};
@@ -254,6 +254,7 @@ impl TuiCloudRunView {
                 link_url: None,
             },
             TuiCloudRunStartup::Spawned => {
+                let fallback_status = ConversationStatus::InProgress;
                 let status = state
                     .conversation_id()
                     .and_then(|conversation_id| {
@@ -261,7 +262,7 @@ impl TuiCloudRunView {
                             .conversation(&conversation_id)
                             .map(|conversation| conversation.status())
                     })
-                    .unwrap_or(&ConversationStatus::InProgress);
+                    .unwrap_or(&fallback_status);
                 let status_label = match status {
                     ConversationStatus::InProgress
                     | ConversationStatus::TransientError
@@ -318,8 +319,8 @@ fn render_cloud_agent_mark(builder: &TuiUiBuilder) -> Box<dyn TuiElement> {
                 ("*".to_string(), styles.bright),
                 ("*".to_string(), styles.lighter),
                 ("*".to_string(), styles.ansi_bright),
-                ("*⟡○".to_string(), styles.lighter),
-                ("○".to_string(), styles.bright),
+                ("*oo".to_string(), styles.lighter),
+                ("o".to_string(), styles.bright),
                 ("*".to_string(), styles.brightest),
             ])
             .truncate()
@@ -329,7 +330,7 @@ fn render_cloud_agent_mark(builder: &TuiUiBuilder) -> Box<dyn TuiElement> {
             TuiText::from_spans([
                 ("***".to_string(), styles.brightest),
                 ("**".to_string(), styles.lighter),
-                ("**⚬⚬⚬⚬⚬*".to_string(), styles.light),
+                ("**ooooo*".to_string(), styles.light),
                 ("*".to_string(), styles.lighter),
                 ("***".to_string(), styles.brightest),
             ])
@@ -338,20 +339,20 @@ fn render_cloud_agent_mark(builder: &TuiUiBuilder) -> Box<dyn TuiElement> {
         )
         .child(
             TuiText::from_spans([
-                ("****○○*⚬⚬⚬".to_string(), styles.base),
-                ("◌⟡◌".to_string(), styles.lighter),
-                ("⚬⚬⚬*○○****".to_string(), styles.base),
+                ("****oo*ooo".to_string(), styles.base),
+                ("ooo".to_string(), styles.lighter),
+                ("ooo*oo****".to_string(), styles.base),
             ])
             .truncate()
             .finish(),
         )
         .child(
             TuiText::from_spans([
-                ("**◌◌".to_string(), styles.base),
-                ("*○○".to_string(), styles.lighter),
-                ("⚬⚬⚬○○⚬⚬".to_string(), styles.base),
-                ("⚬○○⟡".to_string(), styles.lighter),
-                ("◌◌**".to_string(), styles.base),
+                ("**oo".to_string(), styles.base),
+                ("*oo".to_string(), styles.lighter),
+                ("ooooooo".to_string(), styles.base),
+                ("oooo".to_string(), styles.lighter),
+                ("oo**".to_string(), styles.base),
             ])
             .truncate()
             .finish(),
@@ -359,8 +360,8 @@ fn render_cloud_agent_mark(builder: &TuiUiBuilder) -> Box<dyn TuiElement> {
         .child(
             TuiText::from_spans([
                 ("*".to_string(), styles.brightest),
-                ("○○".to_string(), styles.lighter),
-                ("⟡****".to_string(), styles.base),
+                ("oo".to_string(), styles.lighter),
+                ("o****".to_string(), styles.base),
                 ("**".to_string(), styles.lighter),
                 ("*".to_string(), styles.brightest),
             ])
@@ -458,15 +459,6 @@ impl TuiView for TuiCloudRunView {
                 );
         }
         let body = centered_in_viewport(content.finish());
-        let body = if let Some(url) = display_state.link_url {
-            TuiEventHandler::new(body)
-                .on_key("enter", move |_, event_ctx, _| {
-                    event_ctx.dispatch_typed_action(TuiCloudRunAction::OpenUrl(url.clone()));
-                })
-                .finish()
-        } else {
-            body
-        };
         if self.orchestration_tab_bar.as_ref(ctx).has_tabs() {
             let footer = if self.orchestration_tabs_focused {
                 render_cloud_orchestration_tab_footer(&builder)

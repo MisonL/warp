@@ -78,6 +78,9 @@ fn bundled_simplified_chinese_covers_new_tui_surfaces() {
         ("tui.permission_prompt.option.edit_command", "编辑命令"),
         ("tui.permission_prompt.option.other", "其他"),
         ("tui.permission_prompt.option.yes", "是"),
+        ("tui.permission_prompt.footer.key.confirm", "Enter"),
+        ("tui.permission_prompt.footer.key.edit", "Ctrl+E"),
+        ("tui.permission_prompt.footer.key.escape", "Esc"),
         (
             "tui.shell_command.permission.empty_command_error",
             "请输入命令后继续。",

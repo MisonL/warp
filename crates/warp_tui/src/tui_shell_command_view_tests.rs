@@ -12,7 +12,7 @@ use warpui::platform::WindowStyle;
 use warpui_core::elements::tui::{
     Color, TuiBufferExt, TuiConstraint, TuiLayoutContext, TuiRect, TuiSize,
 };
-use warpui_core::keymap::Keystroke;
+use warpui_core::keymap::{Keystroke, Trigger};
 use warpui_core::presenter::tui::TuiPresenter;
 use warpui_core::{
     App, AppContext, EntityIdMap, TuiView, TypedActionView, ViewHandle, WindowInvalidation,
@@ -178,6 +178,63 @@ fn finishing_command_editing_selects_yes_without_executing() {
 }
 
 #[test]
+fn escape_from_command_editing_restores_permission_options() {
+    App::test((), |mut app| async move {
+        app.update(super::init);
+        let action = command_action("action-1", "echo original");
+        let view = add_shell_view(
+            &mut app,
+            action.clone(),
+            Arc::new(FairMutex::new(TerminalModel::mock(None, None))),
+        );
+        let (action_model, conversation_id, prompt) = app.read(|ctx| {
+            let view = view.as_ref(ctx);
+            (
+                view.action_model.clone(),
+                view.conversation_id,
+                view.permission_prompt.clone(),
+            )
+        });
+        action_model.update(&mut app, |model, ctx| {
+            queue_tui_permission_action(model, action, conversation_id, ctx);
+        });
+        prompt.update(&mut app, |prompt, ctx| {
+            prompt.handle_action(
+                &crate::tui_permission_prompt::TuiPermissionPromptAction::MoveUp,
+                ctx,
+            );
+        });
+
+        let command_editor = app.read(|ctx| view.as_ref(ctx).command_editor.clone());
+        let window_id = app.read(|ctx| view.window_id(ctx));
+        let handled = app
+            .dispatch_keystroke(
+                window_id,
+                &[view.id(), prompt.id(), command_editor.id()],
+                &Keystroke::parse("escape").expect("valid Escape keystroke"),
+                false,
+            )
+            .expect("Escape dispatch succeeds");
+        assert!(handled);
+
+        app.read(|ctx| {
+            let view = view.as_ref(ctx);
+            assert!(!view.command_editor.as_ref(ctx).is_focused());
+            assert_eq!(
+                view.permission_prompt.as_ref(ctx).highlighted_index(ctx),
+                Some(0)
+            );
+            assert!(
+                view.action_model
+                    .as_ref(ctx)
+                    .get_pending_action_by_id(&view.action.id)
+                    .is_some()
+            );
+        });
+    });
+}
+
+#[test]
 fn streamed_action_refresh_invalidates_layout() {
     App::test((), |mut app| async move {
         let action = command_action("action-1", "echo original");
@@ -275,6 +332,27 @@ fn manual_collapse_override_wins_over_auto_expansion() {
     assert!(!state.is_collapsed());
     assert!(state.manual_override);
     assert!(!state.auto_expanded);
+}
+
+#[test]
+fn shell_permission_save_binding_does_not_claim_navigation_keys() {
+    App::test((), |mut app| async move {
+        app.update(super::init);
+
+        app.read(|ctx| {
+            let mut triggers = ctx
+                .editable_bindings()
+                .filter(|binding| binding.name == "tui:shell-permission:save")
+                .filter_map(|binding| match binding.trigger {
+                    Trigger::Keystrokes(keys) => keys.first().map(Keystroke::normalized),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            triggers.sort();
+
+            assert_eq!(triggers, vec!["enter", "numpadenter"]);
+        });
+    });
 }
 
 fn add_shell_view(

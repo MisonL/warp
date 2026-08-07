@@ -266,36 +266,11 @@ fn render_attachment_snapshot_for_locale(
         }
         AttachmentType::File => localization::text_for_locale(locale, "tui.attachments.kind.file"),
     };
-    if snapshot.selected_is_processing {
-        return TuiFlex::row()
-            .child(
-                TuiText::new(format!("{kind} "))
-                    .with_style(builder.accent_text_style())
-                    .truncate()
-                    .finish(),
-            )
-            .flex_child(
-                TuiText::new(selected.file_name)
-                    .with_style(builder.muted_text_style())
-                    .truncate()
-                    .finish(),
-            )
-            .child(
-                TuiText::new(format!(
-                    " · {}",
-                    localization::text_for_locale(locale, "tui.attachments.loading")
-                ))
-                .with_style(builder.dim_text_style())
-                .truncate()
-                .finish(),
-            )
-            .finish();
-    }
     let mut row = TuiFlex::row();
     if snapshot.count > 1 {
         row = row
             .child(attachment_control(
-                "‹ ",
+                "< ",
                 previous_mouse,
                 TuiAttachmentBarAction::Previous,
                 ctx,
@@ -315,7 +290,9 @@ fn render_attachment_snapshot_for_locale(
         )
         .flex_child(
             TuiText::new(selected.file_name)
-                .with_style(if focused {
+                .with_style(if snapshot.selected_is_processing {
+                    builder.muted_text_style()
+                } else if focused {
                     builder.primary_text_style()
                 } else {
                     builder.muted_text_style()
@@ -334,7 +311,7 @@ fn render_attachment_snapshot_for_locale(
             .finish(),
         )
         .child(attachment_control(
-            "×",
+            "x",
             remove_mouse,
             TuiAttachmentBarAction::RemoveSelected,
             ctx,
@@ -347,7 +324,7 @@ fn render_attachment_snapshot_for_locale(
                     .finish(),
             )
             .child(attachment_control(
-                " ›",
+                " >",
                 next_mouse,
                 TuiAttachmentBarAction::Next,
                 ctx,
@@ -356,7 +333,7 @@ fn render_attachment_snapshot_for_locale(
     if snapshot.is_processing {
         row = row.child(
             TuiText::new(format!(
-                " · {}",
+                " - {}",
                 localization::text_for_locale(locale, "tui.attachments.loading")
             ))
             .with_style(builder.dim_text_style())

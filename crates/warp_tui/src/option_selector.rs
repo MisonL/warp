@@ -801,21 +801,20 @@ impl TuiOptionSelector {
         true
     }
 
-    /// Confirms the visible row assigned to `shortcut`.
+    /// Confirms the row assigned to `shortcut`, scrolling it into view first.
     fn confirm_shortcut(&mut self, shortcut: char, ctx: &mut ViewContext<Self>) -> bool {
         let items = self.items();
-        let visible_end =
-            (self.interaction.scroll_offset + MAX_VISIBLE_OPTION_ROWS).min(items.len());
-        let Some(index) = (self.interaction.scroll_offset..visible_end).find(|index| {
-            let SelectorItem::Row(row_index) = items[*index] else {
-                return false;
+        let Some(index) = items.iter().enumerate().find_map(|(index, item)| {
+            let SelectorItem::Row(row_index) = *item else {
+                return None;
             };
             self.page
                 .snapshot
                 .rows
                 .get(row_index)
                 .and_then(|row| self.page.row_shortcuts.get(&row.id))
-                .is_some_and(|candidate| candidate.eq_ignore_ascii_case(&shortcut))
+                .filter(|candidate| candidate.eq_ignore_ascii_case(&shortcut))
+                .map(|_| index)
         }) else {
             return false;
         };
