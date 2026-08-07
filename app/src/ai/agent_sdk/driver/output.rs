@@ -507,8 +507,6 @@ pub mod text {
                     ),
                     FetchConversationResult::Cancelled => write_cancelled(w, locale),
                 },
-                // StartAgent is a client-side orchestration action, not used in SDK
-                AIAgentActionResultType::StartAgent(_) => Ok(()),
                 // SendMessageToAgent is a client-side orchestration action, not used in SDK
                 AIAgentActionResultType::SendMessageToAgent(_) => Ok(()),
                 AIAgentActionResultType::AskUserQuestion(_) => Ok(()),
@@ -744,16 +742,15 @@ pub mod text {
                     AIAgentActionType::StartRecording { .. } => {
                         write_text_line(w, locale, "agent_sdk.driver.output.starting_recording")?;
                     }
-                    AIAgentActionType::StopRecording { recording_id } => {
-                        writeln!(
-                            w,
-                            "{}",
-                            text_with_args_for_locale(
-                                locale,
-                                "agent_sdk.driver.output.stopping_recording",
-                                &[("recording_id", recording_id)],
-                            )
-                        )?;
+                    AIAgentActionType::StopRecording {
+                        recording_id,
+                        should_persist,
+                    } => {
+                        if *should_persist {
+                            writeln!(w, "Stopping recording {recording_id}")?;
+                        } else {
+                            writeln!(w, "Stopping recording {recording_id} and discarding result")?;
+                        }
                     }
                     AIAgentActionType::ReadSkill(request) => {
                         let skill = request.skill.to_string();
@@ -775,17 +772,6 @@ pub mod text {
                                 locale,
                                 "agent_sdk.driver.output.fetching_conversation",
                                 &[("conversation_id", conversation_id)],
-                            )
-                        )?;
-                    }
-                    AIAgentActionType::StartAgent { name, .. } => {
-                        writeln!(
-                            w,
-                            "{}",
-                            text_with_args_for_locale(
-                                locale,
-                                "agent_sdk.driver.output.starting_agent",
-                                &[("name", name)],
                             )
                         )?;
                     }
@@ -1689,7 +1675,6 @@ pub mod json {
                     | AIAgentActionType::ReadShellCommandOutput { .. }
                     | AIAgentActionType::ReadSkill(_)
                     | AIAgentActionType::FetchConversation { .. }
-                    | AIAgentActionType::StartAgent { .. }
                     | AIAgentActionType::SendMessageToAgent { .. }
                     | AIAgentActionType::TransferShellCommandControlToUser { .. } => None,
                     AIAgentActionType::AskUserQuestion { .. } => None,

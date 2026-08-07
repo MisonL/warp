@@ -40,9 +40,8 @@ use warpui::{
 #[cfg(feature = "local_fs")]
 use super::features::external_editor::ExternalEditorView;
 use super::settings_page::{
-    Category, HEADER_PADDING, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
-    SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING, build_sub_header, render_body_item,
-    render_separator,
+    Category, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+    TOGGLE_BUTTON_RIGHT_PADDING, render_body_item, render_separator,
 };
 use super::{
     LocalOnlyIconState, SettingsAction, SettingsSection, ToggleSettingActionPair, ToggleState,
@@ -437,10 +436,7 @@ impl CodeSettingsPageView {
                         ctx.dispatch_typed_action(CodeSettingsPageAction::ManualAddDirectory);
                     })
                 });
-                let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
-                    vec![Box::new(CodeSubpageHeaderWidget {
-                        title_key: subpage.title_key(),
-                    })];
+                let mut widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = Vec::new();
                 match subpage {
                     CodeSubpage::Indexing => {
                         widgets.push(Box::new(CodebaseIndexingCategorizedWidget {
@@ -467,9 +463,7 @@ impl CodeSettingsPageView {
                         ]);
                     }
                 }
-                // Subpage widgets render their own subheader-sized titles,
-                // so we don't pass a page-level title.
-                self.page = PageType::new_uncategorized(widgets, None);
+                self.page = PageType::new_uncategorized(widgets, Some(subpage.title()));
             } else {
                 // None: rebuild the full categorized page (all widgets).
                 self.page = Self::build_full_page(ctx);
@@ -2614,30 +2608,6 @@ impl CodePageWidget {
                 code_settings_text(app, "settings.code.lsp.status.not_running"),
             ),
         }
-    }
-}
-
-/// A simple widget that renders a subheader title for a Code subpage.
-struct CodeSubpageHeaderWidget {
-    title_key: &'static str,
-}
-
-impl SettingsWidget for CodeSubpageHeaderWidget {
-    type View = CodeSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        self.title_key
-    }
-
-    fn render(
-        &self,
-        _view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        build_sub_header(appearance, code_settings_text(app, self.title_key), None)
-            .with_padding_bottom(HEADER_PADDING)
-            .finish()
     }
 }
 

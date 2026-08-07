@@ -20,6 +20,7 @@ use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+    WeakViewHandle,
 };
 
 use crate::ai::mcp::gallery::MCPGalleryManagerEvent;
@@ -95,6 +96,7 @@ pub enum MCPServersListPageViewAction {
 }
 
 pub struct MCPServersListPageView {
+    handle: WeakViewHandle<Self>,
     server_cards: HashMap<ServerCardItemId, ViewHandle<ServerCardView>>,
     gallery_server_cards: HashMap<ServerCardItemId, ViewHandle<ServerCardView>>,
     // MCP server cards for uninstalled file-based servers, grouped by provider.
@@ -218,6 +220,7 @@ impl MCPServersListPageView {
         });
 
         let mut me = Self {
+            handle: ctx.handle(),
             server_cards: Default::default(),
             gallery_server_cards,
             file_based_template_cards: Default::default(),
@@ -326,10 +329,7 @@ impl MCPServersListPageView {
         server_card_status: ServerCardStatus,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        if !UserWorkspaces::as_ref(ctx).has_teams() {
-            return false;
-        }
-        if TemplatableMCPServerManager::get_first_team_space_id(ctx).is_none() {
+        if UserWorkspaces::as_ref(ctx).team_for_view(ctx).is_none() {
             return false;
         }
         match item_id {
@@ -400,9 +400,16 @@ impl MCPServersListPageView {
         let is_shareable = Self::is_shareable(item_id, server_card_status, ctx);
         let is_update_available = TemplatableMCPServerManager::as_ref(ctx)
             .is_update_available_for_installation(installation_uuid, ctx);
+        let team_uid = UserWorkspaces::as_ref(ctx)
+            .team_for_view(ctx)
+            .map(|team| team.uid);
         let is_authorized_editor =
             TemplatableMCPServerManager::handle(ctx).read(ctx, |templatable_manager, ctx| {
-                templatable_manager.is_authorized_editor(installation.template_uuid(), ctx)
+                templatable_manager.is_authorized_editor(
+                    installation.template_uuid(),
+                    team_uid,
+                    ctx,
+                )
             });
         let should_show_update_symbol = is_authorized_editor && is_update_available;
 
@@ -501,8 +508,14 @@ impl MCPServersListPageView {
     }
 
     fn share_templatable_mcp_server(&mut self, template_uuid: Uuid, ctx: &mut ViewContext<Self>) {
+        let Some(team_uid) = UserWorkspaces::as_ref(ctx)
+            .team_for_view(ctx)
+            .map(|team| team.uid)
+        else {
+            return;
+        };
         TemplatableMCPServerManager::handle(ctx).update(ctx, |templatable_manager, ctx| {
-            templatable_manager.share_templatable_mcp_server(template_uuid, ctx);
+            templatable_manager.share_templatable_mcp_server(template_uuid, team_uid, ctx);
         });
     }
 
@@ -511,8 +524,18 @@ impl MCPServersListPageView {
         installation_uuid: Uuid,
         ctx: &mut ViewContext<Self>,
     ) {
+        let Some(team_uid) = UserWorkspaces::as_ref(ctx)
+            .team_for_window(ctx.window_id())
+            .map(|team| team.uid)
+        else {
+            return;
+        };
         TemplatableMCPServerManager::handle(ctx).update(ctx, |templatable_manager, ctx| {
-            templatable_manager.share_templatable_mcp_server_installation(installation_uuid, ctx);
+            templatable_manager.share_templatable_mcp_server_installation(
+                installation_uuid,
+                team_uid,
+                ctx,
+            );
         });
     }
 
@@ -1158,9 +1181,13 @@ impl MCPServersListPageView {
                     app,
                     "settings.mcp.list.file_based.supported_providers_link",
                 ),
-                "https://docs.warp.dev/agent-platform/capabilities/mcp#file-based-mcp-servers",
-            ),
-        ];
+                FormattedTextFragment::hyperlink(
+                    "See supported providers.",
+                    "https://docs.warp.dev/agents/capabilities/mcp#file-based-mcp-servers",
+                ),
+            ]
+        });
+
         let description = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(file_based_description_fragments)]),
             style::CONTENT_FONT_SIZE,
@@ -1194,8 +1221,8 @@ impl MCPServersListPageView {
                 "settings.mcp.list.description",
             )),
             FormattedTextFragment::hyperlink(
-                localization::text_for_app(app, "settings.mcp.list.learn_more"),
-                "https://docs.warp.dev/agent-platform/capabilities/mcp",
+                "Learn more.",
+                "https://docs.warp.dev/agents/capabilities/mcp",
             ),
         ];
 
@@ -1287,7 +1314,7 @@ impl MCPServersListPageView {
                 if !shared_server_cards.is_empty() {
                     shared_server_cards.extend(filtered_gallery_cards);
                     let team_name = UserWorkspaces::as_ref(app)
-                        .current_team()
+                        .team_for_view_handle(&self.handle, app)
                         .map(|team| team.name.clone());
                     let shared_by_text = match team_name {
                         Some(name) => localization::text_for_app_with_args(

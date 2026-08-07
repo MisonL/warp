@@ -1,8 +1,8 @@
 //! Permission-capable view for tool calls without bespoke TUI bodies.
 
 use warp::tui_export::{
-    AIActionStatus, AIAgentAction, AIAgentActionType, AIConversationId, BlocklistAIActionModel,
-    CancellationReason, NewConversationDecision,
+    AIActionStatus, AIAgentAction, AIAgentActionType, AIConversationId, BlocklistAIActionEvent,
+    BlocklistAIActionModel, CancellationReason, NewConversationDecision, mcp_server_name_for_id,
 };
 use warp_localization::LocaleId;
 use warpui_core::elements::tui::{TuiElement, TuiText};
@@ -194,11 +194,18 @@ impl TuiGenericToolCallView {
             }
             if matches!(
                 event,
-                warp::tui_export::BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(_)
+                BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(_)
             ) {
                 view.ensure_permission_prompt(ctx);
             }
-            ctx.emit(TuiGenericToolCallViewEvent::BlockingStateChanged);
+            if matches!(
+                event,
+                BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(_)
+                    | BlocklistAIActionEvent::ExecutingAction(_)
+                    | BlocklistAIActionEvent::FinishedAction { .. }
+            ) {
+                ctx.emit(TuiGenericToolCallViewEvent::BlockingStateChanged);
+            }
             view.invalidate_layout(ctx);
         });
         view
@@ -317,39 +324,147 @@ impl TuiGenericToolCallView {
     }
 
     /// Builds the user-facing question shown above the action details.
-    fn permission_question(&self) -> String {
-        permission_question_for_action(&self.action.action, localization::current_locale())
+    ///
+    /// `server_name` is the pre-resolved originating MCP server name (when
+    /// known) for an MCP tool call, so the question surfaces both the tool and
+    /// its server. `None` for non-MCP actions or unknown/legacy servers.
+    fn permission_question(&self, server_name: Option<&str>) -> String {
+        match &self.action.action {
+            AIAgentActionType::ReadFiles(_) => "Is it OK if I read these files?".to_owned(),
+            AIAgentActionType::UploadArtifact(_) => {
+                "Is it OK if I upload this artifact?".to_owned()
+            }
+            AIAgentActionType::SearchCodebase(_) => {
+                "Is it OK if I search this codebase?".to_owned()
+            }
+            AIAgentActionType::Grep { .. } => "Is it OK if I search these files?".to_owned(),
+            AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => {
+                "Is it OK if I find files matching these patterns?".to_owned()
+            }
+            AIAgentActionType::CallMCPTool { name, .. } => {
+                if name.is_empty() {
+                    match server_name {
+                        Some(server) => format!("Is it OK if I call an MCP tool on {server}?"),
+                        None => "Is it OK if I call this MCP tool?".to_owned(),
+                    }
+                } else {
+                    match server_name {
+                        Some(server) => format!("Is it OK if I call MCP tool {name} on {server}?"),
+                        None => format!("Is it OK if I call MCP tool {name}?"),
+                    }
+                }
+            }
+            AIAgentActionType::ReadMCPResource { .. } => {
+                "Is it OK if I read this MCP resource?".to_owned()
+            }
+            AIAgentActionType::RequestComputerUse(_) => {
+                "Is it OK if I use the computer?".to_owned()
+            }
+            AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
+                "Is it OK if I write this input to the running command?".to_owned()
+            }
+            AIAgentActionType::SuggestNewConversation { .. } => {
+                "Should I start a new conversation?".to_owned()
+            }
+            AIAgentActionType::TransferShellCommandControlToUser { .. } => {
+                "Is it OK if I hand control of the running command to you?".to_owned()
+            }
+            action => format!("Is it OK if I {}?", action.user_friendly_name()),
+        }
     }
 
     /// Formats the action arguments needed to make an approval decision.
-    fn details(&self) -> String {
-        details_for_action(&self.action.action, localization::current_locale())
+    ///
+    /// `server_name` is the pre-resolved originating MCP server name (when
+    /// known) for an MCP tool call, so the details body labels the tool with
+    /// its server. `None` for non-MCP actions or unknown/legacy servers.
+    fn details(&self, server_name: Option<&str>) -> String {
+        match &self.action.action {
+            AIAgentActionType::ReadFiles(request) => request
+                .locations
+                .iter()
+                .map(|location| format!("  - {}", location.name))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            AIAgentActionType::UploadArtifact(request) => match &request.description {
+                Some(description) => format!("{}\n{}", request.file_path, description),
+                None => request.file_path.clone(),
+            },
+            AIAgentActionType::SearchCodebase(request) => match &request.codebase_path {
+                Some(path) => format!("{}\n  in {path}", request.query),
+                None => request.query.clone(),
+            },
+            AIAgentActionType::Grep { queries, path } => {
+                format!("{}\n  in {path}", queries.join("\n"))
+            }
+            AIAgentActionType::FileGlob { patterns, path } => {
+                let path = path.as_deref().unwrap_or(".");
+                format!("{}\n  in {path}", patterns.join("\n"))
+            }
+            AIAgentActionType::FileGlobV2 {
+                patterns,
+                search_dir,
+            } => {
+                let path = search_dir.as_deref().unwrap_or(".");
+                format!("{}\n  in {path}", patterns.join("\n"))
+            }
+            AIAgentActionType::CallMCPTool { name, input, .. } => {
+                let input =
+                    serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
+                let header = match server_name {
+                    Some(server) => format!("{name} on {server}"),
+                    None => name.clone(),
+                };
+                if input == "{}" || input == "null" {
+                    header
+                } else {
+                    format!("{header}\n{input}")
+                }
+            }
+            AIAgentActionType::ReadMCPResource { name, uri, .. } => {
+                uri.clone().unwrap_or_else(|| name.clone())
+            }
+            AIAgentActionType::RequestComputerUse(request) => request.task_summary.clone(),
+            AIAgentActionType::WriteToLongRunningShellCommand { input, .. } => {
+                String::from_utf8_lossy(input).into_owned()
+            }
+            AIAgentActionType::SuggestNewConversation { .. } => {
+                "Continue the agent's next step in a fresh conversation.".to_owned()
+            }
+            AIAgentActionType::TransferShellCommandControlToUser { reason } => reason.clone(),
+            action => action.user_friendly_name(),
+        }
+    }
+
+    /// Resolves the user-facing name of the MCP tool's originating server for
+    /// the blocked permission card. Returns `None` for non-MCP-tool actions,
+    /// legacy/flat calls with no server id, or unknown servers. Non-panicking.
+    fn mcp_server_name(&self, app: &AppContext) -> Option<String> {
+        match &self.action.action {
+            AIAgentActionType::CallMCPTool { server_id, .. } => server_id
+                .as_ref()
+                .and_then(|id| mcp_server_name_for_id(id, app)),
+            _ => None,
+        }
     }
 
     /// Renders the complete blocked-action card.
     fn render_blocked(&self, app: &AppContext) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(app);
-        let Some(prompt) = self.permission_prompt.as_ref() else {
-            log::error!(
-                "blocked generic action {} has no permission prompt",
-                self.action.id
-            );
-            return render_fallback_tool_call_section(
-                &self.action,
-                Some(&AIActionStatus::Blocked),
-                self.output_streaming,
-                None,
-                app,
-            );
-        };
+        let server_name = self.mcp_server_name(app);
+        let prompt = self
+            .permission_prompt
+            .as_ref()
+            .expect("blocked generic actions should own a permission prompt");
         render_permission_card(
             prompt,
-            self.permission_question(),
+            self.permission_question(server_name.as_deref()),
             Some(
-                TuiText::new(self.details())
+                TuiText::new(self.details(server_name.as_deref()))
                     .with_style(builder.primary_text_style())
                     .finish(),
             ),
+            None,
             app,
         )
     }

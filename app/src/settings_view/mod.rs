@@ -39,7 +39,7 @@ use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty,
     EventHandler, Expanded, Fill, Flex, MainAxisSize, OffsetPositioning, ParentAnchor,
     ParentElement, ParentOffsetBounds, Radius, SavePosition, ScrollbarWidth, Shrinkable, Stack,
-    Text,
+    Text, Wrap,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::{BindingDescription, ContextPredicate, EnabledPredicate, FixedBinding};
@@ -70,7 +70,8 @@ use crate::ui_components::icons;
 use crate::util::bindings::{BindingGroup, CustomAction, keybinding_name_to_display_string};
 use crate::view_components::ToastFlavor;
 use crate::workspace::WorkspaceAction;
-use crate::{GlobalResourceHandlesProvider, TelemetryEvent, localization};
+use crate::workspaces::workspace::{BillingMetadata, CustomerType};
+use crate::{GlobalResourceHandlesProvider, TelemetryEvent};
 
 mod about_page;
 mod admin_actions;
@@ -159,6 +160,32 @@ const SECTION_BORDER_WIDTH: f32 = 1.;
 
 const POSITION_ID: &str = "settings_pane";
 
+struct PlanHeaderPresentation {
+    badge_label: Option<String>,
+    show_personal_upgrade: bool,
+}
+
+fn plan_header_presentation(
+    billing_metadata: Option<&BillingMetadata>,
+    has_team: bool,
+    is_anonymous: bool,
+) -> PlanHeaderPresentation {
+    let badge_label = if is_anonymous || billing_metadata.is_none() {
+        Some("Free".to_string())
+    } else {
+        billing_metadata
+            .filter(|billing_metadata| billing_metadata.customer_type != CustomerType::Unknown)
+            .map(|billing_metadata| billing_metadata.customer_type.to_display_string())
+    };
+
+    PlanHeaderPresentation {
+        badge_label,
+        show_personal_upgrade: is_anonymous
+            || (!has_team
+                && billing_metadata.is_none_or(BillingMetadata::can_upgrade_to_build_plan)),
+    }
+}
+
 pub(super) fn editor_text_colors(appearance: &Appearance) -> TextColors {
     let theme = appearance.theme();
     TextColors {
@@ -190,7 +217,8 @@ pub(super) fn render_beta_chip(app: &AppContext, appearance: &Appearance) -> Box
     .finish()
 }
 
-/// Renders a horizontal row of pill-shaped chips for model labels.
+/// Renders a wrapping row of pill-shaped chips for model labels, which flow
+/// onto additional lines instead of overflowing the container horizontally.
 /// Used by custom inference endpoint cards and the remove confirmation dialog.
 pub(super) fn render_model_chips(
     labels: impl IntoIterator<Item = String>,
@@ -213,7 +241,7 @@ pub(super) fn render_model_chips(
         ..Default::default()
     };
 
-    let mut chips = Flex::row().with_spacing(8.);
+    let mut chips = Wrap::row().with_spacing(8.).with_run_spacing(8.);
     for label in labels {
         chips.add_child(Chip::new(label, chip_style).build().finish());
     }
@@ -617,6 +645,8 @@ pub mod flags {
     pub const SHARED_BLOCK_TITLE_GENERATION_FLAG: &str = "Shared_Block_Title_Generation";
     pub const GIT_OPERATIONS_AUTOGEN_FLAG: &str = "Git_Operations_Autogen";
     pub const INCLUDE_AGENT_COMMANDS_IN_HISTORY_FLAG: &str = "Include_Agent_Commands_In_History";
+    pub const AUTO_APPROVE_BYPASSES_COMMAND_DENYLIST_FLAG: &str =
+        "Auto_Approve_Bypasses_Command_Denylist";
     pub const AI_RULES_FLAG: &str = "AI_Rules";
     pub const SUGGESTED_RULES_FLAG: &str = "Suggested_Rules";
     pub const WARP_DRIVE_CONTEXT_FLAG: &str = "Warp_Drive_Context";
@@ -1698,6 +1728,7 @@ impl SettingsView {
                     {
                         self.ai_page_handle.update(ctx, |view, ctx| {
                             view.set_active_subpage(Some(subpage), ctx);
+                            view.update_filter(&search_query, ctx);
                         });
                     }
                     if current.is_code_subpage()
@@ -1705,6 +1736,7 @@ impl SettingsView {
                     {
                         self.code_page_handle.update(ctx, |view, ctx| {
                             view.set_active_subpage(Some(subpage), ctx);
+                            view.update_filter(&search_query, ctx);
                         });
                     }
                 }
@@ -1786,6 +1818,11 @@ impl SettingsView {
                             false, /* allow_steal_focus */
                             ctx,
                         );
+                        // The navigation above rebuilt the newly-selected
+                        // subpage's PageType via set_active_subpage, resetting
+                        // its widget filter to default. Reapply the active
+                        // search query so only matching widgets render.
+                        self.reapply_search_filter_to_active_subpage(&search_query, ctx);
                     }
                 }
                 ctx.notify();
@@ -2390,8 +2427,31 @@ impl SettingsView {
         }
     }
 
+    /// Reapply the active search query to the currently-selected AI/Code subpage.
+    fn reapply_search_filter_to_active_subpage(
+        &mut self,
+        query: &str,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let current = self.current_settings_page;
+        if current.is_ai_subpage()
+            && current != SettingsSection::AgentMCPServers
+            && AISubpage::from_section(current).is_some()
+        {
+            self.ai_page_handle.update(ctx, |view, ctx| {
+                view.update_filter(query, ctx);
+            });
+        }
+        if current.is_code_subpage() && CodeSubpage::from_section(current).is_some() {
+            self.code_page_handle.update(ctx, |view, ctx| {
+                view.update_filter(query, ctx);
+            });
+        }
+    }
+
     fn cycle_pages(&mut self, direction: CycleDirection, ctx: &mut ViewContext<Self>) {
-        let is_search_active = !self.search_editor.as_ref(ctx).buffer_text(ctx).is_empty();
+        let search_query = self.search_editor.as_ref(ctx).buffer_text(ctx);
+        let is_search_active = !search_query.is_empty();
 
         // Build nav stops from the current sidebar state. A collapsed umbrella
         // is represented as a single stop (rather than being skipped) so that
@@ -2432,6 +2492,9 @@ impl SettingsView {
         };
 
         self.set_and_refresh_current_page_internal(target_section, false, false, ctx);
+        if is_search_active {
+            self.reapply_search_filter_to_active_subpage(&search_query, ctx);
+        }
     }
 
     fn input_tab(&mut self, ctx: &mut ViewContext<Self>) {
@@ -2842,7 +2905,14 @@ impl TypedActionView for SettingsView {
     fn handle_action(&mut self, action: &SettingsAction, ctx: &mut ViewContext<Self>) {
         match action {
             SettingsAction::SelectAndRefresh(section) => {
+                let search_query = self.search_editor.as_ref(ctx).buffer_text(ctx);
+                let is_search_active = !search_query.is_empty();
+
                 self.set_and_refresh_current_page_internal(*section, false, true, ctx);
+
+                if is_search_active {
+                    self.reapply_search_filter_to_active_subpage(&search_query, ctx);
+                }
 
                 if *section == SettingsSection::MCPServers {
                     send_telemetry_from_ctx!(

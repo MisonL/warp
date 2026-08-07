@@ -46,6 +46,7 @@ pub use crate::ai::orchestration::{
 };
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
+use crate::server::experiments::{ServerExperiment, ServerExperiments};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::FilterableDropdown;
@@ -70,6 +71,17 @@ const EMPTY_ENVIRONMENT_KEY: &str = "agent.orchestration.controls.empty_environm
 const RUNNER_KEY: &str = "agent.orchestration.controls.runner";
 const RUNNER_USE_DEFAULT_KEY: &str = "agent.orchestration.controls.runner_use_default";
 const RUNNERS_LOAD_FAILED_KEY: &str = "agent.orchestration.controls.unable_to_load_runners";
+
+/// Returns whether the client should expose the remote runner controls.
+///
+/// Both the feature flag and the server-side experiment test arm are required.
+/// Keeping this predicate here ensures the picker creation and rendering paths
+/// use the same gate.
+pub fn runner_controls_enabled(ctx: &AppContext) -> bool {
+    FeatureFlag::CloudAgentRunners.is_enabled()
+        && ServerExperiments::as_ref(ctx)
+            .is_experiment_enabled(&ServerExperiment::MacosRunnersExperiment)
+}
 
 // ── Action trait ────────────────────────────────────────────────────
 
@@ -100,7 +112,8 @@ pub struct OrchestrationPickerHandles<A: OrchestrationControlAction> {
     pub model_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub harness_picker: Option<ViewHandle<Dropdown<A>>>,
     pub environment_picker: Option<ViewHandle<FilterableDropdown<A>>>,
-    /// Runner picker for the Cloud variant (gated on `CloudAgentRunners`).
+    /// Runner picker for the Cloud variant (gated on `CloudAgentRunners` and
+    /// the macOS runner experiment test arm).
     /// `None` until built; runners are fetched via `FactoryClient::get_runners`.
     pub runner_picker: Option<ViewHandle<FilterableDropdown<A>>>,
     pub host_picker: Option<ViewHandle<HostPicker>>,
@@ -634,7 +647,8 @@ pub fn populate_host_picker<V: View>(
             Some(OptionBadge::Recent) => recent_host = Some(row.id),
             Some(OptionBadge::Connected) => connected_hosts.push(row.id),
             // The unbadged "warp" row is built into the HostPicker itself.
-            None => {}
+            // Recommended is not applicable to host rows.
+            Some(OptionBadge::Recommended) | None => {}
         }
     }
     picker.update(ctx, |picker, picker_ctx| {
@@ -1232,9 +1246,9 @@ pub fn render_picker_row<A: OrchestrationControlAction>(
     state: &OrchestrationConfigState,
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
-    app: &AppContext,
+    show_runner_controls: bool,
 ) -> Box<dyn Element> {
-    render_picker_row_with_layout(state, handles, appearance, false, app)
+    render_picker_row_with_layout(state, handles, appearance, false, show_runner_controls)
 }
 
 /// Renders pickers vertically at full width when `vertical` is true,
@@ -1244,7 +1258,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
     vertical: bool,
-    app: &AppContext,
+    show_runner_controls: bool,
 ) -> Box<dyn Element> {
     let is_remote = state.execution_mode.is_remote();
     let show_auth_picker = should_show_auth_secret_picker(state);
@@ -1305,7 +1319,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                     .as_ref()
                     .map(|p| ChildView::new(p).finish()),
             );
-            if FeatureFlag::CloudAgentRunners.is_enabled() {
+            if show_runner_controls {
                 add(
                     &mut column,
                     &runner_label,
@@ -1362,7 +1376,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
                     .as_ref()
                     .map(|p| ChildView::new(p).finish()),
             );
-            if FeatureFlag::CloudAgentRunners.is_enabled() {
+            if show_runner_controls {
                 add_picker(
                     &mut row,
                     &runner_label,

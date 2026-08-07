@@ -152,6 +152,7 @@ impl UploadArtifactExecutor {
                         path: resolved_path,
                         run_id: None,
                         conversation_id: Some(server_conversation_token),
+                        title: None,
                         description,
                     };
                     let association = uploader

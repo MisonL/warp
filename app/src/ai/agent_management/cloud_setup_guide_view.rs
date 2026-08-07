@@ -31,7 +31,7 @@ use crate::workflows::WorkflowType;
 use crate::workflows::workflow::{Argument, ArgumentType, Workflow};
 use crate::{localization, send_telemetry_from_ctx};
 
-const DOCS_URL: &str = "https://docs.warp.dev/agent-platform/cloud-agents/overview";
+const DOCS_URL: &str = "https://docs.warp.dev/platform/";
 const ENV_DOCS_URL: &str =
     "https://docs.warp.dev/reference/cli/integration-setup#creating-an-environment";
 const OZ_URL: &str = "https://oz.warp.dev";

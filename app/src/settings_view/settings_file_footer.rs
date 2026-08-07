@@ -257,8 +257,8 @@ pub fn render_settings_error_alert(
             ui_font_family,
             text_color,
             mouse_states.alert_fix_with_oz_button.clone(),
-            crate::localization::text_for_app(app, "settings.footer.fix_with_oz"),
-            Some(Icon::Oz),
+            "Fix with Oz",
+            Some(Icon::Agent),
             /*bordered=*/ false,
             WorkspaceAction::FixSettingsWithOz { error_description },
         );

@@ -132,7 +132,7 @@ pub(crate) fn render_orchestrator_avatar_disc(
 ) -> Box<dyn Element> {
     render_avatar_disc(
         theme.ansi_fg_cyan(),
-        AvatarGlyph::Icon(Icon::Oz),
+        AvatarGlyph::Icon(Icon::Agent),
         size,
         theme,
         appearance,
@@ -634,7 +634,7 @@ impl OrchestrationPillBar {
             conversation_id: orchestrator_id,
             label: orchestrator_label(orchestrator, app),
             avatar_color: theme.ansi_fg_cyan(),
-            avatar_glyph: AvatarGlyph::Icon(Icon::Oz),
+            avatar_glyph: AvatarGlyph::Icon(Icon::Agent),
             status: Some(aggregated_orchestrator_status(history, orchestrator_id)),
             is_selected: orchestrator_id == active_id,
             kind: PillKind::Orchestrator,
@@ -2303,13 +2303,13 @@ pub fn render_orchestration_breadcrumbs(
         .unwrap_or_else(|| text_for_app(app, "agent.orchestration.agent"));
     let child_label = child_name.clone();
 
-    // Parent crumb uses the Oz glyph on a neutral disc to match the
+    // Parent crumb uses the Warp logo on a neutral disc to match the
     // orchestrator pill in the pill bar.
     let parent_spec = CrumbSpec {
         conversation_id: parent_id,
         label: parent_label,
         avatar_color: theme.ansi_fg_cyan(),
-        avatar_glyph: AvatarGlyph::Icon(Icon::Oz),
+        avatar_glyph: AvatarGlyph::Icon(Icon::Agent),
         is_active: false,
     };
 

@@ -38,18 +38,37 @@ pub fn validate_agent_mode_base_model_id(
     ctx: &AppContext,
 ) -> anyhow::Result<LLMId> {
     let llm_prefs = LLMPreferences::as_ref(ctx);
-
-    let llm_id: LLMId = model_id.into();
     let valid_ids = llm_prefs
         .get_base_llm_choices_for_agent_mode(ctx)
         .map(|info| info.id.clone())
         .collect::<Vec<_>>();
 
+    classify_agent_mode_base_model_id(
+        model_id,
+        &valid_ids,
+        llm_prefs.agent_mode_models_unavailable(),
+    )
+}
+
+/// Classifies a user-supplied agent-mode model id against the available model
+/// list, distinguishing "the model list fetch failed (so the list is empty or
+/// stale)" from "the id is genuinely not in a valid list".
+fn classify_agent_mode_base_model_id(
+    model_id: &str,
+    valid_ids: &[LLMId],
+    list_unavailable: bool,
+) -> anyhow::Result<LLMId> {
+    let llm_id: LLMId = model_id.into();
     if valid_ids.contains(&llm_id) {
         Ok(llm_id)
+    } else if list_unavailable {
+        Err(anyhow::anyhow!(
+            "Could not retrieve the agent-mode model list from the server \
+             (the request failed or returned no models). Try again later."
+        ))
     } else {
         let suggestions = valid_ids
-            .into_iter()
+            .iter()
             .map(|id| id.to_string())
             .collect::<Vec<_>>()
             .join(", ");
@@ -113,13 +132,8 @@ pub(super) fn set_ambient_task_context_from_run_id(
 pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyhow::Result<Owner> {
     if team_flag {
         let team_id = UserWorkspaces::as_ref(ctx)
-            .current_team_uid()
-            .ok_or_else(|| {
-                anyhow::anyhow!(localization::text_for_app(
-                    ctx,
-                    "agent_sdk.common.error.user_not_on_team"
-                ))
-            })?;
+            .sole_team_uid()
+            .ok_or_else(|| anyhow::anyhow!("User is not on a team"))?;
         return Ok(Owner::Team { team_uid: team_id });
     }
 
@@ -137,7 +151,7 @@ pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyh
     }
 
     // Default: try team first, fall back to user
-    if let Some(team_uid) = UserWorkspaces::as_ref(ctx).current_team_uid() {
+    if let Some(team_uid) = UserWorkspaces::as_ref(ctx).sole_team_uid() {
         return Ok(Owner::Team { team_uid });
     }
 

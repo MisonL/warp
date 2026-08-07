@@ -19,7 +19,15 @@ use warpui_core::r#async::Timer;
 use warpui_core::clipboard::{ClipboardContent, ImageData};
 use warpui_core::clipboard_utils::CLIPBOARD_IMAGE_MIME_TYPES;
 
-use crate::localization;
+pub(super) enum ClipboardPasteContent {
+    Image(ClipboardContent),
+    ImagePaths {
+        paths: Vec<PathBuf>,
+        original_text: String,
+    },
+    Text(String),
+    Empty,
+}
 
 pub(super) fn parse_image_paths(text: &str, cwd: &Path) -> Option<Vec<PathBuf>> {
     let tokens = split_image_path_tokens(text)?;
@@ -32,56 +40,46 @@ pub(super) fn parse_image_paths(text: &str, cwd: &Path) -> Option<Vec<PathBuf>> 
         .collect()
 }
 
-fn split_image_path_tokens(text: &str) -> Option<Vec<String>> {
-    #[cfg(windows)]
-    {
-        split_windows_image_path_tokens(text)
-    }
-    #[cfg(not(windows))]
-    {
-        shell_words::split(text.trim()).ok()
-    }
-}
-
-#[cfg(any(windows, test))]
-fn split_windows_image_path_tokens(text: &str) -> Option<Vec<String>> {
-    let mut tokens = Vec::new();
-    let mut token = String::new();
-    let mut quote = None;
-    let mut token_started = false;
-    let mut chars = text.trim().chars().peekable();
-
-    while let Some(character) = chars.next() {
-        match quote {
-            Some(quote_character) if character == quote_character => quote = None,
-            Some(_) => token.push(character),
-            None if character == '\'' || character == '"' => {
-                quote = Some(character);
-                token_started = true;
-            }
-            None if character.is_whitespace() => {
-                if token_started {
-                    tokens.push(std::mem::take(&mut token));
-                    token_started = false;
-                }
-            }
-            None if character == '\\' && chars.peek().is_some_and(|next| next.is_whitespace()) => {
-                token.push(chars.next().expect("peeked whitespace"));
-                token_started = true;
-            }
-            None => {
-                token.push(character);
-                token_started = true;
-            }
-        }
+pub(super) fn classify_clipboard_content(
+    content: ClipboardContent,
+    cwd: &Path,
+) -> ClipboardPasteContent {
+    if content.has_image_data() {
+        return ClipboardPasteContent::Image(content);
     }
 
-    quote.is_none().then_some(if token_started {
-        tokens.push(token);
-        tokens
+    let original_text = if content.plain_text.is_empty() {
+        content
+            .paths
+            .as_ref()
+            .map(|paths| paths.join("\n"))
+            .unwrap_or_default()
     } else {
-        tokens
-    })
+        content.plain_text.clone()
+    };
+    if let Some(paths) = content.paths.as_ref()
+        && !paths.is_empty()
+        && let Some(paths) = paths
+            .iter()
+            .map(|path| resolve_image_path(path, cwd))
+            .collect()
+    {
+        return ClipboardPasteContent::ImagePaths {
+            paths,
+            original_text,
+        };
+    }
+    if let Some(paths) = parse_image_paths(&content.plain_text, cwd) {
+        return ClipboardPasteContent::ImagePaths {
+            paths,
+            original_text,
+        };
+    }
+    if original_text.is_empty() {
+        ClipboardPasteContent::Empty
+    } else {
+        ClipboardPasteContent::Text(original_text)
+    }
 }
 
 fn resolve_image_path(token: &str, cwd: &Path) -> Option<PathBuf> {
@@ -229,36 +227,19 @@ async fn process_paths_for_locale(
     Ok(images)
 }
 
-pub(super) async fn read_and_process_clipboard_image() -> Result<ImageContext, String> {
-    const CLIPBOARD_READ_TIMEOUT: Duration = Duration::from_secs(5);
-    let locale = localization::current_locale();
-    let unavailable_error = attachment_error_for_locale(
-        locale,
-        "tui.attachments.error.system_clipboard_unavailable",
-        &[],
-    );
-    let timeout_error = unavailable_error.clone();
-    let read = blocking::unblock(move || -> Result<ClipboardContent, String> {
-        let mut clipboard =
-            warpui::platform::create_system_clipboard().map_err(|_| unavailable_error.clone())?;
+pub(super) async fn read_clipboard_content() -> Result<ClipboardContent, String> {
+    blocking::unblock(|| -> Result<ClipboardContent, String> {
+        let mut clipboard = warpui::platform::create_system_clipboard()
+            .map_err(|_| "The system clipboard is unavailable.".to_owned())?;
         Ok(clipboard.read())
-    });
-    let content = read
-        .or(async move {
-            Timer::after(CLIPBOARD_READ_TIMEOUT).await;
-            Err(timeout_error)
-        })
-        .await?;
-    process_clipboard_content_for_locale(content, locale)
+    })
+    .await
 }
 
-fn process_clipboard_content_for_locale(
-    content: ClipboardContent,
-    locale: LocaleId,
-) -> Result<ImageContext, String> {
-    let images = content.images.ok_or_else(|| {
-        attachment_error_for_locale(locale, "tui.attachments.error.clipboard_no_image", &[])
-    })?;
+pub(super) fn process_clipboard_content(content: ClipboardContent) -> Result<ImageContext, String> {
+    let images = content
+        .images
+        .ok_or_else(|| "Clipboard image data is unavailable.".to_owned())?;
     let image = CLIPBOARD_IMAGE_MIME_TYPES
         .iter()
         .find_map(|mime_type| {

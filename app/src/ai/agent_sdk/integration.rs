@@ -123,6 +123,7 @@ impl IntegrationCommandRunner {
                     // TODO(REMOTE-1134): Support harness selection for integrations.
                     harness: None,
                     harness_auth_secrets: None,
+                    additional_source_repos: None,
                 },
             );
 
@@ -516,6 +517,7 @@ impl IntegrationCommandRunner {
                     // TODO(REMOTE-1134): Support harness selection for integrations.
                     harness: None,
                     harness_auth_secrets: None,
+                    additional_source_repos: None,
                 },
             );
 

@@ -10,11 +10,12 @@ use warp_core::features::FeatureFlag;
 use warp_editor::model::CoreEditorModel;
 use warp_localization::LocaleId;
 use warpui_core::r#async::SpawnedFutureHandle;
+use warpui_core::clipboard::ClipboardContent;
 use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
 
 use super::image_processing::{
-    default_clipboard_image_file_name, parse_image_paths, process_paths,
-    read_and_process_clipboard_image,
+    ClipboardPasteContent, classify_clipboard_content, parse_image_paths,
+    process_clipboard_content, process_paths, read_clipboard_content,
 };
 use crate::input_mode_policy::AI_LOCKED_CONFIG;
 use crate::localization;
@@ -207,8 +208,20 @@ impl TuiAttachmentModel {
         let Some(paths) = parse_image_paths(&text, &self.current_working_directory(ctx)) else {
             return TuiAttachmentPasteDisposition::NotHandled;
         };
+        self.attach_image_paths(paths, text, ctx)
+    }
+
+    fn attach_image_paths(
+        &mut self,
+        paths: Vec<PathBuf>,
+        original_text: String,
+        ctx: &mut ModelContext<Self>,
+    ) -> TuiAttachmentPasteDisposition {
+        if !FeatureFlag::ImageAsContext.is_enabled() {
+            return TuiAttachmentPasteDisposition::NotHandled;
+        }
         if let Err(error) = self.validate_new_images(paths.len(), ctx) {
-            ctx.emit(TuiAttachmentModelEvent::RestorePastedText(text));
+            ctx.emit(TuiAttachmentModelEvent::RestorePastedText(original_text));
             ctx.emit(TuiAttachmentModelEvent::ShowHint(error));
             return TuiAttachmentPasteDisposition::Handled;
         }
@@ -219,7 +232,6 @@ impl TuiAttachmentModel {
             .map(|file_name| file_name.to_string_lossy().into_owned())
             .unwrap_or_else(default_image_name);
         self.start_processing(processing_file_name, paths.len(), ctx);
-        let original_text = text;
         self.in_flight = Some(ctx.spawn_abortable(
             process_paths(paths),
             move |model, result, ctx| {
@@ -245,14 +257,49 @@ impl TuiAttachmentModel {
         TuiAttachmentPasteDisposition::Started
     }
 
-    pub(crate) fn paste_image_from_clipboard(&mut self, ctx: &mut ModelContext<Self>) -> bool {
+    pub(crate) fn paste_from_clipboard(&mut self, ctx: &mut ModelContext<Self>) {
+        ctx.spawn(
+            read_clipboard_content(),
+            |model, result, ctx| match result {
+                Ok(content) => {
+                    let cwd = model.current_working_directory(ctx);
+                    match classify_clipboard_content(content, &cwd) {
+                        ClipboardPasteContent::Image(content) => {
+                            model.attach_clipboard_image(content, ctx);
+                        }
+                        ClipboardPasteContent::ImagePaths {
+                            paths,
+                            original_text,
+                        } => {
+                            if model.attach_image_paths(paths, original_text.clone(), ctx)
+                                == TuiAttachmentPasteDisposition::NotHandled
+                            {
+                                ctx.emit(TuiAttachmentModelEvent::RestorePastedText(original_text));
+                            }
+                        }
+                        ClipboardPasteContent::Text(text) => {
+                            ctx.emit(TuiAttachmentModelEvent::RestorePastedText(text));
+                        }
+                        ClipboardPasteContent::Empty => {}
+                    }
+                }
+                Err(error) => ctx.emit(TuiAttachmentModelEvent::ShowHint(error)),
+            },
+        );
+    }
+
+    fn attach_clipboard_image(
+        &mut self,
+        content: ClipboardContent,
+        ctx: &mut ModelContext<Self>,
+    ) -> bool {
         if let Err(error) = self.validate_new_images(1, ctx) {
             ctx.emit(TuiAttachmentModelEvent::ShowHint(error));
             return false;
         }
         self.start_processing(default_clipboard_image_file_name(), 1, ctx);
         self.in_flight = Some(ctx.spawn_abortable(
-            read_and_process_clipboard_image(),
+            blocking::unblock(move || process_clipboard_content(content)),
             |model, result, ctx| {
                 model.in_flight = None;
                 model.finish_processing();

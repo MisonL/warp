@@ -1,43 +1,54 @@
-use warp_localization::LocaleId;
+use warpui::App;
 
-use super::{
-    localized_auth_secret_row_label_for_locale, localized_auth_secret_status_message_for_locale,
-};
-use crate::ai::orchestration::OptionRow;
+use super::runner_controls_enabled;
+use crate::features::FeatureFlag;
+use crate::server::experiments::{ServerExperiment, ServerExperiments};
+use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 
-fn row(id: &str, label: &str) -> OptionRow {
-    OptionRow {
-        id: id.to_string(),
-        label: label.to_string(),
-        harness: None,
-        badge: None,
-        disabled_reason: None,
-    }
+fn initialize_app(app: &mut App) {
+    app.update(crate::settings::init_and_register_user_preferences);
+
+    let global_resources = GlobalResourceHandles::mock(app);
+    app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resources));
 }
 
 #[test]
-fn api_key_menu_localizes_inherit_without_changing_secret_names() {
-    assert_eq!(
-        localized_auth_secret_row_label_for_locale(&row("", "Skip (advanced)"), LocaleId::ZhCn,),
-        "跳过（高级）",
-    );
-    assert_eq!(
-        localized_auth_secret_row_label_for_locale(&row("team-key", "Team key"), LocaleId::ZhCn),
-        "Team key",
-    );
-}
+fn runner_controls_require_both_feature_flag_and_experiment_arm() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let experiments =
+            app.add_singleton_model(|ctx| ServerExperiments::new_from_cache(vec![], ctx));
 
-#[test]
-fn api_key_menu_only_localizes_the_canonical_load_failure() {
-    assert_eq!(
-        localized_auth_secret_status_message_for_locale("Unable to load secrets", LocaleId::ZhCn),
-        "无法加载密钥",
-    );
-    assert_eq!(
-        localized_auth_secret_status_message_for_locale(
-            "Server rejected the request",
-            LocaleId::ZhCn,
-        ),
-        "Server rejected the request",
-    );
+        {
+            let _cloud_agent_runners = FeatureFlag::CloudAgentRunners.override_enabled(false);
+            experiments.update(&mut app, |experiments, ctx| {
+                experiments.apply_latest_state(vec![], ctx);
+            });
+            app.read(|ctx| assert!(!runner_controls_enabled(ctx)));
+        }
+
+        {
+            let _cloud_agent_runners = FeatureFlag::CloudAgentRunners.override_enabled(false);
+            experiments.update(&mut app, |experiments, ctx| {
+                experiments.apply_latest_state(vec![ServerExperiment::MacosRunnersExperiment], ctx);
+            });
+            app.read(|ctx| assert!(!runner_controls_enabled(ctx)));
+        }
+
+        {
+            let _cloud_agent_runners = FeatureFlag::CloudAgentRunners.override_enabled(true);
+            experiments.update(&mut app, |experiments, ctx| {
+                experiments.apply_latest_state(vec![], ctx);
+            });
+            app.read(|ctx| assert!(!runner_controls_enabled(ctx)));
+        }
+
+        {
+            let _cloud_agent_runners = FeatureFlag::CloudAgentRunners.override_enabled(true);
+            experiments.update(&mut app, |experiments, ctx| {
+                experiments.apply_latest_state(vec![ServerExperiment::MacosRunnersExperiment], ctx);
+            });
+            app.read(|ctx| assert!(runner_controls_enabled(ctx)));
+        }
+    });
 }
