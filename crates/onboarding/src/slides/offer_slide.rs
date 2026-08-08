@@ -23,6 +23,7 @@ use warpui_core::{
 
 use super::OnboardingSlide;
 use super::upgrade_auth_prompt::render_upgrade_auth_prompt_bar;
+use crate::OnboardingCopy;
 use crate::model::{CreditPackOption, CreditPurchaseState, OnboardingStateModel};
 use crate::slides::{layout, slide_content};
 use crate::telemetry::OnboardingEvent;
@@ -35,6 +36,48 @@ const MAX_CREDIT_PACKS: usize = 8;
 /// Gap between credit pack tiles, matching the Billing & Usage page's add-on
 /// credit denominations row.
 const CREDIT_PACK_TILE_SPACING: f32 = 8.;
+
+fn default_offer_copy() -> OnboardingCopy {
+    OnboardingCopy::new([
+        (
+            "onboarding.agent.auth.browser_middle",
+            " and open the page manually. ".to_owned(),
+        ),
+        (
+            "onboarding.agent.auth.browser_prefix",
+            "If your browser hasn't launched, ".to_owned(),
+        ),
+        (
+            "onboarding.agent.auth.browser_suffix",
+            " to paste your token from the browser.".to_owned(),
+        ),
+        (
+            "onboarding.agent.auth.click_here",
+            "Click here".to_owned(),
+        ),
+        (
+            "onboarding.agent.auth.copy_url",
+            "copy the URL".to_owned(),
+        ),
+        (
+            "onboarding.common.back",
+            "Back".to_owned(),
+        ),
+        (
+            "onboarding.offer.credit_divider",
+            "Or buy AI credits without a subscription".to_owned(),
+        ),
+        (
+            "onboarding.offer.credit_savings",
+            "Save {badge_percent}%".to_owned(),
+        ),
+        (
+            "onboarding.offer.purchase_failed",
+            "We couldn't start that purchase. Try again, or choose \"Set up AI later\" to continue."
+                .to_owned(),
+        ),
+    ])
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OfferVariant {
@@ -213,6 +256,7 @@ pub struct OfferSlide {
     show_auth_prompt_bar: bool,
     copy_url_mouse_state: MouseStateHandle,
     paste_token_mouse_state: MouseStateHandle,
+    copy: OnboardingCopy,
 }
 
 impl OfferSlide {
@@ -220,6 +264,13 @@ impl OfferSlide {
         &["async/png/onboarding/welcome_agent.png"];
 
     pub(crate) fn new(onboarding_state: ModelHandle<OnboardingStateModel>) -> Self {
+        Self::new_with_copy(onboarding_state, default_offer_copy())
+    }
+
+    pub(crate) fn new_with_copy(
+        onboarding_state: ModelHandle<OnboardingStateModel>,
+        copy: OnboardingCopy,
+    ) -> Self {
         Self {
             onboarding_state,
             primary_mouse_state: MouseStateHandle::default(),
@@ -233,6 +284,7 @@ impl OfferSlide {
             show_auth_prompt_bar: false,
             copy_url_mouse_state: MouseStateHandle::default(),
             paste_token_mouse_state: MouseStateHandle::default(),
+            copy,
         }
     }
 
@@ -555,7 +607,7 @@ impl OfferSlide {
         if shows_credit_packs {
             column = column
                 .with_child(
-                    Container::new(Self::render_credit_divider(appearance))
+                    Container::new(self.render_credit_divider(appearance))
                         .with_margin_top(16.)
                         .finish(),
                 )
@@ -646,7 +698,7 @@ impl OfferSlide {
 
     /// A thin rule with a centered "Or buy AI credits without a subscription"
     /// label, separating the subscribe button from the credit packs.
-    fn render_credit_divider(appearance: &Appearance) -> Box<dyn Element> {
+    fn render_credit_divider(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         let line = || {
             Expanded::new(
@@ -663,7 +715,7 @@ impl OfferSlide {
         };
         let label = appearance
             .ui_builder()
-            .paragraph("Or buy AI credits without a subscription")
+            .paragraph(self.copy.text_owned("onboarding.offer.credit_divider"))
             .with_style(UiComponentStyles {
                 font_size: Some(13.),
                 font_color: Some(internal_colors::text_sub(
@@ -710,6 +762,7 @@ impl OfferSlide {
                         self.credit_pack_is_selected(variant, index, app),
                         self.credit_pack_mouse_states[index].clone(),
                         index,
+                        &self.copy,
                     ),
                 )
                 .finish(),
@@ -727,6 +780,7 @@ impl OfferSlide {
         selected: bool,
         mouse_state: MouseStateHandle,
         index: usize,
+        copy: &OnboardingCopy,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let bg_solid = theme.background().into_solid();
@@ -782,10 +836,13 @@ impl OfferSlide {
         let green = theme.ansi_fg_green();
         let has_savings = pack.savings_percent > 0;
         let badge_percent = if has_savings { pack.savings_percent } else { 0 };
+        let badge_text = copy
+            .text_owned("onboarding.offer.credit_savings")
+            .replace("{badge_percent}", &badge_percent.to_string());
         let mut badge = Container::new(
             appearance
                 .ui_builder()
-                .paragraph(format!("Save {badge_percent}%"))
+                .paragraph(badge_text)
                 .with_style(UiComponentStyles {
                     font_size: Some(11.),
                     font_color: Some(if has_savings {
@@ -852,9 +909,7 @@ impl OfferSlide {
         Some(
             appearance
                 .ui_builder()
-                .paragraph(
-                    "We couldn't start that purchase. Try again, or choose \"Set up AI later\" to continue.",
-                )
+                .paragraph(self.copy.text_owned("onboarding.offer.purchase_failed"))
                 .with_style(UiComponentStyles {
                     font_size: Some(13.),
                     font_color: Some(theme.ansi_fg_red()),
@@ -874,7 +929,9 @@ impl OfferSlide {
         let back = self.back_button.render(
             appearance,
             button::Params {
-                content: button::Content::Label("Back".into()),
+                content: button::Content::Label(
+                    self.copy.text_owned("onboarding.common.back").into(),
+                ),
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
@@ -1166,6 +1223,7 @@ impl View for OfferSlide {
 
         let auth_prompt_bar = render_upgrade_auth_prompt_bar(
             appearance,
+            &self.copy,
             self.copy_url_mouse_state.clone(),
             self.paste_token_mouse_state.clone(),
             Box::new(|ctx| {

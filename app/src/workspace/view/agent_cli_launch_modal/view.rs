@@ -62,23 +62,23 @@ fn modal_terminal_magenta_overlay_1(appearance: &Appearance) -> ColorU {
 
 struct FeatureItem {
     icon: Icon,
-    label: &'static str,
-    title: &'static str,
-    description: &'static str,
+    label_key: &'static str,
+    title_key: &'static str,
+    description_key: &'static str,
 }
 
 const FEATURE_ITEMS: &[FeatureItem] = &[
     FeatureItem {
         icon: Icon::LayoutAlt01,
-        label: "What's new:",
-        title: "Use the Warp Agent anywhere",
-        description: "Warp's state of the art agent is now available in any terminal through the CLI.",
+        label_key: "workspace.agent_cli.feature.first.label",
+        title_key: "workspace.agent_cli.feature.first.title",
+        description_key: "workspace.agent_cli.feature.first.description",
     },
     FeatureItem {
         icon: Icon::Inbox,
-        label: "What's special:",
-        title: "Built-in terminal multiplexer",
-        description: "Each Warp Agent creates its own PTY, enabling better behavior for REPLS, ssh, directory switching, and more.",
+        label_key: "workspace.agent_cli.feature.second.label",
+        title_key: "workspace.agent_cli.feature.second.title",
+        description_key: "workspace.agent_cli.feature.second.description",
     },
 ];
 
@@ -156,9 +156,12 @@ impl AgentCliLaunchModal {
         });
 
         let get_started_button = ctx.add_view(|_ctx| {
-            ActionButton::new("Get started", CtaButtonTheme)
-                .with_full_width(true)
-                .on_click(|ctx| ctx.dispatch_typed_action(AgentCliLaunchModalAction::GetStarted))
+            ActionButton::new(
+                crate::localization::text_for_app(_ctx, "workspace.agent_cli.get_started"),
+                CtaButtonTheme,
+            )
+            .with_full_width(true)
+            .on_click(|ctx| ctx.dispatch_typed_action(AgentCliLaunchModalAction::GetStarted))
         });
 
         Self {
@@ -205,12 +208,16 @@ impl AgentCliLaunchModal {
         hero_stack.finish()
     }
 
-    fn render_badge(appearance: &Appearance) -> Box<dyn Element> {
+    fn render_badge(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let text_color = modal_terminal_magenta(appearance);
         let background_color = modal_terminal_magenta_overlay_1(appearance);
-        let text = Text::new_inline("New".to_string(), appearance.ui_font_family(), 14.)
-            .with_color(text_color)
-            .finish();
+        let text = Text::new_inline(
+            crate::localization::text_for_app(app, "workspace.agent_cli.badge_new"),
+            appearance.ui_font_family(),
+            14.,
+        )
+        .with_color(text_color)
+        .finish();
         ConstrainedBox::new(
             Container::new(
                 Flex::row()
@@ -228,9 +235,9 @@ impl AgentCliLaunchModal {
         .finish()
     }
 
-    fn render_title(appearance: &Appearance) -> Box<dyn Element> {
+    fn render_title(appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Text::new(
-            "Introducing the Warp Agent CLI: A coding agent that does what others can't",
+            crate::localization::text_for_app(app, "workspace.agent_cli.title"),
             appearance.ui_font_family(),
             20.,
         )
@@ -239,7 +246,11 @@ impl AgentCliLaunchModal {
         .finish()
     }
 
-    fn render_feature_row(item: &FeatureItem, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_feature_row(
+        item: &FeatureItem,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let icon_el = ConstrainedBox::new(
             item.icon
                 .to_warpui_icon(Fill::Solid(modal_text_sub(appearance)))
@@ -249,8 +260,11 @@ impl AgentCliLaunchModal {
         .with_height(16.)
         .finish();
 
-        let title = format!("{} {}", item.label, item.title);
-        let label_char_count = item.label.chars().count();
+        let label = crate::localization::text_for_app(app, item.label_key);
+        let title = crate::localization::text_for_app(app, item.title_key);
+        let description = crate::localization::text_for_app(app, item.description_key);
+        let title = format!("{label} {title}");
+        let label_char_count = label.chars().count();
         let title_row = Text::new(title, appearance.ui_font_family(), FEATURE_FONT_SIZE)
             .with_color(modal_text_main(appearance))
             .with_single_highlight(
@@ -264,13 +278,9 @@ impl AgentCliLaunchModal {
             .with_spacing(2.)
             .with_child(title_row)
             .with_child(
-                Text::new(
-                    item.description,
-                    appearance.ui_font_family(),
-                    FEATURE_FONT_SIZE,
-                )
-                .with_color(modal_text_sub(appearance))
-                .finish(),
+                Text::new(description, appearance.ui_font_family(), FEATURE_FONT_SIZE)
+                    .with_color(modal_text_sub(appearance))
+                    .finish(),
             )
             .finish();
 
@@ -282,19 +292,19 @@ impl AgentCliLaunchModal {
             .finish()
     }
 
-    fn render_content_column(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_content_column(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let mut features_col = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_spacing(16.);
         for item in FEATURE_ITEMS {
-            features_col.add_child(Self::render_feature_row(item, appearance));
+            features_col.add_child(Self::render_feature_row(item, appearance, app));
         }
 
         let column = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_child(Self::render_badge(appearance))
+            .with_child(Self::render_badge(appearance, app))
             .with_child(
-                Container::new(Self::render_title(appearance))
+                Container::new(Self::render_title(appearance, app))
                     .with_margin_top(8.)
                     .finish(),
             )
@@ -344,7 +354,7 @@ impl View for AgentCliLaunchModal {
                 Flex::row()
                     .with_main_axis_size(MainAxisSize::Min)
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                    .with_child(self.render_content_column(appearance))
+                    .with_child(self.render_content_column(appearance, app))
                     .with_child(self.render_hero())
                     .finish(),
             )

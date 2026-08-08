@@ -641,7 +641,7 @@ impl AIContextMenu {
                     NavigationState::Category(AIContextMenuCategory::Skills)
                         | NavigationState::AllCategories
                 );
-                if skills_active && matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                if skills_active && matches!(event, SkillManagerEvent::SkillsChanged { .. }) {
                     me.mixer.update(ctx, |mixer, ctx| {
                         if let Some(query) = mixer.current_query().cloned() {
                             mixer.run_query(query, ctx);

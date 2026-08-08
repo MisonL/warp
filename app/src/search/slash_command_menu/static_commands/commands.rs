@@ -128,6 +128,16 @@ pub const API_KEYS: StaticCommand = StaticCommand {
     argument: None,
 };
 
+pub const CONNECT_GROK: StaticCommand = StaticCommand {
+    name: "/connect-grok",
+    description: "Connect your Grok (X Premium / SuperGrok) account",
+    kind: SlashCommandKind::ConnectGrok,
+    supported_surfaces: SlashCommandSurfaces::TuiOnly,
+    availability: Availability::AI_ENABLED,
+    auto_enter_ai_mode: false,
+    argument: None,
+};
+
 pub const MANAGE_BILLING: StaticCommand = StaticCommand {
     name: "/manage-billing",
     description: "Open the team billing page in your browser",
@@ -155,6 +165,7 @@ pub const THEME: StaticCommand = StaticCommand {
     auto_enter_ai_mode: false,
     argument: Some(Argument {
         hint_text: Some("<auto|light|dark>"),
+        hint_text_key: None,
         is_optional: false,
         should_execute_on_selection: false,
     }),
@@ -553,6 +564,7 @@ pub const CLEAR: StaticCommand = StaticCommand {
     auto_enter_ai_mode: false,
     argument: Some(Argument {
         hint_text: None,
+        hint_text_key: None,
         is_optional: true,
         should_execute_on_selection: true,
     }),
@@ -951,7 +963,7 @@ impl Default for Registry {
 impl Registry {
     pub fn new() -> Self {
         let mut commands = HashMap::new();
-        for command in all_commands_for_all_surfaces() {
+        for command in registry_commands() {
             debug_assert!(
                 !command
                     .availability
@@ -1009,6 +1021,7 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         INDEX,
         INIT,
         API_KEYS,
+        CONNECT_GROK,
         UPGRADE,
         MANAGE_BILLING,
         LOGOUT,
@@ -1130,6 +1143,22 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         commands.push(HOST.clone());
         commands.push(HARNESS.clone());
         commands.push(ENVIRONMENT.clone());
+    }
+
+    commands
+}
+
+// Keep feature-gated commands that have dynamic availability checks in the registry so a
+// process-level registry initialized before a feature override does not lose their stable IDs.
+fn registry_commands() -> Vec<StaticCommand> {
+    let mut commands = all_commands_for_all_surfaces();
+
+    if cfg!(all(feature = "local_fs", not(target_family = "wasm")))
+        && !commands
+            .iter()
+            .any(|command| command.kind == SlashCommandKind::MoveToCloud)
+    {
+        commands.push(MOVE_TO_CLOUD.clone());
     }
 
     commands

@@ -1,6 +1,7 @@
 ---
 name: tui-migrate-setup
 description: Migrates the supported subset of an existing Warp GUI setup into Warp Agent CLI without exposing credentials or application state. Use in Warp Agent CLI when a user wants to copy or move compatible settings or global file-based MCP servers from the desktop app, set up Warp Agent CLI from an existing GUI installation, or understand which Warp data is already shared.
+description_zh_CN: 在不暴露凭据或应用状态的前提下，将现有 Warp GUI 设置中的受支持部分迁移到 Warp Agent CLI。用户希望从桌面应用复制或移动兼容设置或基于文件的全局 MCP 服务器、从现有 GUI 安装配置 Warp Agent CLI，或了解哪些 Warp 数据已共享时使用。
 compatibility: Requires Python 3.11 or newer for local JSON and TOML inspection. This skill is available only in Warp Agent CLI.
 ---
 

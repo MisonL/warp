@@ -676,9 +676,9 @@ impl SearchItem for ModelSearchItem {
                 label: if self.is_auto
                     && (self.is_using_bedrock || self.is_using_gemini_enterprise_agent_platform)
                 {
-                    AUTO_HOSTED_INFERENCE_LABEL
+                    AUTO_HOSTED_INFERENCE_LABEL.to_owned()
                 } else if self.is_using_bedrock {
-                    "Inference via Bedrock"
+                    localization::text_for_app(app, "settings.ai.model_selector.cost.via_bedrock")
                 } else if self.is_using_gemini_enterprise_agent_platform {
                     localization::text_for_app(
                         app,

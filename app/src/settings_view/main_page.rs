@@ -595,9 +595,18 @@ impl AccountWidget {
                         .filter(|metadata| metadata.can_upgrade_to_higher_tier_plan())
                     {
                         let description = match billing_metadata.customer_type {
-                            CustomerType::Prosumer => "Upgrade to Turbo plan",
-                            CustomerType::Turbo => "Upgrade to Lightspeed plan",
-                            _ => "Compare plans",
+                            CustomerType::Prosumer => crate::localization::text_for_app(
+                                app,
+                                "settings.billing.upgrade.turbo",
+                            ),
+                            CustomerType::Turbo => crate::localization::text_for_app(
+                                app,
+                                "settings.billing.upgrade.lightspeed",
+                            ),
+                            _ => crate::localization::text_for_app(
+                                app,
+                                "settings.billing.upgrade.generic",
+                            ),
                         };
                         let team_uid = team.uid;
                         plan_info.add_child(

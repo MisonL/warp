@@ -221,10 +221,16 @@ pub(crate) fn render_orchestration_tab_footer(builder: &TuiUiBuilder) -> Box<dyn
             localization::text("tui.orchestration.tab_bar.footer.navigate"),
             muted,
         ),
-        ("Shift + ← →".to_string(), primary),
-        (" to go to start/end  ".to_string(), muted),
         ("↓".to_string(), primary),
-        (" to send a message".to_string(), muted),
+        (
+            localization::text("tui.orchestration.tab_bar.footer.send_message"),
+            muted,
+        ),
+        ("Shift + ← →".to_string(), primary),
+        (
+            localization::text("tui.orchestration.tab_bar.footer.go_to_start_end"),
+            muted,
+        ),
     ])
     .truncate()
     .finish()

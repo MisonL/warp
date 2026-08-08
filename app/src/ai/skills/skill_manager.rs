@@ -148,7 +148,9 @@ impl SkillManager {
         }
 
         self.bundled_skills.set_local(bundled_skills);
-        ctx.emit(SkillManagerEvent::BundledSkillsChanged);
+        ctx.emit(SkillManagerEvent::SkillsChanged {
+            home_skills_changed: false,
+        });
         ctx.notify();
         true
     }
@@ -539,7 +541,9 @@ impl SkillManager {
     }
 
     fn notify_bundled_skills_changed(&self, ctx: &mut ModelContext<Self>) {
-        ctx.emit(SkillManagerEvent::BundledSkillsChanged);
+        ctx.emit(SkillManagerEvent::SkillsChanged {
+            home_skills_changed: false,
+        });
         ctx.notify();
     }
 

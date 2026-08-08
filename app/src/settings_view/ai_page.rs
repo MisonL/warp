@@ -1,4 +1,11 @@
-use ::ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent, ApiKeys, CustomEndpointParams};
+use std::time::SystemTime;
+
+use ::ai::api_keys::{
+    ApiKeyManager, ApiKeyManagerEvent, ApiKeys, AwsCredentialsState, CustomEndpointParams,
+};
+use ::ai::geap_credentials::{
+    GEAP_REFRESH_LEAD_TIME, GeapCredentialsState, GeapRecoveryAction, LoadGeapCredentialsError,
+};
 #[cfg(not(target_family = "wasm"))]
 use ::ai::grok_subscription::oauth::{self, ManualCodeExchange};
 use chrono::{DateTime, Local};
@@ -795,9 +802,11 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             )
             .with_group(bindings::BindingGroup::WarpAi),
             ToggleSettingActionPair::custom(
-                SettingActionPairDescriptions::new(
+                SettingActionPairDescriptions::from_keys(
                     "Allow auto-approve to bypass command denylist",
                     "Require approval for denylisted commands in auto-approve",
+                    "settings.ai.input.auto_approve_bypasses_command_denylist.enable",
+                    "settings.ai.input.auto_approve_bypasses_command_denylist.disable",
                 ),
                 builder(SettingsAction::AI(
                     AISettingsPageAction::ToggleAutoApproveBypassesCommandDenylist,
@@ -813,7 +822,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 None,
             )
             .with_group(bindings::BindingGroup::WarpAi),
-            ToggleSettingActionPair::new(
+            ToggleSettingActionPair::new_localized(
                 "conversation history in tools panel",
                 "settings.ai.other.conversation_history.label",
                 builder(SettingsAction::AI(
@@ -5689,8 +5698,14 @@ impl SettingsWidget for UsageWidget {
                 let upgrade_url = UserWorkspaces::upgrade_link_for_team(team.uid);
                 if has_admin_permissions {
                     vec![
-                        FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
-                        FormattedTextFragment::plain_text(" to get more AI usage."),
+                        FormattedTextFragment::hyperlink(
+                            ai_settings_text(app, "settings.billing.upgrade.generic"),
+                            upgrade_url,
+                        ),
+                        FormattedTextFragment::plain_text(ai_settings_text(
+                            app,
+                            "settings.billing.upgrade.more_ai_usage_for_suffix",
+                        )),
                     ]
                 } else {
                     vec![
@@ -5717,7 +5732,21 @@ impl SettingsWidget for UsageWidget {
                         "settings.billing.upgrade.more_ai_usage_suffix",
                     )),
                 ]
-            };
+            }
+        } else {
+            let user_id = auth_state.user_id().unwrap_or_default();
+            let upgrade_url = UserWorkspaces::upgrade_link(user_id);
+            vec![
+                FormattedTextFragment::hyperlink(
+                    ai_settings_text(app, "settings.billing.upgrade.generic"),
+                    upgrade_url,
+                ),
+                FormattedTextFragment::plain_text(ai_settings_text(
+                    app,
+                    "settings.billing.upgrade.more_ai_usage_suffix",
+                )),
+            ]
+        };
 
         let mut upgrade_cta = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(upgrade_cta_text_fragments)]),
@@ -6831,7 +6860,7 @@ impl AgentsWidget {
                 "settings.ai.agents.codebase_context.description",
             )),
             FormattedTextFragment::hyperlink(
-                "Learn more",
+                ai_settings_text(app, "settings.action.learn_more"),
                 "https://docs.warp.dev/agents/capabilities/codebase-context",
             ),
         ];
@@ -7176,20 +7205,25 @@ impl SettingsWidget for AIInputWidget {
 
         widget_children.push(
             Flex::column()
-                .with_child(render_ai_setting_toggle::<
-                    AutoApproveBypassesCommandDenylist,
-                >(
-                    "Allow auto-approve to bypass command denylist",
-                    AISettingsPageAction::ToggleAutoApproveBypassesCommandDenylist,
-                    *ai_settings.auto_approve_bypasses_command_denylist,
-                    is_any_ai_enabled,
-                    self.auto_approve_bypasses_command_denylist_toggle
-                        .clone(),
-                    &view.local_only_icon_tooltip_states,
-                    app,
-                ))
+                .with_child(
+                    render_ai_setting_toggle::<AutoApproveBypassesCommandDenylist>(
+                        ai_settings_text(
+                            app,
+                            "settings.ai.input.auto_approve_bypasses_command_denylist.label",
+                        ),
+                        AISettingsPageAction::ToggleAutoApproveBypassesCommandDenylist,
+                        *ai_settings.auto_approve_bypasses_command_denylist,
+                        is_any_ai_enabled,
+                        self.auto_approve_bypasses_command_denylist_toggle.clone(),
+                        &view.local_only_icon_tooltip_states,
+                        app,
+                    ),
+                )
                 .with_child(render_ai_setting_description(
-                    "When enabled, fast forward and auto-approve run denylisted commands without asking for confirmation.",
+                    ai_settings_text(
+                        app,
+                        "settings.ai.input.auto_approve_bypasses_command_denylist.description",
+                    ),
                     is_any_ai_enabled,
                     app,
                 ))
@@ -7456,7 +7490,7 @@ impl SettingsWidget for MCPServersWidget {
         let mcp_description = vec![
             FormattedTextFragment::plain_text(ai_settings_text(app, "settings.ai.mcp.description")),
             FormattedTextFragment::hyperlink(
-                "Learn more",
+                ai_settings_text(app, "settings.action.learn_more"),
                 "https://docs.warp.dev/agents/capabilities/mcp",
             ),
         ];
@@ -7494,19 +7528,19 @@ impl SettingsWidget for MCPServersWidget {
                         app,
                     ))
                     .with_child({
-                        static FILE_BASED_MCP_DESCRIPTION_FRAGMENTS: LazyLock<
-                            Vec<FormattedTextFragment>,
-                        > = LazyLock::new(|| {
-                            vec![
-                                FormattedTextFragment::plain_text(
-                                    "Automatically detect and spawn MCP servers from globally-scoped third-party AI agent configuration files (e.g. in your home directory). Servers detected inside a repository are never spawned automatically and must be enabled individually from the MCP settings page. ",
+                        let file_based_mcp_description_fragments = vec![
+                            FormattedTextFragment::plain_text(ai_settings_text(
+                                app,
+                                "settings.ai.mcp.auto_spawn.description",
+                            )),
+                            FormattedTextFragment::hyperlink(
+                                ai_settings_text(
+                                    app,
+                                    "settings.ai.mcp.auto_spawn.supported_providers",
                                 ),
-                                FormattedTextFragment::hyperlink(
-                                    "See supported providers.",
-                                    "https://docs.warp.dev/agents/capabilities/mcp#file-based-mcp-servers",
-                                ),
-                            ]
-                        });
+                                "https://docs.warp.dev/agents/capabilities/mcp#file-based-mcp-servers",
+                            ),
+                        ];
                         Container::new(
                             FormattedTextElement::new(
                                 FormattedText::new([FormattedTextLine::Line(
@@ -7536,7 +7570,7 @@ impl SettingsWidget for MCPServersWidget {
         };
 
         let button = render_full_pane_width_ai_button(
-            &ai_settings_text(app, "settings.ai.mcp.manage_servers"),
+            ai_settings_text(app, "settings.ai.mcp.manage_servers"),
             is_any_ai_enabled,
             self.manage_mcp_servers_button.clone(),
             AISettingsPageAction::OpenMCPServerCollection,
@@ -7595,7 +7629,7 @@ impl SettingsWidget for RulesWidget {
                 "settings.ai.knowledge.rules.description",
             )),
             FormattedTextFragment::hyperlink(
-                "Learn more",
+                ai_settings_text(app, "settings.action.learn_more"),
                 "https://docs.warp.dev/agents/capabilities/rules",
             ),
         ];
@@ -7695,7 +7729,7 @@ impl SettingsWidget for ManageRulesWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         render_full_pane_width_ai_button(
-            "Manage rules",
+            ai_settings_text(app, "settings.ai.knowledge.manage_rules"),
             AISettings::as_ref(app).is_any_ai_enabled(app),
             self.manage_rules_button.clone(),
             AISettingsPageAction::OpenAIFactCollection,
@@ -8306,6 +8340,7 @@ impl SettingsWidget for CLIAgentAutoToggleRichInputWidget {
             Some(styles::header_font_color(true, app)),
             Some(AdditionalInfo {
                 mouse_state: self.info_tooltip.clone(),
+                locale: crate::localization::current_locale(app),
                 on_click_action: None,
                 secondary_text: None,
                 tooltip_override_text: Some(
@@ -8366,7 +8401,10 @@ impl SettingsWidget for CLIAgentAutoOpenRichInputWidget {
         }
 
         render_ai_setting_toggle::<AutoOpenRichInputOnCLIAgentStart>(
-            "Auto open Rich Input when a coding agent session starts",
+            ai_settings_text(
+                app,
+                "settings.ai.cli_agent_toolbar.auto_open_rich_input.label",
+            ),
             AISettingsPageAction::ToggleAutoOpenRichInputOnCLIAgentStart,
             *AISettings::as_ref(app).auto_open_rich_input_on_cli_agent_start,
             true,
@@ -8406,7 +8444,10 @@ impl SettingsWidget for CLIAgentAutoDismissRichInputWidget {
         }
 
         render_ai_setting_toggle::<AutoDismissRichInputAfterSubmit>(
-            "Auto dismiss Rich Input after prompt submission",
+            ai_settings_text(
+                app,
+                "settings.ai.cli_agent_toolbar.auto_dismiss_rich_input.label",
+            ),
             AISettingsPageAction::ToggleAutoDismissRichInputAfterSubmit,
             *AISettings::as_ref(app).auto_dismiss_rich_input_after_submit,
             true,
@@ -8446,7 +8487,10 @@ impl SettingsWidget for CLIAgentSubmitRichInputWidget {
         }
 
         render_ai_setting_toggle::<SubmitRichInputOnCtrlEnter>(
-            "Submit Rich Input with Ctrl+Enter",
+            ai_settings_text(
+                app,
+                "settings.ai.cli_agent_toolbar.submit_rich_input_on_ctrl_enter.label",
+            ),
             AISettingsPageAction::ToggleSubmitRichInputOnCtrlEnter,
             *AISettings::as_ref(app).submit_on_ctrl_enter,
             true,
@@ -8484,7 +8528,10 @@ impl SettingsWidget for CLIAgentCommandsWidget {
         list_column.add_child(
             appearance
                 .ui_builder()
-                .span("Commands that enable the toolbar".to_string())
+                .span(ai_settings_text(
+                    app,
+                    "settings.ai.cli_agent_toolbar.commands.label",
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(CONTENT_FONT_SIZE),
                     ..Default::default()
@@ -8567,7 +8614,10 @@ impl SettingsWidget for CLIAgentCommandsWidget {
 
         let description = appearance
             .ui_builder()
-            .paragraph("Add regex patterns to show the coding agent toolbar for matching commands.")
+            .paragraph(ai_settings_text(
+                app,
+                "settings.ai.cli_agent_toolbar.commands.description",
+            ))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.ui_font_size()),
                 font_color: Some(styles::description_font_color(true, app).into()),
@@ -8612,7 +8662,7 @@ impl SettingsWidget for CLIAgentToolbarLayoutWidget {
             return Empty::new().finish();
         }
 
-        render_toolbar_layout_editor(&view.cli_agent_toolbar_inline_editor, appearance)
+        render_toolbar_layout_editor(&view.cli_agent_toolbar_inline_editor, appearance, app)
     }
 }
 
@@ -9459,9 +9509,10 @@ impl ApiKeysWidget {
         }
 
         if show_custom_endpoints {
-            add_paragraph(vec![FormattedTextFragment::plain_text(
-                "Add custom endpoints to use third-party models. Custom endpoints must support OpenAI Chat Completions, OpenAI Responses, or Anthropic Messages.",
-            )]);
+            add_paragraph(vec![FormattedTextFragment::plain_text(ai_settings_text(
+                app,
+                "settings.ai.custom_inference.custom_endpoints_description",
+            ))]);
         }
 
         if show_provider_keys || show_custom_endpoints {

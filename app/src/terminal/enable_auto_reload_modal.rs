@@ -73,20 +73,18 @@ impl EnableAutoReloadModalBody {
             },
         );
 
-        ctx.subscribe_to_model(
-            &UserWorkspaces::handle(ctx),
-            |me, _handle, event, ctx| {
-                match event {
-                    UserWorkspacesEvent::TeamsChanged => {
-                        // Pricing labels depend on the current team's purchase
-                        // policy (premium surcharge), so rebuild them when
-                        // teams change.
-                        me.update_addon_credits_options(ctx);
-                        ctx.notify();
-                    }
-                    UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess => {
-                        if me.update_workspace_settings_loading {
-                            me.update_workspace_settings_loading = false;
+        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _handle, event, ctx| {
+            match event {
+                UserWorkspacesEvent::TeamsChanged => {
+                    // Pricing labels depend on the current team's purchase
+                    // policy (premium surcharge), so rebuild them when
+                    // teams change.
+                    me.update_addon_credits_options(ctx);
+                    ctx.notify();
+                }
+                UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess => {
+                    if me.update_workspace_settings_loading {
+                        me.update_workspace_settings_loading = false;
 
                         // Emit telemetry for successful auto-reload enablement
                         let selected_credits = me

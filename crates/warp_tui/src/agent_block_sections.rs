@@ -17,6 +17,7 @@ use warpui_core::elements::tui::{
 };
 
 use crate::agent_block::{CollapsibleSectionStates, TuiAIBlockAction};
+use crate::localization;
 use crate::tool_call_labels::{
     ResolvedCommandBlock, mcp_server_name_for_action, styled_tool_call_label_spans,
     tool_call_display_state, tool_call_label_with_server,

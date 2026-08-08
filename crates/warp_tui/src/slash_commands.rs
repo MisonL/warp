@@ -13,9 +13,10 @@ use warp::search::mixer::SearchMixerEvent;
 use warp::settings::{AISettings, AppEditorSettings, TuiTheme, TuiThemeSettings};
 use warp::tui_export::{
     AcceptSlashCommandOrSavedPrompt, Appearance, ConversationSelectionHandle,
-    ParsedSlashCommandInput, SlashCommandDataSource as _, SlashCommandMixer, SlashMenuSource,
-    TelemetryEvent, TuiSlashCommandDataSource, UpdatedActiveCommands,
-    should_close_slash_command_menu_for_exact_match, slash_command_query, slash_commands,
+    ParsedSlashCommandInput, SlashCommandArgumentHint, SlashCommandDataSource as _,
+    SlashCommandMixer, SlashMenuSource, TelemetryEvent, TuiSlashCommandDataSource,
+    UpdatedActiveCommands, should_close_slash_command_menu_for_exact_match, slash_command_query,
+    slash_commands,
 };
 use warp_editor::model::CoreEditorModel;
 use warp_localization::LocaleId;
@@ -100,7 +101,7 @@ pub(crate) struct TuiSlashCommandModel {
     lifecycle: InputDrivenInlineMenuLifecycle,
     opened_telemetry_emitted: bool,
     highlighted_prefix_len: Option<usize>,
-    argument_hint_text: Option<&'static str>,
+    argument_hint: Option<SlashCommandArgumentHint>,
     conversation_selection: ConversationSelectionHandle,
 }
 
@@ -139,7 +140,7 @@ impl TuiSlashCommandModel {
             lifecycle: InputDrivenInlineMenuLifecycle::default(),
             opened_telemetry_emitted: false,
             highlighted_prefix_len: None,
-            argument_hint_text: None,
+            argument_hint: None,
             conversation_selection,
         };
         model.update_from_input(false, ctx);
@@ -171,7 +172,7 @@ impl TuiSlashCommandModel {
             lifecycle: InputDrivenInlineMenuLifecycle::default(),
             opened_telemetry_emitted: false,
             highlighted_prefix_len: None,
-            argument_hint_text: None,
+            argument_hint: None,
             conversation_selection,
         }
     }

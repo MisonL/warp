@@ -176,7 +176,7 @@ struct AddonCreditsPurchaseState {
     auto_reload_switch_disabled: bool,
     price_label: String,
     auto_reload_tooltip_text: String,
-    warning_text: Option<&'static str>,
+    warning_text: Option<String>,
     /// Surcharge in basis points applied to displayed prices (0 = none).
     premium_bps: i32,
 }
@@ -227,6 +227,7 @@ impl GrantBucket {
 struct ClassifiedGrants {
     personal: GrantBucket,
     team: GrantBucket,
+    workspace: GrantBucket,
 }
 
 impl ClassifiedGrants {
@@ -234,6 +235,7 @@ impl ClassifiedGrants {
         let now = chrono::Utc::now();
         let mut personal = Vec::new();
         let mut team = Vec::new();
+        let mut workspace = Vec::new();
 
         for grant in grants {
             if grant.expiration.is_some_and(|exp| now >= exp) {
@@ -242,26 +244,30 @@ impl ClassifiedGrants {
             if grant.request_credits_remaining <= 0 {
                 continue;
             }
-            let in_user_scope = grant.scope == BonusGrantScope::User;
-            let in_workspace_scope =
-                workspace_uid.is_some_and(|uid| grant.scope == BonusGrantScope::Workspace(uid));
             if grant.grant_type == BonusGrantType::AmbientOnly {
                 continue;
-            } else if in_user_scope {
-                personal.push(grant.clone());
-            } else if in_workspace_scope {
-                team.push(grant.clone());
+            }
+            match grant.scope {
+                BonusGrantScope::User => personal.push(grant.clone()),
+                BonusGrantScope::Team(uid) if workspace_uid == Some(uid) => {
+                    team.push(grant.clone())
+                }
+                BonusGrantScope::Workspace(uid) if workspace_uid == Some(uid) => {
+                    workspace.push(grant.clone())
+                }
+                BonusGrantScope::Team(_) | BonusGrantScope::Workspace(_) => {}
             }
         }
 
         Self {
             personal: GrantBucket { grants: personal },
             team: GrantBucket { grants: team },
+            workspace: GrantBucket { grants: workspace },
         }
     }
 
     fn has_any(&self) -> bool {
-        !self.personal.is_empty() || !self.team.is_empty()
+        !self.personal.is_empty() || !self.team.is_empty() || !self.workspace.is_empty()
     }
 }
 
@@ -903,6 +909,27 @@ impl BillingAndUsagePageV2View {
             );
         }
 
+        if !classified.workspace.is_empty() {
+            cards_row.add_child(
+                Expanded::new(
+                    1.,
+                    render_balance_card(
+                        appearance,
+                        app,
+                        BalanceCardInfo {
+                            dot_color: BONUS_CREDITS_DOT_COLOR,
+                            label: billing_text(app, "settings.billing.credits.workspace"),
+                            date: classified.workspace.expiry_label(app),
+                            remaining: classified.workspace.total_balance(),
+                            total: None,
+                            border_color: outline_color,
+                        },
+                    ),
+                )
+                .finish(),
+            );
+        }
+
         Some(
             Flex::column()
                 .with_child(
@@ -1160,7 +1187,10 @@ impl BillingAndUsagePageV2View {
             } else if can_upgrade {
                 return AddonCreditsPanelState::IneligiblePlan(
                     AddonCreditsRestriction::UpgradeToBuild {
-                        link_text: "Upgrade to Build",
+                        link_text: billing_text(
+                            app,
+                            "settings.billing.usage_visibility.upgrade_build",
+                        ),
                         url: upgrade_url,
                     },
                 );
@@ -1246,7 +1276,10 @@ impl BillingAndUsagePageV2View {
                 "settings.billing.addon_credits.auto_reload.warning.delinquent",
             ))
         } else if delinquent {
-            Some(ADDON_CREDITS_NON_ADMIN_DELINQUENT_WARNING_STRING)
+            Some(billing_text(
+                app,
+                "settings.billing.addon_credits.auto_reload.warning.delinquent_non_admin",
+            ))
         } else if workspace.is_some_and(|workspace| {
             workspace
                 .billing_metadata
@@ -1575,9 +1608,9 @@ impl BillingAndUsagePageV2View {
                 .finish();
             upper_section.add_child(spend_row);
 
-            if let Some(purchased_row) = workspace
-                .and_then(|workspace| Self::render_purchased_this_month_row(workspace, appearance))
-            {
+            if let Some(purchased_row) = workspace.and_then(|workspace| {
+                Self::render_purchased_this_month_row(workspace, appearance, app)
+            }) {
                 upper_section.add_child(purchased_row);
             }
         }
@@ -1809,11 +1842,12 @@ impl BillingAndUsagePageV2View {
                 upgrade_url,
                 state.premium_bps,
                 appearance,
+                app,
             ));
         }
 
-        if let Some(warning_text) = state.warning_text {
-            lower_children.push(self.render_warning_row(appearance, warning_text.to_string()));
+        if let Some(warning_text) = state.warning_text.as_ref() {
+            lower_children.push(self.render_warning_row(appearance, warning_text.clone()));
         }
 
         Container::new(
@@ -1879,7 +1913,7 @@ impl BillingAndUsagePageV2View {
         if show_addon_credits_panel {
             let is_payg_zero = ws.is_some_and(|ws| {
                 ws.billing_metadata.is_enterprise_pay_as_you_go_enabled()
-                    && ai_model.total_workspace_bonus_credits_remaining(ws.uid) == 0
+                    && ai_model.total_workspace_and_team_bonus_credits_remaining(ws.uid) == 0
             });
 
             if !is_payg_zero {
@@ -2481,3 +2515,7 @@ fn render_balance_card(
     .with_vertical_padding(12.)
     .finish()
 }
+
+#[cfg(test)]
+#[path = "billing_and_usage_page_v2_tests.rs"]
+mod tests;

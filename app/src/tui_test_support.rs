@@ -6,6 +6,7 @@ use std::sync::Arc;
 use ai::api_keys::ApiKeyManager;
 use ai::index::full_source_code_embedding::manager::CodebaseIndexManager;
 use chrono::{Duration, Local};
+use settings::Setting;
 use warp_core::SessionId;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 use warpui::{AppContext, ModelContext, ModelHandle, SingletonEntity as _};
@@ -45,7 +46,8 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::voice_transcriber::ServerVoiceTranscriber;
 use crate::settings::manager::SettingsManager;
 use crate::settings::{
-    AISettings, PrivacySettings, TuiVoiceSettings, init_and_register_user_preferences,
+    AISettings, AppLanguage, LanguageSettings, PrivacySettings, TuiVoiceSettings,
+    init_and_register_user_preferences,
 };
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::event::Event;

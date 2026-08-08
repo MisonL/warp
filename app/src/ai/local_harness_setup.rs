@@ -12,21 +12,6 @@ pub(crate) const LOCAL_CODEX_HARNESS_INSTALLATION_REQUIRED_TOOLTIP: &str =
 pub(crate) const LOCAL_CODEX_HARNESS_DISABLED_MESSAGE: &str =
     "Local Codex child agents are temporarily disabled.";
 
-pub(crate) fn local_harness_setup_message_key(message: &str) -> Option<&'static str> {
-    match message {
-        LOCAL_HARNESS_INSTALLATION_REQUIRED_TOOLTIP => {
-            Some("agent.orchestration.controls.local_claude_install_required")
-        }
-        LOCAL_CODEX_HARNESS_INSTALLATION_REQUIRED_TOOLTIP => {
-            Some("agent.orchestration.controls.local_codex_install_required")
-        }
-        LOCAL_CODEX_HARNESS_DISABLED_MESSAGE => {
-            Some("agent.orchestration.controls.local_codex_disabled")
-        }
-        _ => None,
-    }
-}
-
 /// Client-side readiness for using a harness in local orchestration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum LocalHarnessSetupState {

@@ -184,6 +184,7 @@ fn report_external_reference(
 
     runner.update(ctx, |_, ctx| {
         let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
+        let locale = localization::current_locale(ctx);
 
         ctx.spawn(
             async move { client.report_artifact(&artifact).await },
@@ -197,7 +198,14 @@ fn report_external_reference(
                             println!("{json}");
                         }
                         OutputFormat::Pretty | OutputFormat::Text => {
-                            println!("Artifact reported: {}", response.artifact_uid);
+                            println!(
+                                "{}",
+                                localization::text_for_locale_with_args(
+                                    locale,
+                                    "agent_sdk.harness_support.output.artifact_reported",
+                                    &[("artifact_uid", &response.artifact_uid)],
+                                )
+                            );
                         }
                     }
                     ctx.terminate_app(TerminationMode::ForceTerminate, None);

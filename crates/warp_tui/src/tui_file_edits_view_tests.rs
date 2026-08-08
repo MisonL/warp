@@ -10,6 +10,7 @@ use warp::tui_export::{
 };
 use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::model::CoreEditorModel;
+use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;
 use warpui::{AddWindowOptions, App, WindowInvalidation};
 use warpui_core::elements::tui::{Modifier, TuiBufferExt, TuiRect};
@@ -18,9 +19,9 @@ use warpui_core::presenter::tui::TuiPresenter;
 use warpui_core::{TuiView, ViewHandle};
 
 use super::{
-    FILE_EDITS_PERMISSION_ACTIVE, SectionKey, SectionStates, ToolCallDisplayState,
-    TuiFileEditsView, deltas_for, file_edit_header_label, file_edit_header_spans,
-    file_edit_stats_label, verb_and_name,
+    FILE_EDITS_PERMISSION_ACTIVE, FileEditVerb, SectionKey, SectionStates, ToolCallDisplayState,
+    TuiFileEditsView, deltas_for, file_edit_header_label_for_locale, file_edit_header_spans,
+    file_edit_stats_label, summary_header_label_for_locale, verb_and_name,
 };
 use crate::test_fixtures::{TestHostView, add_test_action_model};
 use crate::tui_builder::TuiUiBuilder;

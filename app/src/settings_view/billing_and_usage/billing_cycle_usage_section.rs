@@ -715,7 +715,7 @@ impl BillingCycleUsageSectionView {
         let appearance = Appearance::as_ref(app);
         let (link_text, trailing_copy, action, leading_icon) =
             if self.viewer_is_native_workspaces_admin(workspace, app) {
-                NATIVE_WORKSPACES_CTA
+                native_workspaces_cta(localization::current_locale(app))
             } else {
                 // Only show when there are teammates -- a single-member workspace
                 // doesn't benefit from any of the team-level visibility CTAs.
@@ -732,7 +732,7 @@ impl BillingCycleUsageSectionView {
                 {
                     return None;
                 }
-                visibility_cta_for(admin_granularity)?
+                visibility_cta_for(admin_granularity, localization::current_locale(app))?
             };
 
         let theme = appearance.theme();
@@ -780,12 +780,17 @@ impl BillingCycleUsageSectionView {
     }
 }
 
-const NATIVE_WORKSPACES_CTA: (&str, &str, BillingCycleUsageAction, Icon) = (
-    "Open the admin panel",
-    "to manage workspace settings and spend limits.",
-    BillingCycleUsageAction::OpenWorkspaceAdminPanel,
-    Icon::Users,
-);
+fn native_workspaces_cta(locale: LocaleId) -> (String, String, BillingCycleUsageAction, Icon) {
+    (
+        localization::text_for_locale(locale, "settings.billing.usage_visibility.open_admin_panel"),
+        localization::text_for_locale(
+            locale,
+            "settings.billing.usage_visibility.manage_workspace_settings",
+        ),
+        BillingCycleUsageAction::OpenWorkspaceAdminPanel,
+        Icon::Users,
+    )
+}
 
 /// Returns the (link text, trailing copy, action, icon) tuple for the
 /// visibility CTA banner, or `None` to suppress the banner entirely.
@@ -833,8 +838,14 @@ fn visibility_cta_for(
         // FullBreakdown viewers already have full visibility; nudge them to
         // the admin panel where per-user spend limits actually get configured.
         UsageVisibilityGranularity::FullBreakdown => Some((
-            "Open the admin panel",
-            "to set per-user spend limits.",
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.open_admin_panel",
+            ),
+            localization::text_for_locale(
+                locale,
+                "settings.billing.usage_visibility.set_per_user_spend_limits",
+            ),
             BillingCycleUsageAction::OpenTeamAdminPanel,
             Icon::Users,
         )),

@@ -59,7 +59,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("enter"),
         EditableBinding::new(
             "tui:ask-question:advance-multiselect",
-            "Advance after selecting multiple answers",
+            binding_description(
+                "Advance after selecting multiple answers",
+                "tui.ask_question.binding.advance_multiselect",
+            ),
             TuiAskQuestionViewAction::AdvanceMultiselect,
         )
         .with_context_predicate(predicate.clone() & id!(ASK_QUESTION_MULTISELECT_ACTIVE))

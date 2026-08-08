@@ -1,11 +1,12 @@
 use ai::LLMProvider;
 use clap::Parser;
 use warp::tui_export::register_tui_session_view_test_singletons;
+use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;
 use warpui::{AddWindowOptions, SingletonEntity};
 use warpui_core::App;
 
-use super::{TuiArgs, ensure_terminal_session, parse_resume_token};
+use super::{TuiArgs, ensure_terminal_session, parse_resume_token, tui_command_for};
 use crate::root_view::RootTuiView;
 use crate::session_registry::TuiSessions;
 use crate::test_fixtures::{add_test_semantic_selection, add_test_terminal_session};

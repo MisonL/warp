@@ -833,7 +833,7 @@ fn local_bundled_skill_reload_discards_stale_results_without_localization_update
         app.update(|ctx| {
             let local_catalog_updates = local_catalog_updates.clone();
             ctx.subscribe_to_model(&manager, move |_, event, _| {
-                if matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                if matches!(event, SkillManagerEvent::SkillsChanged { .. }) {
                     local_catalog_updates.fetch_add(1, Ordering::SeqCst);
                 }
             });
@@ -1273,6 +1273,27 @@ fn warp_control_bundled_skill_activations_track_warp_control_feature() {
             assert!(settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
         }
         drop(warp_control_cli_enabled);
+    });
+}
+
+#[test]
+fn factory_mcp_bundled_skill_activation_tracks_factory_mcp_feature() {
+    assert!(matches!(
+        activation_for_bundled_skill("factory-mcp", Path::new("/resources")),
+        BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp)
+    ));
+
+    App::test((), |app| async move {
+        let settings = app.add_singleton_model(AISettings::new_with_defaults);
+        let activation = activation_for_bundled_skill("factory-mcp", Path::new("/resources"));
+
+        let factory_mcp_disabled = FeatureFlag::FactoryMcp.override_enabled(false);
+        assert!(!settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
+        drop(factory_mcp_disabled);
+
+        let factory_mcp_enabled = FeatureFlag::FactoryMcp.override_enabled(true);
+        assert!(settings.read(&app, |_, ctx| activation.is_enabled(ctx)));
+        drop(factory_mcp_enabled);
     });
 }
 

@@ -31,6 +31,7 @@ use super::model::{
 };
 use crate::keybindings::TUI_BINDING_GROUP;
 use crate::link::TuiLink;
+use crate::localization;
 use crate::option_selector::{
     OptionSelectorHeader, OptionSelectorPage, TuiOptionSelector, TuiOptionSelectorEvent,
 };
@@ -39,10 +40,6 @@ use crate::tui_ask_question_view::PageNavigationDirection;
 use crate::tui_builder::TuiUiBuilder;
 use crate::ui::horizontally_centered;
 
-const HANDOFF_TITLE: &str = "Hand off to cloud";
-const EMPTY_CONVERSATION_HANDOFF_EXPLANATION: &str =
-    "The agent will work on this session in the cloud.";
-const EXISTING_CONVERSATION_HANDOFF_EXPLANATION: &str = "The agent will continue working on your session in the cloud. You will be able to continue the conversation here at any point.";
 const HANDOFF_PAGE_SEQUENCE: [TuiHandoffSelectorKind; 2] = [
     TuiHandoffSelectorKind::Environment,
     TuiHandoffSelectorKind::Model,
@@ -390,9 +387,9 @@ impl TuiHandoffBlock {
     ) -> Box<dyn TuiElement> {
         let model = self.model.as_ref(ctx);
         let explanation = if model.forked_existing_conversation() {
-            EXISTING_CONVERSATION_HANDOFF_EXPLANATION
+            localization::text("tui.handoff.existing_conversation_explanation")
         } else {
-            EMPTY_CONVERSATION_HANDOFF_EXPLANATION
+            localization::text("tui.handoff.empty_conversation_explanation")
         };
         let explanation_style = builder.primary_text_style().add_modifier(Modifier::BOLD);
         if model.no_environments(ctx) {
@@ -404,12 +401,12 @@ impl TuiHandoffBlock {
                 )
                 .child(TuiText::new(" ").finish())
                 .child(
-                    TuiText::new("A cloud environment is required to hand off this conversation.")
+                    TuiText::new(localization::text("tui.handoff.cloud_environment_required"))
                         .with_style(builder.primary_text_style())
                         .finish(),
                 )
                 .child(
-                    TuiText::new("Create one in Oz, then refresh this card.")
+                    TuiText::new(localization::text("tui.handoff.create_environment"))
                         .with_style(builder.muted_text_style())
                         .finish(),
                 )
@@ -450,14 +447,14 @@ impl TuiHandoffBlock {
             TuiHandoffPhase::Committed { .. } => TuiText::from_spans([
                 ("● ".to_owned(), builder.attention_glyph_style()),
                 (
-                    "Creating cloud run…".to_owned(),
+                    localization::text("tui.handoff.cloud_run_creating"),
                     builder.primary_text_style(),
                 ),
             ])
             .finish(),
             TuiHandoffPhase::Created { url, .. } => TuiFlex::column()
                 .child(
-                    TuiText::new("Cloud run created.")
+                    TuiText::new(localization::text("tui.handoff.cloud_run_created"))
                         .with_style(builder.primary_text_style())
                         .finish(),
                 )
@@ -689,7 +686,10 @@ impl TuiView for TuiHandoffBlock {
         let header = TuiContainer::new(
             TuiText::from_spans([
                 ("■ ".to_owned(), builder.option_selector_selected_style()),
-                (HANDOFF_TITLE.to_owned(), builder.primary_text_style()),
+                (
+                    localization::text("tui.handoff.title"),
+                    builder.primary_text_style(),
+                ),
             ])
             .finish(),
         )

@@ -3,12 +3,14 @@
 use anyhow::{Context, Result};
 use serde::Serialize;
 use warp_cli::agent::OutputFormat;
+use warp_localization::LocaleId;
 use warpui::platform::TerminationMode;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
 use crate::auth::user::PrincipalType;
 use crate::auth::{AuthStateProvider, UserUid};
+use crate::localization;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::Workspace;
 
@@ -168,34 +170,76 @@ impl WhoamiOutput {
         self.workspace_name = (!workspace.name.is_empty()).then(|| workspace.name.clone());
     }
 
+    #[cfg(test)]
     fn pretty(&self, principal_type: PrincipalType) -> String {
+        self.pretty_for_locale(principal_type, LocaleId::EnUs)
+    }
+
+    fn pretty_for_locale(&self, principal_type: PrincipalType, locale: LocaleId) -> String {
         let mut lines = vec![match principal_type {
-            PrincipalType::User => format!("User ID: {}", self.uid),
-            PrincipalType::ServiceAccount => format!("Service account ID: {}", self.uid),
+            PrincipalType::User => localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.admin.whoami.user_id",
+                &[("uid", &self.uid)],
+            ),
+            PrincipalType::ServiceAccount => localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.admin.whoami.service_account_id",
+                &[("uid", &self.uid)],
+            ),
         }];
 
         if let Some(name) = &self.display_name {
-            lines.push(format!("Display Name: {name}"));
+            lines.push(localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.admin.whoami.display_name",
+                &[("name", name)],
+            ));
         }
         if let Some(email) = &self.email {
-            lines.push(format!("Email: {email}"));
+            lines.push(localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.admin.whoami.email",
+                &[("email", email)],
+            ));
         }
 
         if let Some(workspace_uid) = &self.workspace_uid {
-            lines.push(format!("Workspace UID: {workspace_uid}"));
+            lines.push(localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.admin.whoami.workspace_uid",
+                &[("workspace_uid", workspace_uid)],
+            ));
         }
         if let Some(workspace_name) = &self.workspace_name {
-            lines.push(format!("Workspace Name: {workspace_name}"));
+            lines.push(localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.admin.whoami.workspace_name",
+                &[("workspace_name", workspace_name)],
+            ));
         }
         if self.team_uids.len() > 1 {
-            lines.push("Teams:".to_string());
+            lines.push(localization::text_for_locale(
+                locale,
+                "agent_sdk.admin.whoami.teams",
+            ));
         }
 
         for (team_uid, team_name) in self.team_uids.iter().zip(&self.team_names) {
             let indent = if self.team_uids.len() > 1 { "  " } else { "" };
-            lines.push(format!("{indent}Team ID: {team_uid}"));
+            let team_id = localization::text_for_locale_with_args(
+                locale,
+                "agent_sdk.admin.whoami.team_id",
+                &[("team_uid", team_uid)],
+            );
+            lines.push(format!("{indent}{team_id}"));
             if !team_name.is_empty() {
-                lines.push(format!("{indent}Team Name: {team_name}"));
+                let team_name = localization::text_for_locale_with_args(
+                    locale,
+                    "agent_sdk.admin.whoami.team_name",
+                    &[("team_name", team_name)],
+                );
+                lines.push(format!("{indent}{team_name}"));
             }
         }
 
@@ -217,9 +261,12 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
     let auth_state = AuthStateProvider::as_ref(ctx).get();
     let principal_type = auth_state.principal_type().unwrap_or_default();
 
-    let user_uid = auth_state
-        .user_id()
-        .ok_or_else(|| anyhow::anyhow!("Could not determine user ID. Are you logged in?"))?;
+    let user_uid = auth_state.user_id().ok_or_else(|| {
+        anyhow::anyhow!(localization::text_for_app(
+            ctx,
+            "agent_sdk.admin.whoami.missing_user_id"
+        ))
+    })?;
     let uid = user_uid.as_string();
     let uid = uid
         .strip_prefix("serviceAccount:")
@@ -271,7 +318,7 @@ pub fn whoami(ctx: &mut AppContext, output_format: OutputFormat) -> Result<()> {
                     }
                 }
                 OutputFormat::Pretty => {
-                    println!("{}", info.pretty(principal_type));
+                    println!("{}", info.pretty_for_locale(principal_type, locale));
                 }
                 OutputFormat::Text => {
                     println!("{}:{}", info.principal_type, info.uid);

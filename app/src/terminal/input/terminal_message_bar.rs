@@ -411,6 +411,12 @@ impl TypedActionView for TerminalInputMessageBar {
     }
 }
 
+#[derive(Copy, Clone)]
+struct InlineHistoryMessageArgs<'a> {
+    selected: Option<&'a AcceptHistoryItem>,
+    app: &'a AppContext,
+}
+
 struct InlineHistoryMessageProducer;
 impl MessageProvider<InlineHistoryMessageArgs<'_>> for InlineHistoryMessageProducer {
     fn produce_message(&self, args: InlineHistoryMessageArgs<'_>) -> Option<Message> {

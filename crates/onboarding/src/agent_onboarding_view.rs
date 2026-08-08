@@ -228,14 +228,16 @@ impl AgentOnboardingView {
             None
         } else {
             let onboarding_state = onboarding_state.clone();
-            Some(ctx.add_typed_action_view(move |_| IntentionSlide::new(onboarding_state)))
+            let copy = copy.clone();
+            Some(ctx.add_typed_action_view(move |_| IntentionSlide::new(onboarding_state, copy)))
         };
 
         let ai_setup_slide = if account_first {
             None
         } else {
             let onboarding_state = onboarding_state.clone();
-            Some(ctx.add_typed_action_view(move |_| AiSetupSlide::new(onboarding_state)))
+            let copy = copy.clone();
+            Some(ctx.add_typed_action_view(move |_| AiSetupSlide::new(onboarding_state, copy)))
         };
 
         let customize_slide = {
@@ -254,14 +256,16 @@ impl AgentOnboardingView {
             None
         } else {
             let onboarding_state = onboarding_state.clone();
-            Some(ctx.add_typed_action_view(move |ctx| AgentSlide::new(onboarding_state, ctx)))
+            let copy = copy.clone();
+            Some(ctx.add_typed_action_view(move |ctx| AgentSlide::new(onboarding_state, copy, ctx)))
         };
 
         let ai_access_slide = if account_first {
             None
         } else {
             let onboarding_state = onboarding_state.clone();
-            Some(ctx.add_typed_action_view(move |_| AiAccessSlide::new(onboarding_state)))
+            let copy = copy.clone();
+            Some(ctx.add_typed_action_view(move |_| AiAccessSlide::new(onboarding_state, copy)))
         };
 
         if let Some(ai_access_slide) = &ai_access_slide {
@@ -277,7 +281,9 @@ impl AgentOnboardingView {
 
         let offer_slide = if account_first {
             let onboarding_state = onboarding_state.clone();
-            let offer_slide = ctx.add_typed_action_view(move |_| OfferSlide::new(onboarding_state));
+            let copy = copy.clone();
+            let offer_slide = ctx
+                .add_typed_action_view(move |_| OfferSlide::new_with_copy(onboarding_state, copy));
             ctx.subscribe_to_view(&offer_slide, |_me, _view, event, ctx| match event {
                 OfferSlideEvent::SetUpLaterSelected { variant } => {
                     ctx.emit(AgentOnboardingEvent::OfferSetUpLaterSelected { variant: *variant });
@@ -298,14 +304,18 @@ impl AgentOnboardingView {
             None
         } else {
             let onboarding_state = onboarding_state.clone();
-            Some(ctx.add_typed_action_view(move |ctx| ThirdPartySlide::new(onboarding_state, ctx)))
+            let copy = copy.clone();
+            Some(ctx.add_typed_action_view(move |ctx| {
+                ThirdPartySlide::new(onboarding_state, copy, ctx)
+            }))
         };
 
         let project_slide = if account_first {
             None
         } else {
             let onboarding_state = onboarding_state.clone();
-            Some(ctx.add_typed_action_view(move |_| ProjectSlide::new(onboarding_state)))
+            let copy = copy.clone();
+            Some(ctx.add_typed_action_view(move |_| ProjectSlide::new(onboarding_state, copy)))
         };
 
         // When the app regains focus (e.g. user returning from the upgrade page in the

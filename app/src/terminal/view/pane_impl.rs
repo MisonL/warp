@@ -665,7 +665,7 @@ impl BackingView for TerminalView {
                 // have a session id (e.g. during ViewPending while the session is still setting up).
                 let has_session_link = Manager::as_ref(ctx).has_session_link(&self.view_id);
                 items.push(
-                    MenuItemFields::new("Copy link")
+                    MenuItemFields::new(localization::text_for_app(ctx, "terminal.menu.copy_link"))
                         .with_on_select_action(TerminalAction::CopySharedSessionLink { source })
                         .with_disabled(!has_session_link)
                         .into_item(),

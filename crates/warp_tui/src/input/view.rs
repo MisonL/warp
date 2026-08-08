@@ -63,6 +63,7 @@ use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestions
 use crate::keybindings::{
     KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG, PLAN_TOGGLE_AVAILABLE_FLAG, TUI_BINDING_GROUP,
 };
+use crate::localization;
 use crate::mcp_install_flow::TuiMcpInstallFlowAction;
 use crate::read_only_menu::TuiReadOnlyMenuKind;
 use crate::terminal_session_view::state::TuiTerminalSessionStateModel;
@@ -126,7 +127,10 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("escape"),
         EditableBinding::new(
             MCP_LOGOUT_BINDING_NAME,
-            "Log out of the selected MCP server and remove its credentials",
+            binding_description(
+                "Log out of the selected MCP server and remove its credentials",
+                "tui.input.binding.mcp_logout",
+            ),
             TuiInputAction::LogOutSelectedMcp,
         )
         .with_context_predicate(id!("TuiInputView") & id!(MCP_MENU_ACTIVE_FLAG))
@@ -134,13 +138,24 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-r"),
         EditableBinding::new(
             "tui:input:complete_shell_command",
-            "Complete the shell command",
+            binding_description(
+                "Complete the shell command",
+                "tui.input.binding.complete_shell_command",
+            ),
             TuiInputAction::Complete,
         )
         .with_context_predicate(id!("TuiInputView") & id!(SHELL_COMPLETION_AVAILABLE_FLAG))
         .with_group(TUI_BINDING_GROUP)
         .with_key_binding("tab"),
     ]);
+}
+
+fn binding_description(
+    fallback: &'static str,
+    key: &'static str,
+) -> warpui_core::keymap::BindingDescription {
+    warpui_core::keymap::BindingDescription::new(fallback)
+        .with_dynamic_override(move |_| Some(localization::text(key)))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

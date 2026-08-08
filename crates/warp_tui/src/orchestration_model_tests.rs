@@ -1,8 +1,9 @@
 use warp::tui_export::{
     AIConversationId, BlocklistAIHistoryModel, CloudAgentStartupBlocker, CloudAgentStartupFailure,
     CloudAgentStartupIssue, ConversationStatus, Harness, OrchestrationEventStreamerEvent,
-    RenderableAIError, StartAgentExecutionMode, StartAgentExecutor, StartAgentExecutorEvent,
-    StartAgentOutcome, StartAgentRequest, register_tui_session_view_test_singletons,
+    PrepareRemoteChildLaunchError, RenderableAIError, StartAgentExecutionMode, StartAgentExecutor,
+    StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
+    register_tui_session_view_test_singletons,
 };
 use warp_localization::LocaleId;
 use warpui::platform::WindowStyle;

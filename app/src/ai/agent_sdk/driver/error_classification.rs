@@ -216,12 +216,13 @@ fn classify_driver_error_for_locale(
                 PlatformErrorCode::EnvironmentSetupFailed,
             ),
         ),
-        AgentDriverError::InvalidWorkingDirectory { path, .. } => (
-            AgentTaskState::Failed,
-            TaskStatusUpdate::with_error_code(
-                format!(
-                    "Working directory '{}' does not exist or is not a directory. Verify the path in your environment configuration.",
-                    path.display()
+        AgentDriverError::InvalidWorkingDirectory { path, .. } => {
+            let path = path.display().to_string();
+            (
+                AgentTaskState::Failed,
+                TaskStatusUpdate::with_error_code(
+                    text_with_args(locale, "invalid_working_directory", &[("path", &path)]),
+                    PlatformErrorCode::EnvironmentSetupFailed,
                 ),
             )
         }

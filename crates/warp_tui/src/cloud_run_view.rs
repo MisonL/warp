@@ -249,7 +249,9 @@ impl TuiCloudRunView {
                     },
                     status_label: presentation.title.to_string(),
                     detail: Some(presentation.detail),
-                    link_instruction: Some("to authenticate or click the link below"),
+                    link_instruction: Some(localization::text(
+                        "tui.orchestration.cloud_run.instruction.authenticate",
+                    )),
                     link_url: presentation.primary_url,
                 }
             }

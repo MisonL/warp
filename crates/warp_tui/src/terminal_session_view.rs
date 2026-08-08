@@ -87,7 +87,7 @@ use crate::attachment_bar::{
 use crate::cli_agent_osc_event_publisher::{
     CliAgentOscEventPublisher, host_supports_cli_agent_notifications,
 };
-use crate::clipboard::copy_to_clipboard;
+use crate::clipboard::{ClipboardCopy, copy_to_clipboard};
 use crate::completion_menu::TuiCompletionMenuModel;
 use crate::conversation_menu::{TuiConversationMenuEvent, TuiConversationMenuModel};
 use crate::conversation_selection::TuiConversationSelection;
@@ -106,16 +106,16 @@ use crate::keybindings::{
     TUI_BINDING_GROUP, binding_hint,
 };
 use crate::link::TuiLink;
+use crate::localization;
 use crate::mcp_install_flow::{
     TuiMcpInstallFlowAction, TuiMcpInstallFlowEvent, TuiMcpInstallFlowModel,
 };
-use crate::localization;
 use crate::mcp_menu::{TuiMcpMenuEvent, TuiMcpMenuModel};
 use crate::model_menu::{TuiModelMenuEvent, TuiModelMenuModel};
 use crate::orchestration_block::TuiOrchestrationBlock;
 use crate::orchestration_model::{TuiOrchestrationModel, TuiOrchestrationSnapshot};
 use crate::orchestration_tab_bar::{
-    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, TuiOrchestrationTabNavigationAction, focus_sub_agents_hint,
+    ORCHESTRATION_TAB_BAR_FOCUSED_FLAG, TuiOrchestrationTabNavigationAction,
     orchestration_tab_bar_config, register_orchestration_surface_bindings,
     render_orchestration_child_selected_tab_footer, render_orchestration_tab_footer,
 };
@@ -205,7 +205,6 @@ const RUNNING_COMMAND_DETACH_HINT: &str = "ctrl-c to return to command";
 /// The footer hint shown when the ctrl-c kill-child window is armed.
 /// Replaces the exit hint when viewing a child agent conversation.
 pub(crate) const CTRL_C_KILL_CHILD_HINT: &str = "ctrl-c again to kill child agent";
-const STARTING_SHELL_HINT: &str = "Starting shell...";
 /// The hint row plus its top padding. The zero state accounts for this temporary
 /// chrome so its centered position already matches the post-bootstrap layout.
 const STARTING_SHELL_CHROME_ROWS: u16 = 2;
@@ -370,12 +369,12 @@ const THEME_INVALID_ARGUMENT_HINT: &str = "Theme must be auto, light, or dark.";
 /// guidance lives in the input's placeholder ghost text, so the footer only
 /// names the mode.
 const SHELL_MODE_HINT: &str = "Shell mode";
-const COPY_SELECTION_HINT: &str = "copied to clipboard";
 const COPY_FAILED_HINT: &str = "failed to copy to clipboard";
 const COPY_DEBUGGING_ID_HINT: &str = "Debugging information copied to clipboard";
+#[cfg(test)]
+const LOG_BUNDLE_FAILED_HINT: &str = "Failed to create log bundle (check logs)";
 const COPY_DEBUGGING_ID_NO_TOKEN_HINT: &str =
     "No debugging ID available for this conversation yet.";
-const LOG_BUNDLE_FAILED_HINT: &str = "Failed to create log bundle (check logs)";
 const NLD_ENABLED_HINT: &str = "Natural language detection enabled.";
 const NLD_DISABLED_HINT: &str = "Natural language detection disabled.";
 const NLD_PERSISTENCE_FAILED_HINT: &str = "Could not save the natural language detection setting.";
@@ -865,7 +864,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             ATTACH_AGENT_TO_RUNNING_COMMAND_BINDING_NAME,
-            "Use the agent with the running command",
+            binding_description(
+                "Use the agent with the running command",
+                "tui.terminal_session.binding.attach_agent",
+            ),
             TuiTerminalSessionAction::AttachAgentToRunningCommand,
         )
         .with_context_predicate(
@@ -876,7 +878,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-shift-enter"),
         EditableBinding::new(
             DETACH_AGENT_FROM_RUNNING_COMMAND_BINDING_NAME,
-            "Return control to the running command",
+            binding_description(
+                "Return control to the running command",
+                "tui.terminal_session.binding.detach_agent",
+            ),
             TuiTerminalSessionAction::DetachAgentFromRunningCommand,
         )
         .with_context_predicate(
@@ -887,7 +892,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("escape"),
         EditableBinding::new(
             ACCEPT_BLOCKED_TERMINAL_USE_ACTION_BINDING_NAME,
-            "Accept the blocked terminal-use action",
+            binding_description(
+                "Accept the blocked terminal-use action",
+                "tui.terminal_session.binding.accept_terminal_use",
+            ),
             TuiTerminalSessionAction::AcceptBlockedTerminalUseAction,
         )
         .with_context_predicate(
@@ -945,7 +953,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("tab"),
         EditableBinding::new(
             PASTE_IMAGE_BINDING_NAME,
-            "Paste from the clipboard",
+            binding_description(
+                "Paste from the clipboard",
+                "tui.terminal_session.binding.paste_clipboard",
+            ),
             TuiTerminalSessionAction::PasteFromClipboard,
         )
         .with_context_predicate(
@@ -956,7 +967,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("ctrl-v"),
         EditableBinding::new(
             PASTE_IMAGE_BINDING_NAME,
-            "Paste from the clipboard",
+            binding_description(
+                "Paste from the clipboard",
+                "tui.terminal_session.binding.paste_clipboard",
+            ),
             TuiTerminalSessionAction::PasteFromClipboard,
         )
         .with_context_predicate(
@@ -968,7 +982,10 @@ pub(crate) fn init(app: &mut AppContext) {
         #[cfg(feature = "voice_input")]
         EditableBinding::new(
             VOICE_INPUT_BINDING_NAME,
-            "Start voice input",
+            binding_description(
+                "Start voice input",
+                "tui.terminal_session.binding.voice_input",
+            ),
             TuiTerminalSessionAction::StartVoiceInput,
         )
         .with_context_predicate(
@@ -980,7 +997,10 @@ pub(crate) fn init(app: &mut AppContext) {
         #[cfg(windows)]
         EditableBinding::new(
             PASTE_IMAGE_BINDING_NAME,
-            "Paste from the clipboard",
+            binding_description(
+                "Paste from the clipboard",
+                "tui.terminal_session.binding.paste_clipboard",
+            ),
             TuiTerminalSessionAction::PasteFromClipboard,
         )
         .with_context_predicate(
@@ -1012,7 +1032,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("shift-down"),
         EditableBinding::new(
             "tui:orchestration_tabs:focus_main",
-            "Return to the main agent and focus its input",
+            binding_description(
+                "Return to the main agent and focus its input",
+                "tui.orchestration.binding.focus_main",
+            ),
             TuiTerminalSessionAction::FocusMainOrchestrationTab,
         )
         .with_context_predicate(tab_context)
@@ -1203,14 +1226,7 @@ impl TuiTerminalSessionView {
                 } else {
                     ctx.focus(&self.input_view);
                 }
-                None => {
-                    if self.orchestration_tabs_focused {
-                        ctx.focus_self();
-                    } else {
-                        ctx.focus(&self.input_view);
-                    }
-                }
-            },
+            }
         }
     }
 
@@ -2020,7 +2036,9 @@ impl TuiTerminalSessionView {
             TuiInputViewEvent::RequestShellCompletion => {
                 view.request_shell_completion(ctx);
             }
-            TuiInputViewEvent::ClipboardCopySucceeded => view.show_copy_hint(ctx),
+            TuiInputViewEvent::ClipboardCopySucceeded => {
+                view.show_copy_hint(ClipboardCopy::Copied, ctx)
+            }
             TuiInputViewEvent::ClipboardCopyFailed => {
                 view.show_transient_hint(COPY_FAILED_HINT.to_owned(), ctx);
             }
@@ -2581,7 +2599,10 @@ impl TuiTerminalSessionView {
                     pill_kind,
                     total_pills: snapshot.children.len() + 1,
                     total_pinned: 0,
+                    // The TUI tab bar is root-anchored (no drill-down), so
+                    // the anchor and the tree root coincide.
                     source_conversation_id: snapshot.root_conversation_id,
+                    root_conversation_id: snapshot.root_conversation_id,
                     target_conversation_id: conversation_id,
                     switch_outcome: Some(PillSwitchOutcome::SwitchedInPlace),
                 }),
@@ -2651,7 +2672,10 @@ impl TuiTerminalSessionView {
                     pill_kind: PillBarPillKind::Child,
                     total_pills: snapshot.children.len() + 1,
                     total_pinned: 0,
+                    // The TUI tab bar is root-anchored (no drill-down), so
+                    // the anchor and the tree root coincide.
                     source_conversation_id: snapshot.root_conversation_id,
+                    root_conversation_id: snapshot.root_conversation_id,
                     target_conversation_id: conversation_id,
                     switch_outcome: None,
                 }),
@@ -4103,7 +4127,10 @@ impl TuiTerminalSessionView {
                 self.show_transient_hint(hint.clone(), ctx);
             }
             TuiVoiceInputEvent::Cancelled => {
-                self.show_transient_hint("Voice input cancelled".to_owned(), ctx);
+                self.show_transient_hint(
+                    localization::text("tui.terminal_session.voice_input_cancelled"),
+                    ctx,
+                );
             }
             TuiVoiceInputEvent::StateChanged(_) => ctx.notify(),
         }
@@ -4555,6 +4582,11 @@ impl TuiTerminalSessionView {
                 self.api_keys_menu.update(ctx, |menu, ctx| menu.open(ctx));
                 record_static_slash_command_accepted(command.name, true, ctx);
             }
+            SlashCommandKind::ConnectGrok => {
+                self.api_keys_menu
+                    .update(ctx, |menu, ctx| menu.open_and_connect_grok(ctx));
+                record_static_slash_command_accepted(command.name, true, ctx);
+            }
             SlashCommandKind::Upgrade => {
                 self.input_view.update(ctx, |input, ctx| input.clear(ctx));
                 ctx.open_url(&upgrade_url(ctx));
@@ -4751,7 +4783,7 @@ impl TuiTerminalSessionView {
                     .map(|token| token.debugging_payload(None));
                 match debugging_payload {
                     Some(debugging_payload) => match copy_to_clipboard(&debugging_payload) {
-                        Ok(()) => {
+                        Ok(_) => {
                             self.show_success_hint(COPY_DEBUGGING_ID_HINT.to_owned(), ctx);
                         }
                         Err(error) => {
@@ -5642,7 +5674,7 @@ impl TypedActionView for TuiTerminalSessionView {
             }
             TuiTerminalSessionAction::ReadOnlyMenuSelectionEnded(text) => {
                 match copy_to_clipboard(text) {
-                    Ok(()) => self.show_copy_hint(ctx),
+                    Ok(copy) => self.show_copy_hint(copy, ctx),
                     Err(error) => {
                         log::warn!("Failed to copy TUI read-only menu selection: {error}");
                         self.show_transient_hint(COPY_FAILED_HINT.to_owned(), ctx);

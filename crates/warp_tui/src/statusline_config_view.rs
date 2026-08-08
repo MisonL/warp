@@ -11,12 +11,13 @@ use warpui_core::elements::tui::{
     Modifier, TuiChildView, TuiContainer, TuiElement, TuiFlex, TuiText,
 };
 use warpui_core::keymap::macros::*;
-use warpui_core::keymap::{EditableBinding, FixedBinding};
+use warpui_core::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui_core::{
     AppContext, Entity, EntityId, TuiView, TypedActionView, ViewContext, ViewHandle,
 };
 
 use crate::keybindings::{TUI_BINDING_GROUP, is_tui_owned_binding};
+use crate::localization;
 use crate::option_selector::{
     OptionSelectorPage, TuiOptionSelector, TuiOptionSelectorEvent, TuiOptionSelectorMoveDirection,
 };
@@ -40,7 +41,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "tui:statusline:toggle",
-            "Toggle the highlighted statusline item",
+            binding_description(
+                "Toggle the highlighted statusline item",
+                "tui.statusline.binding.toggle",
+            ),
             TuiStatuslineConfigAction::Toggle,
         )
         .with_context_predicate(active.clone())
@@ -48,7 +52,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("enter"),
         EditableBinding::new(
             "tui:statusline:save",
-            "Save and close the statusline configuration",
+            binding_description(
+                "Save and close the statusline configuration",
+                "tui.statusline.binding.save",
+            ),
             TuiStatuslineConfigAction::Save,
         )
         .with_context_predicate(active)
@@ -56,7 +63,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("escape"),
         EditableBinding::new(
             "tui:statusline:move_left",
-            "Move the highlighted statusline item left",
+            binding_description(
+                "Move the highlighted statusline item left",
+                "tui.statusline.binding.move_left",
+            ),
             TuiStatuslineConfigAction::MoveBackward,
         )
         .with_context_predicate(reorder.clone())
@@ -64,7 +74,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("left"),
         EditableBinding::new(
             "tui:statusline:move_right",
-            "Move the highlighted statusline item right",
+            binding_description(
+                "Move the highlighted statusline item right",
+                "tui.statusline.binding.move_right",
+            ),
             TuiStatuslineConfigAction::MoveForward,
         )
         .with_context_predicate(reorder)
@@ -72,6 +85,10 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("right"),
     ]);
     app.register_tui_binding_validator::<TuiStatuslineConfigView>(is_tui_owned_binding);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| Some(localization::text(key)))
 }
 
 #[derive(Clone, Debug)]
@@ -269,7 +286,7 @@ impl TuiStatuslineConfigView {
 fn statusline_question() -> AskUserQuestionItem {
     AskUserQuestionItem {
         question_id: STATUSLINE_QUESTION_ID.to_owned(),
-        question: "Configure statusline".to_owned(),
+        question: localization::text("tui.statusline.title"),
         question_type: AskUserQuestionType::MultipleChoice {
             is_multiselect: true,
             options: TuiStatuslineItem::ALL
@@ -308,7 +325,7 @@ impl TuiView for TuiStatuslineConfigView {
 
     fn render(&self, app: &AppContext) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(app);
-        let title = TuiText::new("Configure statusline")
+        let title = TuiText::new(localization::text("tui.statusline.title"))
             .with_style(builder.primary_text_style().add_modifier(Modifier::BOLD))
             .finish();
         let body = TuiFlex::column()

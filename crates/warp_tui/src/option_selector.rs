@@ -20,8 +20,8 @@ use warpui_core::elements::tui::{
     TuiHoverable, TuiLayoutContext, TuiPaintContext, TuiPaintSurface, TuiParentElement,
     TuiPresentationContext, TuiScreenPoint, TuiScreenPosition, TuiSize, TuiStyle, TuiText,
 };
-use warpui_core::keymap::EditableBinding;
 use warpui_core::keymap::macros::*;
+use warpui_core::keymap::{BindingDescription, EditableBinding};
 use warpui_core::{
     AppContext, BlurContext, Entity, EntityId, FocusContext, TuiView, TypedActionView, ViewContext,
     ViewHandle,
@@ -32,6 +32,7 @@ use crate::editor_view::{
 };
 use crate::inline_menu::keep_selected_visible;
 use crate::keybindings::TUI_BINDING_GROUP;
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 
 /// Maximum option rows visible at once; longer lists scroll.
@@ -46,7 +47,10 @@ pub(crate) fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "tui:option-selector:previous",
-            "Select the previous option",
+            binding_description(
+                "Select the previous option",
+                "tui.option_selector.binding.previous",
+            ),
             TuiOptionSelectorAction::MoveUp,
         )
         .with_context_predicate(predicate.clone())
@@ -54,13 +58,17 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_key_binding("up"),
         EditableBinding::new(
             "tui:option-selector:next",
-            "Select the next option",
+            binding_description("Select the next option", "tui.option_selector.binding.next"),
             TuiOptionSelectorAction::MoveDown,
         )
         .with_context_predicate(predicate)
         .with_group(TUI_BINDING_GROUP)
         .with_key_binding("down"),
     ]);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| Some(localization::text(key)))
 }
 
 /// Optional header rendered above a selector page.

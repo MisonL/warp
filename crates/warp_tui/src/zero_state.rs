@@ -34,6 +34,7 @@ use warpui_core::elements::tui::{
 use warpui_core::{AppContext, Entity, ModelHandle, TuiView, ViewContext};
 
 use crate::autoupdate::{TuiAutoupdateStatus, TuiAutoupdater, TuiAutoupdaterEvent};
+use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
 use crate::ui::{abbreviate_home_prefix, append_welcome_capability_section, render_welcome_title};
 use crate::zero_state_animation::{
@@ -645,7 +646,7 @@ fn render_standard_top_section(
 
     let mut column = TuiFlex::column()
         .child(
-            TuiText::new("Warp Agent CLI")
+            TuiText::new(localization::text("tui.zero_state.title"))
                 .with_style(title_style)
                 .truncate()
                 .finish(),
@@ -687,7 +688,10 @@ fn render_first_run_top_section(
     app: &AppContext,
 ) -> TuiFlex {
     let mut column = TuiFlex::column()
-        .child(render_welcome_title(builder))
+        .child(render_welcome_title(
+            builder,
+            localization::text("tui.auth.login_title"),
+        ))
         .child(render_version_line(builder, app));
     if visibility.signed_in_user {
         column = column.child(render_login_line_with_prefix("logged in as", builder, app));
@@ -745,7 +749,7 @@ fn render_mcp_section(mut column: TuiFlex, builder: &TuiUiBuilder, app: &AppCont
     let header_style = builder.primary_text_style().add_modifier(Modifier::BOLD);
     let muted = builder.muted_text_style();
     column = column.child(blank_row()).child(
-        TuiText::new("MCP")
+        TuiText::new(localization::text("tui.zero_state.mcp.title"))
             .with_style(header_style)
             .truncate()
             .finish(),
@@ -779,14 +783,19 @@ impl McpStatusCounts {
             TuiMcpServerStatus::Authenticating => self.authenticating += 1,
             TuiMcpServerStatus::Running => self.running += 1,
             TuiMcpServerStatus::Stopping => self.stopping += 1,
+            TuiMcpServerStatus::FailedToStart => self.failed += 1,
             TuiMcpServerStatus::Failed { .. } => self.failed += 1,
         }
     }
 }
 
 fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, bool) {
+    let locale = localization::current_locale();
     if snapshot.servers.is_empty() && snapshot.diagnostics.is_empty() {
-        return ("No servers available · run /mcp".to_owned(), false);
+        return (
+            localization::text_for_locale(locale, "tui.zero_state.mcp.no_servers_available"),
+            false,
+        );
     }
     let mut counts = McpStatusCounts::default();
     for server in &snapshot.servers {
@@ -803,31 +812,67 @@ fn mcp_status_label(snapshot: &warp::tui_export::TuiMcpSnapshot) -> (String, boo
     } = counts;
     let mut parts = Vec::new();
     if running > 0 {
-        parts.push(format!("{running} connected"));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.connected",
+            &[("count", &running.to_string())],
+        ));
     }
     if starting > 0 {
-        parts.push(format!("{starting} starting"));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.starting",
+            &[("count", &starting.to_string())],
+        ));
     }
     if authenticating > 0 {
-        parts.push(format!("{authenticating} needs auth"));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.needs_auth",
+            &[("count", &authenticating.to_string())],
+        ));
     }
     if stopping > 0 {
-        parts.push(format!("{stopping} stopping"));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.stopping",
+            &[("count", &stopping.to_string())],
+        ));
     }
     if failed > 0 {
-        parts.push(format!("{failed} failed"));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.failed",
+            &[("count", &failed.to_string())],
+        ));
     }
     if offline > 0 {
-        parts.push(format!("{offline} offline"));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.offline",
+            &[("count", &offline.to_string())],
+        ));
     }
     if available > 0 {
-        parts.push(format!("{available} available"));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.available",
+            &[("count", &available.to_string())],
+        ));
     }
     if !snapshot.diagnostics.is_empty() {
-        parts.push(format!("{} config errors", snapshot.diagnostics.len()));
+        parts.push(localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.config_errors",
+            &[("count", &snapshot.diagnostics.len().to_string())],
+        ));
     }
     (
-        format!("{} · /mcp", parts.join(" · ")),
+        localization::text_with_args_for_locale(
+            locale,
+            "tui.zero_state.mcp.summary",
+            &[("statuses", &parts.join(" · "))],
+        ),
         !snapshot.diagnostics.is_empty(),
     )
 }

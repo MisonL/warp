@@ -11,6 +11,7 @@ use warpui_core::elements::tui::{
 };
 use warpui_core::elements::{CrossAxisAlignment, MouseStateHandle};
 
+use crate::localization;
 use crate::transient_hint::TransientHintTone;
 use crate::tui_builder::TuiUiBuilder;
 use crate::warping_indicator::render_spinner;
@@ -140,8 +141,8 @@ pub(crate) fn centered_in_viewport(content: Box<dyn TuiElement>) -> Box<dyn TuiE
         .finish()
 }
 
-pub(crate) fn render_welcome_title(builder: &TuiUiBuilder) -> Box<dyn TuiElement> {
-    TuiText::new("Welcome to Warp")
+pub(crate) fn render_welcome_title(builder: &TuiUiBuilder, title: String) -> Box<dyn TuiElement> {
+    TuiText::new(title)
         .with_style(builder.brand_primary_style().add_modifier(Modifier::BOLD))
         .truncate()
         .finish()
@@ -152,21 +153,21 @@ pub(crate) fn append_welcome_capability_section(
     builder: &TuiUiBuilder,
 ) -> TuiFlex {
     column = column.child(
-        TuiText::new("What’s different about Warp")
+        TuiText::new(localization::text("tui.auth.capabilities_title"))
             .with_style(builder.muted_text_style())
             .truncate()
             .finish(),
     );
-    for description in [
-        "State of the art coding agents",
-        "Frontier and open-weight models",
-        "Fully customizable model routers",
-        "Orchestration for fleets of agents",
-        "Better shell command support",
+    for key in [
+        "tui.auth.capability.coding_agents",
+        "tui.auth.capability.frontier_models",
+        "tui.auth.capability.model_routers",
+        "tui.auth.capability.orchestration",
+        "tui.auth.capability.shell_commands",
     ] {
         column = column.child(capability_row(
             "✶",
-            description,
+            &localization::text(key),
             builder.brand_accent_style(),
             builder.primary_text_style(),
         ));
@@ -203,23 +204,26 @@ pub(crate) fn signed_out_welcome(
     let mut on_login_key = on_login.clone();
     let mut on_copy_key = on_copy.clone();
     let content = TuiFlex::column()
-        .child(render_welcome_title(&builder))
+        .child(render_welcome_title(
+            &builder,
+            localization::text("tui.auth.login_title"),
+        ))
         .child(
             TuiText::from_spans([
                 ("> ".to_owned(), brand_accent),
-                ("Press ".to_owned(), muted),
+                (localization::text("tui.auth.press_enter_prefix"), muted),
                 (
                     "enter".to_owned(),
                     brand_accent.add_modifier(Modifier::BOLD),
                 ),
-                (" to get started".to_owned(), muted),
+                (localization::text("tui.auth.press_enter_suffix"), muted),
             ])
             .finish(),
         )
         .child(
             TuiHoverable::new(
                 login_mouse,
-                TuiText::new("Log in with Warp")
+                TuiText::new(localization::text("tui.auth.log_in"))
                     .with_style(login_style)
                     .truncate()
                     .finish(),
@@ -230,7 +234,7 @@ pub(crate) fn signed_out_welcome(
         .child(
             TuiHoverable::new(
                 copy_mouse,
-                TuiText::new("Copy login URL (c)")
+                TuiText::new(localization::text("tui.auth.copy_login_url"))
                     .with_style(copy_style)
                     .truncate()
                     .finish(),
@@ -296,7 +300,7 @@ pub(crate) fn login_waiting(
         .add_modifier(Modifier::BOLD);
     let mut content = TuiFlex::column()
         .child(
-            TuiText::new("Welcome to Warp")
+            TuiText::new(localization::text("tui.auth.login_title"))
                 .with_style(title)
                 .truncate()
                 .finish(),
@@ -304,7 +308,7 @@ pub(crate) fn login_waiting(
         .child(
             TuiText::from_spans([
                 ("● ".to_owned(), builder.attention_glyph_style()),
-                ("Waiting for login...".to_owned(), primary),
+                (localization::text("tui.auth.waiting_for_login"), primary),
             ])
             .finish(),
         )
@@ -325,9 +329,9 @@ pub(crate) fn login_waiting(
             TuiHoverable::new(
                 login_mouse,
                 TuiText::from_spans([
-                    ("Visit ".to_owned(), muted),
+                    (localization::text("tui.auth.visit_prefix"), muted),
                     (browser_url.to_owned(), link_style),
-                    (" to get started, then come back here.".to_owned(), muted),
+                    (localization::text("tui.auth.visit_suffix"), muted),
                 ])
                 .finish(),
             )
@@ -349,7 +353,7 @@ pub(crate) fn login_waiting(
                 } else {
                     builder.link_text_style()
                 };
-                ("Copy URL (c)".to_owned(), style)
+                (localization::text("tui.auth.copy_url"), style)
             }
         };
         content = content.child(
@@ -365,7 +369,7 @@ pub(crate) fn login_waiting(
         );
     } else {
         content = content.child(
-            TuiText::new("Requesting a secure sign-in link...")
+            TuiText::new(localization::text("tui.auth.requesting_link"))
                 .with_style(muted)
                 .finish(),
         );
@@ -439,19 +443,19 @@ pub(crate) fn login_browser_open_failed(
     let mut on_copy_key = on_copy.clone();
     let content = TuiFlex::column()
         .child(
-            TuiText::new("Welcome to Warp")
+            TuiText::new(localization::text("tui.auth.login_title"))
                 .with_style(title)
                 .truncate()
                 .finish(),
         )
         .child(
-            TuiText::new("We couldn’t open your browser.")
+            TuiText::new(localization::text("tui.auth.browser_open_failed"))
                 .with_style(builder.attention_glyph_style())
                 .finish(),
         )
         .child(blank_row())
         .child(
-            TuiText::new("Open this exact URL manually:")
+            TuiText::new(localization::text("tui.auth.manual_url"))
                 .with_style(muted)
                 .finish(),
         )
@@ -478,7 +482,7 @@ pub(crate) fn login_browser_open_failed(
         .child(
             TuiHoverable::new(
                 retry_mouse,
-                TuiText::new("Retry opening browser (r)")
+                TuiText::new(localization::text("tui.auth.retry_browser"))
                     .with_style(retry_style)
                     .truncate()
                     .finish(),
@@ -618,21 +622,24 @@ pub(crate) fn login_failed(
     let mut on_retry_enter = on_retry.clone();
     let content = TuiFlex::column()
         .child(
-            TuiText::new("Welcome to Warp")
+            TuiText::new(localization::text("tui.auth.login_title"))
                 .with_style(title)
                 .truncate()
                 .finish(),
         )
         .child(
-            TuiText::new(format!("Login failed: {message}"))
-                .with_style(builder.error_text_style())
-                .truncate()
-                .finish(),
+            TuiText::new(localization::text_with_args(
+                "tui.auth.login_failed",
+                &[("message", message)],
+            ))
+            .with_style(builder.error_text_style())
+            .truncate()
+            .finish(),
         )
         .child(
             TuiHoverable::new(
                 retry_mouse,
-                TuiText::new("Retry login (r)")
+                TuiText::new(localization::text("tui.auth.login_retry"))
                     .with_style(retry_style)
                     .truncate()
                     .finish(),
@@ -641,7 +648,7 @@ pub(crate) fn login_failed(
             .finish(),
         )
         .child(
-            TuiText::new("Press enter or r to retry · Ctrl-C to exit")
+            TuiText::new(localization::text("tui.auth.retry_hint"))
                 .with_style(muted)
                 .truncate()
                 .finish(),

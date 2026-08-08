@@ -6,7 +6,7 @@ use ai::agent::orchestration_config::{
 };
 use warp::tui_export::{
     AIActionStatus, AIAgentAction, AIAgentActionId, AIAgentActionType, AIConversationId,
-    Appearance, AuthSecretSelection, OptionRow, OptionSnapshot, OptionSourceStatus,
+    Appearance, AuthSecretSelection, OptionFooter, OptionRow, OptionSnapshot, OptionSourceStatus,
     OrchestrationConfigState, OrchestrationEditState, RunAgentsAgentRunConfig,
     RunAgentsExecutionMode, RunAgentsRequest, TaskId,
 };

@@ -14,6 +14,7 @@ use crate::ai::mcp::{
     MCPServerState, TemplatableMCPServer, TemplatableMCPServerInstallation,
     TemplatableMCPServerManager, TransportType, VariableType, VariableValue,
 };
+use crate::localization;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum TuiMcpServerId {
@@ -624,7 +625,7 @@ fn snapshot_for_installation(
         description: installation.templatable_mcp_server().description.clone(),
         source,
         transport: transport_from_installation(installation),
-        status: runtime_status(uuid, runtime_manager),
+        status: runtime_status(uuid, runtime_manager, ctx),
         tool_count: runtime_manager.tools_for_server(uuid).len(),
         resource_count: runtime_manager.resources_for_server(uuid).len(),
         can_log_out: runtime_manager.can_log_out(uuid, ctx),
@@ -720,7 +721,11 @@ fn transport_type(transport: TransportType) -> TuiMcpTransport {
     }
 }
 
-fn runtime_status(uuid: Uuid, runtime_manager: &TemplatableMCPServerManager) -> TuiMcpServerStatus {
+fn runtime_status(
+    uuid: Uuid,
+    runtime_manager: &TemplatableMCPServerManager,
+    app: &warpui::AppContext,
+) -> TuiMcpServerStatus {
     match runtime_manager.get_server_state(uuid) {
         None | Some(MCPServerState::NotRunning) => TuiMcpServerStatus::Offline,
         Some(MCPServerState::Starting) => TuiMcpServerStatus::Starting,
@@ -730,8 +735,10 @@ fn runtime_status(uuid: Uuid, runtime_manager: &TemplatableMCPServerManager) -> 
         Some(MCPServerState::FailedToStart) => TuiMcpServerStatus::Failed {
             message: runtime_manager
                 .get_server_error_message(uuid)
-                .unwrap_or("Failed to start")
-                .to_owned(),
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| {
+                    localization::text_for_app(app, "tui.mcp.status.failed_to_start")
+                }),
         },
     }
 }
@@ -757,6 +764,7 @@ fn server_priority(server: &TuiMcpServerSnapshot) -> u8 {
         | TuiMcpServerStatus::Authenticating
         | TuiMcpServerStatus::Running
         | TuiMcpServerStatus::Stopping
+        | TuiMcpServerStatus::FailedToStart
         | TuiMcpServerStatus::Failed { .. } => 0,
     }
 }

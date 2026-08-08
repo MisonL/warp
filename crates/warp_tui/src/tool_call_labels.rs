@@ -174,6 +174,10 @@ pub(crate) fn tool_call_label(
     tool_call_label_with_server(action, status, output_streaming, block, None)
 }
 
+pub(crate) fn blocked_tool_call_label(action: &AIAgentActionType) -> String {
+    actions::label_for_action(action, State::Blocked, None, None)
+}
+
 /// Like [`tool_call_label`], but interpolates the MCP tool's originating server
 /// name (when known) into the per-state label so MCP tool calls surface both
 /// their tool name and server identity across the transcript lifecycle.
@@ -330,7 +334,11 @@ fn label_for_action(
                         SearchCodebaseResult::Success { files },
                     )) => format!(
                         "Searched for \"{query}\"{scope}, {}",
-                        count_label(files.len(), "result", "results")
+                        localized_count_label(
+                            files.len(),
+                            "tui.count.result.one",
+                            "tui.count.result.many",
+                        )
                     ),
                     _ => format!("Searched for \"{query}\"{scope}"),
                 },
@@ -367,7 +375,11 @@ fn label_for_action(
                     Some(AIAgentActionResultType::Grep(GrepResult::Success { matched_files })) => {
                         format!(
                             "Grepped for {queries} in {path}, {}",
-                            count_label(matched_files.len(), "matching file", "matching files")
+                            localized_count_label(
+                                matched_files.len(),
+                                "tui.count.matching_file.one",
+                                "tui.count.matching_file.many",
+                            )
                         )
                     }
                     _ => format!("Grepped for {queries} in {path}"),
@@ -442,11 +454,24 @@ fn label_for_action(
             },
             State::Cancelled => "New conversation suggestion cancelled".to_owned(),
         },
-        AIAgentActionType::SuggestPrompt(_)
-        | AIAgentActionType::InitProject
-        | AIAgentActionType::OpenCodeReview => fallback_label(action, state),
+        AIAgentActionType::SuggestPrompt(_) => fallback_label(
+            localization::text("agent.action.name.suggest_prompt"),
+            state,
+        ),
+        AIAgentActionType::InitProject => fallback_label(
+            localization::text("agent.action.name.init_project"),
+            state,
+        ),
+        AIAgentActionType::OpenCodeReview => fallback_label(
+            localization::text("agent.action.name.open_code_review"),
+            state,
+        ),
         AIAgentActionType::ReadDocuments(request) => {
-            let documents = count_label(request.document_ids.len(), "document", "documents");
+            let documents = localized_count_label(
+                request.document_ids.len(),
+                "tui.count.document.one",
+                "tui.count.document.many",
+            );
             match state {
                 State::Constructing => "Reading documents…".to_owned(),
                 State::Pending | State::Blocked | State::Succeeded => {
@@ -462,7 +487,11 @@ fn label_for_action(
             State::Constructing | State::Running => "Updating plan…".to_owned(),
             State::Succeeded => format!(
                 "Updated plan ({})",
-                count_label(request.diffs.len(), "edit", "edits")
+                localized_count_label(
+                    request.diffs.len(),
+                    "tui.count.edit.one",
+                    "tui.count.edit.many",
+                )
             ),
             State::Failed => "Failed to update plan".to_owned(),
             State::Cancelled => "Update plan cancelled".to_owned(),
@@ -489,7 +518,11 @@ fn label_for_action(
         },
         AIAgentActionType::UseComputer(request) => summary_label(&request.action_summary, state),
         AIAgentActionType::InsertCodeReviewComments { comments, .. } => {
-            let comments = count_label(comments.len(), "review comment", "review comments");
+            let comments = localized_count_label(
+                comments.len(),
+                "tui.count.review_comment.one",
+                "tui.count.review_comment.many",
+            );
             match state {
                 State::Constructing => "Preparing review comments…".to_owned(),
                 State::Pending | State::Blocked => format!("Insert {comments}"),
@@ -549,7 +582,11 @@ fn label_for_action(
                 State::Pending | State::Blocked => format!("Send message: {subject}"),
                 State::Running => format!(
                     "Sending message to {}: {subject}",
-                    count_label(addresses.len(), "agent", "agents")
+                    localized_count_label(
+                        addresses.len(),
+                        "tui.count.agent.one",
+                        "tui.count.agent.many",
+                    )
                 ),
                 State::Succeeded => format!("Sent message: {subject}"),
                 State::Failed => format!("Failed to send message: {subject}"),
@@ -569,7 +606,11 @@ fn label_for_action(
             State::Constructing => "Preparing question…".to_owned(),
             State::Pending | State::Blocked | State::Running => format!(
                 "Asking {}",
-                count_label(questions.len(), "question", "questions")
+                localized_count_label(
+                    questions.len(),
+                    "tui.count.question.one",
+                    "tui.count.question.many",
+                )
             ),
             State::Succeeded => match result {
                 Some(AIAgentActionResultType::AskUserQuestion(
@@ -602,14 +643,29 @@ fn label_for_action(
                     "Configuring agents…".to_owned()
                 }
                 State::Running => {
-                    format!("Spawning {}…", count_label(total, "agent", "agents"))
+                    let agents =
+                        localized_count_label(total, "tui.count.agent.one", "tui.count.agent.many");
+                    localization::text_with_args(
+                        "tui.tool.orchestration.spawning",
+                        &[("agents", &agents)],
+                    )
                 }
                 State::Succeeded => match result {
                     Some(AIAgentActionResultType::RunAgents(RunAgentsResult::Launched {
                         agents,
                         ..
                     })) => launched_agents_label(agents),
-                    _ => format!("Spawned {}", count_label(total, "agent", "agents")),
+                    _ => {
+                        let agents = localized_count_label(
+                            total,
+                            "tui.count.agent.one",
+                            "tui.count.agent.many",
+                        );
+                        localization::text_with_args(
+                            "tui.tool.orchestration.spawned",
+                            &[("agents", &agents)],
+                        )
+                    }
                 },
                 State::Failed => match result {
                     Some(AIAgentActionResultType::RunAgents(RunAgentsResult::Launched {

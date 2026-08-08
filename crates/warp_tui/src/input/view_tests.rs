@@ -122,7 +122,7 @@ impl TuiInlineMenuHandle for ModelHandle<TestSecretMenu> {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 
@@ -1124,7 +1124,7 @@ impl TuiInlineMenuHandle for TestMcpMenu {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 

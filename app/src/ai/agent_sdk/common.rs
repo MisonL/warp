@@ -47,6 +47,7 @@ pub fn validate_agent_mode_base_model_id(
         model_id,
         &valid_ids,
         llm_prefs.agent_mode_models_unavailable(),
+        ctx,
     )
 }
 
@@ -57,6 +58,7 @@ fn classify_agent_mode_base_model_id(
     model_id: &str,
     valid_ids: &[LLMId],
     list_unavailable: bool,
+    ctx: &AppContext,
 ) -> anyhow::Result<LLMId> {
     let llm_id: LLMId = model_id.into();
     if valid_ids.contains(&llm_id) {
@@ -131,9 +133,12 @@ pub(super) fn set_ambient_task_context_from_run_id(
 /// Otherwise, defaults to team if available, falling back to user.
 pub fn resolve_owner(team_flag: bool, user_flag: bool, ctx: &AppContext) -> anyhow::Result<Owner> {
     if team_flag {
-        let team_id = UserWorkspaces::as_ref(ctx)
-            .sole_team_uid()
-            .ok_or_else(|| anyhow::anyhow!("User is not on a team"))?;
+        let team_id = UserWorkspaces::as_ref(ctx).sole_team_uid().ok_or_else(|| {
+            anyhow::anyhow!(localization::text_for_app(
+                ctx,
+                "agent_sdk.common.error.user_not_on_team"
+            ))
+        })?;
         return Ok(Owner::Team { team_uid: team_id });
     }
 

@@ -77,6 +77,7 @@ async fn upload_recording_thumbnail(
     video_artifact_uid: &str,
     uploader: &FileArtifactUploader,
     conversation_id: Option<ServerConversationToken>,
+    locale: LocaleId,
 ) -> anyhow::Result<()> {
     let thumbnail_path =
         computer_use::generate_video_thumbnail(video_path, video_artifact_uid).await?;
@@ -88,8 +89,12 @@ async fn upload_recording_thumbnail(
             title: None,
             description: None,
         };
-        let association = uploader.resolve_upload_association(&request).await?;
-        uploader.upload_with_association(request, association).await
+        let association = uploader
+            .resolve_upload_association(&request, locale)
+            .await?;
+        uploader
+            .upload_with_association(request, association, locale)
+            .await
     }
     .await;
     // The thumbnail file is ephemeral regardless of upload outcome.
@@ -210,6 +215,7 @@ async fn finalize_recording(
             &upload.artifact.artifact_uid,
             &uploader,
             server_conversation_token.clone(),
+            locale,
         )
         .await
     {

@@ -55,8 +55,22 @@ pub(crate) fn init(app: &mut AppContext) {
         .with_group(TUI_BINDING_GROUP)
         .with_key_binding("enter"),
         EditableBinding::new(
+            "tui:permission-prompt:confirm-numpad",
+            binding_description(
+                "Confirm the selected permission response",
+                "tui.permission_prompt.binding.confirm",
+            ),
+            TuiPermissionPromptAction::Confirm,
+        )
+        .with_context_predicate(predicate.clone())
+        .with_group(TUI_BINDING_GROUP)
+        .with_key_binding("numpadenter"),
+        EditableBinding::new(
             "tui:permission-prompt:edit",
-            "Edit the requested action",
+            binding_description(
+                "Edit the requested action",
+                "tui.permission_prompt.binding.edit",
+            ),
             TuiPermissionPromptAction::EditBody,
         )
         .with_context_predicate(editable_predicate)

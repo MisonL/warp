@@ -1247,8 +1247,9 @@ pub fn render_picker_row<A: OrchestrationControlAction>(
     handles: &OrchestrationPickerHandles<A>,
     appearance: &Appearance,
     show_runner_controls: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
-    render_picker_row_with_layout(state, handles, appearance, false, show_runner_controls)
+    render_picker_row_with_layout(state, handles, appearance, false, show_runner_controls, app)
 }
 
 /// Renders pickers vertically at full width when `vertical` is true,
@@ -1259,6 +1260,7 @@ pub fn render_picker_row_with_layout<A: OrchestrationControlAction>(
     appearance: &Appearance,
     vertical: bool,
     show_runner_controls: bool,
+    app: &AppContext,
 ) -> Box<dyn Element> {
     let is_remote = state.execution_mode.is_remote();
     let show_auth_picker = should_show_auth_secret_picker(state);

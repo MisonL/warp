@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use serde_json::{Map, Value};
 use warp_cli::mcp::MCPSpec;
 use warp_core::features::FeatureFlag;
+use warp_localization::LocaleId;
 
 use crate::ai::ambient_agents::AgentConfigSnapshot;
 use crate::localization;

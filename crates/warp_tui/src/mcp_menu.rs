@@ -11,6 +11,7 @@ use crate::inline_menu::{
     TuiInlineMenuRowStyle, TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
+use crate::localization;
 
 const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, true, false);
 
@@ -21,86 +22,6 @@ struct TuiMcpMenuRow {
     description: Option<String>,
     primary_action: Option<TuiMcpAction>,
     logout_action: Option<TuiMcpAction>,
-}
-
-#[derive(Clone, Debug)]
-enum TuiMcpMenuRowContent {
-    ConfigError {
-        message: String,
-    },
-    Server {
-        name: String,
-        transport: &'static str,
-        status: TuiMcpMenuServerStatus,
-    },
-    LogOut {
-        server: String,
-    },
-}
-
-#[derive(Clone, Debug)]
-enum TuiMcpMenuServerStatus {
-    Offline,
-    Starting,
-    AuthenticationRequired,
-    Running { tool_count: usize },
-    Stopping,
-    FailedToStart,
-    Failed { message: String },
-}
-
-impl TuiMcpMenuRowContent {
-    fn localized_copy(&self) -> (String, Option<String>) {
-        match self {
-            Self::ConfigError { message } => (
-                localization::text("tui.mcp_menu.config_error"),
-                Some(message.clone()),
-            ),
-            Self::Server {
-                name,
-                transport,
-                status,
-            } => {
-                let status = status.localized_text();
-                (
-                    name.clone(),
-                    Some(localization::text_with_args(
-                        "tui.mcp_menu.server_description",
-                        &[("transport", transport), ("status", &status)],
-                    )),
-                )
-            }
-            Self::LogOut { server } => (
-                localization::text_with_args("tui.mcp_menu.log_out", &[("server", server)]),
-                Some(localization::text("tui.mcp_menu.log_out.description")),
-            ),
-        }
-    }
-}
-
-impl TuiMcpMenuServerStatus {
-    fn localized_text(&self) -> String {
-        match self {
-            Self::Offline => localization::text("tui.mcp_menu.status.offline"),
-            Self::Starting => localization::text("tui.mcp_menu.status.starting"),
-            Self::AuthenticationRequired => {
-                localization::text("tui.mcp_menu.status.authentication_required")
-            }
-            Self::Running { tool_count } => localization::text_with_args(
-                if *tool_count == 1 {
-                    "tui.mcp_menu.status.running.one"
-                } else {
-                    "tui.mcp_menu.status.running.many"
-                },
-                &[("count", &tool_count.to_string())],
-            ),
-            Self::Stopping => localization::text("tui.mcp_menu.status.stopping"),
-            Self::FailedToStart => localization::text("tui.mcp_menu.status.failed_to_start"),
-            Self::Failed { message } => {
-                localization::text_with_args("tui.mcp_menu.status.failed", &[("message", message)])
-            }
-        }
-    }
 }
 
 #[derive(Default)]
@@ -254,9 +175,9 @@ impl TuiMcpMenuModel {
         self.logout_selected(ctx).is_some()
     }
 
-    pub(crate) fn input_hint_text(&self, ctx: &AppContext) -> Option<&'static str> {
+    pub(crate) fn input_hint_text(&self, ctx: &AppContext) -> Option<String> {
         (self.is_open(ctx) && input_text(&self.input_editor, ctx).is_empty())
-            .then_some("Search MCP servers…")
+            .then_some(localization::text("tui.mcp_menu.search"))
     }
 
     pub(crate) fn snapshot(&self, app: &AppContext) -> Option<TuiInlineMenuSnapshot> {
@@ -269,15 +190,15 @@ impl TuiMcpMenuModel {
         let query = input_text(&self.input_editor, app);
         let status = list.rows().is_empty().then(|| {
             let label = if !query.trim().is_empty() {
-                "No matching MCP servers".to_owned()
+                localization::text("tui.mcp_menu.empty.no_matches")
             } else {
-                "No MCP servers available".to_owned()
+                localization::text("tui.mcp_menu.empty.no_servers")
             };
             TuiInlineMenuStatus::Empty(label)
         });
         Some(TuiInlineMenuSnapshot {
             header: Some(TuiInlineMenuHeader {
-                title: Some("MCP servers".to_owned()),
+                title: Some(localization::text("tui.mcp_menu.header")),
                 tabs: Vec::new(),
             }),
             rows: list
@@ -335,7 +256,11 @@ fn menu_rows(snapshot: &TuiMcpSnapshot, query: &str) -> Vec<TuiMcpMenuRow> {
     for diagnostic in &snapshot.diagnostics {
         rows.push(TuiMcpMenuRow {
             server_id: None,
-            title: format!("{} config error", diagnostic.provider),
+            title: format!(
+                "{} {}",
+                diagnostic.provider,
+                localization::text("tui.mcp_menu.config_error")
+            ),
             description: Some(format!(
                 "{} · {}",
                 diagnostic.config_path.display(),
@@ -364,36 +289,55 @@ fn menu_rows(snapshot: &TuiMcpSnapshot, query: &str) -> Vec<TuiMcpMenuRow> {
                     TuiMcpTransport::Stdio => "stdio",
                     TuiMcpTransport::HttpOrSse => "HTTP/SSE",
                 });
-                let (status, primary_action) = match &server.status {
-                    TuiMcpServerStatus::Available => (
-                        "available".to_owned(),
-                        Some(TuiMcpAction::Enable(server.id)),
-                    ),
-                    TuiMcpServerStatus::Offline => {
-                        ("offline".to_string(), Some(TuiMcpAction::Start(server.id)))
-                    }
-                    TuiMcpServerStatus::Starting => ("starting…".to_string(), None),
-                    TuiMcpServerStatus::Authenticating => (
-                        "authentication required".to_string(),
-                        server
-                            .authorization_url
-                            .as_ref()
-                            .map(|_| TuiMcpAction::ReopenAuthorization(server.id)),
-                    ),
-                    TuiMcpServerStatus::Running => (
-                        format!("running · {} tools", server.tool_count),
-                        Some(TuiMcpAction::Stop(server.id)),
-                    ),
-                    TuiMcpServerStatus::Stopping => ("stopping…".to_string(), None),
-                    TuiMcpServerStatus::Failed { message } => (
-                        format!("failed · {message}"),
-                        Some(TuiMcpAction::Retry(server.id)),
-                    ),
+                let primary_action = match &server.status {
+                    TuiMcpServerStatus::Available => Some(TuiMcpAction::Enable(server.id)),
+                    TuiMcpServerStatus::Offline => Some(TuiMcpAction::Start(server.id)),
+                    TuiMcpServerStatus::Starting => None,
+                    TuiMcpServerStatus::Authenticating => server
+                        .authorization_url
+                        .as_ref()
+                        .map(|_| TuiMcpAction::ReopenAuthorization(server.id)),
+                    TuiMcpServerStatus::Running => Some(TuiMcpAction::Stop(server.id)),
+                    TuiMcpServerStatus::Stopping => None,
+                    TuiMcpServerStatus::FailedToStart => Some(TuiMcpAction::Retry(server.id)),
+                    TuiMcpServerStatus::Failed { .. } => Some(TuiMcpAction::Retry(server.id)),
                 };
                 let mut description = vec![server.source.label()];
                 if let Some(transport) = transport {
                     description.push(transport.to_owned());
                 }
+                let status = match &server.status {
+                    TuiMcpServerStatus::Available => {
+                        localization::text("tui.mcp_menu.status.available")
+                    }
+                    TuiMcpServerStatus::Offline => {
+                        localization::text("tui.mcp_menu.status.offline")
+                    }
+                    TuiMcpServerStatus::Starting => {
+                        localization::text("tui.mcp_menu.status.starting")
+                    }
+                    TuiMcpServerStatus::Authenticating => {
+                        localization::text("tui.mcp_menu.status.authentication_required")
+                    }
+                    TuiMcpServerStatus::Running => localization::text_with_args(
+                        if server.tool_count == 1 {
+                            "tui.mcp_menu.status.running.one"
+                        } else {
+                            "tui.mcp_menu.status.running.many"
+                        },
+                        &[("count", &server.tool_count.to_string())],
+                    ),
+                    TuiMcpServerStatus::Stopping => {
+                        localization::text("tui.mcp_menu.status.stopping")
+                    }
+                    TuiMcpServerStatus::FailedToStart => {
+                        localization::text("tui.mcp_menu.status.failed_to_start")
+                    }
+                    TuiMcpServerStatus::Failed { message } => localization::text_with_args(
+                        "tui.mcp_menu.status.failed",
+                        &[("message", message)],
+                    ),
+                };
                 description.push(status);
                 TuiMcpMenuRow {
                     server_id: Some(server.id),

@@ -319,7 +319,7 @@ impl FileNotebookView {
         // `location` is only set once a Session resolves it, so fall back to the raw file path.
         self.location
             .as_ref()
-            .and_then(|location| location.name.clone())
+            .map(|location| location.name.clone())
             .or_else(|| self.file_state.display_name())
             .unwrap_or_else(|| {
                 crate::localization::text_for_locale(
@@ -332,7 +332,7 @@ impl FileNotebookView {
     pub fn title_for_app(&self, app: &AppContext) -> String {
         self.location
             .as_ref()
-            .and_then(|location| location.name.clone())
+            .map(|location| location.name.clone())
             .or_else(|| self.file_state.display_name())
             .unwrap_or_else(|| {
                 crate::localization::text_for_app(app, "notebook.placeholder.untitled")
@@ -877,7 +877,12 @@ impl FileNotebookView {
         }
     }
 
-    fn render_error(&self, source: &SourceFile, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_error(
+        &self,
+        source: &SourceFile,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let error_text_color = appearance
             .theme()
             .sub_text_color(appearance.theme().background());
@@ -926,7 +931,13 @@ impl FileNotebookView {
         Align::new(error.finish()).finish()
     }
 
-    fn render_loading(&self, source: &SourceFile, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_loading(
+        &self,
+        source: &SourceFile,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let file_name = source.display_name();
         Align::new(
             appearance
                 .ui_builder()
@@ -942,7 +953,7 @@ impl FileNotebookView {
         .finish()
     }
 
-    fn render_no_file(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_no_file(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         Align::new(
             appearance
                 .ui_builder()
@@ -1341,7 +1352,8 @@ impl FileLocation {
         };
         let name = path
             .file_name()
-            .map(|name| name.to_string_lossy().into_owned());
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
 
         Self { breadcrumbs, name }
     }

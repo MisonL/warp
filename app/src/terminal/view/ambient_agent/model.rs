@@ -499,6 +499,19 @@ impl AmbientAgentViewModel {
     }
 
     #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+    pub(crate) fn is_preparing_local_to_cloud_handoff(&self) -> bool {
+        matches!(
+            &self.local_to_cloud_handoff_state,
+            Some(LocalToCloudHandoffState::Preparing { .. })
+        )
+    }
+
+    #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
+    pub(crate) fn is_preparing_local_to_cloud_handoff(&self) -> bool {
+        false
+    }
+
+    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
     pub(crate) fn begin_local_to_cloud_handoff(
         &mut self,
         request: SpawnAgentRequest,

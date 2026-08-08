@@ -4,7 +4,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
-use warp::settings::SettingsFileError;
+use warp::settings::{AppLanguage, LanguageSettings, SettingsFileError};
 use warp::tui_export::{
     AIConversationAutoexecuteMode, ActiveSession, Appearance, BlocklistAIActionModel,
     BlocklistAIHistoryModel, ConversationSelection, ConversationSelectionHandle,
@@ -13,6 +13,7 @@ use warp::tui_export::{
 };
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 use warp_core::semantic_selection::SemanticSelection;
+use warp_core::settings::Setting as _;
 use warpui::{AddSingletonModel, App, EntityId, ModelHandle, SingletonEntity as _};
 use warpui_core::elements::tui::{TuiElement, TuiText};
 use warpui_core::{AppContext, Entity, TuiView, TypedActionView, ViewHandle, WindowId};
@@ -99,6 +100,31 @@ pub(crate) fn add_test_action_model_and_events(
     ModelHandle<BlocklistAIActionModel>,
     ModelHandle<ModelEventDispatcher>,
 ) {
+    // Agent rendering now reads both public and private settings. Keep the
+    // shared fixture's preference backends deterministic and in memory.
+    let preferences_registered = app.read(|ctx| {
+        ctx.has_singleton_model::<settings::PublicPreferences>()
+            && ctx.has_singleton_model::<settings::PrivatePreferences>()
+    });
+    if !preferences_registered {
+        app.update(warp::settings::init_and_register_user_preferences);
+    }
+    if !app.read(|ctx| {
+        ctx.has_singleton_model::<warp::settings::manager::SettingsManager>()
+    }) {
+        app.add_singleton_model(|_| warp::settings::manager::SettingsManager::default());
+    }
+    if !app.read(|ctx| ctx.has_singleton_model::<LanguageSettings>()) {
+        app.update(LanguageSettings::register);
+    }
+    app.update(|ctx| {
+        LanguageSettings::handle(ctx).update(ctx, |settings, ctx| {
+            settings
+                .app_language
+                .load_value(AppLanguage::English, true, ctx)
+                .expect("test language setting should update");
+        });
+    });
     if !app.read(|ctx| ctx.has_singleton_model::<TuiOnboardingMarkers>()) {
         app.add_singleton_model(|_| TuiOnboardingMarkers::new_ready_for_test(false, false));
     }

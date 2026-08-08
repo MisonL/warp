@@ -25,6 +25,7 @@ use crate::ai::local_harness_setup::{
     LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
 };
 use crate::cloud_object::CloudObjectLookup as _;
+use crate::localization;
 
 const DEFAULT_MODEL_LABEL: &str = "Default model";
 /// Label shown in the auth secret picker when no secret is selected
@@ -360,7 +361,7 @@ pub fn oz_model_snapshot(
             disabled_reason: llm
                 .disable_reason
                 .as_ref()
-                .map(|reason| reason.tooltip_text().to_string()),
+                .map(|reason| localization::text_for_app(ctx, reason.localization_key())),
         })
         .collect();
     build_oz_model_snapshot(choices, selected_model_id)

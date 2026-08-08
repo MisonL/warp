@@ -298,7 +298,11 @@ impl BuyCreditsBanner {
         }
     }
 
-    fn render_auto_reload_checkbox(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_auto_reload_checkbox(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let check_color = theme.background().into_solid();
         let auto_reload_enabled = self.auto_reload_enabled;
@@ -598,7 +602,11 @@ impl BuyCreditsBanner {
 
     /// Rendered instead of the out-of-credits banner after a purchase was
     /// handed off to the browser for checkout.
-    fn render_checkout_pending(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_checkout_pending(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
         let alert_icon = Container::new(
@@ -618,7 +626,10 @@ impl BuyCreditsBanner {
             .with_children([
                 appearance
                     .ui_builder()
-                    .paragraph("Finish your purchase in the browser")
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "terminal.buy_credits.checkout.finish_in_browser",
+                    ))
                     .with_style(UiComponentStyles {
                         font_size: Some(14.),
                         ..Default::default()
@@ -627,7 +638,10 @@ impl BuyCreditsBanner {
                     .finish(),
                 appearance
                     .ui_builder()
-                    .paragraph("Credits will be added to your account after checkout.")
+                    .paragraph(localization::text_for_app(
+                        app,
+                        "terminal.buy_credits.checkout.credits_after_checkout",
+                    ))
                     .with_style(UiComponentStyles {
                         font_color: Some(theme.sub_text_color(theme.surface_1()).into()),
                         ..Default::default()
@@ -1012,7 +1026,7 @@ impl View for BuyCreditsBanner {
             }
             BuyCreditsBannerDisplayState::OutOfCredits => {
                 if self.checkout_pending {
-                    self.render_checkout_pending(appearance)
+                    self.render_checkout_pending(appearance, app)
                 } else {
                     self.render_out_of_credits(appearance, app)
                 }

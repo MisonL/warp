@@ -1581,7 +1581,10 @@ impl TerminalView {
         let Some(session_id) = session_id_opt else {
             let window_id = ctx.window_id();
             crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                let toast = DismissibleToast::error("Sharing link not yet available".to_string());
+                let toast = DismissibleToast::error(crate::localization::text_for_app(
+                    ctx,
+                    "terminal.shared_session.toast.link_not_available",
+                ));
                 toast_stack.add_ephemeral_toast(toast, window_id, ctx);
             });
             return;
@@ -1932,6 +1935,7 @@ impl TerminalView {
         model: &TerminalModel,
         is_share_session_disabled: bool,
         has_session_link: bool,
+        app: &AppContext,
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = Vec::new();
 
@@ -1960,12 +1964,15 @@ impl TerminalView {
 
         if model.shared_session_status().is_sharer_or_viewer() {
             items.push(
-                MenuItemFields::new("Copy session sharing link")
-                    .with_on_select_action(TerminalAction::CopySharedSessionLink {
-                        source: SharedSessionActionSource::RightClickMenu,
-                    })
-                    .with_disabled(!has_session_link)
-                    .into_item(),
+                MenuItemFields::new(localization::text_for_app(
+                    app,
+                    "terminal.shared_session.menu.copy_link",
+                ))
+                .with_on_select_action(TerminalAction::CopySharedSessionLink {
+                    source: SharedSessionActionSource::RightClickMenu,
+                })
+                .with_disabled(!has_session_link)
+                .into_item(),
             );
         }
 

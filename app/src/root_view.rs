@@ -8,8 +8,8 @@ use cfg_if::cfg_if;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use onboarding::{
-    AgentOnboardingEvent, AgentOnboardingView, OfferVariant, OnboardingEvent, OnboardingIntention,
-    SelectedSettings,
+    AGENT_ONBOARDING_COPY_KEYS, AI_FEATURE_COPY_KEYS, AgentOnboardingEvent, AgentOnboardingView,
+    OfferVariant, OnboardingCopy, OnboardingEvent, OnboardingIntention, SelectedSettings,
 };
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;

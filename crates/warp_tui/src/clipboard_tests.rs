@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
-use super::{osc52_sequences, write_osc52_sequences};
+use super::{copy_to_clipboard_with, osc52_sequences, write_osc52_sequences};
 
 #[test]
 fn osc52_encodes_utf8_for_clipboard_and_primary() {

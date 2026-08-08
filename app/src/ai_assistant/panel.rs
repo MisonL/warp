@@ -1000,6 +1000,10 @@ impl AIAssistantPanelView {
             );
 
         if AIRequestUsageModel::as_ref(app).has_any_ai_remaining(app) {
+            let git_prompt = crate::localization::text_for_app(app, GIT_ZERO_STATE_PROMPT_KEY);
+            let files_prompt = crate::localization::text_for_app(app, FILES_ZERO_STATE_PROMPT_KEY);
+            let script_prompt =
+                crate::localization::text_for_app(app, SCRIPT_ZERO_STATE_PROMPT_KEY);
             column.add_children([
                 Container::new(render_prepared_response_button(
                     appearance,

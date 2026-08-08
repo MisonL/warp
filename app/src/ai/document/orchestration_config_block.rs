@@ -46,6 +46,7 @@ use crate::ai::harness_availability::{
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::ai::orchestration::RunnerFetchState;
 use crate::appearance::Appearance;
+use crate::localization::{self, LocalizationUpdater};
 use crate::server::experiments::{ServerExperiments, ServerExperimentsEvent};
 use crate::server::server_api::ServerApiProvider;
 use crate::ui_components::blended_colors;
@@ -211,7 +212,7 @@ impl OrchestrationConfigBlockView {
             if !oc::runner_controls_enabled(ctx) {
                 me.pickers.runner_picker = None;
                 me.runners.clear();
-                me.runners_loading = false;
+                me.runner_fetch_state = RunnerFetchState::NotFetched;
             } else {
                 me.ensure_runner_picker(ctx);
             }
@@ -922,6 +923,7 @@ impl View for OrchestrationConfigBlockView {
                     appearance,
                     true,
                     oc::runner_controls_enabled(app),
+                    app,
                 ));
 
                 // Helper text

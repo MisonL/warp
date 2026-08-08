@@ -22,6 +22,7 @@ use warpui_core::elements::tui::{
 };
 use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle, TuiView, ViewContext};
 
+use crate::localization;
 use crate::terminal_session_view::TuiTerminalSessionAction;
 use crate::tui_builder::TuiUiBuilder;
 
@@ -492,14 +493,17 @@ impl TuiCLISubagentView {
                 TuiContainer::new(
                     TuiFlex::row()
                         .child(Self::render_action(
-                            "Allow · Ctrl+Enter",
+                            format!(
+                                "{} · Ctrl+Enter",
+                                localization::text("tui.cli_subagent.allow")
+                            ),
                             &self.allow_mouse_state,
                             TuiTerminalSessionAction::AcceptBlockedTerminalUseAction,
                             app,
                         ))
                         .child(TuiText::new("  ").finish())
                         .child(Self::render_action(
-                            "Reject · Ctrl+C",
+                            format!("{} · Ctrl+C", localization::text("tui.cli_subagent.reject")),
                             &self.reject_mouse_state,
                             TuiTerminalSessionAction::RejectBlockedTerminalUseAction,
                             app,

@@ -10,7 +10,7 @@ use warpui_core::{AppContext, Entity, EntityId, ModelHandle, TuiView, ViewContex
 
 use crate::agent_block_sections::render_fallback_tool_call_section;
 use crate::localization;
-use crate::tool_call_labels::blocked_tool_call_label;
+use crate::tool_call_labels::{ToolCallDisplayState, blocked_tool_call_label};
 use crate::tui_builder::TuiUiBuilder;
 use crate::tui_permission_prompt::{
     TuiPermissionPrompt, TuiPermissionPromptEvent, render_permission_card,
@@ -73,7 +73,6 @@ fn permission_question_for_action(action: &AIAgentActionType, locale: LocaleId) 
         | AIAgentActionType::StopRecording { .. }
         | AIAgentActionType::ReadSkill(_)
         | AIAgentActionType::FetchConversation { .. }
-        | AIAgentActionType::StartAgent { .. }
         | AIAgentActionType::SendMessageToAgent { .. }
         | AIAgentActionType::AskUserQuestion { .. }
         | AIAgentActionType::RunAgents(_)
@@ -154,7 +153,6 @@ fn details_for_action(action: &AIAgentActionType, locale: LocaleId) -> String {
         | AIAgentActionType::StopRecording { .. }
         | AIAgentActionType::ReadSkill(_)
         | AIAgentActionType::FetchConversation { .. }
-        | AIAgentActionType::StartAgent { .. }
         | AIAgentActionType::SendMessageToAgent { .. }
         | AIAgentActionType::AskUserQuestion { .. }
         | AIAgentActionType::RunAgents(_)
@@ -328,48 +326,46 @@ impl TuiGenericToolCallView {
     /// `server_name` is the pre-resolved originating MCP server name (when
     /// known) for an MCP tool call, so the question surfaces both the tool and
     /// its server. `None` for non-MCP actions or unknown/legacy servers.
+    #[cfg(test)]
     fn permission_question(&self, server_name: Option<&str>) -> String {
+        self.permission_question_for_locale(server_name, localization::current_locale())
+    }
+
+    fn permission_question_for_locale(
+        &self,
+        server_name: Option<&str>,
+        locale: LocaleId,
+    ) -> String {
         match &self.action.action {
-            AIAgentActionType::ReadFiles(_) => "Is it OK if I read these files?".to_owned(),
-            AIAgentActionType::UploadArtifact(_) => {
-                "Is it OK if I upload this artifact?".to_owned()
-            }
-            AIAgentActionType::SearchCodebase(_) => {
-                "Is it OK if I search this codebase?".to_owned()
-            }
-            AIAgentActionType::Grep { .. } => "Is it OK if I search these files?".to_owned(),
-            AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => {
-                "Is it OK if I find files matching these patterns?".to_owned()
-            }
             AIAgentActionType::CallMCPTool { name, .. } => {
                 if name.is_empty() {
                     match server_name {
-                        Some(server) => format!("Is it OK if I call an MCP tool on {server}?"),
-                        None => "Is it OK if I call this MCP tool?".to_owned(),
+                        Some(server) => localization::text_with_args_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_mcp_tool_on_server",
+                            &[("server", server)],
+                        ),
+                        None => localization::text_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_mcp_tool",
+                        ),
                     }
                 } else {
                     match server_name {
-                        Some(server) => format!("Is it OK if I call MCP tool {name} on {server}?"),
-                        None => format!("Is it OK if I call MCP tool {name}?"),
+                        Some(server) => localization::text_with_args_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_named_mcp_tool_on_server",
+                            &[("name", name), ("server", server)],
+                        ),
+                        None => localization::text_with_args_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_named_mcp_tool",
+                            &[("name", name)],
+                        ),
                     }
                 }
             }
-            AIAgentActionType::ReadMCPResource { .. } => {
-                "Is it OK if I read this MCP resource?".to_owned()
-            }
-            AIAgentActionType::RequestComputerUse(_) => {
-                "Is it OK if I use the computer?".to_owned()
-            }
-            AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
-                "Is it OK if I write this input to the running command?".to_owned()
-            }
-            AIAgentActionType::SuggestNewConversation { .. } => {
-                "Should I start a new conversation?".to_owned()
-            }
-            AIAgentActionType::TransferShellCommandControlToUser { .. } => {
-                "Is it OK if I hand control of the running command to you?".to_owned()
-            }
-            action => format!("Is it OK if I {}?", action.user_friendly_name()),
+            action => permission_question_for_action(action, locale),
         }
     }
 
@@ -379,40 +375,16 @@ impl TuiGenericToolCallView {
     /// known) for an MCP tool call, so the details body labels the tool with
     /// its server. `None` for non-MCP actions or unknown/legacy servers.
     fn details(&self, server_name: Option<&str>) -> String {
+        let locale = localization::current_locale();
         match &self.action.action {
-            AIAgentActionType::ReadFiles(request) => request
-                .locations
-                .iter()
-                .map(|location| format!("  - {}", location.name))
-                .collect::<Vec<_>>()
-                .join("\n"),
-            AIAgentActionType::UploadArtifact(request) => match &request.description {
-                Some(description) => format!("{}\n{}", request.file_path, description),
-                None => request.file_path.clone(),
-            },
-            AIAgentActionType::SearchCodebase(request) => match &request.codebase_path {
-                Some(path) => format!("{}\n  in {path}", request.query),
-                None => request.query.clone(),
-            },
-            AIAgentActionType::Grep { queries, path } => {
-                format!("{}\n  in {path}", queries.join("\n"))
-            }
-            AIAgentActionType::FileGlob { patterns, path } => {
-                let path = path.as_deref().unwrap_or(".");
-                format!("{}\n  in {path}", patterns.join("\n"))
-            }
-            AIAgentActionType::FileGlobV2 {
-                patterns,
-                search_dir,
-            } => {
-                let path = search_dir.as_deref().unwrap_or(".");
-                format!("{}\n  in {path}", patterns.join("\n"))
-            }
             AIAgentActionType::CallMCPTool { name, input, .. } => {
                 let input =
                     serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
                 let header = match server_name {
-                    Some(server) => format!("{name} on {server}"),
+                    Some(server) => localization::text_with_args(
+                        "tui.generic_tool.details.mcp_tool_on_server",
+                        &[("name", name), ("server", server)],
+                    ),
                     None => name.clone(),
                 };
                 if input == "{}" || input == "null" {
@@ -421,18 +393,7 @@ impl TuiGenericToolCallView {
                     format!("{header}\n{input}")
                 }
             }
-            AIAgentActionType::ReadMCPResource { name, uri, .. } => {
-                uri.clone().unwrap_or_else(|| name.clone())
-            }
-            AIAgentActionType::RequestComputerUse(request) => request.task_summary.clone(),
-            AIAgentActionType::WriteToLongRunningShellCommand { input, .. } => {
-                String::from_utf8_lossy(input).into_owned()
-            }
-            AIAgentActionType::SuggestNewConversation { .. } => {
-                "Continue the agent's next step in a fresh conversation.".to_owned()
-            }
-            AIAgentActionType::TransferShellCommandControlToUser { reason } => reason.clone(),
-            action => action.user_friendly_name(),
+            action => details_for_action(action, locale),
         }
     }
 
@@ -452,13 +413,26 @@ impl TuiGenericToolCallView {
     fn render_blocked(&self, app: &AppContext) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(app);
         let server_name = self.mcp_server_name(app);
-        let prompt = self
-            .permission_prompt
-            .as_ref()
-            .expect("blocked generic actions should own a permission prompt");
+        let Some(prompt) = self.permission_prompt.as_ref() else {
+            return TuiText::from_spans([
+                (
+                    format!("{} ", ToolCallDisplayState::Blocked.glyph()),
+                    builder.error_text_style(),
+                ),
+                (
+                    localization::text("tui.generic_tool.permission.unavailable"),
+                    builder.error_text_style(),
+                ),
+            ])
+            .truncate()
+            .finish();
+        };
         render_permission_card(
             prompt,
-            self.permission_question(server_name.as_deref()),
+            self.permission_question_for_locale(
+                server_name.as_deref(),
+                localization::current_locale(),
+            ),
             Some(
                 TuiText::new(self.details(server_name.as_deref()))
                     .with_style(builder.primary_text_style())

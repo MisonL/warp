@@ -11,8 +11,11 @@ use warp_localization::LocaleId;
 use warpui_core::clipboard::{ClipboardContent, ImageData};
 
 use super::{
-    ClipboardPasteContent, MAX_IMAGE_SIZE_BYTES, classify_clipboard_content, parse_image_paths,
-    process_clipboard_content, process_paths,
+    ClipboardPasteContent, ImageFileReadError, MAX_IMAGE_SIZE_BYTES, attachment_error_for_locale,
+    attachment_path_error_for_locale, classify_clipboard_content, open_image_file,
+    parse_image_paths, process_clipboard_content, process_clipboard_content_for_locale,
+    process_paths_for_locale, read_image_file_at_most, read_image_file_with_limit,
+    split_windows_image_path_tokens,
 };
 
 const ONE_PIXEL_PNG: &str =
@@ -282,7 +285,7 @@ fn processes_clipboard_image_content() {
 fn reports_unavailable_clipboard_image_data() {
     assert_eq!(
         process_clipboard_content(ClipboardContent::plain_text("text".to_owned())).unwrap_err(),
-        "Clipboard image data is unavailable."
+        "The clipboard does not contain an image."
     );
 }
 

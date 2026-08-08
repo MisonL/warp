@@ -12,6 +12,7 @@ use crate::inline_menu::{
     TuiInlineMenuRowStyle, TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
+use crate::localization;
 
 const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, true, false);
 
@@ -253,7 +254,10 @@ impl TuiMcpInstallFlowModel {
             return None;
         }
         let request = self.request.as_ref()?;
-        let title = format!("Install and enable {}", request.name);
+        let title = localization::text_with_args(
+            "tui.mcp_install.title",
+            &[("name", request.name.as_str())],
+        );
         let header = Some(TuiInlineMenuHeader {
             title: Some(title),
             tabs: Vec::new(),
@@ -263,11 +267,15 @@ impl TuiMcpInstallFlowModel {
             TuiMcpInstallStep::Variable { index, choices } => {
                 let variable = request.variables.get(*index)?;
                 let status = variable.allowed_values.is_none().then(|| {
-                    TuiInlineMenuStatus::Empty(format!(
-                        "Enter a value for {} ({}/{})",
-                        variable.key,
-                        index + 1,
-                        request.variables.len()
+                    let index = (index + 1).to_string();
+                    let total = request.variables.len().to_string();
+                    TuiInlineMenuStatus::Empty(localization::text_with_args(
+                        "tui.mcp_install.enter_value",
+                        &[
+                            ("key", variable.key.as_str()),
+                            ("index", index.as_str()),
+                            ("total", total.as_str()),
+                        ],
                     ))
                 });
                 Some(TuiInlineMenuSnapshot {

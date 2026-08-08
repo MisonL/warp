@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use serde_json::{Map, Value};
 use warp_cli::mcp::MCPSpec;
 use warp_core::features::FeatureFlag;
+use warp_localization::LocaleId;
 
 use crate::ai::mcp::TemplatableMCPServer;
 use crate::localization;
@@ -49,6 +50,7 @@ pub(super) fn build_mcp_servers_from_specs(
                         obj.insert("warp_id".to_string(), Value::String(id.clone()));
                         obj
                     }),
+                    locale,
                 )?;
             }
             MCPSpec::Json(json_str) => {

@@ -463,7 +463,7 @@ impl CodeSettingsPageView {
                         ]);
                     }
                 }
-                self.page = PageType::new_uncategorized(widgets, Some(subpage.title()));
+                self.page = PageType::new_uncategorized(widgets, Some(subpage.title_key()));
             } else {
                 // None: rebuild the full categorized page (all widgets).
                 self.page = Self::build_full_page(ctx);

@@ -93,6 +93,20 @@ impl Entity for FocusedTerminalInfo {
 
 impl SingletonEntity for FocusedTerminalInfo {}
 
+fn localized_key_with_side(app: &AppContext, key: &str, side: &str) -> String {
+    let side_key = match side {
+        "left" => "settings.ai.voice_input_toggle_key.side.left",
+        "right" => "settings.ai.voice_input_toggle_key.side.right",
+        _ => return format!("{key} ({side})"),
+    };
+    let side_label = crate::localization::text_for_app(app, side_key);
+    crate::localization::text_for_app_with_args(
+        app,
+        "settings.ai.voice_input_toggle_key.with_side",
+        &[("key", key), ("side", &side_label)],
+    )
+}
+
 #[derive(
     Default,
     Debug,

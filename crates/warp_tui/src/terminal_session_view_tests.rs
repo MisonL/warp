@@ -72,8 +72,9 @@ use super::{
     SESSION_CAN_DETACH_AGENT_FROM_RUNNING_COMMAND_FLAG, SHELL_MODE_HINT, STATUSLINE_RESET_HINT,
     TuiConversationRestoreOrigin, TuiTerminalSessionAction, TuiTerminalSessionEvent,
     TuiTerminalSessionView, attachment_focus_available, cost_command_unavailable_hint,
-    export_file_success_message, log_bundle_success_message, mcp_primary_action_hint,
+    export_file_success_message, log_bundle_success_message_for_locale, mcp_primary_action_hint,
     raw_prompt_if_not_blank, render_mcp_install_footer, render_mcp_menu_footer,
+    starting_shell_hint_for_locale,
 };
 #[cfg(feature = "voice_input")]
 use super::{
@@ -82,7 +83,6 @@ use super::{
 };
 use crate::agent_block::upgrade_url;
 use crate::autoupdate::TuiAutoupdater;
-use crate::clipboard::ClipboardCopy;
 use crate::inline_menu::MAX_INLINE_MENU_ROWS;
 use crate::input_mode_policy::{AI_LOCKED_CONFIG, AI_UNLOCKED_CONFIG};
 use crate::input_suggestions_mode::TuiInputSuggestionsMode;
@@ -90,7 +90,6 @@ use crate::keybindings::{
     CONTEXTUAL_PLAN_TOGGLE_BINDING_NAME, KEYBOARD_ENHANCEMENT_AVAILABLE_FLAG,
     PLAN_TOGGLE_AVAILABLE_FLAG, PLAN_TOGGLE_BINDING_NAME, TUI_BINDING_GROUP,
 };
-use crate::localization;
 use crate::orchestrated_agent_identity_styling::AgentIdentity;
 use crate::orchestration_model::TuiOrchestrationModel;
 use crate::orchestration_tab_bar::{
@@ -404,6 +403,28 @@ fn api_keys_slash_command_opens_inline_and_clears_the_input() {
         assert!(rendered.contains("enter to set api key"), "{rendered}");
         assert!(!rendered.contains("ctrl + x"), "{rendered}");
         assert!(!rendered.contains("/api-keys"), "{rendered}");
+    });
+}
+
+#[test]
+fn connect_grok_slash_command_opens_the_api_keys_menu_in_grok_flow() {
+    App::test((), |mut app| async move {
+        let fixture = focus_test_fixture(&mut app);
+        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+        view.update(&mut app, |view, ctx| {
+            view.input_view
+                .update(ctx, |input, ctx| input.set_text("/connect-grok", ctx));
+            view.execute_tui_slash_command(&slash_commands::CONNECT_GROK, None, ctx);
+        });
+
+        view.read(&app, |view, ctx| {
+            assert!(view.api_keys_menu.as_ref(ctx).is_open(ctx));
+            assert_eq!(
+                view.suggestions_mode.as_ref(ctx).mode(),
+                TuiInputSuggestionsMode::ApiKeys
+            );
+            assert!(view.input_view.as_ref(ctx).is_empty(ctx));
+        });
     });
 }
 

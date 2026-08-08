@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use warp_core::features::FeatureFlag;
+
 use super::*;
 
 #[test]
@@ -85,6 +87,19 @@ fn command_registry_contains_commands_for_both_surfaces() {
     ));
 }
 
+#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
+#[test]
+fn registry_retains_handoff_definition_when_feature_flags_are_disabled() {
+    let _oz_handoff = FeatureFlag::OzHandoff.override_enabled(false);
+    let _local_cloud = FeatureFlag::HandoffLocalCloud.override_enabled(false);
+
+    let registry = Registry::new();
+    assert!(
+        registry.get_command_with_name(MOVE_TO_CLOUD.name).is_some(),
+        "the registry must retain /handoff so dynamic availability can be reevaluated"
+    );
+}
+
 #[test]
 fn voice_command_is_registered_only_for_tui_mode() {
     assert!(
@@ -136,6 +151,29 @@ fn api_keys_command_is_tui_only_and_has_no_arguments() {
         all_commands(settings::SettingsMode::Tui)
             .iter()
             .all(|command| !matches!(command.name, "/add-api-key" | "/clear-provider-api-key"))
+    );
+}
+
+#[test]
+fn connect_grok_command_is_tui_only_and_has_no_arguments() {
+    let command = all_commands(settings::SettingsMode::Tui)
+        .into_iter()
+        .find(|command| command.kind == SlashCommandKind::ConnectGrok)
+        .expect("expected /connect-grok to be registered in TUI mode");
+    assert_eq!(command, CONNECT_GROK);
+    assert_eq!(command.name, "/connect-grok");
+    assert_eq!(command.supported_surfaces, SlashCommandSurfaces::TuiOnly);
+    assert_eq!(command.availability, Availability::AI_ENABLED);
+    assert!(!command.auto_enter_ai_mode);
+    assert!(command.argument.is_none());
+    assert_eq!(
+        command.description,
+        "Connect your Grok (X Premium / SuperGrok) account"
+    );
+    assert!(
+        all_commands(settings::SettingsMode::Gui)
+            .iter()
+            .all(|command| command.kind != SlashCommandKind::ConnectGrok)
     );
 }
 

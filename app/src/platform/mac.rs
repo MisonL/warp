@@ -30,3 +30,7 @@ pub(crate) fn mark_process_as_background_only() -> Result<()> {
 
     Ok(())
 }
+
+pub(crate) fn refresh_localized_menus() {
+    warpui::platform::current::refresh_localized_menus();
+}

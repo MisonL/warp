@@ -52,11 +52,9 @@ use crate::terminal::{self, TerminalModel, prompt};
 use crate::ui_components::icon_with_status::{
     CIRCLE_RATIO, IconWithStatusVariant, render_icon_with_status,
 };
-use crate::util::time_format::format_approx_duration_from_now_utc;
+use crate::util::time_format::localized_approx_duration_from_now_utc;
 
 const CLOUD_AGENT_DOCS_URL: &str = "https://docs.warp.dev/platform/";
-const OZ_UPDATES_SECTION_HEADER: &str = "What's new in Oz";
-
 // The maximum number of Oz updates from the changelog rendered in-line in the 'What's new in Oz section'.
 const MAX_OZ_UPDATE_COUNT: usize = 4;
 
@@ -1260,8 +1258,13 @@ where
     A: Action + Clone + 'static,
 {
     let appearance = Appearance::as_ref(app);
+    let credits = credits.to_string();
     render_dismissible_promo_pill(
-        format!("{credits} free cloud agent credits"),
+        localization::text_for_app_with_args(
+            app,
+            "agent.zero_state.free_cloud_agent_credits",
+            &[("credits", &credits)],
+        ),
         appearance.theme().terminal_colors().normal.blue.into(),
         None,
         None,

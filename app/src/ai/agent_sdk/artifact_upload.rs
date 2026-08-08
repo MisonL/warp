@@ -141,7 +141,7 @@ impl FileArtifactUploader {
 
         let artifact = self.prepare_upload_artifact(path, locale).await?;
         let create_response = self
-            .create_upload_target(association, title, description, &artifact)
+            .create_upload_target(association, title, description, &artifact, locale)
             .await?;
 
         let checksum = self

@@ -38,6 +38,7 @@ pub use snapshots::ORCHESTRATION_ENV_NONE_LABEL;
 pub use snapshots::location_snapshot;
 #[cfg_attr(not(feature = "tui"), allow(unused_imports))]
 pub use snapshots::oz_model_snapshot;
+pub(crate) use snapshots::{AUTH_SECRETS_LOAD_FAILED_MESSAGE, RUNNERS_LOAD_FAILED_MESSAGE};
 pub use snapshots::{
     OptionBadge, OptionFooter, OptionRow, OptionSnapshot, OptionSourceStatus, RunnerFetchState,
     api_key_snapshot, build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot,

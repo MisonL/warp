@@ -471,36 +471,6 @@ pub(super) fn label_for_action(
             State::Failed => localization::text("tui.tool.conversation.fetch_failed"),
             State::Cancelled => localization::text("tui.tool.conversation.fetch_cancelled"),
         },
-        AIAgentActionType::StartAgent {
-            name,
-            execution_mode,
-            ..
-        } => {
-            let agent = if matches!(execution_mode, StartAgentExecutionMode::Remote { .. }) {
-                localization::text_with_args("tui.tool.agent.remote", &[("name", name)])
-            } else {
-                localization::text_with_args("tui.tool.agent.local", &[("name", name)])
-            };
-            match state {
-                State::Constructing => localization::text("tui.tool.agent.configuring"),
-                State::Pending | State::Blocked => {
-                    localization::text_with_args("tui.tool.agent.start", &[("agent", &agent)])
-                }
-                State::Running => {
-                    localization::text_with_args("tui.tool.agent.starting", &[("agent", &agent)])
-                }
-                State::Succeeded => {
-                    localization::text_with_args("tui.tool.agent.started", &[("name", name)])
-                }
-                State::Failed => {
-                    localization::text_with_args("tui.tool.agent.start_failed", &[("name", name)])
-                }
-                State::Cancelled => localization::text_with_args(
-                    "tui.tool.agent.start_cancelled",
-                    &[("name", name)],
-                ),
-            }
-        }
         AIAgentActionType::SendMessageToAgent {
             addresses, subject, ..
         } => {

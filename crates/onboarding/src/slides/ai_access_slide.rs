@@ -434,6 +434,7 @@ impl View for AiAccessSlide {
         // users a manual fallback when the upgrade browser does not launch.
         let auth_prompt_bar = render_upgrade_auth_prompt_bar(
             appearance,
+            &self.copy,
             self.copy_url_mouse_state.clone(),
             self.paste_token_mouse_state.clone(),
             Box::new(|ctx| {

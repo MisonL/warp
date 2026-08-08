@@ -19,6 +19,7 @@ use crate::inline_menu::{
     TuiInlineMenuSnapshot, TuiInlineMenuStatus, result_row_capacity, single_line_menu_title,
 };
 use crate::input_suggestions_mode::{TuiInputSuggestionsMode, TuiInputSuggestionsModeModel};
+use crate::localization;
 use crate::terminal_block::SHELL_COMMAND_PREFIX;
 
 const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, true, false);
@@ -272,14 +273,14 @@ impl TuiPromptAndCommandHistoryMenuModel {
         };
         let status = list.rows().is_empty().then(|| {
             if query.trim().is_empty() {
-                TuiInlineMenuStatus::Empty("No history".to_owned())
+                TuiInlineMenuStatus::Empty(localization::text("tui.history.no_history"))
             } else {
-                TuiInlineMenuStatus::Empty("No matching history".to_owned())
+                TuiInlineMenuStatus::Empty(localization::text("tui.history.no_matching_history"))
             }
         });
         Some(TuiInlineMenuSnapshot {
             header: Some(TuiInlineMenuHeader {
-                title: Some("History".to_owned()),
+                title: Some(localization::text("tui.history.title")),
                 tabs: Vec::new(),
             }),
             rows: list

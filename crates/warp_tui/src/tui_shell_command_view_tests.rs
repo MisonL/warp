@@ -13,7 +13,7 @@ use warpui::platform::WindowStyle;
 use warpui_core::elements::tui::{
     Color, Modifier, TuiBufferExt, TuiConstraint, TuiLayoutContext, TuiRect, TuiSize,
 };
-use warpui_core::keymap::{Keystroke, Trigger};
+use warpui_core::keymap::Keystroke;
 use warpui_core::presenter::tui::TuiPresenter;
 use warpui_core::{
     App, AppContext, EntityIdMap, TuiView, TypedActionView, ViewHandle, WindowInvalidation,

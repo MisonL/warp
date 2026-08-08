@@ -320,7 +320,6 @@ pub fn render_warping_indicator<V: View>(
             Some(AIAgentActionType::Grep { .. }) => {
                 warping_status_text(app, "agent.warping.status.grepping")
             }
-            Some(AIAgentActionType::Grep { .. }) => LOAD_OUTPUT_MESSAGE_FOR_GREP.to_owned(),
             Some(AIAgentActionType::CallMCPTool {
                 server_id, name, ..
             }) => {

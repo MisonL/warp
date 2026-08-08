@@ -812,18 +812,16 @@ impl Input {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::default(
-                                    "Debugging information copied to clipboard".to_owned(),
-                                ),
+                                DismissibleToast::default(localization::text_for_app(
+                                    ctx,
+                                    "terminal.slash.copy_debugging_id.copied",
+                                )),
                                 window_id,
                                 ctx,
                             );
                         });
                     }
-                    None => show_error_toast(
-                        "No debugging ID available for this conversation yet.".to_owned(),
-                        ctx,
-                    ),
+                    None => show_error_toast("terminal.slash.copy_debugging_id.not_available", ctx),
                 }
             }
             SlashCommandKind::ExportToFile => {
@@ -1264,6 +1262,7 @@ impl Input {
             | SlashCommandKind::Statusline
             | SlashCommandKind::ResetStatusline
             | SlashCommandKind::ApiKeys
+            | SlashCommandKind::ConnectGrok
             | SlashCommandKind::Upgrade
             | SlashCommandKind::ManageBilling
             | SlashCommandKind::ViewLogs

@@ -3467,7 +3467,9 @@ impl Workspace {
                 let message = message.clone().unwrap_or_else(|| {
                     let scope_key = match grant.scope {
                         BonusGrantScope::User => "workspace.bonus_grant.scope.account",
-                        BonusGrantScope::Workspace(_) => "workspace.bonus_grant.scope.team",
+                        BonusGrantScope::Workspace(_) | BonusGrantScope::Team(_) => {
+                            "workspace.bonus_grant.scope.team"
+                        }
                     };
                     let scope = localization::text_for_app(ctx, scope_key);
                     localization::text_for_app_with_args(
@@ -6250,9 +6252,12 @@ impl Workspace {
         };
         let current_team_uid = user_workspaces.team_uid_for_window(window_id);
         let mut items: Vec<MenuItem<WorkspaceAction>> = vec![
-            MenuItemFields::new("Switch team")
-                .with_disabled(true)
-                .into_item(),
+            MenuItemFields::new(crate::localization::text_for_app(
+                ctx,
+                "workspace.team_switcher.switch_team",
+            ))
+            .with_disabled(true)
+            .into_item(),
         ];
         items.extend(workspace.teams.iter().map(|team| {
             let uid = team.uid;
@@ -28035,7 +28040,9 @@ impl View for Workspace {
             );
         }
 
-        let window_corner_radius = app.windows().window_corner_radius();
+        let window_corner_radius = app
+            .windows()
+            .window_corner_radius_for_window(self.window_id);
         let workspace = Container::new(stack.finish()).with_corner_radius(window_corner_radius);
 
         let mut stack = Stack::new();

@@ -29,7 +29,7 @@ pub enum CostRow {
         value: Option<f32>,
     },
     BilledToProvider {
-        label: &'static str,
+        label: String,
         manage_button: Box<dyn Element>,
     },
 }

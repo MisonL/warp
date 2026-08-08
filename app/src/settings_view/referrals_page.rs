@@ -635,9 +635,9 @@ impl ReferralsWidget {
     ) -> Box<dyn Element> {
         Flex::column()
             .with_child(self.render_label("Link", appearance))
-            .with_child(self.render_link_row(view, appearance))
+            .with_child(self.render_link_row(view, appearance, app))
             .with_child(self.render_label("Email", appearance))
-            .with_child(self.render_email_row(view, appearance))
+            .with_child(self.render_email_row(view, appearance, app))
             .finish()
     }
 

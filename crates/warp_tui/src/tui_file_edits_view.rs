@@ -38,14 +38,15 @@ use warpui_core::elements::tui::{
     Modifier, TuiContainer, TuiElement, TuiFlex, TuiParentElement, TuiStyle, TuiText,
     tui_collapsible,
 };
-use warpui_core::keymap::EditableBinding;
 use warpui_core::keymap::macros::*;
+use warpui_core::keymap::{BindingDescription, EditableBinding};
 use warpui_core::{
     AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext, ViewHandle,
 };
 
 use crate::editor_element::{TuiEditorElement, TuiEditorStyles};
 use crate::keybindings::{TUI_BINDING_GROUP, is_tui_owned_binding};
+use crate::localization;
 use crate::tool_call_labels::{
     ToolCallDisplayState, styled_tool_call_label_spans, tool_call_display_state,
 };
@@ -65,13 +66,20 @@ pub(crate) fn init(app: &mut AppContext) {
     let predicate = id!(TuiFileEditsView::ui_name()) & id!(FILE_EDITS_PERMISSION_ACTIVE);
     app.register_editable_bindings([EditableBinding::new(
         "tui:file-edits-permission:toggle-expand-all",
-        "Expand or collapse all diffs",
+        binding_description(
+            "Expand or collapse all diffs",
+            "tui.file_edits.binding.toggle_expand_all",
+        ),
         TuiFileEditsViewAction::ToggleExpandAll,
     )
     .with_context_predicate(predicate)
     .with_group(TUI_BINDING_GROUP)
     .with_key_binding("e")]);
     app.register_tui_binding_validator::<TuiFileEditsView>(is_tui_owned_binding);
+}
+
+fn binding_description(fallback: &'static str, key: &'static str) -> BindingDescription {
+    BindingDescription::new(fallback).with_dynamic_override(move |_| Some(localization::text(key)))
 }
 
 /// Unchanged context lines rendered on each side of a hunk.
@@ -476,14 +484,27 @@ impl TuiFileEditsView {
                     .chain(deleted_files.iter().map(String::as_str))
                     .unique()
                     .count();
-                let files_label = if files == 1 { "file" } else { "files" };
+                let files_label = localized_count_label(files);
                 match file_edit_stats_label(*lines_added, *lines_removed) {
-                    Some(stats) => format!("Edited {files} {files_label} ({stats})"),
-                    None => format!("Edited {files} {files_label}"),
+                    Some(_) => localization::text_with_args(
+                        "tui.file_edits.summary",
+                        &[
+                            ("files", &files_label),
+                            ("lines_added", &lines_added.to_string()),
+                            ("lines_removed", &lines_removed.to_string()),
+                        ],
+                    ),
+                    None => localization::text_with_args(
+                        "tui.file_edits.edited",
+                        &[("files", &files_label)],
+                    ),
                 }
             }
             Some(RequestFileEditsResult::DiffApplicationFailed { .. }) => {
                 localization::text("tui.file_edits.failed")
+            }
+            Some(RequestFileEditsResult::Cancelled) => {
+                localization::text("tui.file_edits.cancelled")
             }
             None => localization::text("tui.file_edits.preparing"),
         }
@@ -632,6 +653,23 @@ fn deltas_for(diff_type: &DiffType) -> Vec<DiffDelta> {
         DiffType::Create { delta } | DiffType::Delete { delta } => vec![delta.clone()],
         DiffType::Update { deltas, .. } => deltas.clone(),
     }
+}
+
+fn summary_header_label(state: ToolCallDisplayState, count: usize) -> String {
+    summary_header_label_for_locale(localization::current_locale(), state, count)
+}
+
+fn summary_header_label_for_locale(
+    locale: LocaleId,
+    state: ToolCallDisplayState,
+    count: usize,
+) -> String {
+    let key = if state == ToolCallDisplayState::Blocked {
+        "tui.file_edits.summary_header.editing"
+    } else {
+        "tui.file_edits.summary_header"
+    };
+    localization::text_with_args_for_locale(locale, key, &[("count", &count.to_string())])
 }
 
 fn file_edit_header_label(

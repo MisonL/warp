@@ -2240,15 +2240,9 @@ impl AIBlock {
                         }
                         other => other.clone(),
                     };
-                    let command_text = if display_input.is_null() {
-                        format!("MCP Tool: {name}")
-                    } else {
-                        format!("MCP Tool: {name} ({display_input})")
-                    };
                     self.handle_mcp_tool_stream_update(
                         action_id,
                         name,
-                        &command_text,
                         display_input,
                         *server_id,
                         ctx,
@@ -3732,8 +3726,7 @@ impl AIBlock {
     fn handle_mcp_tool_stream_update(
         &mut self,
         action_id: &AIAgentActionId,
-        tool_name: &str,
-        command_text: &str,
+        name: &str,
         mcp_args: serde_json::Value,
         server_id: Option<uuid::Uuid>,
         ctx: &mut ViewContext<Self>,
@@ -3741,9 +3734,9 @@ impl AIBlock {
         match self.requested_mcp_tools.get_mut(action_id) {
             Some(requested_mcp_tool) => {
                 requested_mcp_tool.view.update(ctx, |view, ctx| {
-                    view.apply_streamed_update(command_text, ctx);
-                    view.update_mcp_tool_name(tool_name);
-                    view.update_mcp_request(mcp_args);
+                    view.apply_streamed_update(name, ctx);
+                    view.update_mcp_tool_name(name);
+                    view.update_mcp_request(name.to_string(), mcp_args);
                     view.update_mcp_server_id(server_id);
                     ctx.notify();
                 });
@@ -3764,9 +3757,9 @@ impl AIBlock {
                         self.view_id,
                         ctx,
                     );
-                    view.apply_streamed_update(command_text, ctx);
-                    view.update_mcp_tool_name(tool_name);
-                    view.update_mcp_request(mcp_args);
+                    view.apply_streamed_update(name, ctx);
+                    view.update_mcp_tool_name(name);
+                    view.update_mcp_request(name.to_string(), mcp_args);
                     view.update_mcp_server_id(server_id);
                     view
                 });

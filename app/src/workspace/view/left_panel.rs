@@ -252,19 +252,20 @@ impl LeftPanelView {
         appearance: &Appearance,
         view: ToolPanelView,
         availability: ToolPanelAvailability,
+        app: &AppContext,
     ) -> Box<dyn Element> {
-        let (title, description) = match (view, availability) {
+        let (title_key, description_key) = match (view, availability) {
             (ToolPanelView::WarpDrive, ToolPanelAvailability::RequiresAccount) => (
-                "Sign in to access Warp Drive",
-                "Create an account to save and share workflows, notebooks, prompts, and more.",
+                "workspace.left_panel.unavailable.warp_drive.title",
+                "workspace.left_panel.unavailable.warp_drive.description",
             ),
             (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAccount) => (
-                "Sign in to access Agent conversations",
-                "Create an account and enable AI to access your conversation history.",
+                "workspace.left_panel.unavailable.conversations.title",
+                "workspace.left_panel.unavailable.conversations.description",
             ),
             (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAi) => (
-                "Turn on AI to access Agent conversations",
-                "Enable Warp AI to access your conversation history.",
+                "workspace.left_panel.unavailable.conversations_ai.title",
+                "workspace.left_panel.unavailable.conversations_ai.description",
             ),
             (
                 ToolPanelView::ProjectExplorer
@@ -279,11 +280,13 @@ impl LeftPanelView {
             | (_, ToolPanelAvailability::Available) => {
                 debug_assert!(false, "unexpected locked tool-panel state");
                 (
-                    "Feature unavailable",
-                    "This feature is currently unavailable.",
+                    "workspace.left_panel.unavailable.generic.title",
+                    "workspace.left_panel.unavailable.generic.description",
                 )
             }
         };
+        let title = localization::text_for_app(app, title_key);
+        let description = localization::text_for_app(app, description_key);
         let theme = appearance.theme();
         let title = appearance
             .ui_builder()
@@ -320,7 +323,7 @@ impl LeftPanelView {
                     ButtonVariant::Accent,
                     self.mouse_state_handles.sign_in_button.clone(),
                 )
-                .with_text_label("Sign in".to_string())
+                .with_text_label(localization::text_for_app(app, "auth.sign_in"))
                 .build()
                 .on_click(|ctx, _, _| {
                     ctx.dispatch_typed_action(LeftPanelAction::SignIn);
@@ -1343,7 +1346,7 @@ impl View for LeftPanelView {
         let content_area: Box<dyn Element> = if availability != ToolPanelAvailability::Available {
             Shrinkable::new(
                 1.0,
-                self.render_unavailable_panel(appearance, active_view, availability),
+                self.render_unavailable_panel(appearance, active_view, availability, app),
             )
             .finish()
         } else {

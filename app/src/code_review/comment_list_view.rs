@@ -988,7 +988,7 @@ impl CommentListView {
                     "code_review.comments.no_non_outdated_to_send",
                 )
             } else {
-                Cow::Owned(format!("Send diff comments to {}", agent.display_name()))
+                format!("Send diff comments to {}", agent.display_name())
             }
         } else if !ai_enabled {
             crate::localization::text_for_app(app, "code_review.comments.ai_must_be_enabled")

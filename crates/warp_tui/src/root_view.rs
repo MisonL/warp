@@ -351,7 +351,7 @@ impl TypedActionView for RootTuiView {
                 TuiLoginModel::open_login_url(url, ctx);
             }
             RootTuiAction::CopyLoginUrl(url) => {
-                self.copy_login_url_with(url, ctx, copy_to_clipboard);
+                self.copy_login_url_with(url, ctx, |url| copy_to_clipboard(url).map(|_| ()));
             }
         }
     }

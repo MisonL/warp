@@ -42,8 +42,8 @@ use crate::ai::blocklist::orchestration_topology::{
     OrchestrationParticipantKind, orchestrator_agent_id_for_conversation,
     resolve_orchestration_participant,
 };
-use crate::ai::local_harness_setup::local_harness_setup_message_key;
 use crate::appearance::Appearance;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 

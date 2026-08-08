@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use warpui_core::keymap::{Context, Trigger};
+use warpui_core::keymap::{Context, Keystroke, Trigger};
 use warpui_core::{App, TuiView};
 
 use super::{ATTACHMENTS_AVAILABLE_FLAG, TUI_BINDING_GROUP, is_tui_owned};

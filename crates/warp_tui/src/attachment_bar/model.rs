@@ -14,8 +14,8 @@ use warpui_core::clipboard::ClipboardContent;
 use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
 
 use super::image_processing::{
-    ClipboardPasteContent, classify_clipboard_content, parse_image_paths,
-    process_clipboard_content, process_paths, read_clipboard_content,
+    ClipboardPasteContent, classify_clipboard_content, default_clipboard_image_file_name,
+    parse_image_paths, process_clipboard_content, process_paths, read_clipboard_content,
 };
 use crate::input_mode_policy::AI_LOCKED_CONFIG;
 use crate::localization;

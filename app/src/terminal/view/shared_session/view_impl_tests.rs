@@ -2525,7 +2525,7 @@ fn test_session_sharing_context_menu_copy_link_disabled_when_no_session_link() {
         terminal.read(&app, |view, _| {
             let model = view.model.lock();
             // has_session_link=false simulates ViewPending with no registered session_id.
-            let items = view.session_sharing_context_menu_items(&model, false, false);
+            let items = view.session_sharing_context_menu_items(&model, false, false, &app);
 
             let copy_link_item = items.iter().find(|item| {
                 item.fields()
@@ -2552,7 +2552,7 @@ fn test_session_sharing_context_menu_copy_link_enabled_when_session_link_availab
         terminal.read(&app, |view, _| {
             let model = view.model.lock();
             // has_session_link=true simulates an active or ended session with a registered id.
-            let items = view.session_sharing_context_menu_items(&model, false, true);
+            let items = view.session_sharing_context_menu_items(&model, false, true, &app);
 
             let copy_link_item = items.iter().find(|item| {
                 item.fields()

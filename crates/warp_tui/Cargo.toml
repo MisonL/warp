@@ -75,6 +75,7 @@ warp = { workspace = true, features = [
   "image_as_context",
   "nld_classifier_v3",
   "nld_heuristic_v2",
+  "local_fs",
   "tui",
 ] }
 warp_channel_config.workspace = true
@@ -106,6 +107,9 @@ arboard = { workspace = true }
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 arboard = { workspace = true, features = ["wayland-data-control"] }
 
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
 # `dunce::simplified` strips the Win32 extended-length (`\\?\`) prefix that
 # `Path::canonicalize` produces, which the Inno Setup updater rejects in its
 # `/DIR` argument. Windows-only, so it stays out of the portable dependency set.
@@ -114,6 +118,9 @@ dunce.workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
+# The shared TUI test fixture checks these preference singletons before
+# installing an in-memory backend.
+settings.workspace = true
 tempfile.workspace = true
 # `test-util` exposes `Appearance::mock()`, used to register the `Appearance`
 # singleton that the editor-backed TUI input view depends on in tests.

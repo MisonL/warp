@@ -8,6 +8,7 @@ use warp::tui_export::{
     register_tui_session_view_test_singletons, slash_commands,
 };
 use warp_core::settings::Setting as _;
+use warp_localization::LocaleId;
 use warp_search_core::inline_menu::InlineMenuSelection;
 use warpui::SingletonEntity;
 use warpui_core::elements::tui::{
@@ -350,9 +351,11 @@ fn argument_hint_uses_the_current_locale_when_a_catalog_key_is_available() {
         command: slash_commands::THEME.clone(),
         argument: Some(String::new()),
     });
+    let theme_hint = argument_hint_for_parsed_input(&theme, "/theme ")
+        .expect("theme should expose an argument hint");
     assert_eq!(
-        argument_hint_text_for_parsed_input(&theme, "/theme "),
-        Some("<auto|light|dark>")
+        localized_argument_hint_text_for_locale(&theme_hint, LocaleId::EnUs),
+        "<auto|light|dark>"
     );
 }
 

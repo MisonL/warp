@@ -389,7 +389,7 @@ pub fn render_separator(appearance: &Appearance) -> Box<dyn Element> {
 }
 
 pub fn render_full_pane_width_ai_button(
-    text: &str,
+    text: String,
     is_any_ai_enabled: bool,
     mouse_state: MouseStateHandle,
     action: AISettingsPageAction,
@@ -423,7 +423,7 @@ pub fn render_full_pane_width_ai_button(
                         1.,
                         appearance
                             .ui_builder()
-                            .wrappable_text(text.to_string(), true)
+                            .wrappable_text(text.clone(), true)
                             .with_style(UiComponentStyles {
                                 font_size: Some(CONTENT_FONT_SIZE),
                                 font_color: Some(text_color),

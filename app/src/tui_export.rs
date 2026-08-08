@@ -157,6 +157,11 @@ pub use crate::ai::orchestration::{
 #[cfg(feature = "voice_input")]
 pub use crate::ai::request_usage_model::AIRequestUsageModel;
 pub use crate::ai::skills::{SkillManager, SkillManagerEvent, SkillReference};
+
+/// Returns the active application locale to the headless TUI frontend.
+pub fn current_locale(app: &warpui::AppContext) -> warp_localization::LocaleId {
+    crate::localization::current_locale(app)
+}
 #[cfg(not(target_family = "wasm"))]
 pub use crate::ai::tui_api_keys::notify_tui_api_keys_changed;
 pub use crate::appearance::Appearance;
@@ -180,7 +185,9 @@ pub use crate::search::slash_command_menu::static_commands::commands::{
 pub use crate::search::slash_command_menu::static_commands::{
     SlashCommandKind, SlashCommandSurfaces,
 };
-pub use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
+pub use crate::search::slash_command_menu::{
+    SlashCommandArgumentHint, SlashCommandId, StaticCommand,
+};
 pub use crate::server::ids::SyncId;
 pub use crate::server::server_api::ServerApiProvider;
 #[cfg(feature = "voice_input")]

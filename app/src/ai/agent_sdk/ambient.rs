@@ -535,9 +535,7 @@ impl AmbientAgentRunner {
                 match merged_config
                     .model_id
                     .as_deref()
-                    .map(|model_id| {
-                        super::common::validate_agent_mode_base_model_id(model_id, ctx)
-                    })
+                    .map(|model_id| super::common::validate_agent_mode_base_model_id(model_id, ctx))
                     .transpose()
                 {
                     Ok(id) => id.map(|id| id.to_string()),
@@ -705,8 +703,18 @@ impl AmbientAgentRunner {
                                 session_join_info = Some(info);
                             }
                             AmbientAgentEvent::TimedOut => {
-                                let task_id_str = spawned_task_id.as_ref().map_or_else(|| "unknown".to_string(), |id| id.to_string());
-                                println!("Agent session with run ID {task_id_str} is not ready after {}s. Check for a sharing link in the ambient agent management panel. See https://docs.warp.dev/platform/managing-cloud-agents for details.", TASK_STATUS_POLLING_DURATION.as_secs());
+                                let task_id = spawned_task_id
+                                    .as_ref()
+                                    .map_or_else(|| "unknown".to_string(), ToString::to_string);
+                                let seconds = TASK_STATUS_POLLING_DURATION.as_secs().to_string();
+                                println!(
+                                    "{}",
+                                    text_for_locale_with_args(
+                                        locale,
+                                        "agent_sdk.ambient.output.session_not_ready",
+                                        &[("task_id", &task_id), ("seconds", &seconds)],
+                                    )
+                                );
                             }
                         },
                         Err(err) => {
@@ -1194,9 +1202,18 @@ impl AmbientAgentRunner {
                 } => {
                     let title_str = title.as_deref().unwrap_or("Untitled reference");
                     lines.push(format!("  {reference_type}: {title_str}"));
-                    lines.push(format!("    Link: {url}"));
+                    lines.push(text_for_locale_with_args(
+                        locale,
+                        "agent_sdk.ambient.artifacts.link",
+                        &[("url", url)],
+                    ));
                     if let Some(metadata) = metadata {
-                        lines.push(format!("    Metadata: {metadata}"));
+                        let metadata = metadata.to_string();
+                        lines.push(text_for_locale_with_args(
+                            locale,
+                            "agent_sdk.ambient.artifacts.metadata",
+                            &[("metadata", &metadata)],
+                        ));
                     }
                 }
             }

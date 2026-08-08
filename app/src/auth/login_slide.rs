@@ -4,7 +4,7 @@ use onboarding::components::feature_optout_dialog::{
     FeatureOptOutDialog, render_feature_optout_dialog,
 };
 use onboarding::slides::{layout, onboarding_bottom_nav, slide_content};
-use onboarding::{OnboardingEvent, OnboardingIntention, WARP_DRIVE_FEATURES};
+use onboarding::{OnboardingEvent, OnboardingIntention, WARP_DRIVE_FEATURE_COPY_KEYS};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use ui_components::{Component as _, Options as _, button};
@@ -93,28 +93,27 @@ impl LoginPurpose {
     fn copy(self) -> (&'static str, &'static str) {
         match self {
             LoginPurpose::WarpDrive => (
-                "Get started with Warp Drive",
-                "Connect your account to save and share notebooks, workflows, and more across devices.",
+                "auth.onboarding.title.drive",
+                "auth.onboarding.description.drive",
             ),
-            LoginPurpose::WarpAgent => (
-                "Get started with AI",
-                "Connect your account to enable AI-powered planning, coding, and automation.",
-            ),
+            LoginPurpose::WarpAgent => {
+                ("auth.onboarding.title.ai", "auth.onboarding.description.ai")
+            }
             LoginPurpose::ThirdParty => (
-                "Create an account",
-                "Create a Warp account to enable AI-powered planning, coding, and automations.",
+                "auth.onboarding.title.third_party",
+                "auth.onboarding.description.third_party",
             ),
             LoginPurpose::AccountFirst => (
-                "Create an account",
-                "Access AI, run cloud agents, collaborate with teammates, and sync settings across devices.",
+                "auth.onboarding.title.account_first",
+                "auth.onboarding.description.account_first",
             ),
         }
     }
 
     fn work_email_callout_copy(self) -> Option<(&'static str, &'static str)> {
         matches!(self, LoginPurpose::AccountFirst).then_some((
-            "Use a work email to find teammates",
-            "Signing in with a work email helps us find your teammates and may unlock special offers.",
+            "auth.onboarding.work_email.title",
+            "auth.onboarding.work_email.description",
         ))
     }
 }
@@ -624,7 +623,9 @@ impl LoginSlideView {
         let ui_builder = appearance.ui_builder();
 
         let login_purpose = self.login_purpose();
-        let (title_text, subtitle_text) = login_purpose.copy();
+        let (title_key, subtitle_key) = login_purpose.copy();
+        let title_text = localization::text_for_app(app, title_key);
+        let subtitle_text = localization::text_for_app(app, subtitle_key);
         let title = FormattedTextElement::from_str(title_text, appearance.ui_font_family(), 36.)
             .with_color(internal_colors::text_main(
                 theme,
@@ -717,7 +718,10 @@ impl LoginSlideView {
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(title)
             .with_child(Container::new(subtitle).with_margin_top(16.).finish());
-        if let Some((callout_title, callout_body)) = login_purpose.work_email_callout_copy() {
+        if let Some((callout_title_key, callout_body_key)) = login_purpose.work_email_callout_copy()
+        {
+            let callout_title = localization::text_for_app(app, callout_title_key);
+            let callout_body = localization::text_for_app(app, callout_body_key);
             header = header.with_child(
                 Container::new(Self::render_work_email_callout(
                     appearance,
@@ -735,8 +739,8 @@ impl LoginSlideView {
 
     fn render_work_email_callout(
         appearance: &Appearance,
-        title: &'static str,
-        body: &'static str,
+        title: String,
+        body: String,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let background = theme.background().into_solid();
@@ -790,7 +794,11 @@ impl LoginSlideView {
         .finish()
     }
 
-    fn render_select_auth_bottom_nav(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_select_auth_bottom_nav(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         let back_button = self.back_button.render(
             appearance,
             button::Params {
@@ -808,11 +816,11 @@ impl LoginSlideView {
         );
 
         let cmd_enter = Keystroke::parse("cmdorctrl-enter").unwrap_or_default();
-        let skip_label = match self.login_purpose() {
-            LoginPurpose::WarpDrive => "Disable Warp Drive",
-            LoginPurpose::WarpAgent => "Skip for now",
-            LoginPurpose::ThirdParty => "Skip for now",
-            LoginPurpose::AccountFirst => "Skip",
+        let skip_label_key = match self.login_purpose() {
+            LoginPurpose::WarpDrive => "auth.disable_warp_drive",
+            LoginPurpose::WarpAgent | LoginPurpose::ThirdParty | LoginPurpose::AccountFirst => {
+                "auth.skip_for_now"
+            }
         };
         let skip_keystroke = if matches!(self.login_purpose(), LoginPurpose::AccountFirst) {
             None
@@ -1143,10 +1151,10 @@ impl LoginSlideView {
                 "auth.enable_warp_drive",
             ),
             LoginPurpose::WarpAgent | LoginPurpose::ThirdParty | LoginPurpose::AccountFirst => (
-                "Continue without signing in?",
-                "Without an account, you won't have access to Warp's AI features. Sign in anytime to unlock agents and other AI features.",
-                &[],
-                "Sign in",
+                "auth.skip_confirm.title.ai",
+                "auth.skip_confirm.description.ai",
+                &[] as &[&str],
+                "auth.sign_in",
             ),
         };
         let title = localization::text_for_app(app, title_key);

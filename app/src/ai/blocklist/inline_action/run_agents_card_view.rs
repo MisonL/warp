@@ -59,6 +59,7 @@ use crate::ai::harness_availability::{
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::ai::orchestration::RunnerFetchState;
 use crate::appearance::Appearance;
+use crate::features::FeatureFlag;
 use crate::localization;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
 use crate::server::experiments::{ServerExperiments, ServerExperimentsEvent};
@@ -444,7 +445,7 @@ impl RunAgentsCardView {
             if !oc::runner_controls_enabled(ctx) {
                 me.handles.pickers.runner_picker = None;
                 me.runners.clear();
-                me.runners_loading = false;
+                me.runner_fetch_state = RunnerFetchState::NotFetched;
             } else {
                 me.ensure_runner_picker(ctx);
             }
@@ -1575,7 +1576,33 @@ fn render_summary(
     .with_selectable(true)
     .finish();
 
-    Container::new(summary_text)
+    let mut column = Flex::column()
+        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+        .with_child(summary_text);
+    // Multi-level orchestration: the server may grant launched children the
+    // run_agents tool, so tell the approver up front. The client cannot
+    // cheaply know the server-side depth budget, so this line is gated on
+    // the client-side multi-level enablement flag.
+    if FeatureFlag::MultiLevelOrchestration.is_enabled() {
+        column = column.with_child(
+            Container::new(
+                Text::new(
+                    localization::text_for_app(
+                        app,
+                        "agent.orchestration.run_agents.multilevel_hint",
+                    ),
+                    appearance.ui_font_family(),
+                    appearance.monospace_font_size() - 1.,
+                )
+                .with_color(blended_colors::text_disabled(theme, theme.background()))
+                .finish(),
+            )
+            .with_margin_top(4.)
+            .finish(),
+        );
+    }
+
+    Container::new(column.finish())
         .with_margin_bottom(12.)
         .finish()
 }
@@ -1806,6 +1833,7 @@ fn render_editor(
         &handles.pickers,
         appearance,
         oc::runner_controls_enabled(app),
+        app,
     ));
 
     if let Some(reason) = oc::accept_disabled_reason_with_auth(orchestration_config_state, app) {

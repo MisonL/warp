@@ -561,7 +561,12 @@ pub(crate) fn apply_editor_clipboard_action(
     action: TuiEditorClipboardAction,
     ctx: &mut AppContext,
 ) -> anyhow::Result<bool> {
-    apply_editor_clipboard_action_with(model, action, copy_to_clipboard, ctx)
+    apply_editor_clipboard_action_with(
+        model,
+        action,
+        |text| copy_to_clipboard(text).map(|_| ()),
+        ctx,
+    )
 }
 
 fn apply_editor_clipboard_action_with(

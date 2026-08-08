@@ -11,6 +11,7 @@ use warpui::{
 use super::inline_action_icons::icon_size;
 use crate::Appearance;
 use crate::ai::blocklist::view_util::error_color;
+use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
 
@@ -35,14 +36,20 @@ pub struct GeminiEnterpriseCredentialsErrorView {
 
 impl GeminiEnterpriseCredentialsErrorView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let refresh_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Refresh credentials", PrimaryTheme)
-                .with_size(ButtonSize::InlineActionHeader)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        GeminiEnterpriseCredentialsErrorAction::RefreshCredentials,
-                    )
-                })
+        let refresh_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(
+                localization::text_for_app(
+                    ctx,
+                    "settings.ai.gemini_enterprise.credentials.refresh",
+                ),
+                PrimaryTheme,
+            )
+            .with_size(ButtonSize::InlineActionHeader)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(
+                    GeminiEnterpriseCredentialsErrorAction::RefreshCredentials,
+                )
+            })
         });
         ctx.subscribe_to_model(&ApiKeyManager::handle(ctx), |view, manager, _event, ctx| {
             if !view.refresh_requested {
@@ -71,8 +78,8 @@ impl GeminiEnterpriseCredentialsErrorView {
             }
             ctx.notify();
         });
-        let manage_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new("Manage", NakedTheme)
+        let manage_button = ctx.add_typed_action_view(|ctx| {
+            ActionButton::new(localization::text_for_app(ctx, "common.manage"), NakedTheme)
                 .with_size(ButtonSize::InlineActionHeader)
                 .on_click(|ctx| {
                     ctx.dispatch_typed_action(GeminiEnterpriseCredentialsErrorAction::OpenSettings)

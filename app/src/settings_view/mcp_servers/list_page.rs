@@ -1181,12 +1181,9 @@ impl MCPServersListPageView {
                     app,
                     "settings.mcp.list.file_based.supported_providers_link",
                 ),
-                FormattedTextFragment::hyperlink(
-                    "See supported providers.",
-                    "https://docs.warp.dev/agents/capabilities/mcp#file-based-mcp-servers",
-                ),
-            ]
-        });
+                "https://docs.warp.dev/agents/capabilities/mcp#file-based-mcp-servers",
+            ),
+        ];
 
         let description = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(file_based_description_fragments)]),
@@ -1221,7 +1218,7 @@ impl MCPServersListPageView {
                 "settings.mcp.list.description",
             )),
             FormattedTextFragment::hyperlink(
-                "Learn more.",
+                localization::text_for_app(app, "settings.mcp.list.learn_more"),
                 "https://docs.warp.dev/agents/capabilities/mcp",
             ),
         ];

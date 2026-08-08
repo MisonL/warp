@@ -77,7 +77,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiMcpMenuModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<String> {
         self.as_ref(ctx).input_hint_text(ctx)
     }
 
@@ -130,8 +130,8 @@ impl TuiInlineMenuHandle for ModelHandle<TuiMcpInstallFlowModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<&'static str> {
-        self.as_ref(ctx).input_hint_text(ctx)
+    fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<String> {
+        self.as_ref(ctx).input_hint_text(ctx).map(ToOwned::to_owned)
     }
 
     fn select_previous(&self, ctx: &mut AppContext) {
@@ -581,7 +581,7 @@ impl TuiInlineMenu {
         self.handle.input_highlight_range(ctx)
     }
 
-    pub(crate) fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<&'static str> {
+    pub(crate) fn input_argument_hint_text(&self, ctx: &AppContext) -> Option<String> {
         self.handle.input_argument_hint_text(ctx)
     }
 
@@ -639,7 +639,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiApiKeysMenuModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 
@@ -791,7 +791,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiPromptAndCommandHistoryMenuModel> {
         None
     }
 
-    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<&'static str> {
+    fn input_argument_hint_text(&self, _ctx: &AppContext) -> Option<String> {
         None
     }
 

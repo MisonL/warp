@@ -852,7 +852,7 @@ impl View for CustomEndpointModal {
         );
         // Request/response protocol
         column.add_child(
-            Container::new(label("API schema"))
+            Container::new(label("API schema".to_owned()))
                 .with_margin_bottom(4.)
                 .finish(),
         );

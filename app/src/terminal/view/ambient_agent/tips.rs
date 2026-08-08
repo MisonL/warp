@@ -4,7 +4,6 @@ use warpui::AppContext;
 use warpui::keymap::Keystroke;
 
 use crate::ai::agent_tips::AITip;
-use crate::localization;
 
 /// A cloud mode tip with text and optional link.
 #[derive(Clone, Debug)]

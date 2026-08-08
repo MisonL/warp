@@ -747,9 +747,25 @@ pub mod text {
                         should_persist,
                     } => {
                         if *should_persist {
-                            writeln!(w, "Stopping recording {recording_id}")?;
+                            writeln!(
+                                w,
+                                "{}",
+                                text_with_args_for_locale(
+                                    locale,
+                                    "agent_sdk.driver.output.stopping_recording",
+                                    &[("recording_id", recording_id)],
+                                )
+                            )?;
                         } else {
-                            writeln!(w, "Stopping recording {recording_id} and discarding result")?;
+                            writeln!(
+                                w,
+                                "{}",
+                                text_with_args_for_locale(
+                                    locale,
+                                    "agent_sdk.driver.output.stopping_recording_discarded",
+                                    &[("recording_id", recording_id)],
+                                )
+                            )?;
                         }
                     }
                     AIAgentActionType::ReadSkill(request) => {

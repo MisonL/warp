@@ -383,6 +383,11 @@ fn default_agent_onboarding_text(key: &str) -> &str {
         "onboarding.intro.log_in" => "Log in",
         "onboarding.intro.subtitle" => "A modern terminal with state of the art agents built in.",
         "onboarding.intro.title" => "Welcome to Warp",
+        "onboarding.offer.credit_divider" => "Or buy AI credits without a subscription",
+        "onboarding.offer.credit_savings" => "Save {badge_percent}%",
+        "onboarding.offer.purchase_failed" => {
+            "We couldn't start that purchase. Try again, or choose \"Set up AI later\" to continue."
+        }
         "onboarding.no_ai.body" => {
             "Without AI, you'll still get Warp's terminal experience, but you'll miss our agentic features like automatic fixes for terminal errors."
         }

@@ -39,6 +39,9 @@ use crate::zero_state_animation::{
     ZeroStateInteractionHandle, ZeroStateStarfieldElement, benchmark_logo_projection,
 };
 
+const ZERO_STATE_BENCHMARK_OVERLAY: &str =
+    "Warp Agent\nv0.0.0\n\nWhat's new\n• benchmark\n\nProject\nbenchmark fixture";
+
 const ZERO_STATE_COPY_COLS: u16 = 48;
 const ZERO_STATE_ANIMATION_COLS: u16 = 32;
 
@@ -155,10 +158,7 @@ impl TuiView for BenchmarkZeroStateView {
         )
         .without_background_stars()
         .finish();
-        let overlay = TuiText::new(
-            "Warp Agent\nv0.0.0\n\nWhat's new\n• benchmark\n\nProject\nbenchmark fixture",
-        )
-        .finish();
+        let overlay = TuiText::new(ZERO_STATE_BENCHMARK_OVERLAY).finish();
         build_zero_state_layout(starfield, animation, overlay)
     }
 }

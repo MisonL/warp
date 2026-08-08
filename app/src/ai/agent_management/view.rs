@@ -608,6 +608,7 @@ impl AgentManagementView {
                 }
                 AgentSource::WebApp => "agent_management.source.oz_web",
                 AgentSource::GitHubAction => "agent_management.source.oz_web",
+                AgentSource::GitHubWebhook => "agent_management.source.github_webhook",
             };
             items.push(MenuItem::Item(
                 MenuItemFields::new(localization::text_for_app(app, source_key))
@@ -1936,6 +1937,7 @@ impl AgentManagementView {
                 }
                 AgentSource::WebApp => "agent_management.source.oz_web",
                 AgentSource::GitHubAction => "agent_management.source.oz_web",
+                AgentSource::GitHubWebhook => "agent_management.source.github_webhook",
             };
             metadata_parts.push(format!(
                 "{}: {}",
