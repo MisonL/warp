@@ -222,12 +222,9 @@ impl MemberUsageRow {
                     .entry(key)
                     .or_insert_with(|| GroupedSubjectUsage {
                         subject_type: entry.subject_type.clone(),
-                        display_name: entry
-                            .subject_display_name
-                            .clone()
-                            .unwrap_or_else(|| {
-                                localization::text_for_app(app, "settings.billing.value.unknown")
-                            }),
+                        display_name: entry.subject_display_name.clone().unwrap_or_else(|| {
+                            localization::text_for_app(app, "settings.billing.value.unknown")
+                        }),
                         entries: Vec::new(),
                     });
             group.entries.push(entry.clone());
@@ -572,7 +569,7 @@ fn render_row_card(
         name_row.add_child(
             Container::new(
                 Text::new_inline(
-                    "Former member",
+                    localization::text_for_app(app, "settings.billing.usage.former_member"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size() - 1.,
                 )

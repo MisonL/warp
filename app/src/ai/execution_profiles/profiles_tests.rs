@@ -25,8 +25,6 @@ use crate::cloud_object::{
     ObjectIdType, Owner, Revision, ServerAIExecutionProfile, ServerCreationInfo,
     ServerGuestSubject, ServerMetadata, ServerObjectGuest, ServerPermissions, ServerPreference,
 };
-#[cfg(not(feature = "agent_mode_evals"))]
-use crate::cloud_object::{ObjectIdType, ServerCreationInfo};
 use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::{InitialLoadResponse, UpdateManager};
 use crate::server::ids::{ServerId, ServerIdAndType, SyncId};

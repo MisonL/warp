@@ -1279,13 +1279,14 @@ fn warp_control_bundled_skill_activations_track_warp_control_feature() {
 #[test]
 fn factory_mcp_bundled_skill_activation_tracks_factory_mcp_feature() {
     assert!(matches!(
-        activation_for_bundled_skill("factory-mcp", Path::new("/resources")),
+        activation_for_bundled_skill("factory-mcp", Path::new("/resources"), LocaleId::EnUs),
         BundledSkillActivation::RequiresFeature(FeatureFlag::FactoryMcp)
     ));
 
     App::test((), |app| async move {
         let settings = app.add_singleton_model(AISettings::new_with_defaults);
-        let activation = activation_for_bundled_skill("factory-mcp", Path::new("/resources"));
+        let activation =
+            activation_for_bundled_skill("factory-mcp", Path::new("/resources"), LocaleId::EnUs);
 
         let factory_mcp_disabled = FeatureFlag::FactoryMcp.override_enabled(false);
         assert!(!settings.read(&app, |_, ctx| activation.is_enabled(ctx)));

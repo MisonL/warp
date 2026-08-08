@@ -458,10 +458,9 @@ fn label_for_action(
             localization::text("agent.action.name.suggest_prompt"),
             state,
         ),
-        AIAgentActionType::InitProject => fallback_label(
-            localization::text("agent.action.name.init_project"),
-            state,
-        ),
+        AIAgentActionType::InitProject => {
+            fallback_label(localization::text("agent.action.name.init_project"), state)
+        }
         AIAgentActionType::OpenCodeReview => fallback_label(
             localization::text("agent.action.name.open_code_review"),
             state,

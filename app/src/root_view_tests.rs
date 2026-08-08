@@ -353,6 +353,7 @@ fn test_show_needs_sso_link_view_blocks_pre_terminal_onboarding_states() {
                     false,
                     false,
                     OnboardingAuthState::LoggedOut,
+                    super::build_agent_onboarding_copy(ctx),
                     ctx,
                 )
             });

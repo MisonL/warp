@@ -8,10 +8,26 @@ use super::config_state::{AuthSecretSelection, OrchestrationConfigState};
 use crate::ai::auth_secret_types::auth_secret_types_for_harness;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::local_harness_setup::{
-    LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_state,
+    LocalHarnessSetupState, local_harness_is_product_enabled, local_harness_setup_message_key,
+    local_harness_setup_state,
 };
 use crate::ai::orchestration::providers::ORCHESTRATION_WARP_WORKER_HOST;
 use crate::cloud_object::CloudObjectLookup as _;
+use crate::localization;
+
+pub(crate) fn localized_orchestration_disabled_reason(reason: &str, ctx: &AppContext) -> String {
+    let key = match reason {
+        "Disabled by your administrator" => {
+            Some("terminal.ambient_agent.harness_selector.tooltip.disabled_by_admin")
+        }
+        "OpenCode is not supported on Cloud yet. Switch to Local or pick a different harness." => {
+            Some("agent.orchestration.controls.opencode_cloud_unsupported")
+        }
+        _ => local_harness_setup_message_key(reason),
+    };
+    key.map(|key| localization::text_for_app(ctx, key))
+        .unwrap_or_else(|| reason.to_owned())
+}
 
 /// Whether a harness's local setup allows selecting it: always true for
 /// Cloud, otherwise requires the local CLI to be installed and the
@@ -84,23 +100,26 @@ pub fn accept_disabled_reason_with_auth(
     ctx: &AppContext,
 ) -> Option<String> {
     if let Some(reason) = state.accept_disabled_reason() {
-        return Some(reason.to_string());
+        return Some(localized_orchestration_disabled_reason(reason, ctx));
     }
     if matches!(state.execution_mode, RunAgentsExecutionMode::Local)
         && let Some(harness) = Harness::parse_local_child_harness(&state.harness_type)
     {
         match local_harness_setup_state(harness) {
             LocalHarnessSetupState::MissingHarness { tooltip } => {
-                return Some(tooltip.to_string());
+                return Some(localized_orchestration_disabled_reason(tooltip, ctx));
             }
             LocalHarnessSetupState::ProductDisabled { message } => {
-                return Some(message.to_string());
+                return Some(localized_orchestration_disabled_reason(message, ctx));
             }
             LocalHarnessSetupState::Ready => {}
         }
     }
     if auth_secret_selection_required(state, ctx) {
-        return Some("Select an API key for this harness to continue.".to_string());
+        return Some(localization::text_for_app(
+            ctx,
+            "agent.orchestration.controls.select_api_key_required",
+        ));
     }
     None
 }
@@ -127,9 +146,15 @@ pub fn empty_env_recommendation_message(
     }
     let env_count = CloudAmbientAgentEnvironment::get_all(app).len();
     Some(if env_count > 0 {
-        "We recommend selecting an environment for cloud agents.".to_string()
+        localization::text_for_app(
+            app,
+            "agent.orchestration.controls.recommend_select_environment",
+        )
     } else {
-        "We recommend creating an environment for cloud agents.".to_string()
+        localization::text_for_app(
+            app,
+            "agent.orchestration.controls.recommend_create_environment",
+        )
     })
 }
 

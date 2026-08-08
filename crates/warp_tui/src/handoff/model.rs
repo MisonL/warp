@@ -25,6 +25,8 @@ use warp::tui_export::{
 };
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
 
+use crate::localization;
+
 /// Editable selector pages in their handoff configuration order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TuiHandoffSelectorKind {
@@ -33,11 +35,11 @@ pub(crate) enum TuiHandoffSelectorKind {
 }
 
 impl TuiHandoffSelectorKind {
-    /// User-facing question shown above this selector page.
-    pub(crate) fn question(self) -> &'static str {
+    /// Catalog key for the user-facing question shown above this selector page.
+    pub(crate) fn question_key(self) -> &'static str {
         match self {
-            Self::Environment => "Which environment should run this conversation?",
-            Self::Model => "Which model should run this conversation?",
+            Self::Environment => "tui.handoff.selector.environment_question",
+            Self::Model => "tui.handoff.selector.model_question",
         }
     }
 }
@@ -122,7 +124,7 @@ impl TuiHandoffModel {
         if !AISettings::as_ref(ctx).is_cloud_handoff_enabled(ctx) {
             return Err(TuiHandoffPreparationFailure {
                 replacement_input: None,
-                message: "Cloud handoff is unavailable.".to_owned(),
+                message: localization::text("tui.handoff.error.cloud_unavailable"),
             });
         }
 
@@ -290,54 +292,48 @@ impl TuiHandoffModel {
         });
         TuiHandoffPreparationFailure {
             replacement_input,
-            message: Self::prepare_error_message(&error).to_owned(),
+            message: localization::text(Self::prepare_error_key(&error)),
         }
     }
 
-    fn prepare_error_message(error: &HandoffPrepareError) -> &'static str {
+    fn prepare_error_key(error: &HandoffPrepareError) -> &'static str {
         match error {
-            HandoffPrepareError::LongRunningCommand => {
-                "Can't hand off while a command is running. Cancel it or wait for it to finish."
-            }
+            HandoffPrepareError::LongRunningCommand => "tui.handoff.error.long_running_command",
             HandoffPrepareError::ActiveOrBlockedChild => {
-                "Can't hand off while child work is active or waiting for input."
+                "tui.handoff.error.active_or_blocked_child"
             }
             HandoffPrepareError::EmptySourceAndPrompt => {
-                "Nothing to hand off — start a conversation or add a prompt."
+                "tui.handoff.error.empty_source_and_prompt"
             }
             HandoffPrepareError::MissingServerConversationToken => {
-                "This conversation hasn't synced yet. Send another message, then try again."
+                "tui.handoff.error.missing_server_conversation"
             }
-            HandoffPrepareError::InvalidModel => "The selected model can't run in Oz cloud.",
+            HandoffPrepareError::InvalidModel => "tui.handoff.error.invalid_model",
             HandoffPrepareError::SourceConversationChanged
             | HandoffPrepareError::SourceNotInProgress
             | HandoffPrepareError::HandoffDisabled
             | HandoffPrepareError::MissingRequiredEnvironment
-            | HandoffPrepareError::InvalidEnvironment => {
-                "Couldn't start the handoff. Check the current conversation and try again."
-            }
+            | HandoffPrepareError::InvalidEnvironment => "tui.handoff.error.prepare_failed",
         }
     }
 
-    fn validation_message(error: &HandoffPrepareError) -> &'static str {
+    fn validation_error_key(error: &HandoffPrepareError) -> &'static str {
         match error {
             HandoffPrepareError::MissingRequiredEnvironment => {
-                "Select an environment before starting the handoff."
+                "tui.handoff.validation.environment_required"
             }
             HandoffPrepareError::InvalidEnvironment => {
-                "The selected environment is no longer available."
+                "tui.handoff.validation.environment_unavailable"
             }
-            HandoffPrepareError::InvalidModel => {
-                "The selected model cannot run in Oz cloud. Choose a compatible model."
-            }
-            HandoffPrepareError::HandoffDisabled => "Cloud handoff is no longer available.",
+            HandoffPrepareError::InvalidModel => "tui.handoff.validation.model_incompatible",
+            HandoffPrepareError::HandoffDisabled => "tui.handoff.validation.disabled",
             HandoffPrepareError::SourceConversationChanged
             | HandoffPrepareError::EmptySourceAndPrompt
             | HandoffPrepareError::SourceNotInProgress
             | HandoffPrepareError::LongRunningCommand
             | HandoffPrepareError::ActiveOrBlockedChild
             | HandoffPrepareError::MissingServerConversationToken => {
-                "The handoff can no longer start. Return to local input and try again."
+                "tui.handoff.validation.unavailable"
             }
         }
     }
@@ -443,7 +439,7 @@ impl TuiHandoffModel {
         OptionSnapshot {
             status: if rows.is_empty() {
                 OptionSourceStatus::Empty {
-                    message: "No cloud environments available".to_owned(),
+                    message: localization::text("tui.handoff.selector.no_environments"),
                 }
             } else {
                 OptionSourceStatus::Ready
@@ -476,7 +472,7 @@ impl TuiHandoffModel {
                     .find(|environment| environment.id == selected)
                     .map(|environment| environment.name.clone())
             })
-            .unwrap_or_else(|| "Select an environment".to_owned())
+            .unwrap_or_else(|| localization::text("tui.handoff.selector.environment_placeholder"))
     }
 
     pub(crate) fn model_label(&self, ctx: &AppContext) -> String {
@@ -494,7 +490,10 @@ impl TuiHandoffModel {
         if !LLMPreferences::as_ref(ctx)
             .is_cloud_runnable_oz_model_id(&LLMId::from(presentation.model_id.as_str()))
         {
-            format!("{label} (incompatible)")
+            localization::text_with_args(
+                "tui.handoff.selector.model_incompatible",
+                &[("label", &label)],
+            )
         } else {
             label
         }
@@ -585,7 +584,7 @@ impl TuiHandoffModel {
                 unreachable!("validated handoff is editable");
             };
             *state = TuiHandoffEditableState::Acceptance {
-                validation_error: Some(Self::validation_message(&error).to_owned()),
+                validation_error: Some(localization::text(Self::validation_error_key(&error))),
             };
             ctx.emit(TuiHandoffModelEvent::Changed { focus_block: false });
             ctx.notify();
@@ -619,7 +618,9 @@ impl TuiHandoffModel {
                 HandoffCommitOutcome::Rejected { pending, error } => {
                     model.phase = TuiHandoffPhase::Editable {
                         state: TuiHandoffEditableState::Acceptance {
-                            validation_error: Some(Self::validation_message(&error).to_owned()),
+                            validation_error: Some(localization::text(Self::validation_error_key(
+                                &error,
+                            ))),
                         },
                         pending,
                     };
@@ -647,9 +648,7 @@ impl TuiHandoffModel {
                     model.dismissed = true;
                     ctx.emit(TuiHandoffModelEvent::Failed {
                         restoration: failure.restoration,
-                        message:
-                            "Couldn't start the handoff. Check your network connection and try again."
-                                .to_owned(),
+                        message: localization::text("tui.handoff.error.network_failed"),
                     });
                     ctx.notify();
                 }
@@ -661,8 +660,7 @@ impl TuiHandoffModel {
                 HandoffCommitOutcome::Created(created) => {
                     warp::send_telemetry_from_ctx!(
                         CloudAgentTelemetryEvent::HandoffSnapshotPrepared {
-                            derived_workspace_had_content: created
-                                .derived_workspace_had_content,
+                            derived_workspace_had_content: created.derived_workspace_had_content,
                         },
                         ctx
                     );

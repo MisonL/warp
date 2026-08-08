@@ -417,7 +417,9 @@ impl EnvironmentSelector {
                 .as_ref(ctx)
                 .environment(id)
                 .map(|environment| environment.name.clone())
-                .unwrap_or_else(|| localization::text_for_app(ctx, "agent.input_footer.new_environment"))
+                .unwrap_or_else(|| {
+                    localization::text_for_app(ctx, "agent.input_footer.new_environment")
+                })
         } else if is_configuring {
             localization::text_for_app(ctx, "agent.input_footer.new_environment")
         } else {

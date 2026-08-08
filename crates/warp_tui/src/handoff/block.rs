@@ -283,9 +283,9 @@ impl TuiHandoffBlock {
             selector.set_page(
                 OptionSelectorPage {
                     header: Some(OptionSelectorHeader {
-                        field_label: "Edit handoff configuration".to_owned(),
+                        field_label: localization::text("tui.handoff.selector.edit_configuration"),
                         position: (position, sequence.len()),
-                        prompt: page.question().to_owned(),
+                        prompt: localization::text(page.question_key()),
                     }),
                     snapshot,
                     searchable: true,
@@ -471,51 +471,90 @@ impl TuiHandoffBlock {
                 ..
             } if model.no_environments(ctx) => vec![
                 ("Enter ".to_owned(), builder.primary_text_style()),
-                ("open environments  ".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.open_environments"),
+                    builder.muted_text_style(),
+                ),
                 ("R ".to_owned(), builder.primary_text_style()),
-                ("refresh  ".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.refresh"),
+                    builder.muted_text_style(),
+                ),
                 ("Ctrl + C".to_owned(), builder.primary_text_style()),
-                (" to cancel".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.cancel"),
+                    builder.muted_text_style(),
+                ),
             ],
             TuiHandoffPhase::Editable {
                 state: TuiHandoffEditableState::Acceptance { .. },
                 ..
             } => vec![
                 ("Enter ".to_owned(), builder.primary_text_style()),
-                ("to hand off  ".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.hand_off"),
+                    builder.muted_text_style(),
+                ),
                 ("Ctrl + E".to_owned(), builder.primary_text_style()),
-                (" to edit  ".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.edit"),
+                    builder.muted_text_style(),
+                ),
                 ("Ctrl + C".to_owned(), builder.primary_text_style()),
-                (" to cancel".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.cancel"),
+                    builder.muted_text_style(),
+                ),
             ],
             TuiHandoffPhase::Editable {
                 state: TuiHandoffEditableState::Configuring { .. },
                 ..
             } => vec![
                 ("Enter ".to_owned(), builder.primary_text_style()),
-                ("to accept  ".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.accept"),
+                    builder.muted_text_style(),
+                ),
                 ("Tab or ← →".to_owned(), builder.primary_text_style()),
-                (" to navigate  ".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.navigate"),
+                    builder.muted_text_style(),
+                ),
                 ("Esc ".to_owned(), builder.primary_text_style()),
-                ("to go back".to_owned(), builder.muted_text_style()),
+                (
+                    localization::text("tui.handoff.footer.go_back"),
+                    builder.muted_text_style(),
+                ),
             ],
             TuiHandoffPhase::Committed { .. } => {
-                vec![("esc to cancel".to_owned(), builder.muted_text_style())]
+                vec![(
+                    localization::text("tui.handoff.footer.cancel_pending"),
+                    builder.muted_text_style(),
+                )]
             }
             TuiHandoffPhase::Created { .. } => {
                 let mut spans = vec![
                     ("Enter ".to_owned(), builder.primary_text_style()),
-                    ("open cloud run  ".to_owned(), builder.muted_text_style()),
+                    (
+                        localization::text("tui.handoff.footer.open_cloud_run"),
+                        builder.muted_text_style(),
+                    ),
                 ];
                 if model.forked_existing_conversation() {
                     spans.extend([
                         ("C ".to_owned(), builder.primary_text_style()),
-                        ("continue locally  ".to_owned(), builder.muted_text_style()),
+                        (
+                            localization::text("tui.handoff.footer.continue_locally"),
+                            builder.muted_text_style(),
+                        ),
                     ]);
                 }
                 spans.extend([
                     ("N ".to_owned(), builder.primary_text_style()),
-                    ("new conversation".to_owned(), builder.muted_text_style()),
+                    (
+                        localization::text("tui.handoff.footer.new_conversation"),
+                        builder.muted_text_style(),
+                    ),
                 ]);
                 spans
             }
@@ -538,13 +577,13 @@ impl TuiHandoffBlock {
                 TuiText::from_spans([
                     ("⟣ ".to_owned(), builder.option_selector_selected_style()),
                     (
-                        format!(
-                            "Conversation forked to cloud on {completed_at}{}",
+                        localization::text_with_args(
                             if continuing_locally {
-                                "; continuing locally"
+                                "tui.handoff.completed.continuing_locally"
                             } else {
-                                ""
-                            }
+                                "tui.handoff.completed"
+                            },
+                            &[("completed_at", completed_at)],
                         ),
                         builder.primary_text_style(),
                     ),
@@ -600,10 +639,16 @@ fn render_metadata_line(
     builder: &TuiUiBuilder,
 ) -> Box<dyn TuiElement> {
     TuiText::from_spans([
-        ("Environment: ".to_owned(), builder.primary_text_style()),
+        (
+            localization::text("tui.handoff.metadata.environment"),
+            builder.primary_text_style(),
+        ),
         (environment, builder.orchestration_selected_value_style()),
         ("  •  ".to_owned(), builder.muted_text_style()),
-        ("Model: ".to_owned(), builder.primary_text_style()),
+        (
+            localization::text("tui.handoff.metadata.model"),
+            builder.primary_text_style(),
+        ),
         (model, builder.orchestration_selected_value_style()),
     ])
     .finish()

@@ -44,6 +44,7 @@ fn cancellation_finalization_skips_upload_even_without_actions() {
             false,
             uploader,
             None,
+            LocaleId::EnUs,
         )
         .await;
 
@@ -87,6 +88,7 @@ fn agent_discard_finalization_skips_upload() {
             false,
             uploader,
             None,
+            LocaleId::EnUs,
         )
         .await;
 
@@ -131,6 +133,7 @@ fn empty_actions_finalization_is_an_error_without_upload() {
             true,
             uploader,
             None,
+            LocaleId::EnUs,
         )
         .await;
 

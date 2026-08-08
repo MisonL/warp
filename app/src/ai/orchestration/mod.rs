@@ -44,6 +44,7 @@ pub use snapshots::{
     api_key_snapshot, build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot,
     model_snapshot,
 };
+pub(crate) use validation::localized_orchestration_disabled_reason;
 pub use validation::{
     accept_disabled_reason_with_auth, empty_env_recommendation_message,
     should_show_auth_secret_picker,

@@ -5,6 +5,7 @@ use std::io::Write as _;
 use serde_json::json;
 use warp_cli::mcp::MCPSpec;
 use warp_core::features::FeatureFlag;
+use warp_localization::LocaleId;
 
 use crate::ai::ambient_agents::AgentConfigSnapshot;
 
@@ -180,10 +181,10 @@ fn well_known_warp_id_converts_to_well_known_spec() {
     .to_string();
 
     let file = write_temp(".json", &contents);
-    let loaded = super::load_config_file(file.path()).unwrap();
+    let loaded = super::load_config_file(file.path(), LocaleId::EnUs).unwrap();
 
     let map = loaded.file.mcp_servers.as_ref().unwrap();
-    let specs = super::mcp_specs_from_mcp_servers(map).unwrap();
+    let specs = super::mcp_specs_from_mcp_servers(map, LocaleId::EnUs).unwrap();
 
     assert_eq!(specs.len(), 1);
     assert!(
@@ -203,7 +204,7 @@ fn any_non_uuid_warp_id_becomes_well_known_spec() {
         json!({ "warp_id": "some-future-integration" }),
     )]);
 
-    let specs = super::mcp_specs_from_mcp_servers(&map).unwrap();
+    let specs = super::mcp_specs_from_mcp_servers(&map, LocaleId::EnUs).unwrap();
     assert_eq!(specs.len(), 1);
     assert!(matches!(&specs[0], MCPSpec::WellKnown(id) if id == "some-future-integration"));
 }
@@ -213,7 +214,7 @@ fn empty_warp_id_is_rejected() {
     let _flag = FeatureFlag::WellKnownMcpIds.override_enabled(true);
     let map = serde_json::Map::from_iter([("bogus".to_string(), json!({ "warp_id": "" }))]);
 
-    let err = super::mcp_specs_from_mcp_servers(&map).unwrap_err();
+    let err = super::mcp_specs_from_mcp_servers(&map, LocaleId::EnUs).unwrap_err();
     assert!(format!("{err:#}").contains("must be non-empty"));
 }
 
@@ -222,7 +223,7 @@ fn non_uuid_warp_id_is_rejected_when_flag_disabled() {
     let _flag = FeatureFlag::WellKnownMcpIds.override_enabled(false);
     let map = serde_json::Map::from_iter([("linear".to_string(), json!({ "warp_id": "linear" }))]);
 
-    let err = super::mcp_specs_from_mcp_servers(&map).unwrap_err();
+    let err = super::mcp_specs_from_mcp_servers(&map, LocaleId::EnUs).unwrap_err();
     assert!(format!("{err:#}").contains("must be a UUID"));
 }
 

@@ -1,6 +1,7 @@
 use serde_json::{Map, Value, json};
 use warp_cli::mcp::MCPSpec;
 use warp_core::features::FeatureFlag;
+use warp_localization::LocaleId;
 
 use super::build_mcp_servers_from_specs as build_mcp_servers_from_specs_for_locale;
 

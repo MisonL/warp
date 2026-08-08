@@ -109,9 +109,7 @@ pub(crate) fn add_test_action_model_and_events(
     if !preferences_registered {
         app.update(warp::settings::init_and_register_user_preferences);
     }
-    if !app.read(|ctx| {
-        ctx.has_singleton_model::<warp::settings::manager::SettingsManager>()
-    }) {
+    if !app.read(|ctx| ctx.has_singleton_model::<warp::settings::manager::SettingsManager>()) {
         app.add_singleton_model(|_| warp::settings::manager::SettingsManager::default());
     }
     if !app.read(|ctx| ctx.has_singleton_model::<LanguageSettings>()) {

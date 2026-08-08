@@ -61,8 +61,8 @@ pub fn initialize_settings_for_tests_with_mode(
         AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
         BlockVisibilitySettings, ChangelogSettings, CloudPreferencesSettings, CodeSettings,
         DebugSettings, EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings,
-        InputSettings, LocalControlSettings, NativePreferenceSettings, PaneSettings,
-        SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
+        InputSettings, LanguageSettings, LocalControlSettings, NativePreferenceSettings,
+        PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
         SharedObjectLimitBannerSettings, SshSettings, ThemeSettings, TuiVoiceSettings,
         VimBannerSettings, init_and_register_user_preferences,
     };
