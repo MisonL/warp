@@ -257,7 +257,7 @@ impl EnvironmentSelector {
 
         let environments = CloudEnvironmentCatalog::handle(ctx);
         ctx.subscribe_to_model(&environments, |me, _, _, ctx| {
-            me.ensure_default_selection(ctx);
+            me.auto_select_default_environment_if_new_session(ctx);
             me.refresh_menu(ctx);
             me.refresh_button(ctx);
             ctx.notify();
@@ -279,7 +279,8 @@ impl EnvironmentSelector {
                             if !me.is_configuring(ctx) {
                                 me.set_menu_visibility(false, ctx);
                             }
-                            me.ensure_default_selection(ctx);
+
+                            me.auto_select_default_environment_if_new_session(ctx);
                             me.refresh_menu(ctx);
                         }
                         HandoffComposeStateEvent::EnvironmentSelected => {
@@ -300,7 +301,7 @@ impl EnvironmentSelector {
         };
         me.refresh_menu(ctx);
         me.refresh_button(ctx);
-        me.ensure_default_selection(ctx);
+        me.auto_select_default_environment_if_new_session(ctx);
         me
     }
 
@@ -354,6 +355,21 @@ impl EnvironmentSelector {
         ctx.notify();
     }
 
+    fn auto_select_default_environment_if_new_session(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.should_auto_select_default_environment(ctx) {
+            self.ensure_default_selection(ctx);
+        }
+    }
+
+    fn should_auto_select_default_environment(&self, ctx: &AppContext) -> bool {
+        match &self.target {
+            EnvironmentSelectorTarget::CloudPane(model) => {
+                model.as_ref(ctx).is_configuring_ambient_agent()
+            }
+            EnvironmentSelectorTarget::Handoff(state) => state.as_ref(ctx).is_active(),
+        }
+    }
+
     /// Ensures a default environment is selected if none is currently selected.
     fn ensure_default_selection(&mut self, ctx: &mut ViewContext<Self>) {
         let current_selection = self.target.selected_environment_id(ctx);
@@ -394,25 +410,33 @@ impl EnvironmentSelector {
     }
 
     fn refresh_button(&mut self, ctx: &mut ViewContext<Self>) {
+        let is_configuring = self.is_configuring(ctx);
+
         let label = if let Some(id) = self.target.selected_environment_id(ctx) {
             self.environments
                 .as_ref(ctx)
                 .environment(id)
                 .map(|environment| environment.name.clone())
-                .unwrap_or_else(|| "New environment".to_string())
-        } else {
+                .unwrap_or_else(|| localization::text_for_app(ctx, "agent.input_footer.new_environment"))
+        } else if is_configuring {
             localization::text_for_app(ctx, "agent.input_footer.new_environment")
+        } else {
+            localization::text_for_app(ctx, "agent.orchestration.controls.empty_environment")
         };
-
-        let is_configuring = self.is_configuring(ctx);
 
         self.button.update(ctx, |button, ctx| {
             button.set_label(label, ctx);
             button.set_tooltip(
                 if is_configuring {
-                    Some("Choose an environment")
+                    Some(localization::text_for_app(
+                        ctx,
+                        "agent.input_footer.choose_environment",
+                    ))
                 } else {
-                    Some("Agent environment")
+                    Some(localization::text_for_app(
+                        ctx,
+                        "agent.input_footer.agent_environment",
+                    ))
                 },
                 ctx,
             );

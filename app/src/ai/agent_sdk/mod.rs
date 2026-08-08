@@ -1201,6 +1201,7 @@ impl AgentDriverRunner {
                     locale,
                     should_share,
                     idle_on_complete: args.idle_on_complete.map(|d| d.into()),
+                    idle_on_fail: args.idle_on_fail.map(|d| d.into()),
                     secrets: Default::default(),
                     resume: None,
                     cloud_providers: Vec::new(),

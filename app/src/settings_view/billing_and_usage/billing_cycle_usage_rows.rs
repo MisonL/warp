@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools as _;
 use pathfinder_color::ColorU;
@@ -28,7 +28,7 @@ use crate::ui_components::icons::Icon;
 use crate::workspaces::workspace::{
     AiCreditsUsageAndCostSubjectType, AiCreditsUsageAndCostType, AiCreditsUsageBucket,
     AiCreditsUsageSource, BillingCycleUsageEntry, UsageVisibility, UsageVisibilityGranularity,
-    Workspace, WorkspaceMember,
+    WorkspaceMember,
 };
 
 const BAR_HEIGHT: f32 = 8.;
@@ -82,6 +82,7 @@ pub struct MemberUsageRow {
     pub segments: Vec<BarSegment>,
     /// Denominator the row's stacked bar fills against.
     pub bar_max_credits: i64,
+    pub is_current_team_member: bool,
 }
 
 fn viewer_identity(app: &AppContext) -> (Option<String>, String) {
@@ -129,6 +130,7 @@ impl MemberUsageRow {
             total_cost_cents,
             segments,
             bar_max_credits: total_credits.max(1),
+            is_current_team_member: true,
         }
     }
 
@@ -159,6 +161,7 @@ impl MemberUsageRow {
             total_cost_cents: 0,
             segments,
             bar_max_credits: used.max(1),
+            is_current_team_member: true,
         }
     }
 
@@ -179,13 +182,16 @@ impl MemberUsageRow {
             total_cost_cents,
             segments,
             bar_max_credits: total_credits.max(1),
+            is_current_team_member: true,
         }
     }
 
     /// Per-member rows for `PerUserTotals` / `FullBreakdown` visibility.
-    /// Iterates the workspace member list so zero-usage members still
-    /// get a row. Service accounts and other non-member subjects surface
-    /// as extra rows at the bottom, sorted by total credits desc.
+    /// Iterates the member list so zero-usage members still get a row —
+    /// callers pass the selected team's roster, not every workspace member,
+    /// so members of other teams don't show up. Service accounts and other
+    /// non-member subjects surface as extra rows at the bottom, sorted by
+    /// total credits desc.
     fn for_each_member(
         entries: &[BillingCycleUsageEntry],
         members: &[WorkspaceMember],
@@ -193,7 +199,7 @@ impl MemberUsageRow {
         app: &AppContext,
     ) -> Vec<Self> {
         // Group entries by subject for joining against the member list below.
-        let mut grouped: HashMap<String, GroupedSubjectUsage> = HashMap::new();
+        let mut unmatched_usage_by_subject: HashMap<String, GroupedSubjectUsage> = HashMap::new();
         let mut unknown_counter = 0usize;
 
         for entry in entries
@@ -211,20 +217,26 @@ impl MemberUsageRow {
                     format!("{:?}:unknown-{unknown_counter}", entry.subject_type)
                 }
             };
-            let group = grouped.entry(key).or_insert_with(|| GroupedSubjectUsage {
-                subject_type: entry.subject_type.clone(),
-                display_name: entry.subject_display_name.clone().unwrap_or_else(|| {
-                    localization::text_for_app(app, "settings.billing.value.unknown")
-                }),
-                entries: Vec::new(),
-            });
+            let group =
+                unmatched_usage_by_subject
+                    .entry(key)
+                    .or_insert_with(|| GroupedSubjectUsage {
+                        subject_type: entry.subject_type.clone(),
+                        display_name: entry
+                            .subject_display_name
+                            .clone()
+                            .unwrap_or_else(|| {
+                                localization::text_for_app(app, "settings.billing.value.unknown")
+                            }),
+                        entries: Vec::new(),
+                    });
             group.entries.push(entry.clone());
         }
 
         let mut rows: Vec<Self> = Vec::with_capacity(members.len());
 
         // One row per workspace member, including zero-usage members.
-        let mut seen_keys: std::collections::HashSet<String> = Default::default();
+        let mut seen_keys: HashSet<String> = Default::default();
         for member in members {
             let key = format!(
                 "{:?}:{}",
@@ -233,10 +245,11 @@ impl MemberUsageRow {
             );
             seen_keys.insert(key.clone());
 
-            let (segments, total_credits, total_cost_cents) = match grouped.remove(&key) {
-                Some(group) => aggregate_segments(group.entries.iter()),
-                None => (Vec::new(), 0, 0),
-            };
+            let (segments, total_credits, total_cost_cents) =
+                match unmatched_usage_by_subject.remove(&key) {
+                    Some(group) => aggregate_segments(group.entries.iter()),
+                    None => (Vec::new(), 0, 0),
+                };
 
             rows.push(Self {
                 subject_type: AiCreditsUsageAndCostSubjectType::User,
@@ -247,28 +260,35 @@ impl MemberUsageRow {
                 total_cost_cents,
                 segments,
                 bar_max_credits: 0,
+                is_current_team_member: true,
             });
         }
 
-        // Subjects not in the member list (typically service accounts) render after.
-        for (key, group) in grouped {
+        // Subjects not in the member list (service accounts or former members) render after.
+        for (key, subject_usage) in unmatched_usage_by_subject {
             if seen_keys.contains(&key) {
                 continue;
             }
             // All entries in a group share the same subject_uid by construction
-            // (it's part of the grouping key), so first.is representative.
-            let subject_uid = group.entries.first().and_then(|e| e.subject_uid.clone());
+            // (it's part of the grouping key), so first is representative.
+            let subject_uid = subject_usage
+                .entries
+                .first()
+                .and_then(|e| e.subject_uid.clone());
+            let is_current_team_member =
+                subject_usage.subject_type != AiCreditsUsageAndCostSubjectType::User;
             let (segments, total_credits, total_cost_cents) =
-                aggregate_segments(group.entries.iter());
+                aggregate_segments(subject_usage.entries.iter());
             rows.push(Self {
-                subject_type: group.subject_type,
+                subject_type: subject_usage.subject_type,
                 subject_key: key,
                 subject_uid,
-                display_name: group.display_name,
+                display_name: subject_usage.display_name,
                 total_credits,
                 total_cost_cents,
                 segments,
                 bar_max_credits: 0,
+                is_current_team_member,
             });
         }
 
@@ -284,7 +304,7 @@ impl MemberUsageRow {
 }
 
 fn build_rows(
-    workspace: &Workspace,
+    members: &[WorkspaceMember],
     entries: &[BillingCycleUsageEntry],
     visibility: &UsageVisibility,
     source_filter: SourceFilter,
@@ -313,7 +333,7 @@ fn build_rows(
             rows
         }
         UsageVisibilityGranularity::PerUserTotals | UsageVisibilityGranularity::FullBreakdown => {
-            MemberUsageRow::for_each_member(entries, &workspace.members, source_filter, app)
+            MemberUsageRow::for_each_member(entries, members, source_filter, app)
         }
     };
 
@@ -465,6 +485,7 @@ fn render_row_card(
     let theme = appearance.theme();
     let card_bg = theme.background().into_solid();
     let main = blended_colors::text_main(theme, card_bg);
+    let is_former_member = !row.is_current_team_member;
 
     let bar = render_stacked_bar(
         &row.segments,
@@ -505,7 +526,11 @@ fn render_row_card(
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
-        .with_color(main)
+        .with_color(if is_former_member {
+            theme.sub_text_color(theme.background()).into()
+        } else {
+            main
+        })
         .finish()
     };
 
@@ -541,6 +566,26 @@ fn render_row_card(
         })
         .finish();
         name_row.add_child(Container::new(info_icon).with_margin_left(6.).finish());
+    }
+    if is_former_member {
+        let badge_color = theme.sub_text_color(theme.background());
+        name_row.add_child(
+            Container::new(
+                Text::new_inline(
+                    "Former member",
+                    appearance.ui_font_family(),
+                    appearance.ui_font_size() - 1.,
+                )
+                .with_color(badge_color.into())
+                .finish(),
+            )
+            .with_horizontal_padding(6.)
+            .with_vertical_padding(2.)
+            .with_border(Border::all(1.).with_border_color(theme.outline().into_solid()))
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
+            .with_margin_left(6.)
+            .finish(),
+        );
     }
 
     let credits_text = Text::new_inline(
@@ -599,7 +644,7 @@ fn render_row_card(
     .with_uniform_padding(ROW_PADDING)
     .finish();
 
-    Container::new(
+    let mut card = Container::new(
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(bar)
@@ -608,8 +653,11 @@ fn render_row_card(
     )
     .with_background_color(card_bg)
     .with_border(Border::all(ROW_BORDER_WIDTH).with_border_color(theme.outline().into_solid()))
-    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(ROW_BORDER_RADIUS)))
-    .finish()
+    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(ROW_BORDER_RADIUS)));
+    if is_former_member {
+        card = card.with_foreground_overlay(theme.background().with_opacity(40));
+    }
+    card.finish()
 }
 
 /// Row card wrapped in a Hoverable that opens the breakdown tooltip.
@@ -760,7 +808,7 @@ pub fn render_own_usage_solo_row(
 
 #[allow(clippy::too_many_arguments)]
 pub fn render_rows(
-    workspace: &Workspace,
+    members: &[WorkspaceMember],
     entries: &[BillingCycleUsageEntry],
     visibility: &UsageVisibility,
     source_filter: SourceFilter,
@@ -769,7 +817,7 @@ pub fn render_rows(
     app: &AppContext,
     on_filter_change: FilterChangeFn,
 ) -> Box<dyn Element> {
-    let rows = build_rows(workspace, entries, visibility, source_filter, app);
+    let rows = build_rows(members, entries, visibility, source_filter, app);
 
     let mut column = Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)

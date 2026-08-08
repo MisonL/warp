@@ -328,6 +328,7 @@ impl LocalAgentTaskSyncModel {
                         session_id,
                         server_conversation_token.clone(),
                         status_message,
+                        None,
                     )
                     .await;
                 if let Err(err) = &result {
