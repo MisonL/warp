@@ -60,14 +60,25 @@ fn mcp_permission_details_are_structured_and_human_readable() {
         app.read(|ctx| {
             let view = view.as_ref(ctx);
             assert!(view.permission_prompt.is_none());
+            // No server id on this action, so the question falls back to naming
+            // just the tool (not the old "this MCP tool" phrasing).
             assert_eq!(
-                view.permission_question(),
-                "Is it OK if I call this MCP tool?"
+                view.permission_question(None),
+                "Is it OK if I call MCP tool create_issue?"
             );
-            let details = view.details();
+            // With a known server, both identities surface in the question.
+            assert_eq!(
+                view.permission_question(Some("github")),
+                "Is it OK if I call MCP tool create_issue on github?"
+            );
+            let details = view.details(None);
             assert!(details.starts_with("create_issue\n{"));
             assert!(details.contains("\"priority\": 1"));
             assert!(details.contains("\"title\": \"Fix permission UI\""));
+            // The details body labels the tool with its server when known.
+            let details_with_server = view.details(Some("github"));
+            assert!(details_with_server.starts_with("create_issue on github\n{"));
+            assert!(details_with_server.contains("\"priority\": 1"));
         });
 
         action_model.update(&mut app, |action_model, ctx| {
@@ -123,7 +134,7 @@ fn mcp_permission_details_are_structured_and_human_readable() {
         assert!(
             lines
                 .iter()
-                .any(|line| line.contains("■ Is it OK if I call this MCP tool?"))
+                .any(|line| line.contains("■ Is it OK if I call MCP tool create_issue?"))
         );
         assert!(lines.iter().any(|line| line.contains("create_issue")));
         assert!(lines.iter().any(|line| line.contains("(1) yes")));
@@ -170,6 +181,49 @@ fn generic_permission_copy_is_localized_for_simplified_chinese() {
         ),
         "在新对话中继续 Agent 的下一步。"
     );
+}
+
+#[test]
+fn blocked_generic_action_without_prompt_does_not_panic() {
+    App::test((), |mut app| async move {
+        let action_model = add_test_action_model(&mut app);
+        let action = AIAgentAction {
+            id: AIAgentActionId::from("missing-prompt-action".to_owned()),
+            task_id: TaskId::new("task".to_owned()),
+            action: AIAgentActionType::InitProject,
+            requires_result: true,
+        };
+        let action_for_queue = action.clone();
+        let conversation_id = AIConversationId::new();
+        let action_model_for_view = action_model.clone();
+        let view = app.update(|ctx| {
+            let (window_id, _) = ctx.add_tui_window(
+                AddWindowOptions {
+                    window_style: WindowStyle::NotStealFocus,
+                    ..Default::default()
+                },
+                |_| TestHostView,
+            );
+            ctx.add_tui_view(window_id, |ctx| {
+                TuiGenericToolCallView::new(
+                    action,
+                    false,
+                    action_model_for_view,
+                    conversation_id,
+                    ctx,
+                )
+            })
+        });
+
+        action_model.update(&mut app, |model, ctx| {
+            queue_tui_permission_action(model, action_for_queue, conversation_id, ctx);
+        });
+        view.update(&mut app, |view, _| view.permission_prompt = None);
+
+        app.read(|ctx| {
+            let _ = view.as_ref(ctx).render(ctx);
+        });
+    });
 }
 
 #[test]

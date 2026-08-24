@@ -237,7 +237,11 @@ impl CommentListView {
 
         // Keep the stored button state in sync when AI availability changes.
         ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
-            if let AIRequestUsageModelEvent::RequestUsageUpdated = event {
+            if matches!(
+                event,
+                AIRequestUsageModelEvent::RequestUsageUpdated
+                    | AIRequestUsageModelEvent::CreditAvailabilityUpdated
+            ) {
                 me.sync_send_button(ctx);
             }
         });
@@ -984,19 +988,7 @@ impl CommentListView {
                     "code_review.comments.no_non_outdated_to_send",
                 )
             } else {
-                let cmd = agent.command_prefix();
-                let cli_agent =
-                    crate::localization::text_for_app(app, "code_review.comments.cli_agent");
-                let label = if cmd.is_empty() {
-                    cli_agent.as_str()
-                } else {
-                    cmd
-                };
-                crate::localization::text_for_app_with_args(
-                    app,
-                    "code_review.comments.send_to_cli_agent",
-                    &[("label", label)],
-                )
+                format!("Send diff comments to {}", agent.display_name())
             }
         } else if !ai_enabled {
             crate::localization::text_for_app(app, "code_review.comments.ai_must_be_enabled")
@@ -1226,7 +1218,9 @@ impl View for CommentListView {
                 .with_dragbar_color(warpui::elements::Fill::Solid(
                     warpui::color::ColorU::transparent_black(),
                 ))
-                .with_bounds_callback(Box::new(|window_size| (100.0, window_size.y() * 0.8)))
+                .with_bounds_callback(Box::new(|window_size| {
+                    (100.0, (window_size.y() * 0.8).max(100.0))
+                }))
                 .on_resize(|ctx, _| {
                     ctx.notify();
                 })

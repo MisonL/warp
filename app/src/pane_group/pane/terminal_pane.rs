@@ -1544,6 +1544,11 @@ fn dispatch_start_agent_conversation(
             runner_id,
             agent_identity_uid,
         } => {
+            let working_dir = group
+                .terminal_view_from_pane_id(parent_pane_id, ctx)
+                .and_then(|view| view.as_ref(ctx).pwd_if_local(ctx))
+                .map(std::path::PathBuf::from)
+                .unwrap_or_default();
             launch_remote_child(
                 group,
                 parent_pane_id,
@@ -1551,6 +1556,7 @@ fn dispatch_start_agent_conversation(
                 RemoteChildLaunchConfig {
                     environment_id,
                     skill_references,
+                    working_dir,
                     model_id,
                     computer_use_enabled,
                     worker_host,
@@ -1919,7 +1925,7 @@ fn launch_remote_child(
         Err(error) => {
             let error_message = error.user_message();
             report_error!(
-                "Failed to prepare StartAgentV2 remote child launch",
+                "Failed to prepare remote child launch",
                 extra: {
                     "conversation_id" => ?conversation_id,
                     "error" => %error_message

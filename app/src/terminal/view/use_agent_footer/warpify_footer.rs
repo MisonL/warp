@@ -56,7 +56,7 @@ impl WarpifyFooterView {
                 footer_text(ctx, "terminal.use_agent_footer.action.use_agent"),
                 AgentFooterButtonTheme::new(None),
             )
-            .with_icon(Icon::Oz)
+            .with_icon(Icon::Agent)
             .with_keybinding(KeystrokeSource::Fixed(USE_AGENT_KEYSTROKE.clone()), ctx)
             .with_size(button_size)
             .with_tooltip(footer_text(

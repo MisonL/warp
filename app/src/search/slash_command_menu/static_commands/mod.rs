@@ -3,6 +3,10 @@ pub mod commands;
 
 use bitflags::bitflags;
 pub use commands::SlashCommandId;
+use settings::SettingsMode;
+use warpui::AppContext;
+
+use crate::localization;
 
 bitflags! {
     /// Specifies the requirements for a slash command to be available.
@@ -43,6 +47,113 @@ bitflags! {
         /// is enabled. Commands that require this bit are hidden everywhere except the V2
         /// cloud-mode composing input.
         const CLOUD_MODE_V2_COMPOSER = 1 << 10;
+    }
+}
+/// Stable identity for a static slash command.
+///
+/// Front-ends dispatch on this value instead of matching command-name strings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SlashCommandKind {
+    Agent,
+    CloudAgent,
+    AddMcp,
+    ApiKeys,
+    ConnectGrok,
+    Upgrade,
+    ManageBilling,
+    AutoApprove,
+    Statusline,
+    ResetStatusline,
+    Mcp,
+    ViewLogs,
+    Voice,
+    NaturalLanguageDetection,
+    Theme,
+    Exit,
+    Logout,
+    CreateEnvironment,
+    CreateDockerSandbox,
+    CreateNewProject,
+    EditSkill,
+    InvokeSkill,
+    AddPrompt,
+    AddRule,
+    Edit,
+    RenameTab,
+    RenameConversation,
+    SetTabColor,
+    Fork,
+    MoveToCloud,
+    OpenCodeReview,
+    Index,
+    Init,
+    OpenProjectRules,
+    OpenMcpServers,
+    OpenSettingsFile,
+    Changelog,
+    Feedback,
+    OpenRepo,
+    OpenRules,
+    New,
+    Clear,
+    Model,
+    Host,
+    Harness,
+    Environment,
+    Profile,
+    Plan,
+    Orchestrate,
+    Compact,
+    CompactAnd,
+    Queue,
+    ForkAndCompact,
+    ForkFrom,
+    ContinueLocally,
+    Usage,
+    RemoteControl,
+    Cost,
+    Conversations,
+    Prompts,
+    Rewind,
+    ExportToClipboard,
+    ExportToFile,
+    VimMode,
+    Status,
+    CopyDebuggingId,
+}
+
+/// The application surfaces on which a static slash command is implemented.
+///
+/// This field is required on every [`StaticCommand`] so new commands must explicitly declare
+/// whether they are GUI-only, TUI-only, or shared by both front-ends. GUI-capable variants also
+/// require the icon path used to render the command in GUI menus.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlashCommandSurfaces {
+    GuiOnly { icon_path: &'static str },
+    TuiOnly,
+    GuiAndTui { icon_path: &'static str },
+}
+
+impl SlashCommandSurfaces {
+    pub fn supports_gui(self) -> bool {
+        matches!(self, Self::GuiOnly { .. } | Self::GuiAndTui { .. })
+    }
+
+    pub fn supports_tui(self) -> bool {
+        matches!(self, Self::TuiOnly | Self::GuiAndTui { .. })
+    }
+
+    pub fn gui_icon_path(self) -> Option<&'static str> {
+        match self {
+            Self::GuiOnly { icon_path } | Self::GuiAndTui { icon_path } => Some(icon_path),
+            Self::TuiOnly => None,
+        }
+    }
+    pub fn includes(self, settings_mode: SettingsMode) -> bool {
+        match settings_mode {
+            SettingsMode::Gui => self.supports_gui(),
+            SettingsMode::Tui => self.supports_tui(),
+        }
     }
 }
 
@@ -95,9 +206,10 @@ impl Argument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticCommand {
+    pub kind: SlashCommandKind,
     pub name: &'static str,
     pub description: &'static str,
-    pub icon_path: &'static str,
+    pub supported_surfaces: SlashCommandSurfaces,
     /// Specifies the requirements for this command to be available. See [`Availability`].
     pub availability: Availability,
     /// Whether this command requires AI mode when executed.
@@ -113,13 +225,115 @@ pub struct SlashCommandArgumentHint {
 }
 
 impl StaticCommand {
-    pub fn description_key(&self) -> String {
-        let name = self.name.trim_start_matches('/').replace('-', "_");
-        format!("terminal.slash.command.{name}.description")
+    pub fn localized_description(&self, app: &AppContext) -> String {
+        let key = match self.kind {
+            SlashCommandKind::Agent => "terminal.slash.command.agent.description",
+            SlashCommandKind::CloudAgent => "terminal.slash.command.cloud_agent.description",
+            SlashCommandKind::AddMcp => "terminal.slash.command.add_mcp.description",
+            SlashCommandKind::ApiKeys => "terminal.slash.command.api_keys.description",
+            SlashCommandKind::ConnectGrok => "terminal.slash.command.connect_grok.description",
+            SlashCommandKind::Upgrade => "terminal.slash.command.upgrade.description",
+            SlashCommandKind::ManageBilling => "terminal.slash.command.manage_billing.description",
+            SlashCommandKind::AutoApprove => "terminal.slash.command.auto_approve.description",
+            SlashCommandKind::Statusline => "terminal.slash.command.statusline.description",
+            SlashCommandKind::ResetStatusline => {
+                "terminal.slash.command.reset_statusline.description"
+            }
+            SlashCommandKind::Mcp => "terminal.slash.command.mcp.description",
+            SlashCommandKind::ViewLogs => "terminal.slash.command.view_logs.description",
+            SlashCommandKind::Voice => "terminal.slash.command.voice.description",
+            SlashCommandKind::NaturalLanguageDetection => {
+                "terminal.slash.command.natural_language_detection.description"
+            }
+            SlashCommandKind::Theme => "terminal.slash.command.theme.description",
+            SlashCommandKind::Exit => "terminal.slash.command.exit.description",
+            SlashCommandKind::Logout => "terminal.slash.command.logout.description",
+            SlashCommandKind::CreateEnvironment => {
+                "terminal.slash.command.create_environment.description"
+            }
+            SlashCommandKind::CreateDockerSandbox => {
+                "terminal.slash.command.docker_sandbox.description"
+            }
+            SlashCommandKind::CreateNewProject => {
+                "terminal.slash.command.create_new_project.description"
+            }
+            SlashCommandKind::EditSkill => "terminal.slash.command.open_skill.description",
+            SlashCommandKind::InvokeSkill => "terminal.slash.command.skills.description",
+            SlashCommandKind::AddPrompt => "terminal.slash.command.add_prompt.description",
+            SlashCommandKind::AddRule => "terminal.slash.command.add_rule.description",
+            SlashCommandKind::Edit => "terminal.slash.command.open_file.description",
+            SlashCommandKind::RenameTab => "terminal.slash.command.rename_tab.description",
+            SlashCommandKind::RenameConversation => {
+                "terminal.slash.command.rename_conversation.description"
+            }
+            SlashCommandKind::SetTabColor => "terminal.slash.command.set_tab_color.description",
+            SlashCommandKind::Fork => "terminal.slash.command.fork.description",
+            SlashCommandKind::MoveToCloud => "terminal.slash.command.handoff.description",
+            SlashCommandKind::OpenCodeReview => {
+                "terminal.slash.command.open_code_review.description"
+            }
+            SlashCommandKind::Index => "terminal.slash.command.index.description",
+            SlashCommandKind::Init => "terminal.slash.command.init.description",
+            SlashCommandKind::OpenProjectRules => {
+                "terminal.slash.command.open_project_rules.description"
+            }
+            SlashCommandKind::OpenMcpServers => {
+                "terminal.slash.command.open_mcp_servers.description"
+            }
+            SlashCommandKind::OpenSettingsFile => {
+                "terminal.slash.command.open_settings_file.description"
+            }
+            SlashCommandKind::Changelog => "terminal.slash.command.changelog.description",
+            SlashCommandKind::Feedback => "terminal.slash.command.feedback.description",
+            SlashCommandKind::OpenRepo => "terminal.slash.command.open_repo.description",
+            SlashCommandKind::OpenRules => "terminal.slash.command.open_rules.description",
+            SlashCommandKind::New => "terminal.slash.command.new.description",
+            SlashCommandKind::Clear => "terminal.slash.command.clear.description",
+            SlashCommandKind::Model => "terminal.slash.command.model.description",
+            SlashCommandKind::Host => "terminal.slash.command.host.description",
+            SlashCommandKind::Harness => "terminal.slash.command.harness.description",
+            SlashCommandKind::Environment => "terminal.slash.command.environment.description",
+            SlashCommandKind::Profile => "terminal.slash.command.profile.description",
+            SlashCommandKind::Plan => "terminal.slash.command.plan.description",
+            SlashCommandKind::Orchestrate => "terminal.slash.command.orchestrate.description",
+            SlashCommandKind::Compact => "terminal.slash.command.compact.description",
+            SlashCommandKind::CompactAnd => "terminal.slash.command.compact_and.description",
+            SlashCommandKind::Queue => "terminal.slash.command.queue.description",
+            SlashCommandKind::ForkAndCompact => {
+                "terminal.slash.command.fork_and_compact.description"
+            }
+            SlashCommandKind::ForkFrom => "terminal.slash.command.fork_from.description",
+            SlashCommandKind::ContinueLocally => {
+                "terminal.slash.command.continue_locally.description"
+            }
+            SlashCommandKind::Usage => "terminal.slash.command.usage.description",
+            SlashCommandKind::RemoteControl => "terminal.slash.command.remote_control.description",
+            SlashCommandKind::Cost => "terminal.slash.command.cost.description",
+            SlashCommandKind::Conversations => "terminal.slash.command.conversations.description",
+            SlashCommandKind::Prompts => "terminal.slash.command.prompts.description",
+            SlashCommandKind::Rewind => "terminal.slash.command.rewind.description",
+            SlashCommandKind::ExportToClipboard => {
+                "terminal.slash.command.export_to_clipboard.description"
+            }
+            SlashCommandKind::ExportToFile => "terminal.slash.command.export_to_file.description",
+            SlashCommandKind::VimMode => "terminal.slash.command.vim_mode.description",
+            SlashCommandKind::Status => "terminal.slash.command.status.description",
+            SlashCommandKind::CopyDebuggingId => {
+                "terminal.slash.command.copy_debugging_id.description"
+            }
+        };
+        localization::text_for_app(app, key)
     }
 
-    pub fn localized_description(&self, app: &warpui::AppContext) -> String {
-        crate::localization::text_for_app_or(app, &self.description_key(), self.description)
+    pub fn supports_gui(&self) -> bool {
+        self.supported_surfaces.supports_gui()
+    }
+
+    pub fn supports_tui(&self) -> bool {
+        self.supported_surfaces.supports_tui()
+    }
+    pub fn supports_surface(&self, settings_mode: SettingsMode) -> bool {
+        self.supported_surfaces.includes(settings_mode)
     }
 
     pub fn matches_filter(&self, filter_text: &str) -> bool {

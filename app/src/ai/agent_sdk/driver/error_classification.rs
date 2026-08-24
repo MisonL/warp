@@ -206,6 +206,16 @@ fn classify_driver_error_for_locale(
                 PlatformErrorCode::EnvironmentSetupFailed,
             ),
         ),
+        // The shell died while an environment setup command was running
+        // (e.g. the command ran `exit`). This is a user-side environment
+        // configuration problem, so classify as FAILED.
+        AgentDriverError::SetupCommandExitedShell { .. } => (
+            AgentTaskState::Failed,
+            TaskStatusUpdate::with_error_code(
+                error.to_string(),
+                PlatformErrorCode::EnvironmentSetupFailed,
+            ),
+        ),
         AgentDriverError::InvalidWorkingDirectory { path, .. } => {
             let path = path.display().to_string();
             (
@@ -264,36 +274,34 @@ fn classify_driver_error_for_locale(
                 PlatformErrorCode::ResourceNotFound,
             ),
         ),
-        AgentDriverError::ConfigBuildFailed(err) => {
-            let error = err.to_string();
-            (
-                AgentTaskState::Failed,
-                TaskStatusUpdate::with_error_code(
-                    text_with_args(locale, "config_build_failed", &[("error", &error)]),
-                    PlatformErrorCode::EnvironmentSetupFailed,
-                ),
-            )
-        }
-        AgentDriverError::PromptResolutionFailed(err) => {
-            let error = err.to_string();
-            (
-                AgentTaskState::Error,
-                TaskStatusUpdate::with_error_code(
-                    text_with_args(locale, "prompt_resolution_failed", &[("error", &error)]),
-                    PlatformErrorCode::InternalError,
-                ),
-            )
-        }
-        AgentDriverError::SecretsFetchFailed(err) => {
-            let error = err.to_string();
-            (
-                AgentTaskState::Error,
-                TaskStatusUpdate::with_error_code(
-                    text_with_args(locale, "secrets_fetch_failed", &[("error", &error)]),
-                    PlatformErrorCode::InternalError,
-                ),
-            )
-        }
+        AgentDriverError::ConfigBuildFailed(err) => (
+            AgentTaskState::Failed,
+            TaskStatusUpdate::with_error_code(
+                format!("Failed to build agent configuration: {err}"),
+                PlatformErrorCode::EnvironmentSetupFailed,
+            ),
+        ),
+        AgentDriverError::PromptResolutionFailed(err) => (
+            AgentTaskState::Error,
+            TaskStatusUpdate::with_error_code(
+                format!("Failed to resolve prompt for the run: {err}"),
+                PlatformErrorCode::InternalError,
+            ),
+        ),
+        AgentDriverError::SecretsFetchFailed(err) => (
+            AgentTaskState::Error,
+            TaskStatusUpdate::with_error_code(
+                format!("Failed to fetch task secrets: {err}"),
+                PlatformErrorCode::InternalError,
+            ),
+        ),
+        AgentDriverError::TaskMetadataFetchFailed(err) => (
+            AgentTaskState::Error,
+            TaskStatusUpdate::with_error_code(
+                format!("Failed to fetch task metadata: {err}"),
+                PlatformErrorCode::InternalError,
+            ),
+        ),
         AgentDriverError::AwsBedrockCredentialsFailed(msg) => (
             AgentTaskState::Failed,
             TaskStatusUpdate::with_error_code(

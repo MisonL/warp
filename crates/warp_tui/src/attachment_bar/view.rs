@@ -166,14 +166,8 @@ pub(crate) fn init(app: &mut AppContext) {
 
 impl TuiAttachmentBar {
     pub(crate) fn new(model: ModelHandle<TuiAttachmentModel>, ctx: &mut ViewContext<Self>) -> Self {
-        let model_for_subscription = model.clone();
-        ctx.subscribe_to_model(&model, move |view, _, event, ctx| match event {
+        ctx.subscribe_to_model(&model, move |_, _, event, ctx| match event {
             TuiAttachmentModelEvent::Updated => {
-                // TUI notifications invalidate the whole window, including the
-                // parent that conditionally renders this attachment bar.
-                if view.focused && !model_for_subscription.as_ref(ctx).should_render(ctx) {
-                    ctx.emit(TuiAttachmentBarEvent::ReturnFocus);
-                }
                 ctx.notify();
             }
             TuiAttachmentModelEvent::AbortInputDetection => {
@@ -211,9 +205,15 @@ impl TuiAttachmentBar {
             .update(ctx, |model, ctx| model.try_attach_paste(text, ctx))
     }
 
-    pub(crate) fn paste_image_from_clipboard(&mut self, ctx: &mut ViewContext<Self>) {
+    pub(crate) fn paste_from_clipboard(&mut self, ctx: &mut ViewContext<Self>) {
         self.model
-            .update(ctx, |model, ctx| model.paste_image_from_clipboard(ctx));
+            .update(ctx, |model, ctx| model.paste_from_clipboard(ctx));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn emit_model_updated_for_test(&self, ctx: &mut ViewContext<Self>) {
+        self.model
+            .update(ctx, |_, ctx| ctx.emit(TuiAttachmentModelEvent::Updated));
     }
 
     pub(crate) fn remove_selected(&mut self, ctx: &mut ViewContext<Self>) {
@@ -252,13 +252,7 @@ fn render_attachment_snapshot_for_locale(
 ) -> Box<dyn TuiElement> {
     let builder = TuiUiBuilder::from_app(ctx);
     let Some(selected) = snapshot.selected else {
-        return TuiText::new(localization::text_for_locale(
-            locale,
-            "tui.attachments.loading_image",
-        ))
-        .with_style(builder.muted_text_style())
-        .truncate()
-        .finish();
+        return TuiFlex::row().finish();
     };
     let kind = match selected.attachment_type {
         AttachmentType::Image => {
@@ -266,36 +260,11 @@ fn render_attachment_snapshot_for_locale(
         }
         AttachmentType::File => localization::text_for_locale(locale, "tui.attachments.kind.file"),
     };
-    if snapshot.selected_is_processing {
-        return TuiFlex::row()
-            .child(
-                TuiText::new(format!("{kind} "))
-                    .with_style(builder.accent_text_style())
-                    .truncate()
-                    .finish(),
-            )
-            .flex_child(
-                TuiText::new(selected.file_name)
-                    .with_style(builder.muted_text_style())
-                    .truncate()
-                    .finish(),
-            )
-            .child(
-                TuiText::new(format!(
-                    " · {}",
-                    localization::text_for_locale(locale, "tui.attachments.loading")
-                ))
-                .with_style(builder.dim_text_style())
-                .truncate()
-                .finish(),
-            )
-            .finish();
-    }
     let mut row = TuiFlex::row();
     if snapshot.count > 1 {
         row = row
             .child(attachment_control(
-                "‹ ",
+                "< ",
                 previous_mouse,
                 TuiAttachmentBarAction::Previous,
                 ctx,
@@ -315,7 +284,9 @@ fn render_attachment_snapshot_for_locale(
         )
         .flex_child(
             TuiText::new(selected.file_name)
-                .with_style(if focused {
+                .with_style(if snapshot.selected_is_processing {
+                    builder.muted_text_style()
+                } else if focused {
                     builder.primary_text_style()
                 } else {
                     builder.muted_text_style()
@@ -334,7 +305,7 @@ fn render_attachment_snapshot_for_locale(
             .finish(),
         )
         .child(attachment_control(
-            "×",
+            "x",
             remove_mouse,
             TuiAttachmentBarAction::RemoveSelected,
             ctx,
@@ -347,7 +318,7 @@ fn render_attachment_snapshot_for_locale(
                     .finish(),
             )
             .child(attachment_control(
-                " ›",
+                " >",
                 next_mouse,
                 TuiAttachmentBarAction::Next,
                 ctx,
@@ -356,7 +327,7 @@ fn render_attachment_snapshot_for_locale(
     if snapshot.is_processing {
         row = row.child(
             TuiText::new(format!(
-                " · {}",
+                " - {}",
                 localization::text_for_locale(locale, "tui.attachments.loading")
             ))
             .with_style(builder.dim_text_style())

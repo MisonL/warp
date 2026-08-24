@@ -96,7 +96,7 @@ impl SkillSelectorDataSource {
         });
         if ctx.has_singleton_model::<SkillManager>() {
             ctx.subscribe_to_model(&SkillManager::handle(ctx), |_, _, event, ctx| {
-                if matches!(event, SkillManagerEvent::BundledSkillsChanged) {
+                if matches!(event, SkillManagerEvent::SkillsChanged { .. }) {
                     ctx.emit(UpdatedAvailableSkills);
                 }
             });

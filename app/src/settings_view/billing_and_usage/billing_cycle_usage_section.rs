@@ -14,6 +14,7 @@ use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+    WeakViewHandle,
 };
 
 use crate::ai::AIRequestUsageModel;
@@ -22,7 +23,8 @@ use crate::localization::{self, LocalizationUpdater};
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::settings_view::admin_actions::AdminActions;
 use crate::settings_view::billing_and_usage::billing_cycle_usage_common::{
-    BillingUsageMouseStates, filter_legacy_buckets, has_non_viewer_data, legend_cost_types,
+    BillingUsageMouseStates, filter_entries_by_attributed_team, filter_legacy_buckets,
+    has_non_viewer_data, legend_cost_types, members_for_team,
 };
 use crate::settings_view::billing_and_usage::billing_cycle_usage_rows::{
     SourceFilter, has_cloud_usage, render_own_usage_solo_row, render_own_usage_with_workspace_row,
@@ -37,17 +39,19 @@ use crate::ui_components::icons::Icon;
 use crate::util::time_format::{
     localized_month_day_for_locale, localized_month_day_time, localized_month_day_year_for_locale,
 };
+use crate::workspaces::team::Team;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{
-    AiCreditsUsageAndCostType, BillingCycleUsageSummary, MaxPriorCycles, UsageVisibility,
-    UsageVisibilityGranularity, Workspace,
+    AiCreditsUsageAndCostType, BillingCycleUsageEntry, BillingCycleUsageSummary, MaxPriorCycles,
+    UsageVisibility, UsageVisibilityGranularity, Workspace, WorkspaceMember,
 };
 
 const HEADER_FONT_SIZE: f32 = 16.;
 const LEGEND_DOT_SIZE: f32 = 8.;
 
 pub struct BillingCycleUsageSectionView {
+    self_handle: WeakViewHandle<Self>,
     selected_period_end: Option<DateTime<Utc>>,
     period_selector_mouse_state: MouseStateHandle,
     aggregate_legend_mouse_state: MouseStateHandle,
@@ -63,7 +67,8 @@ pub enum BillingCycleUsageAction {
     TogglePeriodMenu,
     ChangeSourceFilter(SourceFilter),
     OpenUpgrade,
-    OpenAdminPanel,
+    OpenTeamAdminPanel,
+    OpenWorkspaceAdminPanel,
 }
 
 impl Entity for BillingCycleUsageSectionView {
@@ -113,6 +118,7 @@ impl BillingCycleUsageSectionView {
         });
 
         Self {
+            self_handle: ctx.handle(),
             selected_period_end: None,
             period_selector_mouse_state: MouseStateHandle::default(),
             aggregate_legend_mouse_state: MouseStateHandle::default(),
@@ -127,13 +133,42 @@ impl BillingCycleUsageSectionView {
         AuthStateProvider::as_ref(app).get().user_email()
     }
 
-    fn viewer_is_admin(app: &AppContext) -> bool {
-        let Some(team) = UserWorkspaces::as_ref(app).current_team() else {
+    fn viewer_is_team_admin(&self, app: &AppContext) -> bool {
+        let Some(team) = self.selected_team(app) else {
             return false;
         };
         Self::resolved_viewer_email(app)
             .as_deref()
             .is_some_and(|email| team.has_admin_permissions(email))
+    }
+
+    /// The team this settings window is pointed at.
+    fn selected_team<'a>(&self, app: &'a AppContext) -> Option<&'a Team> {
+        UserWorkspaces::as_ref(app).team_for_view_handle(&self.self_handle, app)
+    }
+
+    fn visible_entries(
+        &self,
+        workspace: &Workspace,
+        app: &AppContext,
+    ) -> Vec<BillingCycleUsageEntry> {
+        let entries = filter_legacy_buckets(
+            self.current_summary(workspace)
+                .map(|summary| summary.entries.as_slice())
+                .unwrap_or_default(),
+        );
+        match self.selected_team(app) {
+            Some(team) => filter_entries_by_attributed_team(&entries, &team.uid.to_string()),
+            // No team resolved (teamless viewer): nothing to scope to, so
+            // leave the entries as the server sent them.
+            None => entries,
+        }
+    }
+
+    /// Workspace members that belong to the selected team; the roster the
+    /// per-member rows are built from.
+    fn visible_members(&self, workspace: &Workspace, app: &AppContext) -> Vec<WorkspaceMember> {
+        members_for_team(&workspace.members, self.selected_team(app))
     }
 
     fn current_summary<'a>(
@@ -162,8 +197,8 @@ impl BillingCycleUsageSectionView {
     }
 
     /// Whether the "Team" block + "Members" subheader should render. We
-    /// hide them when the viewer has no team data to show: `members.len()
-    /// > 1` covers the common multi-member case; `has_non_viewer_data`
+    /// hide them when the viewer has no team data to show: a roster larger
+    /// than the viewer covers the common multi-member case; `has_non_viewer_data`
     /// catches the edge case where the roster shrank to one after a
     /// teammate left mid-cycle but their usage is still attributed against
     /// this cycle. Together they keep solo teams from showing orphan
@@ -172,20 +207,17 @@ impl BillingCycleUsageSectionView {
     /// Note: per the backend invariant `VIS != OwnOnly => viewer is admin`,
     /// so we don't need a separate admin gate here.
     fn shows_team_section(&self, workspace: &Workspace, app: &AppContext) -> bool {
-        let visibility = workspace.resolve_usage_visibility(Self::viewer_is_admin(app));
+        let visibility = workspace.resolve_usage_visibility(self.viewer_is_team_admin(app));
         if visibility.granularity == UsageVisibilityGranularity::OwnOnly {
             return false;
         }
-        let entries = filter_legacy_buckets(
-            self.current_summary(workspace)
-                .map(|s| s.entries.as_slice())
-                .unwrap_or_default(),
-        );
+        let entries = self.visible_entries(workspace, app);
         let viewer_uid = AuthStateProvider::as_ref(app)
             .get()
             .user_id()
             .map(|uid| uid.as_string());
-        workspace.members.len() > 1 || has_non_viewer_data(&entries, viewer_uid.as_deref())
+        self.visible_members(workspace, app).len() > 1
+            || has_non_viewer_data(&entries, viewer_uid.as_deref())
     }
 }
 
@@ -211,14 +243,21 @@ impl TypedActionView for BillingCycleUsageSectionView {
                 ctx.notify();
             }
             BillingCycleUsageAction::OpenUpgrade => {
-                if let Some(team_uid) = UserWorkspaces::as_ref(ctx).current_team_uid() {
+                if let Some(team_uid) =
+                    UserWorkspaces::as_ref(ctx).team_uid_for_window(ctx.window_id())
+                {
                     ctx.open_url(&UserWorkspaces::upgrade_link_for_team(team_uid));
                 }
             }
-            BillingCycleUsageAction::OpenAdminPanel => {
-                if let Some(team_uid) = UserWorkspaces::as_ref(ctx).current_team_uid() {
+            BillingCycleUsageAction::OpenTeamAdminPanel => {
+                if let Some(team_uid) =
+                    UserWorkspaces::as_ref(ctx).team_uid_for_window(ctx.window_id())
+                {
                     AdminActions::open_admin_panel(team_uid, ctx);
                 }
+            }
+            BillingCycleUsageAction::OpenWorkspaceAdminPanel => {
+                AdminActions::open_workspace_admin_panel(ctx);
             }
         }
     }
@@ -270,17 +309,13 @@ impl BillingCycleUsageSectionView {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_admin = Self::viewer_is_admin(app);
+        let is_admin = self.viewer_is_team_admin(app);
         let visibility = workspace.resolve_usage_visibility(is_admin);
 
         let mut column = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
         column.add_child(self.render_header(Some(workspace), &visibility, appearance, app));
 
-        let entries = filter_legacy_buckets(
-            self.current_summary(workspace)
-                .map(|summary| summary.entries.as_slice())
-                .unwrap_or_default(),
-        );
+        let entries = self.visible_entries(workspace, app);
 
         let is_source_filter_shown = visibility.granularity
             == UsageVisibilityGranularity::FullBreakdown
@@ -303,15 +338,13 @@ impl BillingCycleUsageSectionView {
             .finish(),
         );
 
-        if is_admin
-            && let Some(banner) = self.render_visibility_cta_banner(workspace, appearance, app)
-        {
+        if is_admin && let Some(banner) = self.render_visibility_cta_banner(workspace, app) {
             column.add_child(Container::new(banner).with_margin_top(16.).finish());
         }
 
         column.add_child(
             Container::new(render_rows(
-                workspace,
+                &self.visible_members(workspace, app),
                 &entries,
                 &visibility,
                 source_filter,
@@ -335,12 +368,8 @@ impl BillingCycleUsageSectionView {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let visibility = workspace.resolve_usage_visibility(Self::viewer_is_admin(app));
-        let entries = filter_legacy_buckets(
-            self.current_summary(workspace)
-                .map(|s| s.entries.as_slice())
-                .unwrap_or_default(),
-        );
+        let visibility = workspace.resolve_usage_visibility(self.viewer_is_team_admin(app));
+        let entries = self.visible_entries(workspace, app);
 
         let mut column = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
         column.add_child(self.render_header(Some(workspace), &visibility, appearance, app));
@@ -354,6 +383,11 @@ impl BillingCycleUsageSectionView {
             .with_margin_top(16.)
             .finish(),
         );
+        if self.viewer_is_native_workspaces_admin(workspace, app)
+            && let Some(banner) = self.render_visibility_cta_banner(workspace, app)
+        {
+            column.add_child(Container::new(banner).with_margin_top(16.).finish());
+        }
         column.finish()
     }
 
@@ -586,11 +620,10 @@ impl BillingCycleUsageSectionView {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        let summary = self.current_summary(workspace)?;
         // Only list buckets that actually contribute to the stacked bars: drop
         // legacy buckets and cost types with no usage, so the legend never
         // shows a bucket (e.g. "Base") that has zero credits in the data.
-        let present_buckets = legend_cost_types(&summary.entries);
+        let present_buckets = legend_cost_types(&self.visible_entries(workspace, app));
         if present_buckets.is_empty() {
             return None;
         }
@@ -680,6 +713,13 @@ impl BillingCycleUsageSectionView {
         .finish()
     }
 
+    fn viewer_is_native_workspaces_admin(&self, workspace: &Workspace, app: &AppContext) -> bool {
+        workspace.is_native_workspaces_enabled()
+            && Self::resolved_viewer_email(app)
+                .as_deref()
+                .is_some_and(|email| workspace.is_workspace_admin(email))
+    }
+
     /// Renders the CTA banner that sits between the team-totals block and
     /// the per-member rows. The copy and action vary by visibility tier:
     /// non-FullBreakdown admins see an upgrade nudge; FullBreakdown admins
@@ -688,27 +728,30 @@ impl BillingCycleUsageSectionView {
     fn render_visibility_cta_banner(
         &self,
         workspace: &Workspace,
-        appearance: &Appearance,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        let admin_granularity = workspace
-            .billing_metadata
-            .tier
-            .usage_visibility_policy?
-            .admin_granularity;
-        if admin_granularity == UsageVisibilityGranularity::FullBreakdown
-            && !workspace.billing_metadata.is_enterprise_plan()
-        {
-            return None;
-        }
+        let appearance = Appearance::as_ref(app);
         let (link_text, trailing_copy, action, leading_icon) =
-            visibility_cta_for(admin_granularity, localization::current_locale(app))?;
-
-        // Only show when there are teammates -- a single-member workspace
-        // doesn't benefit from any of the team-level visibility CTAs.
-        if workspace.members.len() <= 1 {
-            return None;
-        }
+            if self.viewer_is_native_workspaces_admin(workspace, app) {
+                native_workspaces_cta(localization::current_locale(app))
+            } else {
+                // Only show when there are teammates -- a single-member team
+                // doesn't benefit from any of the team-level visibility CTAs.
+                if self.visible_members(workspace, app).len() <= 1 {
+                    return None;
+                }
+                let admin_granularity = workspace
+                    .billing_metadata
+                    .tier
+                    .usage_visibility_policy?
+                    .admin_granularity;
+                if admin_granularity == UsageVisibilityGranularity::FullBreakdown
+                    && !workspace.billing_metadata.is_enterprise_plan()
+                {
+                    return None;
+                }
+                visibility_cta_for(admin_granularity, localization::current_locale(app))?
+            };
 
         let theme = appearance.theme();
         let sub_text = theme.sub_text_color(theme.background());
@@ -753,6 +796,18 @@ impl BillingCycleUsageSectionView {
                 .finish(),
         )
     }
+}
+
+fn native_workspaces_cta(locale: LocaleId) -> (String, String, BillingCycleUsageAction, Icon) {
+    (
+        localization::text_for_locale(locale, "settings.billing.usage_visibility.open_admin_panel"),
+        localization::text_for_locale(
+            locale,
+            "settings.billing.usage_visibility.manage_workspace_settings",
+        ),
+        BillingCycleUsageAction::OpenWorkspaceAdminPanel,
+        Icon::Users,
+    )
 }
 
 /// Returns the (link text, trailing copy, action, icon) tuple for the
@@ -809,7 +864,7 @@ fn visibility_cta_for(
                 locale,
                 "settings.billing.usage_visibility.set_per_user_spend_limits",
             ),
-            BillingCycleUsageAction::OpenAdminPanel,
+            BillingCycleUsageAction::OpenTeamAdminPanel,
             Icon::Users,
         )),
     }

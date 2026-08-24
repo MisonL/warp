@@ -1,17 +1,16 @@
-//! Per-tool, per-state one-line labels for tool-call rows in the TUI
-//! transcript, modeled on the GUI's inline action text.
+//! Per-tool, per-state labels for tool-call rows in the TUI transcript,
+//! modeled on the GUI's inline action text.
 
 use std::path::Path;
 
 use ai::agent::action_result::RunAgentsAgentOutcome;
 use warp::tui_export::{
-    AIActionStatus, AIAgentAction, AIAgentActionResultType, AIAgentActionType,
-    AskUserQuestionResult, FileGlobV2Result, GrepResult, RequestCommandOutputResult,
-    RunAgentsAgentOutcomeKind, RunAgentsResult, SearchCodebaseFailureReason, SearchCodebaseResult,
-    StartAgentExecutionMode, SuggestNewConversationResult,
+    AIActionStatus, AIAgentAction, AIAgentActionType, RunAgentsAgentOutcomeKind,
+    mcp_server_name_for_id,
 };
 use warp_core::command::ExitCode;
-use warpui_core::elements::tui::TuiStyle;
+use warpui_core::AppContext;
+use warpui_core::elements::tui::{Modifier, TuiStyle};
 
 use self::ToolCallDisplayState as State;
 #[path = "tool_call_labels_actions.rs"]
@@ -44,8 +43,9 @@ pub(crate) struct ResolvedCommandBlock {
     pub(crate) state: CommandBlockState,
 }
 
-/// Longest rendered length for interpolated values (commands, queries, paths)
-/// so tool-call rows stay scannable one-liners.
+/// Longest rendered length for compact interpolated values such as queries and
+/// paths. Shell commands are preserved in full and wrap in their collapsible
+/// header instead.
 const MAX_INLINE_LEN: usize = 80;
 
 /// Coarse presentation state for a tool call.
@@ -98,6 +98,22 @@ impl ToolCallDisplayState {
     }
 }
 
+/// Styles the first word of a tool-call label as the action and the rest as details.
+pub(crate) fn styled_tool_call_label_spans(
+    label: &str,
+    builder: &TuiUiBuilder,
+) -> Vec<(String, TuiStyle)> {
+    let action_style = builder.primary_text_style().add_modifier(Modifier::BOLD);
+    let details_style = builder.neutral_7_text_style();
+    match label.find(char::is_whitespace) {
+        Some(first_word_end) => vec![
+            (label[..first_word_end].to_owned(), action_style),
+            (label[first_word_end..].to_owned(), details_style),
+        ],
+        None => vec![(label.to_owned(), action_style)],
+    }
+}
+
 /// Collapses an optional action status into the coarse display state.
 /// `output_streaming` is whether the exchange output is still streaming;
 /// a status-less action in a streaming output is still being constructed
@@ -142,19 +158,50 @@ pub(crate) fn tool_call_display_state(
     }
 }
 
-/// Returns the one-line transcript label for a tool call in its current state.
+/// Returns the transcript label for a tool call in its current state.
+///
+/// Equivalent to [`tool_call_label_with_server`] with no MCP server name; use
+/// that variant when rendering an MCP tool call whose originating server is
+/// known so the label surfaces both the tool name and the server.
 pub(crate) fn tool_call_label(
     action: &AIAgentAction,
     status: Option<&AIActionStatus>,
     output_streaming: bool,
     block: Option<&ResolvedCommandBlock>,
 ) -> String {
+    tool_call_label_with_server(action, status, output_streaming, block, None)
+}
+
+pub(crate) fn blocked_tool_call_label(action: &AIAgentActionType) -> String {
+    actions::label_for_action(action, State::Blocked, None, None, None)
+}
+
+/// Returns a compact blocked-action label for surfaces with a single-line
+/// layout, such as the CLI sub-agent status view.
+pub(crate) fn compact_blocked_tool_call_label(action: &AIAgentActionType) -> String {
+    let label = blocked_tool_call_label(action);
+    if matches!(action, AIAgentActionType::RequestCommandOutput { .. }) {
+        single_line(&label)
+    } else {
+        label
+    }
+}
+
+/// Like [`tool_call_label`], but interpolates the MCP tool's originating server
+/// name (when known) into the per-state label so MCP tool calls surface both
+/// their tool name and server identity across the transcript lifecycle.
+pub(crate) fn tool_call_label_with_server(
+    action: &AIAgentAction,
+    status: Option<&AIActionStatus>,
+    output_streaming: bool,
+    block: Option<&ResolvedCommandBlock>,
+    server_name: Option<&str>,
+) -> String {
     let state = tool_call_display_state(status, output_streaming, block.map(|block| block.state));
     let result = status
         .and_then(AIActionStatus::finished_result)
         .map(|result| &result.result);
-    let label = actions::label_for_action(&action.action, state, result, block);
-
+    let label = actions::label_for_action(&action.action, state, result, block, server_name);
     match state {
         State::Blocked => {
             localization::text_with_args("tui.tool.awaiting_approval", &[("label", &label)])
@@ -168,8 +215,19 @@ pub(crate) fn tool_call_label(
     }
 }
 
-pub(crate) fn blocked_tool_call_label(action: &AIAgentActionType) -> String {
-    actions::label_for_action(action, State::Blocked, None, None)
+/// Resolves the user-facing name of the originating MCP server for an MCP
+/// tool-call action, for use in transcript labels. Returns `None` for non-
+/// MCP-tool actions, legacy/flat calls with no server id, or unknown servers.
+pub(crate) fn mcp_server_name_for_action(
+    action: &AIAgentActionType,
+    app: &AppContext,
+) -> Option<String> {
+    match action {
+        AIAgentActionType::CallMCPTool { server_id, .. } => server_id
+            .as_ref()
+            .and_then(|id| mcp_server_name_for_id(id, app)),
+        _ => None,
+    }
 }
 
 /// Summarizes the outcomes of an orchestration launch using the same catalog
@@ -182,13 +240,13 @@ fn launched_agents_label(agents: &[RunAgentsAgentOutcome]) -> String {
     let total = agents.len();
     let agents = localized_count_label(total, "tui.count.agent.one", "tui.count.agent.many");
 
-    if launched == total {
-        localization::text_with_args("tui.tool.orchestration.spawned", &[("agents", &agents)])
-    } else if launched == 0 {
+    if launched == 0 {
         localization::text_with_args(
             "tui.tool.orchestration.spawn_failed",
             &[("agents", &agents)],
         )
+    } else if launched == total {
+        localization::text_with_args("tui.tool.orchestration.spawned", &[("agents", &agents)])
     } else {
         localization::text_with_args(
             "tui.tool.orchestration.spawned_some",
@@ -298,6 +356,11 @@ fn single_line(text: &str) -> String {
         out.push('…');
     }
     out
+}
+
+pub(super) fn single_line_without_ellipsis(text: &str) -> String {
+    let first_line = text.lines().next().unwrap_or_default().trim_end();
+    first_line.chars().take(MAX_INLINE_LEN).collect()
 }
 
 /// Renders a search path for display, mirroring the GUI's treatment of `.`.

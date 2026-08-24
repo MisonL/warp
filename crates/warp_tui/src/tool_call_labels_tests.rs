@@ -6,14 +6,18 @@ use ai::agent::action_result::{
 };
 use warp::tui_export::{
     AIActionStatus, AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
-    AIAgentActionType, BlockId, RequestCommandOutputResult, TaskId,
+    AIAgentActionType, Appearance, BlockId, RequestCommandOutputResult, TaskId,
 };
 use warp_core::command::ExitCode;
+use warpui::App;
+use warpui_core::elements::tui::Modifier;
 
 use super::{
-    CommandBlockState, ResolvedCommandBlock, ToolCallDisplayState, launched_agents_label,
-    tool_call_display_state, tool_call_label,
+    CommandBlockState, ResolvedCommandBlock, ToolCallDisplayState, blocked_tool_call_label,
+    compact_blocked_tool_call_label, launched_agents_label, styled_tool_call_label_spans,
+    tool_call_display_state, tool_call_label, tool_call_label_with_server,
 };
+use crate::tui_builder::TuiUiBuilder;
 
 /// Builds a `Finished` status wrapping the given result.
 fn finished(result: AIAgentActionResultType) -> AIActionStatus {
@@ -35,6 +39,7 @@ fn block(state: CommandBlockState) -> ResolvedCommandBlock {
 fn failed_agent(name: &str) -> RunAgentsAgentOutcome {
     RunAgentsAgentOutcome {
         name: name.to_owned(),
+        resolved_model_id: String::new(),
         kind: RunAgentsAgentOutcomeKind::Failed {
             error: "launch failed".to_owned(),
         },
@@ -54,6 +59,22 @@ fn command_action(command: &str) -> AIAgentAction {
             uses_pager: None,
             rationale: None,
             citations: Vec::new(),
+        },
+        requires_result: true,
+    }
+}
+
+/// Builds a `CallMCPTool` action for `tool`. The `server_id` is left `None`
+/// because `tool_call_label_with_server` takes the resolved server name as a
+/// direct argument, bypassing the action's server-id -> name lookup.
+fn mcp_tool_action(tool: &str) -> AIAgentAction {
+    AIAgentAction {
+        id: AIAgentActionId::from("action-1".to_owned()),
+        task_id: TaskId::new("task-1".to_owned()),
+        action: AIAgentActionType::CallMCPTool {
+            server_id: None,
+            name: tool.to_owned(),
+            input: serde_json::Value::Null,
         },
         requires_result: true,
     }
@@ -96,6 +117,28 @@ fn all_failed_run_agents_uses_failure_glyph() {
 
     assert_eq!(state, ToolCallDisplayState::Failed);
     assert_eq!(state.glyph(), "×");
+}
+
+#[test]
+fn empty_run_agents_result_is_reported_as_a_failure() {
+    assert_eq!(launched_agents_label(&[]), "Failed to spawn 0 agents");
+}
+
+#[test]
+fn blocked_command_label_keeps_full_details_for_permission_cards() {
+    let command = format!("echo {}", "x".repeat(200));
+    let action = AIAgentActionType::RequestCommandOutput {
+        command: command.clone(),
+        is_read_only: None,
+        is_risky: None,
+        wait_until_completion: true,
+        uses_pager: None,
+        rationale: None,
+        citations: Vec::new(),
+    };
+
+    assert_eq!(blocked_tool_call_label(&action), format!("Run `{command}`"));
+    assert!(compact_blocked_tool_call_label(&action).ends_with('…'));
 }
 
 /// One end-to-end pass over a tool call's lifecycle: the label text must
@@ -246,4 +289,210 @@ fn label_prefers_executed_command_over_streamed_command() {
         ),
         "Running `git status`"
     );
+}
+
+#[test]
+fn shell_command_label_preserves_a_long_path_without_an_ellipsis() {
+    let command = "ls -la /Users/moirahuang/.warp-dev/worktrees/warp/moira/pr-14381-combined/crates/warp_tui/src/tui_shell_command_view.rs";
+    let action = command_action(command);
+
+    assert_eq!(
+        tool_call_label(&action, None, false, None),
+        format!("Run `{command}`")
+    );
+}
+/// An MCP tool call's transcript label must surface both the tool name and its
+/// originating server across every lifecycle state, with a deterministic
+/// no-server fallback (legacy/flat MCP call or unknown server).
+#[test]
+fn mcp_tool_call_label_surfaces_tool_and_server_across_lifecycle() {
+    let action = mcp_tool_action("create_issue");
+    let server = Some("github");
+
+    // Constructing: the tool name may still be empty while args stream in.
+    let constructing_empty = mcp_tool_action("");
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, true, None, None),
+        "Calling MCP tool…"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, true, None, server),
+        "Calling MCP tool on github…"
+    );
+    assert_eq!(
+        tool_call_label_with_server(
+            &constructing_empty,
+            None,
+            true,
+            None,
+            Some("github\nignored"),
+        ),
+        "Calling MCP tool on github…"
+    );
+    let long_server = "s".repeat(81);
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, true, None, Some(&long_server)),
+        format!("Calling MCP tool on {}…", "s".repeat(80))
+    );
+    assert_eq!(
+        tool_call_label_with_server(&action, None, true, None, None),
+        "Calling \"create_issue\" MCP tool…"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&action, None, true, None, server),
+        "Calling \"create_issue\" MCP tool on github…"
+    );
+
+    // Pending.
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, None, None),
+        "Call MCP tool create_issue"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, None, server),
+        "Call MCP tool create_issue on github"
+    );
+
+    // The server identity remains useful even when a streamed call has not
+    // supplied a tool name yet.
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, None, server),
+        "Call MCP tool on github"
+    );
+
+    // Blocked / awaiting approval.
+    assert_eq!(
+        tool_call_label_with_server(&action, Some(&AIActionStatus::Blocked), false, None, None),
+        "Call MCP tool create_issue (awaiting approval)"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&action, Some(&AIActionStatus::Blocked), false, None, server),
+        "Call MCP tool create_issue on github (awaiting approval)"
+    );
+
+    // Running.
+    assert_eq!(
+        tool_call_label_with_server(
+            &action,
+            Some(&AIActionStatus::RunningAsync),
+            false,
+            None,
+            server
+        ),
+        "Calling MCP tool create_issue on github"
+    );
+
+    assert_eq!(
+        tool_call_label_with_server(
+            &constructing_empty,
+            Some(&AIActionStatus::RunningAsync),
+            false,
+            None,
+            server,
+        ),
+        "Calling MCP tool on github"
+    );
+
+    // Terminal states are driven through a resolved command block so the label
+    // text can be exercised without constructing an rmcp `CallToolResult`.
+    let succeeded = block(CommandBlockState::Finished {
+        exit_code: ExitCode::from(0),
+    });
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, Some(&succeeded), server),
+        "Called MCP tool create_issue on github"
+    );
+    let failed = block(CommandBlockState::Finished {
+        exit_code: ExitCode::from(1),
+    });
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, Some(&failed), server),
+        "MCP tool create_issue on github failed"
+    );
+    let cancelled = block(CommandBlockState::Finished {
+        exit_code: ExitCode::from(130),
+    });
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, Some(&cancelled), server),
+        "MCP tool create_issue on github cancelled"
+    );
+
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&succeeded), server),
+        "Called MCP tool on github"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&failed), server),
+        "MCP tool on github failed"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&cancelled), server),
+        "MCP tool on github cancelled"
+    );
+
+    // No server (legacy/flat MCP call or unknown server): tool name only.
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, Some(&succeeded), None),
+        "Called MCP tool create_issue"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, Some(&succeeded), Some("")),
+        "Called MCP tool create_issue"
+    );
+
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, None, None),
+        "Call MCP tool"
+    );
+    assert_eq!(
+        tool_call_label_with_server(
+            &constructing_empty,
+            Some(&AIActionStatus::RunningAsync),
+            false,
+            None,
+            None
+        ),
+        "Calling MCP tool"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&succeeded), None),
+        "Called MCP tool"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&failed), None),
+        "MCP tool failed"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&cancelled), None),
+        "MCP tool cancelled"
+    );
+}
+
+#[test]
+fn tool_call_label_spans_bold_only_the_first_word() {
+    App::test((), |app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        app.read(|ctx| {
+            let builder = TuiUiBuilder::from_app(ctx);
+            let spans = styled_tool_call_label_spans("Grepped for needle in src", &builder);
+            assert_eq!(spans[0].0, "Grepped");
+            assert_eq!(spans[1].0, " for needle in src");
+            assert_eq!(spans[0].1.fg, builder.primary_text_style().fg);
+            assert!(spans[0].1.add_modifier.contains(Modifier::BOLD));
+            assert_eq!(spans[1].1.fg, builder.neutral_7_text_style().fg);
+            assert!(!spans[1].1.add_modifier.contains(Modifier::BOLD));
+
+            let subject_first =
+                styled_tool_call_label_spans("MCP tool create_issue failed", &builder);
+            assert_eq!(
+                subject_first
+                    .iter()
+                    .map(|(text, _)| text.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["MCP", " tool create_issue failed"]
+            );
+            assert!(subject_first[0].1.add_modifier.contains(Modifier::BOLD));
+            assert_eq!(subject_first[1].1.fg, builder.neutral_7_text_style().fg);
+        });
+    });
 }

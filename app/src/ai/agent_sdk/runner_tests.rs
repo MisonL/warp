@@ -1,8 +1,8 @@
 use warp_localization::LocaleId;
 
 use super::{
-    RunnerArch, RunnerArchArg, RunnerOsArg, confirm_delete, merge_instance_shape, resolve_arch,
-    resolve_updated_name,
+    RunnerArch, RunnerArchArg, RunnerOsArg, confirm_delete, localized_runner_arch,
+    localized_runner_os, merge_instance_shape, resolve_arch, resolve_updated_name,
 };
 
 #[test]
@@ -83,4 +83,14 @@ fn resolve_updated_name_renames_only_with_uid() {
     assert_eq!(resolve_updated_name(true, None, "old"), "old");
     // No UID: --name is the selector, so the name is unchanged.
     assert_eq!(resolve_updated_name(false, Some("old"), "old"), "old");
+}
+
+#[test]
+fn table_runner_values_follow_the_selected_locale() {
+    assert_eq!(localized_runner_os(LocaleId::ZhCn, "Linux"), "Linux");
+    assert_eq!(localized_runner_arch(LocaleId::ZhCn, "x86-64"), "x86-64");
+    assert_eq!(
+        localized_runner_os(LocaleId::ZhCn, "custom-os"),
+        "custom-os"
+    );
 }

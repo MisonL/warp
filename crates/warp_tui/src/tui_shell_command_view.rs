@@ -17,7 +17,9 @@ use warp::tui_export::{
 };
 use warpui_core::r#async::Timer;
 use warpui_core::elements::MouseStateHandle;
-use warpui_core::elements::tui::{Modifier, TuiChildView, TuiElement, TuiFlex, tui_collapsible};
+use warpui_core::elements::tui::{
+    Modifier, TuiChildView, TuiElement, TuiFlex, TuiText, tui_collapsible,
+};
 use warpui_core::keymap::macros::*;
 use warpui_core::keymap::{BindingDescription, EditableBinding, FixedBinding};
 use warpui_core::{
@@ -31,7 +33,8 @@ use crate::localization;
 use crate::terminal_block::TerminalBlockElement;
 use crate::terminal_use::user_controls_running_command;
 use crate::tool_call_labels::{
-    CommandBlockState, ResolvedCommandBlock, tool_call_display_state, tool_call_label,
+    CommandBlockState, ResolvedCommandBlock, styled_tool_call_label_spans, tool_call_display_state,
+    tool_call_label,
 };
 use crate::tui_builder::TuiUiBuilder;
 use crate::tui_cli_subagent_view::{TuiCLISubagentView, TuiCLISubagentViewEvent};
@@ -47,21 +50,17 @@ fn binding_description(fallback: &'static str, key: &'static str) -> BindingDesc
 
 pub(crate) fn init(app: &mut AppContext) {
     let predicate = id!(TuiShellCommandView::ui_name()) & id!(SHELL_COMMAND_EDITING);
-    app.register_fixed_bindings([
-        FixedBinding::new(
-            "escape",
-            TuiShellCommandViewAction::CancelPermission,
-            predicate.clone(),
-        )
-        .with_group(TUI_BINDING_GROUP),
-        FixedBinding::new(
-            "ctrl-e",
-            TuiShellCommandViewAction::SaveCommandEdit,
-            predicate.clone(),
-        )
-        .with_group(TUI_BINDING_GROUP),
-    ]);
-    app.register_editable_bindings(["enter", "numpadenter", "down"].map(|key| {
+    app.register_fixed_bindings([FixedBinding::new(
+        "escape",
+        // Esc while the command body editor is focused exits the editor
+        // and restores Yes as the highlighted option — it does NOT cancel
+        // the tool call. A subsequent Esc (with the list focused) cancels
+        // via the `PERMISSION_PROMPT_ACTIVE` → `CancelOrBack` path.
+        TuiShellCommandViewAction::SaveCommandEdit,
+        predicate.clone(),
+    )
+    .with_group(TUI_BINDING_GROUP)]);
+    app.register_editable_bindings([
         EditableBinding::new(
             "tui:shell-permission:save",
             binding_description(
@@ -72,8 +71,16 @@ pub(crate) fn init(app: &mut AppContext) {
         )
         .with_context_predicate(predicate.clone())
         .with_group(TUI_BINDING_GROUP)
-        .with_key_binding(key)
-    }));
+        .with_key_binding("enter"),
+        EditableBinding::new(
+            "tui:shell-permission:save",
+            "Save the edited shell command",
+            TuiShellCommandViewAction::SaveCommandEdit,
+        )
+        .with_context_predicate(predicate)
+        .with_group(TUI_BINDING_GROUP)
+        .with_key_binding("numpadenter"),
+    ]);
     app.register_tui_binding_validator::<TuiShellCommandView>(is_tui_owned_binding);
 }
 
@@ -136,7 +143,6 @@ pub(super) enum TuiShellCommandViewEvent {
 /// User interactions handled by the shell-command view.
 #[derive(Clone, Debug)]
 pub(super) enum TuiShellCommandViewAction {
-    CancelPermission,
     SaveCommandEdit,
     ToggleExpanded,
 }
@@ -244,12 +250,12 @@ impl TuiShellCommandView {
         }
         self.permission_prompt
             .update(ctx, |prompt, ctx| prompt.restore_options_focus(ctx));
-        self.invalidate_layout(ctx);
     }
 
     fn accept(&mut self, ctx: &mut ViewContext<Self>) {
         let command = self.command_editor.as_ref(ctx).text(ctx);
-        if command.trim().is_empty() {
+        let command = command.trim().to_owned();
+        if command.is_empty() {
             self.permission_prompt.update(ctx, |prompt, ctx| {
                 prompt.set_body_error(
                     Some(localization::text(
@@ -285,10 +291,18 @@ impl TuiShellCommandView {
     }
 
     fn render_blocked(&self, app: &AppContext) -> Box<dyn TuiElement> {
+        let builder = TuiUiBuilder::from_app(app);
+        let edit_hint = TuiText::from_spans([
+            ("e".to_owned(), builder.primary_text_style()),
+            (" to edit command".to_owned(), builder.muted_text_style()),
+        ])
+        .truncate()
+        .finish();
         render_permission_card(
             &self.permission_prompt,
             localization::text("tui.shell_command.permission.title"),
             None,
+            Some(edit_hint),
             app,
         )
     }
@@ -420,7 +434,12 @@ impl TuiView for TuiShellCommandView {
             .as_ref(app)
             .get_action_status(&self.action.id)
             .is_some_and(|status| status.is_blocked());
-        if blocked && self.command_editor.as_ref(app).is_focused() {
+        if blocked
+            && self
+                .permission_prompt
+                .as_ref(app)
+                .body_editor_is_focused(app)
+        {
             context.set.insert(SHELL_COMMAND_EDITING);
         }
         context
@@ -458,10 +477,9 @@ impl TuiView for TuiShellCommandView {
         }
         let collapsed = self.state.is_collapsed() && !self.user_controls_command();
         let label = tool_call_label(&self.action, status.as_ref(), false, Some(&block.details));
-        let header_spans = vec![
-            (format!("{} ", display_state.glyph()), glyph_style),
-            (format!("{label} "), label_style),
-        ];
+        let mut header_spans = vec![(format!("{} ", display_state.glyph()), glyph_style)];
+        header_spans.extend(styled_tool_call_label_spans(&label, &builder));
+        header_spans.push((" ".to_owned(), builder.neutral_7_text_style()));
 
         let terminal_model = self.terminal_model.clone();
         let block_id = block.block_id;
@@ -490,7 +508,6 @@ impl TypedActionView for TuiShellCommandView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            TuiShellCommandViewAction::CancelPermission => self.reject(ctx),
             TuiShellCommandViewAction::SaveCommandEdit => self.save_command_edit(ctx),
             TuiShellCommandViewAction::ToggleExpanded => {
                 if self.user_controls_command() {

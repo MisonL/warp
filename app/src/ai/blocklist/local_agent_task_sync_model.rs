@@ -328,6 +328,7 @@ impl LocalAgentTaskSyncModel {
                         session_id,
                         server_conversation_token.clone(),
                         status_message,
+                        None,
                     )
                     .await;
                 if let Err(err) = &result {
@@ -551,6 +552,13 @@ pub(crate) fn classify_renderable_error(
                 PlatformErrorCode::AuthenticationRequired,
             )),
         ),
+        RenderableAIError::GeminiEnterpriseCredentialsExpiredOrInvalid => (
+            AgentTaskState::Failed,
+            Some(TaskStatusUpdate::with_error_code(
+                "Gemini Enterprise credentials expired or invalid.",
+                PlatformErrorCode::AuthenticationRequired,
+            )),
+        ),
         RenderableAIError::TransientNetworkError { .. } => (
             AgentTaskState::Error,
             Some(TaskStatusUpdate::with_error_code(
@@ -581,11 +589,18 @@ pub(crate) fn classify_renderable_error(
                 )
             }
         }
-        RenderableAIError::AgentExitedShell => (
+        RenderableAIError::AgentExitedShell { .. } => (
             AgentTaskState::Failed,
             Some(TaskStatusUpdate::with_error_code(
                 error.to_string(),
                 PlatformErrorCode::InvalidRequest,
+            )),
+        ),
+        RenderableAIError::CloudStartupFailed(msg) => (
+            AgentTaskState::Error,
+            Some(TaskStatusUpdate::with_error_code(
+                msg,
+                PlatformErrorCode::InternalError,
             )),
         ),
     }

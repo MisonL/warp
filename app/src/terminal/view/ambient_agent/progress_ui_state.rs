@@ -30,9 +30,9 @@ pub struct AmbientAgentProgressUIState {
 impl AmbientAgentProgressUIState {
     /// Creates a new ambient agent progress UI state with initialized handles.
     pub fn new(ctx: &mut warpui::ModelContext<AmbientAgentViewModel>) -> Self {
-        let tip_model = ctx.add_model(|ctx| {
+        let tip_model = ctx.add_model(|_ctx| {
             use crate::terminal::view::ambient_agent;
-            AITipModel::new(ambient_agent::get_cloud_mode_tips(ctx))
+            AITipModel::new(ambient_agent::get_cloud_mode_tips())
         });
 
         Self {

@@ -7,10 +7,11 @@ use std::time::Duration;
 
 use parking_lot::FairMutex;
 use warp::tui_export::{
-    AIAgentActionType, AIAgentInput, AIBlockModel, AIBlockModelImpl, AIConversationId, BlockId,
-    BlocklistAIActionModel, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
-    CLISubagentController, CLISubagentTarget, LongRunningCommandControlState, ShellCommandDelay,
-    ShellCommandExecutor, TaskId, TerminalModel, UserTakeOverReason,
+    AIAgentAction, AIAgentActionType, AIAgentInput, AIAgentPtyWriteMode, AIBlockModel,
+    AIBlockModelHelper, AIBlockModelImpl, AIConversationId, BlockId, BlocklistAIActionModel,
+    BlocklistAIHistoryEvent, BlocklistAIHistoryModel, CLISubagentController, CLISubagentTarget,
+    CancellationReason, LongRunningCommandControlState, ShellCommandDelay, ShellCommandExecutor,
+    TaskId, TerminalModel, UserTakeOverReason,
 };
 use warpui::SingletonEntity;
 use warpui_core::r#async::Timer;
@@ -19,11 +20,10 @@ use warpui_core::elements::tui::{
     TuiConstraint, TuiContainer, TuiElement, TuiFlex, TuiHoverable, TuiLayoutContext,
     TuiParentElement, TuiSize, TuiText,
 };
-use warpui_core::{
-    AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext,
-};
+use warpui_core::{AppContext, Entity, EntityId, ModelContext, ModelHandle, TuiView, ViewContext};
 
 use crate::localization;
+use crate::terminal_session_view::TuiTerminalSessionAction;
 use crate::tui_builder::TuiUiBuilder;
 
 pub(super) const TAKE_CONTROL_KEY_BINDING: &str = "ctrl-c";
@@ -37,13 +37,16 @@ fn terminal_use_status_text(
     if command_finished {
         return localization::text("tui.cli_subagent.status.command_finished");
     }
-    let (key, key_binding) = match control_state {
+    if matches!(
+        control_state,
         LongRunningCommandControlState::Agent {
-            is_blocked: true, ..
-        } => (
-            "tui.cli_subagent.status.needs_input",
-            TAKE_CONTROL_KEY_BINDING,
-        ),
+            is_blocked: true,
+            ..
+        }
+    ) {
+        return localization::text("tui.cli_subagent.status.needs_input_plain");
+    }
+    let (key, key_binding) = match control_state {
         LongRunningCommandControlState::Agent { .. } if output_streaming => (
             "tui.cli_subagent.status.monitoring",
             TAKE_CONTROL_KEY_BINDING,
@@ -67,6 +70,181 @@ fn terminal_use_status_text(
         },
     };
     localization::text_with_args(key, &[("key_binding", key_binding)])
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct BlockedActionPresentation {
+    summary: String,
+    detail: Option<String>,
+}
+
+fn display_pty_input(input: &[u8]) -> String {
+    String::from_utf8_lossy(input)
+        .chars()
+        .map(|character| match character {
+            '\n' | '\t' => character.to_string(),
+            '\r' => "<Enter>".to_owned(),
+            '\u{1b}' => "<Esc>".to_owned(),
+            character if character.is_control() => {
+                format!("<0x{:02X}>", u32::from(character))
+            }
+            character => character.to_string(),
+        })
+        .collect()
+}
+
+fn blocked_action_presentation(action: &AIAgentActionType) -> BlockedActionPresentation {
+    let (summary, detail) = match action {
+        AIAgentActionType::WriteToLongRunningShellCommand { input, mode, .. } => {
+            let input_kind = match mode {
+                AIAgentPtyWriteMode::Raw => localization::text("tui.cli_subagent.blocked.input"),
+                AIAgentPtyWriteMode::Line => {
+                    localization::text("tui.cli_subagent.blocked.line_input")
+                }
+                AIAgentPtyWriteMode::Block => {
+                    localization::text("tui.cli_subagent.blocked.pasted_input")
+                }
+            };
+            (
+                localization::text("tui.cli_subagent.blocked.write_summary"),
+                Some(localization::text_with_args(
+                    "tui.cli_subagent.blocked.input_detail",
+                    &[
+                        ("input_kind", &input_kind),
+                        ("input", &display_pty_input(input)),
+                    ],
+                )),
+            )
+        }
+        AIAgentActionType::TransferShellCommandControlToUser { reason } => (
+            localization::text("tui.cli_subagent.blocked.transfer_summary"),
+            Some(localization::text_with_args(
+                "tui.cli_subagent.blocked.reason_detail",
+                &[("reason", reason)],
+            )),
+        ),
+        AIAgentActionType::ReadFiles(request) => (
+            localization::text("tui.cli_subagent.blocked.read_files_summary"),
+            Some(
+                request
+                    .locations
+                    .iter()
+                    .map(|location| location.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
+        ),
+        AIAgentActionType::SearchCodebase(request) => {
+            let mut detail = localization::text_with_args(
+                "tui.cli_subagent.blocked.query_detail",
+                &[("query", &request.query)],
+            );
+            if let Some(path) = request.codebase_path.as_deref() {
+                detail.push('\n');
+                detail.push_str(&localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", path)],
+                ));
+            }
+            if let Some(paths) = request
+                .partial_paths
+                .as_ref()
+                .filter(|paths| !paths.is_empty())
+            {
+                detail.push('\n');
+                detail.push_str(&localization::text_with_args(
+                    "tui.cli_subagent.blocked.files_detail",
+                    &[("files", &paths.join(", "))],
+                ));
+            }
+            (
+                localization::text("tui.cli_subagent.blocked.search_codebase_summary"),
+                Some(detail),
+            )
+        }
+        AIAgentActionType::Grep { queries, path } => (
+            localization::text("tui.cli_subagent.blocked.grep_summary"),
+            Some(format!(
+                "{}\n{}",
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.patterns_detail",
+                    &[("patterns", &queries.join(", "))],
+                ),
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", path)],
+                )
+            )),
+        ),
+        AIAgentActionType::FileGlob { patterns, path } => (
+            localization::text("tui.cli_subagent.blocked.file_glob_summary"),
+            Some(format!(
+                "{}\n{}",
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.patterns_detail",
+                    &[("patterns", &patterns.join(", "))],
+                ),
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", path.as_deref().unwrap_or("."))],
+                )
+            )),
+        ),
+        AIAgentActionType::FileGlobV2 {
+            patterns,
+            search_dir,
+        } => (
+            localization::text("tui.cli_subagent.blocked.file_glob_summary"),
+            Some(format!(
+                "{}\n{}",
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.patterns_detail",
+                    &[("patterns", &patterns.join(", "))],
+                ),
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", search_dir.as_deref().unwrap_or("."))],
+                )
+            )),
+        ),
+        AIAgentActionType::RequestFileEdits { .. } => (
+            localization::text("tui.cli_subagent.blocked.file_edits_summary"),
+            None,
+        ),
+        _ => {
+            let summary = crate::tool_call_labels::compact_blocked_tool_call_label(action);
+            let summary = if summary.is_empty() {
+                localization::text("tui.generic_tool.details.action")
+            } else {
+                summary
+            };
+            (summary, None)
+        }
+    };
+    BlockedActionPresentation { summary, detail }
+}
+
+fn execute_blocked_action(
+    action_model: &mut BlocklistAIActionModel,
+    conversation_id: AIConversationId,
+    blocked_action: &AIAgentAction,
+    ctx: &mut ModelContext<BlocklistAIActionModel>,
+) {
+    action_model.execute_action(&blocked_action.id, conversation_id, ctx);
+}
+
+fn cancel_blocked_action(
+    action_model: &mut BlocklistAIActionModel,
+    conversation_id: AIConversationId,
+    blocked_action: &AIAgentAction,
+    ctx: &mut ModelContext<BlocklistAIActionModel>,
+) {
+    action_model.cancel_action_with_id(
+        conversation_id,
+        &blocked_action.id,
+        CancellationReason::ManuallyCancelled,
+        ctx,
+    );
 }
 
 fn resolve_latest_instruction(
@@ -104,12 +282,6 @@ pub(super) enum TuiCLISubagentViewEvent {
     LayoutChanged,
 }
 
-/// User interactions handled by the terminal-use view.
-#[derive(Clone, Debug)]
-pub(super) enum TuiCLISubagentViewAction {
-    Allow,
-}
-
 /// Compact terminal-use state rendered alongside one command block.
 pub(super) struct TuiCLISubagentView {
     block_id: BlockId,
@@ -121,6 +293,7 @@ pub(super) struct TuiCLISubagentView {
     terminal_model: Arc<FairMutex<TerminalModel>>,
     last_measured_width: Cell<Option<u16>>,
     allow_mouse_state: MouseStateHandle,
+    reject_mouse_state: MouseStateHandle,
 }
 
 impl TuiCLISubagentView {
@@ -193,6 +366,7 @@ impl TuiCLISubagentView {
             terminal_model,
             last_measured_width: Cell::new(None),
             allow_mouse_state: MouseStateHandle::default(),
+            reject_mouse_state: MouseStateHandle::default(),
         };
         view.start_countdown_refresh(ctx);
         view
@@ -284,10 +458,35 @@ impl TuiCLISubagentView {
         self.conversation_id
     }
 
+    fn blocked_action(&self, app: &AppContext) -> Option<AIAgentAction> {
+        self.model.as_ref()?.blocked_action(&self.action_model, app)
+    }
+    pub(super) fn has_blocked_action(&self, app: &AppContext) -> bool {
+        self.blocked_action(app).is_some()
+    }
+
+    pub(super) fn accept_blocked_terminal_use_action(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(blocked_action) = self.blocked_action(ctx) else {
+            return;
+        };
+        self.action_model.update(ctx, |action_model, ctx| {
+            execute_blocked_action(action_model, self.conversation_id, &blocked_action, ctx);
+        });
+    }
+
+    pub(super) fn reject_blocked_terminal_use_action(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(blocked_action) = self.blocked_action(ctx) else {
+            return;
+        };
+        self.action_model.update(ctx, |action_model, ctx| {
+            cancel_blocked_action(action_model, self.conversation_id, &blocked_action, ctx);
+        });
+    }
+
     fn render_action(
         label: String,
         mouse_state: &MouseStateHandle,
-        action: TuiCLISubagentViewAction,
+        action: TuiTerminalSessionAction,
         app: &AppContext,
     ) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(app);
@@ -335,13 +534,46 @@ impl TuiCLISubagentView {
             );
         }
         if target.control_state.is_agent_blocked() {
+            if let Some(action) = self.blocked_action(app) {
+                let presentation = blocked_action_presentation(&action.action);
+                content.add_child(
+                    TuiText::new(presentation.summary)
+                        .with_style(builder.primary_text_style())
+                        .finish(),
+                );
+                if let Some(detail) = presentation.detail {
+                    content.add_child(
+                        TuiContainer::new(
+                            TuiText::new(detail)
+                                .with_style(builder.muted_text_style())
+                                .finish(),
+                        )
+                        .with_padding_left(2)
+                        .finish(),
+                    );
+                }
+            }
             content.add_child(
-                TuiContainer::new(Self::render_action(
-                    localization::text("tui.cli_subagent.allow"),
-                    &self.allow_mouse_state,
-                    TuiCLISubagentViewAction::Allow,
-                    app,
-                ))
+                TuiContainer::new(
+                    TuiFlex::row()
+                        .child(Self::render_action(
+                            format!(
+                                "{} · Ctrl+Enter",
+                                localization::text("tui.cli_subagent.allow")
+                            ),
+                            &self.allow_mouse_state,
+                            TuiTerminalSessionAction::AcceptBlockedTerminalUseAction,
+                            app,
+                        ))
+                        .child(TuiText::new("  ").finish())
+                        .child(Self::render_action(
+                            format!("{} · Ctrl+C", localization::text("tui.cli_subagent.reject")),
+                            &self.reject_mouse_state,
+                            TuiTerminalSessionAction::RejectBlockedTerminalUseAction,
+                            app,
+                        ))
+                        .finish(),
+                )
                 .finish(),
             );
         }
@@ -402,20 +634,6 @@ impl TuiView for TuiCLISubagentView {
             return TuiFlex::column().finish();
         };
         self.render_content(&target, app)
-    }
-}
-
-impl TypedActionView for TuiCLISubagentView {
-    type Action = TuiCLISubagentViewAction;
-
-    fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        match action {
-            TuiCLISubagentViewAction::Allow => {
-                self.action_model.update(ctx, |action_model, ctx| {
-                    action_model.execute_next_action_for_user(self.conversation_id, ctx);
-                });
-            }
-        }
     }
 }
 

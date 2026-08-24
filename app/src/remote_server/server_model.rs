@@ -686,12 +686,14 @@ impl ServerModel {
         {
             let skill_manager = SkillManager::handle(ctx);
             ctx.subscribe_to_model(&skill_manager, |me, _, event, ctx| match event {
-                SkillManagerEvent::HomeSkillsChanged => {
+                SkillManagerEvent::SkillsChanged {
+                    home_skills_changed: true,
+                } => {
                     me.refresh_remote_agent_context_snapshot(ctx);
                 }
-                // Bundled-skill catalogs are local to each endpoint. The daemon
-                // publishes its own catalog through the remote context snapshot.
-                SkillManagerEvent::BundledSkillsChanged => {}
+                SkillManagerEvent::SkillsChanged {
+                    home_skills_changed: false,
+                } => {}
             });
         }
         {

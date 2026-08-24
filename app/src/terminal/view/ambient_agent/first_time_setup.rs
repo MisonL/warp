@@ -168,7 +168,7 @@ impl FirstTimeCloudAgentSetupView {
                     app,
                     "terminal.ambient_agent.first_time_setup.docs_link",
                 ),
-                "https://docs.warp.dev/agent-platform/cloud-agents/overview",
+                "https://docs.warp.dev/platform/",
             ),
         ];
         column.add_child(

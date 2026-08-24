@@ -895,7 +895,6 @@ impl TerminalView {
                 auth_url,
                 appearance,
                 &ui_state.auth_button_mouse_state,
-                app,
             )
         } else if let Some(error_message) = ambient_agent_model.error_message() {
             // Show error screen
@@ -904,7 +903,6 @@ impl TerminalView {
                 appearance,
                 &ui_state.error_selection_handle,
                 &ui_state.error_selected_text,
-                app,
             )
         } else {
             // Show loading screen - determine the message based on progress state
@@ -915,6 +913,7 @@ impl TerminalView {
                 appearance,
                 &ui_state.loading_shimmer_handle,
                 &ui_state.tip_model,
+                &self.view_handle,
                 app,
             )
         };

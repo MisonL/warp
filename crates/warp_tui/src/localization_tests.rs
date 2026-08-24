@@ -59,6 +59,22 @@ fn bundled_simplified_chinese_templates_are_available() {
 }
 
 #[test]
+fn completed_at_uses_the_selected_locale() {
+    let completed_at =
+        chrono::NaiveDateTime::parse_from_str("2026-08-21 17:07:00", "%Y-%m-%d %H:%M:%S")
+            .expect("test timestamp should be valid");
+
+    assert_eq!(
+        format_completed_at_for_locale(LocaleId::EnUs, completed_at),
+        "August 21 at 5:07pm"
+    );
+    assert_eq!(
+        format_completed_at_for_locale(LocaleId::ZhCn, completed_at),
+        "2026年8月21日 17:07"
+    );
+}
+
+#[test]
 fn bundled_simplified_chinese_covers_new_tui_surfaces() {
     for (key, expected) in [
         ("tui.agent_message.orchestrator", "协调 Agent"),
@@ -73,11 +89,22 @@ fn bundled_simplified_chinese_covers_new_tui_surfaces() {
             "云端运行进行中",
         ),
         ("tui.orchestration.tab_bar.orchestrator", "协调 Agent"),
+        (
+            "tui.orchestration.tab_bar.footer.kill_sub_agent",
+            "终止子 Agent",
+        ),
+        (
+            "tui.orchestration.tab_bar.footer.kill_sub_agent_nested",
+            "终止子 Agent 及其 {count} 个嵌套子 Agent",
+        ),
         ("tui.orchestration.option.default_model", "默认模型"),
         ("tui.plan.updated", "已更新计划"),
         ("tui.permission_prompt.option.edit_command", "编辑命令"),
         ("tui.permission_prompt.option.other", "其他"),
         ("tui.permission_prompt.option.yes", "是"),
+        ("tui.permission_prompt.footer.key.confirm", "Enter"),
+        ("tui.permission_prompt.footer.key.edit", "Ctrl+E"),
+        ("tui.permission_prompt.footer.key.escape", "Esc"),
         (
             "tui.shell_command.permission.empty_command_error",
             "请输入命令后继续。",
@@ -100,6 +127,11 @@ fn bundled_simplified_chinese_covers_new_tui_surfaces() {
         (
             "tui.session.log_bundle.failed",
             "无法创建日志包（请检查日志）",
+        ),
+        ("tui.zero_state.update.failed", "自动更新失败"),
+        (
+            "tui.autoupdate.homebrew_update_available",
+            "有可用更新，请运行 brew upgrade --cask warp-agent-cli",
         ),
     ] {
         assert_eq!(text_for_locale(LocaleId::ZhCn, key), expected);

@@ -3,8 +3,8 @@ use std::cell::Cell;
 use onboarding::components::feature_optout_dialog::{
     FeatureOptOutDialog, render_feature_optout_dialog,
 };
-use onboarding::slides::{layout, slide_content};
-use onboarding::{OnboardingIntention, WARP_DRIVE_FEATURE_COPY_KEYS};
+use onboarding::slides::{layout, onboarding_bottom_nav, slide_content};
+use onboarding::{OnboardingEvent, OnboardingIntention, WARP_DRIVE_FEATURE_COPY_KEYS};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use ui_components::{Component as _, Options as _, button};
@@ -15,10 +15,10 @@ use warp_core::ui::theme::color::internal_colors;
 use warpui::actions::StandardAction;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
-    Align, CacheOption, ChildAnchor, ClippedScrollStateHandle, Container, CornerRadius,
-    CrossAxisAlignment, Dismiss, Fill, Flex, FormattedTextElement, HighlightedHyperlink, Image,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
-    ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack,
+    Align, Border, CacheOption, ChildAnchor, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, Dismiss, Fill, Flex, FormattedTextElement,
+    HighlightedHyperlink, Image, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack,
 };
 use warpui::fonts::Weight;
 use warpui::keymap::{FixedBinding, Keystroke};
@@ -89,6 +89,33 @@ pub fn init(app: &mut AppContext) {
     )]);
 }
 
+impl LoginPurpose {
+    fn copy(self) -> (&'static str, &'static str) {
+        match self {
+            LoginPurpose::WarpDrive => (
+                "auth.onboarding.title.drive",
+                "auth.onboarding.subtitle.drive",
+            ),
+            LoginPurpose::WarpAgent => ("auth.onboarding.title.ai", "auth.onboarding.subtitle.ai"),
+            LoginPurpose::ThirdParty => (
+                "auth.onboarding.title.third_party",
+                "auth.onboarding.subtitle.third_party",
+            ),
+            LoginPurpose::AccountFirst => (
+                "auth.onboarding.title.account_first",
+                "auth.onboarding.subtitle.account_first",
+            ),
+        }
+    }
+
+    fn work_email_callout_copy(self) -> Option<(&'static str, &'static str)> {
+        matches!(self, LoginPurpose::AccountFirst).then_some((
+            "auth.onboarding.work_email.title",
+            "auth.onboarding.work_email.description",
+        ))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Actions & Events
 // ---------------------------------------------------------------------------
@@ -128,6 +155,8 @@ pub enum LoginSlideSource {
     OnboardingFlow,
     /// Reached via the "Log in" link on the intro / welcome slide.
     LoginExistingUserFromWelcome,
+    /// Reached after Theme in the account-first onboarding flow.
+    AccountFirstOnboarding,
     /// Reached via the "Privacy Settings" link on the terminal-intention theme slide.
     /// Starts directly in the privacy settings step and routes Back to onboarding.
     PrivacySettingsFromTerminalIntentionTheme,
@@ -152,15 +181,17 @@ enum LoginSlideOverlay {
     SkipDialog,
 }
 
-/// Why the login slide is being shown, which drives its copy. All three paths
+/// Why the login slide is being shown, which drives its copy. All paths
 /// need an account: Terminal+Drive for cloud sync, and the Warp-agent and
 /// third-party paths because Warp's AI features run on a Warp account. Skipping
 /// therefore defers sign-in and leaves the gated features off until the user
 /// creates an account.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LoginPurpose {
     WarpAgent,
     WarpDrive,
     ThirdParty,
+    AccountFirst,
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +310,10 @@ impl LoginSlideView {
         matches!(self.step, LoginStep::BrowserOpen) && self.show_auth_token_input
     }
 
+    pub fn is_account_first_onboarding(&self) -> bool {
+        matches!(self.source, LoginSlideSource::AccountFirstOnboarding)
+    }
+
     pub fn new(
         ai_enabled: bool,
         uses_third_party_agents: bool,
@@ -332,13 +367,15 @@ impl LoginSlideView {
             ctx.notify();
         });
 
-        Self {
+        let view = Self {
             ai_enabled,
             uses_third_party_agents,
             intention,
             theme_visual_path: resolve_visual_path(intention, theme_name, use_vertical_tabs),
             step: match source {
-                LoginSlideSource::OnboardingFlow => LoginStep::SelectAuthPathway,
+                LoginSlideSource::OnboardingFlow | LoginSlideSource::AccountFirstOnboarding => {
+                    LoginStep::SelectAuthPathway
+                }
                 LoginSlideSource::LoginExistingUserFromWelcome => LoginStep::BrowserOpen,
                 LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
                     LoginStep::PrivacySettings
@@ -365,7 +402,19 @@ impl LoginSlideView {
             scroll_state: ClippedScrollStateHandle::new(),
             close_login_notification_mouse_state: MouseStateHandle::default(),
             highlighted_hyperlink_state: HighlightedHyperlink::default(),
+        };
+
+        if matches!(source, LoginSlideSource::AccountFirstOnboarding) {
+            send_telemetry_from_ctx!(
+                OnboardingEvent::SlideViewed {
+                    slide_name: "create_account".to_string(),
+                    experiment_arm: None,
+                },
+                ctx
+            );
         }
+
+        view
     }
 
     // ------------------------------------------------------------------
@@ -398,6 +447,25 @@ impl LoginSlideView {
         ctx.notify();
     }
 
+    fn send_account_first_action(
+        &self,
+        slide_name: &str,
+        action: &str,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if matches!(self.source, LoginSlideSource::AccountFirstOnboarding) {
+            send_telemetry_from_ctx!(
+                OnboardingEvent::OnboardingAction {
+                    slide_name: slide_name.to_string(),
+                    action: action.to_string(),
+                    account_class: None,
+                    experiment_arm: None,
+                },
+                ctx
+            );
+        }
+    }
+
     fn handle_pasted_auth_url(&mut self, pasted_url: String, ctx: &mut ViewContext<Self>) {
         match AuthRedirectPayload::from_raw_url(pasted_url) {
             Ok(redirect_payload) => {
@@ -418,6 +486,7 @@ impl LoginSlideView {
     }
 
     fn handle_login_later(&mut self, ctx: &mut ViewContext<Self>) {
+        self.send_account_first_action("create_account", "skip_account", ctx);
         // Send synchronously since this is an important event in the sign up funnel and we
         // don't want to lose events if the user quits before the event queue is flushed.
         send_telemetry_sync_from_ctx!(
@@ -441,6 +510,7 @@ impl LoginSlideView {
     /// Starts the browser sign-up flow. Shared by the Continue button and the
     /// skip dialog's cancel button.
     fn start_login(&mut self, ctx: &mut ViewContext<Self>) {
+        self.send_account_first_action("create_account", "continue_signup", ctx);
         send_telemetry_from_ctx!(
             TelemetryEvent::LoginButtonClicked {
                 source: LoginEventSource::OnboardingSlide,
@@ -449,6 +519,15 @@ impl LoginSlideView {
         );
         self.last_login_failure_reason = None;
         self.step = LoginStep::BrowserOpen;
+        if matches!(self.source, LoginSlideSource::AccountFirstOnboarding) {
+            send_telemetry_from_ctx!(
+                OnboardingEvent::SlideViewed {
+                    slide_name: "browser_auth".to_string(),
+                    experiment_arm: None,
+                },
+                ctx
+            );
+        }
         AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
             let sign_up_url = auth_manager.sign_up_url();
             ctx.open_url(&sign_up_url);
@@ -517,6 +596,9 @@ impl LoginSlideView {
     }
 
     fn login_purpose(&self) -> LoginPurpose {
+        if matches!(self.source, LoginSlideSource::AccountFirstOnboarding) {
+            return LoginPurpose::AccountFirst;
+        }
         match self.intention {
             OnboardingIntention::Terminal => LoginPurpose::WarpDrive,
             OnboardingIntention::AgentDrivenDevelopment => {
@@ -538,17 +620,8 @@ impl LoginSlideView {
         let sub_text_color = internal_colors::text_sub(theme, theme.background().into_solid());
         let ui_builder = appearance.ui_builder();
 
-        let (title_key, subtitle_key) = match self.login_purpose() {
-            LoginPurpose::WarpDrive => (
-                "auth.onboarding.title.drive",
-                "auth.onboarding.subtitle.drive",
-            ),
-            LoginPurpose::WarpAgent => ("auth.onboarding.title.ai", "auth.onboarding.subtitle.ai"),
-            LoginPurpose::ThirdParty => (
-                "auth.onboarding.title.third_party",
-                "auth.onboarding.subtitle.third_party",
-            ),
-        };
+        let login_purpose = self.login_purpose();
+        let (title_key, subtitle_key) = login_purpose.copy();
         let title_text = localization::text_for_app(app, title_key);
         let subtitle_text = localization::text_for_app(app, subtitle_key);
         let title = FormattedTextElement::from_str(title_text, appearance.ui_font_family(), 36.)
@@ -638,15 +711,85 @@ impl LoginSlideView {
         .with_margin_top(24.)
         .finish();
 
-        let header = Flex::column()
+        let mut header = Flex::column()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
             .with_child(title)
-            .with_child(Container::new(subtitle).with_margin_top(16.).finish())
-            .with_child(disclaimers)
-            .finish();
+            .with_child(Container::new(subtitle).with_margin_top(16.).finish());
+        if let Some((callout_title_key, callout_body_key)) = login_purpose.work_email_callout_copy()
+        {
+            let callout_title = localization::text_for_app(app, callout_title_key);
+            let callout_body = localization::text_for_app(app, callout_body_key);
+            header = header.with_child(
+                Container::new(Self::render_work_email_callout(
+                    appearance,
+                    callout_title,
+                    callout_body,
+                ))
+                .with_margin_top(28.)
+                .finish(),
+            );
+        }
+        let header = header.with_child(disclaimers).finish();
 
         vec![header]
+    }
+
+    fn render_work_email_callout(
+        appearance: &Appearance,
+        title: String,
+        body: String,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let background = theme.background().into_solid();
+        let icon = ConstrainedBox::new(Icon::Lightbulb.to_warpui_icon(theme.accent()).finish())
+            .with_width(20.)
+            .with_height(20.)
+            .finish();
+        let title = appearance
+            .ui_builder()
+            .paragraph(title)
+            .with_style(UiComponentStyles {
+                font_color: Some(internal_colors::text_main(theme, background)),
+                font_size: Some(16.),
+                font_weight: Some(Weight::Medium),
+                ..Default::default()
+            })
+            .build()
+            .finish();
+        let body = appearance
+            .ui_builder()
+            .paragraph(body)
+            .with_style(UiComponentStyles {
+                font_color: Some(internal_colors::text_sub(theme, background)),
+                font_size: Some(14.),
+                ..Default::default()
+            })
+            .build()
+            .finish();
+        let copy = Flex::column()
+            .with_main_axis_size(MainAxisSize::Min)
+            .with_cross_axis_alignment(CrossAxisAlignment::Start)
+            .with_child(title)
+            .with_child(Container::new(body).with_margin_top(4.).finish())
+            .finish();
+
+        Container::new(
+            Flex::row()
+                .with_main_axis_size(MainAxisSize::Max)
+                .with_cross_axis_alignment(CrossAxisAlignment::Start)
+                .with_child(icon)
+                .with_child(
+                    Shrinkable::new(1., Container::new(copy).with_margin_left(12.).finish())
+                        .finish(),
+                )
+                .finish(),
+        )
+        .with_vertical_padding(16.)
+        .with_horizontal_padding(16.)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(10.)))
+        .with_border(Border::all(1.).with_border_fill(theme.accent()))
+        .finish()
     }
 
     fn render_select_auth_bottom_nav(
@@ -673,7 +816,14 @@ impl LoginSlideView {
         let cmd_enter = Keystroke::parse("cmdorctrl-enter").unwrap_or_default();
         let skip_label_key = match self.login_purpose() {
             LoginPurpose::WarpDrive => "auth.disable_warp_drive",
-            LoginPurpose::WarpAgent | LoginPurpose::ThirdParty => "auth.skip_for_now",
+            LoginPurpose::WarpAgent | LoginPurpose::ThirdParty | LoginPurpose::AccountFirst => {
+                "auth.skip_for_now"
+            }
+        };
+        let skip_keystroke = if matches!(self.login_purpose(), LoginPurpose::AccountFirst) {
+            None
+        } else {
+            Some(cmd_enter)
         };
         let skip_label = localization::text_for_app(app, skip_label_key);
         let skip_button = self.skip_button.render(
@@ -682,7 +832,7 @@ impl LoginSlideView {
                 content: button::Content::Label(skip_label.into()),
                 theme: &button::themes::Naked,
                 options: button::Options {
-                    keystroke: Some(cmd_enter),
+                    keystroke: skip_keystroke,
                     on_click: Some(Box::new(|ctx, _app, _pos| {
                         ctx.dispatch_typed_action(LoginSlideAction::ShowSkipDialog);
                     })),
@@ -715,13 +865,17 @@ impl LoginSlideView {
             .with_child(Container::new(login_button).with_margin_left(4.).finish())
             .finish();
 
-        Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(back_button)
-            .with_child(right_buttons)
-            .finish()
+        if matches!(self.login_purpose(), LoginPurpose::AccountFirst) {
+            onboarding_bottom_nav(appearance, 2, 3, Some(back_button), Some(right_buttons))
+        } else {
+            Flex::row()
+                .with_main_axis_size(MainAxisSize::Max)
+                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(back_button)
+                .with_child(right_buttons)
+                .finish()
+        }
     }
 
     // ------------------------------------------------------------------
@@ -894,10 +1048,14 @@ impl LoginSlideView {
             },
         );
 
-        Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_child(back_button)
-            .finish()
+        if matches!(self.login_purpose(), LoginPurpose::AccountFirst) {
+            onboarding_bottom_nav(appearance, 2, 3, Some(back_button), None)
+        } else {
+            Flex::row()
+                .with_main_axis_size(MainAxisSize::Max)
+                .with_child(back_button)
+                .finish()
+        }
     }
 
     // ------------------------------------------------------------------
@@ -990,10 +1148,10 @@ impl LoginSlideView {
                 WARP_DRIVE_FEATURE_COPY_KEYS,
                 "auth.enable_warp_drive",
             ),
-            LoginPurpose::WarpAgent | LoginPurpose::ThirdParty => (
+            LoginPurpose::WarpAgent | LoginPurpose::ThirdParty | LoginPurpose::AccountFirst => (
                 "auth.skip_confirm.title.ai",
                 "auth.skip_confirm.description.ai",
-                &[][..],
+                &[] as &[&str],
                 "auth.sign_in",
             ),
         };
@@ -1222,6 +1380,7 @@ impl TypedActionView for LoginSlideView {
                             ctx.emit(LoginSlideEvent::BackToOnboarding);
                         }
                         LoginSlideSource::OnboardingFlow
+                        | LoginSlideSource::AccountFirstOnboarding
                         | LoginSlideSource::LoginExistingUserFromWelcome => {
                             self.step = LoginStep::SelectAuthPathway;
                             ctx.focus_self();
@@ -1238,17 +1397,21 @@ impl TypedActionView for LoginSlideView {
                         | LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
                             ctx.emit(LoginSlideEvent::BackToOnboarding);
                         }
-                        LoginSlideSource::OnboardingFlow => {
+                        LoginSlideSource::OnboardingFlow
+                        | LoginSlideSource::AccountFirstOnboarding => {
+                            self.send_account_first_action("browser_auth", "back", ctx);
                             self.step = LoginStep::SelectAuthPathway;
                             ctx.focus_self();
                             ctx.notify();
                         }
                     }
                 } else {
+                    self.send_account_first_action("create_account", "back", ctx);
                     ctx.emit(LoginSlideEvent::BackToOnboarding);
                 }
             }
             LoginSlideAction::Back => {
+                self.send_account_first_action("create_account", "back", ctx);
                 ctx.emit(LoginSlideEvent::BackToOnboarding);
             }
             LoginSlideAction::BackToSelectAuthPathway => match self.source {
@@ -1260,7 +1423,8 @@ impl TypedActionView for LoginSlideView {
                 | LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
                     ctx.emit(LoginSlideEvent::BackToOnboarding);
                 }
-                LoginSlideSource::OnboardingFlow => {
+                LoginSlideSource::OnboardingFlow | LoginSlideSource::AccountFirstOnboarding => {
+                    self.send_account_first_action("browser_auth", "back", ctx);
                     self.step = LoginStep::SelectAuthPathway;
                     ctx.focus_self();
                     ctx.notify();
@@ -1268,10 +1432,15 @@ impl TypedActionView for LoginSlideView {
             },
             LoginSlideAction::CopyLoginUrl => {
                 AuthManager::handle(ctx).update(ctx, |auth_manager, inner_ctx| {
-                    let sign_in_url = auth_manager.sign_in_url();
+                    let auth_url =
+                        if matches!(self.source, LoginSlideSource::AccountFirstOnboarding) {
+                            auth_manager.sign_up_url()
+                        } else {
+                            auth_manager.sign_in_url()
+                        };
                     inner_ctx.clipboard().write(ClipboardContent {
-                        plain_text: sign_in_url.clone(),
-                        paths: Some(vec![sign_in_url]),
+                        plain_text: auth_url.clone(),
+                        paths: Some(vec![auth_url]),
                         ..Default::default()
                     });
                 });
@@ -1302,6 +1471,7 @@ impl TypedActionView for LoginSlideView {
                         ctx.emit(LoginSlideEvent::BackToOnboarding);
                     }
                     LoginSlideSource::OnboardingFlow
+                    | LoginSlideSource::AccountFirstOnboarding
                     | LoginSlideSource::LoginExistingUserFromWelcome => {
                         self.step = LoginStep::SelectAuthPathway;
                         ctx.focus_self();
@@ -1348,3 +1518,7 @@ impl TypedActionView for LoginSlideView {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "login_slide_tests.rs"]
+mod tests;

@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -11,16 +12,18 @@ use futures::channel::oneshot;
 use futures::future::join_all;
 use repo_metadata::repositories::{DetectedRepositories, RepoDetectionSource};
 use warp_cli::agent::Harness;
-use warp_completer::completer::CommandExitStatus;
+use warp_completer::completer::{CommandExitStatus, CommandOutput};
 use warp_core::command::ExitCode;
 use warp_core::{safe_info, safe_warn};
 use warpui::r#async::FutureExt;
 use warpui::{ModelContext, ModelSpawner, SingletonEntity};
 
 use super::AgentDriverError;
+#[cfg(feature = "local_fs")]
+use super::cache_setup;
 use super::terminal::TerminalDriver;
 use crate::ai::agent_sdk::setup_observability::{SetupClientEventReporter, SetupStep};
-use crate::ai::cloud_environments::{AmbientAgentEnvironment, SourceRepo};
+use crate::ai::cloud_environments::{CodeForge, SourceRepo};
 use crate::terminal::model::session::command_executor::shell_escape_single_quotes;
 use crate::terminal::shell::ShellType;
 
@@ -32,10 +35,23 @@ pub enum PrepareEnvironmentError {
     InvalidRuntimeState,
     #[error("Failed to clone {repo_name}")]
     CloneRepo { repo_name: String },
+    #[error("Failed to check out {checkout_ref} in {repo_name}")]
+    CheckoutFailed {
+        repo_name: String,
+        checkout_ref: String,
+    },
     #[error("Failed to run setup command: {command}")]
     SetupCommand { command: String },
     #[error("Failed to change directory into {repo_name}")]
     ChangeDirectory { repo_name: String },
+    #[error(
+        "Repositories {first_owner}/{repo_name} and {second_owner}/{repo_name} share a clone directory name"
+    )]
+    CloneDirectoryCollision {
+        repo_name: String,
+        first_owner: String,
+        second_owner: String,
+    },
     #[error("Terminal driver error while preparing environment: {source}")]
     TerminalDriver { source: AgentDriverError },
 }
@@ -52,8 +68,11 @@ pub enum PrepareEnvironmentError {
 /// caller rather than a path-prefix inference, so non-sandbox callers that
 /// happen to pass a path like `/home/agent/...` don't silently flip into
 /// sandbox-only mode.
-pub fn prepare_environment(
-    environment: AmbientAgentEnvironment,
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_environment(
+    source_repos: Vec<SourceRepo>,
+    setup_commands: Vec<String>,
+    env_vars: HashMap<OsString, OsString>,
     working_dir: PathBuf,
     is_sandbox: bool,
     harness: Harness,
@@ -62,9 +81,6 @@ pub fn prepare_environment(
 ) -> impl Future<Output = Result<(), PrepareEnvironmentError>> + use<> {
     let spawner = ctx.spawner();
     async move {
-        let source_repos = environment.effective_repos();
-        let setup_commands = environment.setup_commands;
-
         // Only index the codebase for the Oz harness; third-party harnesses (e.g. Claude)
         // have their own methods for navigating a codebase.
         let should_index_codebase = harness == Harness::Oz;
@@ -81,6 +97,7 @@ pub fn prepare_environment(
             is_sandbox,
             &source_repos,
             setup_commands,
+            &env_vars,
             should_index_codebase,
             Arc::clone(&repo_channels),
             setup_events,
@@ -99,6 +116,251 @@ pub fn prepare_environment(
     }
 }
 
+/// Merge environment repositories with task-level repositories, preserving
+/// environment order and de-duplicating by forge plus case-insensitive owner
+/// and repository names.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum CloneDirectoryCaseSensitivity {
+    Sensitive,
+    Insensitive,
+}
+
+pub(super) fn merge_repos_deduped(
+    environment_repos: Vec<SourceRepo>,
+    additional_repos: Vec<SourceRepo>,
+    case_sensitivity: CloneDirectoryCaseSensitivity,
+) -> Result<Vec<SourceRepo>, PrepareEnvironmentError> {
+    let mut seen = HashSet::new();
+    let mut names = HashMap::<String, (String, CodeForge)>::new();
+    let mut merged = Vec::with_capacity(environment_repos.len() + additional_repos.len());
+
+    for repo in environment_repos.into_iter().chain(additional_repos) {
+        let forge = repo.code_forge.unwrap_or_default();
+        let key = (forge, repo.owner.to_lowercase(), repo.repo.to_lowercase());
+        if !seen.insert(key) {
+            continue;
+        }
+
+        if let Some((owner, existing_forge)) = names.insert(
+            clone_directory_key(&repo.repo, case_sensitivity),
+            (repo.owner.clone(), forge),
+        ) && (owner != repo.owner || existing_forge != forge)
+        {
+            return Err(PrepareEnvironmentError::CloneDirectoryCollision {
+                repo_name: repo.repo,
+                first_owner: owner,
+                second_owner: repo.owner,
+            });
+        }
+
+        merged.push(repo);
+    }
+
+    Ok(merged)
+}
+
+fn clone_directory_key(repo_name: &str, case_sensitivity: CloneDirectoryCaseSensitivity) -> String {
+    match case_sensitivity {
+        CloneDirectoryCaseSensitivity::Sensitive => repo_name.to_string(),
+        CloneDirectoryCaseSensitivity::Insensitive => repo_name.to_lowercase(),
+    }
+}
+
+pub(super) fn clone_directory_case_probe_required(repos: &[SourceRepo]) -> bool {
+    let mut names = HashMap::<String, (String, String, CodeForge)>::new();
+    for repo in repos {
+        let forge = repo.code_forge.unwrap_or_default();
+        let owner_key = repo.owner.to_lowercase();
+        let key = repo.repo.to_lowercase();
+        if let Some((existing_repo, owner, existing_forge)) = names.get(&key)
+            && existing_repo != &repo.repo
+            && (owner != &owner_key || existing_forge != &forge)
+        {
+            return true;
+        }
+        names.insert(key, (repo.repo.clone(), owner_key, forge));
+    }
+    false
+}
+
+/// Probe the filesystem that backs the active terminal session. The client
+/// process may be on a different filesystem than a remote or sandbox session,
+/// so host-platform defaults are not sufficient here.
+pub(super) async fn clone_directory_case_sensitivity(
+    working_dir: &Path,
+    spawner: &ModelSpawner<TerminalDriver>,
+) -> CloneDirectoryCaseSensitivity {
+    let shell_type = spawner
+        .spawn(|driver, ctx| {
+            driver
+                .active_session_shell_type(ctx)
+                .unwrap_or(ShellType::Bash)
+        })
+        .await
+        .unwrap_or(ShellType::Bash);
+    let command = clone_directory_case_probe_command(working_dir, shell_type);
+    let output = match spawner
+        .spawn(move |driver, ctx| driver.execute_silent_command(command, ctx))
+        .await
+    {
+        Ok(output) => match output.await {
+            Ok(output) => output,
+            Err(error) => {
+                log::warn!("Failed to probe clone directory case sensitivity: {error}");
+                return CloneDirectoryCaseSensitivity::Insensitive;
+            }
+        },
+        Err(error) => {
+            log::warn!("Failed to schedule clone directory case probe: {error}");
+            return CloneDirectoryCaseSensitivity::Insensitive;
+        }
+    };
+
+    clone_directory_case_probe_output(&output).unwrap_or_else(|| {
+        log::warn!("Clone directory case probe returned an invalid result");
+        CloneDirectoryCaseSensitivity::Insensitive
+    })
+}
+
+fn clone_directory_case_probe_command(working_dir: &Path, shell_type: ShellType) -> String {
+    match shell_type {
+        ShellType::PowerShell => format!(
+            "$probeDir = Join-Path -Path '{}' -ChildPath ('.warp-case-probe-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $probeDir -ErrorAction Stop | Out-Null; try {{ Set-Content -LiteralPath (Join-Path $probeDir 'CaseProbe') -Value 'x' -NoNewline -ErrorAction Stop; if (Test-Path -LiteralPath (Join-Path $probeDir 'caseprobe')) {{ 'true' }} else {{ 'false' }} }} finally {{ Remove-Item -LiteralPath $probeDir -Recurse -Force -ErrorAction SilentlyContinue }}",
+            shell_escape_single_quotes(&working_dir.to_string_lossy(), ShellType::PowerShell)
+        ),
+        ShellType::Bash | ShellType::Zsh | ShellType::Fish => {
+            let escaped_working_dir =
+                shell_escape_single_quotes(&working_dir.to_string_lossy(), ShellType::Bash);
+            let script = format!(
+                "probe_dir=$(mktemp -d '{escaped_working_dir}/.warp-case-probe.XXXXXX') || exit 1; trap 'rm -rf \"$probe_dir\"' 0; printf x > \"$probe_dir/CaseProbe\" || exit 1; if [ -e \"$probe_dir/caseprobe\" ]; then printf true; else printf false; fi"
+            );
+            let escaped_script = shell_escape_single_quotes(&script, shell_type);
+            format!("sh -c '{escaped_script}'")
+        }
+    }
+}
+
+fn clone_directory_case_probe_output(
+    output: &CommandOutput,
+) -> Option<CloneDirectoryCaseSensitivity> {
+    if output.status != CommandExitStatus::Success {
+        return None;
+    }
+    match String::from_utf8_lossy(&output.stdout).trim() {
+        "true" => Some(CloneDirectoryCaseSensitivity::Insensitive),
+        "false" => Some(CloneDirectoryCaseSensitivity::Sensitive),
+        _ => None,
+    }
+}
+
+/// Environment variable carrying the authenticated remote URL of a Factory's
+/// definition repository. Dispatch attaches it only to runs that execute as a
+/// Factory agent whose Factory definition lives in a Warp-managed repository.
+const FACTORY_REPO_CLONE_URL_ENV_VAR: &str = "WARP_FACTORY_REPO_CLONE_URL";
+
+/// Environment variable carrying the directory, relative to the working
+/// directory, that the Factory definition repository is cloned into.
+const FACTORY_REPO_DIR_ENV_VAR: &str = "WARP_FACTORY_REPO_DIR";
+
+/// Capture Factory definition clone variables once for this agent run. The values originate
+/// from the worker's process environment, but callers pass the resulting map explicitly through
+/// environment preparation so setup commands never depend on ambient process-global state.
+pub(crate) fn factory_definition_env_vars() -> HashMap<OsString, OsString> {
+    [FACTORY_REPO_CLONE_URL_ENV_VAR, FACTORY_REPO_DIR_ENV_VAR]
+        .into_iter()
+        .filter_map(|name| std::env::var_os(name).map(|value| (OsString::from(name), value)))
+        .collect()
+}
+
+pub(crate) fn factory_definition_clone_configured(env_vars: &HashMap<OsString, OsString>) -> bool {
+    let has_non_empty_value = |name: &str| {
+        env_vars
+            .get(OsStr::new(name))
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| !value.trim().is_empty())
+    };
+
+    has_non_empty_value(FACTORY_REPO_CLONE_URL_ENV_VAR)
+        && has_non_empty_value(FACTORY_REPO_DIR_ENV_VAR)
+}
+
+/// Prepends the setup command that clones a Factory's definition repository
+/// when the dispatch attached the clone variables to this run, so the checkout
+/// exists before user-declared setup commands run.
+pub(super) fn prepend_factory_definition_clone(
+    setup_commands: &mut Vec<String>,
+    shell_type: ShellType,
+    env_vars: &HashMap<OsString, OsString>,
+) {
+    if !factory_definition_clone_configured(env_vars) {
+        return;
+    }
+    let clone_url = env_vars
+        .get(OsStr::new(FACTORY_REPO_CLONE_URL_ENV_VAR))
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    let clone_dir = env_vars
+        .get(OsStr::new(FACTORY_REPO_DIR_ENV_VAR))
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    prepend_factory_definition_clone_for_values(clone_url, clone_dir, shell_type, setup_commands);
+}
+
+fn prepend_factory_definition_clone_for_values(
+    clone_url: &str,
+    clone_dir: &str,
+    shell_type: ShellType,
+    setup_commands: &mut Vec<String>,
+) {
+    if clone_url.trim().is_empty() || clone_dir.trim().is_empty() {
+        return;
+    }
+    // Environments provisioned before run-scoped cloning still persist their
+    // own copy of the clone command; leave that copy in charge rather than
+    // attempting the checkout twice.
+    if setup_commands
+        .iter()
+        .any(|command| command.contains(FACTORY_REPO_CLONE_URL_ENV_VAR))
+    {
+        return;
+    }
+    // The command expands the variables in the session shell instead of
+    // inlining their values so the credential-bearing URL never appears in
+    // command text. There is deliberately no existence guard: a bare clone
+    // into an already-present target directory fails, which is treated as a
+    // fatal setup-command error upstream.
+    let (clone_url_ref, clone_dir_ref) = match shell_type {
+        ShellType::PowerShell => (
+            format!("$env:{FACTORY_REPO_CLONE_URL_ENV_VAR}"),
+            format!("$env:{FACTORY_REPO_DIR_ENV_VAR}"),
+        ),
+        ShellType::Bash | ShellType::Zsh | ShellType::Fish => (
+            format!("${FACTORY_REPO_CLONE_URL_ENV_VAR}"),
+            format!("${FACTORY_REPO_DIR_ENV_VAR}"),
+        ),
+    };
+    setup_commands.insert(
+        0,
+        format!("git clone \"{clone_url_ref}\" \"{clone_dir_ref}\""),
+    );
+}
+
+fn set_ci_command(shell_type: ShellType) -> &'static str {
+    match shell_type {
+        ShellType::Bash | ShellType::Zsh => "export CI=true",
+        ShellType::Fish => "set -gx CI true",
+        ShellType::PowerShell => "$env:CI = 'true'",
+    }
+}
+
+fn unset_ci_command(shell_type: ShellType) -> &'static str {
+    match shell_type {
+        ShellType::Bash | ShellType::Zsh => "unset CI",
+        ShellType::Fish => "set -e CI",
+        ShellType::PowerShell => "Remove-Item Env:CI -ErrorAction SilentlyContinue",
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn prepare_environment_impl(
     spawner: &ModelSpawner<TerminalDriver>,
@@ -106,13 +368,13 @@ async fn prepare_environment_impl(
     is_sandbox: bool,
     source_repos: &[SourceRepo],
     setup_commands: Vec<String>,
+    env_vars: &HashMap<OsString, OsString>,
     should_index_codebase: bool,
     repo_channels: Arc<Mutex<HashMap<PathBuf, oneshot::Sender<()>>>>,
     setup_events: SetupClientEventReporter,
 ) -> Result<(), PrepareEnvironmentError> {
     let working_dir_string = working_dir.to_string_lossy().to_string();
-
-    // Position the session in `working_dir` before running any probes / clones.
+    // Position the session before running any probes or clones.
     // Routed through the silent executor so we don't add a user-visible `cd`
     // block to the blocklist — in the common case (cloud agents) the session
     // is already cd'd here by its startup dir, so this is a no-op re-cd and
@@ -122,6 +384,16 @@ async fn prepare_environment_impl(
             repo_name: working_dir_string,
         });
     }
+    let shell_type = spawner
+        .spawn(|driver, ctx| {
+            driver
+                .active_session_shell_type(ctx)
+                .unwrap_or(ShellType::Bash)
+        })
+        .await
+        .unwrap_or(ShellType::Bash);
+    let mut setup_commands = setup_commands;
+    prepend_factory_definition_clone(&mut setup_commands, shell_type, env_vars);
     let mut codebase_context_receivers = Vec::new();
 
     if !source_repos.is_empty() {
@@ -156,6 +428,22 @@ async fn prepare_environment_impl(
         }
     }
 
+    #[cfg(feature = "local_fs")]
+    if let Some(cache_root) = cache_setup::enabled_cache_root() {
+        log::info!("Configuring build cache");
+        let result = setup_events
+            .record_result(
+                SetupStep::CacheSetup,
+                cache_setup::setup_caches(cache_root, source_repos, working_dir, spawner),
+            )
+            .await;
+        if let Err(error) = result {
+            log::warn!("Build cache setup degraded; continuing environment preparation: {error}");
+        }
+    } else {
+        log::info!("Build cache not available");
+    }
+
     let has_setup_commands = !setup_commands.is_empty();
     if has_setup_commands {
         setup_events
@@ -163,7 +451,7 @@ async fn prepare_environment_impl(
                 // Set CI=true so setup commands run in a CI-like environment. This should help us run
                 // non-interactive versions of setup commands, as many command line tools recognize the CI
                 // environment variable.
-                execute_command("export CI=true".to_string(), spawner).await?;
+                execute_command(set_ci_command(shell_type).to_string(), spawner).await?;
 
                 for command in setup_commands {
                     let command_for_error = command.clone();
@@ -194,7 +482,7 @@ async fn prepare_environment_impl(
 
                 // Unset CI after setup commands complete so the agent session
                 // does not run with CI=true.
-                execute_command("unset CI".to_string(), spawner).await?;
+                execute_command(unset_ci_command(shell_type).to_string(), spawner).await?;
                 Ok::<(), PrepareEnvironmentError>(())
             })
             .await?;
@@ -249,7 +537,7 @@ fn record_codebase_indexing(
             .await
             .is_err()
         {
-            log::warn!(
+            tracing::warn!(
                 "Timed out waiting for codebase index sync; continuing without guaranteed codebase context",
             );
         }
@@ -275,12 +563,20 @@ clone_repo() {
   repo_name="$1"
   repo_url="$2"
   target="$3"
+  checkout_ref="$4"
   if [ -d "$target" ]; then
     printf '%s\n' "Repository directory $target already exists, skipping clone..."
-    return 0
+  else
+    printf '%s\n' "Cloning repository $repo_name..."
+    git clone --filter=tree:0 "$repo_url" "$target" || return 1
   fi
-  printf '%s\n' "Cloning repository $repo_name..."
-  git clone --filter=tree:0 "$repo_url" "$target"
+  # Pin after clone or reuse: a reused directory may still be on an old ref.
+  if [ -n "$checkout_ref" ]; then
+    printf '%s\n' "Checking out $checkout_ref in $repo_name..."
+    # Fetch leaves the object in FETCH_HEAD; check that out detached so we
+    # never prefer a stale local branch with the same name.
+    git -C "$target" fetch --filter=tree:0 origin "$checkout_ref" && git -C "$target" checkout --detach FETCH_HEAD
+  fi
 }
 "#,
     );
@@ -292,10 +588,14 @@ clone_repo() {
         let escaped_repo_name = shell_escape_single_quotes(&repo_name, ShellType::Bash);
         let escaped_repo_url = shell_escape_single_quotes(&repo_url, ShellType::Bash);
         let escaped_target = shell_escape_single_quotes(&repo.repo, ShellType::Bash);
+        let escaped_checkout_ref = shell_escape_single_quotes(
+            repo.checkout_ref.as_deref().unwrap_or_default(),
+            ShellType::Bash,
+        );
         let log_var = format!("log_file_{index}");
         script.push_str(&format!(
             "{log_var}=\"$tmp_dir/repo-{index}.log\"\n\
-             clone_repo '{escaped_repo_name}' '{escaped_repo_url}' '{escaped_target}' >\"${log_var}\" 2>&1 &\n"
+             clone_repo '{escaped_repo_name}' '{escaped_repo_url}' '{escaped_target}' '{escaped_checkout_ref}' >\"${log_var}\" 2>&1 &\n"
         ));
         script.push_str("pids=\"$pids $!\"\n");
         log_outputs.push_str(&format!(
@@ -328,7 +628,8 @@ exit "$failed"
 }
 
 /// Clone all source repositories to `{working_dir}/{repo.repo}` if they do not already exist.
-/// Multiple repositories are cloned in parallel to reduce environment setup time.
+/// Multiple repositories are cloned in parallel on POSIX shells; PowerShell uses the
+/// shell-native single-repository path sequentially because it has no POSIX `sh` primitives.
 pub(super) async fn clone_repos(
     repos: &[SourceRepo],
     working_dir: &Path,
@@ -346,6 +647,17 @@ pub(super) async fn clone_repos(
                 })
                 .await
                 .unwrap_or(ShellType::Bash);
+
+            // The parallel helper is intentionally POSIX (`sh -c`, background jobs,
+            // `test -d`). PowerShell does not provide those primitives, so use the
+            // shell-native single-repository path on Windows instead of emitting a
+            // command that cannot execute in the active session.
+            if !parallel_clone_supported(shell_type) {
+                for repo in repos {
+                    clone_repo(repo, working_dir, spawner).await?;
+                }
+                return Ok(());
+            }
 
             let repo_names = repos
                 .iter()
@@ -371,6 +683,10 @@ pub(super) async fn clone_repos(
             Ok(())
         }
     }
+}
+
+fn parallel_clone_supported(shell_type: ShellType) -> bool {
+    !matches!(shell_type, ShellType::PowerShell)
 }
 
 /// Clone a source repository to `{working_dir}/{repo.repo}` if it does not already exist.
@@ -431,7 +747,68 @@ pub(super) async fn clone_repo(
         );
     }
 
+    // Pin after clone or reuse when a ref was requested. A reused directory may
+    // still be on an old default-branch tip, and a fresh partial clone only
+    // fetched the default branch — fetch the ref, then detach to FETCH_HEAD.
+    // When checkout_ref is unset, leave an existing directory untouched.
+    if let Some(command) = checkout_command_for(repo, working_dir, shell_type) {
+        let checkout_ref = repo.checkout_ref.as_deref().unwrap_or_default();
+        safe_info!(
+            safe: ("Checking out pinned ref for repository"),
+            full: ("Checking out {checkout_ref} for {repo_name}")
+        );
+        let exit_code = execute_command(command, spawner).await?;
+        checkout_result(&repo_name, checkout_ref, exit_code)?;
+
+        safe_info!(
+            safe: ("Successfully checked out pinned ref"),
+            full: ("Successfully checked out {checkout_ref} for {repo_name}")
+        );
+    }
+
     Ok(())
+}
+
+/// Build the `git fetch` + `git checkout` command that pins `repo`'s clone at
+/// its `checkout_ref`, or `None` when the repo has no ref to pin.
+///
+/// A partial clone (`--filter=tree:0`) only fetches the default branch, so an
+/// arbitrary ref (commit SHA, branch, or tag) may not be present yet: fetch it
+/// first, then check out the resulting `FETCH_HEAD` detached. Checking out the
+/// original ref name can prefer a stale local branch or fail when the object
+/// only landed in `FETCH_HEAD`. Detached HEAD is expected and fine — trials
+/// never merge.
+fn checkout_command_for(
+    repo: &SourceRepo,
+    working_dir: &Path,
+    shell_type: ShellType,
+) -> Option<String> {
+    let checkout_ref = repo.checkout_ref.as_deref()?;
+    let repo_dir = working_dir.join(&repo.repo);
+    let escaped_dir = shell_escape_single_quotes(&repo_dir.to_string_lossy(), shell_type);
+    let escaped_ref = shell_escape_single_quotes(checkout_ref, shell_type);
+    Some(format!(
+        "git -C '{escaped_dir}' fetch --filter=tree:0 origin '{escaped_ref}' && \
+         git -C '{escaped_dir}' checkout --detach FETCH_HEAD"
+    ))
+}
+
+/// Map a checkout command's exit code onto the environment-prep result,
+/// surfacing a non-zero exit (fetch or checkout failing) as `CheckoutFailed`
+/// rather than silently leaving the clone on the default branch.
+fn checkout_result(
+    repo_name: &str,
+    checkout_ref: &str,
+    exit_code: ExitCode,
+) -> Result<(), PrepareEnvironmentError> {
+    if exit_code == 0.into() {
+        Ok(())
+    } else {
+        Err(PrepareEnvironmentError::CheckoutFailed {
+            repo_name: repo_name.to_string(),
+            checkout_ref: checkout_ref.to_string(),
+        })
+    }
 }
 
 /// Register a cloned source repository with `DetectedRepositories` so that the
@@ -678,36 +1055,31 @@ async fn cd_in_terminal_silent(
 /// Returns whether the given path resolves to an existing directory from the
 /// perspective of the active terminal session.
 ///
-/// Runs `test -d <path>` through the session's in-band command executor, so
+/// Runs a shell-native directory probe through the session's in-band command executor, so
 /// the check is invisible in the user-facing blocklist and works for paths
 /// that only exist inside a remote/sandbox filesystem. The path is escaped
-/// using the *session's* actual shell type (bash/zsh use the `'"'"'` trick,
-/// fish uses a backslash, PowerShell doubles the quote) rather than assuming
-/// bash.
+/// using the session's actual shell type rather than assuming bash.
 ///
 /// Prefer passing an absolute path: relative paths resolve against the
 /// session's current working directory, which couples the caller to
 /// whatever `cd` state the session happens to be in.
 ///
-/// TODO(advait): `test -d ...` itself is POSIX-only. When we support
-/// environment prep on Windows host shells (PowerShell / cmd.exe), also
-/// branch on `ShellType` to emit the appropriate probe (e.g.
-/// `Test-Path -PathType Container <path>` for PowerShell).
 async fn terminal_directory_exists(
     path: &str,
     spawner: &ModelSpawner<TerminalDriver>,
 ) -> Result<bool, PrepareEnvironmentError> {
+    let shell_type = spawner
+        .spawn(|driver, ctx| {
+            driver
+                .active_session_shell_type(ctx)
+                .unwrap_or(ShellType::Bash)
+        })
+        .await
+        .unwrap_or(ShellType::Bash);
     let path = path.to_owned();
     let output = spawner
         .spawn(move |driver, ctx| {
-            // Fall back to Bash if the session's shell type isn't known yet
-            // (e.g. pre-bootstrap). Bash-style escaping is a safe default for
-            // every POSIX shell we currently support.
-            let shell_type = driver
-                .active_session_shell_type(ctx)
-                .unwrap_or(ShellType::Bash);
-            let escaped = shell_escape_single_quotes(&path, shell_type);
-            let command = format!("test -d '{escaped}'");
+            let command = directory_exists_command(&path, shell_type);
             driver.execute_silent_command(command, ctx)
         })
         .await
@@ -717,7 +1089,28 @@ async fn terminal_directory_exists(
             AgentDriverError::InvalidRuntimeState => PrepareEnvironmentError::InvalidRuntimeState,
             source => PrepareEnvironmentError::TerminalDriver { source },
         })?;
-    Ok(output.status == CommandExitStatus::Success)
+    Ok(directory_exists_output(&output, shell_type))
+}
+
+fn directory_exists_command(path: &str, shell_type: ShellType) -> String {
+    let escaped = shell_escape_single_quotes(path, shell_type);
+    match shell_type {
+        ShellType::PowerShell => {
+            format!("Test-Path -LiteralPath '{escaped}' -PathType Container")
+        }
+        ShellType::Bash | ShellType::Zsh | ShellType::Fish => format!("test -d '{escaped}'"),
+    }
+}
+
+fn directory_exists_output(output: &CommandOutput, shell_type: ShellType) -> bool {
+    if shell_type == ShellType::PowerShell {
+        output.status == CommandExitStatus::Success
+            && String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .eq_ignore_ascii_case("true")
+    } else {
+        output.status == CommandExitStatus::Success
+    }
 }
 
 #[cfg(test)]

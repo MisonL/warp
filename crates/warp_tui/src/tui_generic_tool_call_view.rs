@@ -1,8 +1,8 @@
 //! Permission-capable view for tool calls without bespoke TUI bodies.
 
 use warp::tui_export::{
-    AIActionStatus, AIAgentAction, AIAgentActionType, AIConversationId, BlocklistAIActionModel,
-    CancellationReason, NewConversationDecision,
+    AIActionStatus, AIAgentAction, AIAgentActionType, AIConversationId, BlocklistAIActionEvent,
+    BlocklistAIActionModel, CancellationReason, NewConversationDecision, mcp_server_name_for_id,
 };
 use warp_localization::LocaleId;
 use warpui_core::elements::tui::{TuiElement, TuiText};
@@ -10,7 +10,7 @@ use warpui_core::{AppContext, Entity, EntityId, ModelHandle, TuiView, ViewContex
 
 use crate::agent_block_sections::render_fallback_tool_call_section;
 use crate::localization;
-use crate::tool_call_labels::blocked_tool_call_label;
+use crate::tool_call_labels::{ToolCallDisplayState, blocked_tool_call_label};
 use crate::tui_builder::TuiUiBuilder;
 use crate::tui_permission_prompt::{
     TuiPermissionPrompt, TuiPermissionPromptEvent, render_permission_card,
@@ -73,7 +73,6 @@ fn permission_question_for_action(action: &AIAgentActionType, locale: LocaleId) 
         | AIAgentActionType::StopRecording { .. }
         | AIAgentActionType::ReadSkill(_)
         | AIAgentActionType::FetchConversation { .. }
-        | AIAgentActionType::StartAgent { .. }
         | AIAgentActionType::SendMessageToAgent { .. }
         | AIAgentActionType::AskUserQuestion { .. }
         | AIAgentActionType::RunAgents(_)
@@ -154,7 +153,6 @@ fn details_for_action(action: &AIAgentActionType, locale: LocaleId) -> String {
         | AIAgentActionType::StopRecording { .. }
         | AIAgentActionType::ReadSkill(_)
         | AIAgentActionType::FetchConversation { .. }
-        | AIAgentActionType::StartAgent { .. }
         | AIAgentActionType::SendMessageToAgent { .. }
         | AIAgentActionType::AskUserQuestion { .. }
         | AIAgentActionType::RunAgents(_)
@@ -194,11 +192,18 @@ impl TuiGenericToolCallView {
             }
             if matches!(
                 event,
-                warp::tui_export::BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(_)
+                BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(_)
             ) {
                 view.ensure_permission_prompt(ctx);
             }
-            ctx.emit(TuiGenericToolCallViewEvent::BlockingStateChanged);
+            if matches!(
+                event,
+                BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(_)
+                    | BlocklistAIActionEvent::ExecutingAction(_)
+                    | BlocklistAIActionEvent::FinishedAction { .. }
+            ) {
+                ctx.emit(TuiGenericToolCallViewEvent::BlockingStateChanged);
+            }
             view.invalidate_layout(ctx);
         });
         view
@@ -317,30 +322,123 @@ impl TuiGenericToolCallView {
     }
 
     /// Builds the user-facing question shown above the action details.
-    fn permission_question(&self) -> String {
-        permission_question_for_action(&self.action.action, localization::current_locale())
+    ///
+    /// `server_name` is the pre-resolved originating MCP server name (when
+    /// known) for an MCP tool call, so the question surfaces both the tool and
+    /// its server. `None` for non-MCP actions or unknown/legacy servers.
+    #[cfg(test)]
+    fn permission_question(&self, server_name: Option<&str>) -> String {
+        self.permission_question_for_locale(server_name, localization::current_locale())
+    }
+
+    fn permission_question_for_locale(
+        &self,
+        server_name: Option<&str>,
+        locale: LocaleId,
+    ) -> String {
+        match &self.action.action {
+            AIAgentActionType::CallMCPTool { name, .. } => {
+                if name.is_empty() {
+                    match server_name {
+                        Some(server) => localization::text_with_args_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_mcp_tool_on_server",
+                            &[("server", server)],
+                        ),
+                        None => localization::text_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_mcp_tool",
+                        ),
+                    }
+                } else {
+                    match server_name {
+                        Some(server) => localization::text_with_args_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_named_mcp_tool_on_server",
+                            &[("name", name), ("server", server)],
+                        ),
+                        None => localization::text_with_args_for_locale(
+                            locale,
+                            "tui.generic_tool.permission.call_named_mcp_tool",
+                            &[("name", name)],
+                        ),
+                    }
+                }
+            }
+            action => permission_question_for_action(action, locale),
+        }
     }
 
     /// Formats the action arguments needed to make an approval decision.
-    fn details(&self) -> String {
-        details_for_action(&self.action.action, localization::current_locale())
+    ///
+    /// `server_name` is the pre-resolved originating MCP server name (when
+    /// known) for an MCP tool call, so the details body labels the tool with
+    /// its server. `None` for non-MCP actions or unknown/legacy servers.
+    fn details(&self, server_name: Option<&str>) -> String {
+        let locale = localization::current_locale();
+        match &self.action.action {
+            AIAgentActionType::CallMCPTool { name, input, .. } => {
+                let input =
+                    serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
+                let header = match server_name {
+                    Some(server) => localization::text_with_args(
+                        "tui.generic_tool.details.mcp_tool_on_server",
+                        &[("name", name), ("server", server)],
+                    ),
+                    None => name.clone(),
+                };
+                if input == "{}" || input == "null" {
+                    header
+                } else {
+                    format!("{header}\n{input}")
+                }
+            }
+            action => details_for_action(action, locale),
+        }
+    }
+
+    /// Resolves the user-facing name of the MCP tool's originating server for
+    /// the blocked permission card. Returns `None` for non-MCP-tool actions,
+    /// legacy/flat calls with no server id, or unknown servers. Non-panicking.
+    fn mcp_server_name(&self, app: &AppContext) -> Option<String> {
+        match &self.action.action {
+            AIAgentActionType::CallMCPTool { server_id, .. } => server_id
+                .as_ref()
+                .and_then(|id| mcp_server_name_for_id(id, app)),
+            _ => None,
+        }
     }
 
     /// Renders the complete blocked-action card.
     fn render_blocked(&self, app: &AppContext) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(app);
-        let prompt = self
-            .permission_prompt
-            .as_ref()
-            .expect("blocked generic actions should own a permission prompt");
+        let server_name = self.mcp_server_name(app);
+        let Some(prompt) = self.permission_prompt.as_ref() else {
+            return TuiText::from_spans([
+                (
+                    format!("{} ", ToolCallDisplayState::Blocked.glyph()),
+                    builder.error_text_style(),
+                ),
+                (
+                    localization::text("tui.generic_tool.permission.unavailable"),
+                    builder.error_text_style(),
+                ),
+            ])
+            .truncate()
+            .finish();
+        };
         render_permission_card(
             prompt,
-            self.permission_question(),
+            self.permission_question_for_locale(
+                server_name.as_deref(),
+                localization::current_locale(),
+            ),
             Some(
-                TuiText::new(self.details())
+                TuiText::new(self.details(server_name.as_deref()))
                     .with_style(builder.primary_text_style())
                     .finish(),
             ),
+            None,
             app,
         )
     }

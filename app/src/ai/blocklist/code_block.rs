@@ -257,7 +257,7 @@ fn render_linked_code_block_internal(
             let open_button = render_button(
                 appearance,
                 Icon::LinkExternal,
-                &localization::text_for_app(app, "agent.code_block.open_in_warp"),
+                "Open file",
                 mouse_handles.open_button,
                 code_clone.clone(),
                 on_open,

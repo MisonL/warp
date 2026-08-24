@@ -1290,7 +1290,6 @@ impl Session {
                     ExecuteCommandOptions::default(),
                 )
                 .await;
-
             let is_msys2 =
                 self.info.launch_data.as_ref().is_some_and(|launch_data| {
                     matches!(launch_data, ShellLaunchData::MSYS2 { .. })
@@ -1726,7 +1725,7 @@ pub fn get_local_hostname() -> Result<String> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-util"))]
 pub mod testing {
     use super::command_executor::testing::TestCommandExecutor;
     use super::*;
@@ -1876,7 +1875,11 @@ pub mod testing {
 
     impl Session {
         pub fn test() -> Self {
-            let info = SessionInfo::new_for_test();
+            Self::test_with_path(None)
+        }
+
+        pub fn test_with_path(path: Option<String>) -> Self {
+            let info = SessionInfo::new_for_test().with_path(path);
             let session_type = SessionType::from(info.session_type.clone());
             Self {
                 info,

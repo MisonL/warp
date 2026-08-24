@@ -26,6 +26,7 @@ use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+    WeakViewHandle,
 };
 
 use crate::GlobalResourceHandlesProvider;
@@ -112,6 +113,7 @@ impl ServerModel {
 }
 
 pub struct MCPServersEditPageView {
+    handle: WeakViewHandle<Self>,
     server_card_item_id: Option<ServerCardItemId>,
     server_model: ServerModel,
     save_button: ViewHandle<ActionButton>,
@@ -221,6 +223,7 @@ impl MCPServersEditPageView {
                 });
 
         Self {
+            handle: ctx.handle(),
             server_card_item_id: None,
             server_model: ServerModel::None,
             save_button,
@@ -316,7 +319,7 @@ impl MCPServersEditPageView {
             }
         }
 
-        if Self::is_editable(item_id, ctx) {
+        if self.is_editable(item_id, ctx) {
             self.json_editor.update(ctx, |editor, ctx| {
                 editor.set_interaction_state(crate::editor::InteractionState::Editable, ctx);
             });
@@ -388,7 +391,7 @@ impl MCPServersEditPageView {
         if self.should_show_oauth_components(app) {
             rhs_row.add_child(log_out_icon_button);
         }
-        if Self::is_editable(self.server_card_item_id, app) {
+        if self.is_editable(self.server_card_item_id, app) {
             rhs_row.add_child(
                 Container::new(ChildView::new(&self.save_button).finish())
                     .with_margin_left(style::EDIT_PAGE_BUTTON_SPACING)
@@ -453,7 +456,10 @@ impl MCPServersEditPageView {
         }
     }
 
-    fn is_editable(item_id: Option<ServerCardItemId>, app: &AppContext) -> bool {
+    fn is_editable(&self, item_id: Option<ServerCardItemId>, app: &AppContext) -> bool {
+        let team_uid = UserWorkspaces::as_ref(app)
+            .team_for_view_handle(&self.handle, app)
+            .map(|team| team.uid);
         match item_id {
             Some(ServerCardItemId::TemplatableMCPInstallation(installation_uuid)) => {
                 let template_uuid =
@@ -461,7 +467,7 @@ impl MCPServersEditPageView {
 
                 if let Some(template_uuid) = template_uuid {
                     let is_authorized_editor = TemplatableMCPServerManager::as_ref(app)
-                        .is_authorized_editor(template_uuid, app);
+                        .is_authorized_editor(template_uuid, team_uid, app);
                     let is_shared = TemplatableMCPServerManager::as_ref(app)
                         .is_server_template_shared(template_uuid, app);
 
@@ -474,7 +480,7 @@ impl MCPServersEditPageView {
                 let is_shared = TemplatableMCPServerManager::as_ref(app)
                     .is_server_template_shared(template_uuid, app);
                 let is_authorized_editor = TemplatableMCPServerManager::as_ref(app)
-                    .is_authorized_editor(template_uuid, app);
+                    .is_authorized_editor(template_uuid, team_uid, app);
 
                 is_authorized_editor || !is_shared
             }
@@ -501,8 +507,8 @@ impl MCPServersEditPageView {
         false
     }
 
-    fn is_deletable(item_id: ServerCardItemId, app: &AppContext) -> bool {
-        Self::is_editable(Some(item_id), app)
+    fn is_deletable(&self, item_id: ServerCardItemId, app: &AppContext) -> bool {
+        self.is_editable(Some(item_id), app)
     }
 
     fn is_unshareable(item_id: ServerCardItemId, app: &AppContext) -> bool {
@@ -573,7 +579,7 @@ impl MCPServersEditPageView {
             .with_spacing(style::EDIT_PAGE_BUTTON_SPACING);
 
         if let Some(server_card_item_id) = self.server_card_item_id {
-            if Self::is_deletable(server_card_item_id, app) {
+            if self.is_deletable(server_card_item_id, app) {
                 footer.add_child(ChildView::new(&self.delete_button).finish());
             }
             if Self::is_unshareable(server_card_item_id, app) {
@@ -846,7 +852,7 @@ impl View for MCPServersEditPageView {
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_spacing(style::PAGE_SPACING);
         main_content.add_child(header);
-        if !Self::is_editable(self.server_card_item_id, app) {
+        if !self.is_editable(self.server_card_item_id, app) {
             main_content.add_child(ChildView::new(&self.editing_disabled_banner).finish());
         }
         main_content.add_child(Shrinkable::new(1., editor).finish());

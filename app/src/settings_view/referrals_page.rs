@@ -634,19 +634,9 @@ impl ReferralsWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         Flex::column()
-            .with_child(
-                Container::new(self.render_label(
-                    localization::text_for_app(app, "settings.referrals.link.label"),
-                    appearance,
-                ))
-                .with_padding_top(PAGE_PADDING)
-                .finish(),
-            )
+            .with_child(self.render_label("Link", appearance))
             .with_child(self.render_link_row(view, appearance, app))
-            .with_child(self.render_label(
-                localization::text_for_app(app, "settings.referrals.email.label"),
-                appearance,
-            ))
+            .with_child(self.render_label("Email", appearance))
             .with_child(self.render_email_row(view, appearance, app))
             .finish()
     }

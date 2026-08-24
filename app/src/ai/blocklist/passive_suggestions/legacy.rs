@@ -28,7 +28,6 @@ use crate::ai::predict::generate_am_query_suggestions::{
     GenerateAMQuerySuggestionsRequest, GenerateAMQuerySuggestionsResponse, Suggestion,
 };
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
-use crate::localization;
 use crate::network::NetworkStatus;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::PromptSuggestionFallbackReason;
@@ -41,6 +40,7 @@ use crate::terminal::model::terminal_model::TerminalModel;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::view::{AgentModePromptSuggestion, PromptSuggestion};
 use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::{localization, safe_warn};
 
 const NUM_TOP_BLOCK_LINES: usize = 100;
 const NUM_BOTTOM_BLOCK_LINES: usize = 200;
@@ -439,9 +439,15 @@ impl PassiveSuggestionsModel {
                 let content = match content {
                     Ok(content) => {
                         if !content.failed_files.is_empty() {
-                            log::warn!(
-                                "Missing files when retrieving file content for suggested code diffs: {:?}",
-                                content.failed_files
+                            safe_warn!(
+                                safe: (
+                                    "Failed to read {} file(s) when retrieving content for suggested code diffs",
+                                    content.failed_files.len()
+                                ),
+                                full: (
+                                    "Failed to read files when retrieving content for suggested code diffs: {:?}",
+                                    content.failed_files
+                                )
                             );
                             ctx.emit(PassiveSuggestionsEvent::PassiveCodeDiffFailed {
                                 reason: PromptSuggestionFallbackReason::MissingFile,

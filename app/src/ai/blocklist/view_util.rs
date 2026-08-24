@@ -24,13 +24,15 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const PROVIDER_BUTTON_ICON_SIZE: f32 = 14.;
 const PROVIDER_BUTTON_ICON_TEXT_GAP: f32 = 8.;
-
+const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
+pub const FAILED_OUTPUT_USAGE_NOTICE_TEXT: &str = "This response won't count towards your usage.";
+pub const OUT_OF_CREDITS_SUBSCRIBE_LABEL: &str = "Subscribe";
 /// Text to use as a label throughout the app for user interactions that will attach selected
 /// block(s) or text selections to a new AI query.
 pub static ATTACH_AS_AGENT_MODE_CONTEXT_TEXT: LazyLock<&'static str> =
     LazyLock::new(|| "Attach as agent context");
 
-/// Label we use for the the command palette action to create a new local Oz agent pane.
+/// Label we use for the the command palette action to create a new local Warp Agent pane.
 pub static NEW_AGENT_PANE_LABEL: LazyLock<&'static str> = LazyLock::new(|| "New Agent Pane");
 
 /// Claude/Anthropic brand color (official brand orange #D97757).
@@ -62,8 +64,7 @@ pub fn error_color(theme: &WarpTheme) -> ColorU {
 pub enum FailedOutputPresentation {
     Message(String),
     OutOfCredits {
-        title: String,
-        detail: String,
+        message: String,
         can_use_own_api_keys: bool,
     },
     InvalidApiKey {
@@ -74,6 +75,9 @@ pub enum FailedOutputPresentation {
         message: String,
     },
     AwsBedrockCredentialsExpiredOrInvalid {
+        fallback_message: String,
+    },
+    GeminiEnterpriseCredentialsExpiredOrInvalid {
         fallback_message: String,
     },
 }
@@ -98,14 +102,7 @@ pub fn failed_output_presentation(
             if let Some(message) = user_display_message {
                 if should_show_subscribe_cta(app) {
                     FailedOutputPresentation::OutOfCredits {
-                        title: crate::localization::text_for_app(
-                            app,
-                            "agent.error.out_of_credits.title",
-                        ),
-                        detail: crate::localization::text_for_app(
-                            app,
-                            "agent.error.out_of_credits.detail",
-                        ),
+                        message: format!("{ERROR_APOLOGY_TEXT}\n\n{message}"),
                         can_use_own_api_keys: UserWorkspaces::as_ref(app)
                             .is_byo_api_key_enabled(app),
                     }
@@ -159,14 +156,27 @@ pub fn failed_output_presentation(
                 ),
             }
         }
+        RenderableAIError::GeminiEnterpriseCredentialsExpiredOrInvalid => {
+            FailedOutputPresentation::GeminiEnterpriseCredentialsExpiredOrInvalid {
+                fallback_message: format!(
+                    "{ERROR_APOLOGY_TEXT}\n\nGemini Enterprise credentials expired or invalid.\n\n\
+                     Warp couldn't authenticate with Google Cloud. Refresh your Gemini Enterprise credentials, then retry the request."
+                ),
+            }
+        }
         RenderableAIError::TransientNetworkError { .. } => {
             FailedOutputPresentation::Message(error.to_string())
         }
         RenderableAIError::Other { error_message, .. } => {
             FailedOutputPresentation::Message(format!("{apology}\n\n{error_message}"))
         }
-        RenderableAIError::AgentExitedShell => {
-            FailedOutputPresentation::Message(format!("{apology}\n\n{error}"))
+        RenderableAIError::AgentExitedShell { .. } => {
+            FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{error}"))
+        }
+        // Cloud startup failures surface the raw server message directly, matching the
+        // dedicated GUI error card which shows the message without an apology prefix.
+        RenderableAIError::CloudStartupFailed(msg) => {
+            FailedOutputPresentation::Message(msg.clone())
         }
     })
 }

@@ -17,9 +17,7 @@ pub(super) async fn send_notification(
     } = notification_info;
 
     let powershell_app_id = Toast::POWERSHELL_APP_ID.to_string();
-    let app_id = unsafe { fetch_windows_app_id() }
-        .ok()
-        .unwrap_or(powershell_app_id);
+    let app_id = fetch_windows_app_id().ok().unwrap_or(powershell_app_id);
     let proxy_clone = proxy.clone();
     let toast = Toast::new(&app_id)
         .title(notification_content.title())
@@ -44,11 +42,13 @@ pub(super) async fn send_notification(
     }
 }
 
-unsafe fn fetch_windows_app_id() -> Result<String, anyhow::Error> {
-    let app_id_pwstr = windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID()
-        .map_err(|win_err| {
-            log::warn!("error retrieving Win32 AppUserModel ID: {win_err:?}");
-            anyhow::anyhow!(win_err)
-        })?;
-    Ok(app_id_pwstr.to_string()?)
+fn fetch_windows_app_id() -> Result<String, anyhow::Error> {
+    let app_id_pwstr =
+        unsafe { windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID() }.map_err(
+            |win_err| {
+                log::warn!("error retrieving Win32 AppUserModel ID: {win_err:?}");
+                anyhow::anyhow!(win_err)
+            },
+        )?;
+    Ok(unsafe { app_id_pwstr.to_string()? })
 }

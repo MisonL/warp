@@ -217,7 +217,7 @@ impl Harness {
 
     pub fn display_name(self) -> &'static str {
         match self {
-            Self::Oz => "Oz",
+            Self::Oz => "Warp Agent",
             Self::Claude => "Claude Code",
             Self::OpenCode => "OpenCode",
             Self::Gemini => "Gemini CLI",
@@ -282,9 +282,9 @@ pub enum AgentProfileCommand {
 /// Agent-related subcommands.
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {
-    /// Run a new Oz agent.
+    /// Run a new Warp Agent.
     Run(RunAgentArgs),
-    /// Dispatch an Oz agent that runs remotely.
+    /// Dispatch a cloud agent.
     RunCloud(RunCloudArgs),
     /// Manage agent profiles.
     #[command(subcommand)]
@@ -403,6 +403,29 @@ pub struct RunAgentArgs {
     )]
     pub idle_on_complete: Option<humantime::Duration>,
 
+    /// Keep the agent's session open after the conversation ends in a terminal error, so a human
+    /// can attach to the failed run and debug in it. The agent process is the shared-session
+    /// sharer, so without this the session dies with the process.
+    ///
+    /// An idle window, not a fixed one: a follow-up cancels the pending exit.
+    ///
+    /// Deliberately separate from `--idle-on-complete`, which covers the success/blocked/cancelled
+    /// lifecycle. Neither flag is a fallback for the other.
+    ///
+    /// Cloud workers set this through `OZ_IDLE_ON_FAIL` rather than the flag, so that a pinned
+    /// CLI predating this option ignores it instead of rejecting an unknown argument.
+    ///
+    /// You can optionally provide a duration (e.g. `--idle-on-fail 10m`).
+    #[arg(
+        long = "idle-on-fail",
+        value_name = "DURATION",
+        env = "OZ_IDLE_ON_FAIL",
+        num_args = 0..=1,
+        default_missing_value = "15m",
+        hide = true
+    )]
+    pub idle_on_fail: Option<humantime::Duration>,
+
     #[command(flatten)]
     pub snapshot: SnapshotArgs,
     /// Identifier for the task that spawned this agent, used to report progress.
@@ -449,7 +472,7 @@ pub struct RunAgentArgs {
 
     /// Execution harness for the agent run.
     ///
-    /// "oz" (default) uses Warp's built-in agent infrastructure.
+    /// "oz" (default) uses Warp Agent.
     /// "claude" delegates to the `claude` CLI.
     #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz, hide = true)]
     pub harness: Harness,
@@ -696,6 +719,10 @@ pub struct AgentCreateArgs {
     #[arg(long = "description")]
     pub description: Option<String>,
 
+    /// Base prompt for runs of this agent.
+    #[arg(long = "prompt", value_name = "TEXT")]
+    pub prompt: Option<String>,
+
     /// Attach a secret to the agent. Repeat the flag for multiple secrets.
     #[arg(long = "secret", value_name = "NAME")]
     pub secrets: Vec<String>,
@@ -805,6 +832,14 @@ pub struct AgentUpdateArgs {
     /// Remove the agent default environment.
     #[arg(long = "remove-environment", conflicts_with = "environment")]
     pub remove_environment: bool,
+
+    /// Replacement base prompt for runs executed by this agent.
+    #[arg(long = "prompt", value_name = "TEXT", conflicts_with = "remove_prompt")]
+    pub prompt: Option<String>,
+
+    /// Remove the agent base prompt.
+    #[arg(long = "remove-prompt", conflicts_with = "prompt")]
+    pub remove_prompt: bool,
 
     /// JSON formatting configuration.
     #[command(flatten)]

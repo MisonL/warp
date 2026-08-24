@@ -11,10 +11,11 @@ use warp_localization::LocaleId;
 use warpui_core::clipboard::{ClipboardContent, ImageData};
 
 use super::{
-    ImageFileReadError, MAX_IMAGE_SIZE_BYTES, attachment_error_for_locale,
-    attachment_path_error_for_locale, default_clipboard_image_file_name_for_locale,
-    open_image_file, parse_image_paths, process_clipboard_content_for_locale,
+    ClipboardPasteContent, ImageFileReadError, MAX_IMAGE_SIZE_BYTES, attachment_error_for_locale,
+    attachment_path_error_for_locale, classify_clipboard_content, open_image_file,
+    parse_image_paths, process_clipboard_content, process_clipboard_content_for_locale,
     process_paths_for_locale, read_image_file_at_most, read_image_file_with_limit,
+    split_windows_image_path_tokens,
 };
 
 const ONE_PIXEL_PNG: &str =
@@ -43,10 +44,83 @@ fn parses_multiple_image_paths_in_order() {
 }
 
 #[test]
+fn preserves_windows_path_separators_when_tokenizing() {
+    assert_eq!(
+        split_windows_image_path_tokens(r#"C:\Users\Alice\Pictures\shot.png"#),
+        Some(vec![r#"C:\Users\Alice\Pictures\shot.png"#.to_owned()])
+    );
+    assert_eq!(
+        split_windows_image_path_tokens(r#""C:\Users\Alice\Pictures\shot one.png""#),
+        Some(vec![r#"C:\Users\Alice\Pictures\shot one.png"#.to_owned()])
+    );
+}
+
+#[test]
+fn decodes_percent_encoded_file_urls() {
+    let cwd = Path::new("/workspace");
+    assert_eq!(
+        parse_image_paths("file:///workspace/image%20one.png", cwd),
+        Some(vec![cwd.join("image one.png")])
+    );
+    assert!(parse_image_paths("file:///workspace/image%ZZ.png", cwd).is_none());
+    assert!(parse_image_paths("file://remote/workspace/image.png", cwd).is_none());
+}
+
+#[test]
 fn rejects_mixed_or_non_image_pastes() {
     let cwd = Path::new("/workspace");
     assert!(parse_image_paths("one.png notes.txt", cwd).is_none());
     assert!(parse_image_paths("ordinary prompt text", cwd).is_none());
+}
+
+#[test]
+fn classifies_plain_clipboard_text_as_text() {
+    let content = ClipboardContent::plain_text("ordinary prompt text".to_owned());
+
+    let ClipboardPasteContent::Text(text) =
+        classify_clipboard_content(content, Path::new("/workspace"))
+    else {
+        panic!("plain clipboard text should remain text");
+    };
+
+    assert_eq!(text, "ordinary prompt text");
+}
+
+#[test]
+fn classifies_clipboard_image_paths_without_reparsing_spaces() {
+    let content = ClipboardContent {
+        paths: Some(vec!["/workspace/image one.png".to_owned()]),
+        ..Default::default()
+    };
+
+    let ClipboardPasteContent::ImagePaths {
+        paths,
+        original_text,
+    } = classify_clipboard_content(content, Path::new("/other"))
+    else {
+        panic!("an image file path should be classified as an attachment");
+    };
+
+    assert_eq!(paths, [Path::new("/workspace/image one.png")]);
+    assert_eq!(original_text, "/workspace/image one.png");
+}
+
+#[test]
+fn classifies_clipboard_image_data_before_text() {
+    let content = ClipboardContent {
+        plain_text: "image fallback".to_owned(),
+        images: Some(vec![ImageData {
+            data: vec![1, 2, 3],
+            mime_type: "image/png".to_owned(),
+            filename: None,
+        }]),
+        ..Default::default()
+    };
+
+    assert!(matches!(
+        classify_clipboard_content(content, Path::new("/workspace")),
+        ClipboardPasteContent::Image(_)
+    ));
 }
 
 #[test]
@@ -208,21 +282,9 @@ fn processes_clipboard_image_content() {
 }
 
 #[test]
-fn localizes_the_default_clipboard_image_file_name() {
+fn reports_unavailable_clipboard_image_data() {
     assert_eq!(
-        default_clipboard_image_file_name_for_locale(LocaleId::ZhCn),
-        "\u{56fe}\u{50cf}.png"
-    );
-}
-
-#[test]
-fn rejects_clipboard_content_without_an_image() {
-    assert_eq!(
-        process_clipboard_content_for_locale(
-            ClipboardContent::plain_text("text".to_owned()),
-            LocaleId::EnUs,
-        )
-        .unwrap_err(),
+        process_clipboard_content(ClipboardContent::plain_text("text".to_owned())).unwrap_err(),
         "The clipboard does not contain an image."
     );
 }

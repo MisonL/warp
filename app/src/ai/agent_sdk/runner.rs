@@ -21,6 +21,7 @@ use warpui::platform::TerminationMode;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::output::{self, TableFormat};
+use crate::ai::runner_display::{arch_display, macos_version_display, os_display};
 use crate::localization;
 use crate::server::server_api::ServerApiProvider;
 use crate::util::time_format::format_approx_duration_from_now_utc;
@@ -513,29 +514,6 @@ fn sort_by_to_gql(sort_by: RunnerSortByArg) -> RunnerSortBy {
     }
 }
 
-fn os_display(os: RunnerOs) -> &'static str {
-    match os {
-        RunnerOs::Linux => "Linux",
-        RunnerOs::Macos => "macOS",
-    }
-}
-
-fn arch_display(arch: RunnerArch) -> &'static str {
-    match arch {
-        RunnerArch::X8664 => "x86-64",
-        RunnerArch::Aarch64 => "aarch64",
-    }
-}
-
-fn macos_version_display(version: RunnerMacOsVersion) -> &'static str {
-    match version {
-        RunnerMacOsVersion::Macos14 => "macOS 14",
-        RunnerMacOsVersion::Macos15 => "macOS 15",
-        RunnerMacOsVersion::Macos26 => "macOS 26",
-        RunnerMacOsVersion::Macos27 => "macOS 27",
-    }
-}
-
 fn space_display(space_type: SpaceType) -> &'static str {
     match space_type {
         SpaceType::Team => "Team",
@@ -694,8 +672,8 @@ impl TableFormat for RunnerInfo {
             Cell::new(&self.name),
             Cell::new(self.description.as_deref().unwrap_or("")),
             Cell::new(self.shape_display_for_locale(locale)),
-            Cell::new(&self.os),
-            Cell::new(&self.arch),
+            Cell::new(localized_runner_os(locale, &self.os)),
+            Cell::new(localized_runner_arch(locale, &self.arch)),
             Cell::new(self.os_specific_display_for_locale(locale)),
             Cell::new(localized_scope(locale, &self.scope)),
             Cell::new(&self.last_updated_display),
@@ -750,6 +728,24 @@ fn localized_scope(locale: LocaleId, scope: &str) -> String {
         "Team" => localization::text_for_locale(locale, "agent_sdk.secret.scope.team"),
         _ => scope.to_owned(),
     }
+}
+
+fn localized_runner_os(locale: LocaleId, os: &str) -> String {
+    let key = match os {
+        "Linux" => "agent_sdk.runner.value.os.linux",
+        "macOS" => "agent_sdk.runner.value.os.macos",
+        _ => return os.to_owned(),
+    };
+    localization::text_for_locale(locale, key)
+}
+
+fn localized_runner_arch(locale: LocaleId, arch: &str) -> String {
+    let key = match arch {
+        "x86-64" => "agent_sdk.runner.value.arch.x86_64",
+        "aarch64" => "agent_sdk.runner.value.arch.aarch64",
+        _ => return arch.to_owned(),
+    };
+    localization::text_for_locale(locale, key)
 }
 
 #[cfg(test)]
