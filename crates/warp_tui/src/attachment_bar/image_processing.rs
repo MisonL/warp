@@ -1,11 +1,12 @@
 //! Image path parsing and clipboard/file processing for TUI attachments.
 
+use std::path::{Path, PathBuf};
+
 #[cfg(unix)]
 use async_fs::unix::OpenOptionsExt as _;
 use base64::Engine as _;
 use base64::engine::general_purpose;
 use futures_lite::io::AsyncReadExt as _;
-use std::path::{Path, PathBuf};
 use url::Url;
 use warp::tui_export::{
     ImageContext, MAX_IMAGE_SIZE_BYTES, MIME_SNIFF_BYTES, ProcessImageResult, infer_mime_type,

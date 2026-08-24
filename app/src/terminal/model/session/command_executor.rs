@@ -351,6 +351,8 @@ fn new_command_executor_for_local_tty_session(
 
 #[cfg(any(test, feature = "test-util"))]
 pub mod testing {
+    use std::ffi::OsStr;
+
     use anyhow::anyhow;
     use command::r#async::Command;
     use warp_completer::completer::CommandOutput;
@@ -358,8 +360,7 @@ pub mod testing {
     use super::*;
     use crate::terminal::shell::ShellType;
 
-    /// Implementation of `CommandExecutor` for use in tests. This implementation simply executes
-    /// the given command in a bash subprocess.
+    /// Implementation of `CommandExecutor` for use in tests.
     #[derive(Debug, Default)]
     pub struct TestCommandExecutor {}
 
@@ -373,10 +374,22 @@ pub mod testing {
             environment_variables: Option<HashMap<String, String>>,
             _execute_command_options: ExecuteCommandOptions,
         ) -> Result<CommandOutput> {
-            let mut command_process = Command::new(match shell.shell_type() {
-                ShellType::PowerShell => "pwsh",
-                _ => "bash",
-            });
+            #[cfg(windows)]
+            let shell_program = if shell.shell_type() == ShellType::PowerShell {
+                crate::util::windows::any_powershell_path()
+                    .map(|path| path.as_os_str())
+                    .unwrap_or_else(|| OsStr::new("pwsh"))
+            } else {
+                OsStr::new("bash")
+            };
+            #[cfg(not(windows))]
+            let shell_program = match shell.shell_type() {
+                ShellType::Bash | ShellType::Fish | ShellType::Zsh => OsStr::new("bash"),
+                // Keep PowerShell semantics on Unix hosts too. If `pwsh` is not installed,
+                // `Command::output` below returns the missing-program error to the caller.
+                ShellType::PowerShell => OsStr::new("pwsh"),
+            };
+            let mut command_process = Command::new(shell_program);
 
             // Set environment variables, including $PATH.
             if let Some(environment_variables) = environment_variables {
@@ -388,13 +401,13 @@ pub mod testing {
                 command_process.current_dir(current_directory_path);
             }
 
-            command_process
+            let output = command_process
                 .arg("-c")
                 .arg(command)
                 .output()
                 .await
-                .map(|output| output.into())
-                .map_err(|e| anyhow!(e))
+                .map_err(|e| anyhow!(e))?;
+            Ok(output.into())
         }
 
         fn as_any(&self) -> &dyn Any {

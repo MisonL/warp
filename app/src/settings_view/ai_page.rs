@@ -557,8 +557,8 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         vec![
             ToggleSettingActionPair::custom(
                 SettingActionPairDescriptions::from_keys(
-                    "Show Oz changelog in new agent conversation view",
-                    "Hide Oz changelog in new agent conversation view",
+                    "Show Warp Agent changelog in new agent conversation view",
+                    "Hide Warp Agent changelog in new agent conversation view",
                     "command.ai.oz_changelog.show",
                     "command.ai.oz_changelog.hide",
                 ),

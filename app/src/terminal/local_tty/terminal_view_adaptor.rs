@@ -962,8 +962,11 @@ impl TerminalManager<TerminalView> {
                 });
 
                 terminal_view.update(ctx, |view, ctx| {
-                    let reason_string =
-                        localization::text_for_app(ctx, failed_to_initialize_session_error_key(reason));
+                    view.notify_shared_session_link_changed(ctx);
+                    let reason_string = localization::text_for_app(
+                        ctx,
+                        failed_to_initialize_session_error_key(reason),
+                    );
 
                     if matches!(
                         reason,

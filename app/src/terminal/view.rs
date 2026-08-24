@@ -8021,6 +8021,13 @@ impl TerminalView {
         &self.ai_input_model
     }
 
+    /// Used by [`crate::ai::agent_sdk::driver::checkpoint_coordinator`] to check whether the
+    /// terminal's conversation has any pending or running actions before starting a periodic
+    /// checkpoint attempt.
+    pub fn ai_action_model(&self) -> &ModelHandle<BlocklistAIActionModel> {
+        &self.ai_action_model
+    }
+
     pub fn agent_view_controller(&self) -> &ModelHandle<AgentViewController> {
         &self.agent_view_controller
     }
@@ -16321,7 +16328,9 @@ impl TerminalView {
 
         let new_size = size_update.new_size.pane_size_px();
         if new_size.x() == 0. || new_size.y() == 0. {
-            log::info!("Tried to resize with size {new_size:?}. Skipping resize");
+            // This can recur on every layout pass (e.g. while a pane is collapsed),
+            // so keep it at debug to avoid flooding release logs at frame rate.
+            log::debug!("Tried to resize with size {new_size:?}. Skipping resize");
             return;
         }
 
@@ -17026,7 +17035,8 @@ impl TerminalView {
                             .block_at(tail_block_index)
                             .is_none_or(|b| b.is_restored());
 
-                    let has_session_link = Manager::as_ref(ctx).has_session_link(&ctx.view_id());
+                    let has_session_link = Manager::as_ref(ctx)
+                        .has_session_link(&ctx.view_id(), model.shared_session_status());
                     items.extend(self.session_sharing_context_menu_items(
                         &model,
                         is_share_session_disabled,
@@ -17256,7 +17266,8 @@ impl TerminalView {
                 if FeatureFlag::CreatingSharedSessions.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled()
                 {
-                    let has_session_link = Manager::as_ref(ctx).has_session_link(&ctx.view_id());
+                    let has_session_link = Manager::as_ref(ctx)
+                        .has_session_link(&ctx.view_id(), model.shared_session_status());
                     items.extend(self.session_sharing_context_menu_items(
                         &model,
                         false,
@@ -17771,7 +17782,8 @@ impl TerminalView {
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && ContextFlag::CreateSharedSession.is_enabled()
         {
-            let has_session_link = Manager::as_ref(ctx).has_session_link(&ctx.view_id());
+            let has_session_link = Manager::as_ref(ctx)
+                .has_session_link(&ctx.view_id(), model.shared_session_status());
             items.extend(self.session_sharing_context_menu_items(
                 &model,
                 false,
@@ -18027,7 +18039,8 @@ impl TerminalView {
         if FeatureFlag::CreatingSharedSessions.is_enabled()
             && ContextFlag::CreateSharedSession.is_enabled()
         {
-            let has_session_link = Manager::as_ref(ctx).has_session_link(&ctx.view_id());
+            let has_session_link = Manager::as_ref(ctx)
+                .has_session_link(&ctx.view_id(), model.shared_session_status());
             menu_items.extend(self.session_sharing_context_menu_items(
                 &model,
                 false,

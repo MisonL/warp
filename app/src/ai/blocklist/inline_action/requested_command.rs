@@ -921,7 +921,7 @@ impl RequestedCommandView {
             ) if show_for_action_id == &self.action_id => {
                 *shown.lock() = true;
                 Some(render_autonomy_checkbox_setting_speedbump_footer(
-                    crate::localization::text_for_app(
+                    localization::text_for_app(
                         app,
                         "agent.requested_command.speedbump.always_allow_oz_readonly",
                     ),

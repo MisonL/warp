@@ -25,6 +25,7 @@ use oneshot::{Canceled, Receiver};
 use repo_metadata::local_model::IndexedRepoState;
 use repo_metadata::{RepoMetadataModel, RepositoryIdentifier};
 use session_sharing_protocol::sharer::SessionRetentionReason;
+use tracing::Instrument as _;
 use uuid::Uuid;
 use warp_cli::agent::{Harness, OutputFormat};
 use warp_cli::mcp::MCPSpec;
@@ -106,6 +107,7 @@ use crate::{localization, send_telemetry_from_app_ctx};
 pub(crate) mod attachments;
 #[cfg(feature = "local_fs")]
 pub(crate) mod cache_setup;
+mod checkpoint_coordinator;
 pub(crate) mod cloud_provider;
 pub(crate) mod environment;
 mod error_classification;
@@ -436,6 +438,8 @@ pub struct AgentDriverOptions {
     pub snapshot_upload_timeout: Option<Duration>,
     /// Declarations script timeout override.
     pub snapshot_script_timeout: Option<Duration>,
+    /// Periodic checkpoint cadence override. Only used when `FeatureFlag::PeriodicHandoffCheckpoints` is enabled.
+    pub checkpoint_interval: Option<Duration>,
     /// Skip the initial `StartFromAmbientRunPrompt` so the agent waits for a
     /// follow-up instead of hallucinating an empty turn. Sourced from the
     /// `--skip-initial-turn` CLI flag, which the worker emits when the
@@ -517,10 +521,18 @@ pub struct AgentDriver {
     snapshot_upload_timeout: Duration,
     snapshot_script_timeout: Duration,
 
+    /// Periodic workspace-handoff checkpoint coordinator; `None` unless both handoff flags are enabled and the run has a cloud task id.
+    checkpoint_coordinator: Option<checkpoint_coordinator::CheckpointCoordinatorHandle>,
+
     /// Conversation ID this driver is running. Set at construction for
     /// resumed runs and on `ConversationServerTokenAssigned` for fresh
     /// runs; consumed by `unregister_streamer_consumer` at end of run.
     run_conversation_id: Option<AIConversationId>,
+
+    /// Set only after environment, MCP, skills, and harness preflight setup is complete.
+    /// Checkpointing before this point can race workspace preparation, especially on resumed
+    /// conversations whose ID is known during construction.
+    checkpoint_ready: bool,
 
     /// Parent agent run's `run_id` from the server task metadata, when
     /// this driver run was spawned by another agent. Stamped onto the
@@ -802,6 +814,7 @@ impl AgentDriver {
             snapshot_disabled,
             snapshot_upload_timeout,
             snapshot_script_timeout,
+            checkpoint_interval,
             skip_initial_turn,
             strict_mcp_startup,
             mcp_startup_timeout,
@@ -858,6 +871,10 @@ impl AgentDriver {
             selected_harness,
             third_party_harness_model_config.as_ref(),
         ));
+        // Preserve run-scoped Factory definition clone variables in the terminal session's
+        // explicit environment map. Environment setup receives the same snapshot below instead
+        // of reading process-global state after the run has started.
+        env_vars.extend(environment::factory_definition_env_vars());
 
         // Signal to third-party harnesses (e.g. Claude Code) that we're in a sandbox
         // so they allow root execution with permissive flags.
@@ -910,6 +927,36 @@ impl AgentDriver {
             _ => None,
         };
 
+        // Spawn the periodic checkpoint coordinator under the same gates as the
+        // declarations writer above, plus the dedicated rollout flag. `None` keeps
+        // `run_snapshot_upload` on the legacy one-shot upload path unchanged.
+        let checkpoint_coordinator = match task_id {
+            Some(id)
+                if FeatureFlag::OzHandoff.is_enabled()
+                    && FeatureFlag::PeriodicHandoffCheckpoints.is_enabled()
+                    && !snapshot_disabled_value =>
+            {
+                let client = ServerApiProvider::as_ref(ctx).get_harness_support_client();
+                Some(checkpoint_coordinator::CheckpointCoordinatorHandle::new(
+                    client,
+                    id,
+                    working_dir.clone(),
+                    // Shared with the history subscription so every attempt can drain
+                    // queued `file` appends before the declarations script runs, exactly
+                    // as `run_snapshot_upload` does on the legacy path.
+                    snapshot_file_writer.clone(),
+                    ctx.spawner(),
+                    checkpoint_interval
+                        .unwrap_or(checkpoint_coordinator::DEFAULT_CHECKPOINT_INTERVAL),
+                    snapshot_script_timeout
+                        .unwrap_or(snapshot::DEFAULT_DECLARATIONS_SCRIPT_TIMEOUT),
+                    snapshot_upload_timeout.unwrap_or(snapshot::DEFAULT_SNAPSHOT_UPLOAD_TIMEOUT),
+                    ctx.background_executor(),
+                ))
+            }
+            _ => None,
+        };
+
         Ok(Self {
             terminal_driver,
             working_dir,
@@ -933,7 +980,9 @@ impl AgentDriver {
                 .unwrap_or(snapshot::DEFAULT_SNAPSHOT_UPLOAD_TIMEOUT),
             snapshot_script_timeout: snapshot_script_timeout
                 .unwrap_or(snapshot::DEFAULT_DECLARATIONS_SCRIPT_TIMEOUT),
+            checkpoint_coordinator,
             run_conversation_id,
+            checkpoint_ready: false,
             parent_run_id: parent_run_id_for_self,
             third_party_harness_model_config,
             snapshot_file_writer,
@@ -980,7 +1029,9 @@ impl AgentDriver {
             snapshot_disabled: false,
             snapshot_upload_timeout: snapshot::DEFAULT_SNAPSHOT_UPLOAD_TIMEOUT,
             snapshot_script_timeout: snapshot::DEFAULT_DECLARATIONS_SCRIPT_TIMEOUT,
+            checkpoint_coordinator: None,
             run_conversation_id: None,
+            checkpoint_ready: false,
             parent_run_id: None,
             third_party_harness_model_config: None,
             snapshot_file_writer: None,
@@ -2418,7 +2469,15 @@ impl AgentDriver {
             safe: ("Running agent driver"),
             full: ("Running agent driver for query `{:?}`", task.prompt)
         );
-        let setup_events = foreground
+
+        let setup_span = tracing::info_span!("agent_run_setup", tags.cloud_agent = true);
+        let (
+            setup_events,
+            task_id_for_refresh,
+            ai_client_for_refresh,
+            oidc_strategy_for_refresh,
+        ) = async {
+            let setup_events = foreground
             .spawn(|me, ctx| {
                 let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client().clone();
                 match me.task_id {
@@ -2633,19 +2692,45 @@ impl AgentDriver {
         let additional_source_repos = foreground
             .spawn(|me, _| me.additional_source_repos.clone())
             .await?;
+        let working_dir_for_environment = foreground.spawn(|me, _| me.working_dir.clone()).await?;
+        let env_vars_for_environment = foreground
+            .spawn(|me, _| (*me.resolved_env_vars).clone())
+            .await?;
         let setup_commands = environment_opt
             .as_ref()
             .map(|environment| environment.setup_commands.clone())
             .unwrap_or_default();
+        let environment_repos = environment_opt
+            .as_ref()
+            .map(AmbientAgentEnvironment::effective_repos)
+            .unwrap_or_default();
+        let mut repos_for_case_probe = environment_repos.clone();
+        repos_for_case_probe.extend(additional_source_repos.iter().cloned());
+        let case_sensitivity = if !environment::clone_directory_case_probe_required(&repos_for_case_probe) {
+            environment::CloneDirectoryCaseSensitivity::Sensitive
+        } else {
+            let terminal_spawner = foreground
+                .spawn(|me, ctx| me.terminal_driver.update(ctx, |_, ctx| ctx.spawner()))
+                .await?;
+            environment::clone_directory_case_sensitivity(
+                &working_dir_for_environment,
+                &terminal_spawner,
+            )
+            .await
+        };
         let source_repos = environment::merge_repos_deduped(
-            environment_opt
-                .as_ref()
-                .map(AmbientAgentEnvironment::effective_repos)
-                .unwrap_or_default(),
+            environment_repos,
             additional_source_repos,
+            case_sensitivity,
         )?;
 
-        if environment_opt.is_some() || !source_repos.is_empty() {
+        let factory_clone_configured =
+            environment::factory_definition_clone_configured(&env_vars_for_environment);
+        if environment_opt.is_some()
+            || !source_repos.is_empty()
+            || !setup_commands.is_empty()
+            || factory_clone_configured
+        {
             log::info!("Loading environment...");
             environment_skill_repos = source_repos.clone();
 
@@ -2682,6 +2767,7 @@ impl AgentDriver {
                         environment::prepare_environment(
                             source_repos_for_prepare,
                             setup_commands,
+                            env_vars_for_environment,
                             working_dir,
                             false, /* is_sandbox */
                             harness,
@@ -2802,12 +2888,30 @@ impl AgentDriver {
             })
             .await?;
 
+            Ok::<_, AgentDriverError>((
+                setup_events,
+                task_id_for_refresh,
+                ai_client_for_refresh,
+                oidc_strategy_for_refresh,
+            ))
+        }
+        .instrument(setup_span)
+        .await?;
+
         // Run the harness with a prompt, racing it against optional background refresh
         // loops for git credentials and Bedrock OIDC credentials via
         // `with_credential_refreshes`. Refresh futures never resolve on their own —
         // they are dropped automatically when the harness result resolves.
         match task.harness {
             HarnessKind::Oz => {
+                // All Oz environment, MCP, and skill setup completed above. Open the checkpoint
+                // gate immediately before starting the agent so resumed runs cannot checkpoint
+                // while preparation is still mutating the workspace.
+                foreground
+                    .spawn(|me, _| {
+                        me.checkpoint_ready = true;
+                    })
+                    .await?;
                 let status_rx = foreground
                     .spawn(move |me, ctx| me.execute_run(task.prompt, ctx))
                     .await?;
@@ -2860,6 +2964,11 @@ impl AgentDriver {
 
                         Self::run_preflight_checks(harness.as_ref(), &foreground).await?;
                         Ok::<_, AgentDriverError>((harness_exit_rx, runner))
+                    })
+                    .await?;
+                foreground
+                    .spawn(|me, _| {
+                        me.checkpoint_ready = true;
                     })
                     .await?;
                 let runtime_error_patterns = harness.runtime_error_patterns();
@@ -3982,6 +4091,8 @@ impl AgentDriver {
 
         // Submit the AI query.
         if !self.skip_initial_turn {
+            tracing::info!("Submitting initial AI query");
+
             self.terminal_driver.update(ctx, |td, ctx| {
                 td.with_terminal_view(ctx, |terminal, ctx| match task_prompt {
                     AgentRunPrompt::Local(prompt_str) => {
@@ -4310,13 +4421,20 @@ impl AgentDriver {
 
         // Snapshot upload is only meaningful for cloud task runs, so short-circuit before
         // pulling the rest of the context onto this task.
-        let Ok((Some(task_id), snapshot_disabled, upload_timeout, script_timeout)) = spawner
+        let Ok((
+            Some(task_id),
+            snapshot_disabled,
+            upload_timeout,
+            script_timeout,
+            checkpoint_coordinator,
+        )) = spawner
             .spawn(|me, _| {
                 (
                     me.task_id,
                     me.snapshot_disabled,
                     me.snapshot_upload_timeout,
                     me.snapshot_script_timeout,
+                    me.checkpoint_coordinator.clone(),
                 )
             })
             .await
@@ -4325,6 +4443,19 @@ impl AgentDriver {
         };
         if snapshot_disabled {
             log::info!("Skipping snapshot upload because --no-snapshot was specified");
+            return;
+        }
+
+        // An active coordinator replaces the legacy upload below. Budget must come from
+        // `finalize_budget`: the coordinator's floor includes the declaration-writer flush,
+        // script, and upload timeouts, so a smaller budget silently skips the final attempt.
+        if let Some(coordinator) = checkpoint_coordinator {
+            coordinator
+                .finalize(checkpoint_coordinator::finalize_budget(
+                    script_timeout,
+                    upload_timeout,
+                ))
+                .await;
             return;
         }
 

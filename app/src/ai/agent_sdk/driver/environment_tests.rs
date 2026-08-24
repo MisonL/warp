@@ -1,14 +1,21 @@
+use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use cloud_object_models::CodeForge;
 use command::blocking::Command;
 use tempfile::TempDir;
+use warp_completer::completer::{CommandExitStatus, CommandOutput};
 use warp_core::command::ExitCode;
 
 use super::{
-    PrepareEnvironmentError, build_parallel_clone_command, checkout_command_for, checkout_result,
-    merge_repos_deduped, single_repo_name,
+    CloneDirectoryCaseSensitivity, PrepareEnvironmentError, build_parallel_clone_command,
+    checkout_command_for, checkout_result, clone_directory_case_probe_command,
+    clone_directory_case_probe_output, clone_directory_case_probe_required,
+    directory_exists_command, directory_exists_output, factory_definition_clone_configured,
+    merge_repos_deduped, parallel_clone_supported, prepend_factory_definition_clone,
+    single_repo_name,
 };
 use crate::ai::cloud_environments::SourceRepo;
 use crate::terminal::shell::ShellType;
@@ -37,7 +44,12 @@ fn merge_repos_dedupes_case_insensitively_and_preserves_environment_order() {
     ];
 
     assert_eq!(
-        merge_repos_deduped(environment, additional).unwrap(),
+        merge_repos_deduped(
+            environment,
+            additional,
+            CloneDirectoryCaseSensitivity::Insensitive,
+        )
+        .unwrap(),
         vec![
             repo(CodeForge::GitHub, "WarpDotDev", "Warp"),
             repo(CodeForge::GitHub, "warpdotdev", "warp-server"),
@@ -53,6 +65,7 @@ fn merge_repos_keeps_distinct_repositories() {
             repo(CodeForge::GitHub, "b", "widget-api"),
             repo(CodeForge::GitLab, "a", "widget-web"),
         ],
+        CloneDirectoryCaseSensitivity::Insensitive,
     )
     .unwrap();
 
@@ -63,6 +76,7 @@ fn merge_repos_rejects_clone_directory_collisions() {
     let error = merge_repos_deduped(
         vec![repo(CodeForge::GitHub, "a", "widget")],
         vec![repo(CodeForge::GitLab, "b", "widget")],
+        CloneDirectoryCaseSensitivity::Insensitive,
     )
     .unwrap_err();
 
@@ -77,16 +91,101 @@ fn merge_repos_rejects_clone_directory_collisions() {
 }
 
 #[test]
+fn merge_repos_preserves_case_distinct_clone_directories() {
+    let merged = merge_repos_deduped(
+        vec![repo(CodeForge::GitHub, "a", "Widget")],
+        vec![repo(CodeForge::GitLab, "b", "widget")],
+        CloneDirectoryCaseSensitivity::Sensitive,
+    )
+    .unwrap();
+
+    assert_eq!(merged.len(), 2);
+}
+
+#[test]
+fn merge_repos_rejects_case_distinct_directories_on_insensitive_filesystems() {
+    let error = merge_repos_deduped(
+        vec![repo(CodeForge::GitHub, "a", "Widget")],
+        vec![repo(CodeForge::GitLab, "b", "widget")],
+        CloneDirectoryCaseSensitivity::Insensitive,
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        PrepareEnvironmentError::CloneDirectoryCollision { .. }
+    ));
+}
+
+#[test]
 fn merge_repos_supports_additional_only_and_empty_inputs() {
     let additional = vec![repo(CodeForge::GitHub, "warpdotdev", "warp")];
     assert_eq!(
-        merge_repos_deduped(Vec::new(), additional.clone()).unwrap(),
+        merge_repos_deduped(
+            Vec::new(),
+            additional.clone(),
+            CloneDirectoryCaseSensitivity::Insensitive,
+        )
+        .unwrap(),
         additional
     );
     assert!(
-        merge_repos_deduped(Vec::new(), Vec::new())
-            .unwrap()
-            .is_empty()
+        merge_repos_deduped(
+            Vec::new(),
+            Vec::new(),
+            CloneDirectoryCaseSensitivity::Insensitive,
+        )
+        .unwrap()
+        .is_empty()
+    );
+}
+
+#[test]
+fn clone_directory_case_probe_reports_filesystem_semantics() {
+    assert_eq!(
+        clone_directory_case_probe_output(&command_output(CommandExitStatus::Success, b"true\n",)),
+        Some(CloneDirectoryCaseSensitivity::Insensitive)
+    );
+    assert_eq!(
+        clone_directory_case_probe_output(&command_output(CommandExitStatus::Success, b"false\n",)),
+        Some(CloneDirectoryCaseSensitivity::Sensitive)
+    );
+    assert_eq!(
+        clone_directory_case_probe_output(&command_output(CommandExitStatus::Failure, b"false\n",)),
+        None
+    );
+}
+
+#[test]
+fn clone_directory_case_probe_is_only_required_for_case_distinct_collisions() {
+    assert!(!clone_directory_case_probe_required(&[
+        repo(CodeForge::GitHub, "a", "widget"),
+        repo(CodeForge::GitLab, "b", "widget"),
+    ]));
+    assert!(!clone_directory_case_probe_required(&[
+        repo(CodeForge::GitHub, "a", "widget"),
+        repo(CodeForge::GitHub, "b", "widget-api"),
+    ]));
+    assert!(!clone_directory_case_probe_required(&[
+        repo(CodeForge::GitHub, "WarpDotDev", "Widget"),
+        repo(CodeForge::GitHub, "warpdotdev", "widget"),
+    ]));
+    assert!(clone_directory_case_probe_required(&[
+        repo(CodeForge::GitHub, "a", "Widget"),
+        repo(CodeForge::GitLab, "b", "widget"),
+    ]));
+}
+
+#[test]
+fn clone_directory_case_probe_uses_shell_specific_commands() {
+    let working_dir = Path::new("/tmp/work");
+    assert!(clone_directory_case_probe_command(working_dir, ShellType::Bash).starts_with("sh -c "));
+    assert!(clone_directory_case_probe_command(working_dir, ShellType::Fish).starts_with("sh -c "));
+    let bash_command = clone_directory_case_probe_command(working_dir, ShellType::Bash);
+    assert!(bash_command.contains("trap '\"'\"'rm -rf \"$probe_dir\"'\"'\"' 0"));
+    assert!(
+        clone_directory_case_probe_command(working_dir, ShellType::PowerShell)
+            .starts_with("$probeDir = Join-Path")
     );
 }
 
@@ -613,4 +712,256 @@ fn no_checkout_ref_leaves_clone_on_default_branch() {
         git_stdout(&["rev-parse", "HEAD"], &repo_dir),
         fixture.base_sha
     );
+}
+
+#[test]
+fn factory_clone_is_prepended_when_clone_values_are_present() {
+    let mut setup_commands = vec!["make setup".to_string()];
+    super::prepend_factory_definition_clone_for_values(
+        "https://t:token@definitions.example.com/team/factory.git",
+        "acme_factory_repo",
+        ShellType::Bash,
+        &mut setup_commands,
+    );
+    assert_eq!(
+        setup_commands,
+        vec![
+            "git clone \"$WARP_FACTORY_REPO_CLONE_URL\" \"$WARP_FACTORY_REPO_DIR\"".to_string(),
+            "make setup".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn factory_clone_reads_the_run_scoped_environment_map() {
+    let mut setup_commands = vec!["make setup".to_string()];
+    let env_vars = HashMap::from([
+        (
+            OsString::from("WARP_FACTORY_REPO_CLONE_URL"),
+            OsString::from("https://factory.example/team/definition.git"),
+        ),
+        (
+            OsString::from("WARP_FACTORY_REPO_DIR"),
+            OsString::from("factory-definition"),
+        ),
+    ]);
+
+    prepend_factory_definition_clone(&mut setup_commands, ShellType::Bash, &env_vars);
+
+    assert_eq!(
+        setup_commands[0],
+        "git clone \"$WARP_FACTORY_REPO_CLONE_URL\" \"$WARP_FACTORY_REPO_DIR\""
+    );
+}
+
+#[test]
+fn factory_clone_configuration_requires_both_non_empty_values() {
+    let mut env_vars = HashMap::from([
+        (
+            OsString::from("WARP_FACTORY_REPO_CLONE_URL"),
+            OsString::from("https://factory.example/team/definition.git"),
+        ),
+        (
+            OsString::from("WARP_FACTORY_REPO_DIR"),
+            OsString::from("factory-definition"),
+        ),
+    ]);
+    assert!(factory_definition_clone_configured(&env_vars));
+
+    env_vars.remove(&OsString::from("WARP_FACTORY_REPO_DIR"));
+    assert!(!factory_definition_clone_configured(&env_vars));
+
+    env_vars.insert(
+        OsString::from("WARP_FACTORY_REPO_DIR"),
+        OsString::from("  "),
+    );
+    assert!(!factory_definition_clone_configured(&env_vars));
+
+    env_vars.insert(
+        OsString::from("WARP_FACTORY_REPO_DIR"),
+        OsString::from("factory-definition"),
+    );
+    env_vars.insert(
+        OsString::from("WARP_FACTORY_REPO_CLONE_URL"),
+        OsString::from("  "),
+    );
+    assert!(!factory_definition_clone_configured(&env_vars));
+}
+
+#[test]
+fn factory_clone_uses_powershell_environment_expansion() {
+    let mut setup_commands = vec!["make setup".to_string()];
+    super::prepend_factory_definition_clone_for_values(
+        "url",
+        "acme_factory_repo",
+        ShellType::PowerShell,
+        &mut setup_commands,
+    );
+    assert_eq!(
+        setup_commands[0],
+        "git clone \"$env:WARP_FACTORY_REPO_CLONE_URL\" \"$env:WARP_FACTORY_REPO_DIR\""
+    );
+}
+
+#[test]
+fn factory_clone_uses_fish_environment_expansion() {
+    let mut setup_commands = vec!["make setup".to_string()];
+    super::prepend_factory_definition_clone_for_values(
+        "url",
+        "acme_factory_repo",
+        ShellType::Fish,
+        &mut setup_commands,
+    );
+    assert_eq!(
+        setup_commands[0],
+        "git clone \"$WARP_FACTORY_REPO_CLONE_URL\" \"$WARP_FACTORY_REPO_DIR\""
+    );
+}
+
+#[test]
+fn setup_ci_commands_match_each_shell() {
+    assert_eq!(super::set_ci_command(ShellType::Bash), "export CI=true");
+    assert_eq!(super::set_ci_command(ShellType::Zsh), "export CI=true");
+    assert_eq!(super::set_ci_command(ShellType::Fish), "set -gx CI true");
+    assert_eq!(
+        super::set_ci_command(ShellType::PowerShell),
+        "$env:CI = 'true'"
+    );
+    assert_eq!(super::unset_ci_command(ShellType::Bash), "unset CI");
+    assert_eq!(super::unset_ci_command(ShellType::Zsh), "unset CI");
+    assert_eq!(super::unset_ci_command(ShellType::Fish), "set -e CI");
+    assert_eq!(
+        super::unset_ci_command(ShellType::PowerShell),
+        "Remove-Item Env:CI -ErrorAction SilentlyContinue"
+    );
+}
+
+#[test]
+fn parallel_clone_is_disabled_for_powershell() {
+    assert!(parallel_clone_supported(ShellType::Bash));
+    assert!(parallel_clone_supported(ShellType::Zsh));
+    assert!(parallel_clone_supported(ShellType::Fish));
+    assert!(!parallel_clone_supported(ShellType::PowerShell));
+}
+
+#[test]
+fn directory_exists_command_matches_the_active_shell() {
+    let path = r"C:\workspace\O'Reilly";
+
+    assert_eq!(
+        directory_exists_command(path, ShellType::Bash),
+        "test -d 'C:\\workspace\\O'\"'\"'Reilly'"
+    );
+    assert_eq!(
+        directory_exists_command(path, ShellType::Zsh),
+        "test -d 'C:\\workspace\\O'\"'\"'Reilly'"
+    );
+    assert_eq!(
+        directory_exists_command(path, ShellType::Fish),
+        r"test -d 'C:\workspace\O\'Reilly'"
+    );
+    assert_eq!(
+        directory_exists_command(path, ShellType::PowerShell),
+        r"Test-Path -LiteralPath 'C:\workspace\O''Reilly' -PathType Container"
+    );
+}
+
+fn command_output(status: CommandExitStatus, stdout: &[u8]) -> CommandOutput {
+    CommandOutput {
+        stdout: stdout.to_vec(),
+        stderr: Vec::new(),
+        status,
+        exit_code: None,
+    }
+}
+
+#[test]
+fn directory_exists_output_requires_true_from_powershell() {
+    assert!(directory_exists_output(
+        &command_output(CommandExitStatus::Success, b" True\r\n"),
+        ShellType::PowerShell,
+    ));
+    assert!(!directory_exists_output(
+        &command_output(CommandExitStatus::Success, b"True-ish\r\n"),
+        ShellType::PowerShell,
+    ));
+    assert!(!directory_exists_output(
+        &command_output(CommandExitStatus::Success, b"False\r\n"),
+        ShellType::PowerShell,
+    ));
+    assert!(!directory_exists_output(
+        &command_output(CommandExitStatus::Failure, b"True\r\n"),
+        ShellType::PowerShell,
+    ));
+}
+
+#[test]
+fn directory_exists_output_uses_exit_status_for_posix_shells() {
+    for shell_type in [ShellType::Bash, ShellType::Zsh, ShellType::Fish] {
+        assert!(directory_exists_output(
+            &command_output(CommandExitStatus::Success, b""),
+            shell_type,
+        ));
+        assert!(!directory_exists_output(
+            &command_output(CommandExitStatus::Failure, b""),
+            shell_type,
+        ));
+    }
+}
+
+#[test]
+fn factory_clone_is_skipped_without_clone_values() {
+    let mut setup_commands = vec!["make setup".to_string()];
+    super::prepend_factory_definition_clone_for_values(
+        "",
+        "",
+        ShellType::Bash,
+        &mut setup_commands,
+    );
+    super::prepend_factory_definition_clone_for_values(
+        "url",
+        "  ",
+        ShellType::Bash,
+        &mut setup_commands,
+    );
+    super::prepend_factory_definition_clone_for_values(
+        "  ",
+        "dir",
+        ShellType::Bash,
+        &mut setup_commands,
+    );
+    assert_eq!(setup_commands, vec!["make setup".to_string()]);
+}
+
+#[test]
+fn factory_clone_defers_to_a_persisted_environment_copy() {
+    // Environments provisioned before run-scoped cloning persist their own
+    // copy of the clone command. Detection keys off the URL env var name,
+    // not the command's exact shape, so this must still be recognized and
+    // left alone rather than duplicated.
+    let persisted =
+        "git clone \"$WARP_FACTORY_REPO_CLONE_URL\" \"$WARP_FACTORY_REPO_DIR\"".to_string();
+    let mut setup_commands = vec![persisted.clone(), "make setup".to_string()];
+    super::prepend_factory_definition_clone_for_values(
+        "https://t:token@definitions.example.com/team/factory.git",
+        "acme_factory_repo",
+        ShellType::Bash,
+        &mut setup_commands,
+    );
+    assert_eq!(setup_commands, vec![persisted, "make setup".to_string()]);
+}
+
+#[test]
+fn factory_clone_defers_to_a_persisted_bare_clone_copy() {
+    // A persisted copy in the bare (no target dir) shape must also be
+    // recognized, since detection is shape-independent.
+    let persisted = "git clone \"$WARP_FACTORY_REPO_CLONE_URL\"".to_string();
+    let mut setup_commands = vec![persisted.clone(), "make setup".to_string()];
+    super::prepend_factory_definition_clone_for_values(
+        "https://t:token@definitions.example.com/team/factory.git",
+        "acme_factory_repo",
+        ShellType::Bash,
+        &mut setup_commands,
+    );
+    assert_eq!(setup_commands, vec![persisted, "make setup".to_string()]);
 }

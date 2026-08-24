@@ -13,9 +13,9 @@ use warpui::App;
 use warpui_core::elements::tui::Modifier;
 
 use super::{
-    CommandBlockState, ResolvedCommandBlock, ToolCallDisplayState, launched_agents_label,
-    styled_tool_call_label_spans, tool_call_display_state, tool_call_label,
-    tool_call_label_with_server,
+    CommandBlockState, ResolvedCommandBlock, ToolCallDisplayState, blocked_tool_call_label,
+    compact_blocked_tool_call_label, launched_agents_label, styled_tool_call_label_spans,
+    tool_call_display_state, tool_call_label, tool_call_label_with_server,
 };
 use crate::tui_builder::TuiUiBuilder;
 
@@ -122,6 +122,23 @@ fn all_failed_run_agents_uses_failure_glyph() {
 #[test]
 fn empty_run_agents_result_is_reported_as_a_failure() {
     assert_eq!(launched_agents_label(&[]), "Failed to spawn 0 agents");
+}
+
+#[test]
+fn blocked_command_label_keeps_full_details_for_permission_cards() {
+    let command = format!("echo {}", "x".repeat(200));
+    let action = AIAgentActionType::RequestCommandOutput {
+        command: command.clone(),
+        is_read_only: None,
+        is_risky: None,
+        wait_until_completion: true,
+        uses_pager: None,
+        rationale: None,
+        citations: Vec::new(),
+    };
+
+    assert_eq!(blocked_tool_call_label(&action), format!("Run `{command}`"));
+    assert!(compact_blocked_tool_call_label(&action).ends_with('…'));
 }
 
 /// One end-to-end pass over a tool call's lifecycle: the label text must
@@ -303,6 +320,21 @@ fn mcp_tool_call_label_surfaces_tool_and_server_across_lifecycle() {
         "Calling MCP tool on github…"
     );
     assert_eq!(
+        tool_call_label_with_server(
+            &constructing_empty,
+            None,
+            true,
+            None,
+            Some("github\nignored"),
+        ),
+        "Calling MCP tool on github…"
+    );
+    let long_server = "s".repeat(81);
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, true, None, Some(&long_server)),
+        format!("Calling MCP tool on {}…", "s".repeat(80))
+    );
+    assert_eq!(
         tool_call_label_with_server(&action, None, true, None, None),
         "Calling \"create_issue\" MCP tool…"
     );
@@ -319,6 +351,13 @@ fn mcp_tool_call_label_surfaces_tool_and_server_across_lifecycle() {
     assert_eq!(
         tool_call_label_with_server(&action, None, false, None, server),
         "Call MCP tool create_issue on github"
+    );
+
+    // The server identity remains useful even when a streamed call has not
+    // supplied a tool name yet.
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, None, server),
+        "Call MCP tool on github"
     );
 
     // Blocked / awaiting approval.
@@ -341,6 +380,17 @@ fn mcp_tool_call_label_surfaces_tool_and_server_across_lifecycle() {
             server
         ),
         "Calling MCP tool create_issue on github"
+    );
+
+    assert_eq!(
+        tool_call_label_with_server(
+            &constructing_empty,
+            Some(&AIActionStatus::RunningAsync),
+            false,
+            None,
+            server,
+        ),
+        "Calling MCP tool on github"
     );
 
     // Terminal states are driven through a resolved command block so the label
@@ -367,10 +417,54 @@ fn mcp_tool_call_label_surfaces_tool_and_server_across_lifecycle() {
         "MCP tool create_issue on github cancelled"
     );
 
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&succeeded), server),
+        "Called MCP tool on github"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&failed), server),
+        "MCP tool on github failed"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&cancelled), server),
+        "MCP tool on github cancelled"
+    );
+
     // No server (legacy/flat MCP call or unknown server): tool name only.
     assert_eq!(
         tool_call_label_with_server(&action, None, false, Some(&succeeded), None),
         "Called MCP tool create_issue"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&action, None, false, Some(&succeeded), Some("")),
+        "Called MCP tool create_issue"
+    );
+
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, None, None),
+        "Call MCP tool"
+    );
+    assert_eq!(
+        tool_call_label_with_server(
+            &constructing_empty,
+            Some(&AIActionStatus::RunningAsync),
+            false,
+            None,
+            None
+        ),
+        "Calling MCP tool"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&succeeded), None),
+        "Called MCP tool"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&failed), None),
+        "MCP tool failed"
+    );
+    assert_eq!(
+        tool_call_label_with_server(&constructing_empty, None, false, Some(&cancelled), None),
+        "MCP tool cancelled"
     );
 }
 

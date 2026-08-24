@@ -471,6 +471,16 @@ pub struct TeamsPageView {
     open_member_actions_menu_index: Option<usize>,
 }
 
+struct InviteByLinkSectionContext<'a> {
+    team: &'a Team,
+    is_invite_link_enabled: bool,
+    has_admin_permissions: bool,
+    view: &'a TeamsPageView,
+    appearance: &'a Appearance,
+    chip_editor_style: UiComponentStyles,
+    app: &'a AppContext,
+}
+
 impl Entity for TeamsPageView {
     type Event = TeamsPageViewEvent;
 }
@@ -2861,13 +2871,15 @@ impl TeamsWidget {
         // Only show invite-by-link if user is admin OR if invite links are enabled
         if is_invite_link_enabled || has_admin_permissions {
             invitation_section.add_child(self.render_invite_by_link_section(
-                team_metadata,
-                is_invite_link_enabled,
-                has_admin_permissions,
-                view,
-                appearance,
-                chip_editor_style,
-                app,
+                InviteByLinkSectionContext {
+                    team: team_metadata,
+                    is_invite_link_enabled,
+                    has_admin_permissions,
+                    view,
+                    appearance,
+                    chip_editor_style,
+                    app,
+                },
             ));
         }
 
@@ -2904,14 +2916,17 @@ impl TeamsWidget {
 
     fn render_invite_by_link_section(
         &self,
-        team: &Team,
-        is_invite_link_enabled: bool,
-        has_admin_permissions: bool,
-        view: &TeamsPageView,
-        appearance: &Appearance,
-        chip_editor_style: UiComponentStyles,
-        app: &AppContext,
+        context: InviteByLinkSectionContext<'_>,
     ) -> Box<dyn Element> {
+        let InviteByLinkSectionContext {
+            team,
+            is_invite_link_enabled,
+            has_admin_permissions,
+            view,
+            appearance,
+            chip_editor_style,
+            app,
+        } = context;
         let mut section = Flex::column();
 
         // Header + admin-only subtext on the left, toggle on the right. The

@@ -37,6 +37,7 @@ const MAX_CREDIT_PACKS: usize = 8;
 /// credit denominations row.
 const CREDIT_PACK_TILE_SPACING: f32 = 8.;
 
+#[cfg(test)]
 fn default_offer_copy() -> OnboardingCopy {
     OnboardingCopy::new([
         (
@@ -263,6 +264,7 @@ impl OfferSlide {
     pub(crate) const VISUAL_IMAGE_PATHS: &'static [&'static str] =
         &["async/png/onboarding/welcome_agent.png"];
 
+    #[cfg(test)]
     pub(crate) fn new(onboarding_state: ModelHandle<OnboardingStateModel>) -> Self {
         Self::new_with_copy(onboarding_state, default_offer_copy())
     }

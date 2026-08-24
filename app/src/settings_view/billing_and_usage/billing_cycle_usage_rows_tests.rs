@@ -1,3 +1,5 @@
+use warpui::App;
+
 use super::{MemberUsageRow, SourceFilter};
 use crate::auth::UserUid;
 use crate::test_util::settings::initialize_settings_for_tests;
@@ -6,7 +8,6 @@ use crate::workspaces::workspace::{
     AiCreditsUsageAndCostSubjectType, AiCreditsUsageAndCostType, AiCreditsUsageBucket,
     AiCreditsUsageSource, BillingCycleUsageEntry, WorkspaceMember, WorkspaceMemberUsageInfo,
 };
-use warpui::App;
 
 const VIEWER_UID: &str = "viewer-uid";
 const OTHER_UID: &str = "other-uid";

@@ -1,5 +1,7 @@
-#[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
+#[cfg(feature = "local_tty")]
 use std::collections::HashMap;
+#[cfg(not(target_family = "wasm"))]
+use std::ffi::OsString;
 #[cfg(feature = "local_tty")]
 use std::path::PathBuf;
 #[cfg(feature = "local_tty")]
@@ -22,7 +24,9 @@ use warpui::{SingletonEntity, View, ViewHandle};
 use super::TerminalView;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_sdk::driver::{
-    WARP_DRIVE_SYNC_TIMEOUT, environment::prepare_environment, terminal::TerminalDriver,
+    WARP_DRIVE_SYNC_TIMEOUT,
+    environment::{factory_definition_env_vars, prepare_environment},
+    terminal::TerminalDriver,
 };
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_sdk::setup_observability::SetupClientEventReporter;
@@ -76,6 +80,7 @@ fn create_docker_sandbox_view(
     resources: TerminalViewResources,
     initial_size: Vector2F,
     model_event_sender: Option<SyncSender<ModelEvent>>,
+    #[cfg(not(target_family = "wasm"))] factory_env_vars: HashMap<OsString, OsString>,
     #[allow(dead_code)] sbx_path: PathBuf,
     ctx: &mut ViewContext<TerminalView>,
 ) -> (
@@ -107,6 +112,12 @@ fn create_docker_sandbox_view(
             let window_id = ctx.window_id();
             let terminal_init = LocalTtyTerminalManager::<TerminalView>::create_model(
                 None,
+                // Keep the run-scoped Factory definition variables in the sandbox shell too.
+                // Environment preparation emits the clone command later, so the command must
+                // expand against the same values that were captured for this terminal session.
+                #[cfg(not(target_family = "wasm"))]
+                factory_env_vars,
+                #[cfg(target_family = "wasm")]
                 HashMap::new(),
                 IsSharedSessionCreator::No,
                 None, /* restored_blocks */
@@ -209,11 +220,15 @@ impl TerminalView {
             model_event_sender: self.model_event_sender.clone(),
         };
         let pane_configuration = self.pane_configuration().clone();
+        #[cfg(not(target_family = "wasm"))]
+        let factory_env_vars = factory_definition_env_vars();
 
         let (terminal_view, terminal_manager) = create_docker_sandbox_view(
             resources,
             self.size_info().pane_size_px(),
             self.model_event_sender.clone(),
+            #[cfg(not(target_family = "wasm"))]
+            factory_env_vars.clone(),
             sbx_path,
             ctx,
         );
@@ -230,7 +245,7 @@ impl TerminalView {
         });
 
         #[cfg(not(target_family = "wasm"))]
-        Self::initialize_docker_sandbox_environment(&terminal_view_for_init, ctx);
+        Self::initialize_docker_sandbox_environment(&terminal_view_for_init, factory_env_vars, ctx);
 
         ctx.notify();
     }
@@ -239,6 +254,7 @@ impl TerminalView {
     #[cfg(not(target_family = "wasm"))]
     pub(crate) fn initialize_docker_sandbox_environment<V: View>(
         terminal_view: &ViewHandle<TerminalView>,
+        factory_env_vars: HashMap<OsString, OsString>,
         ctx: &mut ViewContext<V>,
     ) {
         let terminal_driver = TerminalDriver::create_from_existing_view(terminal_view.clone(), ctx);
@@ -292,10 +308,11 @@ impl TerminalView {
                 let source_repos = environment.effective_repos();
                 let setup_commands = environment.setup_commands;
                 let prepare_future = spawner
-                    .spawn(|_, ctx| {
+                    .spawn(move |_, ctx| {
                         prepare_environment(
                             source_repos,
                             setup_commands,
+                            factory_env_vars,
                             DOCKER_SANDBOX_HOME_DIR.into(),
                             true, /* is_sandbox */
                             Harness::Oz,

@@ -217,7 +217,7 @@ impl Harness {
 
     pub fn display_name(self) -> &'static str {
         match self {
-            Self::Oz => "Oz",
+            Self::Oz => "Warp Agent",
             Self::Claude => "Claude Code",
             Self::OpenCode => "OpenCode",
             Self::Gemini => "Gemini CLI",
@@ -282,9 +282,9 @@ pub enum AgentProfileCommand {
 /// Agent-related subcommands.
 #[derive(Debug, Clone, Subcommand)]
 pub enum AgentCommand {
-    /// Run a new Oz agent.
+    /// Run a new Warp Agent.
     Run(RunAgentArgs),
-    /// Dispatch an Oz agent that runs remotely.
+    /// Dispatch a cloud agent.
     RunCloud(RunCloudArgs),
     /// Manage agent profiles.
     #[command(subcommand)]
@@ -472,7 +472,7 @@ pub struct RunAgentArgs {
 
     /// Execution harness for the agent run.
     ///
-    /// "oz" (default) uses Warp's built-in agent infrastructure.
+    /// "oz" (default) uses Warp Agent.
     /// "claude" delegates to the `claude` CLI.
     #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz, hide = true)]
     pub harness: Harness,

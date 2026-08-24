@@ -33,6 +33,8 @@ use warpui_core::elements::tui::{
 };
 use warpui_core::{AppContext, Entity, ModelHandle, TuiView, ViewContext};
 
+#[cfg(test)]
+use crate::autoupdate::HOMEBREW_UPDATE_STATUS;
 use crate::autoupdate::{TuiAutoupdateStatus, TuiAutoupdater, TuiAutoupdaterEvent};
 use crate::localization;
 use crate::tui_builder::TuiUiBuilder;
@@ -914,6 +916,7 @@ fn login_line_label(signed_in_prefix: &str, user_info: TuiUserInfoSnapshot) -> O
 }
 
 /// User-facing copy for each visible background updater status.
+#[cfg(test)]
 fn autoupdate_status_label(status: TuiAutoupdateStatus) -> Option<&'static str> {
     match status {
         TuiAutoupdateStatus::Idle => None,
@@ -922,7 +925,24 @@ fn autoupdate_status_label(status: TuiAutoupdateStatus) -> Option<&'static str> 
         TuiAutoupdateStatus::UpToDate => Some("up to date"),
         TuiAutoupdateStatus::Failed => Some("automatic update failed"),
         TuiAutoupdateStatus::PendingRestart => Some("update installed, restart to apply"),
+        TuiAutoupdateStatus::UpdateAvailable => Some(HOMEBREW_UPDATE_STATUS),
     }
+}
+
+fn localized_autoupdate_status_label(
+    status: TuiAutoupdateStatus,
+    app: &AppContext,
+) -> Option<String> {
+    let key = match status {
+        TuiAutoupdateStatus::Idle => return None,
+        TuiAutoupdateStatus::Checking => "tui.zero_state.update.checking",
+        TuiAutoupdateStatus::Updating => "tui.zero_state.update.updating",
+        TuiAutoupdateStatus::UpToDate => "tui.zero_state.update.up_to_date",
+        TuiAutoupdateStatus::Failed => "tui.zero_state.update.failed",
+        TuiAutoupdateStatus::PendingRestart => "tui.zero_state.update.pending_restart",
+        TuiAutoupdateStatus::UpdateAvailable => "tui.autoupdate.homebrew_update_available",
+    };
+    Some(localization::text_for_app(app, key))
 }
 
 /// The version line: the release version (or "dev build"), with the
@@ -939,14 +959,15 @@ fn render_version_line(builder: &TuiUiBuilder, app: &AppContext) -> Box<dyn TuiE
             .finish();
     };
     let status = TuiAutoupdater::as_ref(app).status();
-    let Some(label) = autoupdate_status_label(status) else {
+    let Some(label) = localized_autoupdate_status_label(status, app) else {
         return TuiText::new(version).with_style(muted).truncate().finish();
     };
     let style = match status {
         TuiAutoupdateStatus::Idle => unreachable!("idle status has no label"),
         TuiAutoupdateStatus::Checking
         | TuiAutoupdateStatus::Updating
-        | TuiAutoupdateStatus::UpToDate => muted,
+        | TuiAutoupdateStatus::UpToDate
+        | TuiAutoupdateStatus::UpdateAvailable => muted,
         TuiAutoupdateStatus::Failed => builder.error_text_style(),
         TuiAutoupdateStatus::PendingRestart => builder.success_glyph_style(),
     };

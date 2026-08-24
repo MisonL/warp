@@ -19,17 +19,21 @@ impl ProcThreadAttributeList {
         // Purposefully don't bubble up the error if this fails. Per the Window docs,
         // this should return an error the first time it is called:
         // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-initializeprocthreadattributelist#remarks
-        let _ = InitializeProcThreadAttributeList(None, num_attributes, None, &mut bytes_required);
+        let _ = unsafe {
+            InitializeProcThreadAttributeList(None, num_attributes, None, &mut bytes_required)
+        };
 
         let mut attribute_list: Box<[u8]> = vec![0; bytes_required].into_boxed_slice();
         let attr_ptr = attribute_list.as_mut_ptr() as *mut _;
 
-        InitializeProcThreadAttributeList(
-            Some(LPPROC_THREAD_ATTRIBUTE_LIST(attr_ptr)),
-            num_attributes,
-            None,
-            &mut bytes_required,
-        )?;
+        unsafe {
+            InitializeProcThreadAttributeList(
+                Some(LPPROC_THREAD_ATTRIBUTE_LIST(attr_ptr)),
+                num_attributes,
+                None,
+                &mut bytes_required,
+            )?
+        };
         Ok(Self {
             data: attribute_list,
         })

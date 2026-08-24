@@ -9,11 +9,10 @@ use warpui::{
 };
 
 use super::inline_action_icons::icon_size;
-use crate::Appearance;
 use crate::ai::blocklist::view_util::error_color;
-use crate::localization;
 use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
+use crate::{Appearance, localization};
 
 #[derive(Clone, Debug)]
 pub enum GeminiEnterpriseCredentialsErrorAction {

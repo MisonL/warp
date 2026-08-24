@@ -94,18 +94,16 @@ impl LoginPurpose {
         match self {
             LoginPurpose::WarpDrive => (
                 "auth.onboarding.title.drive",
-                "auth.onboarding.description.drive",
+                "auth.onboarding.subtitle.drive",
             ),
-            LoginPurpose::WarpAgent => {
-                ("auth.onboarding.title.ai", "auth.onboarding.description.ai")
-            }
+            LoginPurpose::WarpAgent => ("auth.onboarding.title.ai", "auth.onboarding.subtitle.ai"),
             LoginPurpose::ThirdParty => (
                 "auth.onboarding.title.third_party",
-                "auth.onboarding.description.third_party",
+                "auth.onboarding.subtitle.third_party",
             ),
             LoginPurpose::AccountFirst => (
                 "auth.onboarding.title.account_first",
-                "auth.onboarding.description.account_first",
+                "auth.onboarding.subtitle.account_first",
             ),
         }
     }

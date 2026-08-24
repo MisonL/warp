@@ -37,10 +37,16 @@ fn terminal_use_status_text(
     if command_finished {
         return localization::text("tui.cli_subagent.status.command_finished");
     }
-    let (key, key_binding) = match control_state {
+    if matches!(
+        control_state,
         LongRunningCommandControlState::Agent {
-            is_blocked: true, ..
-        } => return "Agent needs your input".to_owned(),
+            is_blocked: true,
+            ..
+        }
+    ) {
+        return localization::text("tui.cli_subagent.status.needs_input_plain");
+    }
+    let (key, key_binding) = match control_state {
         LongRunningCommandControlState::Agent { .. } if output_streaming => (
             "tui.cli_subagent.status.monitoring",
             TAKE_CONTROL_KEY_BINDING,
@@ -91,21 +97,34 @@ fn blocked_action_presentation(action: &AIAgentActionType) -> BlockedActionPrese
     let (summary, detail) = match action {
         AIAgentActionType::WriteToLongRunningShellCommand { input, mode, .. } => {
             let input_kind = match mode {
-                AIAgentPtyWriteMode::Raw => "Input",
-                AIAgentPtyWriteMode::Line => "Line input",
-                AIAgentPtyWriteMode::Block => "Pasted input",
+                AIAgentPtyWriteMode::Raw => localization::text("tui.cli_subagent.blocked.input"),
+                AIAgentPtyWriteMode::Line => {
+                    localization::text("tui.cli_subagent.blocked.line_input")
+                }
+                AIAgentPtyWriteMode::Block => {
+                    localization::text("tui.cli_subagent.blocked.pasted_input")
+                }
             };
             (
-                "Agent wants to write to the running command".to_owned(),
-                Some(format!("{input_kind}:\n{}", display_pty_input(input))),
+                localization::text("tui.cli_subagent.blocked.write_summary"),
+                Some(localization::text_with_args(
+                    "tui.cli_subagent.blocked.input_detail",
+                    &[
+                        ("input_kind", &input_kind),
+                        ("input", &display_pty_input(input)),
+                    ],
+                )),
             )
         }
         AIAgentActionType::TransferShellCommandControlToUser { reason } => (
-            "Agent wants to hand command control to you".to_owned(),
-            Some(format!("Reason: {reason}")),
+            localization::text("tui.cli_subagent.blocked.transfer_summary"),
+            Some(localization::text_with_args(
+                "tui.cli_subagent.blocked.reason_detail",
+                &[("reason", reason)],
+            )),
         ),
         AIAgentActionType::ReadFiles(request) => (
-            "Agent wants to read files".to_owned(),
+            localization::text("tui.cli_subagent.blocked.read_files_summary"),
             Some(
                 request
                     .locations
@@ -116,46 +135,91 @@ fn blocked_action_presentation(action: &AIAgentActionType) -> BlockedActionPrese
             ),
         ),
         AIAgentActionType::SearchCodebase(request) => {
-            let mut detail = format!("Query: {}", request.query);
+            let mut detail = localization::text_with_args(
+                "tui.cli_subagent.blocked.query_detail",
+                &[("query", &request.query)],
+            );
             if let Some(path) = request.codebase_path.as_deref() {
-                detail.push_str(&format!("\nPath: {path}"));
+                detail.push('\n');
+                detail.push_str(&localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", path)],
+                ));
             }
             if let Some(paths) = request
                 .partial_paths
                 .as_ref()
                 .filter(|paths| !paths.is_empty())
             {
-                detail.push_str(&format!("\nFiles: {}", paths.join(", ")));
+                detail.push('\n');
+                detail.push_str(&localization::text_with_args(
+                    "tui.cli_subagent.blocked.files_detail",
+                    &[("files", &paths.join(", "))],
+                ));
             }
             (
-                "Agent wants to search the codebase".to_owned(),
+                localization::text("tui.cli_subagent.blocked.search_codebase_summary"),
                 Some(detail),
             )
         }
         AIAgentActionType::Grep { queries, path } => (
-            "Agent wants to search file contents".to_owned(),
-            Some(format!("Patterns: {}\nPath: {path}", queries.join(", "))),
+            localization::text("tui.cli_subagent.blocked.grep_summary"),
+            Some(format!(
+                "{}\n{}",
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.patterns_detail",
+                    &[("patterns", &queries.join(", "))],
+                ),
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", path)],
+                )
+            )),
         ),
         AIAgentActionType::FileGlob { patterns, path } => (
-            "Agent wants to find files".to_owned(),
+            localization::text("tui.cli_subagent.blocked.file_glob_summary"),
             Some(format!(
-                "Patterns: {}\nPath: {}",
-                patterns.join(", "),
-                path.as_deref().unwrap_or(".")
+                "{}\n{}",
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.patterns_detail",
+                    &[("patterns", &patterns.join(", "))],
+                ),
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", path.as_deref().unwrap_or("."))],
+                )
             )),
         ),
         AIAgentActionType::FileGlobV2 {
             patterns,
             search_dir,
         } => (
-            "Agent wants to find files".to_owned(),
+            localization::text("tui.cli_subagent.blocked.file_glob_summary"),
             Some(format!(
-                "Patterns: {}\nPath: {}",
-                patterns.join(", "),
-                search_dir.as_deref().unwrap_or(".")
+                "{}\n{}",
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.patterns_detail",
+                    &[("patterns", &patterns.join(", "))],
+                ),
+                localization::text_with_args(
+                    "tui.cli_subagent.blocked.path_detail",
+                    &[("path", search_dir.as_deref().unwrap_or("."))],
+                )
             )),
         ),
-        _ => (action.user_friendly_name(), None),
+        AIAgentActionType::RequestFileEdits { .. } => (
+            localization::text("tui.cli_subagent.blocked.file_edits_summary"),
+            None,
+        ),
+        _ => {
+            let summary = crate::tool_call_labels::compact_blocked_tool_call_label(action);
+            let summary = if summary.is_empty() {
+                localization::text("tui.generic_tool.details.action")
+            } else {
+                summary
+            };
+            (summary, None)
+        }
     };
     BlockedActionPresentation { summary, detail }
 }

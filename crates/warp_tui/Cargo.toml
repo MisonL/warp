@@ -61,6 +61,7 @@ rangemap.workspace = true
 serde_json.workspace = true
 shell-words = "1.1.0"
 similar.workspace = true
+settings.workspace = true
 string-offset.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
@@ -118,9 +119,6 @@ dunce.workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
-# The shared TUI test fixture checks these preference singletons before
-# installing an in-memory backend.
-settings.workspace = true
 tempfile.workspace = true
 # `test-util` exposes `Appearance::mock()`, used to register the `Appearance`
 # singleton that the editor-backed TUI input view depends on in tests.

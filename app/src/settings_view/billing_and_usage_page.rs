@@ -44,7 +44,6 @@ use crate::auth::auth_manager::LoginGatedFeature;
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::auth::{AuthManager, AuthStateProvider, UserUid};
-use crate::localization;
 use crate::localization::LocalizationUpdater;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::modal::{Modal, ModalEvent, ModalViewState};
@@ -65,7 +64,7 @@ use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::{BillingMetadata, CustomerType, Workspace};
-use crate::{WorkspaceAction, send_telemetry_from_ctx};
+use crate::{WorkspaceAction, localization, send_telemetry_from_ctx};
 
 const HEADER_FONT_SIZE: f32 = 16.;
 const OVERVIEW_TAB_TEXT_KEY: &str = "settings.billing.tab.overview";

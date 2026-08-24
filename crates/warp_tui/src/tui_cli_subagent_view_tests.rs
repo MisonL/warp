@@ -224,6 +224,35 @@ fn transfer_action_presentation_shows_the_agents_reason() {
 }
 
 #[test]
+fn fallback_blocked_action_presentation_is_nonempty_and_compact() {
+    let command_action = AIAgentActionType::RequestCommandOutput {
+        command: "echo ".to_owned() + &"x".repeat(200),
+        is_read_only: None,
+        is_risky: None,
+        wait_until_completion: true,
+        uses_pager: None,
+        rationale: None,
+        citations: Vec::new(),
+    };
+    let command_presentation = blocked_action_presentation(&command_action);
+    assert!(command_presentation.summary.ends_with('…'));
+    assert!(command_presentation.summary.chars().count() <= 81);
+
+    let file_edits_presentation =
+        blocked_action_presentation(&AIAgentActionType::RequestFileEdits {
+            file_edits: Vec::new(),
+            title: None,
+        });
+    assert_eq!(
+        file_edits_presentation,
+        BlockedActionPresentation {
+            summary: "Agent wants to edit files".to_owned(),
+            detail: None,
+        }
+    );
+}
+
+#[test]
 fn pty_input_display_names_control_bytes_and_preserves_lines() {
     assert_eq!(
         display_pty_input(b"first\r\nsecond\x03"),

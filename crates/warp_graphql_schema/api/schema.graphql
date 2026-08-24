@@ -905,10 +905,10 @@ type ConversationUsageMetadata {
 input CreateAgentTaskInput {
   """
   Optional JSON-serialized agent config snapshot to store on the task.
-  
+
   This should be a JSON object matching the AmbientAgentConfig schema used by ambient agents
   (e.g. {"model_id":"...","environment_id":"..."}).
-  
+
   If provided, the server will persist it to ai_tasks.agent_config_snapshot at creation time.
   """
   agentConfigSnapshot: String
@@ -4156,11 +4156,11 @@ input UpdateAgentTaskInput {
 
   """
   When a failed run's shared session stops being held open for debugging.
-  
+
   The agent process owns that window and reports this on arm and on each refresh, so the
   value tracks a sliding deadline. It is deliberately separate from statusMessage: a refresh
   carries only a new deadline and must not overwrite the failure text the run reported.
-  
+
   Display-only. Nothing is scheduled off it; the agent process remains the sole authority on
   when the window actually ends.
   """

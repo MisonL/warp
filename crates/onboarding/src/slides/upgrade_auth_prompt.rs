@@ -47,7 +47,7 @@ pub(super) fn render_upgrade_auth_prompt_bar(
 
     let copy_url_link = ui_builder
         .link(
-            copy.text_owned("onboarding.agent.auth.copy_url").into(),
+            copy.text_owned("onboarding.agent.auth.copy_url"),
             None,
             Some(on_copy_url),
             copy_url_mouse_state,
@@ -59,7 +59,7 @@ pub(super) fn render_upgrade_auth_prompt_bar(
 
     let paste_token_link = ui_builder
         .link(
-            copy.text_owned("onboarding.agent.auth.click_here").into(),
+            copy.text_owned("onboarding.agent.auth.click_here"),
             None,
             Some(on_paste_token),
             paste_token_mouse_state,

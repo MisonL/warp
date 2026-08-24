@@ -1,17 +1,29 @@
-use super::*;
+use warp::tui_export::{
+    AIAgentActionResultType, AIAgentActionType, AskUserQuestionResult, FileGlobV2Result,
+    GrepResult, RequestCommandOutputResult, RunAgentsResult, SearchCodebaseFailureReason,
+    SearchCodebaseResult, SuggestNewConversationResult,
+};
+
+use self::ToolCallDisplayState as State;
+use super::{
+    CommandBlockState, ResolvedCommandBlock, ToolCallDisplayState, base_name, command_exit_label,
+    display_path, fallback_label, file_glob_label, files_summary, launched_agents_label,
+    localized_count_label, single_line, single_line_without_ellipsis, summary_label,
+};
+use crate::localization;
 
 /// Builds the per-tool label body; the awaiting-approval suffix is applied by
 /// [`super::tool_call_label`]. `result` is the finished result, when there is one.
 ///
-/// `Constructing` arms never interpolate argument fields (they may be empty
-/// or partial while streaming); their copy is indexed on the GUI's loading
-/// messages (`common.rs` `LOAD_OUTPUT_MESSAGE_*` and the requested-command
-/// view's "Generating command...").
+/// `Constructing` arms avoid streamed argument fields when they may be empty
+/// or partial; MCP calls are the exception because their header already
+/// provides a stable tool/server identity.
 pub(super) fn label_for_action(
     action: &AIAgentActionType,
     state: ToolCallDisplayState,
     result: Option<&AIAgentActionResultType>,
     block: Option<&ResolvedCommandBlock>,
+    server_name: Option<&str>,
 ) -> String {
     let block_state = block.map(|block| block.state);
     match action {
@@ -22,18 +34,20 @@ pub(super) fn label_for_action(
             let executed = result
                 .and_then(AIAgentActionResultType::command_str)
                 .or_else(|| block.and_then(|block| block.command.as_deref()));
-            let cmd = single_line(executed.unwrap_or(command));
+            // Shell-command headers wrap in `TuiShellCommandView`, so retain
+            // the complete command instead of capping it at MAX_INLINE_LEN.
+            let cmd = executed.unwrap_or(command).trim_end();
             match state {
                 State::Constructing => localization::text("tui.tool.command.generating"),
                 State::Pending | State::Blocked => {
-                    localization::text_with_args("tui.tool.command.run", &[("command", &cmd)])
+                    localization::text_with_args("tui.tool.command.run", &[("command", cmd)])
                 }
                 State::Running => {
-                    localization::text_with_args("tui.tool.command.running", &[("command", &cmd)])
+                    localization::text_with_args("tui.tool.command.running", &[("command", cmd)])
                 }
                 State::Succeeded => match block_state {
                     Some(CommandBlockState::Finished { .. }) => {
-                        localization::text_with_args("tui.tool.command.ran", &[("command", &cmd)])
+                        localization::text_with_args("tui.tool.command.ran", &[("command", cmd)])
                     }
                     // No local block: fall back to the stored result. A
                     // snapshot result means the command was still running at
@@ -43,36 +57,36 @@ pub(super) fn label_for_action(
                             RequestCommandOutputResult::LongRunningCommandSnapshot { .. },
                         )) => localization::text_with_args(
                             "tui.tool.command.still_running",
-                            &[("command", &cmd)],
+                            &[("command", cmd)],
                         ),
                         _ => localization::text_with_args(
                             "tui.tool.command.ran",
-                            &[("command", &cmd)],
+                            &[("command", cmd)],
                         ),
                     },
                 },
                 State::Failed => match block_state {
                     Some(CommandBlockState::Finished { exit_code }) => {
-                        command_exit_label(&cmd, exit_code)
+                        command_exit_label(cmd, exit_code)
                     }
                     Some(CommandBlockState::Running) | None => match result {
                         Some(AIAgentActionResultType::RequestCommandOutput(
                             RequestCommandOutputResult::Completed { exit_code, .. },
-                        )) => command_exit_label(&cmd, *exit_code),
+                        )) => command_exit_label(cmd, *exit_code),
                         Some(AIAgentActionResultType::RequestCommandOutput(
                             RequestCommandOutputResult::Denylisted { .. },
                         )) => localization::text_with_args(
                             "tui.tool.command.denied",
-                            &[("command", &cmd)],
+                            &[("command", cmd)],
                         ),
                         _ => localization::text_with_args(
                             "tui.tool.command.failed",
-                            &[("command", &cmd)],
+                            &[("command", cmd)],
                         ),
                     },
                 },
                 State::Cancelled => {
-                    localization::text_with_args("tui.tool.command.cancelled", &[("command", &cmd)])
+                    localization::text_with_args("tui.tool.command.cancelled", &[("command", cmd)])
                 }
             }
         }
@@ -283,35 +297,7 @@ pub(super) fn label_for_action(
                 ),
             }
         }
-        AIAgentActionType::CallMCPTool { name, .. } => {
-            let name = single_line(name);
-            match state {
-                // Like the GUI's "Calling \"{name}\" MCP tool..." loading
-                // text; the tool name is available before its args finish.
-                State::Constructing if name.is_empty() => {
-                    localization::text("tui.tool.mcp_tool.preparing")
-                }
-                State::Constructing => localization::text_with_args(
-                    "tui.tool.mcp_tool.preparing_named",
-                    &[("name", &name)],
-                ),
-                State::Pending | State::Blocked => {
-                    localization::text_with_args("tui.tool.mcp_tool.start", &[("name", &name)])
-                }
-                State::Running => {
-                    localization::text_with_args("tui.tool.mcp_tool.running", &[("name", &name)])
-                }
-                State::Succeeded => {
-                    localization::text_with_args("tui.tool.mcp_tool.succeeded", &[("name", &name)])
-                }
-                State::Failed => {
-                    localization::text_with_args("tui.tool.mcp_tool.failed", &[("name", &name)])
-                }
-                State::Cancelled => {
-                    localization::text_with_args("tui.tool.mcp_tool.cancelled", &[("name", &name)])
-                }
-            }
-        }
+        AIAgentActionType::CallMCPTool { name, .. } => mcp_tool_label(name, server_name, state),
         AIAgentActionType::SuggestNewConversation { .. } => match state {
             State::Constructing => localization::text("tui.tool.conversation.suggesting"),
             State::Pending | State::Blocked | State::Running | State::Failed => {
@@ -621,5 +607,99 @@ pub(super) fn label_for_action(
             State::Failed => localization::text("tui.tool.events.failed"),
             State::Cancelled => localization::text("tui.tool.events.cancelled"),
         },
+    }
+}
+
+fn mcp_tool_label(name: &str, server_name: Option<&str>, state: ToolCallDisplayState) -> String {
+    let name = if state == State::Constructing {
+        single_line_without_ellipsis(name)
+    } else {
+        single_line(name)
+    };
+    let server_name = server_name
+        .filter(|server| !server.trim().is_empty())
+        .map(|server| {
+            if state == State::Constructing {
+                single_line_without_ellipsis(server)
+            } else {
+                single_line(server)
+            }
+        });
+    let named = !name.is_empty();
+    match (state, server_name.as_deref(), named) {
+        (State::Constructing, Some(server), true) => localization::text_with_args(
+            "tui.tool.mcp_tool.preparing_named_on_server",
+            &[("name", &name), ("server", server)],
+        ),
+        (State::Constructing, Some(server), false) => localization::text_with_args(
+            "tui.tool.mcp_tool.preparing_on_server",
+            &[("server", server)],
+        ),
+        (State::Constructing, None, true) => {
+            localization::text_with_args("tui.tool.mcp_tool.preparing_named", &[("name", &name)])
+        }
+        (State::Constructing, None, false) => localization::text("tui.tool.mcp_tool.preparing"),
+        (State::Pending | State::Blocked, Some(server), true) => localization::text_with_args(
+            "tui.tool.mcp_tool.start_on_server",
+            &[("name", &name), ("server", server)],
+        ),
+        (State::Pending | State::Blocked, Some(server), false) => localization::text_with_args(
+            "tui.tool.mcp_tool.start_empty_on_server",
+            &[("server", server)],
+        ),
+        (State::Pending | State::Blocked, None, true) => {
+            localization::text_with_args("tui.tool.mcp_tool.start", &[("name", &name)])
+        }
+        (State::Pending | State::Blocked, None, false) => {
+            localization::text("tui.tool.mcp_tool.start_empty")
+        }
+        (State::Running, Some(server), true) => localization::text_with_args(
+            "tui.tool.mcp_tool.running_on_server",
+            &[("name", &name), ("server", server)],
+        ),
+        (State::Running, Some(server), false) => localization::text_with_args(
+            "tui.tool.mcp_tool.running_empty_on_server",
+            &[("server", server)],
+        ),
+        (State::Running, None, true) => {
+            localization::text_with_args("tui.tool.mcp_tool.running", &[("name", &name)])
+        }
+        (State::Running, None, false) => localization::text("tui.tool.mcp_tool.running_empty"),
+        (State::Succeeded, Some(server), true) => localization::text_with_args(
+            "tui.tool.mcp_tool.succeeded_on_server",
+            &[("name", &name), ("server", server)],
+        ),
+        (State::Succeeded, Some(server), false) => localization::text_with_args(
+            "tui.tool.mcp_tool.succeeded_empty_on_server",
+            &[("server", server)],
+        ),
+        (State::Succeeded, None, true) => {
+            localization::text_with_args("tui.tool.mcp_tool.succeeded", &[("name", &name)])
+        }
+        (State::Succeeded, None, false) => localization::text("tui.tool.mcp_tool.succeeded_empty"),
+        (State::Failed, Some(server), true) => localization::text_with_args(
+            "tui.tool.mcp_tool.failed_on_server",
+            &[("name", &name), ("server", server)],
+        ),
+        (State::Failed, Some(server), false) => localization::text_with_args(
+            "tui.tool.mcp_tool.failed_empty_on_server",
+            &[("server", server)],
+        ),
+        (State::Failed, None, true) => {
+            localization::text_with_args("tui.tool.mcp_tool.failed", &[("name", &name)])
+        }
+        (State::Failed, None, false) => localization::text("tui.tool.mcp_tool.failed_empty"),
+        (State::Cancelled, Some(server), true) => localization::text_with_args(
+            "tui.tool.mcp_tool.cancelled_on_server",
+            &[("name", &name), ("server", server)],
+        ),
+        (State::Cancelled, Some(server), false) => localization::text_with_args(
+            "tui.tool.mcp_tool.cancelled_empty_on_server",
+            &[("server", server)],
+        ),
+        (State::Cancelled, None, true) => {
+            localization::text_with_args("tui.tool.mcp_tool.cancelled", &[("name", &name)])
+        }
+        (State::Cancelled, None, false) => localization::text("tui.tool.mcp_tool.cancelled_empty"),
     }
 }

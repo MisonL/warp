@@ -31,12 +31,11 @@ use crate::ai::blocklist::inline_action::host_picker::HostPicker;
 use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::harness_availability::HarnessAvailabilityModel;
 use crate::ai::harness_display;
-use crate::ai::orchestration::localized_orchestration_disabled_reason;
 use crate::ai::orchestration::{
     AUTH_SECRETS_LOAD_FAILED_MESSAGE, OptionBadge, OptionFooter, OptionRow, OptionSnapshot,
     OptionSourceStatus, RUNNERS_LOAD_FAILED_MESSAGE, RunnerFetchState, api_key_snapshot,
-    build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot, model_snapshot,
-    persist_auth_secret_selection,
+    build_runner_snapshot, environment_snapshot, harness_snapshot, host_snapshot,
+    localized_orchestration_disabled_reason, model_snapshot, persist_auth_secret_selection,
 };
 pub use crate::ai::orchestration::{
     AuthSecretSelection, ORCHESTRATION_WARP_WORKER_HOST, OrchestrationConfigState,

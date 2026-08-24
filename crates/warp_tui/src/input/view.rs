@@ -165,6 +165,8 @@ fn binding_description(
 /// Events emitted by [`TuiInputView`].
 #[derive(Debug, Clone)]
 pub enum TuiInputViewEvent {
+    /// Pointer interaction requested focus for the session's current input owner.
+    FocusRequested,
     /// The user pressed Enter to submit the current input. Contains the final text.
     Submitted(String),
     /// The terminal delivered one complete bracketed-paste payload.
@@ -806,6 +808,17 @@ impl TypedActionView for TuiInputView {
     type Action = TuiInputAction;
 
     fn handle_action(&mut self, action: &TuiInputAction, ctx: &mut ViewContext<Self>) {
+        if matches!(
+            action,
+            TuiInputAction::Editor(
+                TuiEditorAction::SelectionStartAt { .. }
+                    | TuiEditorAction::SelectionExtendTo { .. }
+                    | TuiEditorAction::SelectWordAt { .. }
+                    | TuiEditorAction::SelectLineAt { .. }
+            ) | TuiInputAction::SetCursor { .. }
+        ) {
+            ctx.emit(TuiInputViewEvent::FocusRequested);
+        }
         if self.handle_inline_menu_action(action, ctx) {
             return;
         }

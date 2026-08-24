@@ -12,6 +12,7 @@
 
 use std::cell::Cell;
 
+use chrono::NaiveDateTime;
 use warp::tui_export::{AIConversationId, OZ_ENVIRONMENTS_URL};
 use warpui_core::elements::CrossAxisAlignment;
 use warpui_core::elements::tui::{
@@ -566,11 +567,12 @@ impl TuiHandoffBlock {
     fn render_completed(
         &self,
         url: &str,
-        completed_at: &str,
+        completed_at: NaiveDateTime,
         continuing_locally: bool,
         ctx: &AppContext,
     ) -> Box<dyn TuiElement> {
         let builder = TuiUiBuilder::from_app(ctx);
+        let completed_at = localization::format_completed_at(completed_at);
         let content = TuiFlex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .child(horizontally_centered(
@@ -583,7 +585,7 @@ impl TuiHandoffBlock {
                             } else {
                                 "tui.handoff.completed"
                             },
-                            &[("completed_at", completed_at)],
+                            &[("completed_at", completed_at.as_str())],
                         ),
                         builder.primary_text_style(),
                     ),
@@ -722,7 +724,7 @@ impl TuiView for TuiHandoffBlock {
             continuing_locally,
         } = self.model.as_ref(ctx).phase()
         {
-            return self.render_completed(url, completed_at, *continuing_locally, ctx);
+            return self.render_completed(url, *completed_at, *continuing_locally, ctx);
         }
         let builder = TuiUiBuilder::from_app(ctx);
         let header = TuiContainer::new(

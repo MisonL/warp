@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::Local;
+use chrono::{Local, NaiveDateTime};
 use futures::channel::oneshot;
 use parking_lot::FairMutex;
 use warp::settings::{AISettings, PrivacySettings, PrivacySettingsChangedEvent};
@@ -62,11 +62,11 @@ pub(crate) enum TuiHandoffPhase {
     },
     Created {
         url: String,
-        completed_at: String,
+        completed_at: NaiveDateTime,
     },
     Persisted {
         url: String,
-        completed_at: String,
+        completed_at: NaiveDateTime,
         continuing_locally: bool,
     },
 }
@@ -666,10 +666,7 @@ impl TuiHandoffModel {
                     );
                     model.phase = TuiHandoffPhase::Created {
                         url: created.url,
-                        completed_at: Local::now()
-                            .naive_local()
-                            .format("%B %-d at %-I:%M%P")
-                            .to_string(),
+                        completed_at: Local::now().naive_local(),
                     };
                     ctx.emit(TuiHandoffModelEvent::Changed { focus_block: true });
                     ctx.notify();
@@ -706,7 +703,7 @@ impl TuiHandoffModel {
         }
         self.phase = TuiHandoffPhase::Persisted {
             url: url.clone(),
-            completed_at: completed_at.clone(),
+            completed_at: *completed_at,
             continuing_locally: true,
         };
         ctx.emit(TuiHandoffModelEvent::ContinueLocally);

@@ -1,6 +1,7 @@
 use std::sync::LazyLock;
 
 use anyhow::Context as _;
+use chrono::NaiveDateTime;
 use parking_lot::RwLock;
 use warp_localization::{
     AppLanguage, Catalog, CatalogBundle, LocaleId, native_locale_candidates, replace_placeholders,
@@ -24,8 +25,24 @@ pub(crate) fn text(key: &str) -> String {
     text_for_locale(current_locale(), key)
 }
 
+pub(crate) fn text_for_app(app: &AppContext, key: &str) -> String {
+    sync_from_app(app);
+    text(key)
+}
+
 pub(crate) fn text_with_args(key: &str, args: &[(&str, &str)]) -> String {
     text_with_args_for_locale(current_locale(), key, args)
+}
+
+pub(crate) fn format_completed_at(completed_at: NaiveDateTime) -> String {
+    format_completed_at_for_locale(current_locale(), completed_at)
+}
+
+fn format_completed_at_for_locale(locale: LocaleId, completed_at: NaiveDateTime) -> String {
+    match locale {
+        LocaleId::EnUs => completed_at.format("%B %-d at %-I:%M%P").to_string(),
+        LocaleId::ZhCn => completed_at.format("%Y年%-m月%-d日 %-H:%M").to_string(),
+    }
 }
 
 pub(crate) fn text_for_locale(locale: LocaleId, key: &str) -> String {

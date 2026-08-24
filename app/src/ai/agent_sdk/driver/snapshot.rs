@@ -8,9 +8,10 @@
 //!
 //! # Declarations file format (v1)
 //!
-//! The declarations file is an append-only UTF-8 JSONL file. The Rust pipeline only ever
-//! *reads* it; the sibling bash generator `snapshot-declarations.sh` (shipped in
-//! `warp-agent-docker`) is the primary writer, and operators may hand-edit entries.
+//! The declarations file is an append-only UTF-8 JSONL file for the lifetime of a run. The Rust
+//! pipeline only ever *reads* it; the sibling bash generator `snapshot-declarations.sh` (shipped
+//! in `warp-agent-docker`) is the primary writer, and operators may hand-edit entries. Checkpoint
+//! reads ignore entries whose path has since been deleted, while preserving real I/O failures.
 //!
 //! Each non-empty line is a JSON object with:
 //! - `version`: `1`,
@@ -37,19 +38,21 @@ use futures::future::join_all;
 use tokio::fs::{self as tokio_fs, OpenOptions};
 use tokio::io::AsyncWriteExt as _;
 use tokio::sync::{mpsc, oneshot};
+use warp_core::safe_info;
 use warp_errors::report_error;
-use warp_localization::{LocaleId, replace_placeholders};
 use warpui::r#async::FutureExt as _;
 use warpui::r#async::executor::Background;
 
 use crate::ai::agent_sdk::retry::with_bounded_retry;
+use crate::ai::agent_sdk::{default_text, default_text_with_args};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::server::server_api::ai::{
     AIClient, InitialSnapshotToken, SnapshotUploadFileInfo as AiSnapshotUploadFileInfo,
     UploadLocalHandoffSnapshotRequest,
 };
 use crate::server::server_api::harness_support::{
-    HarnessSupportClient, SnapshotFileInfo, SnapshotUploadRequest, UploadTarget, upload_to_target,
+    CheckpointGeneration, CommitSnapshotRequest, HarnessSupportClient, SnapshotFileInfo,
+    SnapshotUploadRequest, UploadTarget, upload_to_target,
 };
 
 /// Default path of the declarations file when neither the env var override nor a task ID
@@ -87,14 +90,14 @@ const UPLOAD_BATCH_SIZE: usize = 25;
 /// consumers can distinguish capped entries from real upload failures.
 const MAX_SNAPSHOT_FILES_PER_RUN: usize = 100;
 
-fn default_text(key: &str) -> String {
-    crate::localization::text_for_locale(LocaleId::EnUs, key)
-}
-
-fn default_text_with_args(key: &str, args: &[(&str, &str)]) -> String {
-    replace_placeholders(&default_text(key), args)
-        .expect("localized text template arguments must match the catalog")
-}
+/// Per-file ceiling, mirroring the server's `handoff_snapshots.max_file_upload_size_bytes`.
+/// The presigned URL is signed with this limit, so a larger blob's PUT is rejected by storage.
+///
+/// Oversized blobs are dropped from the upload plan and marked `skipped` rather than left to
+/// fail: a checkpoint attempt refuses to commit when any required blob failed, so one
+/// too-large file would otherwise block every future attempt for the run rather than costing
+/// just itself.
+const MAX_SNAPSHOT_FILE_SIZE_BYTES: u64 = 25 * 1024 * 1024;
 
 // --- Declarations file parsing ---
 
@@ -175,10 +178,7 @@ pub(super) async fn run_declarations_script(
         working_dir.display(),
         declarations_path.display(),
     );
-    let mut command = Command::new(&script_path);
-    command
-        .current_dir(working_dir)
-        .env(DECLARATIONS_PATH_ENV_VAR, &declarations_path);
+    let mut command = declarations_script_command(&script_path, working_dir, &declarations_path);
 
     let output = match command.output().with_timeout(script_timeout).await {
         Ok(Ok(output)) => output,
@@ -216,12 +216,27 @@ pub(super) async fn run_declarations_script(
     }
 }
 
+fn declarations_script_command(
+    script_path: &Path,
+    working_dir: &Path,
+    declarations_path: &Path,
+) -> Command {
+    let mut command = Command::new(script_path);
+    command
+        .current_dir(working_dir)
+        .env(DECLARATIONS_PATH_ENV_VAR, declarations_path)
+        // `with_timeout` cancels only the wait future. Ensure a timed-out generator cannot
+        // continue appending to the declarations file while the upload pipeline reads it.
+        .kill_on_drop(true);
+    command
+}
+
 /// Resolve the declarations file path from the process env and optional task ID.
 ///
 /// Reads `$OZ_SNAPSHOT_DECLARATIONS_FILE` for the operator/test override, then delegates to
 /// [`resolve_declarations_path_with_override`] so tests can exercise the pure logic without
 /// racing on the shared env var.
-fn resolve_declarations_path(task_id: Option<&AmbientAgentTaskId>) -> PathBuf {
+pub(super) fn resolve_declarations_path(task_id: Option<&AmbientAgentTaskId>) -> PathBuf {
     resolve_declarations_path_with_override(task_id, std::env::var_os(DECLARATIONS_PATH_ENV_VAR))
 }
 
@@ -374,6 +389,42 @@ fn drop_files_covered_by_repos(entries: Vec<DeclarationEntry>) -> Vec<Declaratio
             true
         })
         .collect()
+}
+
+/// Remove declarations for paths that no longer exist.
+///
+/// The generator and SDK writer intentionally append during a run, so a file or repository can
+/// be deleted after it was declared. A missing path is stale state rather than a failed
+/// checkpoint; retaining it would make every later checkpoint fail forever. Other metadata
+/// errors are retained so permission and I/O failures still block a commit and remain visible in
+/// the manifest.
+async fn filter_stale_checkpoint_declarations(
+    entries: Vec<DeclarationEntry>,
+) -> Vec<DeclarationEntry> {
+    let mut current = Vec::with_capacity(entries.len());
+    for entry in entries {
+        match tokio_fs::metadata(&entry.path).await {
+            Ok(_) => current.push(entry),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                log::info!(
+                    "Ignoring stale checkpoint declaration for deleted {} '{}'",
+                    match entry.kind {
+                        EntryKind::Repo => "repo",
+                        EntryKind::File => "file",
+                    },
+                    entry.path
+                );
+            }
+            Err(error) => {
+                log::warn!(
+                    "Unable to inspect checkpoint declaration '{}': {error:#}; retaining it",
+                    entry.path
+                );
+                current.push(entry);
+            }
+        }
+    }
+    current
 }
 
 // --- Declarations writer: SDK driver → declarations file ---
@@ -592,7 +643,13 @@ struct SnapshotUploadFile {
 enum EntryStatus {
     Uploaded,
     Failed,
+    /// Deliberately dropped to honor [`MAX_SNAPSHOT_FILES_PER_RUN`]. A policy decision, not a
+    /// failure, so a checkpoint attempt may still commit the kept subset.
     Skipped,
+    /// The server returned no presigned target for this blob, violating `upload-snapshot`'s
+    /// positional alignment. Distinct from [`EntryStatus::Skipped`] because nothing
+    /// intentional happened: committing here would silently shrink the object set.
+    NoTarget,
     GatherFailed,
     ReadFailed,
 }
@@ -603,6 +660,7 @@ impl EntryStatus {
             Self::Uploaded => "uploaded",
             Self::Failed => "failed",
             Self::Skipped => "skipped",
+            Self::NoTarget => "no_target",
             Self::GatherFailed => "gather_failed",
             Self::ReadFailed => "read_failed",
         }
@@ -621,6 +679,7 @@ struct SnapshotSummary {
     uploaded: usize,
     failed: usize,
     skipped: usize,
+    no_target: usize,
     gather_failed: usize,
     read_failed: usize,
     total: usize,
@@ -633,6 +692,7 @@ impl SnapshotSummary {
             uploaded: 0,
             failed: 0,
             skipped: 0,
+            no_target: 0,
             gather_failed: 0,
             read_failed: 0,
             total: entries.len(),
@@ -643,6 +703,7 @@ impl SnapshotSummary {
                 EntryStatus::Uploaded => s.uploaded += 1,
                 EntryStatus::Failed => s.failed += 1,
                 EntryStatus::Skipped => s.skipped += 1,
+                EntryStatus::NoTarget => s.no_target += 1,
                 EntryStatus::GatherFailed => s.gather_failed += 1,
                 EntryStatus::ReadFailed => s.read_failed += 1,
             }
@@ -659,6 +720,52 @@ impl SnapshotSummary {
 struct SnapshotOutcome {
     entries: Vec<EntryResult>,
     manifest_uploaded: bool,
+}
+
+/// Outcome of one checkpoint attempt, where [`SnapshotOutcome`] only covers per-entry upload
+/// results within that attempt.
+#[derive(Debug)]
+pub(super) enum CheckpointResult {
+    /// `generation` is now the server's selected checkpoint.
+    Committed { generation: CheckpointGeneration },
+    /// Nothing to checkpoint: the declarations file was missing, empty, or had no valid
+    /// entries. No generation was minted and no network calls were made.
+    Skipped,
+    /// A required upload, the upload-target allocation, or the commit failed. Uploaded
+    /// objects are left as uncommitted debris; the server's existing marker is untouched.
+    /// `generation` identifies the staged object namespace that should be reused on retry. It
+    /// is `None` only when the attempt failed before a generation could be allocated.
+    Failed {
+        generation: Option<CheckpointGeneration>,
+        reason: String,
+    },
+}
+
+/// Which upload-accounting path the shared gather/upload pipeline uses. See
+/// [`SnapshotUploadMode`] for the server-side semantics.
+enum PipelineMode {
+    Legacy,
+    Checkpoint(CheckpointGeneration),
+}
+
+/// Disambiguates [`mint_generation`] calls landing in the same millisecond.
+static GENERATION_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Mint a generation identifier, which satisfies [`CheckpointGeneration`]'s format by
+/// construction.
+///
+/// Call this once per *uncommitted attempt sequence*. A retry that follows a failed attempt
+/// reuses that attempt's generation rather than minting a new one, so it overwrites the same
+/// staged objects. Callers may allocate before gathering when they need the generation to
+/// survive cancellation or timeout; enforcing one generation per attempt sequence remains the
+/// caller's job (see the coordinator).
+pub(super) fn mint_generation() -> CheckpointGeneration {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let counter = GENERATION_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    CheckpointGeneration::from_validated(format!("{millis}-{counter}"))
 }
 
 // --- Manifest schema ---
@@ -897,6 +1004,7 @@ async fn run_pipeline(
 
     upload_gathered_snapshot(
         client,
+        &PipelineMode::Legacy,
         manifest_filename,
         upload_files,
         repos,
@@ -904,6 +1012,141 @@ async fn run_pipeline(
         pre_upload_entries,
     )
     .await
+}
+
+/// Run one checkpoint attempt from the declarations file at `path`: gather the payload, mint a
+/// generation, upload it in checkpoint mode, and commit the exact set that landed. Never
+/// panics; every failure mode comes back as a [`CheckpointResult`].
+///
+/// Unlike [`upload_snapshot_from_declarations_file`], an unusable declarations file is
+/// [`CheckpointResult::Skipped`] rather than `None`, because the coordinator's state machine
+/// distinguishes "nothing to do" from "tried and failed".
+///
+/// Pass `generation` to retry a previously failed attempt. The payload is still re-gathered,
+/// so the checkpoint stays current, but it is staged under that generation's object names
+/// again instead of adding a whole new set. The server bounds how many objects one
+/// execution's prefix may hold and only reclaims abandoned ones during a *successful* commit,
+/// so minting per retry would let a run of failures exhaust that budget and lock the
+/// execution out of checkpointing entirely.
+pub(super) async fn run_checkpoint_from_declarations_file(
+    path: &Path,
+    client: Arc<dyn HarnessSupportClient>,
+    generation: Option<CheckpointGeneration>,
+) -> CheckpointResult {
+    safe_info!(
+        safe: ("Checkpoint attempt starting"),
+        full: ("Checkpoint attempt starting from {}", path.display())
+    );
+    let Some(declarations) = read_and_parse_declarations(path) else {
+        return CheckpointResult::Skipped;
+    };
+    let declarations = filter_stale_checkpoint_declarations(declarations).await;
+    let declarations = drop_files_covered_by_repos(declarations);
+    if declarations.is_empty() {
+        log::info!("Checkpoint declarations empty after de-duplication; skipping attempt");
+        return CheckpointResult::Skipped;
+    }
+    let gathered = gather_snapshot_entries(declarations).await;
+    // Reuse the caller-provided generation for retries; otherwise mint one for this attempt.
+    let generation = generation.unwrap_or_else(mint_generation);
+    run_checkpoint_pipeline(client, generation, gathered).await
+}
+
+/// Upload and commit an already-gathered payload under `generation`. Split out so a caller
+/// re-running the exact same attempt can reuse both the payload and the generation.
+async fn run_checkpoint_pipeline(
+    client: Arc<dyn HarnessSupportClient>,
+    generation: CheckpointGeneration,
+    gathered: GatheredSnapshot,
+) -> CheckpointResult {
+    let GatheredSnapshot {
+        manifest_filename,
+        upload_files,
+        repos,
+        files,
+        pre_upload_entries,
+    } = gathered;
+
+    let outcome = upload_gathered_snapshot(
+        client.clone(),
+        &PipelineMode::Checkpoint(generation.clone()),
+        manifest_filename.clone(),
+        upload_files,
+        repos,
+        files,
+        pre_upload_entries,
+    )
+    .await;
+    let Some(outcome) = outcome else {
+        return CheckpointResult::Failed {
+            generation: Some(generation),
+            reason: "failed to allocate upload targets or serialize manifest".to_string(),
+        };
+    };
+    log_snapshot_outcome(&outcome);
+    log::info!(
+        "Checkpoint attempt generation={generation} pending commit",
+        generation = generation.as_str()
+    );
+
+    if !outcome.manifest_uploaded {
+        return CheckpointResult::Failed {
+            generation: Some(generation),
+            reason: "manifest failed to upload".to_string(),
+        };
+    }
+    // Committing with any required-entry failure would make an incomplete object set the
+    // selected checkpoint, discarding a previously complete one. `Skipped` is intentionally
+    // excluded: policy-capped or oversized entries are represented in the manifest and are not
+    // expected to be part of this checkpoint.
+    if outcome.entries.iter().any(|e| {
+        matches!(
+            e.status,
+            EntryStatus::Failed
+                | EntryStatus::NoTarget
+                | EntryStatus::GatherFailed
+                | EntryStatus::ReadFailed
+        )
+    }) {
+        return CheckpointResult::Failed {
+            generation: Some(generation),
+            reason: "one or more required entries failed during gather, read, or upload, or had no upload target"
+                .to_string(),
+        };
+    }
+
+    // Exact-set commit: the manifest plus every blob that actually uploaded, named the same way
+    // the upload-targets request named them. The server resolves each to a storage object.
+    let mut files: Vec<String> = outcome
+        .entries
+        .iter()
+        .filter(|e| e.status == EntryStatus::Uploaded && e.label != manifest_filename)
+        .map(|e| e.label.clone())
+        .collect();
+    files.push(manifest_filename);
+
+    let commit_request = CommitSnapshotRequest {
+        generation: generation.as_str().to_string(),
+        files,
+    };
+    // Every object is already in storage, so a transient failure here would throw away the
+    // whole attempt. Re-committing the same generation is idempotent server-side.
+    let operation = format!("checkpoint commit '{}'", generation.as_str());
+    match with_bounded_retry(&operation, || client.commit_snapshot(&commit_request)).await {
+        Ok(response) => {
+            log::info!("Checkpoint committed: generation={}", response.generation);
+            CheckpointResult::Committed { generation }
+        }
+        Err(e) => {
+            let e = e.context("Failed to commit checkpoint snapshot");
+            let reason = format!("{e:#}");
+            report_error!(e);
+            CheckpointResult::Failed {
+                generation: Some(generation),
+                reason,
+            }
+        }
+    }
 }
 
 struct GatheredSnapshot {
@@ -964,6 +1207,7 @@ async fn gather_snapshot_entries(declarations: Vec<DeclarationEntry>) -> Gathere
 
 async fn upload_gathered_snapshot(
     client: Arc<dyn HarnessSupportClient>,
+    mode: &PipelineMode,
     manifest_filename: String,
     mut upload_files: Vec<SnapshotUploadFile>,
     mut repos: Vec<RepoManifestEntry>,
@@ -1000,12 +1244,13 @@ async fn upload_gathered_snapshot(
 
     let mut target_map: HashMap<String, UploadTarget> = HashMap::new();
     for chunk in file_infos.chunks(UPLOAD_BATCH_SIZE) {
-        let targets = match client
-            .get_snapshot_upload_targets(&SnapshotUploadRequest {
-                files: chunk.to_vec(),
-            })
-            .await
-        {
+        let request = match mode {
+            PipelineMode::Legacy => SnapshotUploadRequest::legacy(chunk.to_vec()),
+            PipelineMode::Checkpoint(generation) => {
+                SnapshotUploadRequest::checkpoint(generation.clone(), chunk.to_vec())
+            }
+        };
+        let targets = match client.get_snapshot_upload_targets(&request).await {
             Ok(t) => t,
             Err(e) => {
                 // Pipeline-abort: route through report_error! so Sentry captures the structured
@@ -1115,6 +1360,13 @@ async fn upload_prepared_snapshot_files(
     })
 }
 
+/// Message recorded for a blob dropped for exceeding [`MAX_SNAPSHOT_FILE_SIZE_BYTES`].
+fn oversized_error(size_bytes: u64) -> String {
+    format!(
+        "exceeds the per-file snapshot limit of {MAX_SNAPSHOT_FILE_SIZE_BYTES} bytes ({size_bytes} bytes)"
+    )
+}
+
 /// Gather a repo entry: run `build_repo_patch` and append an upload blob + manifest stub.
 async fn gather_repo(
     repo_path: &str,
@@ -1127,6 +1379,25 @@ async fn gather_repo(
     let repo = Path::new(repo_path);
     let metadata = repo_metadata(repo).await;
     match build_repo_patch(repo).await {
+        Ok(patch) if patch.len() as u64 > MAX_SNAPSHOT_FILE_SIZE_BYTES => {
+            let err_str = oversized_error(patch.len() as u64);
+            log::warn!("Skipping repo '{repo_path}': {err_str}");
+            repos.push(RepoManifestEntry {
+                path: repo_path.to_string(),
+                repo_name: metadata.repo_name,
+                branch: metadata.branch,
+                head_sha: metadata.head_sha,
+                patch_file: None,
+                status: "skipped",
+                uploaded: Some(false),
+                error: Some(err_str.clone()),
+            });
+            pre_upload_entries.push(EntryResult {
+                label: format!("[repo] {repo_path}"),
+                status: EntryStatus::Skipped,
+                error: Some(err_str),
+            });
+        }
         Ok(patch) if patch.is_empty() => {
             repos.push(RepoManifestEntry {
                 path: repo_path.to_string(),
@@ -1193,12 +1464,54 @@ async fn gather_file(
     pre_upload_entries: &mut Vec<EntryResult>,
 ) {
     let path = Path::new(file_path);
+    // Stat before reading so an oversized file is skipped without pulling it into memory.
+    if let Ok(metadata) = tokio::fs::metadata(path).await
+        && metadata.len() > MAX_SNAPSHOT_FILE_SIZE_BYTES
+    {
+        let err_str = oversized_error(metadata.len());
+        log::warn!("Skipping file '{file_path}': {err_str}");
+        files.push(FileManifestEntry {
+            path: file_path.to_string(),
+            snapshot_file: None,
+            status: "skipped",
+            uploaded: Some(false),
+            error: Some(err_str.clone()),
+        });
+        pre_upload_entries.push(EntryResult {
+            label: format!("[file] {file_path}"),
+            status: EntryStatus::Skipped,
+            error: Some(err_str),
+        });
+        return;
+    }
     match tokio::fs::read(path).await {
         Ok(content) => {
-            let preferred = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| file_path.to_string());
+            if content.len() as u64 > MAX_SNAPSHOT_FILE_SIZE_BYTES {
+                let err_str = oversized_error(content.len() as u64);
+                log::warn!("Skipping file '{file_path}': {err_str}");
+                files.push(FileManifestEntry {
+                    path: file_path.to_string(),
+                    snapshot_file: None,
+                    status: "skipped",
+                    uploaded: Some(false),
+                    error: Some(err_str.clone()),
+                });
+                pre_upload_entries.push(EntryResult {
+                    label: format!("[file] {file_path}"),
+                    status: EntryStatus::Skipped,
+                    error: Some(err_str),
+                });
+                return;
+            }
+            // Sanitize before uniquifying so the de-duplication suffix cannot break the
+            // invariants; see `sanitize_name_component`.
+            let preferred = sanitize_name_component(
+                &path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| file_path.to_string()),
+                FALLBACK_SNAPSHOT_FILENAME,
+            );
             let filename = unique_filename(&preferred, used_filenames);
             let mime = mime_guess::from_path(path)
                 .first_or_octet_stream()
@@ -1240,18 +1553,21 @@ async fn gather_file(
 }
 
 /// Upload a single prepared file through the retry helper.
-/// Produces an [`EntryResult`] labelled with the file's filename, or marked `skipped` if the
-/// server did not return a target for it.
+/// Produces an [`EntryResult`] labelled with the file's filename, or marked
+/// [`EntryStatus::NoTarget`] if the server did not return a target for it.
 async fn upload_entry(
     http: &http_client::Client,
     file: &SnapshotUploadFile,
     target_map: &HashMap<String, UploadTarget>,
 ) -> EntryResult {
     let Some(target) = target_map.get(&file.filename) else {
-        log::warn!("No upload target for file '{}', skipping", file.filename);
+        log::warn!(
+            "No upload target returned by the server for file '{}'; it will not be uploaded",
+            file.filename
+        );
         return EntryResult {
             label: file.filename.clone(),
-            status: EntryStatus::Skipped,
+            status: EntryStatus::NoTarget,
             error: Some(default_text(
                 "agent_sdk.driver.snapshot.error.no_upload_target",
             )),
@@ -1300,7 +1616,9 @@ fn fold_upload_results(
                     repo_entry.status = "failed";
                     repo_entry.error = entry.error.clone();
                 }
-                EntryStatus::Skipped => {
+                // Both surface as `skipped` to keep the manifest's status vocabulary stable
+                // for rehydration consumers; the distinguishing detail lives in `error`.
+                EntryStatus::Skipped | EntryStatus::NoTarget => {
                     repo_entry.uploaded = Some(false);
                     repo_entry.status = "skipped";
                     repo_entry.error = entry.error.clone();
@@ -1326,7 +1644,7 @@ fn fold_upload_results(
                     file_entry.status = "failed";
                     file_entry.error = entry.error.clone();
                 }
-                EntryStatus::Skipped => {
+                EntryStatus::Skipped | EntryStatus::NoTarget => {
                     file_entry.uploaded = Some(false);
                     file_entry.status = "skipped";
                     file_entry.error = entry.error.clone();
@@ -1427,11 +1745,13 @@ fn log_snapshot_outcome(outcome: &SnapshotOutcome) {
         "manifest: failed"
     };
     let header = format!(
-        "Snapshot upload: {}/{} uploaded (failed: {}, skipped: {}, gather_failed: {}, read_failed: {}; {manifest_bit})",
+        "Snapshot upload: {}/{} uploaded (failed: {}, skipped: {}, no_target: {}, \
+         gather_failed: {}, read_failed: {}; {manifest_bit})",
         summary.uploaded,
         summary.total,
         summary.failed,
         summary.skipped,
+        summary.no_target,
         summary.gather_failed,
         summary.read_failed,
     );
@@ -1527,46 +1847,79 @@ async fn git_output_string(repo_dir: &Path, args: &[&str]) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
 }
 
-fn sanitize_filename_component(value: &str) -> String {
-    let sanitized = value
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    let trimmed = sanitized.trim_matches('_');
-    if trimmed.is_empty() {
-        "repo".to_string()
-    } else {
-        trimmed.to_string()
+const FALLBACK_SNAPSHOT_FILENAME: &str = "snapshot_artifact";
+const RESERVED_NAME_ESCAPE: &str = "snapshot-";
+
+/// Longest logical filename we will mint. The server rejects names over 255 bytes; the
+/// remainder is headroom for the `_<n>` de-duplication suffix [`unique_filename`] may append.
+const MAX_SNAPSHOT_FILENAME_LEN: usize = 240;
+
+/// Reshape `value` into a logical snapshot filename the server will accept, falling back to
+/// `fallback` when nothing usable survives.
+///
+/// Logical names are agent-controlled and the server rejects the *entire* upload-targets
+/// request if one is malformed, so a single awkward basename would otherwise cost the whole
+/// snapshot. Its rules: `[A-Za-z0-9._-]` only, at most 255 bytes, not `.` or `..`, no leading
+/// `-`, and — on the legacy path — nothing in the reserved `checkpoint_` namespace. Runs of
+/// `_` are squashed on top of that, which keeps [`unique_filename`]'s `_<n>` suffix legible
+/// and names conservative.
+fn sanitize_name_component(value: &str, fallback: &str) -> String {
+    let mut sanitized = String::with_capacity(value.len());
+    for c in value.chars() {
+        let c = if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+            c
+        } else {
+            '_'
+        };
+        if c == '_' && sanitized.ends_with('_') {
+            continue;
+        }
+        sanitized.push(c);
     }
+
+    let trimmed = sanitized
+        .trim_start_matches(['_', '-'])
+        .trim_end_matches('_');
+    let mut name = match trimmed {
+        "" | "." | ".." => fallback.to_string(),
+        other => other.to_string(),
+    };
+    if is_reserved_snapshot_name(&name) {
+        name.insert_str(0, RESERVED_NAME_ESCAPE);
+    }
+    // Sanitized names are pure ASCII, so this always lands on a char boundary.
+    name.truncate(MAX_SNAPSHOT_FILENAME_LEN);
+    name
+}
+
+/// Names owned by the checkpoint protocol, which the server refuses to sign legacy uploads for.
+fn is_reserved_snapshot_name(name: &str) -> bool {
+    name.starts_with("checkpoint_") || name == "latest-checkpoint.json"
+}
+
+fn sanitize_filename_component(value: &str) -> String {
+    sanitize_name_component(value, "repo")
 }
 
 fn unique_filename(preferred: &str, used: &mut HashSet<String>) -> String {
     let preferred = Path::new(preferred)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "snapshot_artifact".to_string());
-    let preferred = if preferred.is_empty() {
-        "snapshot_artifact".to_string()
-    } else {
-        preferred
-    };
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| FALLBACK_SNAPSHOT_FILENAME.to_string());
 
     if used.insert(preferred.clone()) {
         return preferred;
     }
 
     let path = Path::new(&preferred);
+    // Trailing `_` is trimmed so `a_.txt` de-duplicates to `a_2.txt` rather than reintroducing
+    // the `__` run that sanitization just squashed out.
     let stem = path
         .file_stem()
-        .map(|s| s.to_string_lossy().to_string())
+        .map(|s| s.to_string_lossy().trim_end_matches('_').to_string())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "snapshot_artifact".to_string());
+        .unwrap_or_else(|| FALLBACK_SNAPSHOT_FILENAME.to_string());
     let extension = path.extension().map(|e| e.to_string_lossy().to_string());
 
     for suffix in 2.. {

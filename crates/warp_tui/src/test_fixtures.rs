@@ -4,6 +4,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
+use settings::{PrivatePreferences, PublicPreferences};
 use warp::settings::{AppLanguage, LanguageSettings, SettingsFileError};
 use warp::tui_export::{
     AIConversationAutoexecuteMode, ActiveSession, Appearance, BlocklistAIActionModel,
@@ -103,8 +104,8 @@ pub(crate) fn add_test_action_model_and_events(
     // Agent rendering now reads both public and private settings. Keep the
     // shared fixture's preference backends deterministic and in memory.
     let preferences_registered = app.read(|ctx| {
-        ctx.has_singleton_model::<settings::PublicPreferences>()
-            && ctx.has_singleton_model::<settings::PrivatePreferences>()
+        ctx.has_singleton_model::<PublicPreferences>()
+            && ctx.has_singleton_model::<PrivatePreferences>()
     });
     if !preferences_registered {
         app.update(warp::settings::init_and_register_user_preferences);
